@@ -3,10 +3,30 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
-import { DesignDocsSurface } from "./DesignDocsSurface"
+import { DesignDocsSurface, sharePopoverAlignment } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+describe("sharePopoverAlignment", () => {
+  it("opens rightward when right alignment would clip against the title bar's left edge", () => {
+    expect(
+      sharePopoverAlignment(
+        { left: 96, right: 146 },
+        { left: 80, right: 520 }
+      )
+    ).toBe("left")
+  })
+
+  it("keeps right alignment when left alignment would clip against the title bar's right edge", () => {
+    expect(
+      sharePopoverAlignment(
+        { left: 430, right: 480 },
+        { left: 80, right: 520 }
+      )
+    ).toBe("right")
+  })
+})
 
 const docDetail = {
   id: 1,

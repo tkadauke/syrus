@@ -35,6 +35,7 @@ type SurfaceMode = "index" | "repository" | "chat"
 type EditorMode = "markdown" | "wysiwyg"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number }
+type PopoverAlignment = "left" | "right"
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -563,8 +564,26 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const titleBarRef = useRef<HTMLElement | null>(null)
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [shareAlignment, setShareAlignment] = useState<PopoverAlignment>("right")
+
+  function updateShareAlignment() {
+    const button = shareButtonRef.current
+    const titleBar = titleBarRef.current
+    if (!button || !titleBar) return
+
+    setShareAlignment(sharePopoverAlignment(button.getBoundingClientRect(), titleBar.getBoundingClientRect()))
+  }
+
+  useEffect(() => {
+    if (!shareOpen) return
+
+    updateShareAlignment()
+  }, [shareOpen])
+
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -610,9 +629,22 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? (
+            <Button
+              aria-expanded={shareOpen}
+              onClick={() => {
+                updateShareAlignment()
+                setShareOpen(!shareOpen)
+              }}
+              ref={shareButtonRef}
+              size="sm"
+              variant="secondary"
+            >
+              Share
+            </Button>
+          ) : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareAlignment === "left" ? "left-0" : "right-0"}`}>
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
@@ -650,6 +682,16 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
       </div>
     </section>
   )
+}
+
+export function sharePopoverAlignment(buttonRect: Pick<DOMRect, "left" | "right">, boundaryRect: Pick<DOMRect, "left" | "right">, popoverWidth = 320): PopoverAlignment {
+  const rightAlignedLeft = buttonRect.right - popoverWidth
+  const leftAlignedRight = buttonRect.left + popoverWidth
+
+  if (rightAlignedLeft < boundaryRect.left && leftAlignedRight <= boundaryRect.right) return "left"
+  if (leftAlignedRight > boundaryRect.right && rightAlignedLeft >= boundaryRect.left) return "right"
+
+  return "right"
 }
 
 function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {
