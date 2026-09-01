@@ -18,6 +18,20 @@ module DesignDocs
 
       DesignDoc.transaction do
         base_version = design_doc.current_version
+        if autosave?
+          draft = existing_autosave_suggestion
+          if draft
+            draft.update!(
+              suggested_markdown: proposed_markdown,
+              proposed_markdown: proposed_markdown,
+              change_summary: attributes[:change_summary].presence,
+              provenance: draft.provenance.merge("autosaved_at" => Time.current.iso8601)
+            )
+
+            return Result.new(design_doc: design_doc.reload, anchor: draft.anchor, suggestion: draft, version: nil)
+          end
+        end
+
         anchor_result = CreateAnchor.call(
           design_doc: design_doc,
           user: user,
@@ -68,6 +82,7 @@ module DesignDocs
     def provenance(base_version)
       {
         "suggested_at" => Time.current.iso8601,
+        "autosave" => autosave?,
         "suggested_by_user_id" => actor_kind == "user" ? user&.id : nil,
         "actor_kind" => actor_kind,
         "base_version_id" => base_version&.id,
@@ -75,6 +90,17 @@ module DesignDocs
         "workflow_id" => attributes[:workflow_id].presence,
         "chat_message_id" => attributes[:chat_message_id].presence
       }.compact
+    end
+
+    def autosave?
+      ActiveModel::Type::Boolean.new.cast(attributes[:autosave])
+    end
+
+    def existing_autosave_suggestion
+      candidates = design_doc.suggestions
+        .where(state: "pending", suggested_by_kind: actor_kind)
+      candidates = actor_kind == "user" ? candidates.where(suggested_by_user: user) : candidates.where(suggested_by_user_id: nil)
+      candidates.order(created_at: :desc, id: :desc).detect { |suggestion| ActiveModel::Type::Boolean.new.cast(suggestion.provenance&.fetch("autosave", false)) }
     end
   end
 end

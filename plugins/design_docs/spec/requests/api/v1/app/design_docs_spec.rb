@@ -194,14 +194,34 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "lets owners update canonical markdown and creates a new append-only version" do
+  it "lets owners autosave canonical markdown without creating a new version" do
     doc = create_design_doc(markdown: "v1")
     sign_in_as(owner)
 
     expect {
       patch "/api/v1/app/design_docs/#{doc.id}", params: {
         design_doc: {
-          markdown: "v2",
+          markdown: "v2"
+        }
+      }
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(parse_body).not_to have_key("version")
+    expect(doc.reload.markdown).to eq("v2")
+    expect(doc.current_version.markdown).to eq("v1")
+  end
+
+  it "lets owners checkpoint persisted working markdown as a new append-only version" do
+    doc = create_design_doc(markdown: "v1")
+    doc.update!(markdown: "v2")
+    sign_in_as(owner)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          checkpoint: true,
           change_summary: "Revise body"
         }
       }
@@ -282,6 +302,56 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
     expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Hello world")
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
+  end
+
+  it "autosaves collaborator suggestions by updating one pending draft suggestion" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 0,
+          end_offset: 11,
+          original_markdown: "Hello world",
+          proposed_markdown: "Hello Syrus",
+          autosave: true
+        }
+      }
+    }.to change(DesignDocSuggestion, :count).by(1)
+      .and change(DesignDocVersion, :count).by(1)
+
+    suggestion = DesignDocSuggestion.last
+    expect(suggestion.provenance).to include(
+      "autosave" => true,
+      "suggested_by_user_id" => collaborator.id,
+      "actor_kind" => "user"
+    )
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 0,
+          end_offset: 11,
+          original_markdown: "Hello world",
+          proposed_markdown: "Hello product",
+          autosave: true
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:created)
+    expect(suggestion.reload).to have_attributes(
+      state: "pending",
+      original_markdown: "Hello world",
+      proposed_markdown: "Hello product",
+      suggested_by_kind: "user",
+      suggested_by_user: collaborator
+    )
+    expect(suggestion.provenance).to include("autosave" => true)
+    expect(suggestion.provenance).to have_key("autosaved_at")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
   end
 
   it "turns public repository member markdown edits into suggestions without mutating canonical markdown" do
