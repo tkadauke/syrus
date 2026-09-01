@@ -272,9 +272,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
   const canWriteCanonical = doc.permissions.can_write_canonical
+  const canSuggest = doc.permissions.can_suggest
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
+  const saveDisabled = effectiveChangeMode === "suggest" && !canSuggest
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
@@ -504,6 +506,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           saveMutation.mutate()
         }}
         saveLabel={saveLabel}
+        saveDisabled={saveDisabled}
         canManageMetadata={canWriteCanonical}
         onVersionChange={selectVersion}
         onVersionsOpen={() => setVersionsOpen(true)}
@@ -624,7 +627,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   )
 }
 
-function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, onMetadataSave, onSave, saveLabel, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
@@ -646,6 +649,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onMetadataSave: () => void
   onSave: () => void
   saveLabel: string
+  saveDisabled: boolean
   onVersionChange: (versionId: string) => void
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
@@ -746,7 +750,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
             </div>
           ) : null}
         </div>
-        <Button onClick={onSave} size="sm">{saveLabel}</Button>
+        <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button>
         <Select
           aria-label="Version selection"
           className="ml-auto max-w-[12rem]"
