@@ -1,7 +1,3 @@
-require "fileutils"
-require "json"
-require "tmpdir"
-
 class CredentialProbe
   Result = Data.define(:credential, :ok, :message, :details) do
     def as_json(*)
@@ -74,17 +70,28 @@ class CredentialProbe
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github,
-    "claude_oauth_token" => :probe_claude,
-    "codex_api_key"      => :probe_codex,
-    "codex_auth_json"    => :probe_codex,
     "gemini_api_key"     => :probe_gemini
   }.freeze
+  @registered_probe_handlers = {}
+  @registered_secret_extractors = []
+
+  def self.register_probe(credential, handler)
+    @registered_probe_handlers[credential.to_s] = handler
+  end
+
+  def self.register_secret_extractor(extractor)
+    @registered_secret_extractors << extractor unless @registered_secret_extractors.include?(extractor)
+  end
+
+  def self.probe_handler_for(credential)
+    CREDENTIAL_PROBE_METHODS[credential.to_s] || @registered_probe_handlers[credential.to_s]
+  end
 
   def call
-    probe_method = CREDENTIAL_PROBE_METHODS[credential]
-    raise ArgumentError, "Unknown credential: #{credential}" unless probe_method
+    probe_handler = self.class.probe_handler_for(credential)
+    raise ArgumentError, "Unknown credential: #{credential}" unless probe_handler
 
-    send(probe_method)
+    probe_handler.is_a?(Symbol) ? send(probe_handler) : probe_handler.call(self)
   end
 
   # Validate a pasted-but-unsaved Gemini API key (the setup sheet's
@@ -183,117 +190,13 @@ class CredentialProbe
     failure("GitHub probe failed: #{safe_error(e)}")
   end
 
-  # Probe whether `claude --print` already works on this machine using the
-  # CLI's own stored login (no Syrus token injected). Lets the setup wizard
-  # detect a working bare-metal subscription before asking for a token.
   def self.claude_cli_ready(user: nil)
-    new(user: user, credential: "claude_oauth_token").send(:probe_claude, ambient: true)
-  end
+    probe = new(user: user, credential: "claude_oauth_token")
+    handler = probe_handler_for("claude_oauth_token")
+    raise ArgumentError, "Unknown credential: claude_oauth_token" unless handler
+    raise ArgumentError, "Credential probe does not support ambient CLI readiness: claude_oauth_token" unless handler.respond_to?(:cli_ready)
 
-  def probe_claude(ambient: false)
-    return missing("Claude OAuth token is not configured.") if !ambient && user&.claude_oauth_token.blank?
-
-    token = ambient ? nil : user.claude_oauth_token
-    Dir.mktmpdir("syrus-claude-probe-") do |workspace|
-      output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
-          extra: token ? { "CLAUDE_CODE_OAUTH_TOKEN" => token } : {}
-        ),
-        command: [
-          "claude", "--print",
-          "--output-format", "stream-json",
-          "--verbose",
-          "--max-turns", "1",
-          "Reply with OK."
-        ],
-        chdir: workspace,
-        timeout: TIMEOUT_SECONDS,
-        silent_timeout: 15,
-        kind: "agent",
-        on_output_chunk: ->(chunk) { append_output(output, chunk) }
-      ).run
-
-      if result.success?
-        return success(credential, ambient ? "Claude already works on this machine — no token needed." : "Claude OAuth token is valid.")
-      end
-
-      message = ambient ? "Claude is not authenticated on this machine yet." : "Claude probe failed: #{probe_failure_reason(result, output)}"
-      failure(message)
-    end
-  rescue Errno::ENOENT
-    failure("Claude CLI is not installed or not on PATH.")
-  end
-
-  CODEX_CREDENTIAL_SPECS = {
-    "codex_api_key" => {
-      credential_attr: :codex_api_key,
-      missing_message: "Codex API key is not configured.",
-      required_mode: "api_key",
-      wrong_mode_message: "Codex is set to ChatGPT auth.json mode."
-    },
-    "codex_auth_json" => {
-      credential_attr: :codex_auth_json,
-      missing_message: "Codex ChatGPT auth.json is not configured.",
-      required_mode: "chatgpt_login",
-      wrong_mode_message: "Codex is set to API key mode."
-    }
-  }.freeze
-
-  def probe_codex
-    spec = CODEX_CREDENTIAL_SPECS.fetch(credential)
-    return missing(spec[:missing_message]) if user.send(spec[:credential_attr]).blank?
-    return wrong_mode(spec[:wrong_mode_message]) unless user.codex_auth_mode == spec[:required_mode]
-
-    Dir.mktmpdir("syrus-codex-probe-") do |workspace|
-      codex_home = File.join(workspace, ".codex")
-      FileUtils.mkdir_p(codex_home)
-      CodexAuth.with_refresh_lock(user: user) do
-        codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
-        auth = codex_auth.prepare!
-        File.write(File.join(codex_home, "config.toml"), codex_config)
-
-        output = +""
-        result = ProcessRunner.new(
-          env: ProcessRunner.forwarded_env(
-            AgentInvocation::ENV_FORWARD,
-            extra: {
-              "CODEX_HOME" => codex_home,
-              "CODEX_API_KEY" => auth.api_key.presence
-            }
-          ),
-          command: [
-            "codex", "exec",
-            "--cd", workspace,
-            "--dangerously-bypass-approvals-and-sandbox",
-            "--json",
-            "Reply with OK."
-          ],
-          chdir: workspace,
-          timeout: TIMEOUT_SECONDS,
-          silent_timeout: 15,
-          kind: "agent",
-          on_output_chunk: ->(chunk) { append_output(output, chunk) }
-        ).run
-
-        if result.success?
-          codex_auth.persist_updated_auth_json
-          details = {}
-          if user.codex_auth_mode == "chatgpt_login"
-            usage = CodexUsageProbe.refresh_for(user: user, force: true)
-            details[:codex_usage] = usage.snapshot if usage.snapshot.present?
-          end
-          return Result.new(credential: credential, ok: true, message: "Codex credentials are valid.", details: details)
-        end
-
-        failure("Codex probe failed: #{probe_failure_reason(result, output)}")
-      end
-    end
-  rescue CodexAuth::Error => e
-    failure(e.message)
-  rescue Errno::ENOENT
-    failure("Codex CLI is not installed or not on PATH.")
+    handler.cli_ready(probe)
   end
 
   def success(credential, message)
@@ -329,21 +232,9 @@ class CredentialProbe
   def sanitize(value)
     text = value.to_s
     [
-      user.github_token,
-      user.claude_oauth_token,
-      user.codex_api_key
-    ].compact_blank.each do |secret|
+      user.github_token
+    ].concat(registered_secrets).compact_blank.each do |secret|
       text = text.gsub(secret, REDACTED)
-    end
-
-    if user.codex_auth_json.present?
-      begin
-        JSON.parse(user.codex_auth_json).dig("tokens").to_h.values.compact_blank.each do |secret|
-          text = text.gsub(secret, REDACTED)
-        end
-      rescue JSON::ParserError
-        nil
-      end
     end
 
     text.lines.map(&:strip).reject(&:blank?).last(3).join(" ").truncate(500)
@@ -357,11 +248,7 @@ class CredentialProbe
     headers.fetch(key, "").to_s.split(",").map(&:strip).compact_blank
   end
 
-  def codex_config
-    [
-      'cli_auth_credentials_store = "file"',
-      'approval_policy = "never"',
-      "model = #{JSON.generate(CodexInvocation::DEFAULT_MODEL)}"
-    ].join("\n") + "\n"
+  def registered_secrets
+    self.class.instance_variable_get(:@registered_secret_extractors).flat_map { |extractor| Array(extractor.call(user)) }
   end
 end

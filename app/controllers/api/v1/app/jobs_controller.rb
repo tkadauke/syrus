@@ -113,7 +113,7 @@ module Api
 
           setting = params[:job_provider_setting].to_s
 
-          unless Job::PROVIDER_SETTINGS.include?(setting)
+          unless Job.provider_settings.include?(setting)
             render_error("invalid_provider_setting", "Invalid provider setting.", status: :unprocessable_content)
             return
           end

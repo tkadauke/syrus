@@ -21,6 +21,14 @@ RSpec.describe WorkerTimeline::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(WorkerTimeline::SidebarPages)
   end
 
+  it "registers the Worker Timeline filter subject from the plugin" do
+    subject = Filters.subject(:worker_timeline)
+
+    expect(subject.model).to eq(Workflow)
+    expect(subject.chips).to eq(WorkerTimeline::FILTER_CHIPS)
+    expect(subject.chip_class("repository_id")).to eq(Filters::Chips::WorkerTimeline::RepositoryId)
+  end
+
   describe ".enabled?" do
     it "is false when the plugin record is not enabled" do
       expect(WorkerTimeline.enabled?).to be(false)

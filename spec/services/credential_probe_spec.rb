@@ -5,8 +5,7 @@ RSpec.describe CredentialProbe do
     Factories.user(
       github_token: "ghp_secret",
       claude_oauth_token: "oat-secret",
-      codex_api_key: "sk-codex-secret",
-      codex_auth_mode: "api_key"
+      codex_api_key: "sk-codex-secret"
     )
   end
 
@@ -98,132 +97,16 @@ RSpec.describe CredentialProbe do
     end
   end
 
-  it "reports a missing Claude token without spawning a process" do
-    user.update!(claude_oauth_token: nil)
-    expect(ProcessRunner).not_to receive(:new)
-
-    result = described_class.call(user: user, credential: "claude_oauth_token")
-
-    expect(result.ok).to be false
-    expect(result.message).to eq("Claude OAuth token is not configured.")
-  end
-
-  it "runs a cheap Claude CLI probe with the stored OAuth token" do
-    captured = nil
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
-      captured = kwargs
-      instance_double(ProcessRunner, run: runner_result)
-    end
-
-    result = described_class.call(user: user, credential: "claude_oauth_token")
-
-    expect(result.ok).to be true
-    expect(result.message).to eq("Claude OAuth token is valid.")
-    expect(captured[:env]).to include("CLAUDE_CODE_OAUTH_TOKEN" => "oat-secret")
-    expect(captured[:command]).to include("claude", "--print", "--max-turns", "1")
-    expect(captured[:timeout]).to eq(30)
-  end
-
-  describe ".claude_cli_ready" do
-    it "probes ambient claude --print without injecting a token" do
-      captured = nil
-      allow(ProcessRunner).to receive(:new) do |**kwargs|
-        captured = kwargs
-        instance_double(ProcessRunner, run: runner_result)
-      end
-
-      result = described_class.claude_cli_ready(user: user)
-
-      expect(result.ok).to be true
-      expect(result.message).to include("Claude already works on this machine")
-      expect(captured[:env]).not_to have_key("CLAUDE_CODE_OAUTH_TOKEN")
-      expect(captured[:command]).to include("claude", "--print")
-    end
-
-    it "reports not-authenticated when the ambient probe fails" do
-      allow(ProcessRunner).to receive(:new) do
-        instance_double(ProcessRunner, run: runner_result(exit_status: 1))
-      end
-
-      result = described_class.claude_cli_ready(user: user)
-
-      expect(result.ok).to be false
-      expect(result.message).to include("not authenticated on this machine")
-    end
-  end
-
-  it "redacts failed CLI output" do
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
-      kwargs[:on_output_chunk].call("authentication failed for oat-secret\n")
-      instance_double(ProcessRunner, run: runner_result(exit_status: 1))
-    end
-
-    result = described_class.call(user: user, credential: "claude_oauth_token")
-
-    expect(result.ok).to be false
-    expect(result.message).to include("authentication failed for [redacted]")
-    expect(result.message).not_to include("oat-secret")
-  end
-
-  it "rejects Codex API key tests when Codex is in ChatGPT auth mode" do
-    user.update!(codex_auth_mode: "chatgpt_login", codex_auth_json: Factories.codex_auth_json)
-
-    result = described_class.call(user: user, credential: "codex_api_key")
-
-    expect(result.ok).to be false
-    expect(result.message).to eq("Codex is set to ChatGPT auth.json mode.")
-  end
-
-  it "runs a Codex CLI probe with the stored API key" do
-    captured = nil
-    allow(ProcessRunner).to receive(:new) do |**kwargs|
-      captured = kwargs
-      instance_double(ProcessRunner, run: runner_result)
-    end
-
-    result = described_class.call(user: user, credential: "codex_api_key")
-
-    expect(result.ok).to be true
-    expect(result.message).to eq("Codex credentials are valid.")
-    expect(captured[:env]).to include("CODEX_API_KEY" => "sk-codex-secret")
-    expect(captured[:command]).to include("codex", "exec", "--json")
-  end
-
   it "raises ArgumentError for an unknown credential" do
     expect {
       described_class.call(user: user, credential: "unknown_credential")
     }.to raise_error(ArgumentError, /Unknown credential/)
   end
 
-  describe "codex_auth_json credential" do
-    let(:auth_json) { Factories.codex_auth_json(access_token: "access-test") }
-    let(:user) do
-      Factories.user(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
-    end
-
-    it "rejects codex_auth_json tests when Codex is in API key mode" do
-      user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test", codex_auth_json: auth_json)
-
-      result = described_class.call(user: user, credential: "codex_auth_json")
-
-      expect(result.ok).to be false
-      expect(result.message).to eq("Codex is set to API key mode.")
-    end
-
-    it "reports missing auth.json when not configured" do
-      user.update!(codex_auth_json: nil)
-
-      result = described_class.call(user: user, credential: "codex_auth_json")
-
-      expect(result.ok).to be false
-      expect(result.message).to eq("Codex ChatGPT auth.json is not configured.")
-    end
-  end
-
   describe "CREDENTIAL_PROBE_METHODS registry" do
-    it "covers all expected credential types" do
+    it "covers the credential types owned by core" do
       expect(described_class::CREDENTIAL_PROBE_METHODS.keys).to match_array(
-        %w[github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key]
+        %w[github_token gemini_api_key]
       )
     end
   end
