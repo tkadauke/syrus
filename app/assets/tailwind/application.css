@@ -41,7 +41,7 @@
  * `text-secondary` are the dominant white/gray-50/gray-200/gray-900/
  * gray-500 (light) and gray-900/gray-800/gray-700/gray-100/gray-400
  * (dark) pairings already used across app/frontend; `success`/
- * `warning`/`danger`/`neutral` match the emerald/amber/red/gray stops
+ * `warning`/`danger`/`neutral` match the emerald/terracotta/red/gray stops
  * StatusPill's `TonePill` already uses for those tones. `info` uses
  * real blue (blue-700/blue-200), not the `blue`→terracotta Tailwind
  * alias in config/tailwind.config.js — semantic "info" should stay
@@ -65,7 +65,7 @@
   --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
   --color-success: #047857;
-  --color-warning: #b45309;
+  --color-warning: #b6492e;
   --color-danger: #b91c1c;
   --color-info: #1d4ed8;
   --color-neutral: #374151;
@@ -81,7 +81,7 @@
   --color-text-primary: #f3f4f6;
   --color-text-secondary: #9ca3af;
   --color-success: #a7f3d0;
-  --color-warning: #fde68a;
+  --color-warning: #dba28b;
   --color-danger: #fecaca;
   --color-info: #bfdbfe;
   --color-neutral: #e5e7eb;
