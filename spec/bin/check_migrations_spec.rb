@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "open3"
+require "rbconfig"
 require "spec_helper"
 require "tmpdir"
 
@@ -25,7 +26,7 @@ RSpec.describe "bin/check-migrations", :ci_only do
   def run_check(*args)
     Open3.capture3(
       { "SYRUS_MIGRATION_LINT_ROOT" => @dir },
-      "ruby",
+      RbConfig.ruby,
       script,
       *args,
       chdir: @dir,
