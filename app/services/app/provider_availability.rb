@@ -307,13 +307,7 @@ module App
         next if retry_after && retry_after <= now
         model = ProviderUsageLimit.extract_model(text)
         observed_at = run.finished_at || run.updated_at || now
-        next if provider == "codex" && ProviderAvailabilityEvidence.suppressed_by_positive_after?(
-          user: user,
-          provider: provider,
-          account_id: CodexAccountScope.for_user(user),
-          model: model,
-          observed_at: observed_at
-        )
+        next if agent_provider_class&.suppress_usage_limit_run?(run, model: model, observed_at: observed_at)
 
         UsageLimitSignal.new(
           run: run,
@@ -327,7 +321,7 @@ module App
     def current_usage_limit_evidence
       usage_limit_evidence_candidates
         .detect do |evidence|
-          next false if false_positive_codex_evidence?(evidence)
+          next false if false_positive_evidence?(evidence)
           next false if usage_evidence_reset_at(evidence)&.<= now
 
           !suppressed_by_positive_after?(evidence)
@@ -349,7 +343,7 @@ module App
     end
 
     def positive_evidence_after?(account_id:, model:, observed_at:)
-      if provider == "codex" && ProviderUsageLimit.suspicious_model?(model)
+      if agent_provider_class&.ignore_model_for_positive_evidence?(model)
         return positive_suppression_evidence.any? do |positive|
           account_matches?(positive, account_id) && positive.observed_at > observed_at
         end
@@ -388,11 +382,8 @@ module App
       model.blank? || evidence.model.blank? || evidence.model == model
     end
 
-    def false_positive_codex_evidence?(evidence)
-      ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
-        evidence.details&.dig("message"),
-        model: evidence.model
-      )
+    def false_positive_evidence?(evidence)
+      agent_provider_class&.false_positive_evidence?(evidence) || false
     end
 
     def usage_limit_reason_for_evidence(evidence)
@@ -515,7 +506,7 @@ module App
     end
 
     def pause_metadata
-      observed_at = latest_evidence&.observed_at || (user.codex_usage_observed_at if provider == "codex")
+      observed_at = agent_provider_class&.availability_evidence_observed_at(user: user, latest_evidence: latest_evidence)
       {
         pause_threshold_percent: user.provider_availability_pause_threshold_for(provider),
         pause_enabled: user.provider_availability_pause_enabled?(provider),
@@ -545,7 +536,7 @@ module App
         source: "failed_run",
         observed_at: observed_at&.iso8601,
         provider: provider,
-        account_id: CodexAccountScope.for_user(user),
+        account_id: agent_provider_class&.usage_signal_account_id(user),
         model: signal.model,
         run_id: signal.run.id,
         details: {
@@ -584,7 +575,7 @@ module App
 
     def latest_displayable_evidence(evidence_rows)
       evidence_rows.detect do |evidence|
-        !false_positive_codex_evidence?(evidence) &&
+        !false_positive_evidence?(evidence) &&
           !(evidence.status == "auth_error" && auth_error_suppressed_by_positive_after?(evidence))
       end
     end
@@ -600,55 +591,19 @@ module App
     end
 
     def usage_evidence_reset_at(evidence)
-      return codex_evidence_reset_at(evidence) if evidence&.provider == "codex"
-      return claude_evidence_reset_at(evidence) if evidence&.provider == "claude"
-    end
-
-    def codex_evidence_reset_at(evidence)
-      snapshot = evidence&.details&.dig("snapshot") || {}
-      windows = [
-        snapshot["primary"],
-        snapshot["secondary"],
-        snapshot.dig("spend_control", "individual_limit"),
-        *Array(snapshot["additional_rate_limits"]).flat_map { |entry| [ entry["primary"], entry["secondary"] ] }
-      ].compact
-      reset_values = windows.filter_map { |window| window["reset_at"].presence }
-      return if reset_values.blank?
-
-      Time.zone.parse(reset_values.min) + ProviderQuotaReset::RETRY_BUFFER
-    rescue ArgumentError, TypeError
-      nil
-    end
-
-    def claude_evidence_reset_at(evidence)
-      snapshot = evidence&.details&.dig("snapshot") || {}
-      minutes = [
-        snapshot["session_reset_minutes"],
-        snapshot["weekly_reset_minutes"]
-      ].compact.min
-      return if minutes.blank?
-
-      evidence.observed_at + Float(minutes).minutes + ProviderQuotaReset::RETRY_BUFFER
-    rescue ArgumentError, TypeError
-      nil
+      agent_provider_class&.evidence_reset_at(evidence)
     end
 
     def usage_snapshot_source
-      return user.codex_usage_snapshot || {} if provider == "codex"
-
-      latest_usage_evidence&.details&.dig("snapshot") || {}
+      agent_provider_class&.usage_snapshot(user: user, evidence: latest_usage_evidence) || {}
     end
 
     def usage_status(evidence)
-      return user.codex_usage_status.presence || evidence&.status if provider == "codex"
-
-      evidence&.status
+      agent_provider_class&.usage_status(user: user, evidence: evidence)
     end
 
     def usage_observed_at(evidence)
-      return user.codex_usage_observed_at&.iso8601 || evidence&.observed_at&.iso8601 if provider == "codex"
-
-      evidence&.observed_at&.iso8601
+      agent_provider_class&.usage_observed_at(user: user, evidence: evidence)
     end
 
     def usage_remaining_percent(snapshot)
@@ -661,49 +616,17 @@ module App
     end
 
     def usage_windows(snapshot, observed_at: nil)
-      [ snapshot["primary"], snapshot["secondary"] ].compact.each_with_object({}) do |window, memo|
-        label = window["label"].to_s
-        key = case label
-        when "5h" then "five_hour"
-        when "weekly" then "weekly"
-        else next
-        end
-        memo[key] = {
-          label: label,
-          remaining_percent: window["remaining_percent"],
-          used_percent: window["used_percent"],
-          reset_at: window["reset_at"]
-        }.compact
-      end
-        .merge(claude_usage_windows(snapshot, observed_at: observed_at))
-    end
-
-    def claude_usage_windows(snapshot, observed_at: nil)
-      [
-        [ "five_hour", "5h", snapshot["session_pct"], snapshot["session_reset_minutes"] ],
-        [ "weekly", "weekly", snapshot["weekly_pct"], snapshot["weekly_reset_minutes"] ]
-      ].each_with_object({}) do |(key, label, used_percent, reset_minutes), memo|
-        next if used_percent.blank?
-
-        memo[key] = {
-          label: label,
-          remaining_percent: (100.0 - used_percent.to_f).clamp(0.0, 100.0).round(1),
-          used_percent: used_percent,
-          reset_at: reset_time_from_minutes(reset_minutes, observed_at: observed_at)
-        }.compact
-      end
-    end
-
-    def reset_time_from_minutes(minutes, observed_at: nil)
-      return if minutes.blank?
-
-      ((observed_at || now) + Float(minutes).minutes).iso8601
-    rescue ArgumentError, TypeError
-      nil
+      agent_provider_class&.usage_windows(snapshot, observed_at: observed_at, now: now) || {}
     end
 
     def provider_label
       App::Presentation.agent_provider_label(provider)
+    end
+
+    def agent_provider_class
+      @agent_provider_class ||= AgentProviders.for(provider)
+    rescue AgentProviders::ConfigurationError
+      nil
     end
   end
 end

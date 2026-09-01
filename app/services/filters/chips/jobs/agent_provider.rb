@@ -5,7 +5,10 @@ module Filters
         filter_name "agent_provider"
         label "Agent"
         column :agent_provider
-        values "claude", "codex"
+
+        def self.values
+          User.agent_providers
+        end
       end
     end
   end
