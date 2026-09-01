@@ -122,6 +122,21 @@ describe("RepositoryMembersRoute", () => {
     expect(selects[0].className).not.toMatch(/\bw-full\b/)
   })
 
+  it("uses semantic brand tokens for the add-member primary action", async () => {
+    renderRoute()
+
+    await screen.findByText("Ada Lovelace")
+    const addButton = screen.getAllByRole("button", { name: "Add" })[0]
+
+    expect(addButton.className).toContain("bg-brand")
+    expect(addButton.className).toContain("text-on-brand")
+    expect(addButton.className).toContain("hover:opacity-90")
+    expect(addButton.className).toContain("disabled:opacity-60")
+    expect(addButton.className).not.toContain("bg-blue-600")
+    expect(addButton.className).not.toContain("bg-blue-500")
+    expect(addButton.className).not.toContain("text-white")
+  })
+
   it("changes an existing member's role", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
