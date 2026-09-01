@@ -65,6 +65,21 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.headers["X-Syrus-Revision"]).to eq(SyrusVersion.current)
   end
 
+  it "versions SPA CSS and JavaScript entrypoints with the running revision" do
+    allow(SyrusVersion).to receive(:current).and_return("cache-sha")
+    user = Factories.user
+    sign_in_as(user)
+
+    get app_shell_path
+
+    expect(response).to have_http_status(:ok)
+    css_paths = response.body.scan(/<link rel="stylesheet" href="([^"]+)"/).flatten
+    js_paths = response.body.scan(/<script src="([^"]+)" type="module"><\/script>/).flatten
+    expect(css_paths).not_to be_empty
+    expect(css_paths).to all(include("?v=cache-sha"))
+    expect(js_paths).to include(a_string_matching(%r{\A/assets/spa-[^"]+\.js\?v=cache-sha\z}))
+  end
+
   it "serves the authenticated app shell at root when signed in" do
     user = Factories.user(email_address: "root-operator@example.com")
     sign_in_as(user)
