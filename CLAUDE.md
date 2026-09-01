@@ -835,7 +835,11 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   is the single shared source for the scale — `config/tailwind.config.js`
   `require`s it directly and remaps Tailwind's `blue` scale onto the same
   values, so legacy `*-blue-*` utilities render the brand accent without a
-  repo-wide rename; prefer `terracotta-*` in new code. The desktop app's
+  repo-wide rename. Use raw `terracotta-*`/`blue-*` accent utilities only for
+  pre-auth web surfaces and desktop fixed-brand surfaces; authenticated in-app
+  UI must use semantic theme tokens (`bg-brand`, `text-brand`, `border-brand`,
+  `focus:ring-brand`, etc.) so it follows the signed-in user's selected theme.
+  The desktop app's
   `@theme` block in `desktop/src/styles.css` imports a generated CSS partial
   (`desktop/src/styles/brand-tokens.generated.css`) instead of hand-copying
   the values a second time; after editing the JSON, regenerate it with
