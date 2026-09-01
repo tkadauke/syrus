@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
+import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
@@ -127,6 +128,8 @@ function renderSurface(path = "/design_docs") {
           <Route path="/design_docs" element={<DesignDocsTestRoute />} />
           <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
+          <Route path="/chats/:id" element={<DesignDocsSurface chatId={237} compact designDocIds={[1]} initialDesignDocId={1} initialDesignDocs={[docDetail as DesignDocSummary]} mode="chat" repositoryId={10} />} />
+          <Route path="/chats/:id/empty" element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -327,6 +330,28 @@ describe("DesignDocsSurface", () => {
     expect(within(folderNav).getByRole("link", { name: "My docs 1" })).toBeInTheDocument()
     expect(within(savedFolderNav).getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
+  })
+
+  it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/chats/237")
+
+    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ credentials: "same-origin" }))
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs/237")).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
+  })
+
+  it("shows a chat empty state instead of guessing a design doc from the chat id", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/chats/237/empty")
+
+    expect(await screen.findByText("No design docs are attached to this chat.")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/v1/app/design_docs/237"))).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
   it("creates and resolves comments from an editor selection", async () => {

@@ -35,6 +35,7 @@ the existing `JOB-<id>` and `EPIC-<id>` behavior.
 
 The chat workspace tab provider exposes optional tab `data` containing:
 
+- `design_doc_id` for a specific document tab when multiple docs are visible
 - `design_doc_ids`
 - `originated_design_doc_ids`
 - `attached_design_doc_ids`
@@ -42,7 +43,10 @@ The chat workspace tab provider exposes optional tab `data` containing:
 
 Originated docs are those created from that chat. Attached docs are visible docs
 referenced in chat history with `DOC-<id>`; they are surfaced in the same
-workspace tab without adding a direct Design Doc to Job/Epic generation path.
+workspace surface without adding a direct Design Doc to Job/Epic generation
+path. With one visible doc the provider keeps the legacy `design_docs.chat` tab.
+With multiple visible docs it declares one explicit `design_docs.chat.<doc_id>`
+tab per doc so the frontend never derives a document id from the chat id.
 
 ## Permissions
 
@@ -73,7 +77,8 @@ The plugin registers:
 
 - top-level sidebar page: `/design_docs`
 - repository tab: `/repositories/:id/plugin/design_docs`
-- chat workspace tab: `design_docs.chat`
+- chat workspace tab: `design_docs.chat` for one doc, or
+  `design_docs.chat.<doc_id>` per doc when multiple docs are visible
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
 
