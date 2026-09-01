@@ -13665,19 +13665,21 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Read")).toBeInTheDocument()
+    expect(await screen.findByText("Inspected 2 sources")).toBeInTheDocument()
     expect(screen.getAllByText(/app\/models\/chat\.rb/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/spec\/rails_helper\.rb/).length).toBeGreaterThan(0)
     const railsHelperDetails = screen.getAllByText(/spec\/rails_helper\.rb/)[0]?.closest("details")
     expect(railsHelperDetails).not.toBeNull()
     if (!railsHelperDetails) return
-    railsHelperDetails.open = true
-    fireEvent(railsHelperDetails, new Event("toggle"))
-    expect(screen.getByText("# RSpec config")).toHaveClass("text-gray-400")
+    const railsHelperSummary = railsHelperDetails.querySelector("summary")
+    expect(railsHelperSummary).not.toBeNull()
+    if (!railsHelperSummary) return
+    if (!railsHelperDetails.open) fireEvent.click(railsHelperSummary)
+    await waitFor(() => expect(screen.getByText("# RSpec config")).toHaveClass("text-gray-400"))
     expect(screen.getAllByText("do")[0]).toHaveClass("font-semibold", "text-blue-700")
     expect(screen.getByText(":rspec")).toHaveClass("text-violet-700")
     expect(screen.getByText("true")).toHaveClass("font-semibold", "text-blue-700")
-    expect(screen.getByText("Bash")).toBeInTheDocument()
+    expect(screen.getByText("Bash (3)")).toBeInTheDocument()
     expect(screen.getAllByText(/rg queue_as app\/jobs/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/bin\/rspec spec\/models\/job_spec\.rb/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/rg perform app\/jobs/).length).toBeGreaterThan(0)
@@ -13740,7 +13742,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("tool_result")).toBeInTheDocument()
+    expect(await screen.findByText("Tool result")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Queue setup" })).not.toBeInTheDocument()
   })
 
@@ -13769,7 +13771,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("repo_info")).toBeInTheDocument()
+    expect(await screen.findByText("Repo info")).toBeInTheDocument()
     expect(screen.queryByText("tool_use")).not.toBeInTheDocument()
   })
 

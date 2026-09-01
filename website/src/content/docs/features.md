@@ -709,6 +709,8 @@ Chat feedback can include a whiteboard snapshot or pasted screenshot alongside
 the written description — useful for pointing at a visible bug rather than
 describing it in prose. The attached media becomes a Job attachment the
 implementing agent sees automatically on the very next feedback round.
+When the chat agent lists available media, the transcript shows a compact
+thumbnail gallery with raw tool details still available for debugging.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.

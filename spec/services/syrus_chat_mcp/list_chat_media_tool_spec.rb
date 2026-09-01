@@ -77,6 +77,7 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
     expect(img[:kind]).to eq("chat_image")
     expect(img[:filename]).to eq("diagram.png")
     expect(img[:content_type]).to eq("image/png")
+    expect(img[:file_path]).to eq("/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file")
   end
 
   it "materializes inline chat image attachments and returns them as chat_image refs" do

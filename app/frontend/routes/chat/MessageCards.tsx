@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { memo, useState } from "react"
+import { memo, useRef, useState } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -18,7 +18,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS } from "./toolRendering"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, typedToolResult, type ChatMediaImage, type ChatMediaSnapshot, type TypedToolResult } from "./toolRendering"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -386,7 +386,21 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 }
 
 export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const defaultOpen = item.prominent === true || item.collapsed_by_default === false
+  const [open, setOpen] = useState(defaultOpen)
+  const previousAutoState = useRef({ prominent: item.prominent === true, collapsed: item.collapsed_by_default === true })
+
+  useEffect(() => {
+    const next = { prominent: item.prominent === true, collapsed: item.collapsed_by_default === true }
+    if (next.prominent && !previousAutoState.current.prominent) {
+      setOpen(true)
+    } else if (next.collapsed && !previousAutoState.current.collapsed && !next.prominent) {
+      setOpen(false)
+    } else if (!next.collapsed && previousAutoState.current.collapsed) {
+      setOpen(true)
+    }
+    previousAutoState.current = next
+  }, [item.collapsed_by_default, item.prominent])
 
   if (simpleMode) {
     return (
@@ -402,21 +416,26 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
   }
 
   const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const summary = item.summary_label || item.tool
+  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Needs attention" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
+  const expanded = open
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
+      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Needs attention" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : outcome === "Running" ? "bg-info/10 text-info" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
-            {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
-            {open && call.nested && call.nested.length > 0 ? (
+            {expanded && call.result_body ? <ToolResultBody call={call} groupTool={item.tool} /> : null}
+            {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
+            {expanded && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
                   <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
@@ -429,6 +448,171 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     </details>
   )
 })
+
+function ToolResultBody({ call, groupTool }: { call: ChatToolGroupItem["calls"][number]; groupTool: string }) {
+  const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
+
+  if (typed) return <TypedToolResultBody result={typed} />
+
+  return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={call.display_label || groupTool} />
+}
+
+function TypedToolResultBody({ result }: { result: TypedToolResult }) {
+  switch (result.type) {
+    case "chat_media_gallery":
+      return <ChatMediaGallery result={result} />
+    case "success_row":
+      return (
+        <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
+          {result.label}
+        </div>
+      )
+    case "proposal_outcome":
+      return (
+        <div className="mt-1 rounded border border-info/30 bg-info/10 px-3 py-2 text-sm">
+          <div className="font-medium text-info">{result.label}: {result.title}</div>
+          {result.detail ? <div className="mt-1 font-mono text-xs text-info">{result.detail}</div> : null}
+        </div>
+      )
+    case "state_summary":
+      return (
+        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+          <div className="font-medium text-gray-900 dark:text-gray-100">{result.label}</div>
+          <dl className="mt-2 grid gap-1 sm:grid-cols-2">
+            {result.rows.map((row) => (
+              <div className="min-w-0" key={`${row.label}-${row.value}`}>
+                <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{row.label}</dt>
+                <dd className="truncate font-mono text-xs text-gray-700 dark:text-gray-300" title={row.value}>{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )
+  }
+}
+
+function ChatMediaGallery({ result }: { result: Extract<TypedToolResult, { type: "chat_media_gallery" }> }) {
+  const [preview, setPreview] = useState<ChatMediaSnapshot | ChatMediaImage | null>(null)
+  const items = [...result.images, ...result.snapshots]
+
+  return (
+    <>
+      <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+          <span className="font-medium text-gray-900 dark:text-gray-100">{items.length} media {items.length === 1 ? "item" : "items"}</span>
+          {result.whiteboard_element_count != null ? <span>{result.whiteboard_element_count} whiteboard elements</span> : null}
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {items.map((item) => {
+            const thumbnailSrc = mediaThumbnailSrc(item)
+            return (
+              <button
+                aria-label={`Open ${mediaTitle(item)}`}
+                className="group/media aspect-square overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-950"
+                key={item.id}
+                onClick={() => setPreview(item)}
+                title={mediaTooltip(item)}
+                type="button"
+              >
+                {thumbnailSrc ? (
+                  <img alt={mediaTitle(item)} className="h-full w-full object-cover transition group-hover/media:scale-105" src={thumbnailSrc} />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                    {item.kind === "chat_image" ? imageTypeLabel(item.content_type) : "Snapshot"}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {preview ? <ChatMediaPreview item={preview} onClose={() => setPreview(null)} /> : null}
+    </>
+  )
+}
+
+function ChatMediaPreview({ item, onClose }: { item: ChatMediaSnapshot | ChatMediaImage; onClose: () => void }) {
+  const thumbnailSrc = mediaThumbnailSrc(item)
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
+      <section aria-label={mediaTitle(item)} aria-modal="true" className="relative max-h-full max-w-full rounded bg-white p-4 shadow-lg dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
+        <button
+          aria-label="Close media preview"
+          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+          onClick={onClose}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+        {thumbnailSrc ? (
+          <img alt={mediaTitle(item)} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900" src={thumbnailSrc} />
+        ) : (
+          <>
+            <h3 className="pr-8 text-sm font-semibold text-gray-900 dark:text-gray-100">{mediaTitle(item)}</h3>
+            <dl className="mt-3 space-y-2 text-xs">
+              <PreviewRow label="ID" value={item.id} />
+              <PreviewRow label="Type" value={item.kind === "chat_image" ? item.content_type : "whiteboard snapshot"} />
+              {"element_count" in item && item.element_count != null ? <PreviewRow label="Elements" value={String(item.element_count)} /> : null}
+              {"created_at" in item && item.created_at ? <PreviewRow label="Created" value={item.created_at} /> : null}
+            </dl>
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="break-words font-mono text-gray-800 dark:text-gray-200">{value}</dd>
+    </div>
+  )
+}
+
+function mediaTitle(item: ChatMediaSnapshot | ChatMediaImage) {
+  return item.kind === "chat_image" ? item.filename : item.name
+}
+
+function mediaSubtitle(item: ChatMediaSnapshot | ChatMediaImage) {
+  if (item.kind === "chat_image") return item.content_type
+  return item.element_count == null ? "whiteboard snapshot" : `${item.element_count} ${item.element_count === 1 ? "element" : "elements"}`
+}
+
+function mediaTooltip(item: ChatMediaSnapshot | ChatMediaImage) {
+  return [mediaTitle(item), item.id, mediaSubtitle(item)].filter(Boolean).join("\n")
+}
+
+function mediaThumbnailSrc(item: ChatMediaSnapshot | ChatMediaImage) {
+  if (item.kind !== "chat_image" || !item.file_path) return null
+  return item.file_path.startsWith("/") || item.file_path.startsWith("data:image/") ? item.file_path : null
+}
+
+function imageTypeLabel(contentType: string) {
+  const suffix = contentType.split("/").pop()
+  return suffix ? suffix.toUpperCase() : "Image"
+}
+
+function RawToolDetails({ payload }: { payload: unknown }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">Raw details</summary>
+      {open ? <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-gray-50 p-2 font-mono text-gray-600 dark:bg-gray-900 dark:text-gray-400">{JSON.stringify(payload, null, 2)}</pre> : null}
+    </details>
+  )
+}
 
 function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
   const language = inferToolResultLanguage(detail, tool)
@@ -444,7 +628,7 @@ function hasLongLine(value: string) {
 }
 
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
-  const name = tool?.name || "tool"
+  const name = tool?.display_label || tool?.name || "tool"
   const [open, setOpen] = useState(false)
   return (
     <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)}>

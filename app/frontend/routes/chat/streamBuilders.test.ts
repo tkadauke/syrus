@@ -61,6 +61,32 @@ describe("pendingActionCardData", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("renders prefixed MCP tool calls with human labels and retained raw payloads", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_media", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
+      toolResult(2, {
+        toolUseId: "tu_media",
+        content: JSON.stringify({
+          snapshots: [{ id: "snapshot:1" }],
+          chat_images: [{ id: "chat_image:1" }]
+        })
+      })
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.tool).toBe("List chat media")
+    expect(toolGroup.tool).not.toContain("syrus-chat-sidecar")
+    expect(toolGroup.calls[0]).toMatchObject({
+      tool_name: "list_chat_media",
+      raw_name: "syrus-chat-sidecar.list_chat_media",
+      detail: "No arguments",
+      raw_payload: {},
+      result_kind: "list",
+      result_summary: "2 media items",
+      summary_metadata: { count: 2, noun: "media item" }
+    })
+  })
+
   it("groups consecutive same-tool calls into one tool_group and pairs each result by adjacency", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
@@ -71,10 +97,71 @@ describe("renderChatMessages tool grouping", () => {
 
     expect(items).toHaveLength(1)
     const toolGroup = group(items[0])
-    expect(toolGroup.tool).toBe("Read")
+    expect(toolGroup.tool).toBe("Inspection")
+    expect(toolGroup.summary_label).toBe("Inspected 2 sources")
     expect(toolGroup.calls).toHaveLength(2)
     expect(toolGroup.calls[0].result_body).toBe("class A")
     expect(toolGroup.calls[1].result_body).toBe("class B")
+  })
+
+  it("groups consecutive read-only calls under a compact inspection summary", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_2", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
+      toolResult(4, { toolUseId: "tu_2", content: JSON.stringify({ chat_media: [{ id: "img_1" }] }) })
+    ])
+
+    expect(items).toHaveLength(1)
+    const toolGroup = group(items[0])
+    expect(toolGroup.tool).toBe("Inspection")
+    expect(toolGroup.summary_label).toBe("Inspected 2 sources")
+    expect(toolGroup.outcome_label).toBe("Done")
+    expect(toolGroup.prominent).toBe(false)
+    expect(toolGroup.calls.map((call) => call.display_label)).toEqual(["Read", "List chat media"])
+  })
+
+  it("collapses settled read-only groups after the next assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      { type: "message", id: 3, role: "assistant", text: "Done.", bookmarkable: true }
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.collapsed_by_default).toBe(true)
+    expect(toolGroup.prominent).toBe(false)
+    expect(items[1]).toMatchObject({ type: "message", role: "assistant" })
+  })
+
+  it("keeps failed read-only groups prominent instead of collapsed after the assistant replies", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "missing.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "No such file", isError: true }),
+      { type: "message", id: 3, role: "assistant", text: "That failed.", bookmarkable: true }
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.prominent).toBe(true)
+    expect(toolGroup.collapsed_by_default).toBe(false)
+    expect(toolGroup.outcome_label).toBe("Needs attention")
+  })
+
+  it("does not merge side-effecting tools into read-only inspection groups", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_2", toolName: "Bash", input: { command: "bin/rspec" } })
+    ])
+
+    expect(items).toHaveLength(2)
+    expect(group(items[0]).summary_label).toBe("Read")
+    expect(group(items[1])).toMatchObject({
+      tool: "Bash",
+      summary_label: "Bash",
+      outcome_label: "Running",
+      prominent: true
+    })
   })
 
   it("nests a subagent's tool_use/tool_result pair that interleaves inside a still-open parent Agent call", () => {

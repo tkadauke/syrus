@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -328,10 +328,15 @@ describe("tool result rendering", () => {
       calls: [
         {
           message_id: 1,
+          tool_name: "read_live_state",
+          raw_name: "read_live_state",
           detail: "detail",
+          display_label: "Read live state",
           progress_label: "Reading",
+          raw_payload: {},
           result_body: "very large hidden body",
           result_error: false,
+          result_kind: "text",
           result_summary: "summary"
         }
       ]
@@ -352,6 +357,54 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
+  it("opens a reused collapsed group when a streamed result turns it into a failure", () => {
+    const baseCall = {
+      message_id: 1,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail: "missing.rb",
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: {},
+      result_body: "",
+      result_error: false,
+      result_kind: "unknown" as const,
+      result_summary: ""
+    }
+    const { rerender } = render(
+      <ToolGroup
+        item={{
+          type: "tool_group",
+          tool: "Inspection",
+          calls: [baseCall],
+          summary_label: "Inspected missing.rb",
+          outcome_label: "Running",
+          collapsed_by_default: true,
+          prominent: false
+        }}
+      />
+    )
+
+    expect(screen.queryByText("No such file")).not.toBeInTheDocument()
+
+    rerender(
+      <ToolGroup
+        item={{
+          type: "tool_group",
+          tool: "Inspection",
+          calls: [{ ...baseCall, result_body: "No such file", result_error: true, result_kind: "error" as const }],
+          summary_label: "Inspected missing.rb",
+          outcome_label: "Needs attention",
+          collapsed_by_default: false,
+          prominent: true
+        }}
+      />
+    )
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.getByText("No such file")).toBeInTheDocument()
+  })
+
   it("does not syntax-highlight pathological single-line tool results when expanded", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -359,10 +412,15 @@ describe("tool result rendering", () => {
       calls: [
         {
           message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
           detail: "app/models/job.rb",
+          display_label: "Read",
           progress_label: "Reading",
+          raw_payload: {},
           result_body: "a".repeat(2_000),
           result_error: false,
+          result_kind: "text",
           result_summary: "summary"
         }
       ]
@@ -378,6 +436,144 @@ describe("tool result rendering", () => {
 
     expect(screen.queryByTestId("highlighted-code")).not.toBeInTheDocument()
     expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
+  })
+
+  it("renders list_chat_media results as a compact dark-mode-safe gallery with raw JSON details", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List chat media",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_chat_media",
+          raw_name: "syrus-chat-sidecar.list_chat_media",
+          detail: "No arguments",
+          display_label: "List chat media",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({
+            snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
+            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }],
+            whiteboard_element_count: 7
+          }),
+          result_error: false,
+          result_kind: "list",
+          result_summary: "2 media items"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getAllByText("2 media items")).toHaveLength(2)
+    expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
+    const imageTile = screen.getByRole("button", { name: "Open desktop.png" })
+    expect(imageTile).toHaveClass("dark:bg-gray-950")
+    const tooltip = imageTile.getAttribute("title")
+    expect(tooltip).toContain("desktop.png")
+    expect(tooltip).toContain("chat_image:3")
+    expect(tooltip).toContain("image/png")
+    expect(within(imageTile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
+    expect(within(imageTile).queryByText("desktop.png")).not.toBeInTheDocument()
+    expect(within(imageTile).queryByText("chat_image:3")).not.toBeInTheDocument()
+    expect(within(imageTile).queryByText("image/png")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Checkout flow/ })).toBeInTheDocument()
+
+    fireEvent.click(imageTile)
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.getAllByRole("img", { name: "desktop.png" })).toHaveLength(2)
+
+    const rawDetails = screen.getByText("Raw details").closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) return
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
+  })
+
+  it("renders typed success, proposal, and state outputs instead of raw JSON", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Actions",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "set_bookmark",
+          raw_name: "set_bookmark",
+          detail: "Launch notes",
+          display_label: "Set bookmark",
+          progress_label: "Making changes",
+          raw_payload: { label: "Launch notes" },
+          result_body: JSON.stringify({ id: 4, label: "Launch notes", kind: "topic" }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 bookmark"
+        },
+        {
+          message_id: 2,
+          tool_name: "propose_job",
+          raw_name: "propose_job",
+          detail: "Fix output",
+          display_label: "Propose job",
+          progress_label: "Making changes",
+          raw_payload: { title: "Fix output" },
+          result_body: JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "pending", repository: "tkadauke/syrus" }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 proposal"
+        },
+        {
+          message_id: 3,
+          tool_name: "read_job",
+          raw_name: "read_job",
+          detail: "4048",
+          display_label: "Read job",
+          progress_label: "Reading",
+          raw_payload: { job_id: 4048 },
+          result_body: JSON.stringify({ job: { issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 Job"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
+    expect(screen.getByText("Job proposal ready: Fix output")).toBeInTheDocument()
+    expect(screen.getByText("Typed renderers")).toBeInTheDocument()
+    expect(screen.getByText("running")).toBeInTheDocument()
+    expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
+  })
+
+  it("falls back to formatted raw output for unknown and malformed typed payloads", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Unknown tool",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "set_bookmark",
+          raw_name: "set_bookmark",
+          detail: "bad",
+          display_label: "Set bookmark",
+          progress_label: "Making changes",
+          raw_payload: {},
+          result_body: "{\"label\":",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("{\"label\":")).toBeInTheDocument()
   })
 })
 

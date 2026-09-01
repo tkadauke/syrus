@@ -1038,7 +1038,8 @@ module Api
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
-              content_type: doc.content_type
+              content_type: doc.content_type,
+              file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file"
             }
           end
 
@@ -1055,6 +1056,23 @@ module Api
             typed_artifacts: typed_artifacts,
             whiteboard_has_unsaved_content: whiteboard_has_unsaved_content
           }
+        end
+
+        def media_chat_image
+          chat_session = find_chat_session
+          document = chat_session.attached_repository_documents
+                                 .with_attached_file
+                                 .where(kind: "file")
+                                 .find(params[:document_id])
+          raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
+          raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
+
+          send_data(
+            document.file.download,
+            filename: document.filename || "image",
+            type: document.content_type || "application/octet-stream",
+            disposition: "inline"
+          )
         end
 
         def cancel_coding_checkout
