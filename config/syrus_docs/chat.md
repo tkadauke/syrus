@@ -249,8 +249,11 @@ snapshot saved via `save_canvas`), `chat_image:ID` (a pasted/attached chat
 image), or `preview_panel_version:ID` (a preview panel mockup's published
 source files, see `preview_panels.md`; `show_preview`'s response includes
 `version_id`). `list_chat_media` lists the refs currently available in the
-session. The `ChatMediaRef` format is shared across proposal and feedback
-validation so a malformed or out-of-session ref is rejected consistently.
+session and includes chat-scoped image file paths for inline thumbnail preview
+in the operator transcript; the refs remain the stable values to pass back to
+proposal and feedback tools. The `ChatMediaRef` format is shared across
+proposal and feedback validation so a malformed or out-of-session ref is
+rejected consistently.
 
 Resolution and attachment (`ChatMediaAttacher`) is shared too: a `snapshot:ID`
 ref resolves against `chat_session.whiteboard_snapshots` and becomes a
