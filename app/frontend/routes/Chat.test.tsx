@@ -1410,7 +1410,7 @@ describe("proposal outcome system events", () => {
 
     const notice = await screen.findByText((_, element) => element?.textContent === 'Proposal confirmed. JOB-88 "Map auth" was created.')
     expect(notice).toBeInTheDocument()
-    expect(notice.closest(".bg-blue-600")).toBeNull()
+    expect(notice.closest("[class*='bg-brand']")).toBeNull()
     expect(notice.closest(".flex.justify-center")).toBeInTheDocument()
     const slug = screen.getByRole("button", { name: "Copy JOB-88 to clipboard" })
     fireEvent.click(slug)
@@ -1726,7 +1726,7 @@ describe("pinned messages bar", () => {
     fireEvent.click(await screen.findByRole("button", { name: "+2 more" }))
 
     const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).getByRole("button", { name: "Pinned" })).toHaveClass("border-blue-600")
+    expect(within(workspace).getByRole("button", { name: "Pinned" })).toHaveClass("border-brand")
     expect(within(workspace).getAllByRole("listitem")).toHaveLength(5)
     expect(within(workspace).getByText("First pinned note.")).toBeInTheDocument()
   })

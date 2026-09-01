@@ -11,7 +11,7 @@ export function artifactPanelClass() {
 
 export function menuButtonClass(tone: ButtonTone) {
   const tones = {
-    primary: "text-blue-700 hover:bg-blue-50 dark:text-blue-200 dark:hover:bg-blue-950/40",
+    primary: "text-brand hover:bg-brand/10 dark:text-brand-emphasis dark:hover:bg-brand/10",
     secondary: "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
     success: "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/40",
     danger: "text-red-700 hover:bg-red-50 dark:text-red-200 dark:hover:bg-red-950/40",

@@ -99,9 +99,8 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     renderSidebar([chatNav({ id: 1, title: "My Chat", current: true })])
 
     const link = screen.getByRole("link", { name: "My Chat" })
-    // Active chats get bg-blue-50; inactive chats only get bg-blue-50 on hover.
-    // The class string contains "bg-blue-50" only when active.
-    expect(link.className).not.toContain("bg-blue-50")
+    expect(link).not.toHaveClass("bg-brand/10")
+    expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 
   it("highlights a chat as active when the URL matches /chats/:id", () => {
@@ -125,7 +124,8 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     )
 
     const link = screen.getByRole("link", { name: "Active Chat" })
-    expect(link.className).toContain("bg-blue-50")
+    expect(link).toHaveClass("bg-brand/10", "text-brand")
+    expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 })
 

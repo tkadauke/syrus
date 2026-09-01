@@ -67,7 +67,7 @@ export function diffLineClass(kind: DiffLineKind) {
   switch (kind) {
     case "add": return "bg-green-50 dark:bg-green-950/40"
     case "delete": return "bg-red-50 dark:bg-red-950/40"
-    case "hunk": return "bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
+    case "hunk": return "bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis"
     case "file": return "bg-gray-100 font-semibold dark:bg-gray-800 dark:text-gray-100"
     case "meta": return "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400"
     default: return "bg-white dark:bg-gray-950"
@@ -79,7 +79,7 @@ export function diffGutterClass(kind: DiffLineKind) {
   switch (kind) {
     case "add": return `${base} border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/60 dark:text-green-300`
     case "delete": return `${base} border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300`
-    case "hunk": return `${base} border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300`
+    case "hunk": return `${base} border-brand/30 bg-brand/10 text-brand dark:border-brand/40 dark:bg-brand/10 dark:text-brand-emphasis`
     default: return `${base} border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-500`
   }
 }
@@ -89,7 +89,7 @@ export function diffMarkerClass(kind: DiffLineKind) {
   switch (kind) {
     case "add": return `${base} text-green-700`
     case "delete": return `${base} text-red-700`
-    case "hunk": return `${base} text-blue-700`
+    case "hunk": return `${base} text-brand`
     default: return `${base} text-gray-300`
   }
 }

@@ -2015,7 +2015,7 @@ describe("SourceTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "models" }))
     fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
 
-    expect(await screen.findByText("class")).toHaveClass("font-semibold", "text-blue-700")
+    expect(await screen.findByText("class")).toHaveClass("font-semibold", "text-brand")
     expect(screen.getByText("User")).toHaveClass("text-cyan-700")
   })
 
