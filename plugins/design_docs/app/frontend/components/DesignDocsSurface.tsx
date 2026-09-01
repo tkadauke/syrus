@@ -31,7 +31,7 @@ import {
   type DesignDocVersion
 } from "../api/designDocs"
 
-type SurfaceMode = "index" | "repository" | "chat"
+type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "markdown" | "wysiwyg"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number }
@@ -65,10 +65,13 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const [selectedId, setSelectedId] = useState<string | number | null>(id || initialDesignDocId || null)
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
+  const showIndexControls = mode === "index" || mode === "repository"
+  const showDocList = showIndexControls
+  const showPageHeader = showIndexControls
   const indexQuery = useQuery({
     queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
     queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search),
-    enabled: mode !== "chat"
+    enabled: showIndexControls
   })
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
@@ -92,8 +95,6 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
   const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}${search}`
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
-  const showIndexControls = mode !== "chat"
-  const showDocList = mode !== "chat"
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
   const filterBar = showIndexControls ? (
@@ -151,17 +152,19 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
 
   return (
     <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {mode === "chat" ? "Docs from this chat workspace." : mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
-          </p>
-        </div>
-        <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
-          New doc
-        </Button>
-      </header>
+      {showPageHeader ? (
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              {mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
+            </p>
+          </div>
+          <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
+            New doc
+          </Button>
+        </header>
+      ) : null}
       {notice ? <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{notice}</div> : null}
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
@@ -137,9 +137,11 @@ function renderSurface(path = "/design_docs") {
 }
 
 function DesignDocsTestRoute() {
+  const params = useParams()
+
   return (
     <>
-      <DesignDocsSurface mode="index" />
+      <DesignDocsSurface mode={params.id ? "show" : "index"} />
       <LocationProbe />
     </>
   )
@@ -285,7 +287,7 @@ describe("DesignDocsSurface", () => {
     }
   })
 
-  it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
+  it("shows index filters on the list page, then navigates into a focused detail editor", async () => {
     mockFetch()
     renderSurface()
 
@@ -299,10 +301,28 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     expect(screen.getByText("Threads")).toBeInTheDocument()
     expect(screen.getByText("Suggestions")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+  })
+
+  it("loads the focused detail route without fetching or rendering list-page controls", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Checkout design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
   it("shows smart folders and filters in a mobile disclosure", async () => {
@@ -337,6 +357,7 @@ describe("DesignDocsSurface", () => {
     renderSurface("/chats/237")
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
@@ -434,14 +455,15 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByText("Follow up")).toBeInTheDocument()
   })
 
-  it("resets draft editor state when switching between design docs", async () => {
+  it("resets draft editor state when opening a different focused design doc route", async () => {
     mockFetch()
-    renderSurface()
+    const first = renderSurface("/design_docs/1")
 
-    fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
     const firstEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(firstEditor, { target: { value: "Unsaved first doc edits" } })
-    fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
+    first.unmount()
+
+    renderSurface("/design_docs/2")
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
