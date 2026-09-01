@@ -265,6 +265,53 @@ describe("BugReportButton", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
   })
 
+  it("disables bug report fields and controls while submission is pending", async () => {
+    let resolveSubmission: (payload: BugReportPayload) => void = () => {}
+    mockCreateBugReport.mockReturnValue(new Promise((resolve) => {
+      resolveSubmission = resolve
+    }))
+
+    const ref = renderButton({
+      pageAttachments: [{
+        id: "diagnostics",
+        label: "Diagnostics",
+        preview: "diagnostic preview",
+        defaultChecked: true,
+        buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+      }]
+    })
+    await openDialog(ref)
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Frozen title" } })
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Frozen body" } })
+    fireEvent.change(screen.getByLabelText(/add files/i), {
+      target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] }
+    })
+    fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /creating/i })).toBeDisabled())
+
+    expect(screen.getByLabelText("Title")).toBeDisabled()
+    expect(screen.getByLabelText("Description")).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "Viewport" })).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "Full page" })).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "No screenshot" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeDisabled()
+    expect(screen.getByLabelText(/add files/i)).toBeDisabled()
+    expect(screen.getByRole("button", { name: /remove notes.txt/i })).toBeDisabled()
+    expect(screen.getByRole("checkbox", { name: /diagnostics/i })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled()
+
+    const summary = screen.getByText("What's included").closest("summary")
+    expect(summary).toHaveAttribute("aria-disabled", "true")
+    fireEvent.click(summary!)
+    expect(summary?.closest("details")).not.toHaveAttribute("open")
+
+    resolveSubmission({ message: "Bug report queued." })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
   describe("when opened without messages", () => {
     it("does not show the transcript section", async () => {
       const ref = renderButton()
