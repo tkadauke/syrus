@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import { AdminEventFilterBar, AdminEventLogTable } from "./AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, adminEventLinkClass } from "./AdminEventLogPanel"
 
 function LocationProbe() {
   const location = useLocation()
@@ -109,5 +109,15 @@ describe("AdminEventLogTable", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show details" }))
     expect(screen.getByText("Details for 7")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
+  })
+})
+
+describe("adminEventLinkClass", () => {
+  it("uses semantic brand tokens for event log links", () => {
+    const className = adminEventLinkClass()
+
+    expect(className).toContain("text-brand")
+    expect(className).toContain("dark:text-brand-emphasis")
+    expect(className).not.toMatch(/\btext-blue-\d/)
   })
 })
