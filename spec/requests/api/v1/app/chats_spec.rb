@@ -3621,7 +3621,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         snapshot_kind: "manual",
         element_count: 1
       )
-      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc = Document.new(kind: "file", attachable: repository, user: user)
       doc.file.attach(io: StringIO.new("pixels"), filename: "diagram.png", content_type: "image/png")
       doc.save!
       ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
@@ -3638,7 +3638,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           "id" => doc.id,
           "filename" => "diagram.png",
           "content_type" => "image/png",
-          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file"
+          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
+          "image_url" => "/api/v1/app/repository_documents/#{doc.id}/file"
         )
       )
     end
@@ -3680,7 +3681,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       doc = chat.reload.attached_repository_documents.sole
       expect(parse_body["chat_images"]).to contain_exactly(
-        include("id" => doc.id, "filename" => "bug-report-viewport.png", "content_type" => "image/png")
+        include(
+          "id" => doc.id,
+          "filename" => "bug-report-viewport.png",
+          "content_type" => "image/png",
+          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
+          "image_url" => "/api/v1/app/credentials/documents/#{doc.id}/file"
+        )
       )
     end
 
