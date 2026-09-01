@@ -66,6 +66,29 @@ controls. Non-owners with access can comment and propose edits, but direct-save
 actions are labeled as suggestion creation and accept/reject controls render as
 pending owner review.
 
+## Chat Workspace Tabs
+
+The Design Docs chat workspace surface is document-focused, not the top-level
+index. In chat mode it must not infer a design doc id from the chat route's
+`:id` param, because that value is the `ChatSession` id. It resolves the
+selected document only from plugin tab payload data produced by
+`DesignDocs::WorkspaceTabs`.
+
+When a chat has one visible originated or referenced design doc, the plugin
+declares the legacy `design_docs.chat` tab with `design_doc_ids` and
+`design_docs` summary data. The frontend selects the first explicit
+`design_doc_ids` entry and loads `/api/v1/app/design_docs/:id` for that doc.
+When a chat has multiple visible docs, the plugin declares one tab per document
+(`design_docs.chat.<doc_id>`) and includes `design_doc_id` in each tab's data,
+so tab identity and document identity stay aligned. Chat mode hides index chrome:
+no FilterBar, smart-folder navigation, repository/owner/state filters, or
+document list. It keeps the document title bar, editor/review UI, comments,
+suggestions, sharing metadata, repository metadata, and version controls.
+
+If a chat Design Docs tab is rendered without an explicit document id, the
+surface shows an empty state instead of guessing `DOC-<chat_session_id>` or any
+other derived id.
+
 The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.

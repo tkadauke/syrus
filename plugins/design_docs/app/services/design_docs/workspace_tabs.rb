@@ -3,17 +3,32 @@ module DesignDocs
     include Syrus::Plugin::WorkspaceTab
 
     def self.workspace_tabs(chat_session = nil)
-      [
-        {
-          id: "design_docs.chat",
-          label: "Design Docs",
-          label_key: "design_docs:tab_design_docs",
-          component: "design_docs/WorkspaceDesignDocs",
-          order: 20,
-          closable: true,
-          data: workspace_data(chat_session)
-        }
-      ]
+      data = workspace_data(chat_session)
+      docs = data.fetch(:design_docs)
+      return [ workspace_tab(data: data) ] if docs.length <= 1
+
+      docs.each_with_index.map do |doc, index|
+        doc_id = doc.fetch(:id)
+        workspace_tab(
+          id: "design_docs.chat.#{doc_id}",
+          label: doc.fetch(:display_id),
+          label_key: nil,
+          order: 20 + index,
+          data: data.merge(design_doc_id: doc_id)
+        )
+      end
+    end
+
+    def self.workspace_tab(id: "design_docs.chat", label: "Design Docs", label_key: "design_docs:tab_design_docs", order: 20, data:)
+      {
+        id: id,
+        label: label,
+        label_key: label_key,
+        component: "design_docs/WorkspaceDesignDocs",
+        order: order,
+        closable: true,
+        data: data
+      }
     end
 
     def self.available_for?(chat_session)

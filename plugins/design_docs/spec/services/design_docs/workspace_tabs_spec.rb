@@ -45,6 +45,18 @@ RSpec.describe DesignDocs::WorkspaceTabs do
     expect(described_class.workspace_tabs(chat_session).first.dig(:data, :attached_design_doc_ids)).to eq([ doc.id ])
   end
 
+  it "declares explicit document tabs when multiple design docs belong to the chat" do
+    first = DesignDoc.create!(owner_user: user, origin_chat_session: chat_session, title: "First", markdown: "Body", visibility: "private")
+    second = DesignDoc.create!(owner_user: user, origin_chat_session: chat_session, title: "Second", markdown: "Body", visibility: "private")
+
+    tabs = described_class.workspace_tabs(chat_session)
+
+    expect(tabs.map { |tab| tab.fetch(:id) }).to contain_exactly("design_docs.chat.#{first.id}", "design_docs.chat.#{second.id}")
+    expect(tabs.map { |tab| tab.fetch(:label) }).to contain_exactly(first.display_id, second.display_id)
+    expect(tabs.map { |tab| tab.dig(:data, :design_doc_id) }).to contain_exactly(first.id, second.id)
+    expect(tabs).to all(include(component: "design_docs/WorkspaceDesignDocs", closable: true))
+  end
+
   it "does not parse unrelated chat messages while looking for DOC references" do
     doc = DesignDoc.create!(owner_user: user, title: "Referenced", markdown: "Body", visibility: "private")
     chat_session.messages.create!(role: "user", content: { "text" => "A large message without references" })
