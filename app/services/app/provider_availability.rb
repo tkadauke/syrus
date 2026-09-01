@@ -3,6 +3,7 @@ module App
     CACHE_TTL = 10.minutes
     DISPLAY_EVIDENCE_SCAN_LIMIT = 50
     USAGE_LIMIT_EVIDENCE_SCAN_LIMIT = 100
+    AUTH_ERROR_WINDOW = 7.days
     @cache_mutex = Mutex.new
     @process_cache = {}
 
@@ -113,6 +114,9 @@ module App
     def compute_status
       return nil if user.blank? || provider.blank?
 
+      auth_signal = PerformanceLogging.phase("provider_availability.auth_error_signal", provider: provider) { auth_error_signal }
+      return auth_error_status(auth_signal) if auth_signal
+
       usage_signal = PerformanceLogging.phase("provider_availability.usage_limit_signal", provider: provider) { usage_limit_signal }
       return usage_limit_status(usage_signal) if usage_signal
 
@@ -143,6 +147,7 @@ module App
 
     UsageLimitSignal = Data.define(:run, :model, :reason, :evidence)
     RateLimitSignal = Data.define(:run, :reason)
+    AuthErrorSignal = Data.define(:evidence)
 
     def open_status(circuit)
       {
@@ -197,6 +202,22 @@ module App
       }.merge(pause_metadata)
     end
 
+    def auth_error_status(signal)
+      {
+        provider: provider,
+        label: provider_label,
+        model: nil,
+        state: "auth_error",
+        open: true,
+        usage_exhausted: false,
+        retry_after: nil,
+        reason: "Provider authentication expired.",
+        message: "#{provider_label} credentials need reauthorization. Open agent settings to sign in again.",
+        usage: usage_snapshot,
+        evidence: latest_evidence_payload(primary: signal.evidence.summary)
+      }.merge(pause_metadata)
+    end
+
     def usage_limit_status(signal)
       retry_after = retry_after_for_usage_signal(signal)
       {
@@ -212,6 +233,47 @@ module App
         usage: usage_snapshot,
         evidence: latest_evidence_payload(primary: usage_signal_summary(signal))
       }.merge(pause_metadata)
+    end
+
+    def auth_error_signal
+      current_auth_error_evidence&.then { |evidence| AuthErrorSignal.new(evidence: evidence) }
+    end
+
+    def current_auth_error_evidence
+      auth_error_evidence_candidates.detect { |evidence| !auth_error_suppressed_by_positive_after?(evidence) }
+    end
+
+    def auth_error_evidence_candidates
+      @auth_error_evidence_candidates ||= ProviderAvailabilityEvidence
+        .where(user: user, provider: provider, status: "auth_error")
+        .unrepaired_for_circuit
+        .where("observed_at >= ?", now - AUTH_ERROR_WINDOW)
+        .recent
+        .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+        .to_a
+    end
+
+    def auth_error_suppressed_by_positive_after?(evidence)
+      auth_positive_suppression_evidence.any? do |positive|
+        account_matches?(positive, evidence.account_id) && positive.observed_at > evidence.observed_at
+      end
+    end
+
+    def auth_positive_suppression_evidence
+      @auth_positive_suppression_evidence ||= begin
+        oldest_candidate_at = auth_error_evidence_candidates.filter_map(&:observed_at).min
+        if oldest_candidate_at
+          ProviderAvailabilityEvidence
+            .where(user: user, provider: provider)
+            .positive
+            .where("observed_at > ?", oldest_candidate_at)
+            .recent
+            .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+            .to_a
+        else
+          []
+        end
+      end
     end
 
     def usage_limit_message(signal, retry_after)
@@ -521,7 +583,10 @@ module App
     end
 
     def latest_displayable_evidence(evidence_rows)
-      evidence_rows.detect { |evidence| !false_positive_codex_evidence?(evidence) }
+      evidence_rows.detect do |evidence|
+        !false_positive_codex_evidence?(evidence) &&
+          !(evidence.status == "auth_error" && auth_error_suppressed_by_positive_after?(evidence))
+      end
     end
 
     def retry_after_for_usage_signal(signal)

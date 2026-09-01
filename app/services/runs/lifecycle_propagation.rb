@@ -111,7 +111,6 @@ module Runs
     end
 
     def record_provider_failure_evidence!
-      return unless agent_provider == "codex"
       return unless step.nil? || step.agentic?
 
       text = [
@@ -120,6 +119,16 @@ module Runs
         run_diagnostic&.error_class,
         run_diagnostic&.error_message
       ].compact.join(" ")
+      if failure_classification_record&.classification == "provider_auth_expired"
+        ProviderAvailabilityEvidence.record_invocation_auth_error!(
+          run: run,
+          message: text,
+          observed_at: finished_at || Time.current
+        )
+        return
+      end
+
+      return unless agent_provider == "codex"
       return if ProviderUsageLimit.inconclusive?(text)
       return unless agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||
         failure_classification_record&.classification == ProviderUsageLimit::CLASSIFICATION ||

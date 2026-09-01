@@ -181,6 +181,24 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).to eq("provider_auth_or_config")
   end
 
+  it "classifies expired provider auth before downstream MCP sidecar cleanup failures" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "mcp_sidecar_failed")
+    diagnostic(
+      "Codex::ProviderError",
+      "HTTP 401 token_expired: Your access token could not be refreshed because you have since logged out or signed in to another account. Please sign in again."
+    )
+    JobLog.append!(
+      run: run,
+      chunk: "[mcp_sidecar] transport failed server=syrus-mcp-sidecar pid=95 error=SignalException: SIGTERM",
+      kind: "system"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies missing provider resume state as retryable" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
     JobLog.append!(

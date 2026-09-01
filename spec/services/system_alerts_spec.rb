@@ -151,6 +151,49 @@ RSpec.describe SystemAlerts do
       expect(alert.message).to include("weekly 18% remaining")
     end
 
+    it "surfaces expired provider auth with a direct agent-settings action" do
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Factories.job(repository: repository, user: user, agent_provider: "codex")
+      run = Run.create!(
+        job: job,
+        user: user,
+        step: job.latest_workflow.first_step,
+        trigger_kind: "initial",
+        state: "failed",
+        agent_provider: "codex",
+        agent_outcome: "turn_failed",
+        finished_at: 2.minutes.ago
+      )
+      run.create_run_failure_classification!(
+        classification: "provider_auth_expired",
+        confidence: 0.95,
+        retryable: false,
+        reason: "expired auth",
+        classified_at: Time.current
+      )
+      ProviderAvailabilityEvidence.record_invocation_auth_error!(
+        run: run,
+        message: "HTTP 401 token_expired: Your access token could not be refreshed. Please sign in again.",
+        http_status: 401,
+        observed_at: 2.minutes.ago
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).find { |candidate| candidate.id == "provider_auth:codex:#{user.id}" }
+
+      expect(alert).to have_attributes(
+        severity: :alarm,
+        title: "Codex sign-in expired.",
+        cta: { text: "Open agent settings", path: "/settings/agent" }
+      )
+      expect(alert.message).to include("Syrus cannot start Codex-backed work")
+      expect(alert.actions).to contain_exactly(
+        include(text: "Recheck Codex", path: "/api/v1/app/credentials/recheck_provider_availability")
+      )
+      expect(described_class.active_for(user: user).map(&:id)).not_to include("codex_usage:#{user.id}")
+    end
+
     it "uses cached provider availability for Codex usage alerts" do
       user = Factories.user
       allow(App::ProviderAvailability).to receive(:for_user).and_return(nil)

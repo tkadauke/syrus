@@ -2,7 +2,7 @@ export type ProviderAvailability = {
   provider: string
   label: string
   model: string | null
-  state: "available" | "exhausted" | "open" | "rate_limited" | string
+  state: "available" | "exhausted" | "open" | "rate_limited" | "auth_error" | string
   open: boolean
   usage_exhausted: boolean
   retry_after: string | null

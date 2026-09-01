@@ -12,7 +12,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   ].freeze
 
   POSITIVE_STATUSES = %w[available].freeze
-  NEGATIVE_STATUSES = %w[exhausted warning].freeze
+  NEGATIVE_STATUSES = %w[exhausted warning auth_error].freeze
   PROBE_SOURCES = %w[usage_probe].freeze
 
   belongs_to :user
@@ -122,6 +122,31 @@ class ProviderAvailabilityEvidence < ApplicationRecord
         message: message
       )
     )
+  end
+
+  def self.record_invocation_auth_error!(run:, message: nil, http_status: nil, observed_at: Time.current)
+    return unless run&.user && run.agent_provider.present?
+
+    provider = run.agent_provider.to_s
+    evidence = create!(
+      user: run.user,
+      run: run,
+      provider: provider,
+      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      model: nil,
+      status: "auth_error",
+      source: "#{provider}_invocation_auth_error",
+      observed_at: observed_at,
+      http_status: http_status,
+      details: sanitized_details(
+        run_id: run.id,
+        agent_outcome: run.agent_outcome,
+        failure_classification: run.run_failure_classification&.classification,
+        message: message
+      )
+    )
+    App::ProviderAvailability.clear_cache!(user: run.user, provider: provider)
+    evidence
   end
 
   def self.false_positive_codex_usage_limit?(message, model: nil)

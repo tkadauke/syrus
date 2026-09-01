@@ -26,14 +26,23 @@ module SystemAlerts
 
   def self.active_for(user:)
     out = []
+    provider_availability = provider_availability_for_alerts(user)
     out << github_token_blocked(user) if user&.gh_api_blocked?
-    out << codex_usage(user) if user
+    out.concat(provider_auth_alerts(user, provider_availability)) if user
+    out << codex_usage(user, availability: provider_availability["codex"]) if user
     out << data_root_disk_usage if user&.admin?
     out.concat(stuck_main_branch_repairs) if user&.admin?
     out
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
   end
+
+  def self.provider_availability_for_alerts(user)
+    return {} unless user
+
+    User.agent_providers.index_with { |provider| App::ProviderAvailability.for_user(user, provider) }
+  end
+  private_class_method :provider_availability_for_alerts
 
   def self.github_token_blocked(user)
     # The `gh_api_blocked_reason` is verbatim text from GitHub's API
@@ -66,8 +75,51 @@ module SystemAlerts
   end
   private_class_method :github_token_blocked
 
-  def self.codex_usage(user)
-    availability = App::ProviderAvailability.for_user(user, "codex")
+  def self.provider_auth_alerts(user, provider_availability)
+    provider_availability.filter_map do |provider, availability|
+      next unless availability&.dig(:state) == "auth_error"
+
+      provider_auth_alert(user, provider, availability)
+    end
+  end
+  private_class_method :provider_auth_alerts
+
+  def self.provider_auth_alert(user, provider, availability)
+    label = availability[:label].presence || App::Presentation.agent_provider_label(provider)
+    evidence = availability.dig(:evidence, :current) || {}
+    observed_at = evidence[:observed_at] || evidence["observed_at"]
+    source = evidence[:source] || evidence["source"]
+    http_status = evidence[:http_status] || evidence["http_status"]
+    evidence_text = []
+    evidence_text << " Latest evidence: <code>#{ERB::Util.html_escape(source)}</code>." if source.present?
+    evidence_text << " HTTP <code>#{ERB::Util.html_escape(http_status)}</code>." if http_status.present?
+
+    Alert.new(
+      id: "provider_auth:#{provider}:#{user.id}",
+      dismissal_key: "provider_auth:#{provider}:#{user.id}:#{observed_at}",
+      severity: :alarm,
+      title: "#{label} sign-in expired.",
+      message: "#{label} authentication failed for this account. Syrus cannot start #{label}-backed work until you reconnect it.#{evidence_text.join}",
+      action_steps: [
+        "Open agent settings and reconnect #{ERB::Util.html_escape(label)}.",
+        "After reconnecting, recheck provider availability so queued work can resume."
+      ],
+      cta: { text: "Open agent settings", path: "/settings/agent" },
+      actions: [
+        {
+          text: "Recheck #{label}",
+          method: "post",
+          path: "/api/v1/app/credentials/recheck_provider_availability",
+          params: { provider: provider.to_s }
+        }
+      ]
+    )
+  end
+  private_class_method :provider_auth_alert
+
+  def self.codex_usage(user, availability: App::ProviderAvailability.for_user(user, "codex"))
+    return if availability&.dig(:state) == "auth_error"
+
     status = availability&.dig(:usage, :status).to_s.presence || user.codex_usage_status.to_s
     latest_success_at = availability&.dig(:evidence, :latest_positive, :observed_at)&.then { |value| Time.zone.parse(value) rescue nil }
     stale_exhausted_cache = status == "exhausted" && latest_success_at && user.codex_usage_observed_at && latest_success_at > user.codex_usage_observed_at

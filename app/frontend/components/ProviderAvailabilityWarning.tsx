@@ -1,10 +1,10 @@
 import type { ProviderAvailability } from "../api/providerAvailability"
 
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
-  if (!availability?.usage_exhausted && availability?.state !== "rate_limited") return null
+  if (!availability?.usage_exhausted && availability?.state !== "rate_limited" && availability?.state !== "auth_error") return null
 
   const label = warningLabel(availability)
-  const tone = availability.usage_exhausted ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
+  const tone = availability.usage_exhausted || availability.state === "auth_error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
 
   return (
     <span aria-label={label} className={`inline-flex shrink-0 ${tone} ${className}`} role="img" title={label}>

@@ -161,6 +161,60 @@ RSpec.describe App::ProviderAvailability do
     expect(status[:message]).to include("temporarily unavailable")
   end
 
+  it "surfaces expired provider auth as an account-level operator action" do
+    run = failed_run(
+      provider: "codex",
+      outcome: "turn_failed",
+      message: "HTTP 401 token_expired: Your access token could not be refreshed. Please sign in again.",
+      classification: "provider_auth_expired"
+    )
+    ProviderAvailabilityEvidence.record_invocation_auth_error!(
+      run: run,
+      message: "HTTP 401 token_expired: Your access token could not be refreshed. Please sign in again.",
+      http_status: 401,
+      observed_at: now - 1.minute
+    )
+
+    status = described_class.for_user(user, "codex", now: now, cached: false)
+
+    expect(status).to include(
+      provider: "codex",
+      state: "auth_error",
+      open: true,
+      usage_exhausted: false,
+      retry_after: nil
+    )
+    expect(status[:message]).to include("Open agent settings")
+    expect(status.dig(:evidence, :current)).to include(status: "auth_error", source: "codex_invocation_auth_error", http_status: 401)
+  end
+
+  it "clears expired auth availability after a later successful provider run" do
+    run = failed_run(
+      provider: "codex",
+      outcome: "turn_failed",
+      message: "HTTP 401 token_expired: Your access token could not be refreshed. Please sign in again.",
+      classification: "provider_auth_expired"
+    )
+    ProviderAvailabilityEvidence.record_invocation_auth_error!(
+      run: run,
+      message: "HTTP 401 token_expired: Your access token could not be refreshed. Please sign in again.",
+      http_status: 401,
+      observed_at: now - 2.minutes
+    )
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      source: "chat_turn_success",
+      model: "gpt-5.5",
+      observed_at: now - 1.minute
+    )
+
+    status = described_class.for_user(user, "codex", now: now, cached: false)
+
+    expect(status).to include(state: "available", open: false, usage_exhausted: false)
+    expect(status.dig(:evidence, :current)).to include(status: "available", source: "chat_turn_success")
+    expect(status.dig(:evidence, :latest_negative)).to be_nil
+  end
+
   it "treats the user's latest provider rate-limit failure as provider-wide until a later success clears it" do
     rate_limited = failed_run(
       provider: "claude",

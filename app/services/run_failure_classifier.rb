@@ -46,6 +46,8 @@ class RunFailureClassifier
       result("stdin_race_failed", 0.90, true, "The agent process started before its stdin prompt was delivered; retrying should rerun the invocation with the same prompt.")
     when test_checkout_contention?
       result("database_lock", 0.85, true, "The run failed because another test run was already active in the same checkout; retry when the checkout is free.")
+    when provider_auth_expired?
+      result("provider_auth_expired", 0.95, false, "The provider authentication token expired and needs operator reauthorization.")
     when mcp_sidecar?
       result("mcp_sidecar_failure", 0.75, true, "The agent sidecar failed or disconnected.")
     when grader_failure?
@@ -155,6 +157,14 @@ class RunFailureClassifier
   def test_checkout_contention?
     %w[grader preflight_grader].include?(run.step&.kind.to_s) &&
       text_match?(/Another bin\/rspec-fast run is already active in this checkout/i)
+  end
+
+  def provider_auth_expired?
+    return false if run.agent_provider.blank?
+
+    text_match?(
+      /token_expired|access token could not be refreshed|authentication token (?:is )?expired|sign in again|logged out or signed in to another account|signed out or signed in to another account/i
+    )
   end
 
   def process_died?
