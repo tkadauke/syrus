@@ -1038,7 +1038,8 @@ module Api
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
-              content_type: doc.content_type
+              content_type: doc.content_type,
+              image_url: chat_media_image_url(doc)
             }
           end
 
@@ -1055,6 +1056,17 @@ module Api
             typed_artifacts: typed_artifacts,
             whiteboard_has_unsaved_content: whiteboard_has_unsaved_content
           }
+        end
+
+        def chat_media_image_url(document)
+          return nil unless document.file.attached?
+
+          case document.attachable_type
+          when "User"
+            "/api/v1/app/credentials/documents/#{document.id}/file"
+          when "Repository"
+            "/api/v1/app/repository_documents/#{document.id}/file"
+          end
         end
 
         def cancel_coding_checkout
