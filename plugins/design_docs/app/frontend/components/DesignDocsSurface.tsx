@@ -39,6 +39,8 @@ type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
   threadId?: number
+  proposedMarkdown?: string
+  suggestionState?: string
   status: string
   start: number
   end: number
@@ -239,6 +241,10 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [shareOpen, setShareOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState("current")
+  const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
+  const canWriteCanonical = doc.permissions.can_write_canonical
+  const canSuggest = doc.permissions.can_suggest
+  const saveLabel = canWriteCanonical ? "Save" : "Propose changes"
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
@@ -375,7 +381,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (editorMode === "markdown" && textareaRef.current) {
       textareaRef.current.focus()
       textareaRef.current.setSelectionRange(start, end)
-      textareaRef.current.scrollTop = Math.max(0, Math.floor(start / 80) * 24 - 80)
+      const nextScrollTop = Math.max(0, Math.floor(start / 80) * 24 - 80)
+      textareaRef.current.scrollTop = nextScrollTop
+      setMarkdownScrollTop(nextScrollTop)
       return
     }
 
@@ -410,6 +418,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
         onSave={() => saveMutation.mutate()}
+        saveLabel={saveLabel}
+        canManageMetadata={canWriteCanonical}
         onVersionChange={selectVersion}
         onVersionsOpen={() => setVersionsOpen(true)}
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
@@ -438,15 +448,16 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
               <span className="sr-only">Markdown editor</span>
-              <MarkdownHighlightMirror draft={draft} focusedThreadId={focusedThreadId} highlights={activeHighlights} />
+              <MarkdownHighlightMirror draft={draft} focusedThreadId={focusedThreadId} highlights={activeHighlights} scrollTop={markdownScrollTop} />
               <textarea
                 aria-label="Markdown editor"
-                className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
+                className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
                 onBlur={() => updateSelection()}
                 onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyUp={() => updateSelection()}
                 onMouseUp={() => updateSelection()}
+                onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
                 ref={textareaRef}
                 value={draft}
               />
@@ -478,6 +489,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             setCommentBody={setCommentBody}
             setSuggestionMarkdown={setSuggestionMarkdown}
             suggestionMarkdown={suggestionMarkdown}
+            canSuggest={canSuggest}
             onComment={() => commentMutation.mutate()}
             onSuggestion={() => suggestionMutation.mutate()}
           />
@@ -505,8 +517,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   )
 }
 
-function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, onMetadataSave, onSave, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, onMetadataSave, onSave, saveLabel, onVersionChange, onVersionsOpen, onVisibilityChange }: {
   collaborators: string
+  canManageMetadata: boolean
   doc: DesignDocDetail
   repoIds: string[]
   repositories: Array<{ id: number; slug: string }>
@@ -525,6 +538,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   versionsOpen: boolean
   onMetadataSave: () => void
   onSave: () => void
+  saveLabel: string
   onVersionChange: (versionId: string) => void
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
@@ -533,7 +547,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
     <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
-          <Input aria-label="Design doc title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium text-gray-700 dark:text-gray-300">{doc.display_id}</span>
             <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
@@ -549,11 +563,13 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
                 {repository.slug}
               </span>
             ))}
+            {canManageMetadata ? (
             <Button aria-expanded={repositoryPickerOpen} aria-label="Add repository" className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
               <span aria-hidden="true" className="text-base leading-none">+</span>
             </Button>
+            ) : null}
           </div>
-          {repositoryPickerOpen ? (
+          {repositoryPickerOpen && canManageMetadata ? (
             <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Repositories
@@ -574,8 +590,8 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button>
-          {shareOpen ? (
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {shareOpen && canManageMetadata ? (
             <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
@@ -595,7 +611,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
             </div>
           ) : null}
         </div>
-        <Button onClick={onSave} size="sm">Save</Button>
+        <Button onClick={onSave} size="sm">{saveLabel}</Button>
         <Select
           aria-label="Version selection"
           className="ml-auto max-w-[12rem]"
@@ -616,19 +632,30 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   )
 }
 
-function MarkdownHighlightMirror({ draft, focusedThreadId, highlights }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[] }) {
+function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-0 min-h-[36rem] whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-transparent"
+      className="pointer-events-none absolute inset-0 z-0 min-h-[36rem] whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
+      data-testid="markdown-highlight-mirror"
+      style={{ transform: scrollTop > 0 ? `translateY(-${scrollTop}px)` : undefined }}
     >
       {highlightTextSegments(draft, highlights).map((segment, index) => {
         if (!segment.highlight) return <span key={index}>{segment.text}</span>
 
         const focused = segment.highlight.threadId === focusedThreadId
+        if (segment.highlight.kind === "suggestion") {
+          return (
+            <span className="rounded-sm bg-surface-raised px-0.5" data-anchor-status={segment.highlight.status} data-inline-suggestion-state={segment.highlight.suggestionState} key={index}>
+              <del className="text-warning decoration-warning decoration-2">{segment.text}</del>
+              <ins className="ml-1 text-success no-underline">{segment.highlight.proposedMarkdown}</ins>
+            </span>
+          )
+        }
+
         return (
           <mark
-            className={`rounded-sm px-0.5 text-transparent ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-yellow-200/70 dark:bg-yellow-500/30"}`}
+            className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-yellow-200/70 dark:bg-yellow-500/30"}`}
             data-anchor-status={segment.highlight.status}
             key={index}
           >
@@ -640,13 +667,14 @@ function MarkdownHighlightMirror({ draft, focusedThreadId, highlights }: { draft
   )
 }
 
-function FloatingComposer({ commentBody, disabled, selection, setCommentBody, setSuggestionMarkdown, suggestionMarkdown, onComment, onSuggestion }: {
+function FloatingComposer({ commentBody, disabled, selection, setCommentBody, setSuggestionMarkdown, suggestionMarkdown, canSuggest, onComment, onSuggestion }: {
   commentBody: string
   disabled: boolean
   selection: SelectionRange
   setCommentBody: (value: string) => void
   setSuggestionMarkdown: (value: string) => void
   suggestionMarkdown: string
+  canSuggest: boolean
   onComment: () => void
   onSuggestion: () => void
 }) {
@@ -668,10 +696,10 @@ function FloatingComposer({ commentBody, disabled, selection, setCommentBody, se
           <Input aria-label="Inline comment" disabled={disabled} placeholder="Comment on selection" value={commentBody} onChange={(event) => setCommentBody(event.target.value)} />
           <Button disabled={disabled || commentBody.trim().length === 0} onClick={onComment} size="sm" variant="secondary">Comment</Button>
         </div>
-        <div className="space-y-2">
+        {canSuggest ? <div className="space-y-2">
           <Input aria-label="Suggested replacement" disabled={disabled} placeholder="Suggested replacement" value={suggestionMarkdown} onChange={(event) => setSuggestionMarkdown(event.target.value)} />
           <Button disabled={disabled || suggestionMarkdown.trim().length === 0} onClick={onSuggestion} size="sm" variant="secondary">Suggest</Button>
-        </div>
+        </div> : null}
       </div>
     </div>
   )
@@ -758,6 +786,7 @@ function ThreadPanel({ doc, focusedThreadId, replyBodies, threadRefs, onFocus, o
 }
 
 function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (id: number, decision: "accept" | "reject") => void }) {
+  const canReview = doc.permissions.can_review_suggestions
   return (
     <Panel>
       <SectionHeading as="h3">Suggestions</SectionHeading>
@@ -770,17 +799,17 @@ function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (i
               <p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>
             </div>
             <div className="mt-2 grid gap-2 text-xs">
-              <del className="rounded bg-red-50 p-2 text-red-800 dark:bg-red-950/40 dark:text-red-200">{suggestion.original_markdown}</del>
-              <ins className="rounded bg-emerald-50 p-2 text-emerald-800 no-underline dark:bg-emerald-950/40 dark:text-emerald-200">{suggestion.proposed_markdown}</ins>
+              <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
+              <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
             </div>
             {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
             {suggestion.conflict_reason ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{suggestion.conflict_reason}</p> : null}
-            {suggestion.state === "pending" ? (
+            {suggestion.state === "pending" && canReview ? (
               <div className="mt-3 flex gap-2">
                 <Button onClick={() => onReview(suggestion.id, "accept")} size="sm" variant="success">Accept</Button>
                 <Button onClick={() => onReview(suggestion.id, "reject")} size="sm" variant="secondary">Reject</Button>
               </div>
-            ) : null}
+            ) : suggestion.state === "pending" ? <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p> : null}
           </div>
         ))}
       </div>
@@ -910,17 +939,28 @@ function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
 function nodeToMarkdown(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? ""
   if (!(node instanceof HTMLElement)) return ""
+  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
 
-  const text = node.textContent?.trim() ?? ""
+  const text = inlineMarkdownText(node).trim()
   if (text.length === 0) return ""
 
   if (/^H[1-3]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
   if (node.tagName === "LI") return `- ${text}`
   if (node.tagName === "UL") return Array.from(node.children).map((child) => nodeToMarkdown(child)).join("\n")
-  if (node.tagName === "OL") return Array.from(node.children).map((child, childIndex) => `${childIndex + 1}. ${child.textContent?.trim() ?? ""}`).join("\n")
+  if (node.tagName === "OL") return Array.from(node.children).map((child, childIndex) => `${childIndex + 1}. ${inlineMarkdownText(child).trim()}`).join("\n")
   if (node.tagName === "BLOCKQUOTE") return text.split("\n").map((line) => `> ${line}`).join("\n")
 
   return text
+}
+
+function inlineMarkdownText(node: ChildNode): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ""
+  if (!(node instanceof HTMLElement)) return ""
+  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
+  if (node.tagName === "BR") return "\n"
+  if (node.childNodes.length === 0) return node.textContent ?? ""
+
+  return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
 }
 
 function escapeHtml(value: string) {
@@ -951,6 +991,8 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
       return {
         id: `suggestion-${suggestion.id}`,
         kind: "suggestion" as const,
+        proposedMarkdown: suggestion.proposed_markdown,
+        suggestionState: suggestion.state,
         status: suggestion.anchor.status,
         start: start ?? 0,
         end: end ?? start ?? 0
@@ -989,11 +1031,18 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
       if (!segment.highlight) return escapeHtml(segment.text)
 
       const focused = segment.highlight.threadId === focusedThreadId
+      if (segment.highlight.kind === "suggestion") {
+        return [
+          `<mark class="rounded-sm bg-surface-raised px-0.5" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}">`,
+          `<del class="text-warning decoration-warning decoration-2">${escapeHtml(segment.text)}</del>`,
+          `<ins class="ml-1 text-success no-underline">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
+          "</mark>"
+        ].join("")
+      }
+
       const className = focused
         ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
-        : segment.highlight.kind === "suggestion"
-          ? "rounded-sm bg-emerald-100 px-0.5 dark:bg-emerald-900/50"
-          : "rounded-sm bg-yellow-200/80 px-0.5 dark:bg-yellow-500/30"
+        : "rounded-sm bg-yellow-200/80 px-0.5 dark:bg-yellow-500/30"
       const threadAttrs = segment.highlight.threadId ? ` data-thread-id="${segment.highlight.threadId}"` : ""
       return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${escapeHtml(segment.text)}</mark>`
     })

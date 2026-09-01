@@ -57,6 +57,11 @@ pending suggestions. Agent edits are always suggestion-only, enforced by the
 backend from authenticated server context rather than trusting request params.
 Only owners can resolve threads and accept/reject suggestions.
 
+The detail API serializes explicit permission booleans for the editor:
+`can_write_canonical`, `can_suggest`, and `can_review_suggestions`. The UI uses
+those values to keep owner-only metadata and accept/reject controls out of
+review-only flows.
+
 ## APIs And UI
 
 Plugin-owned backend files live under `plugins/design_docs/app/`, including the
@@ -71,6 +76,13 @@ The plugin registers:
 - chat workspace tab: `design_docs.chat`
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
+
+Pending suggestions render inline in the document body at their anchored range
+in both Markdown and WYSIWYG editor tabs. The original range is struck through
+with the active theme's warning token, and the proposed replacement is shown
+beside it with the active theme's success token. The rendered suggestion text is
+display-only: hidden anchor comments and proposed replacement previews are not
+written into canonical Markdown until the owner accepts the suggestion.
 
 ## Agent Tools
 

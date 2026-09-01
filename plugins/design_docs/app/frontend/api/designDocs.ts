@@ -87,6 +87,11 @@ export type DesignDocSuggestion = {
 export type DesignDocDetail = DesignDocSummary & {
   markdown: string
   rendered_markdown: string
+  permissions: {
+    can_write_canonical: boolean
+    can_suggest: boolean
+    can_review_suggestions: boolean
+  }
   collaborator_ids: number[]
   collaborators: DesignDocUser[]
   pending_suggestions_count: number

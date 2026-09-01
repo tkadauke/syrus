@@ -22,6 +22,11 @@ const docDetail = {
   created_at: "2026-08-29T11:00:00Z",
   markdown: "Alpha beta gamma",
   rendered_markdown: "Alpha beta gamma",
+  permissions: {
+    can_write_canonical: true,
+    can_suggest: true,
+    can_review_suggestions: true
+  },
   collaborator_ids: [2],
   collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   pending_suggestions_count: 1,
@@ -100,6 +105,17 @@ const secondDocDetail = {
   open_threads_count: 0,
   threads: [],
   suggestions: []
+}
+
+const reviewerDocDetail = {
+  ...docDetail,
+  id: 3,
+  display_id: "DOC-3",
+  permissions: {
+    can_write_canonical: false,
+    can_suggest: true,
+    can_review_suggestions: false
+  }
 }
 
 function renderSurface(path = "/design_docs") {
@@ -201,6 +217,12 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
+    if (url.pathname === "/api/v1/app/design_docs/3" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: reviewerDocDetail })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
       if (payload.comment?.thread_id === 7) {
@@ -222,6 +244,9 @@ function mockFetch() {
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
+      return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
       return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
@@ -472,6 +497,64 @@ describe("DesignDocsSurface", () => {
     fireEvent.focus(screen.getByRole("combobox", { name: "Version selection" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+  })
+
+  it("renders pending suggestions inline in Markdown and WYSIWYG without changing canonical markdown", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    expect(markdownEditor).toHaveValue("Alpha beta gamma")
+    const markdownSuggestion = container.querySelector("[data-inline-suggestion-state='pending']")
+    expect(markdownSuggestion?.querySelector("del")).toHaveTextContent("gamma")
+    expect(markdownSuggestion?.querySelector("ins")).toHaveTextContent("delta")
+    expect(markdownSuggestion?.querySelector("del")).toHaveClass("text-warning")
+    expect(markdownSuggestion?.querySelector("ins")).toHaveClass("text-success")
+
+    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    const wysiwygSuggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(wysiwygSuggestion?.querySelector("del")).toHaveTextContent("gamma")
+    expect(wysiwygSuggestion?.querySelector("ins")).toHaveTextContent("delta")
+
+    fireEvent.input(wysiwygEditor)
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+  })
+
+  it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    const mirror = container.querySelector("[data-testid='markdown-highlight-mirror']")
+    expect(mirror).not.toBeNull()
+
+    markdownEditor.scrollTop = 144
+    fireEvent.scroll(markdownEditor)
+
+    expect(mirror).toHaveStyle({ transform: "translateY(-144px)" })
+  })
+
+  it("shows review-only suggestion state for non-owners without direct-commit affordances", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/3")
+
+    expect(await screen.findByRole("button", { name: "Propose changes" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
+    expect(screen.getByText("Pending owner review.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Add repository" })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Alpha beta delta" } })
+    fireEvent.click(screen.getByRole("button", { name: "Propose changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Alpha beta delta" }
+    })
   })
 
   it("keeps the editor layout responsive with fixed grid constraints", async () => {
