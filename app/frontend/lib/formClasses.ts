@@ -1,6 +1,7 @@
 // Canonical Tailwind class for text/select form inputs, shared across the SPA.
 // Uses semantic focus/border tokens so authenticated app surfaces follow the
-// signed-in user's selected theme.
+// signed-in user's selected theme. Consolidated from several
+// visually-identical copies.
 //
 // fullWidth defaults to true. Pass fullWidth: false for inline/compact controls
 // (e.g. a per-row role <select>) instead of appending "w-auto" at the call

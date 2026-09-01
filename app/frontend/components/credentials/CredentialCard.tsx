@@ -207,7 +207,7 @@ function secondaryButtonClass() {
 }
 
 function primaryButtonClass() {
-  return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-emphasis disabled:cursor-not-allowed disabled:opacity-60"
+  return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 }
 
 

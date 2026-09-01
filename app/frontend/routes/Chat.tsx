@@ -1256,7 +1256,7 @@ function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: C
         </div>
         <footer className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
           <button className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onClose} type="button">{t("cancel")}</button>
-          <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitDisabled} type="submit">{t("save")}</button>
+          <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitDisabled} type="submit">{t("save")}</button>
         </footer>
       </form>
     </div>
