@@ -426,7 +426,7 @@ function PreviewShareControl({
         >
           <button
             aria-selected={!isPublic}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${!isPublic ? "bg-brand font-medium text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${!isPublic ? "bg-brand font-medium text-on-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
             onClick={() => {
               updateVisibility.mutate("private")
               setDropdownOpen(false)
@@ -437,12 +437,12 @@ function PreviewShareControl({
             <LockIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="flex flex-col items-start">
               <span>{t("preview_share_option_private")}</span>
-              <span className={`text-xs font-normal ${!isPublic ? "text-white/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_private_hint")}</span>
+              <span className={`text-xs font-normal ${!isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_private_hint")}</span>
             </span>
           </button>
           <button
             aria-selected={isPublic}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${isPublic ? "bg-brand font-medium text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${isPublic ? "bg-brand font-medium text-on-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
             onClick={() => {
               updateVisibility.mutate("public")
               setDropdownOpen(false)
@@ -453,7 +453,7 @@ function PreviewShareControl({
             <GlobeIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="flex flex-col items-start">
               <span>{t("preview_share_option_public")}</span>
-              <span className={`text-xs font-normal ${isPublic ? "text-white/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_public_hint")}</span>
+              <span className={`text-xs font-normal ${isPublic ? "text-on-brand/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_public_hint")}</span>
             </span>
           </button>
           {isPublic ? (
@@ -1182,7 +1182,7 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
                   className={[
                     "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
                     (payload.chat.mode || "planning") === value
-                      ? "bg-brand font-medium text-white"
+                      ? "bg-brand font-medium text-on-brand"
                       : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
                     mode.isPending ? "cursor-not-allowed opacity-50" : ""
                   ].join(" ")}

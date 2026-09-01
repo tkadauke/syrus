@@ -83,7 +83,7 @@ export function appendSearch(path: string, search: string) {
 }
 
 export function primaryButton() {
-  return "flex h-11 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+  return "flex h-11 items-center justify-center rounded bg-brand px-3 text-sm font-medium text-on-brand hover:opacity-90 disabled:opacity-60"
 }
 
 export function secondaryButton() {
@@ -95,7 +95,7 @@ export function diffLineClass(line: string): string {
     return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
   }
   if (line.startsWith("@@")) {
-    return "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+    return "bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis"
   }
   if (line.startsWith("+")) {
     return "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"

@@ -320,7 +320,7 @@ type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?:
 function proposalActionButton(tone: "primary" | "secondary") {
   const shared = "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
   if (tone === "primary") {
-    return `${shared} bg-brand text-white hover:opacity-90`
+    return `${shared} bg-brand text-on-brand hover:opacity-90`
   }
 
   return `${shared} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600`

@@ -47,6 +47,7 @@ module.exports = [
     files: [
       "app/frontend/routes/**/*.{ts,tsx}",
       "app/frontend/components/**/*.{ts,tsx}",
+      "app/frontend/lib/**/*.{ts,tsx}",
       "plugins/*/app/frontend/routes/**/*.{ts,tsx}",
       "plugins/*/app/frontend/components/**/*.{ts,tsx}"
     ],
