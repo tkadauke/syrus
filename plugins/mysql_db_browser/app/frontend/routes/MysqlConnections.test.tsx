@@ -218,6 +218,15 @@ describe("MysqlConnections", () => {
     setupFetchMock()
     renderConnections()
 
+    expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass(
+      "flex",
+      "h-full",
+      "flex-col",
+      "gap-6",
+      "overflow-hidden",
+      "p-3",
+      "sm:p-6"
+    )
     expect(await screen.findByText("Staging")).toBeInTheDocument()
     expect(screen.getByText("db.staging.internal:3306")).toBeInTheDocument()
     expect(screen.getByText("Set")).toBeInTheDocument()
@@ -391,15 +400,32 @@ describe("MysqlConnections", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
 
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+      expect(screen.getByRole("main", { name: "MySQL DB Browser" })).toHaveClass("h-full", "overflow-hidden", "p-3", "sm:p-6")
+
+      const browserSection = screen.getByText("Browsing Staging").closest("section")
+      expect(browserSection).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "gap-4")
+      expect(screen.getByRole("tab", { name: "Browse" }).closest('[role="tablist"]')).toHaveClass("shrink-0")
+
       expect(await screen.findByText("app_staging")).toBeInTheDocument()
       expect(screen.getByText("information_schema")).toBeInTheDocument()
       expect(screen.getByText("System")).toBeInTheDocument()
+
+      const schemaTree = screen.getByRole("navigation", { name: "Databases and tables" })
+      expect(schemaTree).toHaveClass("h-full", "min-h-0", "overflow-y-auto")
+      expect(schemaTree.parentElement).toHaveClass("grid", "min-h-0", "flex-1")
 
       fireEvent.click(screen.getByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
 
       expect(await screen.findByText("grace@example.com")).toBeInTheDocument()
       expect(screen.getByText("ada@example.com")).toBeInTheDocument()
+
+      const contentTab = screen.getByRole("tab", { name: "Content" })
+      const tablist = contentTab.closest('[role="tablist"]') as HTMLElement
+      expect(tablist).toHaveClass("shrink-0")
+      expect(tablist.parentElement?.parentElement).toHaveClass("flex", "h-full", "min-h-0", "min-w-0", "flex-col", "overflow-hidden")
+      expect(tablist.nextElementSibling).toHaveClass("min-h-0", "flex-1", "overflow-y-auto")
+      expect(screen.getByRole("region", { name: "Table content" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
     })
 
     it("constrains the content column so a wide results table scrolls instead of widening the page", async () => {
@@ -417,10 +443,10 @@ describe("MysqlConnections", () => {
 
       const column = tablist.parentElement?.parentElement as HTMLElement | null
       expect(column).not.toBeNull()
-      expect(column).toHaveClass("min-w-0")
+      expect(column).toHaveClass("min-w-0", "overflow-hidden")
 
       const scrollArea = screen.getByText("grace@example.com").closest("table")?.parentElement
-      expect(scrollArea).toHaveClass("overflow-auto")
+      expect(scrollArea).toHaveClass("min-h-0", "flex-1", "overflow-auto")
     })
 
     it("switches to the Structure sub-tab to see columns and indexes", async () => {
@@ -461,6 +487,10 @@ describe("MysqlConnections", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByRole("tab", { name: "Query" }))
 
+      const queryRegion = screen.getByRole("region", { name: "SQL query" })
+      expect(queryRegion).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+      expect(queryRegion.parentElement).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+
       fireEvent.change(screen.getByLabelText("SQL statement"), { target: { value: "SELECT * FROM users" } })
       fireEvent.click(screen.getByRole("button", { name: "Run query" }))
 
@@ -483,6 +513,7 @@ describe("MysqlConnections", () => {
       fireEvent.click(screen.getByRole("tab", { name: "Query Builder" }))
 
       expect(await screen.findByText("Compiled SQL")).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "No-code query builder" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
       expect(await screen.findByText(/SELECT \.\.\. FROM `users`/)).toBeInTheDocument()
     })
 
@@ -532,6 +563,10 @@ describe("MysqlConnections", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByRole("tab", { name: "Live" }))
+
+      const liveRegion = screen.getByRole("region", { name: "Live diagnostics" })
+      expect(liveRegion).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+      expect(liveRegion.parentElement).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
 
       await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/query"))).toBe(true))
       expect(await screen.findByText("1 rows in 2ms")).toBeInTheDocument()

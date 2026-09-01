@@ -27,8 +27,8 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
   })
 
   return (
-    <section aria-label={t("aria_live_tab")} className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section aria-label={t("aria_live_tab")} className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2" role="tablist">
           {CANNED_QUERIES.map((query) => (
             <button
