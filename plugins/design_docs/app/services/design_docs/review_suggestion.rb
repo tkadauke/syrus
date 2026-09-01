@@ -45,9 +45,11 @@ module DesignDocs
 
     def accept
       anchor = suggestion.anchor
-      location = AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
-      return mark_conflict!("Anchor marker is #{location.status}.") if location.status.in?(%w[missing duplicated])
       return mark_conflict!("Suggestions can only be accepted for range anchors.") unless anchor.range?
+
+      location = AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
+      return accept_unmarked_autosave_range(anchor) if location.status == "missing" && autosave_suggestion?
+      return mark_conflict!("Anchor marker is #{location.status}.") if location.status.in?(%w[missing duplicated])
       return mark_stale!(location.selected_markdown.to_s) unless location.selected_markdown.to_s == suggestion.original_markdown.to_s
 
       next_markdown = AnchorMarkers.replace_range(
@@ -70,6 +72,32 @@ module DesignDocs
       AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
 
       Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
+    end
+
+    def accept_unmarked_autosave_range(anchor)
+      markdown = AnchorMarkers.strip(design_doc.markdown)
+      start_offset = anchor.last_known_start_offset || anchor.start_offset
+      end_offset = anchor.last_known_end_offset || anchor.end_offset
+      current_text = markdown[start_offset...end_offset].to_s
+      return mark_stale!(current_text) unless current_text == suggestion.original_markdown.to_s
+
+      design_doc.update!(markdown: markdown[0...start_offset].to_s + suggestion.proposed_markdown_value + markdown[end_offset..].to_s)
+      version = design_doc.versions.create!(
+        markdown: design_doc.markdown,
+        version_number: next_version_number,
+        actor_kind: "user",
+        actor_user: user,
+        change_summary: suggestion.change_summary.presence || "Accept design doc suggestion"
+      )
+      design_doc.update!(current_version: version)
+      anchor.update!(status: "active", last_known_end_offset: start_offset + suggestion.proposed_markdown_value.length)
+      suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
+
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
+    end
+
+    def autosave_suggestion?
+      ActiveModel::Type::Boolean.new.cast(suggestion.provenance&.fetch("autosave", false))
     end
 
     def mark_conflict!(reason)
