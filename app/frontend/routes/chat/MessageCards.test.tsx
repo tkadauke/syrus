@@ -437,6 +437,135 @@ describe("tool result rendering", () => {
     expect(screen.queryByTestId("highlighted-code")).not.toBeInTheDocument()
     expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
   })
+
+  it("renders list_chat_media results as a compact dark-mode-safe gallery with raw JSON details", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List chat media",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_chat_media",
+          raw_name: "syrus-chat-sidecar.list_chat_media",
+          detail: "No arguments",
+          display_label: "List chat media",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({
+            snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
+            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png" }],
+            whiteboard_element_count: 7
+          }),
+          result_error: false,
+          result_kind: "list",
+          result_summary: "2 media items"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getAllByText("2 media items")).toHaveLength(2)
+    expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /desktop.png/ })).toHaveClass("dark:bg-gray-950")
+    expect(screen.getByRole("button", { name: /Checkout flow/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /desktop.png/ }))
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.getAllByText("chat_image:3")).toHaveLength(2)
+
+    const rawDetails = screen.getByText("Raw details").closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) return
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
+  })
+
+  it("renders typed success, proposal, and state outputs instead of raw JSON", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Actions",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "set_bookmark",
+          raw_name: "set_bookmark",
+          detail: "Launch notes",
+          display_label: "Set bookmark",
+          progress_label: "Making changes",
+          raw_payload: { label: "Launch notes" },
+          result_body: JSON.stringify({ id: 4, label: "Launch notes", kind: "topic" }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 bookmark"
+        },
+        {
+          message_id: 2,
+          tool_name: "propose_job",
+          raw_name: "propose_job",
+          detail: "Fix output",
+          display_label: "Propose job",
+          progress_label: "Making changes",
+          raw_payload: { title: "Fix output" },
+          result_body: JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "pending", repository: "tkadauke/syrus" }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 proposal"
+        },
+        {
+          message_id: 3,
+          tool_name: "read_job",
+          raw_name: "read_job",
+          detail: "4048",
+          display_label: "Read job",
+          progress_label: "Reading",
+          raw_payload: { job_id: 4048 },
+          result_body: JSON.stringify({ job: { issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus" } }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 Job"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
+    expect(screen.getByText("Job proposal ready: Fix output")).toBeInTheDocument()
+    expect(screen.getByText("Typed renderers")).toBeInTheDocument()
+    expect(screen.getByText("running")).toBeInTheDocument()
+    expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
+  })
+
+  it("falls back to formatted raw output for unknown and malformed typed payloads", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Unknown tool",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "set_bookmark",
+          raw_name: "set_bookmark",
+          detail: "bad",
+          display_label: "Set bookmark",
+          progress_label: "Making changes",
+          raw_payload: {},
+          result_body: "{\"label\":",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("{\"label\":")).toBeInTheDocument()
+  })
 })
 
 describe("pin control", () => {
