@@ -5,14 +5,30 @@
 // per-workflow workspace paths that show up in tool output. Pure functions
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
 import { contentRecord, firstLine, stringValue } from "./utils"
+import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
+const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar"]
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
 const TOOL_RESULT_PREVIEW_CHARS = 20_000
 const TOOL_RESULT_PREVIEW_LINES = 400
 export const TOOL_RESULT_PREVIEW_LINE_CHARS = 2_000
+
+export type ToolPresentation = {
+  raw_name: string
+  name: string
+  display_label: string
+  argument_summary: string
+  raw_payload: unknown
+}
+
+export type ToolResultPresentation = {
+  kind: ChatToolResultKind
+  summary: string
+  metadata?: ChatToolSummaryMetadata
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -28,7 +44,51 @@ function stableJsonValue(value: unknown): unknown {
 }
 
 export function toolLabel(name: string) {
-  return name.startsWith("mcp__") ? name.split("__", 3).at(-1) || name : name
+  return toolIdentity(name).display_label
+}
+
+export function toolPresentation(name: string, input: Record<string, unknown>): ToolPresentation {
+  const identity = toolIdentity(name)
+
+  return {
+    ...identity,
+    argument_summary: toolArgumentSummary(identity.name, input),
+    raw_payload: input
+  }
+}
+
+function toolIdentity(name: string) {
+  const normalized = normalizedToolName(name)
+
+  return {
+    raw_name: name,
+    name: normalized,
+    display_label: displayToolName(normalized)
+  }
+}
+
+function normalizedToolName(name: string) {
+  if (name.startsWith("mcp__")) {
+    const parts = name.split("__")
+    return parts.length >= 3 ? parts.slice(2).join("__") || name : name
+  }
+
+  for (const prefix of CHAT_MCP_SERVER_PREFIXES) {
+    if (name === prefix) return name
+    if (name.startsWith(`${prefix}.`)) return name.slice(prefix.length + 1)
+  }
+
+  return name
+}
+
+function displayToolName(name: string) {
+  if (/^[a-z0-9_]+$/.test(name) && name.includes("_")) return humanizeToolName(name)
+  return name
+}
+
+function humanizeToolName(name: string) {
+  const normalized = name.replace(/_/g, " ").trim().toLowerCase()
+  return normalized ? normalized[0].toUpperCase() + normalized.slice(1) : name
 }
 
 export function simpleToolProgressLabel(name: string) {
@@ -42,6 +102,12 @@ export function simpleToolProgressLabel(name: string) {
 }
 
 export function toolDetail(name: string, input: Record<string, unknown>) {
+  return toolPresentation(name, input).argument_summary
+}
+
+function toolArgumentSummary(name: string, input: Record<string, unknown>) {
+  if (Object.keys(input).length === 0) return "No arguments"
+
   let detail = ""
 
   switch (name) {
@@ -85,16 +151,32 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
       detail = stringValue(input.name)
       break
     default:
-      if (name.startsWith("mcp__")) {
-        const candidate = Object.values(input).find((value) => typeof value === "string" && value.length > 0)
-        detail = firstLine(stringValue(candidate))
-        break
-      }
-
-      detail = firstLine(JSON.stringify(input))
+      detail = defaultToolArgumentSummary(input)
   }
 
   return shortenWorkspacePaths(detail)
+}
+
+function defaultToolArgumentSummary(input: Record<string, unknown>) {
+  const preferred = [
+    input.query,
+    input.prompt,
+    input.title,
+    input.label,
+    input.name,
+    input.path,
+    input.file_path,
+    input.repository,
+    input.slug,
+    input.id
+  ].find((value) => stringValue(value).trim().length > 0)
+
+  if (preferred != null) return firstLine(stringValue(preferred))
+
+  const candidate = Object.values(input).find((value) => typeof value === "string" && value.length > 0)
+  if (candidate != null) return firstLine(stringValue(candidate))
+
+  return firstLine(JSON.stringify(stableJsonValue(input)))
 }
 
 export function shortenWorkspacePaths(value: string) {
@@ -169,13 +251,104 @@ function findWorkspaceTokenStart(value: string, markerIndex: number) {
 }
 
 export function toolResultSummary(name: string, body: string) {
-  if (!COUNTED_RESULT_TOOLS.has(name)) return ""
+  return toolResultPresentation(name, body).summary
+}
+
+export function toolResultPresentation(name: string, body: string, error = false): ToolResultPresentation {
+  if (error) return { kind: "error", summary: "" }
+
+  const normalizedName = normalizedToolName(name)
+  const parsed = parseJsonText(body)
+  const mcpSummary = mcpResultSummary(normalizedName, parsed)
+  if (mcpSummary) return mcpSummary
+
+  if (!COUNTED_RESULT_TOOLS.has(normalizedName)) {
+    return { kind: parsed == null ? "text" : Array.isArray(parsed) ? "list" : isPlainObject(parsed) ? "record" : "json", summary: "" }
+  }
 
   const lines = body.split(/\r?\n/).filter((line) => line.trim().length > 0)
-  if (lines.length <= RESULT_SUMMARY_LINE_THRESHOLD) return ""
+  if (lines.length <= RESULT_SUMMARY_LINE_THRESHOLD) return { kind: "text", summary: "" }
 
-  const noun = name === "Glob" ? "path" : name === "Grep" ? "match" : "line"
-  return `${lines.length} ${noun}${lines.length === 1 ? "" : "s"}`
+  const noun = normalizedName === "Glob" ? "path" : normalizedName === "Grep" ? "match" : "line"
+  return { kind: "text", summary: countSummary(lines.length, noun), metadata: { count: lines.length, noun } }
+}
+
+function mcpResultSummary(name: string, parsed: unknown): ToolResultPresentation | null {
+  const count = resultCount(parsed)
+  const noun = resultNoun(name)
+
+  if (count != null && noun) {
+    return {
+      kind: "list",
+      summary: countSummary(count, noun),
+      metadata: { count, noun }
+    }
+  }
+
+  if (parsed == null || !noun || !isPlainObject(parsed)) return null
+
+  return {
+    kind: "record",
+    summary: countSummary(1, noun),
+    metadata: { count: 1, noun }
+  }
+}
+
+function resultNoun(name: string) {
+  if (name.includes("chat_media")) return "media item"
+  if (name.includes("bookmark")) return "bookmark"
+  if (name.includes("proposal")) return "proposal"
+  if (name.includes("job")) return "Job"
+  if (name.includes("epic")) return "Epic"
+  if (name.startsWith("list_")) return itemNoun(name.replace(/^list_/, ""))
+  if (name.startsWith("read_")) return itemNoun(name.replace(/^read_/, ""))
+
+  return null
+}
+
+function itemNoun(value: string) {
+  return value.replace(/_/g, " ").replace(/s$/, "") || "item"
+}
+
+function resultCount(value: unknown): number | null {
+  if (Array.isArray(value)) return value.length
+  if (!isPlainObject(value)) return null
+
+  for (const key of ["items", "results", "records", "proposals", "bookmarks", "media", "chat_media", "jobs", "epics", "children"]) {
+    const candidate = value[key]
+    if (Array.isArray(candidate)) return candidate.length
+  }
+
+  for (const key of ["count", "total", "total_count"]) {
+    const candidate = value[key]
+    if (typeof candidate === "number" && Number.isFinite(candidate)) return candidate
+  }
+
+  return null
+}
+
+function countSummary(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
+}
+
+function parseJsonText(value: string): unknown {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  let current: unknown = trimmed
+  for (let index = 0; index < 3; index += 1) {
+    if (typeof current !== "string") return current
+    const candidate = current.trim()
+    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith("\"")) return index === 0 ? null : current
+
+    try {
+      current = JSON.parse(candidate)
+    } catch {
+      return index === 0 ? null : current
+    }
+  }
+
+  return current
 }
 
 export function fullResultBody(content: unknown): string {

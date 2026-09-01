@@ -444,7 +444,7 @@ function hasLongLine(value: string) {
 }
 
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
-  const name = tool?.name || "tool"
+  const name = tool?.display_label || tool?.name || "tool"
   const [open, setOpen] = useState(false)
   return (
     <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)}>

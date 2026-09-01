@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fullResultBody, shortenWorkspacePaths, toolDetail } from "./toolRendering"
+import { fullResultBody, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -31,6 +31,47 @@ describe("tool result rendering", () => {
 describe("toolDetail", () => {
   it("shows the invoked skill's name for the synthetic resolve_skill provenance call", () => {
     expect(toolDetail("resolve_skill", { name: "investigate" })).toBe("investigate")
+  })
+
+  it("renders empty arguments as a concise label", () => {
+    expect(toolDetail("syrus-chat-sidecar.list_chat_media", {})).toBe("No arguments")
+  })
+})
+
+describe("toolLabel", () => {
+  it("hides chat sidecar prefixes and humanizes snake-case tool names", () => {
+    expect(toolLabel("syrus-chat-sidecar.list_chat_media")).toBe("List chat media")
+    expect(toolLabel("syrus-chat-deferred-sidecar.list_chat_media")).toBe("List chat media")
+  })
+
+  it("hides mcp transport prefixes for chat sidecar tools", () => {
+    expect(toolLabel("mcp__syrus-chat-sidecar__list_chat_media")).toBe("List chat media")
+  })
+})
+
+describe("toolPresentation", () => {
+  it("keeps raw unknown-tool arguments available while showing a compact fallback", () => {
+    const input = { foo: "bar", count: 2 }
+    const presentation = toolPresentation("mcp__custom-server__unknown_tool", input)
+
+    expect(presentation.display_label).toBe("Unknown tool")
+    expect(presentation.argument_summary).toBe("bar")
+    expect(presentation.raw_payload).toBe(input)
+  })
+})
+
+describe("toolResultPresentation", () => {
+  it("summarizes escaped JSON-in-text MCP list results", () => {
+    const result = toolResultPresentation(
+      "list_chat_media",
+      JSON.stringify(JSON.stringify({ chat_media: [{ id: "img_1" }, { id: "img_2" }] }))
+    )
+
+    expect(result).toMatchObject({
+      kind: "list",
+      summary: "2 media items",
+      metadata: { count: 2, noun: "media item" }
+    })
   })
 })
 
