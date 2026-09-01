@@ -389,5 +389,5 @@ function AddMemberForm({ payload, onNotice }: { payload: RepositoryMembershipsPa
 }
 
 function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+  return "rounded border border-transparent bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-60"
 }
