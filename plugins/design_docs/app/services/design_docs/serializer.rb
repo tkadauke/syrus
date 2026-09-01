@@ -28,7 +28,10 @@ module DesignDocs
           pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
           open_threads_count: design_doc.threads.where(state: "open").count,
           threads: design_doc.threads.includes(:anchor, comments: :author_user).order(:created_at, :id).map { |thread| self.thread(thread) },
-          suggestions: design_doc.suggestions.includes(:anchor, :suggested_by_user, :reviewed_by_user).order(created_at: :desc, id: :desc).map { |suggestion| self.suggestion(suggestion) }
+          suggestions: design_doc.suggestions
+            .includes(:anchor, :suggested_by_user, :reviewed_by_user, thread: [ :anchor, { comments: :author_user } ])
+            .order(created_at: :desc, id: :desc)
+            .map { |suggestion| self.suggestion(suggestion) }
         )
       end
 
@@ -60,6 +63,7 @@ module DesignDocs
           provenance: suggestion.provenance || {},
           conflict_reason: suggestion.conflict_reason,
           anchor: anchor_json(suggestion.anchor),
+          thread: suggestion.thread ? thread(suggestion.thread) : nil,
           reviewed_by: user_json(suggestion.reviewed_by_user),
           reviewed_at: suggestion.reviewed_at&.iso8601,
           created_at: suggestion.created_at.iso8601

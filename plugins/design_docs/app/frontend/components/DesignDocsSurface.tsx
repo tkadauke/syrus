@@ -26,6 +26,7 @@ import {
   resolveDesignDocThread,
   updateDesignDoc,
   type DesignDocDetail,
+  type DesignDocSuggestion,
   type DesignDocThread,
   type DesignDocSummary,
   type DesignDocVersion
@@ -40,6 +41,7 @@ type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
   threadId?: number
+  suggestionId?: number
   proposedMarkdown?: string
   suggestionState?: string
   status: string
@@ -262,6 +264,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
   const [commentBody, setCommentBody] = useState("")
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
+  const [focusedSuggestionId, setFocusedSuggestionId] = useState<number | null>(null)
   const [replyBodies, setReplyBodies] = useState<Record<number, string>>({})
   const [collaborators, setCollaborators] = useState(doc.collaborator_ids.join(", "))
   const [repoIds, setRepoIds] = useState(doc.repository_ids.map(String))
@@ -279,6 +282,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const persistedDraftRef = useRef(`${doc.id}:${canWriteCanonical ? "edit" : "suggest"}:${doc.title}:${doc.rendered_markdown || doc.markdown}`)
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
@@ -358,7 +362,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
-    onSuccess: () => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.state === "open" ? { ...thread, state: "resolved" } : thread) }, "Thread resolved.")
+    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, "Thread resolved.")
   })
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
   const activeHighlights = useMemo(
@@ -403,9 +407,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (editorMode !== "rich_text" || !wysiwygRef.current) return
     if (document.activeElement === wysiwygRef.current) return
 
-    const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId)
+    const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId, focusedSuggestionId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
-  }, [draft, editorMode, focusedThreadId, activeHighlights])
+  }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights])
 
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
@@ -430,6 +434,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     threadRefs.current[focusedThreadId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
   }, [focusedThreadId])
 
+  useEffect(() => {
+    if (!focusedSuggestionId) return
+
+    suggestionRefs.current[focusedSuggestionId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
+  }, [focusedSuggestionId])
+
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
     setSelectedVersionId(versionId)
@@ -449,6 +459,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
   function focusThread(threadId: number) {
     setFocusedThreadId(threadId)
+    setFocusedSuggestionId(null)
     const thread = doc.threads.find((candidate) => candidate.id === threadId)
     const anchor = thread?.anchor
     const start = anchor?.last_known_start_offset ?? anchor?.start_offset
@@ -468,9 +479,32 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     marker?.scrollIntoView?.({ block: "center", behavior: "smooth" })
   }
 
+  function focusSuggestion(suggestionId: number) {
+    setFocusedSuggestionId(suggestionId)
+    setFocusedThreadId(null)
+    const suggestion = doc.suggestions.find((candidate) => candidate.id === suggestionId)
+    const anchor = suggestion?.anchor
+    const start = anchor?.last_known_start_offset ?? anchor?.start_offset
+    const end = anchor?.last_known_end_offset ?? anchor?.end_offset
+    if (start == null || end == null) return
+
+    if (editorMode === "markdown" && textareaRef.current) {
+      textareaRef.current.focus()
+      textareaRef.current.setSelectionRange(start, end)
+      const nextScrollTop = Math.max(0, Math.floor(start / 80) * 24 - 80)
+      textareaRef.current.scrollTop = nextScrollTop
+      setMarkdownScrollTop(nextScrollTop)
+      return
+    }
+
+    const marker = wysiwygRef.current?.querySelector(`[data-suggestion-id="${suggestionId}"]`) as HTMLElement | null
+    marker?.scrollIntoView?.({ block: "center", behavior: "smooth" })
+  }
+
   function focusThreadAtOffset(offset: number) {
-    const match = activeHighlights.find((highlight) => highlight.kind === "thread" && offset >= highlight.start && offset <= highlight.end)
+    const match = activeHighlights.find((highlight) => offset >= highlight.start && offset <= highlight.end)
     if (match?.threadId) focusThread(match.threadId)
+    if (match?.suggestionId) focusSuggestion(match.suggestionId)
   }
 
   return (
@@ -551,7 +585,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
               <span className="sr-only">Markdown editor</span>
-              <MarkdownHighlightMirror draft={draft} focusedThreadId={focusedThreadId} highlights={activeHighlights} scrollTop={markdownScrollTop} />
+              <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} scrollTop={markdownScrollTop} />
               <textarea
                 aria-label="Markdown editor"
                 className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
@@ -573,6 +607,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
               onBlur={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
               onClick={(event) => {
                 const target = event.target as HTMLElement
+                const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
+                if (suggestionMarker?.dataset.suggestionId) {
+                  focusSuggestion(Number(suggestionMarker.dataset.suggestionId))
+                  return
+                }
                 const marker = target.closest("[data-thread-id]") as HTMLElement | null
                 if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
               }}
@@ -590,6 +629,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             selection={selection}
             onOpenComposer={() => {
               setFocusedThreadId(null)
+              setFocusedSuggestionId(null)
               window.setTimeout(() => newThreadComposerRef.current?.focus(), 0)
             }}
           />
@@ -597,16 +637,19 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         </div>
       </section>
       <aside className="space-y-4">
-        <ThreadPanel
+          <ThreadPanel
           commentBody={commentBody}
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
           focusedThreadId={focusedThreadId}
+          focusedSuggestionId={focusedSuggestionId}
           replyBodies={replyBodies}
           selection={selection}
+          suggestionRefs={suggestionRefs}
           threadRefs={threadRefs}
           onFocus={focusThread}
+          onFocusSuggestion={focusSuggestion}
           onComment={() => commentMutation.mutate()}
           onCommentChange={setCommentBody}
           onReply={(threadId) => {
@@ -615,8 +658,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           }}
           onReplyChange={(threadId, body) => setReplyBodies((current) => ({ ...current, [threadId]: body }))}
           onResolve={(threadId) => resolveMutation.mutate(threadId)}
+          onReview={(id, decision) => reviewMutation.mutate({ id, decision })}
         />
-        <SuggestionPanel doc={doc} onReview={(id, decision) => reviewMutation.mutate({ id, decision })} />
       </aside>
       </div>
     </div>
@@ -738,7 +781,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   )
 }
 
-function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {
+function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, highlights, scrollTop }: { draft: string; focusedSuggestionId: number | null; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {
   return (
     <div
       aria-hidden="true"
@@ -749,10 +792,15 @@ function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop
       {highlightTextSegments(draft, highlights).map((segment, index) => {
         if (!segment.highlight) return <span key={index}>{segment.text}</span>
 
-        const focused = segment.highlight.threadId === focusedThreadId
+        const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
         if (segment.highlight.kind === "suggestion") {
           return (
-            <span className="rounded-sm bg-surface-raised px-0.5" data-anchor-status={segment.highlight.status} data-inline-suggestion-state={segment.highlight.suggestionState} key={index}>
+            <span
+              className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-surface-raised"}`}
+              data-anchor-status={segment.highlight.status}
+              data-inline-suggestion-state={segment.highlight.suggestionState}
+              key={index}
+            >
               <del className="text-warning decoration-warning decoration-2">{segment.text}</del>
               <ins className="ml-1 text-success no-underline">{segment.highlight.proposedMarkdown}</ins>
             </span>
@@ -803,23 +851,31 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   )
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedThreadId, replyBodies, selection, threadRefs, onComment, onCommentChange, onFocus, onReply, onReplyChange, onResolve }: {
+function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
+  focusedSuggestionId: number | null
   focusedThreadId: number | null
   replyBodies: Record<number, string>
   selection: SelectionRange
+  suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   onComment: () => void
   onCommentChange: (body: string) => void
   onFocus: (threadId: number) => void
+  onFocusSuggestion: (suggestionId: number) => void
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
+  onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const hasSelection = selection.end > selection.start
+  const activeSuggestions = doc.suggestions.filter((suggestion) => suggestion.state === "pending")
+  const suggestionThreadIds = new Set(doc.suggestions.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
+  const activeCommentThreads = doc.threads.filter((thread) => thread.state === "open" && !suggestionThreadIds.has(thread.id))
+  const activeCount = activeCommentThreads.length + activeSuggestions.length
 
   return (
     <Panel className="relative min-h-[36rem]">
@@ -850,69 +906,199 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedThr
             </div>
           </div>
         ) : null}
-        {doc.threads.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No inline comments.</p> : null}
-        {doc.threads.map((thread) => (
-          <div
-            className={`rounded border p-3 transition ${focusedThreadId === thread.id ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
-            data-anchor-offset={thread.anchor.last_known_start_offset ?? thread.anchor.start_offset}
-            key={thread.id}
-            onClick={() => onFocus(thread.id)}
-            ref={(element) => { threadRefs.current[thread.id] = element }}
-            style={{ marginTop: railOffset(thread) }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusLabel value={thread.state} />
-                {thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}
-              </div>
-              {thread.state === "open" ? (
-                <Button
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onResolve(thread.id)
-                  }}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Resolve
-                </Button>
-              ) : null}
-            </div>
-            <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
-            <div className="mt-2 space-y-2 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
-              {thread.comments.map((comment) => (
-                <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
-                  <p>{comment.body}</p>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || comment.author_kind}</p>
-                </div>
-              ))}
-            </div>
-            {thread.state === "open" ? (
-              <div className="mt-3 flex gap-2">
-                <Input
-                  aria-label={`Reply to thread ${thread.id}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => onReplyChange(thread.id, event.target.value)}
-                  placeholder="Reply"
-                  value={replyBodies[thread.id] ?? ""}
-                />
-                <Button
-                  disabled={(replyBodies[thread.id] ?? "").trim().length === 0}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onReply(thread.id)
-                  }}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Reply
-                </Button>
-              </div>
-            ) : null}
-          </div>
+        {activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No active threads.</p> : null}
+        {activeCommentThreads.map((thread) => (
+          <CommentThreadCard
+            focused={focusedThreadId === thread.id}
+            key={`thread-${thread.id}`}
+            replyBody={replyBodies[thread.id] ?? ""}
+            thread={thread}
+            threadRefs={threadRefs}
+            onFocus={onFocus}
+            onReply={onReply}
+            onReplyChange={onReplyChange}
+            onResolve={onResolve}
+          />
+        ))}
+        {activeSuggestions.map((suggestion) => (
+          <SuggestionThreadCard
+            canReview={doc.permissions.can_review_suggestions}
+            focused={focusedSuggestionId === suggestion.id}
+            key={`suggestion-${suggestion.id}`}
+            replyBody={suggestion.thread ? replyBodies[suggestion.thread.id] ?? "" : ""}
+            suggestion={suggestion}
+            suggestionRefs={suggestionRefs}
+            onFocus={onFocusSuggestion}
+            onReply={onReply}
+            onReplyChange={onReplyChange}
+            onReview={onReview}
+          />
         ))}
       </div>
     </Panel>
+  )
+}
+
+function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+  focused: boolean
+  replyBody: string
+  thread: DesignDocThread
+  threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
+  onFocus: (threadId: number) => void
+  onReply: (threadId: number) => void
+  onReplyChange: (threadId: number, body: string) => void
+  onResolve: (threadId: number) => void
+}) {
+  return (
+    <div
+      className={`rounded border p-3 transition ${focused ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
+      data-anchor-offset={thread.anchor.last_known_start_offset ?? thread.anchor.start_offset}
+      onClick={() => onFocus(thread.id)}
+      ref={(element) => { threadRefs.current[thread.id] = element }}
+      style={{ marginTop: railOffset(thread) }}
+    >
+      <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={(
+        <Button
+          onClick={(event) => {
+            event.stopPropagation()
+            onResolve(thread.id)
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          Resolve
+        </Button>
+      )} />
+      <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
+      <ThreadComments comments={thread.comments} />
+      <ThreadReplyForm
+        label={`Reply to thread ${thread.id}`}
+        replyBody={replyBody}
+        threadId={thread.id}
+        onReply={onReply}
+        onReplyChange={onReplyChange}
+      />
+    </div>
+  )
+}
+
+function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
+  canReview: boolean
+  focused: boolean
+  replyBody: string
+  suggestion: DesignDocSuggestion
+  suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
+  onFocus: (suggestionId: number) => void
+  onReply: (threadId: number) => void
+  onReplyChange: (threadId: number, body: string) => void
+  onReview: (id: number, decision: "accept" | "reject") => void
+}) {
+  const thread = suggestion.thread
+
+  return (
+    <div
+      className={`rounded border p-3 transition ${focused ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
+      data-anchor-offset={suggestion.anchor.last_known_start_offset ?? suggestion.anchor.start_offset}
+      onClick={() => onFocus(suggestion.id)}
+      ref={(element) => { suggestionRefs.current[suggestion.id] = element }}
+      style={{ marginTop: railOffset(suggestion) }}
+    >
+      <ThreadCardHeader labels={<><StatusLabel value="suggestion" />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
+      <div className="mt-2 grid gap-2 text-xs">
+        <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
+        <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
+      </div>
+      {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
+      {thread ? <ThreadComments comments={thread.comments} /> : null}
+      {thread ? (
+        <ThreadReplyForm
+          label={`Reply to suggestion ${suggestion.id}`}
+          replyBody={replyBody}
+          threadId={thread.id}
+          onReply={onReply}
+          onReplyChange={onReplyChange}
+        />
+      ) : null}
+      {canReview ? (
+        <div className="mt-3 flex gap-2">
+          <Button
+            onClick={(event) => {
+              event.stopPropagation()
+              onReview(suggestion.id, "accept")
+            }}
+            size="sm"
+            variant="success"
+          >
+            Accept
+          </Button>
+          <Button
+            onClick={(event) => {
+              event.stopPropagation()
+              onReview(suggestion.id, "reject")
+            }}
+            size="sm"
+            variant="secondary"
+          >
+            Reject
+          </Button>
+        </div>
+      ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p>}
+    </div>
+  )
+}
+
+function ThreadCardHeader({ action, labels }: { action: React.ReactNode; labels: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">{labels}</div>
+      {action}
+    </div>
+  )
+}
+
+function ThreadComments({ comments }: { comments: DesignDocThread["comments"] }) {
+  if (comments.length === 0) return null
+
+  return (
+    <div className="mt-2 space-y-2 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
+      {comments.map((comment) => (
+        <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
+          <p>{comment.body}</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || comment.author_kind}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }: {
+  label: string
+  replyBody: string
+  threadId: number
+  onReply: (threadId: number) => void
+  onReplyChange: (threadId: number, body: string) => void
+}) {
+  return (
+    <div className="mt-3 flex gap-2">
+      <Input
+        aria-label={label}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => onReplyChange(threadId, event.target.value)}
+        placeholder="Reply"
+        value={replyBody}
+      />
+      <Button
+        disabled={replyBody.trim().length === 0}
+        onClick={(event) => {
+          event.stopPropagation()
+          onReply(threadId)
+        }}
+        size="sm"
+        variant="secondary"
+      >
+        Reply
+      </Button>
+    </div>
   )
 }
 
@@ -929,38 +1115,6 @@ function clampAffordanceLeft(rect: SelectionRect) {
   const inset = 8
   const maxLeft = Math.max(inset, rect.containerWidth - iconWidth - inset)
   return Math.min(Math.max(rect.left, inset), maxLeft)
-}
-
-function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (id: number, decision: "accept" | "reject") => void }) {
-  const canReview = doc.permissions.can_review_suggestions
-  return (
-    <Panel>
-      <SectionHeading as="h3">Suggestions</SectionHeading>
-      <div className="mt-3 space-y-3">
-        {doc.suggestions.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No suggestions.</p> : null}
-        {doc.suggestions.map((suggestion) => (
-          <div className="rounded border border-gray-200 p-3 dark:border-gray-700" key={suggestion.id}>
-            <div className="flex items-center justify-between gap-2">
-              <StatusLabel value={suggestion.state} />
-              <p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>
-            </div>
-            <div className="mt-2 grid gap-2 text-xs">
-              <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
-              <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
-            </div>
-            {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
-            {suggestion.conflict_reason ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{suggestion.conflict_reason}</p> : null}
-            {suggestion.state === "pending" && canReview ? (
-              <div className="mt-3 flex gap-2">
-                <Button onClick={() => onReview(suggestion.id, "accept")} size="sm" variant="success">Accept</Button>
-                <Button onClick={() => onReview(suggestion.id, "reject")} size="sm" variant="secondary">Reject</Button>
-              </div>
-            ) : suggestion.state === "pending" ? <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p> : null}
-          </div>
-        ))}
-      </div>
-    </Panel>
-  )
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
@@ -997,7 +1151,7 @@ function anchorPayload(selection: SelectionRange) {
   }
 }
 
-function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] = [], focusedThreadId: number | null = null) {
+function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] = [], focusedThreadId: number | null = null, focusedSuggestionId: number | null = null) {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
   const blocks: string[] = []
   let index = 0
@@ -1015,7 +1169,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     if (heading) {
       const level = heading[1].length
       const headingOffset = offset + heading[1].length + 1
-      blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId)}</h${level}>`)
+      blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId, focusedSuggestionId)}</h${level}>`)
       offset += line.length + 1
       index += 1
       continue
@@ -1028,7 +1182,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
         const itemLine = lines[index]
         const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
         if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId)}</li>`)
+        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
         offset += itemLine.length + 1
         index += 1
       }
@@ -1043,7 +1197,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
         const itemLine = lines[index]
         const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
         if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId)}</li>`)
+        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
         offset += itemLine.length + 1
         index += 1
       }
@@ -1055,7 +1209,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index])) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
-      paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId))
+      paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId, focusedSuggestionId))
       offset += paragraphLine.length + 1
       index += 1
     }
@@ -1065,8 +1219,8 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
   return blocks.join("")
 }
 
-function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null) {
-  return renderHighlightedHtml(markdown, highlights, baseOffset, focusedThreadId)
+function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null, focusedSuggestionId: number | null = null) {
+  return renderHighlightedHtml(markdown, highlights, baseOffset, focusedThreadId, focusedSuggestionId)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
@@ -1114,8 +1268,9 @@ function escapeHtml(value: string) {
 }
 
 function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
+  const suggestionThreadIds = new Set(doc.suggestions.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
   const threadHighlights = doc.threads
-    .filter((thread) => thread.anchor.anchor_kind === "range")
+    .filter((thread) => thread.state === "open" && thread.anchor.anchor_kind === "range" && !suggestionThreadIds.has(thread.id))
     .map((thread) => {
       const start = thread.anchor.last_known_start_offset ?? thread.anchor.start_offset
       const end = thread.anchor.last_known_end_offset ?? thread.anchor.end_offset
@@ -1137,6 +1292,7 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
       return {
         id: `suggestion-${suggestion.id}`,
         kind: "suggestion" as const,
+        suggestionId: suggestion.id,
         proposedMarkdown: suggestion.proposed_markdown,
         suggestionState: suggestion.state,
         status: suggestion.anchor.status,
@@ -1167,7 +1323,7 @@ function highlightTextSegments(text: string, highlights: AnchorHighlight[]) {
   return segments
 }
 
-function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null) {
+function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null, focusedSuggestionId: number | null) {
   return highlightTextSegments(text, highlights.map((highlight) => ({
     ...highlight,
     start: highlight.start - baseOffset,
@@ -1176,10 +1332,14 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
     .map((segment) => {
       if (!segment.highlight) return escapeHtml(segment.text)
 
-      const focused = segment.highlight.threadId === focusedThreadId
+      const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
       if (segment.highlight.kind === "suggestion") {
+        const suggestionAttrs = segment.highlight.suggestionId ? ` data-suggestion-id="${segment.highlight.suggestionId}"` : ""
+        const className = focused
+          ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
+          : "rounded-sm bg-surface-raised px-0.5"
         return [
-          `<mark class="rounded-sm bg-surface-raised px-0.5" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}">`,
+          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>`,
           `<del class="text-warning decoration-warning decoration-2">${escapeHtml(segment.text)}</del>`,
           `<ins class="ml-1 text-success no-underline">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
           "</mark>"
@@ -1335,7 +1495,7 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
   }
 }
 
-function railOffset(thread: DesignDocThread) {
-  const offset = thread.anchor.last_known_start_offset ?? thread.anchor.start_offset ?? 0
+function railOffset(item: { anchor: DesignDocThread["anchor"] }) {
+  const offset = item.anchor.last_known_start_offset ?? item.anchor.start_offset ?? 0
   return `${Math.min(Math.max(Math.floor(offset / 8), 0), 96)}px`
 }

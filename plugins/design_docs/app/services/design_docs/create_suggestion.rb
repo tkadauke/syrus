@@ -21,6 +21,7 @@ module DesignDocs
         if autosave? || full_document_suggestion?
           draft = existing_autosave_suggestion
           if draft
+            ensure_suggestion_thread!(draft)
             draft.update!(
               suggested_markdown: proposed_markdown,
               proposed_markdown: proposed_markdown,
@@ -112,9 +113,18 @@ module DesignDocs
     end
 
     def suggestion_thread(anchor)
-      return nil if attributes[:thread_id].blank?
+      return design_doc.threads.find(attributes[:thread_id]) if attributes[:thread_id].present?
 
-      design_doc.threads.find(attributes[:thread_id])
+      design_doc.threads.create!(
+        anchor: anchor,
+        opened_by_user: actor_kind == "user" ? user : nil
+      )
+    end
+
+    def ensure_suggestion_thread!(suggestion)
+      return if suggestion.thread
+
+      suggestion.update!(thread: suggestion_thread(suggestion.anchor))
     end
 
     def original_markdown(anchor)
