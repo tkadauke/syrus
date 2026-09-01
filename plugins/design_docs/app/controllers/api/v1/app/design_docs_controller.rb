@@ -19,12 +19,12 @@ module Api
         end
 
         def show
-          render json: { design_doc: serializer.detail(find_design_doc) }
+          render json: { design_doc: serializer.detail(find_design_doc, user: Current.user) }
         end
 
         def create
           result = ::DesignDocs::Create.call(user: Current.user, attributes: design_doc_params.to_h.symbolize_keys)
-          render json: { design_doc: serializer.detail(result.design_doc), message: "Design doc created." }, status: :created
+          render json: { design_doc: serializer.detail(result.design_doc, user: Current.user), message: "Design doc created." }, status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -38,7 +38,7 @@ module Api
             actor_kind: design_doc_actor_kind
           )
 
-          payload = { design_doc: serializer.detail(result.design_doc), mode: result.mode, message: update_message(result) }
+          payload = { design_doc: serializer.detail(result.design_doc, user: Current.user), mode: result.mode, message: update_message(result) }
           payload[:version] = serializer.version(result.version) if result.version
           payload[:suggestion] = serializer.suggestion(result.suggestion) if result.suggestion
           render json: payload
@@ -65,7 +65,7 @@ module Api
           )
 
           render json: {
-            design_doc: serializer.detail(result.design_doc),
+            design_doc: serializer.detail(result.design_doc, user: Current.user),
             thread: serializer.thread(result.thread),
             comment: serializer.comment(result.comment),
             version: result.version ? serializer.version(result.version) : nil,
@@ -100,7 +100,7 @@ module Api
           )
 
           render json: {
-            design_doc: serializer.detail(result.design_doc),
+            design_doc: serializer.detail(result.design_doc, user: Current.user),
             suggestion: serializer.suggestion(result.suggestion),
             version: serializer.version(result.version),
             message: "Suggestion created."
@@ -115,7 +115,7 @@ module Api
           result = review_suggestion(:accept)
           status = result.applied ? :ok : :conflict
 
-          payload = { design_doc: serializer.detail(result.design_doc), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
+          payload = { design_doc: serializer.detail(result.design_doc, user: Current.user), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
           payload[:version] = serializer.version(result.version) if result.version
           render json: payload, status: status
         rescue ActiveRecord::RecordInvalid => e
@@ -128,7 +128,7 @@ module Api
           result = review_suggestion(:reject)
 
           render json: {
-            design_doc: serializer.detail(result.design_doc),
+            design_doc: serializer.detail(result.design_doc, user: Current.user),
             suggestion: serializer.suggestion(result.suggestion),
             message: "Suggestion rejected."
           }

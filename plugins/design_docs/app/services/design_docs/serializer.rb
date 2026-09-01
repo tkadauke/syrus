@@ -18,10 +18,11 @@ module DesignDocs
         }
       end
 
-      def detail(design_doc)
+      def detail(design_doc, user: nil)
         summary(design_doc).merge(
           markdown: design_doc.markdown,
           rendered_markdown: DesignDocs::AnchorMarkers.strip(design_doc.markdown),
+          permissions: permissions_json(design_doc, user),
           collaborator_ids: design_doc.collaborator_users.map(&:id),
           collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
           pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
@@ -84,6 +85,17 @@ module DesignDocs
       end
 
       private
+
+      def permissions_json(design_doc, user)
+        return { can_write_canonical: false, can_suggest: false, can_review_suggestions: false } unless user
+
+        policy = DesignDocPolicy.new(user, design_doc)
+        {
+          can_write_canonical: policy.canonical_write?,
+          can_suggest: policy.suggest?,
+          can_review_suggestions: policy.review?
+        }
+      end
 
       def user_json(user)
         return nil unless user
