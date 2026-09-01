@@ -123,6 +123,9 @@ describe("workspaceTabClass", () => {
     expect(workspaceTabClass(true)).toContain("max-w-[33vw]")
     expect(workspaceTabClass(true)).toContain("truncate")
     expect(workspaceTabClass(true)).toContain("shrink-0")
+    expect(workspaceTabClass(true)).toContain("border-brand")
+    expect(workspaceTabClass(true)).toContain("text-brand")
+    expect(workspaceTabClass(true)).not.toMatch(/\b(?:border|bg|text)-(?:blue|terracotta)-\d{2,3}\b/)
   })
 })
 
