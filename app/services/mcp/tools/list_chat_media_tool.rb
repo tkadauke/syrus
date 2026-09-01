@@ -19,7 +19,7 @@ module Mcp::Tools
                              .newest_first
                              .to_a
                              .select { |doc| doc.content_type.to_s.start_with?("image/") }
-                             .map { |doc| image_payload(doc) }
+                             .map { |doc| image_payload(chat_session, doc) }
 
         element_count = chat_session.whiteboard&.elements&.size || 0
 
@@ -42,12 +42,13 @@ module Mcp::Tools
         }
       end
 
-      def image_payload(doc)
+      def image_payload(chat_session, doc)
         {
           id: "chat_image:#{doc.id}",
           kind: "chat_image",
           filename: doc.filename,
-          content_type: doc.content_type
+          content_type: doc.content_type,
+          file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file"
         }
       end
     end
