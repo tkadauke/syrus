@@ -7,6 +7,7 @@ import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+const originalVisualViewport = Object.getOwnPropertyDescriptor(window, "visualViewport")
 
 const docDetail = {
   id: 1,
@@ -283,6 +284,11 @@ describe("DesignDocsSurface", () => {
     } else {
       Reflect.deleteProperty(window, "matchMedia")
     }
+    if (originalVisualViewport) {
+      Object.defineProperty(window, "visualViewport", originalVisualViewport)
+    } else {
+      Reflect.deleteProperty(window, "visualViewport")
+    }
   })
 
   it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
@@ -515,6 +521,71 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1728 })
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.textContent === "Share") {
+        return {
+          bottom: 350,
+          height: 32,
+          left: 1180,
+          right: 1230,
+          top: 318,
+          width: 50,
+          x: 1180,
+          y: 318,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+
+      return {
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const { container } = renderSurface("/chats/237")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+
+    const popover = await waitFor(() => container.querySelector("[data-design-doc-share-popover]"))
+    expect(popover).toHaveClass("left-0")
+    expect(popover).not.toHaveClass("right-0")
+  })
+
+  it("keeps the share popover inside the chat workspace when visualViewport reports a narrower value", async () => {
+    mockFetch()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1728 })
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: {
+        addEventListener: vi.fn(),
+        height: 929,
+        offsetLeft: 0,
+        offsetTop: 0,
+        removeEventListener: vi.fn(),
+        scale: 1,
+        width: 900
+      }
+    })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("aria-label") === "Design doc title bar") {
+        return {
+          bottom: 360,
+          height: 126,
+          left: 1150,
+          right: 1712,
+          top: 234,
+          width: 562,
+          x: 1150,
+          y: 234,
+          toJSON: () => ({})
+        } as DOMRect
+      }
       if (this.textContent === "Share") {
         return {
           bottom: 350,

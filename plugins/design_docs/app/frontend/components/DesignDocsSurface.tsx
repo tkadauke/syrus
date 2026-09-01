@@ -567,6 +567,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const titleBarRef = useRef<HTMLElement | null>(null)
   const shareButtonRef = useRef<HTMLButtonElement | null>(null)
   const [sharePopoverAlignment, setSharePopoverAlignment] = useState<PopoverAlignment>("start")
 
@@ -576,7 +577,11 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
     function updateSharePopoverAlignment() {
       if (!shareButtonRef.current) return
 
-      setSharePopoverAlignment(popoverAlignmentForTrigger(shareButtonRef.current.getBoundingClientRect(), SHARE_POPOVER_WIDTH))
+      setSharePopoverAlignment(popoverAlignmentForTrigger(
+        shareButtonRef.current.getBoundingClientRect(),
+        SHARE_POPOVER_WIDTH,
+        titleBarRef.current?.getBoundingClientRect() ?? null
+      ))
     }
 
     updateSharePopoverAlignment()
@@ -589,7 +594,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   }, [shareOpen])
 
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -890,12 +895,21 @@ function smartFolderIdFromSearch(search: string) {
   return Number.isInteger(id) ? id : null
 }
 
-function popoverAlignmentForTrigger(triggerRect: DOMRect, popoverWidth: number): PopoverAlignment {
-  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
-  const spaceRight = viewportWidth - triggerRect.left - POPOVER_VIEWPORT_MARGIN
-  const spaceLeft = triggerRect.right - POPOVER_VIEWPORT_MARGIN
+function popoverAlignmentForTrigger(triggerRect: DOMRect, popoverWidth: number, containerRect: DOMRect | null = null): PopoverAlignment {
+  const clippingRect = containerRect && containerRect.width > 0 ? containerRect : null
+  const viewportLeft = window.visualViewport?.offsetLeft ?? 0
+  const viewportRight = Math.max(
+    window.innerWidth,
+    viewportLeft + (window.visualViewport?.width ?? window.innerWidth)
+  )
+  const boundaryLeft = Math.max(POPOVER_VIEWPORT_MARGIN, clippingRect?.left ?? POPOVER_VIEWPORT_MARGIN, viewportLeft + POPOVER_VIEWPORT_MARGIN)
+  const boundaryRight = Math.min(viewportRight - POPOVER_VIEWPORT_MARGIN, clippingRect?.right ?? viewportRight - POPOVER_VIEWPORT_MARGIN)
+  const startOverflow = Math.max(0, triggerRect.left + popoverWidth - boundaryRight)
+  const endOverflow = Math.max(0, boundaryLeft - (triggerRect.right - popoverWidth))
 
-  return spaceRight >= popoverWidth || spaceRight >= spaceLeft ? "start" : "end"
+  if (startOverflow === 0 || startOverflow <= endOverflow) return "start"
+
+  return "end"
 }
 
 function anchorPayload(selection: SelectionRange) {
