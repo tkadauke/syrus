@@ -79,8 +79,8 @@ export type JobRecord = {
   validity: string
   credential_mode: string | null
   agent_provider: string | null
-  job_provider_setting?: "default" | "claude" | "codex"
-  job_provider_setting_options?: Array<{ value: "default" | "claude" | "codex"; label: string; configured: boolean }>
+  job_provider_setting?: string
+  job_provider_setting_options?: Array<{ value: string; label: string; configured: boolean }>
   provider_availability?: ProviderAvailability
   stack_base: string
   issue_number: number | null

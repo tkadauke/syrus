@@ -33,7 +33,6 @@ class Job < ApplicationRecord
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
-  PROVIDER_SETTINGS = Job::ProviderSetting::Base.values.freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
   TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
@@ -106,7 +105,7 @@ class Job < ApplicationRecord
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
-  validates :job_provider_setting, presence: true, inclusion: { in: PROVIDER_SETTINGS }
+  validates :job_provider_setting, presence: true, inclusion: { in: ->(_) { Job.provider_settings } }
   validates :stack_base, presence: true, inclusion: { in: STACK_BASES }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :validity, presence: true, inclusion: { in: VALIDITIES }
@@ -143,7 +142,6 @@ class Job < ApplicationRecord
   before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
-  enum :job_provider_setting, PROVIDER_SETTINGS.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
   enum :stack_base, STACK_BASES.index_with(&:itself), prefix: true, validate: true
   enum :approved_via, APPROVAL_VIAS.index_with(&:itself), prefix: true, validate: { allow_nil: true }
@@ -191,6 +189,10 @@ class Job < ApplicationRecord
       .flatten
       .compact
       .to_set
+  end
+
+  def self.provider_settings
+    Job::ProviderSetting::Base.values
   end
   scope :with_needs_attention, -> { where(needs_attention: true) }
   scope :in_grace_period, -> { where.not(grace_period_expires_at: nil).where("grace_period_expires_at > ?", Time.current) }
@@ -715,6 +717,10 @@ class Job < ApplicationRecord
 
   def workflow_agent_provider
     Job::ProviderSetting::Base.for(job_provider_setting).resolve(self)
+  end
+
+  def job_provider_setting_default?
+    job_provider_setting == Job::ProviderSetting::Base::DEFAULT_VALUE
   end
 
   def switch_job_provider_setting!(setting)

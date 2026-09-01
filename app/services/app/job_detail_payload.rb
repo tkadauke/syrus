@@ -125,7 +125,7 @@ module App
 
     def job_provider_setting_options
       PerformanceLogging.phase("job_detail.job.provider_setting_options", job_id: @job.id) do
-        Job::PROVIDER_SETTINGS.map do |setting|
+        Job.provider_settings.map do |setting|
           {
             value: setting,
             label: setting == "default" ? "Default" : App::Presentation.agent_provider_label(setting),
