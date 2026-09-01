@@ -101,6 +101,13 @@ describe("AppChromeV2", () => {
     unmount()
   })
 
+  it("hides the Publilius Syrus quote on db_browser routes", () => {
+    renderAppChrome(<main aria-label="DB Browser">DB Browser</main>, { initialEntries: ["/db_browser"] })
+
+    expect(screen.getByRole("main", { name: "DB Browser" })).toBeInTheDocument()
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument()
+  })
+
   it("highlights the persisted theme in the settings popup picker", () => {
     renderAppChrome(undefined, { bootstrap: bootstrapPayload({ current_user: { ...bootstrapPayload().current_user!, theme: "dark" } }) })
 

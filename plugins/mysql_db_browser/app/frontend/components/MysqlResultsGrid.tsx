@@ -25,7 +25,7 @@ export function MysqlResultsGrid({
   }
 
   return (
-    <div className="max-h-[32rem] overflow-auto">
+    <div className="min-h-0 flex-1 overflow-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
         <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 text-left uppercase text-gray-500 dark:text-gray-400">
           <tr>

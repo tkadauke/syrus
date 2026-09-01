@@ -70,7 +70,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const showDashboardSidebarSubjects = !simpleMode
   const quote = useMemo(randomPubliliusSyrusQuote, [])
-  const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal")
+  const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal") && !normalizedPath.startsWith("/db_browser")
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
