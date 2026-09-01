@@ -401,6 +401,37 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(thread.reload).to have_attributes(state: "resolved", resolved_by_user: owner)
   end
 
+  it "adds replies to an existing comment thread without creating a new anchor marker" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    result = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    )
+    marked_markdown = doc.reload.markdown
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "Added context",
+          thread_id: result.thread.id
+        }
+      }
+    }.to change(DesignDocComment, :count).by(1)
+      .and change(DesignDocThread, :count).by(0)
+      .and change(DesignDocAnchor, :count).by(0)
+      .and change(DesignDocVersion, :count).by(0)
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("thread", "id")).to eq(result.thread.id)
+    expect(parse_body.dig("comment", "body")).to eq("Added context")
+    expect(parse_body.fetch("version")).to be_nil
+    expect(doc.reload.markdown).to eq(marked_markdown)
+    expect(result.thread.comments.order(:created_at, :id).pluck(:body)).to eq([ "Needs evidence", "Added context" ])
+  end
+
   it "returns anchored threads and suggestions from the document detail API" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
