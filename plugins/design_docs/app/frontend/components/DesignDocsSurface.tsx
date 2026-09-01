@@ -60,15 +60,17 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
-  const id = mode === "chat" ? null : params.id
+  const routeDesignDocId = mode === "index" ? params.id : null
+  const id = mode === "chat" ? null : routeDesignDocId
   const search = location.search
   const [selectedId, setSelectedId] = useState<string | number | null>(id || initialDesignDocId || null)
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
+  const focusedSurface = mode === "chat" || Boolean(routeDesignDocId)
   const indexQuery = useQuery({
     queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
     queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search),
-    enabled: mode !== "chat"
+    enabled: mode !== "chat" && !focusedSurface
   })
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
@@ -90,12 +92,20 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
   const currentFilter = indexQuery.data?.filter ?? { and: [] }
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
-  const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}${search}`
+  const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}`
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
-  const showIndexControls = mode !== "chat"
-  const showDocList = mode !== "chat"
+  const showIndexControls = !focusedSurface
+  const showDocList = !focusedSurface
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
+  const showEditor = focusedSurface || Boolean(effectiveId)
+  const layoutColumns = compact && showDocList
+    ? "xl:grid-cols-[18rem_minmax(0,1fr)]"
+    : showDesktopInlineFolders
+      ? "lg:grid-cols-[16rem_minmax(0,1fr)]"
+      : showDocList
+        ? "grid-cols-1"
+        : "grid-cols-1"
   const filterBar = showIndexControls ? (
     <div data-testid="design-docs-filter-bar">
       <FilterBar
@@ -151,17 +161,17 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
 
   return (
     <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      {!focusedSurface ? <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {mode === "chat" ? "Docs from this chat workspace." : mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
+            {mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
           </p>
         </div>
         <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
           New doc
         </Button>
-      </header>
+      </header> : null}
       {notice ? <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{notice}</div> : null}
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">
@@ -178,7 +188,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           </details>
         </div>
       ) : null}
-      <div className={`grid min-h-0 gap-4 ${compact && showDocList ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : showDocList ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
+      <div className={`grid min-h-0 gap-4 ${layoutColumns}`}>
         {showDesktopInlineFolders ? smartFolders : null}
         {showDocList ? <DesignDocList
           docs={docs}
@@ -186,7 +196,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           selectedId={effectiveId}
           onSelect={(docId) => navigate(docPath(docId))}
         /> : null}
-        <section className="min-w-0">
+        {showEditor ? <section className="min-w-0">
           {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
           {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
           {detailQuery.isPending && effectiveId ? <Panel>Loading design doc...</Panel> : null}
@@ -205,7 +215,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
               }}
             />
           ) : null}
-        </section>
+        </section> : null}
       </div>
     </main>
   )
