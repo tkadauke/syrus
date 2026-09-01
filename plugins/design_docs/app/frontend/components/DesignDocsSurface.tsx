@@ -206,7 +206,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
                 void queryClient.invalidateQueries({
                   predicate: (query) => query.queryKey[0] === "design_docs" && query.queryKey[1] !== "detail" && query.queryKey[1] !== "versions"
                 })
-                setNotice(message)
+                if (message) setNotice(message)
               }}
             />
           ) : null}
@@ -250,11 +250,16 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
   )
 }
 
-function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message: string) => void }) {
+function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, title: string, markdown: string) {
+  return `${docId}:${mode}:${title}:${markdown}`
+}
+
+function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
+  const [summaryVisible, setSummaryVisible] = useState(false)
   const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
   const [commentBody, setCommentBody] = useState("")
   const [suggestionMarkdown, setSuggestionMarkdown] = useState("")
@@ -276,6 +281,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const persistedDraftRef = useRef(`${doc.id}:${canWriteCanonical ? "edit" : "suggest"}:${doc.title}:${doc.rendered_markdown || doc.markdown}`)
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
@@ -287,6 +293,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         title,
         markdown: draft,
         change_summary: summary,
+        checkpoint: true,
         visibility: doc.visibility,
         state: doc.state,
         repository_ids: repoIds.map(Number),
@@ -299,7 +306,34 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         proposed_markdown: draft,
         change_summary: summary
       }),
-    onSuccess: (payload) => onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
+    onSuccess: (payload) => {
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      setSummary("")
+      setSummaryVisible(false)
+      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
+    }
+  })
+  const autosaveMutation = useMutation({
+    mutationFn: () => effectiveChangeMode === "edit"
+      ? updateDesignDoc(doc.id, {
+        title,
+        markdown: draft,
+        visibility: doc.visibility,
+        state: doc.state,
+        repository_ids: repoIds.map(Number),
+        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+      })
+      : createDesignDocSuggestion(doc.id, {
+        start_offset: 0,
+        end_offset: doc.rendered_markdown.length,
+        original_markdown: doc.rendered_markdown,
+        proposed_markdown: draft,
+        autosave: true
+      }),
+    onSuccess: (payload) => {
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      onDocChange(payload.design_doc)
+    }
   })
   const metadataMutation = useMutation({
     mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
@@ -387,6 +421,19 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    persistedDraftRef.current = persistedDraftFingerprint(doc.id, canWriteCanonical ? "edit" : "suggest", doc.title, doc.rendered_markdown || doc.markdown)
+  }, [canWriteCanonical, doc.id])
+
+  useEffect(() => {
+    const fingerprint = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+    if (fingerprint === persistedDraftRef.current) return
+    if (autosaveMutation.isPending) return
+
+    const timeout = window.setTimeout(() => autosaveMutation.mutate(), 800)
+    return () => window.clearTimeout(timeout)
+  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, title])
+
+  useEffect(() => {
     if (!focusedThreadId) return
 
     threadRefs.current[focusedThreadId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
@@ -456,7 +503,14 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         versionsLoading={versions.isPending}
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
-        onSave={() => saveMutation.mutate()}
+        onSave={() => {
+          if (effectiveChangeMode === "edit" && !summaryVisible) {
+            setSummaryVisible(true)
+            return
+          }
+
+          saveMutation.mutate()
+        }}
         saveLabel={saveLabel}
         canManageMetadata={canWriteCanonical}
         onVersionChange={selectVersion}
@@ -500,7 +554,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 )}
               </div>
             </div>
-            <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Change summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
+            {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (

@@ -575,12 +575,20 @@ describe("DesignDocsSurface", () => {
     expect(editButton).toHaveAttribute("aria-pressed", "true")
     expect(suggestButton).toHaveAttribute("aria-pressed", "false")
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Change summary" })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner direct edit" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("textbox", { name: "Change summary" })).toHaveAttribute("placeholder", "Optional change summary")
+    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), { target: { value: "Checkpoint notes" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const checkpointRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(checkpointRequest?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Owner direct edit", checkpoint: true, change_summary: "Checkpoint notes" }
+    })
 
     fireEvent.click(suggestButton)
     expect(suggestButton).toHaveAttribute("aria-pressed", "true")
@@ -745,5 +753,96 @@ describe("DesignDocsSurface", () => {
     expect(container.querySelector(".min-h-\\[36rem\\]")).not.toBeNull()
     expect(container.querySelector(".xl\\:grid-cols-\\[minmax\\(0\\,1fr\\)_22rem\\]")).not.toBeNull()
     expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull()
+  })
+
+  it("autosaves owner draft edits so reload preserves them before checkpoint save", async () => {
+    let currentDoc = { ...docDetail }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: currentDoc })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+        const payload = JSON.parse(String(init.body))
+        currentDoc = {
+          ...currentDoc,
+          title: payload.design_doc.title,
+          markdown: payload.design_doc.markdown,
+          rendered_markdown: payload.design_doc.markdown
+        }
+        return jsonResponse({ design_doc: currentDoc, mode: "canonical", message: "Design doc updated." })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const first = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved owner draft" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" }))
+    }, { timeout: 1500 })
+    const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Autosaved owner draft" }
+    })
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body)).design_doc.checkpoint).toBeUndefined()
+
+    first.unmount()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Autosaved owner draft")
+  })
+
+  it("autosaves pending suggestions so reload preserves them before owner review", async () => {
+    const reviewerDoc = { ...reviewerDocDetail, suggestions: [] as typeof docDetail.suggestions, pending_suggestions_count: 0 }
+    let currentDoc = reviewerDoc
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/3" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: currentDoc })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/3/suggestions" && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body))
+        currentDoc = {
+          ...currentDoc,
+          suggestions: [{
+            ...docDetail.suggestions[0],
+            id: 40,
+            original_markdown: payload.suggestion.original_markdown,
+            proposed_markdown: payload.suggestion.proposed_markdown,
+            suggested_markdown: payload.suggestion.proposed_markdown,
+            provenance: { autosave: true }
+          }],
+          pending_suggestions_count: 1
+        }
+        return jsonResponse({ design_doc: currentDoc, suggestion: currentDoc.suggestions[0], message: "Suggestion created." }, 201)
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const first = renderSurface("/design_docs/3")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved suggestion draft" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" }))
+    }, { timeout: 1500 })
+    const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3/suggestions" && call[1]?.method === "POST")
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
+      suggestion: { proposed_markdown: "Autosaved suggestion draft", autosave: true }
+    })
+
+    first.unmount()
+    renderSurface("/design_docs/3")
+
+    await waitFor(() => expect(screen.getAllByText("Autosaved suggestion draft").length).toBeGreaterThan(0))
   })
 })
