@@ -328,10 +328,15 @@ describe("tool result rendering", () => {
       calls: [
         {
           message_id: 1,
+          tool_name: "read_live_state",
+          raw_name: "read_live_state",
           detail: "detail",
+          display_label: "Read live state",
           progress_label: "Reading",
+          raw_payload: {},
           result_body: "very large hidden body",
           result_error: false,
+          result_kind: "text",
           result_summary: "summary"
         }
       ]
@@ -359,10 +364,15 @@ describe("tool result rendering", () => {
       calls: [
         {
           message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
           detail: "app/models/job.rb",
+          display_label: "Read",
           progress_label: "Reading",
+          raw_payload: {},
           result_body: "a".repeat(2_000),
           result_error: false,
+          result_kind: "text",
           result_summary: "summary"
         }
       ]

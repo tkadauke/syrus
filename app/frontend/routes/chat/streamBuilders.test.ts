@@ -61,6 +61,26 @@ describe("pendingActionCardData", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("renders prefixed MCP tool calls with human labels and retained raw payloads", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_media", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
+      toolResult(2, { toolUseId: "tu_media", content: JSON.stringify({ chat_media: [{ id: "img_1" }] }) })
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.tool).toBe("List chat media")
+    expect(toolGroup.tool).not.toContain("syrus-chat-sidecar")
+    expect(toolGroup.calls[0]).toMatchObject({
+      tool_name: "list_chat_media",
+      raw_name: "syrus-chat-sidecar.list_chat_media",
+      detail: "No arguments",
+      raw_payload: {},
+      result_kind: "list",
+      result_summary: "1 media item",
+      summary_metadata: { count: 1, noun: "media item" }
+    })
+  })
+
   it("groups consecutive same-tool calls into one tool_group and pairs each result by adjacency", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
