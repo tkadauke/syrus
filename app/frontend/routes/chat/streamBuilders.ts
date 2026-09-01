@@ -25,6 +25,10 @@ type OpenCall = {
   container: ChatRenderItem[]
 }
 
+const LOW_LEVEL_READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep", "LS", "WebFetch", "WebSearch", "list_files", "read_file"])
+const READ_ONLY_ACTION_PREFIXES = [ "list_", "read_", "search_", "find_", "get_", "resolve_" ]
+const SIDE_EFFECT_ACTION_PREFIXES = [ "add_", "archive_", "cancel_", "clear_", "complete_", "confirm_", "create_", "delete_", "dismiss_", "edit_", "enqueue_", "install_", "move_", "patch_", "pause_", "post_", "propose_", "publish_", "reject_", "remove_", "resume_", "run_", "save_", "schedule_", "set_", "start_", "stop_", "submit_", "switch_", "unpause_", "update_", "write_" ]
+
 export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
@@ -36,6 +40,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
       const tool = presentation.display_label
+      const grouping = toolGroupingFor(presentation.name)
       const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
@@ -55,14 +60,15 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
       let group: ChatToolGroupItem
-      if (lastGroup !== null && lastGroup.tool === tool) {
+      if (lastGroup !== null && toolGroupKey(lastGroup) === grouping.key) {
         lastGroup.calls.push(call)
         group = lastGroup
       } else {
-        group = { type: "tool_group", tool, calls: [ call ] }
+        group = { type: "tool_group", tool, default_open: true, calls: [ call ] }
         container.push(group)
         lastGroupByParentKey.set(parentKey, group)
       }
+      refreshToolGroupPresentation(group)
 
       const toolUseId = toolUseIdFor(message)
       if (toolUseId) {
@@ -92,11 +98,14 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        refreshToolGroupPresentation(open.group)
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
           if (open.group.calls.length === 0) {
             const index = open.container.indexOf(open.group)
             if (index !== -1) open.container.splice(index, 1)
+          } else {
+            refreshToolGroupPresentation(open.group)
           }
         }
       } else {
@@ -105,6 +114,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         if (item) items.push(item)
       }
     } else {
+      if (message.role === "assistant") collapseCompletedToolGroups(containerByParentKey)
       resetLastGroup(message, lastGroupByParentKey)
       const item = renderMessage(message, options)
       if (item) items.push(item)
@@ -112,6 +122,66 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
   }
 
   return items
+}
+
+function toolGroupKey(group: ChatToolGroupItem) {
+  return group.calls.some((call) => readOnlyToolName(call.tool_name)) ? "read_only_inspection" : `tool:${group.tool}`
+}
+
+function toolGroupingFor(name: string) {
+  return { key: readOnlyToolName(name) ? "read_only_inspection" : `tool:${toolPresentation(name, {}).display_label}` }
+}
+
+function refreshToolGroupPresentation(group: ChatToolGroupItem) {
+  const calls = group.calls
+  const hasError = calls.some((call) => call.result_error)
+  const hasPending = calls.some((call) => call.result_body === "")
+  const readOnly = calls.every((call) => readOnlyToolName(call.tool_name))
+  const sideEffecting = calls.some((call) => sideEffectingToolName(call.tool_name))
+  const summaries = calls.map((call) => call.result_summary || call.detail).filter(Boolean)
+
+  group.prominent = hasError || (hasPending && sideEffecting)
+  group.default_open = group.prominent || hasPending
+
+  if (readOnly && calls.length > 1) {
+    const aggregate = aggregateReadOnlySummary(calls)
+    group.tool = "Inspected sources"
+    group.summary_label = aggregate
+    group.detail_label = summaries.slice(0, 3).join(", ")
+    return
+  }
+
+  group.tool = calls[0]?.display_label || group.tool
+  group.summary_label = group.tool
+  group.detail_label = summaries.join(", ")
+}
+
+function aggregateReadOnlySummary(calls: ChatToolGroupCall[]) {
+  const total = calls.reduce((sum, call) => {
+    const count = call.summary_metadata?.count
+    return sum + (typeof count === "number" && Number.isFinite(count) ? count : 1)
+  }, 0)
+
+  return `Inspected ${total} source${total === 1 ? "" : "s"}`
+}
+
+function collapseCompletedToolGroups(containerByParentKey: Map<string, ChatRenderItem[]>) {
+  for (const container of containerByParentKey.values()) {
+    for (const item of container) {
+      if (item.type !== "tool_group") continue
+      refreshToolGroupPresentation(item)
+      if (!item.prominent && item.calls.every((call) => call.result_body !== "")) item.default_open = false
+    }
+  }
+}
+
+function readOnlyToolName(name: string) {
+  return LOW_LEVEL_READ_ONLY_TOOLS.has(name) || READ_ONLY_ACTION_PREFIXES.some((prefix) => name.startsWith(prefix))
+}
+
+function sideEffectingToolName(name: string) {
+  if (name === "Bash" || name === "Edit" || name === "MultiEdit" || name === "Write" || name === "NotebookEdit" || name === "TodoWrite") return true
+  return SIDE_EFFECT_ACTION_PREFIXES.some((prefix) => name.startsWith(prefix))
 }
 
 function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, ChatToolGroupItem | null>) {

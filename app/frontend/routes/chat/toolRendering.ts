@@ -328,6 +328,7 @@ function resultCount(value: unknown): number | null {
 }
 
 function countSummary(count: number, noun: string) {
+  if (noun === "match") return `${count} ${count === 1 ? "match" : "matches"}`
   return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
 }
 

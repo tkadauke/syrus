@@ -321,6 +321,135 @@ describe("chat workspace source links", () => {
 })
 
 describe("tool result rendering", () => {
+  it("renders a compact group summary and keeps raw arguments behind an explicit control", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Inspected sources",
+      summary_label: "Inspected 4 sources",
+      detail_label: "app/models/job.rb, 3 matches",
+      default_open: false,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
+          detail: "app/models/job.rb",
+          display_label: "Read",
+          progress_label: "Reading",
+          raw_payload: { file_path: "app/models/job.rb" },
+          result_body: "class Job",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        },
+        {
+          message_id: 2,
+          tool_name: "Grep",
+          raw_name: "Grep",
+          detail: "workflow",
+          display_label: "Grep",
+          progress_label: "Reading",
+          raw_payload: { pattern: "workflow" },
+          result_body: "a\nb\nc",
+          result_error: false,
+          result_kind: "text",
+          result_summary: "3 matches"
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Inspected 4 sources")).toBeInTheDocument()
+    expect(screen.getByText("app/models/job.rb, 3 matches")).toBeInTheDocument()
+    expect(screen.queryByText("class Job")).not.toBeInTheDocument()
+    expect(screen.queryByText(/file_path/)).not.toBeInTheDocument()
+
+    const details = screen.getByText("Inspected 4 sources").closest("details")
+    expect(details).not.toBeNull()
+    if (!details) return
+    details.open = true
+    fireEvent(details, new Event("toggle"))
+
+    expect(screen.getAllByText("Arguments")).toHaveLength(2)
+    expect(screen.queryByText(/file_path/)).not.toBeInTheDocument()
+    const rawDetails = screen.getAllByText("Arguments")[0].closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) return
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    expect(screen.getByText(/file_path/)).toBeInTheDocument()
+  })
+
+  it("opens prominent failed groups by default", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Bash",
+      summary_label: "Bash",
+      default_open: true,
+      prominent: true,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Bash",
+          raw_name: "Bash",
+          detail: "bin/rails test",
+          display_label: "Bash",
+          progress_label: "Making changes",
+          raw_payload: { command: "bin/rails test" },
+          result_body: "failed output",
+          result_error: true,
+          result_kind: "error",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Failed")).toBeInTheDocument()
+    expect(screen.getByText("failed output")).toBeInTheDocument()
+  })
+
+  it("renders standalone structured tools with display summary and hidden raw payload", () => {
+    const item: Extract<ChatRenderItem, { type: "message" }> = {
+      type: "message",
+      id: 20,
+      role: "tool_use",
+      text: "",
+      bookmarkable: false,
+      tool: {
+        name: "read_live_state",
+        raw_name: "syrus-chat-sidecar.read_live_state",
+        display_label: "Read live state",
+        argument_summary: "summary",
+        raw_payload: { detail: "summary" },
+        payload: { type: "tool_use", input: { detail: "summary" } },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    }
+
+    renderChatMessageItem(item)
+
+    expect(screen.getByText("Read live state")).toBeInTheDocument()
+    expect(screen.getByText("summary")).toBeInTheDocument()
+    expect(screen.queryByText(/tool_use/)).not.toBeInTheDocument()
+    const details = screen.getByText("Read live state").closest("details")
+    expect(details).not.toBeNull()
+    if (!details) return
+    details.open = true
+    fireEvent(details, new Event("toggle"))
+    expect(screen.getByText("Raw payload")).toBeInTheDocument()
+    expect(screen.queryByText(/tool_use/)).not.toBeInTheDocument()
+    const rawDetails = screen.getByText("Raw payload").closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) return
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    expect(screen.getByText(/tool_use/)).toBeInTheDocument()
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",

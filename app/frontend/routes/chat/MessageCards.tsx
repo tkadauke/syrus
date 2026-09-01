@@ -386,7 +386,8 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 }
 
 export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(item.default_open ?? false)
+  useEffect(() => setOpen(item.default_open ?? false), [item.default_open])
 
   if (simpleMode) {
     return (
@@ -401,21 +402,25 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const details = item.detail_label || item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const summary = item.summary_label || item.tool
+  const prominentClass = item.prominent ? "rounded border border-amber-200 bg-amber-50 px-2 dark:border-amber-900/60 dark:bg-amber-950/30" : ""
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className={`group/tool ${prominentClass}`} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
-            {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
-            {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
+            <div className="break-words font-medium text-gray-700 dark:text-gray-300">{call.display_label}{call.detail ? `: ${call.detail}` : ""}</div>
+            {call.result_error ? <div className="mt-1 text-red-600 dark:text-red-300">Failed</div> : null}
+            {call.result_summary ? <div className="mt-1 text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
+            {open && call.raw_payload !== undefined ? <ToolRawDetails label="Arguments" value={call.raw_payload} /> : null}
+            {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={call.tool_name} /> : null}
             {open && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
@@ -446,14 +451,27 @@ function hasLongLine(value: string) {
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
   const name = tool?.display_label || tool?.name || "tool"
   const [open, setOpen] = useState(false)
+  const details = [tool?.argument_summary, tool?.result_summary].filter(Boolean).join(" · ")
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100">
         <span className="text-gray-400 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{name}</span>
+        {details ? <span className="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-400">{details}</span> : null}
         {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
       </summary>
-      {open ? <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre> : null}
+      {open ? <ToolRawDetails label="Raw payload" value={tool?.payload || fallback} /> : null}
+    </details>
+  )
+}
+
+function ToolRawDetails({ label, value }: { label: string; value: unknown }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <details className="mt-2 rounded border border-gray-200 bg-white/70 dark:border-gray-700 dark:bg-black/10" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
+      {open ? <pre className="overflow-x-auto px-2 pb-2 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(value, null, 2)}</pre> : null}
     </details>
   )
 }

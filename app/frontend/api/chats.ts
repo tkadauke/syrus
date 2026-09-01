@@ -364,6 +364,10 @@ export type ChatToolGroupCall = {
 export type ChatToolGroupItem = {
   type: "tool_group"
   tool: string
+  summary_label?: string
+  detail_label?: string
+  default_open?: boolean
+  prominent?: boolean
   calls: ChatToolGroupCall[]
 }
 

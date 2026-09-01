@@ -34,6 +34,17 @@ function group(item: ChatRenderItem | undefined): ChatToolGroupItem {
   return item
 }
 
+function assistant(id: number, text = "Done."): ChatMessageItem {
+  return {
+    type: "message",
+    id,
+    role: "assistant",
+    content: { type: "text", text },
+    text,
+    bookmarkable: true
+  }
+}
+
 describe("pendingActionCardData", () => {
   it("carries the resource title and url through to the inline card", () => {
     const action: ChatPendingAction = {
@@ -81,20 +92,73 @@ describe("renderChatMessages tool grouping", () => {
     })
   })
 
-  it("groups consecutive same-tool calls into one tool_group and pairs each result by adjacency", () => {
+  it("groups consecutive read-only calls into one compact inspection group and pairs each result by id", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
       toolResult(2, { toolUseId: "tu_1", content: "class A" }),
-      toolUse(3, { toolUseId: "tu_2", toolName: "Read", input: { file_path: "b.rb" } }),
-      toolResult(4, { toolUseId: "tu_2", content: "class B" })
+      toolUse(3, { toolUseId: "tu_2", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
+      toolResult(4, { toolUseId: "tu_2", content: JSON.stringify({ chat_media: [{ id: "img_1" }, { id: "img_2" }] }) }),
+      toolUse(5, { toolUseId: "tu_3", toolName: "Grep", input: { pattern: "Job" } }),
+      toolResult(6, { toolUseId: "tu_3", content: "app/models/job.rb:1\napp/models/job.rb:2\napp/models/job.rb:3\napp/models/job.rb:4\napp/models/job.rb:5\napp/models/job.rb:6\napp/models/job.rb:7\napp/models/job.rb:8\napp/models/job.rb:9" })
     ])
 
     expect(items).toHaveLength(1)
     const toolGroup = group(items[0])
-    expect(toolGroup.tool).toBe("Read")
-    expect(toolGroup.calls).toHaveLength(2)
+    expect(toolGroup.tool).toBe("Inspected sources")
+    expect(toolGroup.summary_label).toBe("Inspected 12 sources")
+    expect(toolGroup.calls).toHaveLength(3)
     expect(toolGroup.calls[0].result_body).toBe("class A")
-    expect(toolGroup.calls[1].result_body).toBe("class B")
+    expect(toolGroup.calls[1].result_summary).toBe("2 media items")
+    expect(toolGroup.calls[2].result_summary).toBe("9 matches")
+  })
+
+  it("keeps side-effecting tools out of read-only inspection groups", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_2", toolName: "Bash", input: { command: "bin/rails test" } }),
+      toolResult(4, { toolUseId: "tu_2", content: "ok" }),
+      toolUse(5, { toolUseId: "tu_3", toolName: "Read", input: { file_path: "b.rb" } }),
+      toolResult(6, { toolUseId: "tu_3", content: "class B" })
+    ])
+
+    expect(items).toHaveLength(3)
+    expect(group(items[0]).tool).toBe("Read")
+    expect(group(items[1]).tool).toBe("Bash")
+    expect(group(items[2]).tool).toBe("Read")
+  })
+
+  it("collapses completed non-prominent groups after a subsequent assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      assistant(3)
+    ])
+
+    expect(group(items[0]).default_open).toBe(false)
+  })
+
+  it("keeps failures prominent and open after a subsequent assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Bash", input: { command: "bin/rails test" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "boom", isError: true }),
+      assistant(3)
+    ])
+
+    const failedGroup = group(items[0])
+    expect(failedGroup.prominent).toBe(true)
+    expect(failedGroup.default_open).toBe(true)
+  })
+
+  it("keeps pending side-effecting tools prominent", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "pause_landing_queue", input: {} }),
+      assistant(2)
+    ])
+
+    const pendingGroup = group(items[0])
+    expect(pendingGroup.prominent).toBe(true)
+    expect(pendingGroup.default_open).toBe(true)
   })
 
   it("nests a subagent's tool_use/tool_result pair that interleaves inside a still-open parent Agent call", () => {
