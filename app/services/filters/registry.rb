@@ -197,7 +197,6 @@ module Filters
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
-        "has_codex_token"  => "Filters::Chips::AdminUsers::HasCodexToken",
         "gh_rate"          => "Filters::Chips::AdminUsers::GhRate"
       }
     ),

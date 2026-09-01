@@ -16,6 +16,12 @@ RSpec.describe SyrusCodexAgent::Engine do
     expect(Syrus::PluginRegistry.providers_for(:chat_provider)).to include(ChatProviders::Codex)
   end
 
+  it "registers Codex-owned CredentialProbe and admin user filter extensions" do
+    expect(CredentialProbe.probe_handler_for("codex_api_key")).to eq(CodexCredentialProbe)
+    expect(CredentialProbe.probe_handler_for("codex_auth_json")).to eq(CodexCredentialProbe)
+    expect(Filters::Registry.find("has_codex_token", subject: :admin_user)).to eq(Filters::Chips::AdminUsers::HasCodexToken)
+  end
+
   it "registers a manifest named 'codex_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "codex_agent" }
     expect(manifest).not_to be_nil
