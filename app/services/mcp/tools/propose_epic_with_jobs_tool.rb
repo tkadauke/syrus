@@ -164,7 +164,7 @@ module Mcp::Tools
           }
         end
 
-        goal = chat_session.active_goal
+        goal = Mcp::Tools.fresh_active_goal(chat_session)
         return false unless goal&.active?
 
         {

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 
@@ -108,8 +108,8 @@ function renderSurface(path = "/design_docs") {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/design_docs" element={<DesignDocsSurface mode="index" />} />
-          <Route path="/design_docs/:id" element={<DesignDocsSurface mode="index" />} />
+          <Route path="/design_docs" element={<DesignDocsTestRoute />} />
+          <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
         </Routes>
       </MemoryRouter>
@@ -117,8 +117,27 @@ function renderSurface(path = "/design_docs") {
   )
 }
 
+function DesignDocsTestRoute() {
+  return (
+    <>
+      <DesignDocsSurface mode="index" />
+      <LocationProbe />
+    </>
+  )
+}
+
 function RepositoryDesignDocsTestRoute() {
-  return <DesignDocsSurface mode="repository" repositoryId={10} />
+  return (
+    <>
+      <DesignDocsSurface mode="repository" repositoryId={10} />
+      <LocationProbe />
+    </>
+  )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
 function indexPayload() {
@@ -299,6 +318,16 @@ describe("DesignDocsSurface", () => {
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
+  })
+
+  it("preserves active filters when selecting a design doc", async () => {
+    mockFetch()
+    renderSurface("/design_docs?q=eyJhbmQiOltdfQ%3D%3D")
+
+    fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
+
+    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
+    expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/2?q=eyJhbmQiOltdfQ%3D%3D")
   })
 
   it("reviews suggestions and opens version history", async () => {

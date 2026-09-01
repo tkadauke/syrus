@@ -8,9 +8,12 @@ class McpToolUsageRecorder
       .record_call(tool_name: tool_name, tool_use_id: tool_use_id, tool_input: tool_input)
   end
 
-  def self.record_workflow_tool_result(run:, tool_name: nil, tool_use_id: nil, content: nil, error: false, sidecar_mode: "stdio")
+  BACKTRACE_FRAME_LIMIT = 8
+  BACKTRACE_MAX_BYTES = 2.kilobytes
+
+  def self.record_workflow_tool_result(run:, tool_name: nil, tool_use_id: nil, content: nil, error: false, sidecar_mode: "stdio", error_class: nil, backtrace_excerpt: nil)
     new(surface: "workflow", run: run, sidecar_mode: sidecar_mode)
-      .record_result(tool_name: tool_name, tool_use_id: tool_use_id, content: content, error: error)
+      .record_result(tool_name: tool_name, tool_use_id: tool_use_id, content: content, error: error, error_class: error_class, backtrace_excerpt: backtrace_excerpt)
   end
 
   def self.record_chat_tool_call(chat_session:, tool_name:, tool_use_id: nil, tool_input: nil, provider: nil, sidecar_mode: "stdio")
@@ -18,9 +21,9 @@ class McpToolUsageRecorder
       .record_call(tool_name: tool_name, tool_use_id: tool_use_id, tool_input: tool_input)
   end
 
-  def self.record_chat_tool_result(chat_session:, tool_name: nil, tool_use_id: nil, content: nil, error: false, provider: nil, sidecar_mode: "stdio")
+  def self.record_chat_tool_result(chat_session:, tool_name: nil, tool_use_id: nil, content: nil, error: false, provider: nil, sidecar_mode: "stdio", error_class: nil, backtrace_excerpt: nil)
     new(surface: "chat", chat_session: chat_session, provider: provider, sidecar_mode: sidecar_mode)
-      .record_result(tool_name: tool_name, tool_use_id: tool_use_id, content: content, error: error)
+      .record_result(tool_name: tool_name, tool_use_id: tool_use_id, content: content, error: error, error_class: error_class, backtrace_excerpt: backtrace_excerpt)
   end
 
   # Records a full call+result cycle for a tool dispatched directly at a
@@ -48,7 +51,7 @@ class McpToolUsageRecorder
   # re-raising, but still wants that reason recorded. Ignored unless the
   # yielded response itself signals an error.
   def self.record_dispatch(surface:, tool_name:, tool_input:, sidecar_mode:, daemon_identity: nil,
-                            run: nil, chat_session: nil, provider: nil, error_class: nil)
+                            run: nil, chat_session: nil, provider: nil, error_class: nil, backtrace_excerpt: nil)
     recorder = new(surface: surface, run: run, chat_session: chat_session, provider: provider,
                     sidecar_mode: sidecar_mode, daemon_identity: daemon_identity)
     tool_use_id = SecureRandom.uuid
@@ -62,7 +65,8 @@ class McpToolUsageRecorder
         tool_use_id: tool_use_id,
         content: dispatch_response_content(response),
         error: response_error,
-        error_class: response_error ? error_class : nil
+        error_class: response_error ? error_class : nil,
+        backtrace_excerpt: response_error ? backtrace_excerpt : nil
       )
       response
     rescue StandardError => e
@@ -71,10 +75,21 @@ class McpToolUsageRecorder
         tool_use_id: tool_use_id,
         content: { message: e.message },
         error: true,
-        error_class: e.class.name
+        error_class: e.class.name,
+        backtrace_excerpt: cleaned_backtrace_excerpt(e)
       )
       raise
     end
+  end
+
+  def self.cleaned_backtrace_excerpt(exception)
+    backtrace = exception&.backtrace
+    return if backtrace.blank?
+
+    cleaned = Rails.backtrace_cleaner.clean(backtrace)
+    cleaned = backtrace if cleaned.blank?
+    excerpt = cleaned.first(BACKTRACE_FRAME_LIMIT).join("\n")
+    Mcp::Tools.truncate_text(excerpt, BACKTRACE_MAX_BYTES).fetch(:text).presence
   end
 
   def self.dispatch_response_content(response)
@@ -158,7 +173,7 @@ class McpToolUsageRecorder
     nil
   end
 
-  def record_result(tool_name:, tool_use_id:, content:, error:, error_class: nil)
+  def record_result(tool_name:, tool_use_id:, content:, error:, error_class: nil, backtrace_excerpt: nil)
     usage = find_usage(tool_use_id)
     normalized = self.class.normalize(tool_name || usage&.raw_tool_name)
     usage ||= McpToolUsage.new(context_attributes(tool_use_id).merge(
@@ -172,6 +187,7 @@ class McpToolUsageRecorder
       status: error ? "failed" : "completed",
       error: error == true,
       error_class: error ? error_class : nil,
+      backtrace_excerpt: error ? backtrace_excerpt : nil,
       completed_at: Time.current,
       result_bytes: byte_count(content),
       error_message_summary: error ? summarize_error(content) : nil
