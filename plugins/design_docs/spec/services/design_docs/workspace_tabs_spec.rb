@@ -21,10 +21,38 @@ RSpec.describe DesignDocs::WorkspaceTabs do
     expect(described_class.available_for?(chat_session)).to be(true)
     expect(described_class.workspace_tabs(chat_session).first.fetch(:data)).to include(
       design_doc_ids: [ doc.id ],
+      selected_design_doc_id: doc.id,
       originated_design_doc_ids: [ doc.id ],
       attached_design_doc_ids: [],
       design_docs: [ include(id: doc.id, display_id: doc.display_id, title: "Plan") ]
     )
+  end
+
+  it "uses explicit document identity for each tab when multiple design docs are visible" do
+    first = DesignDoc.create!(
+      owner_user: user,
+      origin_chat_session: chat_session,
+      title: "First",
+      markdown: "Body",
+      visibility: "private"
+    )
+    second = DesignDoc.create!(
+      owner_user: user,
+      origin_chat_session: chat_session,
+      title: "Second",
+      markdown: "Body",
+      visibility: "private"
+    )
+
+    tabs = described_class.workspace_tabs(chat_session)
+
+    expect(tabs.map { |tab| tab.fetch(:id) }).to contain_exactly(
+      "design_docs.chat.#{first.id}",
+      "design_docs.chat.#{second.id}"
+    )
+    expect(tabs.map { |tab| tab.fetch(:label) }).to contain_exactly(first.display_id, second.display_id)
+    expect(tabs).to all(include(component: "design_docs/WorkspaceDesignDocs", closable: true))
+    expect(tabs.map { |tab| tab.dig(:data, :selected_design_doc_id) }).to contain_exactly(first.id, second.id)
   end
 
   it "does not scan chat messages when availability is proven by an originated design doc" do

@@ -3,27 +3,41 @@ module DesignDocs
     include Syrus::Plugin::WorkspaceTab
 
     def self.workspace_tabs(chat_session = nil)
-      [
-        {
-          id: "design_docs.chat",
-          label: "Design Docs",
-          label_key: "design_docs:tab_design_docs",
-          component: "design_docs/WorkspaceDesignDocs",
-          order: 20,
-          closable: true,
-          data: workspace_data(chat_session)
-        }
-      ]
+      data = workspace_data(chat_session)
+      docs = data.fetch(:design_docs, [])
+      return [ tab_payload(data:) ] if docs.length <= 1
+
+      docs.map.with_index do |doc, index|
+        tab_payload(
+          id: "design_docs.chat.#{doc.fetch(:id)}",
+          label: doc.fetch(:display_id),
+          order: 20 + index,
+          data: data.merge(selected_design_doc_id: doc.fetch(:id))
+        )
+      end
     end
 
-    def self.available_for?(chat_session)
-      return false unless chat_session
-
-      originated_design_docs_for(chat_session).exists? || visible_referenced_design_doc_exists?(chat_session)
+    def self.tab_payload(id: "design_docs.chat", label: "Design Docs", order: 20, data:)
+      selected_id = data[:selected_design_doc_id] || data.fetch(:design_doc_ids, []).first
+      {
+        id: id,
+        label: label,
+        label_key: label == "Design Docs" ? "design_docs:tab_design_docs" : nil,
+        component: "design_docs/WorkspaceDesignDocs",
+        order: order,
+        closable: true,
+        data: data.merge(selected_design_doc_id: selected_id)
+      }
     end
 
     def self.workspace_data(chat_session)
-      return { design_doc_ids: [], originated_design_doc_ids: [], attached_design_doc_ids: [], design_docs: [] } unless chat_session
+      return {
+        design_doc_ids: [],
+        selected_design_doc_id: nil,
+        originated_design_doc_ids: [],
+        attached_design_doc_ids: [],
+        design_docs: []
+      } unless chat_session
 
       docs = visible_design_docs_for(chat_session)
         .includes(:owner_user, :current_version, :repositories)
@@ -34,10 +48,17 @@ module DesignDocs
 
       {
         design_doc_ids: docs.map(&:id),
+        selected_design_doc_id: docs.first&.id,
         originated_design_doc_ids: originated_ids,
         attached_design_doc_ids: attached_ids,
         design_docs: docs.map { |doc| DesignDocs::Serializer.summary(doc) }
       }
+    end
+
+    def self.available_for?(chat_session)
+      return false unless chat_session
+
+      originated_design_docs_for(chat_session).exists? || visible_referenced_design_doc_exists?(chat_session)
     end
 
     def self.visible_design_docs_for(chat_session)

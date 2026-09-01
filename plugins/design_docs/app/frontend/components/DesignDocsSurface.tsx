@@ -46,20 +46,37 @@ type AnchorHighlight = {
   end: number
 }
 
-export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
+export function DesignDocsSurface({
+  chatId,
+  compact = false,
+  designDocIds,
+  initialDesignDocs = [],
+  initialSelectedDesignDocId = null,
+  mode,
+  repositoryId
+}: {
+  chatId?: number
+  compact?: boolean
+  designDocIds?: number[]
+  initialDesignDocs?: DesignDocSummary[]
+  initialSelectedDesignDocId?: number | null
+  mode: SurfaceMode
+  repositoryId?: string | number
+}) {
   const params = useParams()
   const { t } = useT("nav")
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
-  const id = params.id
+  const id = mode === "chat" ? null : params.id
   const search = location.search
-  const [selectedId, setSelectedId] = useState<string | number | null>(id || null)
+  const [selectedId, setSelectedId] = useState<string | number | null>(id || initialSelectedDesignDocId)
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
   const indexQuery = useQuery({
     queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
-    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search)
+    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search),
+    enabled: mode !== "chat"
   })
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
@@ -72,7 +89,10 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
     staleTime: 60_000
   })
   const [notice, setNotice] = useState<string | null>(null)
-  const docs = useMemo(() => scopeDocs(indexQuery.data?.design_docs ?? [], chatId, designDocIds), [chatId, designDocIds, indexQuery.data])
+  const docs = useMemo(
+    () => mode === "chat" ? scopeDocs(initialDesignDocs, chatId, designDocIds) : scopeDocs(indexQuery.data?.design_docs ?? [], chatId, designDocIds),
+    [chatId, designDocIds, indexQuery.data, initialDesignDocs, mode]
+  )
   const selectedDoc = detailQuery.data?.design_doc ?? null
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
   const currentFilter = indexQuery.data?.filter ?? { and: [] }
@@ -81,6 +101,12 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   const showIndexControls = mode !== "chat"
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
+  useEffect(() => {
+    if (mode !== "chat" || effectiveId || docs.length === 0) return
+
+    setSelectedId(initialSelectedDesignDocId ?? docs[0].id)
+  }, [docs, effectiveId, initialSelectedDesignDocId, mode])
+
   const filterBar = showIndexControls ? (
     <div data-testid="design-docs-filter-bar">
       <FilterBar
@@ -161,7 +187,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
         {showDesktopInlineFolders ? smartFolders : null}
         <DesignDocList
           docs={docs}
-          loading={indexQuery.isPending}
+          emptyMessage={mode === "chat" ? "No design docs are attached to this chat." : "No visible design docs match these filters."}
+          loading={mode === "chat" ? false : indexQuery.isPending}
           selectedId={effectiveId}
           onSelect={(docId) => mode === "chat" ? setSelectedId(docId) : navigate(`${prefix}/design_docs/${docId}`)}
         />
@@ -190,8 +217,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   )
 }
 
-function DesignDocList({ docs, loading, selectedId, onSelect }: {
+function DesignDocList({ docs, emptyMessage = "No visible design docs match these filters.", loading, selectedId, onSelect }: {
   docs: DesignDocSummary[]
+  emptyMessage?: string
   loading: boolean
   selectedId: string | number | null
   onSelect: (id: number) => void
@@ -200,7 +228,7 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
     <aside className="min-w-0 space-y-3">
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">Loading design docs...</div> : null}
-        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
+        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">{emptyMessage}</div> : null}
         {docs.map((doc) => (
           <button
             className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
