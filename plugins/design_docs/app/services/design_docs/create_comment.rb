@@ -17,6 +17,17 @@ module DesignDocs
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
       DesignDoc.transaction do
+        if attributes[:thread_id].present?
+          thread = design_doc.threads.find(attributes[:thread_id])
+          comment = thread.comments.create!(
+            author_kind: actor_kind,
+            author_user: actor_kind == "user" ? user : nil,
+            body: attributes[:body]
+          )
+
+          return Result.new(design_doc: design_doc.reload, anchor: thread.anchor, thread: thread, comment: comment, version: nil)
+        end
+
         anchor_result = CreateAnchor.call(
           design_doc: design_doc,
           user: user,

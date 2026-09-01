@@ -59,8 +59,13 @@ module DesignDocs
 
     def apply_canonical_update
       permitted = attributes.slice(:title, :visibility, :state)
-      markdown_changed = attributes.key?(:markdown) && attributes[:markdown].to_s != design_doc.markdown
-      permitted[:markdown] = attributes[:markdown].to_s if attributes.key?(:markdown)
+      if attributes.key?(:markdown)
+        next_markdown = canonical_markdown_value
+        markdown_changed = next_markdown != design_doc.markdown
+        permitted[:markdown] = next_markdown
+      else
+        markdown_changed = false
+      end
 
       design_doc.assign_attributes(permitted)
       sync_repositories! if attributes.key?(:repository_ids)
@@ -106,6 +111,13 @@ module DesignDocs
 
     def next_version_number
       design_doc.versions.maximum(:version_number).to_i + 1
+    end
+
+    def canonical_markdown_value
+      candidate = attributes[:markdown].to_s
+      return design_doc.markdown if candidate == AnchorMarkers.strip(design_doc.markdown)
+
+      candidate
     end
 
     def anchor_start_offset
