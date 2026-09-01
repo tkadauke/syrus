@@ -10,7 +10,7 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionInline, ChatR
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolDetail, toolLabel, toolResultSummary } from "./toolRendering"
+import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -34,15 +34,21 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
   for (const message of messages) {
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
-      const tool = toolLabel(toolName)
+      const presentation = toolPresentation(toolName, contentInput(message.content))
+      const tool = presentation.display_label
       const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
         message_id: message.id,
-        detail: toolDetail(toolName, contentInput(message.content)),
+        tool_name: presentation.name,
+        raw_name: presentation.raw_name,
+        detail: presentation.argument_summary,
+        display_label: presentation.display_label,
         progress_label: simpleToolProgressLabel(toolName),
+        raw_payload: presentation.raw_payload,
         result_body: "",
         result_error: false,
+        result_kind: "unknown",
         result_summary: "",
         nested: []
       }
@@ -82,7 +88,10 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         const content = contentRecord(message.content)
         open.call.result_body = shortenWorkspacePaths(content ? fullResultBody(content.content ?? content.result) : String(message.content ?? message.text))
         open.call.result_error = content?.is_error === true
-        open.call.result_summary = toolResultSummary(open.group.tool, open.call.result_body)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, open.call.result_body, open.call.result_error)
+        open.call.result_kind = resultPresentation.kind
+        open.call.result_summary = resultPresentation.summary
+        open.call.summary_metadata = resultPresentation.metadata
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
           if (open.group.calls.length === 0) {

@@ -284,10 +284,21 @@ export type ChatProposalChildDependency = {
 
 export type ChatStructuredTool = {
   name: string
+  raw_name: string
+  display_label: string
+  argument_summary: string
+  raw_payload: unknown
+  result_kind?: ChatToolResultKind
+  result_summary?: string
+  summary_metadata?: ChatToolSummaryMetadata
   payload: unknown
   proposal_id: number | null
   proposal_state_label: string | null
 }
+
+export type ChatToolResultKind = "empty" | "text" | "json" | "list" | "record" | "error" | "unknown"
+
+export type ChatToolSummaryMetadata = Record<string, string | number | boolean | null>
 
 export type ChatMessageItem = {
   type: "message"
@@ -334,11 +345,17 @@ export type ChatRenderMessageItem = ChatMessageItem & {
 
 export type ChatToolGroupCall = {
   message_id: number
+  tool_name: string
+  raw_name: string
   detail: string
+  display_label: string
   progress_label: string
+  raw_payload: unknown
   result_body: string
   result_error: boolean
+  result_kind: ChatToolResultKind
   result_summary: string
+  summary_metadata?: ChatToolSummaryMetadata
   // Nested subagent tool-call groups spawned by this call (e.g. an Agent/Task
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]
