@@ -835,15 +835,19 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   is the single shared source for the scale — `config/tailwind.config.js`
   `require`s it directly and remaps Tailwind's `blue` scale onto the same
   values, so legacy `*-blue-*` utilities render the brand accent without a
-  repo-wide rename; prefer `terracotta-*` in new code. The desktop app's
-  `@theme` block in `desktop/src/styles.css` imports a generated CSS partial
-  (`desktop/src/styles/brand-tokens.generated.css`) instead of hand-copying
-  the values a second time; after editing the JSON, regenerate it with
-  `bin/generate-brand-tokens` (never hand-edit the generated file).
-  `spec/desktop/brand_palette_spec.rb` validates both consumers against the
-  shared JSON and fails if the generated file drifts. Don't reintroduce raw
-  blue hexes for accents; semantically-blue user choices (annotation pen
-  colors, tag label colors) are the exception and stay blue.
+  repo-wide rename. Use `terracotta-*` or the legacy `blue-*` remap only on
+  pre-auth or fixed-brand surfaces such as signed-out web pages and the
+  desktop app. Authenticated in-app UI must use semantic theme tokens such as
+  `bg-brand`, `text-brand`, `border-brand`, `border-border`, and
+  `focus:ring-brand` so controls follow the signed-in user's selected theme.
+  The desktop app's `@theme` block in `desktop/src/styles.css` imports a
+  generated CSS partial (`desktop/src/styles/brand-tokens.generated.css`)
+  instead of hand-copying the values a second time; after editing the JSON,
+  regenerate it with `bin/generate-brand-tokens` (never hand-edit the
+  generated file). `spec/desktop/brand_palette_spec.rb` validates both
+  consumers against the shared JSON and fails if the generated file drifts.
+  Don't reintroduce raw blue hexes for accents; semantically-blue user choices
+  (annotation pen colors, tag label colors) are the exception and stay blue.
 - **Spending insights** live at `/insights/spending` and roll up `Run#cost_usd`
   plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
   repository, trigger kind, agent provider, trend, and top Runs. Non-admins
