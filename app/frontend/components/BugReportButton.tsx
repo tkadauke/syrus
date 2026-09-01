@@ -194,6 +194,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   async function chooseScreenshot(choice: ScreenshotChoice) {
+    if (bugReport.isPending) return
     setScreenshotChoice(choice)
 
     if (choice !== "fullPage" || captures.fullPage || capturingFullPage) return
@@ -243,6 +244,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+    if (bugReport.isPending) return
     const files = Array.from(event.target.files ?? [])
     event.target.value = ""
 
@@ -268,11 +270,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   function removeAttachment(index: number) {
+    if (bugReport.isPending) return
     setAttachments((current) => current.filter((_, i) => i !== index))
     setAttachmentError(null)
   }
 
   function toggleOptionalAttachment(id: string, checked: boolean) {
+    if (bugReport.isPending) return
     setSelectedOptionalAttachmentIds((current) => {
       const next = new Set(current)
       if (checked) next.add(id)
@@ -284,6 +288,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (bugReport.isPending) return
     if (attachments.length + selectedOptionalAttachmentIds.size > MAX_EXTRA_ATTACHMENTS) {
       setAttachmentError(t("bug_report.attachments_max_reached"))
       return
@@ -299,6 +304,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
+  const formDisabled = bugReport.isPending
   const submitLabel = bugReport.isPending
     ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
     : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))
@@ -322,6 +328,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 <button
                   aria-label={t("bug_report.close")}
                   className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-gray-950"
+                  disabled={formDisabled}
                   onClick={closeDialog}
                   type="button"
                 >
@@ -333,6 +340,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 {t("bug_report.field_title")}
                 <Input
                   className="mt-1"
+                  disabled={formDisabled}
                   onChange={(event) => setTitle(event.target.value)}
                   required
                   type="text"
@@ -344,6 +352,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 {t("bug_report.field_description")}
                 <textarea
                   className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
+                  disabled={formDisabled}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={5}
                   value={description}
@@ -359,6 +368,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                   <ScreenshotOption
                     capture={captures.viewport}
                     choice="viewport"
+                    disabled={formDisabled}
                     label={t("bug_report.viewport")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "viewport"}
@@ -366,19 +376,21 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                   <ScreenshotOption
                     capture={captures.fullPage}
                     choice="fullPage"
+                    disabled={formDisabled}
                     label={capturingFullPage ? t("bug_report.capturing") : t("bug_report.full_page")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "fullPage"}
                   />
                   <ScreenshotOption
                     choice="none"
+                    disabled={formDisabled}
                     label={t("bug_report.no_screenshot")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "none"}
                   />
                 </div>
                 {screenshotChoice !== "none" && captures[screenshotChoice] ? (
-                  <Button onClick={() => setAnnotatingChoice(screenshotChoice)} size="sm" variant="secondary">
+                  <Button disabled={formDisabled} onClick={() => setAnnotatingChoice(screenshotChoice)} size="sm" variant="secondary">
                     {t("bug_report.annotate_screenshot")}
                   </Button>
                 ) : null}
@@ -398,12 +410,12 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.attachments")}</span>
-                  <label className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}>
+                  <label className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${formDisabled || attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}>
                     {t("bug_report.attachments_add")}
                     <Input
                       accept={ACCEPTED_ATTACHMENT_TYPES}
                       className="sr-only"
-                      disabled={attachments.length >= MAX_EXTRA_ATTACHMENTS}
+                      disabled={formDisabled || attachments.length >= MAX_EXTRA_ATTACHMENTS}
                       multiple
                       onChange={handleAttachmentChange}
                       type="file"
@@ -422,6 +434,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                         <button
                           aria-label={t("bug_report.attachments_remove", { filename: file.name })}
                           className="flex-none rounded text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1 dark:hover:text-gray-200"
+                          disabled={formDisabled}
                           onClick={() => removeAttachment(index)}
                           type="button"
                         >
@@ -436,10 +449,11 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                     {optionalAttachments.map((attachment) => {
                       const checked = selectedOptionalAttachmentIds.has(attachment.id)
                       return (
-                        <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300" key={attachment.id}>
+                        <label className={`flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300 ${formDisabled ? "opacity-60 cursor-not-allowed" : ""}`} key={attachment.id}>
                           <Checkbox
                             checked={checked}
                             className="mt-0.5"
+                            disabled={formDisabled}
                             onChange={(e) => toggleOptionalAttachment(attachment.id, e.target.checked)}
                           />
                           <span className="min-w-0 flex-1">
@@ -466,7 +480,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               ) : null}
 
               <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
-                <Button onClick={closeDialog} variant="secondary">
+                <Button disabled={formDisabled} onClick={closeDialog} variant="secondary">
                   {t("bug_report.cancel")}
                 </Button>
                 <Button disabled={bugReport.isPending} type="submit">
@@ -584,12 +598,14 @@ function ChevronDownIcon() {
 function ScreenshotOption({
   capture,
   choice,
+  disabled = false,
   label,
   onChange,
   selected
 }: {
   capture?: ScreenshotCapture
   choice: ScreenshotChoice
+  disabled?: boolean
   label: string
   onChange: (choice: ScreenshotChoice) => void
   selected: boolean
@@ -598,11 +614,12 @@ function ScreenshotOption({
   const borderClass = selected ? "border-brand ring-2 ring-brand dark:border-brand-emphasis dark:ring-brand-emphasis" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
 
   return (
-    <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass}`}>
+    <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}>
       <Input
         aria-label={label}
         checked={selected}
         className="sr-only"
+        disabled={disabled}
         name="bug-report-screenshot"
         onChange={() => onChange(choice)}
         type="radio"

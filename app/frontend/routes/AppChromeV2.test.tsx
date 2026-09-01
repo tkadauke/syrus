@@ -56,6 +56,12 @@ describe("AppChromeV2", () => {
     }
   })
 
+  it("hides the Publilius Syrus quote on the DB Browser route", () => {
+    renderAppChrome(<div>DB Browser</div>, { initialEntries: ["/db_browser"] })
+
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument()
+  })
+
   it("renders desktop shell notices in the sidebar above the account row", async () => {
     window.syrusShell = {
       getState: vi.fn().mockResolvedValue({

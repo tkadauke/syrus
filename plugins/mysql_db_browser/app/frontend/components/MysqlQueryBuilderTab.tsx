@@ -146,7 +146,7 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
         : columnOptions
 
   return (
-    <section aria-label={t("aria_builder_tab")} className="space-y-4 p-4">
+    <section aria-label={t("aria_builder_tab")} className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
       <BuilderStep heading={t("builder_step_table")}>
         <MysqlPickerDropdown
           ariaLabel={t("builder_step_table")}

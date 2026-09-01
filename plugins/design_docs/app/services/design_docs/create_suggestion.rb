@@ -58,7 +58,10 @@ module DesignDocs
     end
 
     def original_markdown(anchor)
-      attributes[:original_markdown].presence || attributes[:selected_markdown].presence || attributes[:selected_text].presence || anchor.selected_text.to_s
+      candidate = attributes[:original_markdown].presence || attributes[:selected_markdown].presence || attributes[:selected_text].presence
+      return candidate if candidate.blank? || candidate == anchor.selected_markdown
+
+      anchor.selected_markdown.to_s
     end
 
     def proposed_markdown
