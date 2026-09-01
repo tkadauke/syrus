@@ -214,6 +214,14 @@ describe("MysqlConnections", () => {
     vi.restoreAllMocks()
   })
 
+  it("uses the fixed-height app content shell with chat-style page margins", async () => {
+    setupFetchMock()
+    renderConnections()
+
+    const main = await screen.findByRole("main", { name: "MySQL DB Browser" })
+    expect(main).toHaveClass("mx-auto", "flex", "h-full", "max-w-[96rem]", "flex-col", "gap-6", "overflow-hidden", "p-3", "sm:p-6")
+  })
+
   it("lists connections without ever rendering a password", async () => {
     setupFetchMock()
     renderConnections()
@@ -414,13 +422,27 @@ describe("MysqlConnections", () => {
       const contentTab = screen.getByRole("tab", { name: "Content" })
       const tablist = contentTab.closest('[role="tablist"]') as HTMLElement
       expect(tablist).not.toBeNull()
+      expect(tablist).toHaveClass("shrink-0")
 
       const column = tablist.parentElement?.parentElement as HTMLElement | null
       expect(column).not.toBeNull()
-      expect(column).toHaveClass("min-w-0")
+      expect(column).toHaveClass("flex", "h-full", "min-h-0", "min-w-0", "flex-col", "overflow-hidden")
+
+      const browser = screen.getByText("Browsing Staging").closest("section") as HTMLElement
+      expect(browser).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "gap-4")
+
+      const grid = screen.getByRole("navigation", { name: "Databases and tables" }).parentElement as HTMLElement
+      expect(grid).toHaveClass("grid", "min-h-0", "flex-1")
+
+      const schemaTree = screen.getByRole("navigation", { name: "Databases and tables" })
+      expect(schemaTree).toHaveClass("h-full", "min-h-0", "overflow-y-auto")
+
+      const tabBody = screen.getByRole("region", { name: "Table content" }).parentElement as HTMLElement
+      expect(tabBody).toHaveClass("min-h-0", "flex-1", "overflow-y-auto")
+      expect(screen.getByRole("region", { name: "Table content" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
 
       const scrollArea = screen.getByText("grace@example.com").closest("table")?.parentElement
-      expect(scrollArea).toHaveClass("overflow-auto")
+      expect(scrollArea).toHaveClass("min-h-0", "flex-1", "overflow-auto")
     })
 
     it("switches to the Structure sub-tab to see columns and indexes", async () => {
@@ -468,6 +490,18 @@ describe("MysqlConnections", () => {
       const queryCall = calls.find((call) => call.method === "POST" && call.url.endsWith("/query"))
       expect(queryCall?.body).toEqual({ mysql_query: { sql: "SELECT * FROM users" } })
     })
+
+    it("keeps the raw query tab inside a fixed-height scroll pane", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByRole("tab", { name: "Query" }))
+
+      const queryTab = screen.getByRole("region", { name: "SQL query" })
+      expect(queryTab).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+      expect(queryTab.parentElement).toHaveClass("flex", "h-full", "min-h-0", "flex-1", "flex-col", "overflow-y-auto")
+    })
   })
 
   describe("Query Builder tab", () => {
@@ -484,6 +518,7 @@ describe("MysqlConnections", () => {
 
       expect(await screen.findByText("Compiled SQL")).toBeInTheDocument()
       expect(await screen.findByText(/SELECT \.\.\. FROM `users`/)).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "No-code query builder" })).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
     })
 
     it("lets an operator add a join through a foreign key the schema explorer surfaced", async () => {
@@ -544,6 +579,20 @@ describe("MysqlConnections", () => {
         return found
       })
       expect(querySql(statusCall?.body)).toContain("performance_schema.global_status")
+    })
+  })
+
+  describe("Live tab", () => {
+    it("keeps live diagnostics inside a fixed-height scroll pane", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+      fireEvent.click(await screen.findByRole("tab", { name: "Live" }))
+
+      const liveTab = screen.getByRole("region", { name: "Live diagnostics" })
+      expect(liveTab).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-y-auto")
+      expect(liveTab.parentElement).toHaveClass("flex", "h-full", "min-h-0", "flex-1", "flex-col", "overflow-y-auto")
     })
   })
 })

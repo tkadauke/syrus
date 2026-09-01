@@ -13,7 +13,7 @@ export function MysqlQueryResultPanel({ result, sort, onSort }: { result: MysqlQ
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <p className="text-xs text-gray-500 dark:text-gray-400">
         {result.read_only
           ? t("query_meta_read", { count: result.row_count, ms: result.duration_ms })

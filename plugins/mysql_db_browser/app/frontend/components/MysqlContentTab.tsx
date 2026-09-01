@@ -40,7 +40,7 @@ export function MysqlContentTab({ connectionId, database, table }: { connectionI
   }
 
   return (
-    <section aria-label={t("aria_content_tab")} className="space-y-3 p-4">
+    <section aria-label={t("aria_content_tab")} className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-4">
       <FilterBar
         filter={content.data?.filter ?? null}
         filterSchema={content.data?.filter_schema ?? []}

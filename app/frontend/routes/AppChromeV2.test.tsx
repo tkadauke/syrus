@@ -101,6 +101,12 @@ describe("AppChromeV2", () => {
     unmount()
   })
 
+  it("hides the Publilius Syrus footer quote on database browser routes", () => {
+    renderAppChrome(<div>Database browser</div>, { initialEntries: ["/db_browser"] })
+
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument()
+  })
+
   it("highlights the persisted theme in the settings popup picker", () => {
     renderAppChrome(undefined, { bootstrap: bootstrapPayload({ current_user: { ...bootstrapPayload().current_user!, theme: "dark" } }) })
 

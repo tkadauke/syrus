@@ -19,7 +19,7 @@ export function MysqlQueryTab({ connectionId }: { connectionId: number }) {
   }
 
   return (
-    <section aria-label={t("aria_query_tab")} className="space-y-3">
+    <section aria-label={t("aria_query_tab")} className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <form onSubmit={submit}>
         <label className="sr-only" htmlFor="mysql-query-sql">{t("query_sql_label")}</label>
         <textarea
