@@ -62,9 +62,7 @@ class TestCase < ApplicationRecord
   def self.top_flaky_tests(repository:, lookback: FLAKINESS_LOOKBACK, limit: 20)
     lookback = lookback.to_i
     limit = limit.to_i
-    if repository.test_identities.none? && where(repository_id: repository.id).exists?
-      TestIdentity.ensure_for_repository!(repository, index_search: false)
-    end
+    TestIdentity.ensure_for_repository_later(repository) if repository.test_identities.none?
 
     repository.test_identities
       .where.not(last_failed_at: nil)

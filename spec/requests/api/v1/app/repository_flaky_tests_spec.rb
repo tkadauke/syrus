@@ -17,10 +17,12 @@ RSpec.describe "App API repository flaky tests", type: :request do
   end
 
   def make_test_case(test_run:, name: "it works", suite_name: "MySpec", status: "passed", duration_ms: nil)
-    TestCase.create!(
+    test_case = TestCase.create!(
       test_run: test_run, repository: repo,
       name: name, suite_name: suite_name, status: status, duration_ms: duration_ms
     )
+    TestIdentity.ensure_for_repository!(repo, index_search: false)
+    test_case
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/flaky_tests" do

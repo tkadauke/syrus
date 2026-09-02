@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe TestCase do
+  include ActiveJob::TestHelper
+
   let(:job)      { Factories.job }
   let(:run)      { job.initial_run }
   let(:repo)     { job.repository }
@@ -22,6 +24,10 @@ RSpec.describe TestCase do
       { test_run: test_run, repository: repo,
         name: "it does the thing", suite_name: "MySpec", status: "passed" }.merge(attrs)
     )
+  end
+
+  def backfill_test_identities
+    TestIdentity.ensure_for_repository!(repo, index_search: false)
   end
 
   it "is valid with required attributes" do
@@ -228,6 +234,7 @@ RSpec.describe TestCase do
         s = i < 1 ? "failed" : "passed"
         create_case(name: "slightly flaky", suite_name: "S", status: s)
       end
+      backfill_test_identities
 
       tests = TestCase.top_flaky_tests(repository: repo)
 
@@ -240,12 +247,14 @@ RSpec.describe TestCase do
 
     it "excludes tests that never passed (all failures are not flaky)" do
       3.times { create_case(name: "always fails", suite_name: "S", status: "failed") }
+      backfill_test_identities
 
       expect(TestCase.top_flaky_tests(repository: repo)).to eq([])
     end
 
     it "excludes tests that never failed (perfectly stable)" do
       3.times { create_case(name: "always passes", suite_name: "S", status: "passed") }
+      backfill_test_identities
 
       expect(TestCase.top_flaky_tests(repository: repo)).to eq([])
     end
@@ -253,6 +262,7 @@ RSpec.describe TestCase do
     it "includes avg_duration_ms and last_seen_at" do
       create_case(name: "flaky one", suite_name: "S", status: "passed", duration_ms: 100)
       create_case(name: "flaky one", suite_name: "S", status: "failed", duration_ms: 200)
+      backfill_test_identities
 
       result = TestCase.top_flaky_tests(repository: repo).first
 
@@ -265,18 +275,22 @@ RSpec.describe TestCase do
         create_case(name: "flaky #{i}", suite_name: "S", status: "passed")
         create_case(name: "flaky #{i}", suite_name: "S", status: "failed")
       end
+      backfill_test_identities
 
       tests = TestCase.top_flaky_tests(repository: repo, limit: 3)
       expect(tests.size).to eq(3)
     end
 
-    it "uses durable test identities instead of a repository-wide test case scan" do
+    it "enqueues missing durable test identities instead of building them inline" do
       create_case(name: "flaky", suite_name: "S", status: "passed")
       create_case(name: "flaky", suite_name: "S", status: "failed")
 
-      TestCase.top_flaky_tests(repository: repo, lookback: "20", limit: "3")
+      expect {
+        tests = TestCase.top_flaky_tests(repository: repo, lookback: "20", limit: "3")
+        expect(tests).to eq([])
+      }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("indexing")
 
-      expect(TestIdentity.find_by!(repository: repo, name: "flaky")).to be_present
+      expect(TestIdentity.find_by(repository: repo, name: "flaky")).to be_nil
     end
   end
 
