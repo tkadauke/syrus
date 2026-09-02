@@ -301,9 +301,11 @@ RSpec.describe "Filters::Chips" do
 
     it "backlog: returns backlogged jobs" do
       backlogged = Factories.job_record(repository: repo, issue_number: 28, state: "backlog")
+      infrastructure = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader", state: "backlog")
       Factories.job_record(repository: repo, issue_number: 29, state: "queued")
 
       expect(run(field: "attention", op: "is", value: "backlog")).to contain_exactly(backlogged)
+      expect(run(field: "attention", op: "is", value: "backlog")).not_to include(infrastructure)
     end
 
     it "stale: excludes backlogged jobs solely aged past the stale window" do

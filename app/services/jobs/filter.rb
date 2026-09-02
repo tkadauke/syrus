@@ -83,6 +83,9 @@ module Jobs
       case params["state"]
       when "open", "closed"
         chips << chip("state", "is", params["state"])
+      when "backlog"
+        chips << chip("state", "is", "backlog")
+        chips << chip("job_type", "is", "user")
       when "failed", "succeeded"
         chips << chip("state", "is", "open")
         chips << chip("latest_workflow_state", "is", params["state"])
