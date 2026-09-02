@@ -559,6 +559,49 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(preview_queries.join("\n")).to include("state")
   end
 
+  it "prefilters visual review artifacts before enabling the visual diff action" do
+    Feature.find_or_create_by!(slug: "visual_review") do |feature|
+      feature.category = "labs"
+      feature.name = "Visual review"
+    end.update!(enabled: true)
+    Feature.clear_enabled_cache!("visual_review")
+    job.update!(state: "implemented")
+    finish_existing_work!(job)
+    Step.joins(:workflow).where(workflows: { job_id: job.id }).update_all(state: "succeeded", finished_at: Time.current)
+    job.runs.update_all(state: "succeeded", finished_at: Time.current)
+
+    3.times do
+      Workflow.create!(job: job, trigger_kind: "retry", state: "succeeded", artifacts: { "summary" => "Done" })
+    end
+    Workflow.create!(
+      job: job,
+      trigger_kind: "manual_visual_review",
+      state: "succeeded",
+      artifacts: {
+        "visual_review_iterations" => [
+          {
+            "artifacts" => [
+              { "image_url" => "/api/v1/app/workflows/123/visual_artifact?type=after" }
+            ]
+          }
+        ]
+      }
+    )
+
+    queries = capture_sql do
+      get "/api/v1/app/jobs/#{job.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("actions", "can_run_visual_diff")).to eq(true)
+
+    visual_artifact_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
+    expect(visual_artifact_queries).not_to be_empty
+    expect(visual_artifact_queries.join("\n").scan(/artifacts LIKE/i).size).to be >= 2
+  ensure
+    Feature.clear_enabled_cache!("visual_review")
+  end
+
   it "returns active work from the current WorkUnit without loading the workflow graph" do
     AppSetting.current.update!(show_work_unit_debug: true)
     bare_job = Factories.job_record(
