@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "rbconfig"
 require "spec_helper"
 
 RSpec.describe "bin/check-thread-budget", :ci_only do
@@ -21,7 +22,7 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
 
     Bundler.with_unbundled_env do
       env = ENV.to_h.merge(bundler_install_env).merge(env_overrides)
-      Open3.capture3(env, "ruby", script, unsetenv_others: true, chdir: root)
+      Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true, chdir: root)
     end
   end
 
