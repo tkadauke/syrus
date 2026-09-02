@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_121000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1679,7 +1679,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_121000) do
     t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
-    t.index ["occurred_at"], name: "idx_perf_events_occurred_at"
+    t.index ["occurred_at", "id"], name: "idx_perf_events_occurred_at_id"
   end
 
   create_table "platform_identities", force: :cascade do |t|
