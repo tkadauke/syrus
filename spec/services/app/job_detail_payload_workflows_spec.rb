@@ -595,7 +595,11 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         )
       end
 
-      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+      payload = nil
+      queries = capture_sql do
+        payload = workflows_payload_for(job)
+      end
+      workflow_payload = payload.fetch(:workflows).first
 
       expect(workflow_payload).to include(
         steps_total: 5,
@@ -604,6 +608,11 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
       expect(workflow_payload.fetch(:steps).map { |step| step[:position] }).to eq([ 3, 4, 5 ])
       expect(workflow_payload.dig(:failure_classification, :classification)).to eq("grader_failure")
+      step_count_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?steps[`"]?/i) &&
+          sql.match?(/GROUP BY [`"]?steps[`"]?.[`"]?workflow_id/i)
+      end
+      expect(step_count_queries).to be_empty
     end
 
     it "bounds serialized run history per step while preserving active runs" do

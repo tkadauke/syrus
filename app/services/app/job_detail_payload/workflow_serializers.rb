@@ -370,8 +370,8 @@ module App
 
       def step_counts_by_workflow_id
         @step_counts_by_workflow_id ||= begin
-          ids = serialized_workflows.map(&:id)
-          ids.empty? ? {} : Step.where(workflow_id: ids).group(:workflow_id).count
+          visible_step_ids_by_workflow_id
+          @step_counts_by_workflow_id_from_visible_query || {}
         end
       end
 
@@ -652,15 +652,19 @@ module App
       def visible_step_ids_by_workflow_id
         @visible_step_ids_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.step_ids.query", job_id: @job.id, workflow_count: serialized_workflows.size, step_limit: MAX_STEPS_PER_WORKFLOW) do
           ids = serialized_workflows.map { |workflow| Integer(workflow.id) }
-          next {} if ids.empty?
+          if ids.empty?
+            @step_counts_by_workflow_id_from_visible_query = {}
+            next {}
+          end
 
           rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
-            SELECT id, workflow_id
+            SELECT id, workflow_id, workflow_step_count
             FROM (
               SELECT
                 steps.id,
                 steps.workflow_id,
                 steps.state,
+                COUNT(*) OVER (PARTITION BY steps.workflow_id) AS workflow_step_count,
                 ROW_NUMBER() OVER (
                   PARTITION BY steps.workflow_id
                   ORDER BY steps.position DESC, steps.id DESC
@@ -671,6 +675,11 @@ module App
             WHERE ranked_steps.syrus_step_rank <= #{MAX_STEPS_PER_WORKFLOW}
                OR ranked_steps.state IN (#{ACTIVE_STEP_STATES.map { |state| ApplicationRecord.connection.quote(state) }.join(",")})
           SQL
+
+          @step_counts_by_workflow_id_from_visible_query = rows.each_with_object({}) do |row, counts|
+            workflow_id = row.fetch("workflow_id").to_i
+            counts[workflow_id] ||= row.fetch("workflow_step_count").to_i
+          end
 
           rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
             grouped[row.fetch("workflow_id").to_i] << row.fetch("id").to_i
