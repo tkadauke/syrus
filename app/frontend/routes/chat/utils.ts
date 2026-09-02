@@ -96,7 +96,7 @@ export function diffLineClass(line: string): string {
     return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
   }
   if (line.startsWith("@@")) {
-    return "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+    return "bg-info/10 text-info"
   }
   if (line.startsWith("+")) {
     return "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
