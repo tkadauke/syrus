@@ -52,6 +52,17 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
+  it "does not start workflow runs for backlogged jobs" do
+    backlogged = Factories.job_record(user: user, repository: repository, state: "backlog")
+    workflow = described_class.instantiate(kind: "initial", job: backlogged)
+
+    result = described_class.start!(workflow)
+
+    expect(result).to have_attributes(status: "not_started", run: nil)
+    expect(workflow.first_step.runs).to be_empty
+    expect(WorkUnits::StartBlock.for(workflow.reload)).to be_blocked_for(StepDispatcher::BACKLOG_BLOCK_REASON)
+  end
+
   it "creates repeated non-idempotent launch attempts without granting duplicate active locks" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
 

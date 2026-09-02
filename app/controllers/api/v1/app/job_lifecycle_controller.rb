@@ -12,6 +12,10 @@ module Api
             render_error("validation_failed", "Thread is closed - reopen it before starting work.", status: :unprocessable_content)
             return
           end
+          if job.backlog?
+            render_error("validation_failed", "Job is in backlog - release it before starting work.", status: :unprocessable_content)
+            return
+          end
           if job.active_runtime_work?
             render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
             return

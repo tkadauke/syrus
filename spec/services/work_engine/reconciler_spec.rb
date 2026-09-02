@@ -192,6 +192,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload.state).to eq("queued")
   end
 
+  it "does not classify an old backlogged job as stuck solely by age" do
+    backlogged = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "backlog",
+      updated_at: 14.days.ago
+    )
+
+    result = reconcile(job_id: backlogged.id)
+
+    expect(result.issues).to be_empty
+  end
+
   it "does not load every historical failed workflow during global reconciliation" do
     old_failed_workflow_ids = 3.times.map do |index|
       failed_workflow = Workflow.create!(

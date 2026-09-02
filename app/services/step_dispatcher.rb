@@ -27,6 +27,12 @@ class StepDispatcher
       return
     end
 
+    if workflow.job.backlog? && !workflow.job.releasing_from_backlog
+      record_start_blocked!(workflow, BACKLOG_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF) unless start_blocked_backoff_active?(workflow, BACKLOG_BLOCK_REASON)
+      warn_if_stuck_queued(workflow, BACKLOG_BLOCK_REASON)
+      return
+    end
+
     if Feature.coding_mode_enabled? && workflow.job.coding?
       Rails.logger.info(
         "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
@@ -197,6 +203,7 @@ class StepDispatcher
   MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase main_grader ].freeze
   URGENT_EXEMPT_TRIGGERS = %w[ main_grader ].freeze
   URGENT_BLOCKING_STATES = %w[ needs_triage triaging blocked_by_epic queued running implemented approved landing coding ].freeze
+  BACKLOG_BLOCK_REASON = "job_backlogged"
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
   URGENT_BLOCK_REASON = "urgent_job_active"
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
