@@ -294,8 +294,8 @@ module Steps
       transcript = run.reload.provider_session&.transcript_jsonl.to_s
       summary = ClaudeTranscript.new(transcript).summary
       available = Array(summary.available_tools_at_init).map(&:to_s)
-      missing = required_tools.reject { |tool| mcp_tool_available?(available, tool) }
       called = required_tools.select { |tool| mcp_tool_called?(summary.tool_call_counts.keys, tool) }
+      missing = required_tools - called
       status = missing.empty? ? "ok" : "missing"
       log(
         "[mcp_required_health] status=#{status} server=syrus-mcp-sidecar required=#{required_tools.join(',')} missing=#{missing.join(',')} called=#{called.join(',')} available_count=#{available.size} mcp_tool_called=#{summary.mcp_tool_called?} session_id=#{summary.session_id || '(none)'}",

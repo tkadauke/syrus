@@ -136,5 +136,75 @@ RSpec.describe CodexAgent::TranscriptEvents do
         "command_execution" => 1
       )
     end
+
+    it "counts completed MCP tool calls when Codex transcript omits the matching started item" do
+      input = jsonl(
+        {
+          "timestamp" => "2026-06-01T10:00:00Z",
+          "type" => "thread.started",
+          "thread_id" => "codex-thread-1"
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:03Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_visual_review",
+            "result" => { "ok" => true },
+            "call_id" => "call_visual_review"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:04Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_adversarial_review",
+            "result" => { "ok" => true },
+            "call_id" => "call_adversarial_review"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:05Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_summary",
+            "result" => { "ok" => true },
+            "call_id" => "call_summary"
+          }
+        },
+        {
+          "timestamp" => "2026-06-01T10:00:06Z",
+          "type" => "item.completed",
+          "item" => {
+            "type" => "mcp_tool_call",
+            "server" => "syrus-mcp-sidecar",
+            "tool" => "submit_test_plan",
+            "result" => { "ok" => true },
+            "call_id" => "call_test_plan"
+          }
+        }
+      )
+
+      summary = ClaudeTranscript.new(input).summary
+
+      expect(summary.mcp_tool_called?).to be true
+      expect(summary.tool_call_counts).to include(
+        "mcp__syrus-mcp-sidecar__submit_visual_review" => 1,
+        "mcp__syrus-mcp-sidecar__submit_adversarial_review" => 1,
+        "mcp__syrus-mcp-sidecar__submit_summary" => 1,
+        "mcp__syrus-mcp-sidecar__submit_test_plan" => 1
+      )
+    end
+
+    it "does not double-count completed MCP tool calls that have a matching started item" do
+      summary = ClaudeTranscript.new(input).summary
+
+      expect(summary.tool_call_counts["mcp__syrus-mcp-sidecar__submit_summary"]).to eq(1)
+    end
   end
 end
