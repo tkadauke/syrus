@@ -149,7 +149,7 @@ module App
       active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
-      runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
+      runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.count }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
         {
@@ -578,6 +578,7 @@ module App
 
       run = @job.runs
                 .where.not(agent_summary: [ nil, "" ])
+                .select(:id, :job_id, :agent_summary, :finished_at, :created_at)
                 .reorder(created_at: :desc, id: :desc)
                 .first
       return unless run

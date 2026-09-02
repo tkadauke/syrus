@@ -524,6 +524,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(workflow_artifact_queries).to all(match(/NOT/i))
   end
 
+  it "counts runs without loading full run rows on the default job detail payload" do
+    workflow = job.latest_workflow
+    step = workflow.steps.first || Step.create!(workflow: workflow, kind: "implement", position: 1)
+    3.times do |index|
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded", started_at: index.minutes.ago)
+    end
+
+    queries = capture_sql do
+      get "/api/v1/app/jobs/#{job.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("job", "runs_count")).to eq(job.runs.count)
+    broad_run_loads = queries.grep(/SELECT\s+["`]?runs["`]?\.\*/i)
+    expect(broad_run_loads).to be_empty
+  end
+
   it "returns active work from the current WorkUnit without loading the workflow graph" do
     AppSetting.current.update!(show_work_unit_debug: true)
     bare_job = Factories.job_record(
