@@ -269,6 +269,49 @@ RSpec.describe Steps::Base, :ci_only do
       expect(chunks).to include(include("[mcp_sidecar_stderr]", "sidecar booted"))
     end
 
+    it "logs required MCP tool health as ok when Codex only records completed tool_result items" do
+      result = AgentInvocation::Result.new(
+        turns: 1,
+        exit_status: 0,
+        timed_out: false,
+        is_error: false,
+        outcome: "success",
+        final_text: nil,
+        session_id: "codex-thread-1"
+      )
+      fake_adapter = instance_double(AgentProviders::Base)
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run).and_return(result)
+      allow(fake_adapter).to receive(:record_result!) do
+        ProviderSession.create!(
+          resumable: run,
+          provider: "codex",
+          session_id: "codex-thread-1",
+          transcript_jsonl: [
+            { type: "thread.started", thread_id: "codex-thread-1" },
+            {
+              type: "item.completed",
+              item: {
+                type: "mcp_tool_call",
+                server: "syrus-mcp-sidecar",
+                tool: "submit_test_plan",
+                result: { ok: true },
+                call_id: "call_test_plan"
+              }
+            },
+            { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }
+          ].map(&:to_json).join("\n") + "\n"
+        )
+        result
+      end
+      allow(McpSidecarLog).to receive(:tail).with(run.id).and_return("")
+
+      handler.send(:run_agent, prompt: "test plan", required_mcp_tools: %w[submit_test_plan])
+
+      chunks = run.job_logs.order(:sequence).pluck(:chunk)
+      expect(chunks).to include(match(/\[mcp_required_health\] status=ok.*missing=.*called=submit_test_plan.*available_count=0.*mcp_tool_called=true/))
+    end
+
     it "threads disallowed_tools through to the adapter" do
       fake_adapter = instance_double(AgentProviders::Base)
       received_disallowed_tools = :not_set
