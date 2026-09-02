@@ -126,7 +126,7 @@ function updateToolGroupState(group: ChatToolGroupItem) {
   const pendingSideEffect = calls.some((call) => call.result_body === "" && !readOnlyTool(call.tool_name))
   const sideEffecting = calls.some((call) => sideEffectingTool(call.tool_name))
   group.prominent = failed || pendingSideEffect || sideEffecting
-  group.collapsed_by_default = false
+  group.collapsed_by_default = true
   group.outcome_label = failed ? "Needs attention" : calls.some((call) => call.result_body === "") ? "Running" : "Done"
 
   if (calls.length > 1 && calls.every((call) => readOnlyTool(call.tool_name))) {
@@ -153,7 +153,6 @@ function collapseSettledToolGroups(items: ChatRenderItem[]) {
 
 function collapseSettledToolGroup(group: ChatToolGroupItem) {
   updateToolGroupState(group)
-  if (!group.prominent) group.collapsed_by_default = true
 
   for (const call of group.calls) {
     for (const nested of call.nested || []) collapseSettledToolGroup(nested)
