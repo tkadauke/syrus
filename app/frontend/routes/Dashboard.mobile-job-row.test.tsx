@@ -141,7 +141,7 @@ describe("mobile jobs list row", () => {
     renderTable([ mobileJobItem({ title: longTitle }) ])
 
     const title = screen.getByRole("link", { name: longTitle })
-    expect(title).toHaveClass("block", "max-w-full", "truncate")
+    expect(title).toHaveClass("block", "min-w-0", "max-w-full", "truncate")
     expect(title).toHaveAttribute("title", longTitle)
   })
 
