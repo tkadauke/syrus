@@ -8,6 +8,19 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA"
+
+      queries << payload[:sql].to_s.squish
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/tags"
 
@@ -32,6 +45,22 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     )
     expect(body["palette"].first).to include("key" => "gray", "label" => "Gray", "bg" => "#f3f4f6")
     expect(response.body).not_to include("theirs")
+  end
+
+  it "does not load tagged jobs to compute tag counts" do
+    sign_in_as(user)
+    tag = Factories.tag(user: user, name: "mine", color: "blue")
+    repo = Factories.repository(user: user)
+    3.times do |issue_number|
+      job = Factories.job_record(repository: repo, issue_number: issue_number + 1)
+      job.tags << tag
+    end
+
+    queries = capture_sql { get "/api/v1/app/tags" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("tags").first).to include("jobs_count" => 3)
+    expect(queries).not_to include(match(/SELECT\s+["`]?jobs["`]?\.\*/i))
   end
 
   it "creates a tag" do

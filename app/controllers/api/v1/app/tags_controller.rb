@@ -38,7 +38,8 @@ module Api
         private
 
         def tags_payload
-          tags = Current.user.tags.ordered.includes(:jobs)
+          tags = Current.user.tags.ordered.to_a
+          tag_counts = JobTag.where(tag_id: tags.map(&:id)).group(:tag_id).count
 
           {
             palette: Tag::PALETTE.map do |key, colors|
@@ -49,16 +50,16 @@ module Api
                 text: colors[:text]
               }
             end,
-            tags: tags.map { |tag| tag_json(tag) }
+            tags: tags.map { |tag| tag_json(tag, jobs_count: tag_counts.fetch(tag.id, 0)) }
           }
         end
 
-        def tag_json(tag)
+        def tag_json(tag, jobs_count:)
           {
             id: tag.id,
             name: tag.name,
             color: tag.color,
-            jobs_count: tag.jobs.size
+            jobs_count: jobs_count
           }
         end
 
