@@ -23,6 +23,7 @@ module Api
         include ChatProposalOutcomeNotice
 
         HIDDEN_CHATS_PAGE_SIZE = 20
+        CODING_RELAY_RETRY_AFTER_SECONDS = 30
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
           "claim the Epic as a developer to elaborate it.".freeze
 
@@ -1142,8 +1143,7 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "files", params: relay_params)
           if relay_response.nil?
-            schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            render_coding_relay_unavailable!(chat_session)
             return
           end
 
@@ -1175,8 +1175,7 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "commits")
           if relay_response.nil?
-            schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            render_coding_relay_unavailable!(chat_session)
             return
           end
 
@@ -1217,8 +1216,7 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "file", params: relay_params)
           if relay_response.nil?
-            schedule_coding_relay_refresh!(chat_session)
-            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            render_coding_relay_unavailable!(chat_session)
             return
           end
 
@@ -1246,9 +1244,14 @@ module Api
           mode = params[:mode].to_s == "turn" ? :turn : :cumulative
           relay_params = { mode: mode.to_s }
           relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
-          result = proxy_to_coding_relay(chat_session, "diff", params: relay_params)
+          relay_response = proxy_to_coding_relay_response(chat_session, "diff", params: relay_params)
+          if relay_response.nil?
+            render_coding_relay_unavailable!(chat_session)
+            return
+          end
 
-          if result
+          status, result = relay_response
+          if status == 200
             render json: result
           else
             render json: { diff: "", mode: mode.to_s, checkout_branch: chat_session.coding_checkout_branch }
@@ -1480,6 +1483,19 @@ module Api
           ChatCodingRelayRefreshJob.perform_later(chat_session.id)
         rescue StandardError => e
           Rails.logger.warn("[ChatsController] could not enqueue coding relay refresh for chat #{chat_session.id}: #{e.class}: #{e.message}")
+        end
+
+        def render_coding_relay_unavailable!(chat_session)
+          schedule_coding_relay_refresh!(chat_session)
+          request.env["syrus.expected_action_controller_failure"] = "coding_relay_unavailable"
+          response.set_header("Retry-After", CODING_RELAY_RETRY_AFTER_SECONDS.to_s)
+          render json: {
+            error: {
+              code: "relay_unavailable",
+              message: "Coding checkout relay is unavailable; refresh is queued.",
+              retry_after: CODING_RELAY_RETRY_AFTER_SECONDS
+            }
+          }, status: :service_unavailable
         end
 
         def split_workspace_path_and_line(path)
