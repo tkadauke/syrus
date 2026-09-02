@@ -434,7 +434,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
-              <KeyValue label={t("detail_owner")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
+              <KeyValue label={t("detail_work_claim")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
               <KeyValue label={t("detail_priority")}><PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_provider")}><JobProviderSelector payload={payload} providerPath={payload.paths.app_provider_setting_path || `/api/v1/app/jobs/${payload.job.id}/provider_setting`} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
