@@ -797,6 +797,32 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("runs formatting toolbar commands against Markdown and persists Suggest mode as a suggestion", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const changeMode = screen.getByRole("group", { name: "Change mode" })
+    fireEvent.click(within(changeMode).getByRole("button", { name: "Suggest" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }))
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha **beta** gamma"))
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions", expect.objectContaining({ method: "POST" })))
+    const suggestionRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/suggestions")
+    expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
+      suggestion: {
+        original_markdown: "Alpha beta gamma",
+        proposed_markdown: "Alpha **beta** gamma"
+      }
+    })
+  })
+
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")

@@ -115,8 +115,13 @@ module DesignDocs
     def canonical_markdown_value
       candidate = attributes[:markdown].to_s
       return design_doc.markdown if candidate == AnchorMarkers.strip(design_doc.markdown)
+      return candidate if candidate.match?(AnchorMarkers::ANY_PATTERN)
 
-      candidate
+      AnchorMarkers.project(
+        markdown: design_doc.markdown,
+        visible_markdown: candidate,
+        anchors: design_doc.anchors.to_a
+      )
     end
 
     def checkpoint?
