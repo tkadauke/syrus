@@ -16,6 +16,7 @@
   "give_feedback": "Feedback geben",
   "request_changes": "Änderungen anfordern",
   "start_run": "Lauf starten",
+  "release_from_backlog": "Aus Backlog freigeben",
   "check_feedback": "Feedback prüfen",
   "rebase_now": "Jetzt rebasen",
   "check_mergeability": "Mergebarkeit prüfen",

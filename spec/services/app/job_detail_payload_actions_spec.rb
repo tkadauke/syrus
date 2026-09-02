@@ -53,6 +53,46 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
     unit
   end
+
+  describe "#actions_json backlog admission" do
+    it "offers release from backlog instead of manual start for an unstarted backlogged direct job" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_start)).to be(false)
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(true)
+      expect(payload.dig(:paths, :app_release_from_backlog_path)).to eq("/api/v1/app/jobs/#{job.id}/release_from_backlog")
+    end
+
+    it "does not offer release from backlog for active runtime work" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "running")
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_start)).to be(false)
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
+    end
+  end
+
   describe "#feedback_history_json" do
     it "returns chat feedback workflow artifacts in chronological order" do
       job = Factories.job_record(repository: repo)
@@ -825,5 +865,4 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(breakdown["telemetry_absent"]).to be(true)
     end
   end
-
 end

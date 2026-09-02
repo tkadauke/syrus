@@ -330,7 +330,7 @@ RSpec.describe User do
       user = User.create!(attrs)
 
       expect(user.dashboard_visible_kanban_lanes(:epics)).to eq(%w[backlog ready in_progress done])
-      expect(user.dashboard_visible_kanban_lanes(:jobs)).to eq(%w[queued running landing])
+      expect(user.dashboard_visible_kanban_lanes(:jobs)).to eq(%w[backlog queued running landing])
       expect(user.dashboard_visible_kanban_lanes(:workflows)).to eq(%w[queued running done])
     end
 

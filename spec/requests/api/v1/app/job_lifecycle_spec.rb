@@ -104,6 +104,39 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(WorkUnits::StartBlock.for(blocked_workflow).reason).to eq("admission_control")
   end
 
+  it "releases a backlogged direct job through normal initial admission" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Planned repair",
+      issue_body: "Repair the forum."
+    )
+
+    expect {
+      post app_job_path(direct, "release_from_backlog"), as: :json
+    }.to change { direct.reload.workflows.count }.from(0).to(1)
+      .and change { direct.runs.count }.from(0).to(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(direct).to be_queued
+    expect(parse_body).to include("message" => "Job released from backlog.")
+    expect(parse_body.dig("job", "runs_count")).to eq(1)
+    expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
+  end
+
+  it "does not release a job that is not backlogged" do
+    expect {
+      post app_job_path(job, "release_from_backlog"), as: :json
+    }.not_to change { job.reload.workflows.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Only backlogged Jobs can be released.")
+  end
+
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     finish_work_units_for(job)
