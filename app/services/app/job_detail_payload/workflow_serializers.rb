@@ -141,7 +141,7 @@ module App
       end
 
       def intent_execution_status(intent)
-        active_states = intent.work_units.where(state: %w[queued blocked running]).distinct.pluck(:state)
+        active_states = active_work_units_for_intent(intent).map(&:state)
         return "running" if active_states.include?("running")
         return "queued" if active_states.include?("queued")
         return "blocked" if active_states.include?("blocked")
@@ -151,13 +151,19 @@ module App
       end
 
       def intent_execution_label(intent)
-        blocked_unit = intent.work_units
-          .where(state: "blocked")
-          .order(created_at: :desc, id: :desc)
-          .first
+        blocked_unit = active_work_units_for_intent(intent).find(&:blocked?)
         return blocked_reason_label(blocked_unit.blocked_reason) if blocked_unit&.blocked_reason.present?
 
         nil
+      end
+
+      def active_work_units_for_intent(intent)
+        @active_work_units_for_intent ||= {}
+        @active_work_units_for_intent[intent.id] ||= WorkUnit
+          .where(work_intent_id: intent.id, state: %w[queued blocked running])
+          .select(:id, :work_intent_id, :state, :blocked_reason, :created_at)
+          .order(created_at: :desc, id: :desc)
+          .to_a
       end
 
       def intent_label(intent)

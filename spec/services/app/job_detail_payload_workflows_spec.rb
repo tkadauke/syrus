@@ -91,6 +91,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "loads active WorkUnits for desired-work status once" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "admission_control")
+
+      queries = capture_sql { workflows_payload_for(job) }
+      active_intent_unit_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?work_units[`"]?/i) &&
+          sql.match?(/work_intent_id/i) &&
+          sql.match?(/state/i)
+      end
+
+      expect(active_intent_unit_queries.size).to eq(1)
+    end
+
     it "prefers running WorkUnit attempts over newer blocked attempts in the active work card" do
       job = Factories.job_record(user: user, repository: repo)
       running_workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", created_at: 5.minutes.ago)
