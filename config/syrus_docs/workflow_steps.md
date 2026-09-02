@@ -16,7 +16,7 @@ iteration. See [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission
 
 Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected from lockfiles) in the cloned workspace. Explicit commands hard-fail on error; auto-detected commands soft-fail with a warning so a wrong guess doesn't block the first run. Per-timeout: 10 minutes per command.
 
-Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `merge_train_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`.
+Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `merge_train_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`, `main_branch_repair`.
 
 **Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
 
@@ -57,6 +57,16 @@ notification or `ScheduleWakeup` continuation — Syrus raises
 `agent_gave_up_waiting` and retryable, and it does not close the Job as
 `no_changes`; it means the agent misunderstood Step Run execution rather than
 proving the requested work was already unnecessary.
+
+**Timeout after commit:** If the agent subprocess times out after it already
+created a commit, Syrus does a conservative partial-result check before failing
+the step. A clean worktree, an intact branch history, a non-empty diff against
+the step's starting SHA, and a non-empty diff against the workflow base are all
+required. When those checks pass, the Run records `agent_diff`, `step_agent_diff`,
+`head_sha`, and `base_sha`, marks the Step details with
+`captured_after_agent_timeout`, publishes the normal Run checkpoint, and lets
+downstream graders validate the committed result. Dirty worktrees, no-op commits,
+or broken branch history still fail as normal.
 
 **Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using the exhausted agent provider show a red triangle warning until the usage-limit window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits remain separate and use the existing non-red treatment.
 
@@ -523,9 +533,17 @@ Preflight graders use the same command-span instrumentation as normal graders.
 Non-agentic. Aggregates preflight grader results. Two outcomes:
 
 - **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
-- **Any required grader failed:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
+- **Any required grader failed:** Stores `preflight_failures` with each failing
+  grader's name, exact command, exit metadata, log path, and captured output
+  tail, then logs the failure and returns normally so the chain continues to
+  `implement`.
 
 Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."
+
+The next `main_branch_repair` `implement` prompt includes `preflight_failures`
+and tells the agent to reproduce the exact failed command(s), run focused
+examples against the failure tail first, and commit once the focused checks pass
+before any optional full-suite verification.
 
 ## Coding handoff steps
 

@@ -26,6 +26,7 @@ module Steps
     class StepFailed < StandardError; end
     class NoChangesProduced < StepFailed; end
     class AgentGaveUpWaiting < StepFailed; end
+    class AgentTimedOut < StepFailed; end
     DEFAULT_AGENT_RESUME = Object.new.freeze
     DISABLE_AGENT_RESUME = "__syrus_disable_agent_resume__".freeze
 
@@ -255,7 +256,7 @@ module Steps
       log_mcp_required_tool_health(required_mcp_tools) if required_mcp_tools.present?
       capture_mcp_sidecar_stderr if result.outcome == "mcp_sidecar_failed" || required_mcp_tools.present?
 
-      raise StepFailed, "agent timed out"                            if result.timed_out
+      raise AgentTimedOut, "agent timed out"                         if result.timed_out
       raise StepFailed, "agent reported #{result.outcome || 'error'}" if result.is_error
       raise StepFailed, "agent exited #{result.exit_status}"          unless result.success?
 
@@ -478,7 +479,12 @@ module Steps
 
       log(log_message)
       base_sha = head_sha
-      run_agent(prompt: run.prompt)
+      begin
+        run_agent(prompt: run.prompt)
+      rescue AgentTimedOut => e
+        capture_committed_agent_timeout_result!(base_sha: base_sha, exception: e)
+        return
+      end
 
       commit_agent_changes(commit_message)
       assert_branch_history_intact!
@@ -488,6 +494,36 @@ module Steps
 
       step_diff = diff_against_sha(base_sha)
       run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      publish_run_checkpoint!
+    end
+
+    def capture_committed_agent_timeout_result!(base_sha:, exception:)
+      status = GitRunner.new.run("status", "--porcelain", chdir: workspace.path.to_s)
+      if status.strip.present?
+        log("[#{step.kind}] agent timed out with uncommitted workspace changes; refusing partial capture")
+        raise exception
+      end
+
+      assert_branch_history_intact!
+
+      step_diff = diff_against_sha(base_sha)
+      if step_diff.blank?
+        log("[#{step.kind}] agent timed out without a committed diff for this step")
+        raise exception
+      end
+
+      diff = diff_against_default
+      if diff.blank?
+        log("[#{step.kind}] agent timed out after a commit, but the branch has no diff against #{default_branch_ref}")
+        raise exception
+      end
+
+      run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      step.update!(details: step.details.to_h.merge(
+        "captured_after_agent_timeout" => true,
+        "captured_after_agent_timeout_at" => Time.current.iso8601
+      ))
+      log("[#{step.kind}] agent timed out after committing a clean diff; captured committed result for downstream validation")
       publish_run_checkpoint!
     end
 

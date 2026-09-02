@@ -257,11 +257,21 @@ job-scoped reconciler inspection. Admins also get a system alert banner that
 links to `/admin/stuck?refresh=1`, forcing the stuck page to recompute before
 showing the `stuck_main_branch_repair_job` evidence.
 
-**Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
+**Step chain:** `prepare → preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
 
 The workflow runs a preflight grader check before invoking the agent. Preflight resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is a `LandingGraderPlan::CI_TRIGGER_KINDS` entry) — the same phase `ci_failure`/`main_grader` use, and the phase that actually mirrors `ci_health` (e.g. a `phases: [ci]` grader like `rspec-ci`, not a `phases: [landing]`-only grader like plain `rspec`). If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates both `grader_health` and `ci_health` to healthy (a preflight pass under the `:ci` phase is conclusive evidence for both signals), calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
 
-If any required preflight grader fails, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
+If any required preflight grader fails, `preflight_grader_collect` stores the
+failed grader names, exact commands, exit metadata, log paths, and captured
+output tails in the `preflight_failures` workflow artifact. The following
+`implement` prompt includes that artifact and tells the repair agent to
+reproduce those exact commands and then run focused examples before any
+optional full-suite verification. The agent fixes the broken code, graders
+validate the fix, and a PR is opened. `PollPullRequestJob` calls
+`MainHealthChangedService.repair_landed!` when the PR merges. If the agent
+times out after already committing a clean diff for the implement step, Syrus
+captures that committed result and lets the downstream graders validate it
+instead of failing the step before commit/diff capture.
 
 **Recovery sweep:** `MainHealthChangedService#recovered!` runs whenever main
 health returns to healthy (either via `repair_landed!` above or an independent
