@@ -151,7 +151,7 @@ module App
       active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
-      runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.count }
+      runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { job_runs_count }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
         {
@@ -265,6 +265,10 @@ module App
 
     def workflow_total_count
       @workflow_total_count ||= @job.workflows.count
+    end
+
+    def job_runs_count
+      @job_runs_count ||= @job.runs.count
     end
 
     def payload_prepare_skip_reason
@@ -802,7 +806,7 @@ module App
       alternate_agent_options = @job.alternate_configured_agent_providers
       visual_review_enabled = visual_review_configured?
       {
-        can_start: @job.direct? && @job.open? && !@job.runs.exists? && !active_runtime_work,
+        can_start: @job.direct? && @job.open? && job_runs_count.zero? && !active_runtime_work,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&

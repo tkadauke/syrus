@@ -301,6 +301,23 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json can_start" do
+    it "reuses the payload run count instead of issuing a second unscoped runs existence probe" do
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_body: "Investigate")
+
+      queries = capture_sql do
+        expect(payload_for(job).dig(:actions, :can_start)).to be(true)
+      end
+
+      unscoped_run_exists_queries = queries.select do |sql|
+        sql.match?(/SELECT 1 AS one FROM ["`]?runs["`]?/i) &&
+          sql.match?(/["`]?runs["`]?\.(["`]?job_id["`]?) =/i) &&
+          !sql.match?(/["`]?state["`]?/i)
+      end
+      expect(unscoped_run_exists_queries).to be_empty
+    end
+  end
+
   describe "#actions_json can_restart" do
     def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
       workflow = Workflow.create!(
