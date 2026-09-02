@@ -14,6 +14,10 @@ class RunCompletionReconciler
 
   def self.call(...) = new(...).call
 
+  def self.terminal_recovery_step_kind?(kind)
+    TERMINAL_RECOVERY_STEP_KINDS.include?(kind.to_s)
+  end
+
   def initialize(run, allow_terminal_recovery: false)
     @run = run
     @step = run.step

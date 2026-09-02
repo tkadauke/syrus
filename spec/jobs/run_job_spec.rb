@@ -564,6 +564,84 @@ RSpec.describe RunJob, :ci_only do
       expect(StateTransition.where(subject: run, from_state: "cancelled", to_state: "succeeded", source: "reconciler")).to exist
     end
 
+    it "reconciles a landed merge_train_land even when the workflow has a cancellation artifact" do
+      repository.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 42,
+        pr_number: 17,
+        branch_name: "syrus/issue-42-landing",
+        state: "landing"
+      )
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main", state: "landing")
+      MergeTrainMember.create!(merge_train: train, job: landing_job, position: 0)
+      workflow = Workflow.create!(
+        job: landing_job,
+        user: user,
+        trigger_kind: "merge_train",
+        agent_provider: landing_job.agent_provider,
+        artifacts: { "merge_train_id" => train.id }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_land", position: 0)
+      run = Run.create!(
+        job: landing_job,
+        step: step,
+        trigger_kind: "merge_train",
+        agent_provider: landing_job.agent_provider
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/17").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          number: 17,
+          state: "open",
+          merged: false,
+          body: "Member PR body",
+          head: { sha: "member-head-sha" },
+          base: { ref: "main", sha: "base-sha" }
+        }.to_json
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/3095").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          number: 3095,
+          state: "closed",
+          merged: true,
+          body: "Syrus integration PR",
+          head: { sha: "integration-head-sha" },
+          base: { ref: "main", sha: "base-sha" }
+        }.to_json
+      )
+
+      allow_any_instance_of(Steps::MergeTrainLand).to receive(:call) do |handler|
+        handler.workflow.set_artifact!(Steps::MergeTrainLand::INTEGRATION_PR_ARTIFACT, 3095)
+        handler.workflow.update!(
+          artifacts: handler.workflow.artifacts.merge(
+            "cancelled_reason" => "operator_cancelled",
+            "cancelled_at" => Time.current.iso8601
+          )
+        )
+        handler.workflow.cancel!
+        handler.workflow.save!
+      end
+
+      RunJob.perform_now(run.id)
+
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(workflow.reload).to be_succeeded
+      expect(workflow.artifact(Steps::MergeTrainLand::INTEGRATION_PR_ARTIFACT)).to eq(3095)
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include(
+        "handler merge_train_land returned successfully, but terminal state was observed",
+        "run reconciled after terminal success race: merge_train_land: integration PR #3095 already merged on GitHub"
+      )
+      expect(StateTransition.where(subject: workflow, from_state: "cancelled", to_state: "succeeded", source: "reconciler")).to exist
+    end
+
     it "runs final graders before repairing, pushing, and merging" do
       AppSetting.current.update!(grade_max_iterations: 2)
       repository.update!(auto_merge_enabled: true)
