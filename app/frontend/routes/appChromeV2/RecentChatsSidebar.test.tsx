@@ -149,6 +149,28 @@ describe("RecentChatsSidebar group chat icon", () => {
   })
 })
 
+describe("RecentChatsSidebar goal marker", () => {
+  it("shows a bullseye marker for chats with active goals", () => {
+    renderSidebar([chatNav({ id: 1, title: "Goal Chat", active_goal: chatGoal({ status: "active" }) })])
+
+    expect(screen.getByRole("img", { name: "Has active goal" })).toBeInTheDocument()
+  })
+
+  it("shows a muted bullseye marker for chats with paused goals", () => {
+    renderSidebar([chatNav({ id: 1, title: "Paused Goal Chat", active_goal: chatGoal({ status: "paused" }) })])
+
+    const marker = screen.getByRole("img", { name: "Has paused goal" })
+    expect(marker).toBeInTheDocument()
+    expect(marker).toHaveAttribute("class", expect.stringContaining("text-gray-400"))
+  })
+
+  it("does not show a goal marker for terminal goals", () => {
+    renderSidebar([chatNav({ id: 1, title: "Completed Goal Chat", active_goal: chatGoal({ status: "completed" }) })])
+
+    expect(screen.queryByRole("img", { name: /goal/i })).not.toBeInTheDocument()
+  })
+})
+
 describe("RecentChatsSidebar supervisor chat", () => {
   it("renders supervisor above ordinary chat groups with unread severity count", () => {
     renderSidebar(
@@ -404,6 +426,29 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     current: false,
     last_message_at: "2026-06-27T12:00:00Z",
     unread: false,
+    created_at: "2026-06-27T12:00:00Z",
+    updated_at: "2026-06-27T12:00:00Z",
+    ...overrides
+  }
+}
+
+function chatGoal(overrides: Partial<NonNullable<ChatNavRecord["active_goal"]>> = {}): NonNullable<ChatNavRecord["active_goal"]> {
+  return {
+    id: 7,
+    chat_session_id: 1,
+    user_id: 1,
+    repository_id: null,
+    prompt: "Ship the thing",
+    completion_condition: null,
+    mode_snapshot: {},
+    status: "active",
+    approval_policy: "manual",
+    auto_file_proposals: false,
+    auto_submit_jobs: false,
+    iteration_count: 0,
+    terminal_at: null,
+    terminal_reason: null,
+    terminal_details: null,
     created_at: "2026-06-27T12:00:00Z",
     updated_at: "2026-06-27T12:00:00Z",
     ...overrides

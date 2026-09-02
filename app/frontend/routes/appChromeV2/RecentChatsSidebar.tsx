@@ -310,6 +310,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                           {chat.scratchpad_items_count > 0 && (
                             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" title={t("nav:title_scratchpad")} />
                           )}
+                          <GoalStatusMarker goal={chat.active_goal} />
                         </span>
                       </Link>
                       <RecentChatActionsMenu
@@ -410,6 +411,30 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   }
 
   return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-brand" : "bg-transparent"}`} />
+}
+
+function GoalStatusMarker({ goal }: { goal?: ChatNavRecord["active_goal"] }) {
+  const { t } = useTranslation("nav")
+  if (!goal || (goal.status !== "active" && goal.status !== "paused")) return null
+
+  const paused = goal.status === "paused"
+  const label = paused ? t("nav:title_goal_paused") : t("nav:title_goal_active")
+
+  return (
+    <span
+      aria-label={label}
+      className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${paused ? "text-gray-400 dark:text-gray-500" : "text-brand"}`}
+      role="img"
+      title={label}
+    >
+      <svg aria-hidden="true" className="h-full w-full" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="12" cy="12" r="4.5" stroke="currentColor" strokeWidth="1.8" />
+        <circle cx="12" cy="12" fill="currentColor" r="1.7" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    </span>
+  )
 }
 
 function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {

@@ -276,6 +276,8 @@
   "repository_tabs_aria": "Repository-Tabs",
   "title_uncommitted": "Nicht committete Coding-Änderungen",
   "title_scratchpad": "Hat Scratchpad-Einträge",
+  "title_goal_active": "Hat ein aktives Ziel",
+  "title_goal_paused": "Hat ein pausiertes Ziel",
   "title_turn_active": "Chat-Runde aktiv",
   "plugin_repo_tabs": {
     "unavailable_heading": "Seite nicht verfügbar",
