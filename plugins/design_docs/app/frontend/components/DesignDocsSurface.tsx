@@ -928,68 +928,70 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   return (
     <div
       aria-label="Formatting toolbar"
-      className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >
-      <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
-        {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
-          <button
-            aria-selected={editorMode === candidate}
-            className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-            key={candidate}
-            onClick={() => setEditorMode(candidate)}
-            role="tab"
-            type="button"
-          >
-            {candidate === "markdown" ? "Markdown" : "Rich Text"}
-          </button>
-        ))}
-      </div>
-
-      <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-        {canWriteCanonical ? (
-          (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" data-testid="design-doc-formatting-toolbar-scroll">
+        <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+          {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
             <button
-              aria-pressed={changeMode === candidate}
-              className={`px-3 py-1.5 font-medium capitalize ${changeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+              aria-selected={editorMode === candidate}
+              className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
               key={candidate}
-              onClick={() => setChangeMode(candidate)}
+              onClick={() => setEditorMode(candidate)}
+              role="tab"
               type="button"
             >
-              {candidate === "edit" ? "Edit" : "Suggest"}
+              {candidate === "markdown" ? "Markdown" : "Rich Text"}
             </button>
-          ))
-        ) : (
-          <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
-        )}
-      </div>
+          ))}
+        </div>
 
-      <Select
-        aria-label="Block type"
-        className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
-        fullWidth={false}
-        value={selectedBlock}
-        onChange={(event) => runCommand(event.target.value as ToolbarBlockCommand)}
-      >
-        {blockOptions.map((option) => (
-          <option disabled={commandDisabled(option.command)} key={option.command} value={option.command}>{option.label}</option>
-        ))}
-      </Select>
+        <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+          {canWriteCanonical ? (
+            (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
+              <button
+                aria-pressed={changeMode === candidate}
+                className={`px-3 py-1.5 font-medium capitalize ${changeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                key={candidate}
+                onClick={() => setChangeMode(candidate)}
+                type="button"
+              >
+                {candidate === "edit" ? "Edit" : "Suggest"}
+              </button>
+            ))
+          ) : (
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+          )}
+        </div>
 
-      <ToolbarButtonGroup label="Inline formatting">
-        {inlineItems.map((item) => (
-          <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
-        ))}
-      </ToolbarButtonGroup>
+        <Select
+          aria-label="Block type"
+          className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
+          fullWidth={false}
+          value={selectedBlock}
+          onChange={(event) => runCommand(event.target.value as ToolbarBlockCommand)}
+        >
+          {blockOptions.map((option) => (
+            <option disabled={commandDisabled(option.command)} key={option.command} value={option.command}>{option.label}</option>
+          ))}
+        </Select>
 
-      {wideToolbar ? (
-        <ToolbarButtonGroup label="List formatting">
-          {listItems.map((item) => (
-            <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
+        <ToolbarButtonGroup label="Inline formatting">
+          {inlineItems.map((item) => (
+            <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
           ))}
         </ToolbarButtonGroup>
-      ) : null}
+
+        {wideToolbar ? (
+          <ToolbarButtonGroup label="List formatting">
+            {listItems.map((item) => (
+              <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
+            ))}
+          </ToolbarButtonGroup>
+        ) : null}
+      </div>
 
       <div className="relative shrink-0">
         <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
