@@ -198,6 +198,17 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
+    it "does not read visual review config for jobs that cannot run visual actions" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(Feature).not_to receive(:visual_review_enabled?)
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_run_visual_review)).to be(false)
+      expect(payload.dig(:actions, :can_run_visual_diff)).to be(false)
+    end
+
     it "is false for an implemented job with an active run" do
       write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
