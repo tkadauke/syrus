@@ -304,7 +304,7 @@ export type WorkerHealthSample = {
   cpu_pressure_full: number | null
   io_pressure_some: number | null
   io_pressure_full: number | null
-  raw_metrics: Record<string, unknown>
+  raw_metrics?: Record<string, unknown>
 }
 
 export type WorkerHealthSummary = {

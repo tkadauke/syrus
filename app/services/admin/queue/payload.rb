@@ -204,7 +204,8 @@ module Admin
           since: since,
           until_time: until_time,
           sample_limit_per_host: 8,
-          minute_bucket_window_minutes: params[:minute_bucket_window_minutes].presence || params[:window_minutes].presence || default_worker_health_window_minutes(since, until_time)
+          minute_bucket_window_minutes: params[:minute_bucket_window_minutes].presence || params[:window_minutes].presence || default_worker_health_window_minutes(since, until_time),
+          include_raw_metrics: false
         }
       end
 

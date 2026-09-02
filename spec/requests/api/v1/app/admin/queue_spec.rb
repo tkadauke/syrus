@@ -384,7 +384,8 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
                                      cpu_used_percent: 15)
       WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
                                      observed_at: Time.zone.parse("2026-07-31 10:30:00 UTC"),
-                                     cpu_used_percent: 25)
+                                     cpu_used_percent: 25,
+                                     raw_metrics: { "large" => "payload" })
 
       get "/api/v1/app/admin/queue/workers",
           params: {
@@ -401,6 +402,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       )
       expect(body.dig("worker_health", "minute_bucket", "window_minutes")).to eq(60)
       expect(body.dig("worker_health", "hosts", 0, "recent_samples").map { |sample| sample["cpu_used_percent"] }).to eq([ 25.0 ])
+      expect(body.dig("worker_health", "hosts", 0, "recent_samples", 0)).not_to have_key("raw_metrics")
     end
   end
 

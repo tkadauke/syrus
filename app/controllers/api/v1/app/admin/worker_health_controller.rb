@@ -12,7 +12,8 @@ module Api
               minute_bucket_window_minutes: params.fetch(
                 :minute_bucket_window_minutes,
                 ::Admin::WorkerHealthPayload::DEFAULT_MINUTE_BUCKET_WINDOW / 1.minute
-              )
+              ),
+              include_raw_metrics: params.key?(:include_raw_metrics) && ActiveModel::Type::Boolean.new.cast(params[:include_raw_metrics])
             ).as_json
           end
         end
