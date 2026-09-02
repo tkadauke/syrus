@@ -57,21 +57,17 @@ class CaptureRunDiagnostic
   def call
     return unless @run && @exception
 
-    # Idempotency guard. RunJob can theoretically rescue the same
-    # exception path more than once during a chaotic shutdown; we'd
-    # rather keep the first snapshot than overwrite with whatever
-    # came after.
-    return if RunDiagnostic.exists?(run_id: @run.id)
-
-    RunDiagnostic.create!(
-      run: @run,
-      error_class: @exception.class.name,
-      error_message: truncate(@exception.message, 4_000),
-      error_backtrace: format_backtrace,
-      git_snapshot: capture_git_snapshot,
-      environment_snapshot: capture_environment_snapshot,
-      repo_snapshot: capture_repo_snapshot
-    )
+    # Idempotency guard. RunJob can rescue the same failing Run from
+    # competing workers/threads during shutdown; create_or_find_by keeps the
+    # first snapshot without a check-then-insert race on run_id.
+    RunDiagnostic.create_or_find_by!(run: @run) do |diagnostic|
+      diagnostic.error_class = @exception.class.name
+      diagnostic.error_message = truncate(@exception.message, 4_000)
+      diagnostic.error_backtrace = format_backtrace
+      diagnostic.git_snapshot = capture_git_snapshot
+      diagnostic.environment_snapshot = capture_environment_snapshot
+      diagnostic.repo_snapshot = capture_repo_snapshot
+    end
   rescue StandardError => e
     Rails.logger.warn("[CaptureRunDiagnostic] failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
     nil

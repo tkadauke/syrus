@@ -56,4 +56,4 @@ fi
 vitest_junit_output="${VITEST_FOCUSED_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-focused-junit.xml}"
 mkdir -p "$(dirname "$vitest_junit_output")"
 
-exec npx vitest related --run --passWithNoTests --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"
+exec npx vitest related --run --passWithNoTests --maxWorkers=1 --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"
