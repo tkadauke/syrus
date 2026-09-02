@@ -35,9 +35,9 @@ class JunitXmlParser
     suites =
       case root.name
       when "testsuites"
-        root.elements.to_a("testsuite")
+        testcase_suites(root)
       when "testsuite"
-        [ root ]
+        testcase_suites(root)
       else
         raise ParseError, "unexpected root element: #{root.name.inspect}"
       end
@@ -65,6 +65,15 @@ class JunitXmlParser
   end
 
   private
+
+  def testcase_suites(element)
+    suites = []
+    suites << element if element.name == "testsuite" && element.elements.to_a("testcase").any?
+    element.elements.to_a("testsuite").each do |child|
+      suites.concat(testcase_suites(child))
+    end
+    suites
+  end
 
   def parse_suite(suite)
     suite_name = suite.attributes["name"].to_s.strip.presence || "unknown"

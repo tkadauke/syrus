@@ -73,4 +73,16 @@ RSpec.describe TestIdentityRuntimeSummary do
     expect(selects).to all(match(/syrus_runtime_rank/i))
     expect(selects).not_to include(match(/\bas\s+["`]?row_number["`]?\b/i))
   end
+
+  it "does not pass unique_by to adapters without conflict-target support" do
+    rspec = create_test_run!(grader_name: "rspec")
+    create_case!(test_run: rspec, duration_ms: 120, created_at: Time.current)
+
+    allow(described_class.connection).to receive(:supports_insert_conflict_target?).and_return(false)
+    allow(described_class).to receive(:upsert_all).and_call_original
+
+    described_class.refresh_many!([ identity.id ], grader_names: [ "rspec" ])
+
+    expect(described_class).to have_received(:upsert_all).with(kind_of(Array))
+  end
 end
