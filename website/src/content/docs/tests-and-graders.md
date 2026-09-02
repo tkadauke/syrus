@@ -95,6 +95,73 @@ For large suites, a common setup is:
 - one coverage run for the final or landing path,
 - CI-only coverage checks for expensive policies.
 
+### C/C++ coverage with shared compiler caches
+
+Syrus workers include `sccache` for C/C++ compiles, but coverage builds need
+extra care. GCC `--coverage` / `-fprofile-arcs -ftest-coverage` writes `.gcno`
+notes next to object files, and those notes can contain the absolute source path
+from the compile workspace. sccache caches and restores `.gcno` files
+byte-for-byte, so a cache hit from another Syrus workflow can point coverage
+tools at a stale workspace if paths were normalized too broadly.
+
+Do not enable generic `SCCACHE_BASEDIRS` path normalization for coverage unless
+the project has proved its coverage notes are path-stable or path-remapped.
+Without `SCCACHE_BASEDIRS`, coverage builds are conservative: they can still hit
+within the same workflow workspace, but they will not reuse `.gcno` files across
+different workflow paths.
+
+The safe pattern, validated on the `tkadauke/raytracer` CMake/GCC coverage
+build, is to remap the repository checkout before opting into
+`SCCACHE_BASEDIRS`:
+
+```cmake
+add_compile_options(
+  $<$<CONFIG:Coverage>:-O0>
+  $<$<CONFIG:Coverage>:-g>
+  $<$<CONFIG:Coverage>:--coverage>
+  $<$<CONFIG:Coverage>:-fprofile-abs-path>
+  $<$<CONFIG:Coverage>:-fprofile-prefix-map=${CMAKE_SOURCE_DIR}=.>
+  $<$<CONFIG:Coverage>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>
+  $<$<CONFIG:Coverage>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>
+)
+add_link_options("$<$<CONFIG:Coverage>:--coverage>")
+```
+
+Then export `SCCACHE_BASEDIRS` only from the coverage wrapper, scoped to the
+current checkout:
+
+```bash
+repo_root="$(pwd)"
+export SCCACHE_BASEDIRS="$repo_root"
+cmake -S . -B build/coverage -DCMAKE_BUILD_TYPE=Coverage
+cmake --build build/coverage
+ctest --test-dir build/coverage --output-on-failure
+gcovr --root . --object-directory build/coverage --lcov coverage/lcov.info
+```
+
+Before shipping that wrapper, validate it from two different absolute checkout
+paths. Prime sccache from checkout A, build/report from checkout B, and inspect
+the `.gcno` files restored into checkout B:
+
+```bash
+gcno_count="$(find build/coverage -name '*.gcno' -type f -print | wc -l)"
+test "$gcno_count" -gt 0 || {
+  echo "no .gcno files inspected under build/coverage" >&2
+  exit 1
+}
+
+gcno_strings="$(mktemp)"
+find build/coverage -name '*.gcno' -type f -exec strings -- {} + > "$gcno_strings"
+! grep -F "$checkout_a" "$gcno_strings"
+! grep -F "$checkout_b" "$gcno_strings"
+```
+
+Adjust the build directory for your layout. The important checks are that at
+least one `.gcno` file was inspected, restored coverage notes do not mention
+either ephemeral checkout path, and the generated lcov or Cobertura report
+resolves sources under the checkout that produced the report. Repeat in the
+opposite direction when practical.
+
 ## File-Sensitive Graders
 
 Use `when_files_changed` for expensive checks that only matter for certain
