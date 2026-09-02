@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_153500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -114,6 +114,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.string "agent_provider", null: false
     t.integer "attempt_number", null: false
     t.datetime "created_at", null: false
+    t.string "failed_worker_health_level"
+    t.json "failed_worker_health_reasons"
+    t.string "failed_worker_hostname"
+    t.json "failed_worker_retry_context"
+    t.datetime "failed_worker_retry_deferred_until"
+    t.datetime "failed_worker_sample_observed_at"
     t.string "failure_classification", null: false
     t.integer "job_id", null: false
     t.datetime "performed_at"
@@ -123,6 +129,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.string "skipped_reason"
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
+    t.index ["failed_worker_hostname", "failed_worker_retry_deferred_until"], name: "idx_auto_retry_attempts_failed_worker_retry"
     t.index ["job_id", "agent_provider", "failure_classification", "skipped_reason"], name: "idx_auto_retry_attempts_budget_skipped"
     t.index ["job_id", "agent_provider", "failure_classification"], name: "index_auto_retry_attempts_on_budget"
     t.index ["job_id"], name: "index_auto_retry_attempts_on_job_id"
