@@ -1,7 +1,5 @@
 module WorkEngine
   class RepairPlanner
-    DEFAULT_RETRY_BACKOFF = AutoRetryAttempt::BACKOFFS.first
-
     Plan = Data.define(
       :issue_kind,
       :action,
@@ -221,12 +219,7 @@ module WorkEngine
           agent_provider = run.agent_provider.presence || run.workflow&.agent_provider
           return false if agent_provider.blank?
 
-          attempt_number = AutoRetryAttempt.budget_scope_for(
-            job: run.job,
-            agent_provider: agent_provider,
-            failure_classification: retry_classification
-          ).count + 1
-          attempt_number <= retry_budget_limit(retry_classification)
+          next_retry_attempt_number <= retry_budget_limit(retry_classification)
         end
 
         def retry_budget_exhausted_plan
@@ -272,12 +265,25 @@ module WorkEngine
           if classification&.classification == "rate_limited" && reset_at&.future?
             reset_at
           else
-            now + DEFAULT_RETRY_BACKOFF
+            now + AutoRetryAttempt.backoff_for_attempt(next_retry_attempt_number)
           end
         end
 
         def provider_quota_classification?
           classification&.classification == ProviderUsageLimit::CLASSIFICATION
+        end
+
+        def next_retry_attempt_number
+          run = primary_run
+          retry_classification = classification&.classification || run&.agent_outcome.to_s.presence || "unknown"
+          agent_provider = run&.agent_provider.presence || run&.workflow&.agent_provider
+          return 1 if run.blank? || agent_provider.blank?
+
+          AutoRetryAttempt.budget_scope_for(
+            job: run.job,
+            agent_provider: agent_provider,
+            failure_classification: retry_classification
+          ).count + 1
         end
       end
 
@@ -645,7 +651,8 @@ module WorkEngine
             primary_run,
             "The failed agentic Run has a captured session, so resuming preserves the most context.",
             execution_steps: [ "ResumeWorkflowEnqueuer.call" ],
-            preconditions: { run_state: "failed", session_available: true, retry_budget_available: true }
+            preconditions: { run_state: "failed", session_available: true, retry_budget_available: true },
+            retry_after: retry_after_for_retryable_failure
           )
         end
 
@@ -662,7 +669,8 @@ module WorkEngine
               workspace_available: true,
               step_repair_semantics: step_kind&.repair_semantics,
               retry_budget_available: true
-            }
+            },
+            retry_after: retry_after_for_retryable_failure
           )
         end
 
@@ -674,7 +682,8 @@ module WorkEngine
             primary_workflow,
             "The failed workflow can be retried as a new workflow and has no active Runs.",
             execution_steps: [ "RetryWorkflowEnqueuer.call" ],
-            preconditions: { retry_workflow_safe: true, retry_budget_available: true }
+            preconditions: { retry_workflow_safe: true, retry_budget_available: true },
+            retry_after: retry_after_for_retryable_failure
           )
         end
 

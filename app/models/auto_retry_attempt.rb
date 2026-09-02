@@ -41,6 +41,11 @@ class AutoRetryAttempt < ApplicationRecord
   scope :pending, -> { where(performed_at: nil, skipped_reason: nil) }
   scope :pending_in_schedule_order, -> { pending.order(:scheduled_at, :id) }
 
+  def self.backoff_for_attempt(attempt_number)
+    index = [ attempt_number.to_i, 1 ].max - 1
+    BACKOFFS[index] || BACKOFFS.last
+  end
+
   def self.prune_stale_pending!(limit: 1_000)
     count = 0
 

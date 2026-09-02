@@ -340,7 +340,11 @@ module WorkEngine
           ).count + 1
           return skipped("retry budget exhausted for #{agent_provider}/#{classification}") if attempt_number > retry_budget_limit(classification)
 
-          scheduled_at = provider_switched ? now : (plan.retry_after || now)
+          scheduled_at = if provider_switched
+            now
+          else
+            plan.retry_after || now + AutoRetryAttempt.backoff_for_attempt(attempt_number)
+          end
           attempt = AutoRetryAttempt.create!(
             job: job,
             workflow: workflow,

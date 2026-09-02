@@ -4851,6 +4851,57 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
   end
 
+  it "schedules automatic retries with the documented escalating backoff" do
+    expected_backoffs = [ 5.minutes, 20.minutes, 1.hour ]
+
+    expected_backoffs.each_with_index do |backoff, index|
+      now = Time.current.change(usec: 0)
+      target_job = Factories.job(agent_provider: "claude")
+      target_workflow = target_job.latest_workflow
+      target_step = target_workflow.first_step
+      target_run = target_step.runs.first
+
+      target_step.update_columns(kind: "grader", state: "failed", finished_at: now)
+      target_workflow.update_columns(state: "failed", finished_at: now, cleaned_up_at: nil)
+      target_run.update_columns(state: "failed", finished_at: now)
+      RunFailureClassification.create!(
+        run: target_run,
+        classification: "timeout",
+        retryable: true,
+        confidence: 0.85,
+        reason: "grader timed out",
+        classified_at: now
+      )
+      index.times do |previous_index|
+        AutoRetryAttempt.create!(
+          job: target_job,
+          workflow: target_workflow,
+          run: target_run,
+          agent_provider: "claude",
+          failure_classification: "timeout",
+          retry_kind: "failed_step",
+          attempt_number: previous_index + 1,
+          scheduled_at: now - 1.minute,
+          performed_at: now - 30.seconds
+        )
+      end
+
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(target_workflow)).and_return(true)
+
+      expect {
+        reconcile_and_execute(run_id: target_run.id, now: now)
+      }.to change { AutoRetryAttempt.where(job: target_job, skipped_reason: nil).count }.by(1)
+        .and have_enqueued_job(AutoRetryJob)
+
+      attempt = AutoRetryAttempt.where(job: target_job).order(:attempt_number).last
+      expect(attempt).to have_attributes(
+        attempt_number: index + 1,
+        scheduled_at: be_within(1.second).of(now + backoff)
+      )
+    end
+  end
+
   it "does not count skipped retry attempts against WorkEngine retry budget" do
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
