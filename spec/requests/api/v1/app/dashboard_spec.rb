@@ -178,14 +178,19 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
     it "supports direct backlog state URLs" do
       backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Backlogged dashboard card")
+      infrastructure = Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, issue_title: "Main grader backlog")
       Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, issue_title: "Queued card")
 
       get "/api/v1/app/dashboard", params: { subject: "job", state: "backlog", scope: "mine" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.fetch("filter")).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "backlog" } ])
+      expect(body.fetch("filter")).to eq("and" => [
+        { "field" => "state", "op" => "is", "value" => "backlog" },
+        { "field" => "job_type", "op" => "is", "value" => "user" }
+      ])
       expect(body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(backlogged.id)
+      expect(body.fetch("items").map { |item| item.fetch("id") }).not_to include(infrastructure.id)
     end
 
     it "can split dashboard chrome from row data" do
