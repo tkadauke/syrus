@@ -106,6 +106,24 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(active_intent_unit_queries.size).to eq(1)
     end
 
+    it "shares the active WorkUnit member query between active work and work unit lists" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "running")
+
+      queries = capture_sql { payload_for(job) }
+      active_member_list_queries = queries.select do |sql|
+        sql.match?(/\ASELECT/i) &&
+          sql.match?(/FROM [`"]?work_unit_members[`"]?/i) &&
+          sql.match?(/JOIN [`"]?work_units[`"]?/i) &&
+          sql.match?(/work_unit_members.*job_id/i) &&
+          sql.match?(/work_units.*state/i) &&
+          sql.match?(/LIMIT/i)
+      end
+
+      expect(active_member_list_queries.size).to eq(1)
+    end
+
     it "prefers running WorkUnit attempts over newer blocked attempts in the active work card" do
       job = Factories.job_record(user: user, repository: repo)
       running_workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", created_at: 5.minutes.ago)

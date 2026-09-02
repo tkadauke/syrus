@@ -345,7 +345,11 @@ module App
       return @active_work_units_for_job if defined?(@active_work_units_for_job)
 
       @active_work_units_for_job = PerformanceLogging.phase("job_detail.job.active_work_units", job_id: @job.id) do
-        WorkUnits::Ownership.active_units_for_job(@job)
+        if work_unit_debug_enabled?
+          work_unit_members_for_job.map(&:work_unit).uniq
+        else
+          WorkUnits::Ownership.active_units_for_job(@job)
+        end
       end
     end
 

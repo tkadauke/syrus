@@ -104,14 +104,7 @@ module App
       def active_work_unit_member_for_job
         return nil if @job.closed?
 
-        @active_work_unit_member_for_job ||= PerformanceLogging.phase("job_detail.active_work.query", job_id: @job.id) do
-          WorkUnitMember
-            .joins(:work_unit)
-            .includes(work_unit: [ { workflow: :job }, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
-            .where(job_id: @job.id, work_units: { state: %w[queued blocked running] })
-            .order(WorkUnits::Ownership.active_priority_order)
-            .first
-        end
+        @active_work_unit_member_for_job ||= work_unit_members_for_job.first
       end
 
       def current_work_intent_for_job
