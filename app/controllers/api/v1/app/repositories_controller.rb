@@ -1216,16 +1216,23 @@ module Api
             Run.where(job_id: job_ids).group(:job_id).count
           end
           @repository_detail_latest_runs_by_job_id = PerformanceLogging.phase("repository_detail.preload.latest_runs", job_count: job_ids.size) { latest_runs_by_job_id(job_ids) }
-          @repository_detail_latest_workflows_by_job_id = PerformanceLogging.phase("repository_detail.preload.latest_workflows", job_count: job_ids.size) { latest_workflows_by_job_id(job_ids) }
-          @repository_detail_active_job_ids = PerformanceLogging.phase("repository_detail.preload.active_jobs", job_count: job_ids.size) do
-            WorkUnits::Ownership.active_job_ids(job_ids).index_with(true)
+          @repository_detail_active_units_by_job_id = PerformanceLogging.phase("repository_detail.preload.active_work_units", job_count: job_ids.size) do
+            WorkUnits::Ownership.active_units_by_job_id(job_ids)
+          end
+          @repository_detail_active_job_ids = @repository_detail_active_units_by_job_id.keys.index_with(true)
+          @repository_detail_latest_workflows_by_job_id = PerformanceLogging.phase("repository_detail.preload.latest_workflows", job_count: job_ids.size) do
+            latest_workflows_by_job_id(job_ids, active_units_by_job_id: @repository_detail_active_units_by_job_id)
           end
           @repository_detail_run_diagnostics_by_run_id = PerformanceLogging.phase("repository_detail.preload.run_diagnostics", run_count: @repository_detail_latest_runs_by_job_id.size) do
             RunDiagnostic
               .where(run_id: @repository_detail_latest_runs_by_job_id.values.map(&:id))
               .index_by(&:run_id)
           end
-          @repository_detail_running_workflows_by_job_id = PerformanceLogging.phase("repository_detail.preload.running_workflows", job_count: job_ids.size) { current_running_workflows_by_job_id(job_ids) }
+          @repository_detail_running_workflows_by_job_id = PerformanceLogging.phase("repository_detail.preload.running_workflows", job_count: job_ids.size) do
+            @repository_detail_active_units_by_job_id.each_with_object({}) do |(job_id, work_unit), result|
+              result[job_id] = work_unit.workflow if work_unit.running? && work_unit.workflow
+            end
+          end
           @repository_detail_current_steps_by_workflow_id = PerformanceLogging.phase("repository_detail.preload.current_steps", workflow_count: @repository_detail_running_workflows_by_job_id.size) do
             current_steps_by_workflow_id(
               @repository_detail_running_workflows_by_job_id.values.map(&:id)
@@ -1285,19 +1292,14 @@ module Api
           latest_ids.empty? ? {} : Run.where(id: latest_ids).index_by(&:job_id)
         end
 
-        def latest_workflows_by_job_id(job_ids)
+        def latest_workflows_by_job_id(job_ids, active_units_by_job_id: nil)
           return {} if job_ids.empty?
 
           latest_ids = Workflow.where(job_id: job_ids).group(:job_id).maximum(:id)
-          latest_active_ids = WorkUnits::Ownership.active_workflows_by_job_id(job_ids).transform_values(&:id)
+          active_units_by_job_id ||= WorkUnits::Ownership.active_units_by_job_id(job_ids)
+          latest_active_ids = active_units_by_job_id.transform_values { |unit| unit.workflow&.id }.compact
           selected_ids = latest_ids.merge(latest_active_ids).values
           selected_ids.empty? ? {} : Workflow.where(id: selected_ids).index_by(&:job_id)
-        end
-
-        def current_running_workflows_by_job_id(job_ids)
-          return {} if job_ids.empty?
-
-          WorkUnits::Ownership.active_workflows_by_job_id(job_ids, states: [ "running" ])
         end
 
         def current_steps_by_workflow_id(workflow_ids)

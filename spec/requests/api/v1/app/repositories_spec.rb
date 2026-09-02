@@ -1420,14 +1420,17 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     attach_active_work_unit(owner_job: other_failed, member_job: other_failed, kind: "manual_visual_review")
 
     allow(WorkUnits::Ownership).to receive(:active_job_ids).and_call_original
+    allow(WorkUnits::Ownership).to receive(:active_units_by_job_id).and_call_original
     expect(WorkUnits::Ownership).not_to receive(:all_active_job_ids)
+    expect(WorkUnits::Ownership).not_to receive(:active_workflows_by_job_id)
 
     get "/api/v1/app/repositories/#{repository.id}"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("retry_failed_jobs", "count")).to eq(1)
-    expect(WorkUnits::Ownership).to have_received(:active_job_ids).twice
-    expect(WorkUnits::Ownership).to have_received(:active_job_ids).with([ failed.id ]).twice
+    expect(WorkUnits::Ownership).to have_received(:active_job_ids).once
+    expect(WorkUnits::Ownership).to have_received(:active_job_ids).with([ failed.id ]).once
+    expect(WorkUnits::Ownership).to have_received(:active_units_by_job_id).with([ failed.id ]).once
   end
 
   it "rejects repository-wide retries while the provider circuit is open" do
