@@ -278,7 +278,7 @@ function splitTableRow(line: string) {
 function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
   const shouldLinkifySlugs = options.linkifySlugs !== false
   const tokens: InlineToken[] = []
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\))/g
+  const pattern = /(`[^`]+`|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\))/g
   let cursor = 0
   let key = 0
   let match: RegExpExecArray | null
@@ -313,6 +313,9 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
 function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
   if (token.startsWith("`")) {
     return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0)}</code>
+  }
+  if (token.startsWith("~~")) {
+    return <del key={key}>{renderInline(token.slice(2, -2), options)}</del>
   }
   if (token.startsWith("**")) {
     return <strong key={key}>{renderInline(token.slice(2, -2), options)}</strong>

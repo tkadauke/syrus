@@ -535,6 +535,66 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("renders the v1 Markdown command set in the Rich Text editor", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    const markdown = [
+      "# Heading",
+      "",
+      "> Quoted **plan**",
+      "",
+      "Paragraph with **bold**, *italic*, ~~removed~~, `code`, and [link](https://example.test).",
+      "",
+      "1. Ordered",
+      "   - Nested unordered",
+      "2. Continued",
+      "",
+      "| Name | State |",
+      "| --- | --- |",
+      "| DOC-1 | Ready |",
+      "",
+      "---",
+      "",
+      "```ts",
+      "const ready = true",
+      "```"
+    ].join("\n")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: markdown } })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+
+    expect(within(editor).getByRole("heading", { name: "Heading" })).toBeInTheDocument()
+    expect(editor.querySelector("blockquote strong")).toHaveTextContent("plan")
+    expect(editor.querySelector("strong")).toHaveTextContent("plan")
+    expect(editor.querySelector("em")).toHaveTextContent("italic")
+    expect(editor.querySelector("del")).toHaveTextContent("removed")
+    expect(editor.querySelector("code")).toHaveTextContent("code")
+    expect(within(editor).getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.test")
+    expect(editor.querySelector("ol > li > ul")).toHaveTextContent("Nested unordered")
+    expect(editor.querySelector("table th")).toHaveTextContent("Name")
+    expect(editor.querySelector("hr")).toBeInTheDocument()
+    expect(editor.querySelector("pre code")).toHaveTextContent("const ready = true")
+    expect(container.querySelector("script")).toBeNull()
+  })
+
+  it("preserves Rich Text strikethrough as Markdown syntax when edited", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Alpha ~~beta~~ gamma" } })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    expect(editor.querySelector("del")).toHaveTextContent("beta")
+
+    fireEvent.input(editor)
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha ~~beta~~ gamma")
+  })
+
   it("creates Rich Text comments from source offsets in long formatted list docs", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")

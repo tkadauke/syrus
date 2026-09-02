@@ -82,6 +82,23 @@ The plugin registers:
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
 
+## Markdown V1
+
+Design Docs v1 stores canonical content as Markdown and renders a deliberately
+bounded GitHub-ish subset in both the Markdown preview layer and the Rich Text
+editor:
+
+- headings H1-H4 with `#`, `##`, `###`, and `####`
+- paragraphs, blockquotes, fenced code blocks, tables, and horizontal rules
+- ordered, unordered, and nested lists
+- inline code, bold, italic, strikethrough with `~~text~~`, and links
+- Syrus slug autolinks such as `DOC-1`, `JOB-1`, and `EPIC-1` where the shared
+  Markdown renderer is used
+
+Raw HTML is not part of the supported command set in v1. Renderers must keep
+HTML markup inert text unless a future change adds an explicit sanitization
+plan.
+
 Pending suggestions render inline in the document body at their anchored range
 in both Rich Text and Markdown editor tabs. The original range is struck through
 with the active theme's warning token, and the proposed replacement is shown

@@ -14,6 +14,48 @@ describe("Markdown", () => {
     expect(screen.getByText("Survey")).toBeInTheDocument()
   })
 
+  it("renders the Design Docs v1 markdown command set", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Markdown
+          text={[
+            "# Heading",
+            "",
+            "> Quoted **plan**",
+            "",
+            "Paragraph with **bold**, *italic*, ~~removed~~, `code`, and [link](https://example.test).",
+            "",
+            "1. Ordered",
+            "   - Nested unordered",
+            "2. Continued",
+            "",
+            "| Name | State |",
+            "| --- | --- |",
+            "| DOC-1 | Ready |",
+            "",
+            "---",
+            "",
+            "```ts",
+            "const ready = true",
+            "```"
+          ].join("\n")}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("heading", { name: "Heading" })).toBeInTheDocument()
+    expect(container.querySelector("blockquote strong")).toHaveTextContent("plan")
+    expect(screen.getByText("bold").tagName).toBe("STRONG")
+    expect(screen.getByText("italic").tagName).toBe("EM")
+    expect(screen.getByText("removed").tagName).toBe("DEL")
+    expect(screen.getByText("code").tagName).toBe("CODE")
+    expect(screen.getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.test")
+    expect(container.querySelector("ol > li > ul")).toHaveTextContent("Nested unordered")
+    expect(container.querySelector("table th")).toHaveTextContent("Name")
+    expect(container.querySelector("hr")).toBeInTheDocument()
+    expect(container.querySelector("pre code")).toHaveTextContent("const ready = true")
+  })
+
   it("keeps raw HTML as inert text", () => {
     const { container } = render(<Markdown text={"Hello <script>alert('x')</script> **friend**"} />)
 

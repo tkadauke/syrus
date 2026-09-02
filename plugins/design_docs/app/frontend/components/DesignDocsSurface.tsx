@@ -37,7 +37,7 @@ type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number; containerWidth: number }
-type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
+type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strikethrough" | "link"; text: string; sourceStart: number; href?: string }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -1198,7 +1198,32 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
       continue
     }
 
-    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    const fence = line.match(/^\s*```[\w.-]*\s*$/)
+    if (fence) {
+      const code: string[] = []
+      offset += line.length + 1
+      index += 1
+      while (index < lines.length && !lines[index].match(/^\s*```\s*$/)) {
+        code.push(lines[index])
+        offset += lines[index].length + 1
+        index += 1
+      }
+      if (index < lines.length) {
+        offset += lines[index].length + 1
+        index += 1
+      }
+      blocks.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`)
+      continue
+    }
+
+    if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
+      blocks.push("<hr>")
+      offset += line.length + 1
+      index += 1
+      continue
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
       const headingOffset = offset + heading[1].length + 1
@@ -1208,38 +1233,36 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
       continue
     }
 
-    const unordered = line.match(/^\s*[-*+]\s+(.+)$/)
-    if (unordered) {
-      const items: string[] = []
-      while (index < lines.length) {
-        const itemLine = lines[index]
-        const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
-        if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
-        offset += itemLine.length + 1
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines: string[] = []
+      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+        const marker = lines[index].match(/^(\s*>\s?)(.*)$/)!
+        quoteLines.push(renderWysiwygInline(marker[2], highlights, offset + marker[1].length, focusedThreadId, focusedSuggestionId))
+        offset += lines[index].length + 1
         index += 1
       }
-      blocks.push(`<ul>${items.join("")}</ul>`)
+      blocks.push(`<blockquote><p>${quoteLines.join("<br>")}</p></blockquote>`)
       continue
     }
 
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/)
-    if (ordered) {
-      const items: string[] = []
-      while (index < lines.length) {
-        const itemLine = lines[index]
-        const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
-        if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
-        offset += itemLine.length + 1
-        index += 1
-      }
-      blocks.push(`<ol>${items.join("")}</ol>`)
+    if (isWysiwygTableStart(lines, index)) {
+      const rendered = renderWysiwygTable(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      blocks.push(rendered.html)
+      index = rendered.nextIndex
+      offset = rendered.nextOffset
+      continue
+    }
+
+    if (wysiwygListMarker(line)) {
+      const rendered = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      blocks.push(rendered.html)
+      index = rendered.nextIndex
+      offset = rendered.nextOffset
       continue
     }
 
     const paragraph: string[] = []
-    while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index])) {
+    while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId, focusedSuggestionId))
@@ -1252,6 +1275,89 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
   return blocks.join("")
 }
 
+function startsWysiwygBlock(lines: string[], index: number) {
+  return (
+    /^\s*```/.test(lines[index]) ||
+    /^(#{1,4})\s+/.test(lines[index]) ||
+    /^\s*>\s?/.test(lines[index]) ||
+    /^\s*(?:---+|\*\*\*+)\s*$/.test(lines[index]) ||
+    Boolean(wysiwygListMarker(lines[index])) ||
+    isWysiwygTableStart(lines, index)
+  )
+}
+
+function isWysiwygTableStart(lines: string[], index: number) {
+  return index + 1 < lines.length && lines[index].includes("|") && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
+}
+
+function splitWysiwygTableRow(line: string) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
+}
+
+function renderWysiwygTable(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+  const headerLine = lines[index]
+  const headers = splitWysiwygTableRow(headerLine)
+  const headerHtml = headers.map((header) => `<th>${renderWysiwygInline(header, highlights, offset + Math.max(headerLine.indexOf(header), 0), focusedThreadId, focusedSuggestionId)}</th>`).join("")
+  offset += headerLine.length + 1
+  offset += lines[index + 1].length + 1
+  index += 2
+  const rows: string[] = []
+
+  while (index < lines.length && lines[index].includes("|") && lines[index].trim() !== "") {
+    const rowLine = lines[index]
+    const cells = splitWysiwygTableRow(rowLine)
+    rows.push(`<tr>${headers.map((_header, cellIndex) => {
+      const cell = cells[cellIndex] || ""
+      return `<td>${renderWysiwygInline(cell, highlights, offset + Math.max(rowLine.indexOf(cell), 0), focusedThreadId, focusedSuggestionId)}</td>`
+    }).join("")}</tr>`)
+    offset += rowLine.length + 1
+    index += 1
+  }
+
+  return { html: `<table><thead><tr>${headerHtml}</tr></thead><tbody>${rows.join("")}</tbody></table>`, nextIndex: index, nextOffset: offset }
+}
+
+function renderWysiwygList(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+  const firstMarker = wysiwygListMarker(lines[index])!
+  const items: string[] = []
+
+  while (index < lines.length) {
+    const marker = wysiwygListMarker(lines[index])
+    if (!marker || marker.indent !== firstMarker.indent || marker.ordered !== firstMarker.ordered) break
+
+    const content = renderWysiwygInline(marker.content, highlights, offset + marker.prefix.length, focusedThreadId, focusedSuggestionId)
+    offset += lines[index].length + 1
+    index += 1
+    const nested: string[] = []
+
+    while (index < lines.length) {
+      const nestedMarker = wysiwygListMarker(lines[index])
+      if (!nestedMarker || nestedMarker.indent <= firstMarker.indent) break
+
+      const nestedList = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      nested.push(nestedList.html)
+      index = nestedList.nextIndex
+      offset = nestedList.nextOffset
+    }
+
+    items.push(`<li>${content}${nested.join("")}</li>`)
+  }
+
+  return { html: `<${firstMarker.ordered ? "ol" : "ul"}>${items.join("")}</${firstMarker.ordered ? "ol" : "ul"}>`, nextIndex: index, nextOffset: offset }
+}
+
+function wysiwygListMarker(line: string) {
+  const marker = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/)
+  if (!marker) return null
+
+  return {
+    content: marker[3],
+    indent: marker[1].replace(/\t/g, "    ").length,
+    ordered: /^\d/.test(marker[2]),
+    prefix: marker[0].slice(0, marker[0].length - marker[3].length)
+  }
+}
+
 function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null, focusedSuggestionId: number | null = null) {
   return inlineTokens(markdown, baseOffset)
     .map((token) => {
@@ -1259,7 +1365,11 @@ function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [
       if (token.kind === "code") return `<code>${content}</code>`
       if (token.kind === "strong") return `<strong>${content}</strong>`
       if (token.kind === "emphasis") return `<em>${content}</em>`
-      if (token.kind === "link") return `<a href="${escapeHtml(token.href || "")}">${content}</a>`
+      if (token.kind === "strikethrough") return `<del>${content}</del>`
+      if (token.kind === "link") {
+        const href = safeWysiwygHref(token.href || "")
+        return href ? `<a href="${escapeHtml(href)}">${content}</a>` : content
+      }
 
       return content
     })
@@ -1279,15 +1389,17 @@ function nodeToMarkdown(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? ""
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
+  if (node.tagName === "HR") return "---"
 
   const text = inlineMarkdownText(node).trim()
   if (text.length === 0) return ""
 
-  if (/^H[1-3]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
+  if (/^H[1-4]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
   if (node.tagName === "LI") return `- ${text}`
   if (node.tagName === "UL") return Array.from(node.children).map((child) => nodeToMarkdown(child)).join("\n")
   if (node.tagName === "OL") return Array.from(node.children).map((child, childIndex) => `${childIndex + 1}. ${inlineMarkdownText(child).trim()}`).join("\n")
   if (node.tagName === "BLOCKQUOTE") return text.split("\n").map((line) => `> ${line}`).join("\n")
+  if (node.tagName === "PRE") return `\`\`\`\n${node.textContent?.trim() ?? ""}\n\`\`\``
 
   return text
 }
@@ -1297,6 +1409,11 @@ function inlineMarkdownText(node: ChildNode): string {
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
   if (node.tagName === "BR") return "\n"
+  if (node.tagName === "CODE") return `\`${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}\``
+  if (node.tagName === "STRONG") return `**${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}**`
+  if (node.tagName === "EM") return `*${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}*`
+  if (node.tagName === "DEL") return `~~${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}~~`
+  if (node.tagName === "A") return `[${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}](${node.getAttribute("href") || ""})`
   if (node.childNodes.length === 0) return node.textContent ?? ""
 
   return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
@@ -1304,6 +1421,17 @@ function inlineMarkdownText(node: ChildNode): string {
 
 function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function safeWysiwygHref(href: string) {
+  if (href.startsWith("/") || href.startsWith("#")) return href
+
+  try {
+    const url = new URL(href, window.location.origin)
+    return ["http:", "https:", "mailto:"].includes(url.protocol) ? href : null
+  } catch (_error) {
+    return null
+  }
 }
 
 function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
@@ -1381,6 +1509,13 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
+    const strikethrough = markdown.slice(index).match(/^~~([^~]+)~~/)
+    if (strikethrough) {
+      tokens.push({ kind: "strikethrough", text: strikethrough[1], sourceStart: baseOffset + index + 2 })
+      index += strikethrough[0].length
+      continue
+    }
+
     const code = markdown.slice(index).match(/^`([^`]+)`/)
     if (code) {
       tokens.push({ kind: "code", text: code[1], sourceStart: baseOffset + index + 1 })
@@ -1395,7 +1530,7 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
-    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|`|\[)/)
+    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|~~|`|\[)/)
     const end = nextSpecial === -1 ? markdown.length : index + 1 + nextSpecial
     tokens.push({ kind: "text", text: markdown.slice(index, end), sourceStart: baseOffset + index })
     index = end
