@@ -56,13 +56,15 @@ module Admin
     end
 
     def host_history
-      hostnames = (samples.map(&:hostname) + current_workers.map { |worker| worker.fetch(:hostname) }).compact.uniq.sort
+      current_by_hostname = current_workers.index_by { |worker| worker.fetch(:hostname) }
+      hostnames = (samples.map(&:hostname) + current_by_hostname.keys).compact.uniq.sort
       hostnames.map do |host|
         host_samples = samples_for(host)
+        current = current_by_hostname[host]
         {
           hostname: host,
-          status: current_workers.any? { |worker| worker.fetch(:hostname) == host } ? "current" : "historical",
-          current: current_workers.find { |worker| worker.fetch(:hostname) == host },
+          status: current ? "current" : "historical",
+          current: current,
           windows: TREND_WINDOWS.transform_values { |duration| summarize(host_samples.select { |sample| sample.observed_at >= until_time - duration }) },
           minute_buckets: minute_buckets(host_samples),
           recent_samples: host_samples.first(sample_limit_per_host).map { |sample| sample_payload(sample) }
