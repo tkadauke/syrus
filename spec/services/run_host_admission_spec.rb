@@ -26,16 +26,38 @@ RSpec.describe RunHostAdmission do
     expect(decision.details.fetch("sample_health")).to include("level" => "critical")
   end
 
-  it "admits sticky resume work on a pressured host when no guarded run is active" do
+  it "defers sticky resume work on a pressured host" do
     worker_sample(io_pressure_some: 55.0)
 
     decision = described_class.call(run: run, queue_name: "resume-storage-a")
 
-    expect(decision).to be_admit
-    expect(decision.reason).to eq("host_capacity_available")
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
     expect(decision.details).to include(
       "queue_name" => "resume-storage-a",
       "sticky_resume_queue" => true
+    )
+  end
+
+  it "defers agentic landing work on the merges queue when the selected host is critical" do
+    landing_workflow = Workflows::AutoMerge.instantiate(job: job, agent_provider: "codex")
+    landing_workflow.update!(worker_hostname: "worker-a")
+    landing_step = landing_workflow.steps.create!(kind: "landing_fix", position: 99)
+    landing_run = landing_step.runs.create!(
+      job: job,
+      trigger_kind: landing_workflow.trigger_kind,
+      agent_provider: landing_workflow.agent_provider
+    )
+    worker_sample(cpu_pressure_some: 55.0)
+
+    decision = described_class.call(run: landing_run, queue_name: "merges")
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect(decision.details).to include(
+      "queue_name" => "merges",
+      "step_kind" => "landing_fix",
+      "sticky_resume_queue" => false
     )
   end
 

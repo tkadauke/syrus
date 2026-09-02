@@ -22,11 +22,11 @@ class RunHostAdmission
 
   def call
     return admit("not_queued") unless run&.queued?
-    return admit("non_compute_queue") unless run.agent_queue?
+    return admit("non_compute_queue") unless compute_queue?
     return admit("missing_execution_graph") unless workflow && step
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if active_guarded_run_count >= GUARDED_RUNS_PER_HOST
-    return defer("local_worker_pressure_critical") if critical_local_pressure? && !sticky_resume_queue?
+    return defer("local_worker_pressure_critical") if critical_local_pressure?
 
     admit("host_capacity_available")
   end
@@ -70,6 +70,12 @@ class RunHostAdmission
 
   def critical_local_pressure?
     local_health.fetch(:level, local_health["level"]) == "critical"
+  end
+
+  def compute_queue?
+    Workflow::TriggerKind.template_for(run.trigger_kind).queue_name.in?(%i[runs merges])
+  rescue ArgumentError
+    false
   end
 
   def local_health

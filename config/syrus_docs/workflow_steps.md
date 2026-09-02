@@ -4,11 +4,14 @@ Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke th
 
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
-resource-guarded Run. This host-local guard applies to `:runs` queue workflows
-and covers agentic Steps plus CPU-heavy grader work. A deferred pickup leaves
-the Run queued, records a `run_host_admission` Workflow artifact and a system
-JobLog line, then re-enqueues the same Run without spending a retry or repair
-iteration. See [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
+resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and
+sticky resume queue workflows and covers agentic Steps plus CPU-heavy grader
+work. A deferred pickup leaves the Run queued, records a `run_host_admission`
+Workflow artifact and a system JobLog line, then re-enqueues the same Run
+without spending a retry or repair iteration. Worker-died auto-retries also
+record `failed_worker_*` context and defer while the failed host's fresh health
+sample remains critical. See
+[`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
 
 ## Setup steps
 

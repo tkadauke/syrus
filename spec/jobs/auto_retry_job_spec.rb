@@ -221,6 +221,42 @@ RSpec.describe AutoRetryJob do
     expect(owner_workflow.work_unit.reload).to be_queued
   end
 
+  it "defers worker-died retries while the failed host still has critical pressure" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    workflow.update!(worker_hostname: "worker-critical")
+    WorkerHostHealthSample.create!(
+      hostname: "worker-critical",
+      role: "worker",
+      version: "test",
+      observed_at: Time.current,
+      memory_used_percent: 97.0,
+      raw_metrics: {}
+    )
+    allow(RetryWorkflowEnqueuer).to receive(:call)
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to have_enqueued_job(described_class).with(attempt.id)
+
+    attempt.reload
+    expect(attempt.performed_at).to be_nil
+    expect(attempt.skipped_reason).to be_nil
+    expect(attempt.failed_worker_hostname).to eq("worker-critical")
+    expect(attempt.failed_worker_health_level).to eq("critical")
+    expect(attempt.failed_worker_health_reasons).to include("memory 97.0% >= 95%")
+    expect(attempt.failed_worker_sample_observed_at).to be_present
+    expect(attempt.failed_worker_retry_deferred_until.to_i).to eq(attempt.scheduled_at.to_i)
+    expect(attempt.failed_worker_retry_context).to include(
+      "reason" => "failed_worker_host_still_critical",
+      "failed_worker_hostname" => "worker-critical",
+      "retry_kind" => "retry_workflow",
+      "workflow_id" => workflow.id,
+      "run_id" => run.id
+    )
+    expect(job.workflows.count).to eq(1)
+    expect(RetryWorkflowEnqueuer).not_to have_received(:call)
+  end
+
   it "skips stale attempts after a newer workflow has already succeeded" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     Workflow.create!(
