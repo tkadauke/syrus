@@ -1648,13 +1648,18 @@ module Api
           { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" }
         ].freeze
 
-        def chat_json(chat_session, counts: nil)
+        def chat_json(chat_session, counts: nil, turn_in_flight: nil, agent_busy: nil)
           PerformanceLogging.phase("chat_json", chat_id: chat_session.id) do
-            chat_session_json(chat_session)
+            chat_session_json(
+              chat_session,
+              counts: counts,
+              turn_in_flight: turn_in_flight,
+              agent_busy: agent_busy
+            )
           end
         end
 
-        def chat_session_json(chat_session)
+        def chat_session_json(chat_session, counts: nil, turn_in_flight: nil, agent_busy: nil)
           repository = PerformanceLogging.phase("chat_json.repository", chat_id: chat_session.id) { chat_session.repository }
           effective_provider = PerformanceLogging.phase("chat_json.effective_provider", chat_id: chat_session.id) { chat_session.effective_chat_provider }
           provider_availability = PerformanceLogging.phase("chat_json.provider_availability", chat_id: chat_session.id, provider: effective_provider) do
@@ -1692,8 +1697,8 @@ module Api
             local_daemon_branch: chat_session.local_daemon_branch,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
-            turn_in_flight: chat_session.turn_in_flight?,
-            agent_busy: chat_session.agent_busy?,
+            turn_in_flight: turn_in_flight.nil? ? chat_session.turn_in_flight? : turn_in_flight,
+            agent_busy: agent_busy.nil? ? chat_session.agent_busy? : agent_busy,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
             active_goal: PerformanceLogging.phase("chat_json.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.active_goal) },
             suggested_next_step: chat_session.suggested_next_step,

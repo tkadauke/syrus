@@ -3315,10 +3315,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       pid: 1234
     )
 
-    get "/api/v1/app/chats/#{chat.id}"
+    queries = capture_sql { get "/api/v1/app/chats/#{chat.id}" }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["agent_busy"]).to eq(true)
+    expect(parse_body.dig("chat", "agent_busy")).to eq(true)
+    spawned_process_queries = queries.grep(/FROM [`"]?spawned_processes[`"]?/i)
+    expect(spawned_process_queries.size).to eq(1)
   end
 
   it "returns older messages as typed JSON for frontend rendering" do

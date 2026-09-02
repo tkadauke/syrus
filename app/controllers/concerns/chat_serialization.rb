@@ -77,13 +77,19 @@ module ChatSerialization
       speech_to_text = PerformanceLogging.phase("chat_payload.speech_to_text", chat_id: chat_session.id) do
         ChatSpeechToText::Capability.for(user: Current.user).as_json
       end
+      turn_in_flight = chat_session.turn_in_flight?
+      agent_busy = PerformanceLogging.phase("chat_payload.agent_busy", chat_id: chat_session.id) do
+        chat_session.agent_busy?
+      end
 
       {
         message: message,
-        chat: PerformanceLogging.phase("chat_payload.chat", chat_id: chat_session.id) { chat_json(chat_session, counts: counts) },
+        chat: PerformanceLogging.phase("chat_payload.chat", chat_id: chat_session.id) do
+          chat_json(chat_session, counts: counts, turn_in_flight: turn_in_flight, agent_busy: agent_busy)
+        end,
         chat_available: Current.user.chat_available?,
-        turn_in_flight: chat_session.turn_in_flight?,
-        agent_busy: chat_session.agent_busy?,
+        turn_in_flight: turn_in_flight,
+        agent_busy: agent_busy,
         switching_provider: false,
         has_more_older: has_more_older,
         pending_proposal_count: counts.fetch(:proposed_proposals),
