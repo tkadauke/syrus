@@ -164,6 +164,36 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "ci_failure")
   end
 
+  it "builds dashboard ownership facts from one active membership snapshot" do
+    running = Factories.job_record(issue_number: 226)
+    blocked = Factories.job_record(repository: running.repository, issue_number: 227)
+    landing = Factories.job_record(repository: running.repository, issue_number: 228)
+    running_workflow = Workflow.create!(job: running, trigger_kind: "ci_failure", state: "running")
+    blocked_workflow = Workflow.create!(job: blocked, trigger_kind: "manual_visual_review", state: "running")
+    landing_workflow = Workflow.create!(job: landing, trigger_kind: "auto_merge", state: "running")
+    running_unit = attach_work_unit(running_workflow, member_jobs: [ running ], kind: "ci_failure", state: "running")
+    blocked_unit = attach_work_unit(blocked_workflow, member_jobs: [ blocked ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+    attach_work_unit(landing_workflow, member_jobs: [ landing ], kind: "auto_merge", state: "blocked", blocked_reason: "admission_control")
+
+    snapshot = described_class.snapshot_for_job_ids([ running.id, blocked.id, landing.id ])
+
+    expect(snapshot.runnable_job_ids).to contain_exactly(running.id)
+    expect(snapshot.running_job_ids).to contain_exactly(running.id)
+    expect(snapshot.blocked_job_ids).to contain_exactly(blocked.id)
+    expect(snapshot.blocked_job_ids(include_landing: true)).to contain_exactly(blocked.id, landing.id)
+    expect(snapshot.active_trigger_kinds_by_job_id).to eq(
+      running.id => "ci_failure",
+      blocked.id => "manual_visual_review",
+      landing.id => "auto_merge"
+    )
+    active_repair = snapshot.active_repair_work_by_job_id.fetch(running.id)
+    expect(active_repair.kind).to eq("ci_failure")
+    expect(active_repair.workflow).to eq(running_workflow)
+    expect(active_repair.work_unit).to eq(running_unit)
+    expect(snapshot.active_repair_work_by_job_id).not_to have_key(blocked.id)
+    expect(blocked_unit.blocked_reason).to eq("admission_control")
+  end
+
   it "does not fall back to migrated legacy workflows when no active work unit owns the job" do
     job = Factories.job_record(issue_number: 223)
     Workflow.create!(

@@ -208,6 +208,31 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:active_workflow_trigger_kind]).to eq("chat_feedback")
     end
 
+    it "derives visible-page WorkUnit runtime facts from one ownership snapshot" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running", started_at: Time.current)
+      backfill_work_unit(workflow)
+
+      allow(WorkUnits::Ownership).to receive(:snapshot_for_job_ids).and_call_original
+      allow(WorkUnits::Ownership).to receive(:runnable_unit_job_ids).and_call_original
+      allow(WorkUnits::Ownership).to receive(:running_unit_job_ids).and_call_original
+      allow(WorkUnits::Ownership).to receive(:blocked_job_ids).and_call_original
+      allow(WorkUnits::Ownership).to receive(:active_trigger_kinds_by_job_id).and_call_original
+      allow(WorkUnits::Ownership).to receive(:active_repair_work_by_job_id).and_call_original
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:summary_state]).to eq("running")
+      expect(item[:active_workflow_trigger_kind]).to eq("chat_feedback")
+      expect(WorkUnits::Ownership).to have_received(:snapshot_for_job_ids).with([ job.id ]).once
+      expect(WorkUnits::Ownership).not_to have_received(:runnable_unit_job_ids)
+      expect(WorkUnits::Ownership).not_to have_received(:running_unit_job_ids)
+      expect(WorkUnits::Ownership).not_to have_received(:blocked_job_ids)
+      expect(WorkUnits::Ownership).not_to have_received(:active_trigger_kinds_by_job_id)
+      expect(WorkUnits::Ownership).not_to have_received(:active_repair_work_by_job_id)
+    end
+
     it "keeps closed jobs closed even when diagnostic WorkUnits look blocked" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", started_at: Time.current)

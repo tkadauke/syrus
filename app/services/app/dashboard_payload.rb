@@ -624,25 +624,28 @@ module App
       direct_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.direct_running_jobs", count: job_ids.size) do
         job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
       end
+      work_unit_snapshot = PerformanceLogging.phase("dashboard_jobs.preload.work_unit_snapshot", count: job_ids.size) do
+        WorkUnits::Ownership.snapshot_for_job_ids(job_ids)
+      end
       @job_runtime_active_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.active_jobs", count: job_ids.size) do
-        (direct_running_job_ids | WorkUnits::Ownership.runnable_unit_job_ids(job_ids)).index_with(true)
+        (direct_running_job_ids | work_unit_snapshot.runnable_job_ids.to_a).index_with(true)
       end
       @job_runtime_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.running_jobs", count: job_ids.size) do
-        (direct_running_job_ids | WorkUnits::Ownership.running_unit_job_ids(job_ids)).index_with(true)
+        (direct_running_job_ids | work_unit_snapshot.running_job_ids.to_a).index_with(true)
       end
-      @job_runtime_paused_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.paused_jobs", count: job_ids.size) { paused_job_ids(job_ids).index_with(true) }
+      @job_runtime_paused_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.paused_jobs", count: job_ids.size) { paused_job_ids(job_ids, work_unit_snapshot: work_unit_snapshot).index_with(true) }
       @job_runtime_active_workflow_trigger_kinds_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_workflow_triggers", count: job_ids.size) do
-        active_workflow_trigger_kinds_by_job_id(job_ids)
+        work_unit_snapshot.active_trigger_kinds_by_job_id
       end
       @job_runtime_active_repair_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_repair_work", count: job_ids.size) do
-        WorkUnits::Ownership.active_repair_work_by_job_id(job_ids)
+        work_unit_snapshot.active_repair_work_by_job_id
       end
     end
 
-    def paused_job_ids(job_ids)
+    def paused_job_ids(job_ids, work_unit_snapshot: nil)
       return [] if job_ids.empty?
 
-      blocked_work_unit_ids = WorkUnits::Ownership.blocked_job_ids(job_ids)
+      blocked_work_unit_ids = work_unit_snapshot&.blocked_job_ids || WorkUnits::Ownership.blocked_job_ids(job_ids)
       latest_by_job = @job_runtime_latest_workflows_by_job_id || latest_workflows_by_job_id(job_ids)
       artifact_paused_ids = latest_by_job.values.select do |workflow|
         workflow.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)

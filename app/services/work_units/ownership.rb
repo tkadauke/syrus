@@ -7,6 +7,93 @@ module WorkUnits
     ACTIVE_PRIORITY_ORDER_SQL = "CASE work_units.state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END, work_units.created_at DESC, work_units.id DESC".freeze
     BLOCKED_PRIORITY_ORDER_SQL = "work_units.updated_at DESC, work_units.id DESC".freeze
     ActiveWork = Data.define(:kind, :workflow, :work_unit)
+
+    class JobSnapshot
+      attr_reader :job_ids
+
+      def initialize(job_ids:, members:)
+        @job_ids = job_ids
+        @members = members
+      end
+
+      def runnable_job_ids(kinds: nil)
+        job_ids_for(states: RUNNABLE_STATES, kinds: kinds).to_set
+      end
+
+      def running_job_ids(kinds: nil)
+        job_ids_for(states: "running", kinds: kinds).to_set
+      end
+
+      def blocked_job_ids(kinds: nil, include_landing: false)
+        blocked_units(kinds: kinds, include_landing: include_landing)
+          .map(&:job_id)
+          .to_set
+      end
+
+      def active_trigger_kinds_by_job_id
+        first_unit_by_job_id.transform_values { |unit| unit.workflow&.trigger_kind || unit.kind }
+      end
+
+      def active_repair_work_by_job_id
+        repair_kinds = WorkDefinitions.active_repair_work_kinds.map(&:to_s).to_set
+        first_unit_by_job_id(kinds: repair_kinds).transform_values do |unit|
+          ActiveWork.new(kind: unit.kind, workflow: unit.workflow, work_unit: unit)
+        end
+      end
+
+      private
+
+      attr_reader :members
+
+      def job_ids_for(states:, kinds:)
+        allowed_states = Array(states).map(&:to_s).to_set
+        allowed_kinds = Array(kinds).map(&:to_s).presence&.to_set
+        members.filter_map do |member|
+          unit = member.work_unit
+          next unless allowed_states.include?(unit.state)
+          next if allowed_kinds && !allowed_kinds.include?(unit.kind)
+
+          member.job_id
+        end.uniq
+      end
+
+      def blocked_units(kinds:, include_landing:)
+        allowed_kinds = Array(kinds).map(&:to_s).presence&.to_set
+        landing_kinds = WorkDefinitions.landing_lock_kinds.map(&:to_s).to_set unless include_landing
+        members.filter_map do |member|
+          unit = member.work_unit
+          next unless unit.state == "blocked"
+          next if allowed_kinds && !allowed_kinds.include?(unit.kind)
+          next if landing_kinds&.include?(unit.kind)
+
+          member
+        end
+      end
+
+      def first_unit_by_job_id(kinds: nil)
+        allowed_kinds = Array(kinds).map(&:to_s).presence&.to_set
+        members.each_with_object({}) do |member, result|
+          next if result.key?(member.job_id)
+
+          unit = member.work_unit
+          next if allowed_kinds && !allowed_kinds.include?(unit.kind)
+
+          result[member.job_id] = unit
+        end
+      end
+    end
+
+    def self.snapshot_for_job_ids(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return JobSnapshot.new(job_ids: [], members: []) if ids.empty?
+
+      members = active_unit_members_for_job_ids(ids)
+        .order(active_priority_order)
+        .to_a
+
+      JobSnapshot.new(job_ids: ids, members: members)
+    end
+
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
     end
