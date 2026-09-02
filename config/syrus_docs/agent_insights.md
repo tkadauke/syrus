@@ -146,12 +146,16 @@ through the application, which soft-deletes the memory via
 ### Regular chat agents
 
 When `agent_insights` is enabled, regular chat agents can discover and call
-`list_insights` and `read_insight` from the deferred chat sidecar. Non-admin
-chat agents are limited to the current chat's attached repositories. Admin chat
-agents can list/read suggestions across repositories, and should use the
-`repository_id`, `state`, `limit`, and `page` filters to keep broad reads
-deliberate.
+`list_insights`, `read_insight`, and `retire_insight` from the deferred chat
+sidecar. Non-admin chat agents are limited to the current chat's attached
+repositories. Admin chat agents can list/read suggestions across repositories,
+and should use the `repository_id`, `state`, `limit`, and `page` filters to keep
+broad reads deliberate. Chat retirements are audited user actions scoped to an
+accessible insight's repository, can cite a superseding Job, and keep the same
+accepted-insight safety guard: accepted rows are refused unless
+`retire_accepted: true` is passed deliberately.
 
-`submit_insight` stays limited to `agent_insight_run` workflows. It creates
-suggestions on the current anchor insight Job and updates workflow artifacts, so
-chat-originated insight creation is not a supported product behavior.
+`submit_insight` and `update_insight` stay limited to `agent_insight_run`
+workflows. They create or revise suggestions on the current anchor insight Job
+and update workflow artifacts, so chat-originated insight creation or revision
+is not a supported product behavior.
