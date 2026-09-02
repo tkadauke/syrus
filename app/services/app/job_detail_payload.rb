@@ -789,40 +789,45 @@ module App
       active_runtime_work = job_has_active_runtime_work?
       alternate_agent_options = @job.alternate_configured_agent_providers
       visual_review_enabled = visual_review_configured?
+      writable = JobPolicy.new(@user, @job).write?
+      creator = @job.user_id == @user.id
+      mutable_runtime_job = @job.open? && !@job.backlog?
+      reviewable_job = @job.implemented? && !active_runtime_work
+      has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       {
-        can_start: @job.direct? && @job.open? && !@job.backlog? && !@job.runs.exists? && !active_runtime_work,
-        can_release_from_backlog: @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
-        can_move_to_backlog: @job.open? && @job.may_move_to_backlog? && !active_runtime_work,
-        can_poll_feedback: @job.open? && @job.pr_number.present?,
-        can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
+        can_start: creator && writable && @job.direct? && mutable_runtime_job && !@job.runs.exists? && !active_runtime_work,
+        can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
+        can_move_to_backlog: writable && @job.open? && @job.may_move_to_backlog? && !active_runtime_work,
+        can_poll_feedback: writable && mutable_runtime_job && @job.pr_number.present?,
+        can_rebase: writable && mutable_runtime_job && has_tracked_pr &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
           !RebaseWorkflowSelector.active_merge_train_for_stack?(@job),
-        can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
-        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !active_runtime_work,
-        can_retry: retry_actions[:implementation].present?,
-        can_retry_from_failed_step: retry_actions[:failed_step].present?,
-        retry_failed_step_action: retry_actions[:failed_step],
-        retry_implementation_action: retry_actions[:implementation],
-        can_restart: !active_runtime_work && !@job.cron? && !@job.no_change_needed? &&
+        can_check_mergeability: writable && mutable_runtime_job && has_tracked_pr,
+        can_retry_pr_ingestion: writable && mutable_runtime_job && @job.external_pr_ingest_blocked? && !active_runtime_work,
+        can_retry: writable && retry_actions[:implementation].present?,
+        can_retry_from_failed_step: writable && retry_actions[:failed_step].present?,
+        retry_failed_step_action: writable ? retry_actions[:failed_step] : nil,
+        retry_implementation_action: writable ? retry_actions[:implementation] : nil,
+        can_restart: writable && !active_runtime_work && !@job.backlog? && !@job.cron? && !@job.no_change_needed? &&
           (
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
           ),
-        can_cancel: @job.open?,
-        can_approve: @job.can_add_job_approval?(@user) && !simple_epic_child?,
-        can_unapprove: @job.may_unapprove?,
-        can_reopen: @job.closed? && !@job.infrastructure?,
-        can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
-        can_open_in_local_mode: Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
-        can_cancel_local_mode: Feature.local_mode_enabled? && @job.coding?,
+        can_cancel: writable && mutable_runtime_job,
+        can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user) && !simple_epic_child?,
+        can_unapprove: writable && @job.may_unapprove?,
+        can_reopen: writable && @job.closed? && !@job.infrastructure?,
+        can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
+        can_open_in_local_mode: writable && Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
+        can_cancel_local_mode: writable && Feature.local_mode_enabled? && @job.coding?,
         linked_chat_id: @job.linked_chat_id,
-        can_claim: @job.claimed_by_user_id != @user.id,
-        can_unclaim: @job.claimed_by_user_id == @user.id,
-        can_override_dependencies: @user.admin?,
+        can_claim: writable && @job.claimed_by_user_id != @user.id,
+        can_unclaim: writable && @job.claimed_by_user_id == @user.id,
+        can_override_dependencies: writable && @user.admin?,
         can_view_timeline: @user.admin?,
         can_view_resource_admission_diagnostics: @user.admin?,
-        can_manage_tags: @job.user_id == @user.id,
-        can_open_in_coding_mode: Feature.coding_mode_enabled? &&
+        can_manage_tags: writable,
+        can_open_in_coding_mode: writable && Feature.coding_mode_enabled? &&
           (@job.implemented? || @job.approved?) &&
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,

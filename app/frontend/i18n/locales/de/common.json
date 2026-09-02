@@ -180,6 +180,7 @@
     "appCrashHeading": "Ein unerwarteter Fehler ist aufgetreten."
   },
   "status": {
+    "backlog": "Backlog",
     "needs_triage": "Prüfung nötig",
     "triaging": "in Prüfung",
     "queued": "in Warteschlange",

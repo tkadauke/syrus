@@ -931,6 +931,7 @@ describe("JobDetailView", () => {
       actions: { ...payload.actions, can_start: false, can_release_from_backlog: true }
     })
 
+    expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: "Start Run" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Release from backlog" }))
 
