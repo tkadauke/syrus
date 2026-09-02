@@ -79,13 +79,14 @@ module App
             total_count = scope.count
             records = PerformanceLogging.phase("dashboard_kanban_epics.query", lane: lane, offset: offset, limit: kanban_limit) do
               scope
-                .includes(:owner, :repository, :owner_user, :jobs)
+                .includes(:owner, :repository, :owner_user)
                 .order(updated_at: :desc, id: :desc)
                 .offset(offset)
                 .limit(kanban_limit)
                 .to_a
             end
 
+            preload_epic_dashboard_job_stats(records)
             lane_json(lane, lane.humanize, records.map { |epic| epic_json(epic) }, total_count: total_count, offset: offset)
           end
         end

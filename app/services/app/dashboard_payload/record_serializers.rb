@@ -202,7 +202,8 @@ module App
 
       def epic_json(epic)
         owner_user = epic_owner_user(epic)
-        child_jobs = epic.jobs.to_a
+        stats = epic_dashboard_job_stats(epic)
+        child_jobs = stats ? nil : epic.jobs.to_a
         claimable = epic.claimable?
 
         {
@@ -213,9 +214,9 @@ module App
           title: epic.title,
           description: epic.description.to_s,
           state: epic.state,
-          simple_status: simple_epic_status(epic, child_jobs),
-          stuck: epic_stuck?(epic, child_jobs),
-          all_jobs_closed: all_epic_jobs_closed?(child_jobs),
+          simple_status: simple_epic_status(epic, child_jobs, stats),
+          stuck: epic_stuck?(epic, child_jobs, stats),
+          all_jobs_closed: all_epic_jobs_closed?(child_jobs, stats),
           owner: owner_json(epic.owner),
           owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
           claimable: claimable,
@@ -225,10 +226,10 @@ module App
           owner_user_id: owner_user&.id,
           owner_status: epic_owner_status(epic),
           owner_user: owner_user_json(owner_user),
-          jobs_count: child_jobs.size,
-          landed_jobs_count: epic_landed_jobs_count(child_jobs),
-          job_state_counts: epic_job_state_counts(child_jobs),
-          max_commits_behind_base: child_jobs.select { |j| j.parent_job_id.nil? }.filter_map(&:commits_behind_base).max,
+          jobs_count: epic_jobs_count(child_jobs, stats),
+          landed_jobs_count: epic_landed_jobs_count(child_jobs, stats),
+          job_state_counts: epic_job_state_counts(child_jobs, stats),
+          max_commits_behind_base: epic_max_commits_behind_base(child_jobs, stats),
           created_at: epic.created_at&.iso8601,
           updated_at: epic.updated_at&.iso8601,
           done_at: epic.done_at&.iso8601,
@@ -245,11 +246,27 @@ module App
         }
       end
 
-      def epic_landed_jobs_count(child_jobs)
+      def epic_dashboard_job_stats(epic)
+        return nil unless defined?(@epic_dashboard_job_stats_by_epic_id)
+
+        @epic_dashboard_job_stats_by_epic_id[epic.id]
+      end
+
+      def epic_jobs_count(child_jobs, stats = nil)
+        return stats.fetch(:jobs_count) if stats
+
+        child_jobs.size
+      end
+
+      def epic_landed_jobs_count(child_jobs, stats = nil)
+        return stats.fetch(:landed_jobs_count) if stats
+
         child_jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
       end
 
-      def epic_job_state_counts(child_jobs)
+      def epic_job_state_counts(child_jobs, stats = nil)
+        return stats.fetch(:job_state_counts) if stats
+
         child_jobs.each_with_object(Hash.new(0)) do |job, counts|
           state = if job.closure_reason == "preempted" || job.closure_reason&.start_with?("external_pr_")
                     "preempted"
@@ -260,8 +277,26 @@ module App
         end.to_h
       end
 
-      def simple_epic_status(epic, child_jobs)
+      def epic_max_commits_behind_base(child_jobs, stats = nil)
+        return stats.fetch(:max_commits_behind_base) if stats
+
+        child_jobs.select { |job| job.parent_job_id.nil? }.filter_map(&:commits_behind_base).max
+      end
+
+      def simple_epic_status(epic, child_jobs, stats = nil)
         return "done" if epic.user_approved_at.present?
+        if stats
+          return "something_went_wrong" if stats.fetch(:bad_closed_jobs_count).positive?
+          return "working_on_it" if stats.fetch(:open_jobs_count).positive?
+          if stats.fetch(:jobs_count).positive? && stats.fetch(:landed_jobs_count) == stats.fetch(:jobs_count)
+            return "ready_for_your_review" if dashboard_simple_mode? && epic.user_approved_at.blank?
+
+            return "wrapping_up"
+          end
+
+          return "working_on_it"
+        end
+
         return "something_went_wrong" if child_jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
         return "working_on_it" if child_jobs.any?(&:open?)
         return "ready_for_your_review" if dashboard_simple_mode? && epic.user_approved_at.blank? && child_jobs.any? && child_jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
@@ -270,14 +305,23 @@ module App
         "working_on_it"
       end
 
-      def epic_stuck?(epic, child_jobs)
+      def epic_stuck?(epic, child_jobs, stats = nil)
+        if stats
+          return epic.in_progress? &&
+            stats.fetch(:jobs_count).positive? &&
+            stats.fetch(:open_jobs_count).zero? &&
+            stats.fetch(:successful_closed_jobs_count) != stats.fetch(:jobs_count)
+        end
+
         epic.in_progress? &&
           child_jobs.any? &&
           child_jobs.none?(&:open?) &&
           !child_jobs.all? { |job| job.closed? && Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
       end
 
-      def all_epic_jobs_closed?(child_jobs)
+      def all_epic_jobs_closed?(child_jobs, stats = nil)
+        return stats.fetch(:jobs_count).positive? && stats.fetch(:open_jobs_count).zero? if stats
+
         child_jobs.any? && child_jobs.all?(&:closed?)
       end
 

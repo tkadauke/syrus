@@ -1337,6 +1337,39 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "epic row job aggregates" do
+    it "serializes epic job state without loading full child job rows" do
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved", commits_behind_base: 4)
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 202, state: "closed", closure_reason: "pr_merged")
+      Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 203, state: "closed", closure_reason: "external_pr_closed")
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA"
+        next if payload[:cached]
+
+        queries << payload[:sql].to_s.squish
+      end
+
+      result = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        result = call(subject: "epic", section: "rows")
+      end
+
+      item = result[:items].find { |row| row[:id] == epic.id }
+      expect(item).to include(
+        jobs_count: 3,
+        landed_jobs_count: 1,
+        max_commits_behind_base: 4,
+        stuck: false,
+        all_jobs_closed: false
+      )
+      expect(item[:job_state_counts]).to include("approved" => 1, "preempted" => 1)
+      expect(queries.grep(/SELECT ["`]?jobs["`]?\.\* FROM ["`]?jobs["`]?/i)).to be_empty
+    end
+  end
+
   describe "untagged_issues chrome field" do
     it "returns a zero total and no repositories when nothing has untagged open issues" do
       repo.update_columns(untagged_open_issue_count: 0)

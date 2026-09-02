@@ -420,9 +420,10 @@ module App
 
     def epics_result
       PerformanceLogging.phase("dashboard_epics_result", view: view, ownership_scope: ownership_scope) do
-        scope = filtered_epics_scope.includes(:owner, :repository, :owner_user, :jobs)
+        scope = filtered_epics_scope.includes(:owner, :repository, :owner_user)
         total = PerformanceLogging.phase("dashboard_epics.total") { scope.count }
         epics = PerformanceLogging.phase("dashboard_epics.query", page: page, view: view) { paginate(apply_sort(scope, :epic)).to_a }
+        PerformanceLogging.phase("dashboard_epics.preload_job_stats", count: epics.size) { preload_epic_dashboard_job_stats(epics) }
         items = PerformanceLogging.phase("dashboard_epics.serialize", count: epics.size, view: view) { epics.map { |epic| epic_json(epic) } }
 
         { total: total, items: items }
@@ -856,6 +857,46 @@ module App
       @epic_landed_job_counts = Job.where(epic_id: epic_ids, state: "closed")
                                    .where(closure_reason: Epic::MERGED_JOB_CLOSURE_REASONS)
                                    .group(:epic_id).count
+    end
+
+    def preload_epic_dashboard_job_stats(epics)
+      epic_ids = epics.map(&:id)
+      @epic_dashboard_job_stats_by_epic_id = {}
+      return if epic_ids.empty?
+
+      total_counts = Job.where(epic_id: epic_ids).group(:epic_id).count
+      max_commits_behind = Job.where(epic_id: epic_ids, parent_job_id: nil).group(:epic_id).maximum(:commits_behind_base)
+      grouped_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state, :closure_reason).count
+
+      epic_ids.each do |epic_id|
+        @epic_dashboard_job_stats_by_epic_id[epic_id] = {
+          jobs_count: total_counts.fetch(epic_id, 0),
+          landed_jobs_count: 0,
+          successful_closed_jobs_count: 0,
+          bad_closed_jobs_count: 0,
+          open_jobs_count: 0,
+          job_state_counts: Hash.new(0),
+          max_commits_behind_base: max_commits_behind[epic_id]
+        }
+      end
+
+      grouped_counts.each do |(epic_id, state, closure_reason), count|
+        stats = @epic_dashboard_job_stats_by_epic_id.fetch(epic_id)
+        normalized_state = if closure_reason == "preempted" || closure_reason&.start_with?("external_pr_")
+                             "preempted"
+        else
+                             state
+        end
+        stats[:job_state_counts][normalized_state] += count
+        stats[:open_jobs_count] += count unless state == "closed"
+        stats[:landed_jobs_count] += count if state == "closed" && Epic::MERGED_JOB_CLOSURE_REASONS.include?(closure_reason)
+        stats[:successful_closed_jobs_count] += count if state == "closed" && Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(closure_reason)
+        stats[:bad_closed_jobs_count] += count if state == "closed" && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(closure_reason)
+      end
+
+      @epic_dashboard_job_stats_by_epic_id.each_value do |stats|
+        stats[:job_state_counts] = stats[:job_state_counts].to_h
+      end
     end
   end
 end
