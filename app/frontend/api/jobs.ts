@@ -683,6 +683,7 @@ export type RunFailureClassification = {
 
 export type JobActions = {
   can_start: boolean
+  can_release_from_backlog: boolean
   can_poll_feedback: boolean
   can_rebase: boolean
   can_check_mergeability: boolean
@@ -798,6 +799,7 @@ export type JobPaths = {
   app_test_results_path: string
   app_timeline_path: string
   app_start_path: string
+  app_release_from_backlog_path: string
   app_run_again_path: string
   app_restart_path: string
   app_cancel_path: string

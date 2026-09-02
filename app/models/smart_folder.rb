@@ -49,6 +49,7 @@ class SmartFolder < ApplicationRecord
     # all job kinds appear (including system/infrastructure kinds that the
     # attention-preset folders hide).
     { key: "all_jobs",         name: "All jobs",               visibility: :on_demand,    filter: { "and" => [] } },
+    { key: "backlogged_jobs",  name: "Backlogged jobs",        visibility: :on_demand,    filter: user_job_attention_preset_filter("backlog") },
 
     # Tier 1: high-priority alerts. Each appears above the fold only
     # when populated — so an empty sidebar means there's nothing

@@ -10458,6 +10458,7 @@ describe("App", () => {
         pinned: true,
         actions: {
           can_start: true,
+          can_release_from_backlog: false,
           can_poll_feedback: true,
           can_rebase: true,
           can_check_mergeability: true,
@@ -16679,6 +16680,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     },
     actions: {
       can_start: false,
+      can_release_from_backlog: false,
       can_poll_feedback: true,
       can_rebase: true,
       can_check_mergeability: true,
@@ -16708,6 +16710,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_source_path: "/api/v1/app/jobs/42/source",
       app_timeline_path: "/api/v1/app/jobs/42/timeline",
       app_start_path: "/api/v1/app/jobs/42/start",
+      app_release_from_backlog_path: "/api/v1/app/jobs/42/release_from_backlog",
       app_run_again_path: "/api/v1/app/jobs/42/run_again",
       app_restart_path: "/api/v1/app/jobs/42/restart",
       app_cancel_path: "/api/v1/app/jobs/42/cancel",

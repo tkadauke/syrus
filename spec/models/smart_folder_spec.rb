@@ -2,9 +2,9 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 16 Job built-ins (13 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
-    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue + 6 Design Docs = 53.
-    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(53)
+    # 17 Job built-ins (14 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
+    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue + 6 Design Docs = 54.
+    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(54)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
     expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
@@ -14,6 +14,7 @@ RSpec.describe SmartFolder do
     expect(described_class::SPAWNED_PROCESS_BUILTINS).to eq(described_class::SPAWNED_PROCESS_BUILTIN_DEFINITIONS)
     expect(described_class.builtins.pluck(:name)).to eq([
       "All jobs",
+      "Backlogged jobs",
       "Pinned",
       "In progress",
       "Paused",
