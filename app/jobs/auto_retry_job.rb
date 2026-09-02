@@ -197,6 +197,7 @@ class AutoRetryJob < ApplicationJob
   def resume_failed_step(attempt)
     session = attempt.run&.provider_session
     return retry_workflow(attempt) unless session && attempt.workflow.retry_available? && attempt.run.step&.agentic?
+    return retry_failed_step(attempt) if attempt.failure_classification == "agent_resume_unavailable"
     return retry_failed_step(attempt) if session.provider.present? && session.provider != attempt.agent_provider
 
     RetryFailedStepEnqueuer.call(

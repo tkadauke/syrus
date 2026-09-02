@@ -125,7 +125,7 @@ RSpec.describe CodexInvocation do
       end
     end
 
-    it "restores a captured rollout JSONL before resume when CODEX_HOME no longer has it" do
+    it "restores a captured rollout JSONL to Codex's canonical filename before resume" do
       Dir.mktmpdir do |home|
         jsonl = { type: "session_meta", payload: { id: "019e-test" } }.to_json + "\n"
         invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
@@ -136,8 +136,50 @@ RSpec.describe CodexInvocation do
 
         restored = Dir.glob(File.join(home, "sessions", "**", "*019e-test.jsonl"))
         expect(restored.size).to eq(1)
+        expect(File.basename(restored.first)).to match(/\Arollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-019e-test\.jsonl\z/)
         expect(File.read(restored.first)).to eq(jsonl)
         expect(result.transcript_path).to eq(restored.first)
+      end
+    end
+
+    it "copies an old non-canonical restored rollout into a canonical path" do
+      Dir.mktmpdir do |home|
+        jsonl = { type: "session_meta", payload: { id: "019e-test" } }.to_json + "\n"
+        stale_dir = File.join(home, "sessions", "2026", "09", "01")
+        FileUtils.mkdir_p(stale_dir)
+        File.write(File.join(stale_dir, "rollout-restored-019e-test.jsonl"), jsonl)
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "019e-test")
+
+        captured, result = capture_popen(invocation)
+
+        canonical = Dir.glob(File.join(home, "sessions", "**", "rollout-[0-9]*-019e-test.jsonl"))
+        expect(canonical.size).to eq(1)
+        expect(File.read(canonical.first)).to eq(jsonl)
+        expect(result.transcript_path).to eq(canonical.first)
+        expect(captured[:cmd][0, 3]).to eq(%w[codex exec resume])
+      end
+    end
+
+    it "starts fresh instead of resuming when a canonical rollout path cannot be derived" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test",
+                                         codex_home: home,
+                                         resume_session_id: "../bad-session",
+                                         resume_transcript_jsonl: "{}\n",
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        captured, = capture_popen(invocation)
+
+        expect(captured[:cmd][0, 2]).to eq(%w[codex exec])
+        expect(captured[:cmd]).not_to include("resume")
+        expect(captured[:cmd]).to include("--cd", "/tmp/wkt")
+        expect(events).to include([
+          "[codex resume] could not derive a canonical rollout path for session ../bad-session; starting a fresh Codex session",
+          { kind: "system" }
+        ])
       end
     end
 
