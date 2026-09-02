@@ -34,6 +34,18 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA"
+
+      queries << payload[:sql].squish
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    queries
+  end
+
   def fake_issue(number:, title: "Fix something", state: "open", labels: [], body: nil)
     double(
       "issue",
@@ -522,6 +534,32 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "app_check_ci_now_repository_path" => "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
+  end
+
+  it "loads repository detail run counts in one grouped query" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    running = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
+    Factories.job_with_run(repository: repository, run_attrs: { state: "queued" })
+    Factories.job_with_run(repository: repository, run_attrs: { state: "failed", updated_at: 1.day.ago })
+    old_failure = Factories.job_with_run(repository: repository, run_attrs: { state: "failed" })
+    old_failure.runs.first.update_column(:updated_at, 9.days.ago)
+    # Multiple matching runs for one Job still count as one affected Job.
+    workflow = Workflow.create!(job: running, user: user, trigger_kind: "retry", state: "running")
+    step = Step.create!(workflow: workflow, kind: "implement", position: 2, state: "running")
+    Run.create!(job: running, user: user, step: step, trigger_kind: "retry", agent_provider: "claude", state: "running")
+
+    queries = capture_sql do
+      get "/api/v1/app/repositories/#{repository.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 1)
+    run_count_queries = queries.grep(/COUNT\(DISTINCT CASE WHEN runs\.state =/)
+    expect(run_count_queries.size).to eq(1)
+    expect(run_count_queries.first).to include("runs.state = 'running'")
+    expect(run_count_queries.first).to include("runs.state = 'queued'")
+    expect(run_count_queries.first).to include("runs.state = 'failed'")
   end
 
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do

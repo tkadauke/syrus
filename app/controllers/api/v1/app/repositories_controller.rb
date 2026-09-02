@@ -750,11 +750,8 @@ module Api
         end
 
         def repository_counts_json(repository)
-          {
-            running: repository_run_job_count(repository, state: "running"),
-            queued: repository_run_job_count(repository, state: "queued"),
-            failed_7d: repository_run_job_count(repository, state: "failed", since: 7.days.ago)
-          }
+          counts = repository_run_job_counts(repository)
+          { running: counts[:running], queued: counts[:queued], failed_7d: counts[:failed_7d] }
         end
 
         def retry_failed_jobs_json(repository)
@@ -1244,12 +1241,24 @@ module Api
           job_ids.filter_map { |id| jobs_by_id[id] }
         end
 
-        def repository_run_job_count(repository, state:, since: nil)
-          scope = Run.joins(:job)
+        def repository_run_job_counts(repository)
+          row = Run.joins(:job)
             .where(jobs: { repository_id: repository.id })
-            .where(state: state)
-          scope = scope.where("runs.updated_at >= ?", since) if since
-          scope.distinct.count(:job_id)
+            .pluck(
+              Arel.sql("COUNT(DISTINCT CASE WHEN runs.state = 'running' THEN runs.job_id END)"),
+              Arel.sql("COUNT(DISTINCT CASE WHEN runs.state = 'queued' THEN runs.job_id END)"),
+              Arel.sql(ActiveRecord::Base.sanitize_sql_array([
+                "COUNT(DISTINCT CASE WHEN runs.state = 'failed' AND runs.updated_at >= ? THEN runs.job_id END)",
+                7.days.ago
+              ]))
+            )
+            .first || []
+
+          {
+            running: row[0].to_i,
+            queued: row[1].to_i,
+            failed_7d: row[2].to_i
+          }
         end
 
         def latest_jobs_by_repository_id(repository_ids)
