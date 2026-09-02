@@ -333,6 +333,84 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(head_branch).to eq("syrus/issue-7-#{job.id}")
       end
 
+      it "recovers an unpublished direct retry from a missing Syrus base branch" do
+        parent = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "implemented",
+          branch_name: "syrus/direct-missing-parent",
+          pr_number: 41
+        )
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "failed",
+          parent_job: parent
+        )
+        retry_workflow = Workflow.create!(job: direct_job, trigger_kind: "retry")
+
+        ws = described_class.new(retry_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-#{direct_job.id}")
+        expect(described_class.base_ref_for(direct_job, workflow: retry_workflow)).to eq("origin/main")
+        expect(retry_workflow.reload.artifact("missing_branch_recovery")).to include(
+          "kind" => "missing_base_branch",
+          "missing_branch" => "syrus/direct-missing-parent",
+          "fallback_branch" => "main"
+        )
+      end
+
+      it "replaces a missing stale branch_name for an unpublished direct retry" do
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "failed",
+          branch_name: "syrus/direct-4056"
+        )
+        retry_workflow = Workflow.create!(job: direct_job, trigger_kind: "retry")
+
+        ws = described_class.new(retry_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-#{direct_job.id}")
+        expect(retry_workflow.reload.artifact("missing_branch_recovery")).to include(
+          "kind" => "missing_work_branch",
+          "missing_branch" => "syrus/direct-4056",
+          "fallback_branch" => "syrus/direct-#{direct_job.id}"
+        )
+      end
+
+      it "fails loudly when a published PR job points at a missing base branch" do
+        parent = Factories.job_record(
+          user: user,
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-missing-parent",
+          pr_number: 41
+        )
+        child = Factories.job_record(
+          user: user,
+          repository: repository,
+          state: "failed",
+          parent_job: parent,
+          pr_number: 42,
+          branch_name: "syrus/issue-child"
+        )
+        retry_workflow = Workflow.create!(job: child, trigger_kind: "retry")
+
+        ws = described_class.new(retry_workflow)
+
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /non-retryable workspace setup failure/)
+        expect(ws.path).not_to exist
+      end
+
       it "checks out a main_grader workflow at the captured default-branch SHA" do
         main_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
         main_grader_job = Job.create!(

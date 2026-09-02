@@ -42,6 +42,7 @@ class AutoRetryFailureClassifier
     /agent didn't call submit_summary/i,
     /agent's branch has no common ancestor/i,
     /git_state_corrupt/i,
+    /non-retryable workspace setup failure/i,
     /prepare command failed/i,
     /PR branch changed before Syrus could push/i,
     /branch diverged/i,

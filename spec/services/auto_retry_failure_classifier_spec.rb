@@ -60,6 +60,10 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(described_class.non_retryable_message?("PR branch changed before Syrus could push WF-123")).to be(true)
   end
 
+  it "recognizes missing remote branch workspace setup as non-retryable" do
+    expect(described_class.non_retryable_message?("remote branch syrus/direct-4056 does not exist; non-retryable workspace setup failure")).to be(true)
+  end
+
   it "recognizes stale merge-train reconciliation heads as non-retryable rebuild failures" do
     message = "merge_train_reconcile: built integration branch syrus/merge-train-epic-1-2 at abc123 is unavailable; rebuild required"
 
