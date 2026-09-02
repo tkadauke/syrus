@@ -9,6 +9,8 @@ type LinkifySlugOptions = {
   jobStyle?: "link" | "copyable"
 }
 
+const slugLinkClassName = "text-brand hover:underline dark:text-brand"
+
 export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): ReactNode[] {
   return text.split(slugPattern).map((part, index) => {
     const job = part.match(/^JOB-(\d+)$/)
@@ -18,7 +20,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
           {options.jobStyle === "copyable" ? (
             <CopyableSlug className="text-xs" slug={part} />
           ) : (
-            <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${job[1]}`}>
+            <Link className={slugLinkClassName} to={`/jobs/${job[1]}`}>
               {part}
             </Link>
           )}
@@ -31,7 +33,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
       return (
         <SlugHoverCard key={index} kind="epic" id={Number(epic[1])}>
 
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${epic[1]}`}>
+          <Link className={slugLinkClassName} to={`/epics/${epic[1]}`}>
             {part}
           </Link>
         </SlugHoverCard>
@@ -41,7 +43,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     const doc = part.match(/^DOC-(\d+)$/)
     if (doc) {
       return (
-        <Link className="text-blue-600 hover:underline dark:text-blue-400" key={index} to={`/design_docs/${doc[1]}`}>
+        <Link className={slugLinkClassName} key={index} to={`/design_docs/${doc[1]}`}>
           {part}
         </Link>
       )

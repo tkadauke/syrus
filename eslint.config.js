@@ -42,13 +42,15 @@ module.exports = [
     }
   },
   {
-    // Rule 3 (legacy blue-*/terracotta-* tokens) is scoped narrower, to
-    // routes and components only, per the issue scope.
+    // Rule 3 (legacy blue-*/terracotta-* tokens) also covers frontend lib
+    // helpers because several render JSX that routes/components consume.
     files: [
       "app/frontend/routes/**/*.{ts,tsx}",
       "app/frontend/components/**/*.{ts,tsx}",
+      "app/frontend/lib/**/*.{ts,tsx}",
       "plugins/*/app/frontend/routes/**/*.{ts,tsx}",
-      "plugins/*/app/frontend/components/**/*.{ts,tsx}"
+      "plugins/*/app/frontend/components/**/*.{ts,tsx}",
+      "plugins/*/app/frontend/lib/**/*.{ts,tsx}"
     ],
     languageOptions: jsxLanguageOptions,
     plugins: basePlugins,
