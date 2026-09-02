@@ -417,6 +417,7 @@ class WorkflowWorkspace
 
     stale_branch = @branch_name
     @branch_name = initial_branch_name
+    @workflow.set_artifact!(RebaseTarget::BRANCH_ARTIFACT, @branch_name)
     record_missing_branch_recovery!(
       kind: "missing_work_branch",
       missing_branch: stale_branch,
