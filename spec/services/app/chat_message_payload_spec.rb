@@ -340,6 +340,37 @@ RSpec.describe App::ChatMessagePayload do
     ])
   end
 
+  it "loads proposal anchor ids without loading full message content" do
+    dependency = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "confirmed",
+      slug: "chat-search-fts5",
+      title: "Chat full-text search via dedicated SQLite FTS5 database",
+      body: "Add search."
+    )
+    dependent = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "chat-search-ui",
+      title: "Chat search UI",
+      body: "Expose search."
+    )
+    ChatProposalDependency.create!(proposal: dependent, depends_on: dependency)
+    chat.messages.create!(role: "assistant", proposal: dependency, content: { "text" => "x" * 50_000 })
+    message = chat.messages.create!(role: "assistant", proposal: dependent, content: { "text" => "Dependent proposed." })
+
+    queries = capture_sql do
+      described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+    end
+
+    anchor_queries = queries.grep(/FROM ["`]?chat_messages["`]?.*["`]?proposal_id["`]?/i)
+    expect(anchor_queries).not_to be_empty
+    expect(anchor_queries).to all(match(/\ASELECT ["`]?chat_messages["`]?\.["`]?id["`]?, ["`]?chat_messages["`]?\.["`]?proposal_id["`]?/i))
+    expect(anchor_queries.join("\n")).not_to match(/content/i)
+  end
+
   it "returns Epic proposal slug dependencies with unresolved and resolved labels" do
     resolved_epic = Factories.epic(user: user, repository: repository)
     proposal = chat.proposals.create!(

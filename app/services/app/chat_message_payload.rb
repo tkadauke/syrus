@@ -50,15 +50,15 @@ module App
             :job,
             :epic,
             :target_epic,
-            :messages,
-            { dependencies: [ :chat_session, :repository, :job, :epic, :messages ] },
+            :message_anchors,
+            { dependencies: [ :chat_session, :repository, :job, :epic, :message_anchors ] },
             { child_proposals: [
               :chat_session,
               :repository,
               :job,
               :epic,
-              :messages,
-              { dependencies: [ :chat_session, :repository, :job, :epic, :messages ] }
+              :message_anchors,
+              { dependencies: [ :chat_session, :repository, :job, :epic, :message_anchors ] }
             ] }
           ]
         }
@@ -357,20 +357,20 @@ module App
     end
 
     def ordered_dependencies(proposal)
-      records = proposal.dependencies.loaded? ? proposal.dependencies.to_a : proposal.dependencies.includes(:job, :epic, :messages).to_a
+      records = proposal.dependencies.loaded? ? proposal.dependencies.to_a : proposal.dependencies.includes(:job, :epic, :message_anchors).to_a
       records.sort_by(&:slug)
     end
 
     def ordered_child_proposals(proposal)
-      records = proposal.child_proposals.loaded? ? proposal.child_proposals.to_a : proposal.child_proposals.includes(:repository, :job, :epic, :messages, dependencies: [ :job, :epic, :messages ]).to_a
+      records = proposal.child_proposals.loaded? ? proposal.child_proposals.to_a : proposal.child_proposals.includes(:repository, :job, :epic, :message_anchors, dependencies: [ :job, :epic, :message_anchors ]).to_a
       records.sort_by { |child| [ child.child_position || 0, child.created_at || Time.at(0), child.id || 0 ] }
     end
 
     def anchor_message_id(proposal)
-      if proposal.messages.loaded?
-        proposal.messages.max_by(&:id)&.id
+      if proposal.message_anchors.loaded?
+        proposal.message_anchors.max_by(&:id)&.id
       else
-        proposal.messages.order(:id).last&.id
+        proposal.message_anchors.reorder(id: :desc).pick(:id)
       end
     end
 
@@ -381,7 +381,7 @@ module App
         proposal = if scope.loaded?
           scope.detect { |candidate| candidate.slug == slug }
         else
-          scope.includes(:epic, :messages).find_by(slug: slug)
+          scope.includes(:epic, :message_anchors).find_by(slug: slug)
         end
         @proposal_by_chat_and_slug[key] = proposal
       end
