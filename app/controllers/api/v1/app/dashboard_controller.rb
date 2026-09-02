@@ -157,7 +157,7 @@ module Api
           Current.user.jobs.joins(:repository)
                       .where(repositories: { archived_at: nil })
                       .where(id: job_ids)
-                      .includes(:repository, :runs, :workflows)
+                      .includes(:repository)
         end
 
         def bulk_epic_scope(epic_ids)
@@ -334,7 +334,7 @@ module Api
 
         def bulk_review_approval(jobs)
           review_jobs = jobs.where(state: "implemented")
-                            .includes(:repository, :runs)
+                            .includes(:repository)
                             .order(created_at: :desc)
                             .to_a
           if review_jobs.empty?

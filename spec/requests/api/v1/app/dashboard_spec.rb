@@ -2135,6 +2135,33 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body["affected_job_ids"]).to contain_exactly(first.id, second.id)
     end
 
+    it "does not preload historical workflow or run rows for lightweight bulk actions" do
+      first = Factories.job_record(repository: repo, issue_number: 1)
+      second = Factories.job_record(repository: repo, issue_number: 2)
+      [ first, second ].each do |job|
+        3.times do
+          workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
+          step = workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+          step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "failed")
+        end
+      end
+      allow(AppEvents).to receive(:broadcast)
+
+      queries = capture_sql do
+        post "/api/v1/app/dashboard/jobs/bulk",
+             params: { job_ids: [ first.id, second.id ], bulk_action: "claim" },
+             as: :json
+      end
+
+      normalized_queries = queries.map(&:squish)
+      broad_workflow_preload = /SELECT\s+["`]?workflows["`]?\.\*\s+FROM\s+["`]?workflows["`]?\s+WHERE\s+["`]?workflows["`]?\.[ "`]?job_id["`]?\s+IN/i
+      broad_run_preload = /SELECT\s+["`]?runs["`]?\.\*\s+FROM\s+["`]?runs["`]?\s+WHERE\s+["`]?runs["`]?\.[ "`]?job_id["`]?\s+IN/i
+
+      expect(response).to have_http_status(:ok)
+      expect(normalized_queries).not_to include(match(broad_workflow_preload))
+      expect(normalized_queries).not_to include(match(broad_run_preload))
+    end
+
     it "manually pauses selected open jobs" do
       first = Factories.job_record(repository: repo, issue_number: 51, state: "queued")
       second = Factories.job_record(repository: repo, issue_number: 52, state: "running")
