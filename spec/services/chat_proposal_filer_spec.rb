@@ -104,6 +104,30 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "creates backlog-routed direct Jobs without advancing or starting an initial workflow" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+      job_proposal = proposal(
+        slug: "backlog-direct",
+        title: "Backlog direct",
+        route_to_backlog: true,
+        depends_on_job_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(Job, :count).by(1)
+        .and change(JobDependency, :count).by(1)
+        .and have_enqueued_job(RunJob).exactly(0).times
+
+      job = job_proposal.reload.job
+      expect(job).to be_backlog
+      expect(job.owner_user).to eq(user)
+      expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(job.workflows).to be_empty
+      expect(job.runs).to be_empty
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)
