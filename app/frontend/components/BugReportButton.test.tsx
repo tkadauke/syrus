@@ -697,7 +697,7 @@ describe("BugReportButton", () => {
           onload: (() => void) | null = null
           set src(value: string) {
             imageSrcs.push(value)
-            window.setTimeout(() => this.onload?.(), 0)
+            this.onload?.()
           }
         }
       })
