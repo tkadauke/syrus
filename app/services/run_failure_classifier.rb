@@ -162,9 +162,7 @@ class RunFailureClassifier
   def provider_auth_expired?
     return false if run.agent_provider.blank?
 
-    text_match?(
-      /token_expired|access token could not be refreshed|authentication token (?:is )?expired|sign in again|logged out or signed in to another account|signed out or signed in to another account/i
-    )
+    ProviderAuthFailure.detect?(searchable_text)
   end
 
   def process_died?
