@@ -1,4 +1,4 @@
-import { ChevronDownIcon, HideIcon, TeamIcon } from "./icons"
+import { ChevronDownIcon, HideIcon, TargetIcon, TeamIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -301,6 +301,15 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
                         <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
                           <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
+                          {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
+                            <span
+                              className={`mt-0.5 shrink-0 ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                              data-testid="chat-goal-marker"
+                              title={chat.active_goal.status === "paused" ? t("nav:title_goal_paused") : t("nav:title_goal_active")}
+                            >
+                              <TargetIcon className="h-3.5 w-3.5" />
+                            </span>
+                          ) : null}
                           {chat.pending_proposal_count > 0 && (
                             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
                           )}

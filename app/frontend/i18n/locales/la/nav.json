@@ -276,6 +276,8 @@
   "repository_tabs_aria": "Tabulae repositorii",
   "title_uncommitted": "Mutationes codicis non commissae",
   "title_scratchpad": "Habet res in tabula",
+  "title_goal_active": "Propositum activum",
+  "title_goal_paused": "Propositum pausatum",
   "title_turn_active": "Vicis colloquii activa",
   "plugin_repo_tabs": {
     "unavailable_heading": "Pagina non praesto",
