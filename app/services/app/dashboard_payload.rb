@@ -621,12 +621,13 @@ module App
       @job_runtime_run_diagnostics_by_run_id = PerformanceLogging.phase("dashboard_jobs.preload.run_diagnostics", count: run_ids.size) do
         run_ids.empty? ? {} : RunDiagnostic.where(run_id: run_ids).index_by(&:run_id)
       end
+      direct_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.direct_running_jobs", count: job_ids.size) do
+        job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
+      end
       @job_runtime_active_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.active_jobs", count: job_ids.size) do
-        direct_active_job_ids = job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
-        (direct_active_job_ids | WorkUnits::Ownership.runnable_unit_job_ids(job_ids)).index_with(true)
+        (direct_running_job_ids | WorkUnits::Ownership.runnable_unit_job_ids(job_ids)).index_with(true)
       end
       @job_runtime_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.running_jobs", count: job_ids.size) do
-        direct_running_job_ids = job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
         (direct_running_job_ids | WorkUnits::Ownership.running_unit_job_ids(job_ids)).index_with(true)
       end
       @job_runtime_paused_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.paused_jobs", count: job_ids.size) { paused_job_ids(job_ids).index_with(true) }
