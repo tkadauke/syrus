@@ -44,6 +44,14 @@ module Steps
         return
       end
 
+      if job.fork_review_pr_number.present?  # idempotent: fork staging review PR already open
+        log("pr_open: branch pushed for existing fork review PR ##{job.fork_review_pr_number}")
+        transition_job_to_implemented!
+        return
+      end
+
+      return if close_empty_new_publication_branch!
+
       if cross_fork?
         open_fork_review_pr
       elsif fork_to_upstream?
@@ -280,6 +288,81 @@ module Steps
 
     def pr_base_branch
       RebaseTarget.branch_for(job: job, workflow: workflow)
+    end
+
+    def close_empty_new_publication_branch!
+      return false if workflow.trigger_kind == "coding_handoff"
+
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      base_branch = pr_base_branch
+      base_ref = fetch_pr_base_ref!(git, base_branch)
+      publication_head = current_head_sha(git)
+      expected_head = expected_publication_head_sha
+
+      diff = git.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s).strip
+      return false if diff.present?
+
+      if expected_head.present? && publication_head != expected_head && !ancestor?(git, expected_head, "HEAD")
+        raise StepFailed,
+          "pr_open: publication branch #{workspace.branch_name} has no changes against #{base_branch}, " \
+          "but workspace HEAD does not contain the validated implementation head; " \
+          "validated_head=#{expected_head}, publication_head=#{publication_head}"
+      end
+
+      reason = {
+        "reason" => "empty_publication_branch",
+        "message" => "publication branch has no unique changes against the effective PR base",
+        "base_branch" => base_branch,
+        "base_ref" => base_ref,
+        "branch" => workspace.branch_name,
+        "publication_head" => publication_head,
+        "validated_head" => expected_head,
+        "detected_at" => Time.current.iso8601
+      }.compact
+      workflow.set_artifact!("no_pr_reason", reason)
+      log("pr_open: closing #{job.slug} as no_changes; #{workspace.branch_name} has no changes against #{base_branch} (#{base_ref})")
+      StateTransition.with_source("system") do
+        job.close_with_reason!("no_changes") if job.may_close?
+      end
+      true
+    end
+
+    def fetch_pr_base_ref!(git, base_branch)
+      ref = "refs/remotes/origin/#{base_branch}"
+      authenticated_git_for(pr_base_repository, git, "git_pr_open_base_fetch") do |fetch_url|
+        git.run(
+          "fetch",
+          fetch_url,
+          "+refs/heads/#{base_branch}:#{ref}",
+          chdir: workspace.path.to_s
+        )
+      end
+      ref
+    end
+
+    def pr_base_repository
+      if cross_fork?
+        repository
+      elsif fork_to_upstream?
+        job.base_repository
+      else
+        job.effective_target_repository
+      end
+    end
+
+    def authenticated_git_for(repo, git, operation_type, &block)
+      GithubAuthenticatedGit.run(
+        repository: repo,
+        user: job.user,
+        git: git,
+        operation_type: operation_type,
+        log: method(:log),
+        &block
+      )
+    end
+
+    def expected_publication_head_sha
+      latest_succeeded_run_for(%w[implement run_skill])&.head_sha.to_s.presence
     end
 
     def verify_existing_pr_branch_not_diverged!(git, push_url)

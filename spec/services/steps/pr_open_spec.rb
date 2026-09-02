@@ -90,6 +90,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     fake_client = instance_double(GithubClient, access_token: "tok")
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).and_return(fake_client)
     opener = instance_double(PullRequestOpener, open: 100)
@@ -142,6 +143,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
     opener = instance_double(PullRequestOpener, open: 100)
@@ -180,6 +182,246 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(workflow.artifact("branch_divergence")).to be_nil
   end
 
+  it "closes a direct initial Job as no_changes when the publication branch matches the effective base" do
+    direct_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Direct task",
+      state: "running"
+    )
+    direct_workflow = Workflow.create!(job: direct_job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+    direct_implement_step = Step.create!(workflow: direct_workflow, kind: "implement", position: 0)
+    direct_pr_open_step = Step.create!(workflow: direct_workflow, kind: "pr_open", position: 1)
+    Run.create!(
+      job: direct_job,
+      step: direct_implement_step,
+      trigger_kind: direct_workflow.trigger_kind,
+      agent_provider: direct_workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "same-sha"
+    )
+    pr_open_run = Run.create!(
+      job: direct_job,
+      step: direct_pr_open_step,
+      trigger_kind: direct_workflow.trigger_kind,
+      agent_provider: direct_workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/direct-#{direct_job.id}"
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    fetch_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: direct_job.user).and_return(client)
+    allow(git).to receive(:run).with(
+      "fetch",
+      fetch_url,
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("same-sha\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "refs/remotes/origin/main...HEAD", chdir: path.to_s).and_return("\n")
+    expect(PullRequestOpener).not_to receive(:new)
+
+    handler.call
+
+    expect(direct_job.reload).to be_closed
+    expect(direct_job.closure_reason).to eq("no_changes")
+    expect(direct_workflow.reload.artifact("no_pr_reason")).to include(
+      "reason" => "empty_publication_branch",
+      "base_branch" => "main",
+      "base_ref" => "refs/remotes/origin/main",
+      "branch" => branch,
+      "publication_head" => "same-sha",
+      "validated_head" => "same-sha"
+    )
+  end
+
+  it "does not call GitHub PR creation after force-pushing an unpublished retry branch that is empty against base" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil, fork_review_pr_number: nil)
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    Run.create!(
+      job: job,
+      step: implement_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "local-sha"
+    )
+    handler = described_class.new(pr_open_run)
+    branch = "syrus/direct-#{job.id}"
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+    rejection = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/#{branch}" ],
+      1,
+      "! [rejected] HEAD -> #{branch} (non-fast-forward)"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run)
+      .with("push", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s)
+      .and_raise(rejection)
+    allow(git).to receive(:run).with(
+      "fetch",
+      push_url,
+      "+refs/heads/#{branch}:refs/remotes/origin/#{branch}",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run)
+      .with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s)
+      .and_return("remote-sha\n")
+    allow(git).to receive(:run)
+      .with("rev-parse", "HEAD", chdir: path.to_s)
+      .and_return("local-sha\n")
+    allow(git).to receive(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/#{branch}:remote-sha",
+      push_url,
+      "HEAD:refs/heads/#{branch}",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with(
+      "fetch",
+      push_url,
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with("diff", "--name-only", "refs/remotes/origin/main...HEAD", chdir: path.to_s).and_return("\n")
+    expect(PullRequestOpener).not_to receive(:new)
+
+    handler.call
+
+    expect(job.reload).to be_closed
+    expect(job.closure_reason).to eq("no_changes")
+    expect(workflow.reload.artifact("pr_open_force_pushed_unopened_branch")).to include(
+      "branch" => branch,
+      "remote_sha" => "remote-sha",
+      "local_sha" => "local-sha"
+    )
+    expect(workflow.artifact("no_pr_reason")).to include(
+      "base_branch" => "main",
+      "branch" => branch,
+      "publication_head" => "local-sha"
+    )
+  end
+
+  it "opens a PR for a non-empty direct retry publication branch" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    Run.create!(
+      job: job,
+      step: implement_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "feature-sha"
+    )
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/direct-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    fetch_url = repository.authenticated_push_url("token")
+    opener = instance_double(PullRequestOpener, open: 456)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(handler).to receive(:pr_title_and_body).and_return([ "Retry title", "Retry body" ])
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with(
+      "fetch",
+      fetch_url,
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("feature-sha\n")
+    allow(git).to receive(:run)
+      .with("diff", "--name-only", "refs/remotes/origin/main...HEAD", chdir: path.to_s)
+      .and_return("app/models/job.rb\n")
+    expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
+
+    handler.call
+
+    expect(job.reload.pr_number).to eq(456)
+    expect(workflow.reload.artifact("no_pr_reason")).to be_nil
+  end
+
+  it "fails with the validated and publication heads when an empty branch no longer contains the implementation head" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    Run.create!(
+      job: job,
+      step: implement_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "validated-sha"
+    )
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/direct-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    fetch_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with(
+      "fetch",
+      fetch_url,
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("publication-sha\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "refs/remotes/origin/main...HEAD", chdir: path.to_s).and_return("\n")
+    allow(git).to receive(:run)
+      .with("merge-base", "--is-ancestor", "validated-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    expect(PullRequestOpener).not_to receive(:new)
+
+    expect {
+      handler.call
+    }.to raise_error(
+      Steps::Base::StepFailed,
+      /validated_head=validated-sha, publication_head=publication-sha/
+    )
+    expect(workflow.reload.artifact("no_pr_reason")).to be_nil
+    expect(job.reload).not_to be_closed
+  end
+
   it "passes the Job to PullRequestOpener so dependent PRs use their effective base" do
     pr_open_run = Run.create!(
       job: job,
@@ -194,6 +436,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
     expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
@@ -241,6 +484,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:push_branch)
+      allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
       allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
       allow(GithubClient).to receive(:for).and_return(client)
       allow(PullRequestOpener).to receive(:new).and_return(opener)
@@ -276,6 +520,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
     expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
@@ -317,6 +562,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:push_branch)
+      allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
       allow(handler).to receive(:pr_title_and_body).and_return([ "Add greeting", "Body text" ])
       allow(GithubClient).to receive(:for).with(repository: repository, user: fork_job.user).and_return(fork_client)
       expect(PullRequestOpener).to receive(:new).with(repository, client: fork_client).and_return(opener)
@@ -350,6 +596,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:push_branch)
       expect(PullRequestOpener).not_to receive(:new)
+      expect(handler).not_to receive(:close_empty_new_publication_branch!)
 
       handler.call
 
