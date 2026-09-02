@@ -210,7 +210,12 @@ RSpec.describe App::JobDetailPayload do
         job: job,
         trigger_kind: "pr_comment",
         state: "succeeded",
-        artifacts: { "job_metadata" => { "changed" => true, "summary" => "Updated summary" } }
+        artifacts: {
+          "job_metadata" => { "changed" => true, "summary" => "Updated summary" },
+          "visual_review_iterations" => [
+            { "artifacts" => [ { "image_url" => "https://example.test/screenshot.png" } ] }
+          ]
+        }
       )
 
       queries = capture_sql { payload_for(job) }

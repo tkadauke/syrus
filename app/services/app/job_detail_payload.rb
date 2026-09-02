@@ -1107,13 +1107,10 @@ module App
     end
 
     def visual_diff_available?
-      @job.workflows
-        .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
-        .where.not(artifacts: [ nil, "", "{}" ])
-        .where("artifacts LIKE ?", "%visual_review_iterations%")
-        .where("artifacts LIKE ?", "%image_url%")
-        .select(:id, :artifacts)
-        .any? do |workflow|
+      artifact_workflows_matching(
+        "visual_review_iterations",
+        trigger_kinds: %w[initial retry pr_comment chat_feedback manual_visual_review]
+      ).any? do |workflow|
           Array(workflow.artifact("visual_review_iterations")).any? do |iteration|
             Array(iteration["artifacts"]).any? { |artifact| artifact.is_a?(Hash) && artifact["image_url"].present? }
           end
