@@ -903,5 +903,16 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload_for(job)[:has_test_results]).to be(true)
     end
+
+    it "does not carry the ordered job runs association into the TestRun existence probe" do
+      job = Factories.job(user: user, repository: repo)
+      Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
+
+      queries = capture_sql { payload_for(job) }
+      test_run_queries = queries.grep(/FROM ["`]?test_runs["`]?/i)
+
+      expect(test_run_queries).not_to be_empty
+      expect(test_run_queries).to all(satisfy { |sql| !sql.match?(/ORDER BY/i) })
+    end
   end
 end

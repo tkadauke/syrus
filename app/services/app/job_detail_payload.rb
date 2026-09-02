@@ -676,7 +676,8 @@ module App
     end
 
     def has_test_results?
-      TestRun.where(run_id: @job.runs.select(:id)).exists?
+      run_ids = Run.unscoped.where(job_id: @job.id).select(:id)
+      TestRun.where(run_id: run_ids).exists?
     end
 
     def origin_chat_json
