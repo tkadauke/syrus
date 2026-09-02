@@ -9,7 +9,7 @@ module TestInsights
     }.freeze
 
     def self.load(identities, lookback:)
-      ids = identities.map(&:id)
+      ids = identities.map { |identity| identity.respond_to?(:id) ? identity.id : identity }.compact
       stats_by_id = ids.index_with { EMPTY_STATS.dup }
       return stats_by_id if ids.empty?
 

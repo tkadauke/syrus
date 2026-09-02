@@ -82,7 +82,7 @@ RSpec.describe "App API repository tests", type: :request do
       expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "needle browser test" ])
     end
 
-    it "loads recent stats in a batch instead of per test identity" do
+    it "uses persisted recent stats without reading raw test cases" do
       identities = [
         make_identity(name: "slow browser test"),
         make_identity(name: "flaky browser test")
@@ -91,13 +91,22 @@ RSpec.describe "App API repository tests", type: :request do
       make_case(identity: identities.second, status: "failed", created_at: 2.minutes.ago)
       make_case(identity: identities.second, status: "passed", created_at: 1.minute.ago)
 
-      expect(TestInsights::RecentStats).to receive(:load).once.and_call_original
+      test_case_selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        test_case_selects << sql if sql.match?(/FROM "?test_cases"?/i)
+      end
       expect_any_instance_of(TestIdentity).not_to receive(:recent_stats)
 
-      get "/api/v1/app/repositories/#{repo.id}/tests"
+      begin
+        get "/api/v1/app/repositories/#{repo.id}/tests"
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to contain_exactly("slow browser test", "flaky browser test")
+      expect(test_case_selects).to be_empty
     end
 
     it "does not serve tests in simple mode" do

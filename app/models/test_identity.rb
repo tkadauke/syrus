@@ -83,6 +83,7 @@ class TestIdentity < ApplicationRecord
 
     latest_by_identity_id = latest_cases_for(ids).index_by(&:test_identity_id)
     latest_status_times = latest_status_times_for(ids)
+    recent_stats_by_identity_id = TestInsights::RecentStats.load(ids, lookback: LIST_LOOKBACK)
     failed_at_by_identity_id = latest_status_times.fetch(:failed)
     passed_at_by_identity_id = latest_status_times.fetch(:passed)
     now = Time.current
@@ -92,12 +93,17 @@ class TestIdentity < ApplicationRecord
       latest = latest_by_identity_id[identity.id]
       next unless latest
 
+      recent_stats = recent_stats_by_identity_id.fetch(identity.id)
       updates[identity.id] = {
         last_status: latest.status,
         last_seen_at: latest.created_at,
         last_failed_at: failed_at_by_identity_id[identity.id],
         last_passed_at: passed_at_by_identity_id[identity.id],
         last_duration_ms: latest.duration_ms,
+        recent_sample_count: recent_stats.fetch(:total_count),
+        recent_failed_count: recent_stats.fetch(:failed_count),
+        recent_passed_count: recent_stats.fetch(:passed_count),
+        recent_avg_duration_ms: recent_stats.fetch(:avg_duration_ms),
         file_path: identity.file_path.presence || latest.file_path,
         updated_at: now
       }
@@ -148,6 +154,10 @@ class TestIdentity < ApplicationRecord
       last_failed_at
       last_passed_at
       last_duration_ms
+      recent_sample_count
+      recent_failed_count
+      recent_passed_count
+      recent_avg_duration_ms
       file_path
       updated_at
     ]
@@ -241,6 +251,26 @@ class TestIdentity < ApplicationRecord
     }
   end
 
+  def persisted_recent_stats
+    total = recent_sample_count.to_i
+    failed = recent_failed_count.to_i
+    passed = recent_passed_count.to_i
+
+    if total.zero? && last_seen_at.present?
+      failed = 1 if last_status.in?(%w[failed error])
+      passed = 1 if last_status == "passed"
+      total = [ failed + passed, 1 ].max
+    end
+
+    {
+      total_count: total,
+      failed_count: failed,
+      passed_count: passed,
+      failure_rate: total.positive? ? (failed.to_f / total) : 0.0,
+      avg_duration_ms: recent_avg_duration_ms || last_duration_ms
+    }
+  end
+
   def interesting_reasons(stats: recent_stats)
     reasons = []
     reasons << "failing" if last_status.in?(%w[failed error]) || stats[:failed_count].positive?
@@ -253,12 +283,17 @@ class TestIdentity < ApplicationRecord
     latest = test_cases.order(created_at: :desc).first
     return unless latest
 
+    stats = recent_stats
     update_columns(
       last_status: latest.status,
       last_seen_at: latest.created_at,
       last_failed_at: latest_failed_at,
       last_passed_at: latest_passed_at,
       last_duration_ms: latest.duration_ms,
+      recent_sample_count: stats.fetch(:total_count),
+      recent_failed_count: stats.fetch(:failed_count),
+      recent_passed_count: stats.fetch(:passed_count),
+      recent_avg_duration_ms: stats.fetch(:avg_duration_ms),
       file_path: file_path.presence || latest.file_path,
       updated_at: Time.current
     )

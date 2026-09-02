@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2404,6 +2404,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
     t.datetime "last_seen_at"
     t.string "last_status", limit: 32
     t.string "name", null: false
+    t.integer "recent_avg_duration_ms"
+    t.integer "recent_failed_count", default: 0, null: false
+    t.integer "recent_passed_count", default: 0, null: false
+    t.integer "recent_sample_count", default: 0, null: false
     t.integer "repository_id", null: false
     t.string "suite_name", null: false
     t.datetime "updated_at", null: false
@@ -2905,4 +2909,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_150000) do
   add_foreign_key "team_repositories", "teams"
   add_foreign_key "test_identity_runtime_summaries", "repositories"
   add_foreign_key "test_identity_runtime_summaries", "test_identities"
+
+  # Virtual tables defined in this database.
+  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end
