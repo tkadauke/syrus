@@ -227,6 +227,7 @@ module Api
             render_error("validation_failed", result.first_error || I18n.t("api.repositories.no_failed_jobs"), status: :unprocessable_content)
             return
           end
+          @inactive_retryable_failed_job_ids_by_repository&.delete(repository.id)
 
           render json: repository_detail_payload(
             repository.reload,
@@ -1182,7 +1183,7 @@ module Api
         end
 
         def retryable_failed_jobs_count(repository)
-          inactive_retryable_failed_job_ids(repository).size
+          retryable_failed_jobs_count_scope(repository).count
         end
 
         def retryable_failed_jobs_scope(repository, inactive_job_ids: nil)
@@ -1198,6 +1199,17 @@ module Api
           candidates.where(id: inactive_retryable_failed_job_ids(repository))
         end
 
+        def retryable_failed_jobs_count_scope(repository)
+          base = repository.jobs.open_threads
+          candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
+          active_candidate_job_ids = WorkUnitMember
+            .joins(:work_unit)
+            .where(job_id: candidates.select(:id), work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
+            .select(:job_id)
+
+          candidates.where.not(id: active_candidate_job_ids)
+        end
+
         def inactive_retryable_failed_job_ids(repository)
           @inactive_retryable_failed_job_ids_by_repository ||= {}
           @inactive_retryable_failed_job_ids_by_repository[repository.id] ||= begin
@@ -1208,11 +1220,7 @@ module Api
             if candidate_ids.empty?
               []
             else
-              active_candidate_job_ids = WorkUnitMember
-                .joins(:work_unit)
-                .where(job_id: candidate_ids, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
-                .distinct
-                .pluck(:job_id)
+              active_candidate_job_ids = WorkUnits::Ownership.active_units_by_job_id(candidate_ids).keys
 
               candidate_ids - active_candidate_job_ids
             end
