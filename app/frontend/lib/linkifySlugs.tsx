@@ -18,7 +18,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
           {options.jobStyle === "copyable" ? (
             <CopyableSlug className="text-xs" slug={part} />
           ) : (
-            <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${job[1]}`}>
+            <Link className="text-brand hover:underline dark:text-brand" to={`/jobs/${job[1]}`}>
               {part}
             </Link>
           )}
@@ -30,8 +30,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     if (epic) {
       return (
         <SlugHoverCard key={index} kind="epic" id={Number(epic[1])}>
-
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${epic[1]}`}>
+          <Link className="text-brand hover:underline dark:text-brand" to={`/epics/${epic[1]}`}>
             {part}
           </Link>
         </SlugHoverCard>
@@ -41,7 +40,7 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
     const doc = part.match(/^DOC-(\d+)$/)
     if (doc) {
       return (
-        <Link className="text-blue-600 hover:underline dark:text-blue-400" key={index} to={`/design_docs/${doc[1]}`}>
+        <Link className="text-brand hover:underline dark:text-brand" key={index} to={`/design_docs/${doc[1]}`}>
           {part}
         </Link>
       )
