@@ -912,6 +912,10 @@ module Api
             return
           end
 
+          if params.key?(:route_to_backlog)
+            proposal.update!(route_to_backlog: route_to_backlog_confirmation_value(proposal))
+          end
+
           result = if proposal.epic_bundle?
             ChatEpicProposalMaterializer.new(user: Current.user).file!(proposal)
           else
@@ -1496,6 +1500,14 @@ module Api
           end
 
           ActiveModel::Type::Boolean.new.cast(attrs[:route_to_backlog])
+        end
+
+        def route_to_backlog_confirmation_value(proposal)
+          unless proposal.direct_job_proposal? && proposal.parent_proposal_id.nil?
+            raise ArgumentError, "Backlog routing is only available for direct Job proposals."
+          end
+
+          ActiveModel::Type::Boolean.new.cast(params[:route_to_backlog])
         end
 
         def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

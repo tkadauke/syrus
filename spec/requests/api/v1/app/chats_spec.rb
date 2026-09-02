@@ -4599,7 +4599,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
 
     expect {
-      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { route_to_backlog: true }
     }.to change(Job, :count).by(1)
       .and change(JobDependency, :count).by(1)
       .and change(Document, :count).by(1)
@@ -4614,6 +4614,28 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
     expect(job.job_attachments.first.source_url).to eq("snapshot:#{snapshot.id}")
     expect(parse_body.dig("proposal", "materialized", "job_state")).to eq("backlog")
+  end
+
+  it "confirms direct proposal implementation from explicit route params" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Start it now.",
+      kind: "job",
+      route_to_backlog: true
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { route_to_backlog: false }
+    }.to change(Job, :count).by(1)
+      .and change(Workflow, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.route_to_backlog).to be(false)
+    expect(proposal.job).not_to be_backlog
   end
 
   it "broadcasts update_proposal after confirming a proposal" do
