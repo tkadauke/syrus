@@ -280,6 +280,8 @@ class CodexInvocation
 
   def process_event(line, log_sink)
     event = JSON.parse(line.strip)
+    return malformed_startup_output(line, log_sink) unless event.is_a?(Hash)
+
     case event["type"]
     when "thread.started"
       { session_id: event["thread_id"] }
@@ -332,6 +334,10 @@ class CodexInvocation
       nil
     end
   rescue JSON::ParserError
+    malformed_startup_output(line, log_sink)
+  end
+
+  def malformed_startup_output(line, log_sink)
     detail = sanitize_startup_output(line.chomp)
     log_sink.call(detail)
     detail.present? ? { startup_output: detail } : nil
