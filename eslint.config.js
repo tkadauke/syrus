@@ -42,11 +42,14 @@ module.exports = [
     }
   },
   {
-    // Rule 3 (legacy blue-*/terracotta-* tokens) is scoped narrower, to
-    // routes and components only, per the issue scope.
+    // Rule 3 (legacy blue-*/terracotta-* tokens) is scoped to user-facing JSX
+    // surfaces and helpers that render JSX. Plain class-string helpers remain
+    // outside the AST coverage of the rule itself.
     files: [
+      "app/frontend/lib/**/*.{ts,tsx}",
       "app/frontend/routes/**/*.{ts,tsx}",
       "app/frontend/components/**/*.{ts,tsx}",
+      "plugins/*/app/frontend/lib/**/*.{ts,tsx}",
       "plugins/*/app/frontend/routes/**/*.{ts,tsx}",
       "plugins/*/app/frontend/components/**/*.{ts,tsx}"
     ],

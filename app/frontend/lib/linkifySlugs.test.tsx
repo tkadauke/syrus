@@ -51,6 +51,17 @@ describe("linkifySlugs", () => {
     expect(screen.getByRole("link", { name: "DOC-9" })).toHaveAttribute("href", "/design_docs/9")
   })
 
+  it("renders slug links with semantic brand color tokens", () => {
+    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
+
+    for (const slug of ["JOB-42", "EPIC-7", "DOC-9"]) {
+      const link = screen.getByRole("link", { name: slug })
+
+      expect(link).toHaveClass("text-brand", "hover:underline", "dark:text-brand")
+      expect(link.className).not.toMatch(/\b(?:text-)?blue-\d{2,3}\b/)
+    }
+  })
+
   it("can render JOB slugs as copyable hover-card references", () => {
     render(<MemoryRouter>{linkifySlugs("Filed as JOB-42", { jobStyle: "copyable" })}</MemoryRouter>)
 
