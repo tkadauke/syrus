@@ -310,6 +310,22 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
     end
 
+    it "does not read deploy config for jobs that cannot deploy" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(App::DeployAvailability).not_to receive(:configured?)
+
+      expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
+    end
+
+    it "does not read preview config for jobs that cannot start previews" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(App::PreviewAvailability).not_to receive(:configured?)
+
+      expect(payload_for(job).dig(:actions, :can_start_preview)).to be(false)
+    end
+
     it "is true for a closed job that landed, when configured" do
       write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
       job = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")

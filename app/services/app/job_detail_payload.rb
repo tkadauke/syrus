@@ -843,8 +843,8 @@ module App
         can_open_in_coding_mode: Feature.coding_mode_enabled? &&
           (@job.implemented? || @job.approved?) &&
           @job.branch_name.present?,
-        can_start_preview: preview_provider_configured? && @job.previewable?,
-        can_deploy: deploy_configured? && @job.deployable?,
+        can_start_preview: @job.previewable? && preview_provider_configured?,
+        can_deploy: @job.deployable? && deploy_configured?,
         can_run_visual_review: visual_review_enabled && (@job.implemented? || @job.approved?) && !active_runtime_work,
         can_run_visual_diff: visual_review_enabled && (@job.implemented? || @job.approved? || @job.landing?) && !active_runtime_work && visual_diff_available?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
