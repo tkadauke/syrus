@@ -47,7 +47,7 @@ RSpec.describe "bin/test-react" do
     )
   end
 
-  it "defaults Vitest to two workers for shared grader hosts" do
+  it "typechecks before running Vitest with two workers for shared grader hosts" do
     Dir.mktmpdir do |dir|
       mark_node_modules_fresh(dir)
 
@@ -55,8 +55,39 @@ RSpec.describe "bin/test-react" do
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
 
       expect(File.read(File.join(dir, "npx-calls.log"))).to include("vitest run --coverage --maxWorkers 2")
+      expect(File.read(File.join(dir, "npm-calls.log"))).to eq("run typecheck\n")
+    end
+  end
+
+  it "does not run Vitest when typecheck fails" do
+    Dir.mktmpdir do |dir|
+      mark_node_modules_fresh(dir)
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      FileUtils.cp(script, File.join(bin_dir, "test-react"))
+
+      write_stub(File.join(bin_dir, "npx"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\\n' "$*" >> npx-calls.log
+      BASH
+
+      write_stub(File.join(bin_dir, "npm"), <<~BASH)
+        #!/usr/bin/env bash
+        printf '%s\\n' "$*" >> npm-calls.log
+        exit 9
+      BASH
+
+      stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch('PATH')}", "HOME" => ENV.fetch("HOME") },
+        "bash",
+        File.join(bin_dir, "test-react"),
+        chdir: dir,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(9), "expected typecheck failure, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(File.read(File.join(dir, "npm-calls.log"))).to include("run typecheck")
-      expect(File.read(File.join(dir, "npm-calls.log"))).to include("run lint")
+      expect(File.exist?(File.join(dir, "npx-calls.log"))).to be(false)
     end
   end
 
