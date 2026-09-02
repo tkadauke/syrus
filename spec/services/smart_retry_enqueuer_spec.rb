@@ -180,6 +180,29 @@ RSpec.describe SmartRetryEnqueuer do
     expect(step.reload).to be_failed
   end
 
+  it "retries transient pr_open failures in place" do
+    job, workflow, step, run = failed_job(step_kind: "pr_open")
+    run.create_run_failure_classification!(
+      classification: "provider_transient",
+      confidence: 0.95,
+      retryable: true,
+      reason: "GitHub returned a transient 502 while creating the pull request.",
+      classified_at: Time.current
+    )
+
+    expect {
+      result = described_class.call(job: job, automatic: true)
+
+      expect(result).to be_success
+      expect(result.action).to eq(:failed_step)
+      expect(result.workflow).to eq(workflow)
+    }.to have_enqueued_job(RunJob)
+
+    expect(workflow.reload).to be_running
+    expect(step.reload).to be_queued
+    expect(step.runs.last).to be_queued
+  end
+
   it "skips active runs and provider circuits with explicit reasons" do
     active_job, = failed_job
     active_job.latest_workflow.steps.first.runs.create!(

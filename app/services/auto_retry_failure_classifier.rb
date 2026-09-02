@@ -28,6 +28,9 @@ class AutoRetryFailureClassifier
     Net::ReadTimeout
     Faraday::TimeoutError
     Faraday::ConnectionFailed
+    Octokit::BadGateway
+    Octokit::InternalServerError
+    Octokit::ServiceUnavailable
     Octokit::TooManyRequests
     Octokit::ServerError
     Steps::Base::AgentGaveUpWaiting
