@@ -681,8 +681,7 @@ module App
     end
 
     def feedback_history_json
-      artifact_workflows
-        .select { |workflow| Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind) }
+      artifact_workflows_matching(trigger_kinds: Workflow::TriggerKind.feedback_values)
         .filter_map do |workflow|
           feedback_entry_for(workflow)
         end
