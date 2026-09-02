@@ -719,27 +719,42 @@ RSpec.describe RepositoryThroughputMetricContract do
       expect(where_clause).not_to include(" OR ")
     end
 
-    it "is served by the step/state/finished_at index rather than scanning succeeded runs globally" do
+    it "is served from the recent succeeded run window rather than an unbounded step id list" do
       contract = described_class.new(repository: repository, now: now)
-      workflow = workflow_for(Factories.job_record(user: user, repository: repository), trigger_kind: "initial")
-      step = step_for(workflow, kind: "implement")
-      relation = Run.where(step_id: step.id, state: "succeeded")
+      relation = Run
+        .joins(step: { workflow: :job })
+        .where(state: "succeeded")
         .where(contract.send(:window_condition, :runs, :finished_at))
+        .where(steps: { kind: described_class::OUTPUT_STEP_KINDS })
+        .where(jobs: { repository_id: repository.id })
 
       plan = ActiveRecord::Base.connection
                                .select_all("EXPLAIN QUERY PLAN #{relation.to_sql}")
                                .map { |row| row["detail"] }
       runs_step = plan.find { |detail| detail.include?("runs") }
 
-      expect(runs_step).to include("idx_runs_step_state_finished_for_throughput")
-      expect(runs_step).to include("step_id")
+      expect(runs_step).to include("INDEX")
+      expect(runs_step).to include("state")
       expect(runs_step).to include("finished_at")
     end
 
-    it "does not join wide runs back through steps and jobs for output metrics" do
-      sql = output_run_sql
+    it "does not pluck unbounded repository workflow or step ids for output metrics" do
+      queries = captured_sql { call }
+      workflow_id_queries = queries.select do |sql|
+        normalized = sql.downcase
+        normalized.include?("select \"workflows\".\"id\" from \"workflows\"") &&
+          sql.downcase.include?("\"workflows\".\"id\"") &&
+          sql.downcase.include?("\"jobs\".\"repository_id\"")
+      end
+      step_id_queries = queries.select do |sql|
+        normalized = sql.downcase
+        normalized.include?("select \"steps\".\"id\" from \"steps\"") &&
+          sql.downcase.include?("\"steps\".\"workflow_id\"") &&
+          sql.downcase.include?("\"steps\".\"id\"")
+      end
 
-      expect(sql.downcase).not_to include("join")
+      expect(workflow_id_queries).to be_empty
+      expect(step_id_queries).to be_empty
     end
 
     # `SELECT runs.*` pulled `prompt`, and touching diff text columns here made

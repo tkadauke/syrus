@@ -758,23 +758,15 @@ class RepositoryThroughputMetricContract
   ].freeze
 
   def output_runs
-    @output_runs ||= begin
-      output_step_ids.each_slice(OUTPUT_RUN_BATCH_SIZE).flat_map do |step_ids|
-        Run.where(step_id: step_ids, state: "succeeded")
-          .where(window_condition(:runs, :finished_at))
-          .select(*OUTPUT_RUN_COLUMNS)
-          .preload(:job)
-          .to_a
-      end
-    end
-  end
-
-  def output_step_ids
-    @output_step_ids ||= Step.where(workflow_id: throughput_workflow_ids, kind: OUTPUT_STEP_KINDS).pluck(:id)
-  end
-
-  def throughput_workflow_ids
-    @throughput_workflow_ids ||= Workflow.joins(:job).where(jobs: { repository_id: repository.id }).pluck(:id)
+    @output_runs ||= Run
+      .joins(step: { workflow: :job })
+      .where(state: "succeeded")
+      .where(window_condition(:runs, :finished_at))
+      .where(steps: { kind: OUTPUT_STEP_KINDS })
+      .where(jobs: { repository_id: repository.id })
+      .select(*OUTPUT_RUN_COLUMNS)
+      .preload(:job)
+      .to_a
   end
 
   def output_diff_for(run)
