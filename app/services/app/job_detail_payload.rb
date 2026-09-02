@@ -338,7 +338,17 @@ module App
     def job_has_active_run?
       return @job_has_active_run if defined?(@job_has_active_run)
 
-      @job_has_active_run = @job.runs.active.exists?
+      @job_has_active_run = job_active_run_states.any?
+    end
+
+    def job_active_run_states
+      return @job_active_run_states if defined?(@job_active_run_states)
+
+      @job_active_run_states = @job.runs
+        .where(state: Run::ACTIVE_STATES)
+        .reorder(nil)
+        .distinct
+        .pluck(:state)
     end
 
     def active_work_units_for_job
@@ -1099,11 +1109,15 @@ module App
 
     def job_start_blocked_data
       @job_start_blocked_data ||= begin
-        work_unit_data = WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
+        work_unit_data = job_work_unit_blocked_data
         return work_unit_data if work_unit_data[:reason].present?
 
         workflow_for_start_blocked ? WorkUnits::StartBlock.for(workflow_for_start_blocked).data : {}
       end
+    end
+
+    def job_work_unit_blocked_data
+      @job_work_unit_blocked_data ||= WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
     end
 
     def summary_state(job)
@@ -1120,7 +1134,7 @@ module App
 
     def job_apparently_paused?(job)
       return false if job_running_runtime_work?
-      return true if WorkUnits::Ownership.blocked_for_job?(job)
+      return true if job_work_unit_blocked_data[:reason].present?
       return false if job_has_active_runtime_work?
 
       workflow = job.latest_workflow
@@ -1131,7 +1145,7 @@ module App
       return @job_running_runtime_work if defined?(@job_running_runtime_work)
 
       @job_running_runtime_work = PerformanceLogging.phase("job_detail.job.running_runtime_work", job_id: @job.id) do
-        @job.runs.where(state: "running").exists? || active_work_units_for_job.any?(&:running?)
+        job_active_run_states.include?("running") || active_work_units_for_job.any?(&:running?)
       end
     end
 

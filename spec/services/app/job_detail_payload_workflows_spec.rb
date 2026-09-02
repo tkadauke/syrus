@@ -124,6 +124,40 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(active_member_list_queries.size).to eq(1)
     end
 
+    it "reuses blocked WorkUnit data instead of issuing a separate blocked ownership probe" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "admission_control")
+
+      queries = capture_sql { payload_for(job) }
+      blocked_job_id_probes = queries.select do |sql|
+        sql.match?(/\ASELECT DISTINCT/i) &&
+          sql.match?(/work_unit_members/i) &&
+          sql.match?(/job_id/i) &&
+          sql.match?(/work_units/i) &&
+          sql.match?(/blocked/i)
+      end
+
+      expect(blocked_job_id_probes).to be_empty
+    end
+
+    it "shares one active Run state query between active and running runtime checks" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = workflow.steps.create!(kind: "implement", position: 1, state: "running")
+      step.runs.create!(job: job, trigger_kind: "initial", state: "running", agent_provider: "claude")
+
+      queries = capture_sql { payload_for(job) }
+      active_run_state_queries = queries.select do |sql|
+        sql.match?(/\ASELECT DISTINCT/i) &&
+          sql.match?(/FROM [`"]?runs[`"]?/i) &&
+          sql.match?(/state/i) &&
+          sql.match?(/job_id/i)
+      end
+
+      expect(active_run_state_queries.size).to eq(1)
+    end
+
     it "prefers running WorkUnit attempts over newer blocked attempts in the active work card" do
       job = Factories.job_record(user: user, repository: repo)
       running_workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", created_at: 5.minutes.ago)
