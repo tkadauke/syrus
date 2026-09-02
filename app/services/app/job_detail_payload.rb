@@ -271,20 +271,35 @@ module App
     end
 
     def job_runs_count
-      @job_runs_count ||= @job.runs.count
+      job_run_snapshot.fetch(:runs_count)
     end
 
     def job_cost_snapshot
-      count, total = Run.unscoped
-        .where(job_id: @job.id)
-        .where.not(cost_usd: nil)
-        .pick(Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(cost_usd), 0)"))
-      billed_runs_count = count.to_i
+      snapshot = job_run_snapshot
+      billed_runs_count = snapshot.fetch(:billed_runs_count)
 
       {
         billed_runs_count: billed_runs_count,
-        total_cost_usd: billed_runs_count.zero? ? nil : total.to_d
+        total_cost_usd: billed_runs_count.zero? ? nil : snapshot.fetch(:total_cost_usd)
       }
+    end
+
+    def job_run_snapshot
+      @job_run_snapshot ||= begin
+        runs_count, billed_runs_count, total = Run.unscoped
+          .where(job_id: @job.id)
+          .pick(
+            Arel.sql("COUNT(*)"),
+            Arel.sql("COUNT(cost_usd)"),
+            Arel.sql("COALESCE(SUM(cost_usd), 0)")
+          )
+
+        {
+          runs_count: runs_count.to_i,
+          billed_runs_count: billed_runs_count.to_i,
+          total_cost_usd: total.to_d
+        }
+      end
     end
 
     def payload_prepare_skip_reason
