@@ -2,6 +2,8 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe ChatWorkspacePrepareJob do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: user) }
@@ -74,6 +76,72 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(ChatWorkspace).to receive(:refresh_relay_credentials!).with(chat_session, repository)
 
     described_class.perform_now(chat_session.id, repository.id)
+  end
+
+  it "promotes a deferred goal continuation after successful prepare" do
+    chat_session.update!(repository: repository, mode: "coding")
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Keep implementing",
+      mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
+    )
+    make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [], source: ".syrus.yml", note: "opted out")
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+    chat_session.chat_queued_messages.create!(
+      content: {
+        "text" => "Goal continuation started.",
+        "internal_prompt" => "Continue with private goal context.",
+        "source" => "goal_continuation",
+        "goal_continuation" => true
+      }
+    )
+
+    expect {
+      described_class.perform_now(chat_session.id, repository.id)
+    }.to have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer))
+
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("succeeded")
+    expect(ChatMessage.where(chat_session: chat_session).last).to have_attributes(role: "system")
+  end
+
+  it "records a readiness notice without waking the agent when prepare fails before a goal continuation" do
+    chat_session.update!(repository: repository, mode: "coding")
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Keep implementing",
+      mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
+    )
+    make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [ "npm ci" ], source: ".syrus.yml", note: nil)
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+    runner_double = double("ProcessRunner", run: failure_result)
+    allow(ProcessRunner).to receive(:new).and_return(runner_double)
+    allow(Rails.logger).to receive(:error)
+    queued = chat_session.chat_queued_messages.create!(
+      content: {
+        "text" => "Goal continuation started.",
+        "internal_prompt" => "Continue with private goal context.",
+        "source" => "goal_continuation",
+        "goal_continuation" => true
+      }
+    )
+
+    expect {
+      described_class.perform_now(chat_session.id, repository.id)
+    }.not_to have_enqueued_job(ChatTurnJob)
+
+    expect(queued.reload.delivered_at).to be_nil
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("failed")
+    message = ChatMessage.where(chat_session: chat_session).last
+    expect(message.content).to include(
+      "source" => "coding_checkout_readiness",
+      "prepare_status" => "failed"
+    )
   end
 
   it "runs each prep command with a scrubbed env, bash wrapper, and 10-minute timeout" do

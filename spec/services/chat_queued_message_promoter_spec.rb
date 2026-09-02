@@ -101,6 +101,93 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(ChatMessage.where(chat_session: group_chat).last.role).to eq("system")
     end
 
+    it "defers coding goal continuations while checkout prep is queued" do
+      repository = Factories.repository(user: user)
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "queued")
+      ChatGoal.create!(
+        chat_session: chat,
+        user: user,
+        repository: repository,
+        prompt: "Keep implementing",
+        mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
+      )
+      queued = chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "queued")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be false
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(queued.reload.delivered_at).to be_nil
+      expect(ChatMessage.where(chat_session: chat)).to be_empty
+    end
+
+    it "promotes coding goal continuations when checkout prep has succeeded" do
+      repository = Factories.repository(user: user)
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "succeeded")
+      ChatGoal.create!(
+        chat_session: chat,
+        user: user,
+        repository: repository,
+        prompt: "Keep implementing",
+        mode_snapshot: { "mode" => "coding", "repository_id" => repository.id }
+      )
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "succeeded")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(ChatMessage.where(chat_session: chat).last.role).to eq("system")
+      expect(chat.reload).to be_turn_in_flight
+    end
+
+    it "does not gate local goal continuations on a server-side coding checkout" do
+      repository = Factories.repository(user: user)
+      chat.update!(repository: repository, mode: "local")
+      ChatGoal.create!(
+        chat_session: chat,
+        user: user,
+        repository: repository,
+        prompt: "Keep implementing locally",
+        mode_snapshot: { "mode" => "local", "repository_id" => repository.id }
+      )
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+
+      expect(ChatWorkspace).not_to receive(:coding_checkout_snapshot)
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(ChatMessage.where(chat_session: chat).last.role).to eq("system")
+    end
+
     it "preserves attachments when promoting a queued message" do
       attachment = { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc123" }
       chat.chat_queued_messages.create!(content: { "text" => "", "attachments" => [ attachment ] })
