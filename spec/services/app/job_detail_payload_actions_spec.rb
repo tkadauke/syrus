@@ -70,6 +70,10 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload.dig(:actions, :can_start)).to be(false)
       expect(payload.dig(:actions, :can_release_from_backlog)).to be(true)
+      expect(payload.dig(:actions, :can_cancel)).to be(false)
+      expect(payload.dig(:actions, :can_approve)).to be(false)
+      expect(payload.dig(:actions, :can_check_mergeability)).to be(false)
+      expect(payload.dig(:actions, :can_rebase)).to be(false)
       expect(payload.dig(:paths, :app_release_from_backlog_path)).to eq("/api/v1/app/jobs/#{job.id}/release_from_backlog")
     end
 
@@ -90,6 +94,29 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload.dig(:actions, :can_start)).to be(false)
       expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
+    end
+
+    it "does not expose mutating backlog actions to read-only repository members" do
+      user
+      reader = Factories.user(admin: false)
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+
+      payload = described_class.build(job: job, user: reader)
+
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
+      expect(payload.dig(:actions, :can_move_to_backlog)).to be(false)
+      expect(payload.dig(:actions, :can_claim)).to be(false)
+      expect(payload.dig(:actions, :can_unclaim)).to be(false)
+      expect(payload.dig(:actions, :can_manage_tags)).to be(false)
     end
   end
 
