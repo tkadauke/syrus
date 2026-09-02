@@ -794,35 +794,44 @@ module App
     end
 
     def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
-      cache_key = [
-        keys.map(&:to_s).sort,
-        Array(states).presence&.map(&:to_s)&.sort,
-        Array(trigger_kinds).presence&.map(&:to_s)&.sort,
-        order.to_a
-      ]
-      artifact_workflows_cache.fetch(cache_key) do
-        workflows = artifact_workflows_scope_for(keys: keys, states: states, trigger_kinds: trigger_kinds, order: order).to_a
-        artifact_workflows_cache[cache_key] = workflows.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) }
-      end
+      workflows = artifact_workflows_cache.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) }
+      workflows = workflows.select { |workflow| Array(states).map(&:to_s).include?(workflow.state) } if states.present?
+      workflows = workflows.select { |workflow| Array(trigger_kinds).map(&:to_s).include?(workflow.trigger_kind) } if trigger_kinds.present?
+      sort_artifact_workflows(workflows, order)
     end
 
     def artifact_workflows_cache
-      @artifact_workflows_cache ||= {}
+      @artifact_workflows_cache ||= artifact_workflows_scope.to_a
     end
 
-    def artifact_workflows_scope_for(keys:, states:, trigger_kinds:, order:)
-      scope = @job.workflows
+    def artifact_workflows_scope
+      @job.workflows
         .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
         .where.not(artifacts: [ nil, "", "{}" ])
+        .reorder(created_at: :asc, id: :asc)
+    end
 
-      scope = scope.where(state: states) if states.present?
-      scope = scope.where(trigger_kind: trigger_kinds) if trigger_kinds.present?
-      keys.map(&:to_s).each do |key|
-        escaped_key = ActiveRecord::Base.sanitize_sql_like(key)
-        scope = scope.where("workflows.artifacts LIKE ? ESCAPE '\\'", "%\"#{escaped_key}\"%")
+    def sort_artifact_workflows(workflows, order)
+      workflows.sort do |left, right|
+        result = 0
+        order.each do |attribute, direction|
+          comparison = compare_artifact_workflow_values(left.public_send(attribute), right.public_send(attribute))
+          comparison = -comparison if direction.to_s == "desc"
+          unless comparison.zero?
+            result = comparison
+            break
+          end
+        end
+        result
       end
+    end
 
-      scope.reorder(order)
+    def compare_artifact_workflow_values(left, right)
+      left ||= 0
+      right ||= 0
+      left = left.to_i if left.respond_to?(:to_i)
+      right = right.to_i if right.respond_to?(:to_i)
+      left <=> right
     end
 
     def artifact_workflow_matches_keys?(workflow, keys)

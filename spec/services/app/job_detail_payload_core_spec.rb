@@ -490,8 +490,10 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         "message" => "No PR was opened because the workflow made no effective changes.",
         "base_branch" => "syrus/direct-parent"
       )
-      no_pr_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
-      expect(no_pr_queries).not_to be_empty
+      artifact_queries = queries.grep(/FROM ["`]?workflows["`]?.*["`]?artifacts["`]?/im)
+      expect(artifact_queries).not_to be_empty
+      expect(artifact_queries).to all(match(/WHERE/i))
+      expect(artifact_queries.grep(/artifacts LIKE/im)).to be_empty
     end
   end
 
@@ -758,7 +760,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
-    it "does not scan every workflow artifact blob when building the detail payload" do
+    it "loads artifact-bearing workflow blobs once when building the detail payload" do
       job = Factories.job_record(repository: repo)
       10.times do |index|
         Workflow.create!(
@@ -785,17 +787,13 @@ RSpec.describe App::JobDetailPayload, :ci_only do
           sql.match?(/FROM [`"]?workflows[`"]?/i)
       end
 
-      expect(artifact_selects).not_to be_empty
-      targeted_artifact_selects = artifact_selects.select do |sql|
-        sql.match?(/[`"]?workflows[`"]?\.[`"]?artifacts[`"]? LIKE/i)
-      end
-      broad_artifact_selects = artifact_selects - targeted_artifact_selects
-
-      expect(targeted_artifact_selects).not_to be_empty
-      expect(broad_artifact_selects).to all(match(/trigger_kind/i))
+      expect(artifact_selects.size).to eq(1)
+      expect(artifact_selects).to all(match(/WHERE/i))
+      expect(artifact_selects).to all(match(/NOT/i))
+      expect(artifact_selects).to all(satisfy { |sql| !sql.match?(/artifacts[`"]? LIKE/i) })
     end
 
-    it "builds feedback history from targeted feedback artifact keys only" do
+    it "builds feedback history without key-specific artifact scans" do
       job = Factories.job_record(repository: repo)
       Workflow.create!(
         job: job,
@@ -825,11 +823,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         sql.match?(/SELECT .*[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/im) &&
           sql.match?(/FROM [`"]?workflows[`"]?/i)
       end
-      feedback_artifact_selects = artifact_selects.select { |sql| sql.match?(/trigger_kind/i) && sql.match?(/artifacts[`"]? LIKE/i) }
-
-      expect(feedback_artifact_selects.size).to be >= 2
-      expect(feedback_artifact_selects.last(2)).to all(match(/"workflows"\."trigger_kind" = \?/))
-      expect(feedback_artifact_selects.last(2)).to all(match(/artifacts[`"]? LIKE \?/i))
+      expect(artifact_selects.size).to eq(1)
+      expect(artifact_selects).to all(satisfy { |sql| !sql.match?(/artifacts[`"]? LIKE/i) })
     end
   end
 
