@@ -31,6 +31,17 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
   def parse_body = JSON.parse(response.body)
   def app_job_chat_feedback_path(job_record) = "/api/v1/app/jobs/#{job_record.id}/chat_feedback"
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql.squish unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
 
   def serialized_workflows(body)
     workflows = body.fetch("workflows", []) + body.fetch("work_units", []).filter_map { |unit| unit["workflow"] }
@@ -494,6 +505,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body["workflows"]).to eq([])
     expect(body["work_units"]).to eq([])
     expect(body.dig("workflows_pagination", "total_workflows")).to eq(1)
+  end
+
+  it "does not load blank historical workflow artifacts on the default job detail payload" do
+    3.times do
+      Workflow.create!(job: job, trigger_kind: "retry", state: "failed", artifacts: {})
+    end
+    Workflow.create!(job: job, trigger_kind: "retry", state: "succeeded", artifacts: { "summary" => "Done" })
+
+    queries = capture_sql do
+      get "/api/v1/app/jobs/#{job.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    workflow_artifact_queries = queries.grep(/SELECT .*["`]?workflows["`]?.*["`]?artifacts["`]?/i)
+    expect(workflow_artifact_queries).not_to be_empty
+    expect(workflow_artifact_queries).to all(include("artifacts"))
+    expect(workflow_artifact_queries).to all(match(/NOT/i))
   end
 
   it "returns active work from the current WorkUnit without loading the workflow graph" do

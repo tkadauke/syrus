@@ -715,6 +715,7 @@ module App
     def artifact_workflows
       @artifact_workflows ||= @job.workflows
         .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .where.not(artifacts: [ nil, "", "{}" ])
         .reorder(created_at: :asc, id: :asc)
         .to_a
     end
