@@ -100,13 +100,14 @@ class CodexInvocation
     codex_home = codex_home.presence || File.join(Dir.home, ".codex")
     startup_timing.measure("codex_home_prepare") { FileUtils.mkdir_p(codex_home) }
     startup_timing.measure("config_write") { write_config(codex_home, mcp_servers || mcp_server, model) }
-    startup_timing.measure("transcript_restore", resume: resume_session_id.present?) do
+    restored_resume = startup_timing.measure("transcript_restore", resume: resume_session_id.present?) do
       restore_resume_transcript(codex_home, resume_session_id, resume_transcript_jsonl, log_sink)
     end
+    effective_resume_session_id = restored_resume == :resume_unavailable ? nil : resume_session_id
 
     env = codex_env(api_key: api_key, codex_home: codex_home)
     cmd = codex_command(workspace_path: workspace_path,
-                        resume_session_id: resume_session_id)
+                        resume_session_id: effective_resume_session_id)
 
     metadata = {
       turns: nil,
@@ -169,7 +170,7 @@ class CodexInvocation
       metadata[:outcome] = "error"
       metadata[:final_text] = metadata[:startup_output]
     end
-    log_codex_resume_failure(resume_session_id, runner_result, metadata, log_sink)
+    log_codex_resume_failure(effective_resume_session_id, runner_result, metadata, log_sink)
 
     # Same cleanup-timeout guard as ClaudeInvocation: if the provider
     # already emitted a successful result, don't fail on cleanup timeouts.
@@ -484,7 +485,9 @@ class CodexInvocation
 
   def rollout_path_for(codex_home, session_id)
     return nil if session_id.blank?
-    Dir.glob(File.join(codex_home, "sessions", "**", "*#{session_id}.jsonl")).max_by { |path| File.mtime(path) }
+    return nil unless canonical_rollout_session_id?(session_id)
+
+    Dir.glob(File.join(codex_home, "sessions", "**", canonical_rollout_glob(session_id))).max_by { |path| File.mtime(path) }
   end
 
   def read_transcript(path)
@@ -496,6 +499,16 @@ class CodexInvocation
     return if session_id.blank?
     return if rollout_path_for(codex_home, session_id).present?
 
+    path = canonical_rollout_path_for(codex_home, session_id)
+    unless path
+      log_sink.call(
+        "[codex resume] could not derive a canonical rollout path for session #{session_id}; starting a fresh Codex session",
+        kind: "system"
+      )
+      return :resume_unavailable
+    end
+
+    jsonl = jsonl.presence || read_transcript(noncanonical_rollout_path_for(codex_home, session_id))
     if jsonl.blank?
       log_sink.call(
         "[codex resume] no stored rollout JSONL for session #{session_id}; provider resume may be rejected or incomplete",
@@ -504,10 +517,38 @@ class CodexInvocation
       return
     end
 
-    dir = File.join(codex_home, "sessions", Time.now.utc.strftime("%Y/%m/%d"))
+    dir = File.dirname(path)
     FileUtils.mkdir_p(dir)
-    path = File.join(dir, "rollout-restored-#{session_id}.jsonl")
     File.write(path, jsonl)
+    path
+  end
+
+  def canonical_rollout_path_for(codex_home, session_id, time: Time.now.utc)
+    return nil unless canonical_rollout_session_id?(session_id)
+
+    dir = File.join(codex_home, "sessions", time.strftime("%Y/%m/%d"))
+    filename = "rollout-#{time.strftime('%Y-%m-%dT%H-%M-%S')}-#{session_id}.jsonl"
+    File.join(dir, filename)
+  end
+
+  def canonical_rollout_glob(session_id)
+    "rollout-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-#{session_id}.jsonl"
+  end
+
+  def canonical_rollout_session_id?(session_id)
+    session_id.to_s.match?(/\A[A-Za-z0-9][A-Za-z0-9._-]{0,200}\z/)
+  end
+
+  def noncanonical_rollout_path_for(codex_home, session_id)
+    return nil unless canonical_rollout_session_id?(session_id)
+
+    Dir.glob(File.join(codex_home, "sessions", "**", "*#{session_id}.jsonl"))
+      .reject { |path| File.basename(path).match?(rollout_filename_regex(session_id)) }
+      .max_by { |path| File.mtime(path) }
+  end
+
+  def rollout_filename_regex(session_id)
+    /\Arollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-#{Regexp.escape(session_id)}\.jsonl\z/
   end
 
   def log_codex_resume_failure(session_id, runner_result, metadata, log_sink)

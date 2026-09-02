@@ -199,7 +199,7 @@ class RunFailureClassifier
   end
 
   def agent_resume_unavailable?
-    text_match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found/i)
+    text_match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename/i)
   end
 
   def merge_train_rebuild_required?

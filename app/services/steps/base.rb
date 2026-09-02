@@ -351,7 +351,7 @@ module Steps
         .order(sequence: :desc)
         .limit(25)
         .pluck(:chunk)
-        .any? { |chunk| chunk.to_s.match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found/i) }
+        .any? { |chunk| chunk.to_s.match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename/i) }
     end
 
     # Most recent successful Run among this Workflow's Steps of the given
