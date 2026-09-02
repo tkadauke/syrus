@@ -94,7 +94,14 @@ module Prompts
       summary = "  \u2717 #{name(entry)}"
       summary += " (#{parts.join(", ")})" if parts.any?
 
-      [ summary, render_output(entry, iteration, output) ].compact.join("\n")
+      [ summary, render_command(entry), render_output(entry, iteration, output) ].compact.join("\n")
+    end
+
+    def render_command(entry)
+      command = value(entry, :command).to_s.presence
+      return nil unless command
+
+      indent("Command: #{command}", by: 4)
     end
 
     def render_output(entry, iteration, output)

@@ -29,14 +29,17 @@ RSpec.describe Steps::PreflightGraderCollect do
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
 
-  def create_preflight_grader(name:, required:, state:)
+  def create_preflight_grader(name:, required:, state:, details: {})
     Step.create!(
       workflow: workflow,
       kind: "preflight_grader",
       position: 101,
       iteration: 1,
       state: state,
-      details: { "name" => name, "required" => required }
+      details: {
+        "name" => name,
+        "required" => required
+      }.merge(details)
     )
   end
 
@@ -119,6 +122,41 @@ RSpec.describe Steps::PreflightGraderCollect do
       log_text = run.reload.job_logs.pluck(:chunk).join
       expect(log_text).to include("rspec")
       expect(log_text).to include("proceeding to implement")
+    end
+
+    it "records failed preflight command context for the implement prompt" do
+      workflow.steps.where(kind: "preflight_grader").delete_all
+      create_preflight_grader(
+        name: "rspec-ci",
+        required: true,
+        state: "failed",
+        details: {
+          "command" => "bin/rspec-ci",
+          "exit_code" => 1,
+          "duration_s" => 12.3,
+          "timed_out" => false,
+          "log_path" => ".syrus/grade-output/preflight/rspec-ci.log",
+          "log_bytes" => 2048,
+          "output" => "expected: true\n     got: false\n"
+        }
+      )
+
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_failures")).to eq([
+        {
+          "name" => "rspec-ci",
+          "command" => "bin/rspec-ci",
+          "required" => true,
+          "status" => "failed",
+          "exit_code" => 1,
+          "duration_s" => 12.3,
+          "timed_out" => false,
+          "log_path" => ".syrus/grade-output/preflight/rspec-ci.log",
+          "log_bytes" => 2048,
+          "output" => "expected: true\n     got: false\n"
+        }
+      ])
     end
   end
 
