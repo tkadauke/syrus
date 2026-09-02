@@ -2,7 +2,7 @@ import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, ExternalPrBadge,
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
-import { dashboardEmptyState, subjectLabel, withRoutePrefix } from "./helpers"
+import { dashboardEmptyState, humanizeOption, subjectLabel, withRoutePrefix } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent } from "react"
 import { useEffect, useState } from "react"
@@ -13,7 +13,8 @@ import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { NoticeToast } from "../../components/NoticeToast"
 import { Button } from "../../components/Button"
-import { fetchDashboardRows, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
+import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { fetchDashboardRows, releaseDashboardJob, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
 
 
@@ -224,28 +225,7 @@ function KanbanLane({
 function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardItem; onDragEnd: () => void; onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (item.type === "job") {
-    return (
-      <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
-        <div className="flex items-start justify-between gap-1">
-          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
-          {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
-          {item.state === "queued" && item.start_blocked_reason ? (
-            <StartBlockedReasonPill count={item.start_blocked_count} details={item.start_blocked_details} nextCheckAt={item.start_blocked_next_check_at} reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
-          ) : null}
-          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
-          <OwnerBadge badge={item.owner_badge} />
-          {item.pr_number ? (
-            <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
-              <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
-            </PrHoverCard>
-          ) : null}
-          <ExternalPrBadge external={item.pr_is_external} />
-        </div>
-      </article>
-    )
+    return <JobKanbanCard item={item} prefix={prefix} />
   }
 
   if (item.type === "workflow") {
@@ -285,6 +265,59 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         </div>
       </div>
       <EpicProgressBar epic={item} fullWidth />
+    </article>
+  )
+}
+
+function JobKanbanCard({ item, prefix }: { item: DashboardJobItem; prefix: string }) {
+  const { t } = useT("dashboard")
+  const queryClient = useQueryClient()
+  const [notice, setNotice] = useState<string | null>(null)
+  const release = useMutation({
+    mutationFn: () => {
+      if (!item.paths.app_release_from_backlog_path) throw new Error(t("bulk_action_error"))
+
+      return releaseDashboardJob(item.paths.app_release_from_backlog_path)
+    },
+    onSuccess: (payload) => {
+      setNotice(payload.message ?? "Released from backlog.")
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+    }
+  })
+  const dependencyCount = item.dependencies?.length ?? 0
+  const unsatisfiedCount = item.unsatisfied_dependencies?.length ?? 0
+
+  return (
+    <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
+      <div className="flex items-start justify-between gap-1">
+        <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+        {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
+        {item.state === "queued" && item.start_blocked_reason ? (
+          <StartBlockedReasonPill count={item.start_blocked_count} details={item.start_blocked_details} nextCheckAt={item.start_blocked_next_check_at} reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
+        ) : null}
+        <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
+        <OwnerBadge badge={item.owner_badge} />
+        {item.priority ? <TonePill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : item.priority === "low" ? "blue" : "gray"}>{humanizeOption(item.priority)}</TonePill> : null}
+        {item.kind ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">{humanizeOption(item.kind)}</span> : null}
+        {item.created_at ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300"><RelativeTimestamp value={item.created_at} /></span> : null}
+        {dependencyCount > 0 ? <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300">{unsatisfiedCount > 0 ? `${unsatisfiedCount}/${dependencyCount} deps blocked` : `${dependencyCount} deps clear`}</span> : null}
+        {item.pr_number ? (
+          <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
+            <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
+          </PrHoverCard>
+        ) : null}
+        <ExternalPrBadge external={item.pr_is_external} />
+      </div>
+      {item.can_release_from_backlog && item.paths.app_release_from_backlog_path ? (
+        <div className="mt-3">
+          <Button disabled={release.isPending} onClick={() => release.mutate()} size="sm" variant="primary">{t("release_from_backlog")}</Button>
+          <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+          {release.isError ? <div className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(release.error, t("bulk_action_error"))}</div> : null}
+        </div>
+      ) : null}
     </article>
   )
 }

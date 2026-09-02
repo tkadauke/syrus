@@ -98,6 +98,7 @@ RSpec.describe Filters::Schema do
       expect(labels["open"]).to eq("Any open")
       expect(labels["closed"]).to eq("Closed or merged")
       # Individual AASM states pass through humanize_value.
+      expect(labels["backlog"]).to eq("Backlog")
       expect(labels["triaging"]).to eq("Triaging")
       expect(labels["blocked_by_epic"]).to eq("Blocked by epic")
       expect(labels["queued"]).to eq("Queued")
