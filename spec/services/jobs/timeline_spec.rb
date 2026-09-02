@@ -5,6 +5,17 @@ RSpec.describe Jobs::Timeline do
 
   def titles_of(events) = events.map(&:title)
   def sources_of(events) = events.map(&:source)
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
 
   describe ".for" do
     it "returns chronologically-sorted events derived from StateTransition + record creation timestamps" do
@@ -96,6 +107,26 @@ RSpec.describe Jobs::Timeline do
       expect(run_event.ref[:run_id]).to eq(run.id)
       expect(run_event.ref[:workflow_id]).to be_present
       expect(run_event.ref[:step_id]).to be_present
+    end
+
+    it "preloads transition labels and refs instead of querying per transition subject" do
+      workflow = job.latest_workflow
+      steps = 4.times.map do |index|
+        step = workflow.steps.create!(kind: "grader", position: index + 2, state: "queued")
+        run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "queued")
+        step.start!; step.succeed!
+        run.start!; run.succeed!
+        step.save!
+        run.save!
+        step
+      end
+
+      queries = capture_sql { @events = described_class.for(job) }
+
+      expect(@events.map(&:title)).to include(*steps.map { |step| "Step #{step.kind} succeeded" })
+      expect(queries.grep(/FROM ["`]?steps["`]? WHERE ["`]?steps["`]?\.["`]?id["`]? =/i)).to be_empty
+      expect(queries.grep(/FROM ["`]?runs["`]? WHERE ["`]?runs["`]?\.["`]?id["`]? =/i)).to be_empty
+      expect(queries.grep(/FROM ["`]?workflows["`]? WHERE ["`]?workflows["`]?\.["`]?id["`]? =/i)).to be_empty
     end
 
     it "includes failure classification and auto-retry scheduling decisions" do

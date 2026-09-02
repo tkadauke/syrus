@@ -51,7 +51,7 @@ module Jobs
     def creation_events
       events = []
 
-      @job.workflows.order(:created_at).each do |wf|
+      workflows_for_timeline.order(:created_at).each do |wf|
         events << Event.new(
           at: wf.created_at, kind: :info, source: "workflow",
           transition_source: nil,
@@ -61,13 +61,13 @@ module Jobs
         )
       end
 
-      Run.where(job_id: @job.id).order(:created_at).each do |run|
+      runs_for_timeline.order(:created_at).each do |run|
         events << Event.new(
           at: run.created_at, kind: :info, source: "run",
           transition_source: nil,
           title: "Run ##{run.id} created (#{run.trigger_kind})",
           detail: nil,
-          ref: { workflow_id: run.step&.workflow_id, step_id: run.step_id, run_id: run.id }
+          ref: { workflow_id: step_for(run.step_id)&.workflow_id, step_id: run.step_id, run_id: run.id }
         )
       end
 
@@ -141,7 +141,7 @@ module Jobs
     end
 
     def retry_log_events
-      run_ids = Run.where(job_id: @job.id).pluck(:id)
+      run_ids = timeline_run_ids
       return [] if run_ids.empty?
 
       JobLog.where(run_id: run_ids, kind: "system")
@@ -149,7 +149,7 @@ module Jobs
                    "%classification%", "%auto-retry%", "%retry scheduled%", "%circuit%")
             .order(:created_at, :sequence)
             .map do |log|
-        run = log.run
+        run = run_for(log.run_id)
         Event.new(
           at: log.created_at,
           kind: :info,
@@ -157,7 +157,7 @@ module Jobs
           transition_source: "system",
           title: "Retry decision recorded",
           detail: log.chunk.to_s.truncate(240),
-          ref: { workflow_id: run.step&.workflow_id, step_id: run.step_id, run_id: run.id }
+          ref: { workflow_id: step_for(run&.step_id)&.workflow_id, step_id: run&.step_id, run_id: run&.id }
         )
       end
     end
@@ -172,9 +172,9 @@ module Jobs
 
     def fetch_transitions
       job_id = @job.id
-      workflow_ids = @job.workflows.pluck(:id)
-      step_ids = Step.where(workflow_id: workflow_ids).pluck(:id)
-      run_ids = Run.where(job_id: job_id).pluck(:id)
+      workflow_ids = timeline_workflow_ids
+      step_ids = timeline_step_ids
+      run_ids = timeline_run_ids
 
       scope = StateTransition.where(
         "(subject_type = 'Job' AND subject_id = :job_id) OR " \
@@ -210,11 +210,11 @@ module Jobs
       when "Job"      then { job_id: t.subject_id }
       when "Workflow" then { workflow_id: t.subject_id }
       when "Step"
-        step = Step.find_by(id: t.subject_id)
+        step = step_for(t.subject_id)
         { workflow_id: step&.workflow_id, step_id: t.subject_id }
       when "Run"
-        run = Run.find_by(id: t.subject_id)
-        { workflow_id: run&.step&.workflow_id, step_id: run&.step_id, run_id: t.subject_id }
+        run = run_for(t.subject_id)
+        { workflow_id: step_for(run&.step_id)&.workflow_id, step_id: run&.step_id, run_id: t.subject_id }
       else
         {}
       end
@@ -230,11 +230,11 @@ module Jobs
         # verbs, so render Job transitions as explicit state moves.
         "Job state #{t.from_state} → #{t.to_state}"
       when "Workflow"
-        slug = Workflow.find_by(id: t.subject_id)&.slug || "WF-#{t.subject_id}"
+        slug = workflow_for(t.subject_id)&.slug || "WF-#{t.subject_id}"
         verb ? "#{slug} #{verb}" :
                "#{slug} #{t.from_state} → #{t.to_state}"
       when "Step"
-        step = Step.find_by(id: t.subject_id)
+        step = step_for(t.subject_id)
         kind = step&.kind || "?"
         verb ? "Step #{kind} #{verb}" : "Step #{kind} #{t.from_state} → #{t.to_state}"
       when "Run"
@@ -264,7 +264,7 @@ module Jobs
       bits << t.event_name if t.event_name.present?
 
       if t.subject_type == "Run" && Run::TERMINAL_STATES.include?(t.to_state)
-        run = Run.find_by(id: t.subject_id)
+        run = run_for(t.subject_id)
         if run
           bits << "outcome=#{run.agent_outcome}" if run.agent_outcome.present?
           bits << "turns=#{run.agent_turns}" if run.agent_turns
@@ -361,6 +361,61 @@ module Jobs
       return "#{seconds}s" if seconds < 60
       mins = seconds / 60
       "#{mins}m#{(seconds % 60).to_s.rjust(2, '0')}s"
+    end
+
+    def workflows_for_timeline
+      @workflows_for_timeline ||= @job.workflows.select(:id, :job_id, :trigger_kind, :created_at)
+    end
+
+    def runs_for_timeline
+      @runs_for_timeline ||= Run
+        .where(job_id: @job.id)
+        .select(
+          :id, :job_id, :step_id, :trigger_kind, :agent_outcome,
+          :agent_turns, :started_at, :finished_at, :created_at
+        )
+    end
+
+    def timeline_workflow_ids
+      @timeline_workflow_ids ||= workflows_for_timeline.pluck(:id)
+    end
+
+    def timeline_step_ids
+      @timeline_step_ids ||= Step.where(workflow_id: timeline_workflow_ids).pluck(:id)
+    end
+
+    def timeline_run_ids
+      @timeline_run_ids ||= runs_for_timeline.pluck(:id)
+    end
+
+    def workflow_for(id)
+      return if id.blank?
+
+      workflows_by_id[id.to_i]
+    end
+
+    def step_for(id)
+      return if id.blank?
+
+      steps_by_id[id.to_i]
+    end
+
+    def run_for(id)
+      return if id.blank?
+
+      runs_by_id[id.to_i]
+    end
+
+    def workflows_by_id
+      @workflows_by_id ||= workflows_for_timeline.index_by(&:id)
+    end
+
+    def steps_by_id
+      @steps_by_id ||= Step.where(id: timeline_step_ids).select(:id, :workflow_id, :kind).index_by(&:id)
+    end
+
+    def runs_by_id
+      @runs_by_id ||= runs_for_timeline.index_by(&:id)
     end
   end
 end
