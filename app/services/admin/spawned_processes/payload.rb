@@ -26,7 +26,7 @@ module Admin
             processes: PerformanceLogging.phase("admin_processes.serialize_processes") {
               processes.map { |process| serialize(process) }
             },
-            running_total: PerformanceLogging.phase("admin_processes.running_total") { SpawnedProcess.running.count },
+            running_total: PerformanceLogging.phase("admin_processes.running_total") { spawned_process_counts.fetch(:running) },
             active_smart_folder_id: active_folder&.id,
             smart_folders: PerformanceLogging.phase("admin_processes.smart_folders") { smart_folders(base_scope, active_folder) }
           }

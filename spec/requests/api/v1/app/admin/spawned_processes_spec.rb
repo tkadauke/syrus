@@ -62,6 +62,30 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     )
   end
 
+  it "reuses the built-in process count for the running total" do
+    sign_in_as(admin)
+    fixture
+    payload_class = Class.new(Admin::SpawnedProcesses::Payload) do
+      class << self
+        attr_accessor :running_count_reads
+      end
+      self.running_count_reads = 0
+
+      private
+
+      def spawned_process_counts
+        self.class.running_count_reads += 1 unless instance_variable_defined?(:@spawned_process_counts)
+        super
+      end
+    end
+    stub_const("Admin::SpawnedProcesses::Payload", payload_class)
+
+    get "/api/v1/app/admin/processes"
+
+    expect(response).to have_http_status(:ok)
+    expect(payload_class.running_count_reads).to eq(1)
+  end
+
   it "shows the unfiltered active+recent view when the All folder is explicitly requested" do
     sign_in_as(admin)
     running = fixture
