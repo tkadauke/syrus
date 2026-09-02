@@ -191,6 +191,44 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     expect(PerformanceLogging::Store).not_to have_received(:flush!)
   end
 
+  it "does not aggregate current-revision summaries twice for the current revision view" do
+    sign_in_as(admin)
+    PerformanceLogging::Store.clear!
+    PerformanceLogEvent.delete_all
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+      "method" => "GET",
+      "path" => "/api/v1/app/dashboard",
+      "controller" => "Api::V1::App::DashboardController",
+      "action" => "show",
+      "duration_ms" => 3_000.0,
+      "sql_count" => 42,
+      "sql_duration_ms" => 2_200.0,
+      "occurred_at" => "2026-08-01T12:00:03Z",
+      "app_revision" => "new-sha"
+    )
+    payload_class = Class.new(SyrusDev::PerformancePayload) do
+      class << self
+        attr_accessor :summary_calls
+      end
+
+      self.summary_calls = 0
+
+      private
+
+      def summaries_payload(events)
+        self.class.summary_calls += 1
+        super
+      end
+    end
+    stub_const("SyrusDev::PerformancePayload", payload_class)
+
+    get "/api/v1/app/admin/performance"
+
+    expect(response).to have_http_status(:ok)
+    expect(payload_class.summary_calls).to eq(1)
+  end
+
   it "can include events from all app revisions" do
     sign_in_as(admin)
 

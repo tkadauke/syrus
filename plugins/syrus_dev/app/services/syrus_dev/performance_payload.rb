@@ -8,9 +8,10 @@ module SyrusDev
 
     def as_json(*)
       raw_events = PerformanceLogging::Store.recent(limit: limit)
-      events = filter_events(raw_events)
+      current_events = raw_events.select { |event| event["app_revision"] == current_revision }
+      events = revision_scope == "all" ? raw_events : current_events
       summaries = summaries_payload(events)
-      current_summaries = summaries_payload(raw_events.select { |event| event["app_revision"] == current_revision })
+      current_summaries = revision_scope == "all" ? summaries_payload(current_events) : summaries
       baseline_revision = previous_revision(raw_events)
       {
         enabled: Feature.enabled?(PerformanceLogging::FEATURE_SLUG),
@@ -41,12 +42,6 @@ module SyrusDev
         buffered: Observability::EventSink.stats.dig(:buffered, :performance).to_i,
         dropped: Observability::EventSink.stats.dig(:dropped, :performance).to_i
       }
-    end
-
-    def filter_events(events)
-      return events if revision_scope == "all"
-
-      events.select { |event| event["app_revision"] == current_revision }
     end
 
     def revision_scope
