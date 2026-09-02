@@ -915,4 +915,64 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(test_run_queries).to all(satisfy { |sql| !sql.match?(/ORDER BY/i) })
     end
   end
+
+  describe "#preview_env_json" do
+    it "returns the newest active preview before newer terminal previews with one preview query" do
+      job = Factories.job(user: user, repository: repo)
+      PreviewEnvironment.create!(
+        job: job,
+        state: "failed",
+        port: 20_100,
+        internal_host: "127.0.0.1",
+        workspace_path: "/tmp/preview-failed",
+        error_message: "boot failed",
+        created_at: 5.minutes.ago
+      )
+      active = PreviewEnvironment.create!(
+        job: job,
+        state: "running",
+        port: 20_101,
+        internal_host: "127.0.0.1",
+        workspace_path: "/tmp/preview-running",
+        expires_at: 5.minutes.from_now,
+        created_at: 10.minutes.ago
+      )
+
+      queries = capture_sql { @payload = payload_for(job) }
+      preview_queries = queries.grep(/FROM ["`]?preview_environments["`]?/i)
+
+      expect(@payload[:preview]).to include(
+        id: active.id,
+        state: "running"
+      )
+      expect(preview_queries.size).to eq(1)
+    end
+
+    it "falls back to the newest terminal preview when none are active" do
+      job = Factories.job(user: user, repository: repo)
+      older = PreviewEnvironment.create!(
+        job: job,
+        state: "stopped",
+        port: 20_100,
+        internal_host: "127.0.0.1",
+        workspace_path: "/tmp/preview-stopped",
+        created_at: 10.minutes.ago
+      )
+      newer = PreviewEnvironment.create!(
+        job: job,
+        state: "failed",
+        port: 20_101,
+        internal_host: "127.0.0.1",
+        workspace_path: "/tmp/preview-failed",
+        error_message: "boot failed",
+        created_at: 5.minutes.ago
+      )
+
+      expect(payload_for(job)[:preview]).to include(
+        id: newer.id,
+        state: "failed"
+      )
+      expect(payload_for(job)[:preview]).not_to include(id: older.id)
+    end
+  end
 end
