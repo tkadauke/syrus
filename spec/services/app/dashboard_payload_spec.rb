@@ -802,8 +802,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(result.dig(:landing_queue, :status)).to include(
         tone: "danger",
-        title: "Landing queue is stopped on #{job.slug}.",
-        summary: include("#{workflow.slug} failed: the workflow failed without a failed Step")
+        title: "Landing queue is wedged on #{job.slug}.",
+        summary: include("#{workflow.slug} is failed")
       )
     end
 
