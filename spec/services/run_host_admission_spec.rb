@@ -26,6 +26,19 @@ RSpec.describe RunHostAdmission do
     expect(decision.details.fetch("sample_health")).to include("level" => "critical")
   end
 
+  it "admits sticky resume work on a pressured host when no guarded run is active" do
+    worker_sample(io_pressure_some: 55.0)
+
+    decision = described_class.call(run: run, queue_name: "resume-storage-a")
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("host_capacity_available")
+    expect(decision.details).to include(
+      "queue_name" => "resume-storage-a",
+      "sticky_resume_queue" => true
+    )
+  end
+
   it "keeps a second guarded run off a host that already has guarded compute work" do
     active_job = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 43)
     active_workflow = Workflows::Initial.instantiate(job: active_job, agent_provider: "codex")

@@ -13,8 +13,9 @@ class RunHostAdmission
 
   def self.call(...) = new(...).call
 
-  def initialize(run:, now: Time.current)
+  def initialize(run:, queue_name: nil, now: Time.current)
     @run = run
+    @queue_name = queue_name.to_s.presence
     @now = now
   end
 
@@ -22,16 +23,16 @@ class RunHostAdmission
     return admit("not_queued") unless run&.queued?
     return admit("non_compute_queue") unless run.agent_queue?
     return admit("missing_execution_graph") unless workflow && step
-    return defer("local_worker_pressure_critical") if critical_local_pressure?
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if active_guarded_run_count >= GUARDED_RUNS_PER_HOST
+    return defer("local_worker_pressure_critical") if critical_local_pressure? && !sticky_resume_queue?
 
     admit("host_capacity_available")
   end
 
   private
 
-  attr_reader :run, :now
+  attr_reader :run, :queue_name, :now
 
   def admit(reason)
     Decision.new(action: "admit", reason: reason, delay: nil, details: basic_details(reason))
@@ -56,8 +57,14 @@ class RunHostAdmission
       "sample_health" => local_health.stringify_keys,
       "step_kind" => step&.kind,
       "workflow_id" => workflow&.id,
-      "run_id" => run&.id
+      "run_id" => run&.id,
+      "queue_name" => queue_name,
+      "sticky_resume_queue" => sticky_resume_queue?
     }.compact
+  end
+
+  def sticky_resume_queue?
+    queue_name.to_s.start_with?("resume-")
   end
 
   def critical_local_pressure?

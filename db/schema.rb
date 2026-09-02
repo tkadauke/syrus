@@ -2899,3 +2899,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_031000) do
 
   # Virtual tables defined in this database.
   # Note that virtual tables may not work with other database engines. Be careful if changing database.
+end

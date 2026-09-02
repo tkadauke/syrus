@@ -159,7 +159,7 @@ class RunJob < ApplicationJob
   end
 
   def defer_for_host_admission?
-    admission = RunHostAdmission.call(run: @run)
+    admission = RunHostAdmission.call(run: @run, queue_name: queue_name)
     return false if admission.admit?
 
     record_host_admission_deferral!(admission)

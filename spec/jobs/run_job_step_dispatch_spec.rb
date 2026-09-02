@@ -26,7 +26,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
   before do
     allow(Steps).to receive(:handler_for).and_return(noop_handler_class)
-    allow(RunHostAdmission).to receive(:call) do |run:|
+    allow(RunHostAdmission).to receive(:call) do |run:, **|
       RunHostAdmission::Decision.new(
         action: "admit",
         reason: "test_dispatch_path",

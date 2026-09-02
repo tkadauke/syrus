@@ -693,7 +693,7 @@ RSpec.describe RunJob, :ci_only do
         delay: 30.seconds,
         details: { "hostname" => "worker-a" }
       )
-      allow(RunHostAdmission).to receive(:call).with(run: run).and_return(decision)
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
 
       expect {
         RunJob.perform_now(run.id)
