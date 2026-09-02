@@ -9,6 +9,17 @@ RSpec.describe "App API job run commands", type: :request do
 
   def parse_body = JSON.parse(response.body)
   def app_job_path(path) = "/api/v1/app/jobs/#{job.id}#{path}"
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
 
   # The Job factory auto-instantiates and starts an "initial" Workflow, but
   # never actually runs it (RunJob isn't executed in request specs), so it
@@ -56,6 +67,24 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Checking PR feedback now...")
     expect(parse_body.dig("job", "pr_number")).to eq(42)
+  end
+
+  it "does not preload historical workflow, step, or run rows for lightweight commands" do
+    job.update!(pr_number: 42)
+    3.times do
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
+      step = workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "failed")
+    end
+
+    queries = capture_sql do
+      post app_job_path("/poll_feedback"), as: :json
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(queries).not_to include(match(/SELECT\s+["`]?workflows["`]?\.\*/i))
+    expect(queries).not_to include(match(/SELECT\s+["`]?steps["`]?\.\*/i))
+    expect(queries).not_to include(match(/SELECT\s+["`]?runs["`]?\.\*/i))
   end
 
   it "switches to a configured agent before checking PR feedback" do

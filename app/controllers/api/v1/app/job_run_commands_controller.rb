@@ -262,7 +262,7 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :runs, workflows: :steps), params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
         end
 
         def find_workflow(job)
@@ -325,8 +325,8 @@ module Api
               external_pr_number: job.external_pr_number,
               pr_mergeable: job.pr_mergeable,
               pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
-              runs_count: job.runs.size,
-              workflows_count: job.workflows.size
+              runs_count: job.runs.count,
+              workflows_count: job.workflows.count
             },
             paths: {
               job_path: tab ? job_path(job, tab: tab) : job_path(job)
@@ -356,8 +356,8 @@ module Api
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
             cleaned_up_at: workflow.cleaned_up_at&.iso8601,
-            steps_count: workflow.steps.size,
-            runs_count: workflow.steps.sum { |step| step.runs.size }
+            steps_count: workflow.steps.count,
+            runs_count: Run.where(step_id: workflow.steps.select(:id)).count
           }
         end
       end
