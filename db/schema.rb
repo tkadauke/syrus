@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_104500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_110000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2260,6 +2260,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_104500) do
     t.index ["kill_requested_by_user_id"], name: "index_spawned_processes_on_kill_requested_by_user_id"
     t.index ["kind", "workdir", "finished_at"], name: "idx_spawned_processes_kind_workdir_active"
     t.index ["kind"], name: "index_spawned_processes_on_kind"
+    t.index ["outcome", "started_at"], name: "idx_spawned_processes_outcome_started"
     t.index ["run_id", "finished_at", "started_at", "id"], name: "idx_spawned_processes_run_active_started"
     t.index ["run_id"], name: "index_spawned_processes_on_run_id"
     t.index ["started_at", "hostname"], name: "idx_spawned_processes_started_hostname"
