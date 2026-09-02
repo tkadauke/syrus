@@ -13962,7 +13962,7 @@ describe("App", () => {
       )
     })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Confirm" })[1])
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         `/api/v1/app/chats/8/proposals/5/confirm${search}`,
