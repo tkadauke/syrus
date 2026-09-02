@@ -48,7 +48,7 @@ module App
       if messages.loaded?
         messages.min_by(&:id)&.id
       else
-        messages.order(:id).first&.id
+        messages.reorder(:id).pick(:id)
       end
     end
 

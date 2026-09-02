@@ -563,6 +563,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         message_id: direct_message.id
       )
       expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(1)
+      message_query = queries.grep(/FROM ["`]?chat_messages["`]?/i).find { |sql| sql.match?(/ORDER BY/i) }
+      expect(message_query).to match(/SELECT ["`]?chat_messages["`]?\./i)
+      expect(message_query).not_to match(/SELECT\s+["`]?chat_messages["`]?\.\*/i)
     end
   end
 
