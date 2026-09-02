@@ -71,8 +71,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", sc_cutoff)
             .find_each do |wf|
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if WorkflowWorkspace.cleanup_for(wf)
     end
 
     # Failed infrastructure workflows: same short backstop as succeeded/cancelled.
@@ -86,8 +85,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", infra_cutoff)
             .find_each do |wf|
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if WorkflowWorkspace.cleanup_for(wf)
     end
 
     # Failed non-infrastructure: two tiers based on whether this is the
@@ -113,12 +111,13 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       is_latest = job.workflows.maximum(:id) == wf.id
 
       if !is_latest
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        n += 1 if WorkflowWorkspace.cleanup_for(wf)
       elsif job.closed?
         next unless wf.finished_at < RETAIN_AFTER_SUCCESS_OR_CANCEL.ago
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        cleaned = WorkflowWorkspace.cleanup_for(wf)
+        n += 1 if cleaned
+        next unless cleaned
+
         if job.branch_name.present? && job.branch_deleted_at.nil?
           begin
             deleted = GithubClient.for(repository: job.repository, user: job.user)
@@ -130,8 +129,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
         end
       else
         next unless wf.finished_at < RETAIN_AFTER_FAILURE.ago
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        n += 1 if WorkflowWorkspace.cleanup_for(wf)
       end
     end
 
@@ -181,8 +179,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       end
       next unless wf.finished_at < retention.ago
 
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if WorkflowWorkspace.cleanup_for(wf)
     rescue StandardError => e
       Rails.logger.warn("[WorkflowWorkspacePrune] filesystem_sweep error on #{child}: #{e.class}: #{e.message}")
     end

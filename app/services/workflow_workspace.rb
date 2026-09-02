@@ -129,7 +129,12 @@ class WorkflowWorkspace
   def self.cleanup_for(workflow)
     unless cleanable_here?(workflow)
       Rails.logger.debug("[WorkflowWorkspace] skip cleanup for Workflow ##{workflow.id}: storage_key=#{workflow.worker_storage_key} host=#{workflow.worker_hostname}")
-      return
+      return false
+    end
+
+    if workflow.workspace_cleanup_blocked?
+      Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: active execution still present")
+      return false
     end
 
     p = path_for(workflow)
@@ -141,13 +146,15 @@ class WorkflowWorkspace
 
     if p.exist?
       Rails.logger.warn("[WorkflowWorkspace] rm_rf completed but #{p} still present for Workflow ##{workflow.id} — will retry on next prune pass")
-      return
+      return false
     end
 
     workflow.update_columns(cleaned_up_at: Time.current) if workflow.persisted?
     Rails.logger.info("[WorkflowWorkspace] cleanup done for Workflow ##{workflow.id}")
+    true
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+    false
   end
 
   def initialize(workflow, git: nil, log: nil)

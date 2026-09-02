@@ -225,6 +225,52 @@ RSpec.describe WorkflowWorkspacePruneJob do
     expect(wf.reload.cleaned_up_at).to be_present
   end
 
+  it "filesystem_sweep defers cleanup until a terminal workflow's spawned process finishes" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+
+    wf = make_workflow(
+      state: "succeeded",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.minute).ago
+    )
+    step = wf.steps.create!(
+      kind: "implement",
+      position: 0,
+      state: "succeeded",
+      started_at: 3.minutes.ago,
+      finished_at: 2.minutes.ago
+    )
+    run = step.runs.create!(
+      job: wf.job,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 3.minutes.ago,
+      finished_at: 2.minutes.ago
+    )
+    wf_path = Pathname.new(data_root).join("workflows", wf.id.to_s)
+    FileUtils.mkdir_p(wf_path.to_s)
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "codex exec",
+      workdir: wf_path.to_s,
+      hostname: "worker-1",
+      started_at: 3.minutes.ago,
+      run: run,
+      workflow: wf
+    )
+
+    described_class.perform_now
+
+    expect(wf_path).to exist
+    expect(wf.reload.cleaned_up_at).to be_nil
+
+    process.update!(finished_at: Time.current, outcome: "succeeded", exit_status: 0)
+
+    described_class.perform_now
+
+    expect(wf_path).not_to exist
+    expect(wf.reload.cleaned_up_at).to be_present
+  end
+
   it "filesystem_sweep leaves a failed workflow dir inside the retry retention window" do
     allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
 

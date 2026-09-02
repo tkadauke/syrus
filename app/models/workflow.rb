@@ -21,6 +21,7 @@ class Workflow < ApplicationRecord
   has_many :workflow_warnings, dependent: :destroy
   has_one :work_unit, dependent: nil, inverse_of: :workflow
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :spawned_processes, dependent: nil
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
@@ -163,8 +164,8 @@ class Workflow < ApplicationRecord
   # to the latest run so absence of the log lines signals a missed
   # cleanup.
   def cleanup_workspace!
-    if cleanup_blocked_by_active_descendants?
-      log_workspace_event("[workspace] cleanup deferred — workflow still has active steps or runs")
+    if workspace_cleanup_blocked?
+      log_workspace_event("[workspace] cleanup deferred — workflow still has active execution")
       return false
     end
 
@@ -188,6 +189,29 @@ class Workflow < ApplicationRecord
 
   def cleanup_blocked_by_active_descendants?
     live_descendants?
+  end
+
+  def workspace_cleanup_blocked?
+    cleanup_blocked_by_active_descendants? || active_spawned_processes?
+  end
+
+  def active_spawned_processes?
+    active_spawned_processes.exists?
+  end
+
+  def active_spawned_processes
+    base = SpawnedProcess.running
+    workspace_path = WorkflowWorkspace.path_for(self).to_s
+    escaped_workspace_path = ActiveRecord::Base.sanitize_sql_like(workspace_path)
+    by_workdir = base.where(
+      "workdir = :path OR workdir LIKE :prefix",
+      path: workspace_path,
+      prefix: "#{escaped_workspace_path}/%"
+    )
+
+    base.where(workflow_id: id)
+        .or(base.where(run_id: runs.select(:id)))
+        .or(by_workdir)
   end
 
   def step_state_projections

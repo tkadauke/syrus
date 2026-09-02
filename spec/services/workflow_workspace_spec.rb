@@ -752,6 +752,47 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(workflow.reload.cleaned_up_at).to be_nil
     end
 
+    it "cleanup_for defers while a spawned process is still running in the workflow workspace" do
+      ws = described_class.new(workflow)
+      ws.setup
+      ws_path = ws.path
+      workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+      step = workflow.steps.create!(
+        kind: "implement",
+        position: 0,
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      run = step.runs.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      process = SpawnedProcess.create!(
+        kind: "agent",
+        command: "codex exec",
+        workdir: ws_path.to_s,
+        hostname: "worker-1",
+        started_at: 2.minutes.ago,
+        run: run,
+        workflow: workflow
+      )
+
+      expect(described_class.cleanup_for(workflow)).to eq(false)
+
+      expect(ws_path).to exist
+      expect(workflow.reload.cleaned_up_at).to be_nil
+
+      process.update!(finished_at: Time.current, outcome: "succeeded", exit_status: 0)
+
+      expect(described_class.cleanup_for(workflow)).to eq(true)
+      expect(ws_path).not_to exist
+      expect(workflow.reload.cleaned_up_at).to be_present
+    end
+
     it "doesn't blow up the state transition if cleanup raises" do
       ws = described_class.new(workflow)
       ws.setup
