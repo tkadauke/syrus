@@ -152,6 +152,7 @@ module App
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { source_chat_payload }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { job_runs_count }
+      cost_snapshot = PerformanceLogging.phase("job_detail.job.cost_snapshot", job_id: @job.id) { job_cost_snapshot }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
         {
@@ -225,8 +226,8 @@ module App
         scheduled_task: scheduled_task_json(@job.scheduled_task),
         goal_provenance: App::GoalProvenancePayload.for(@job),
         epic_id: @job.epic_id,
-        total_cost_usd: @job.display_total_cost_usd&.to_f,
-        billed_runs_count: @job.billed_runs_count,
+        total_cost_usd: cost_snapshot.fetch(:total_cost_usd)&.to_f,
+        billed_runs_count: cost_snapshot.fetch(:billed_runs_count),
         source_chat: source_chat,
         workflows_count: workflows_count,
         runs_count: runs_count,
@@ -269,6 +270,19 @@ module App
 
     def job_runs_count
       @job_runs_count ||= @job.runs.count
+    end
+
+    def job_cost_snapshot
+      count, total = Run.unscoped
+        .where(job_id: @job.id)
+        .where.not(cost_usd: nil)
+        .pick(Arel.sql("COUNT(*)"), Arel.sql("COALESCE(SUM(cost_usd), 0)"))
+      billed_runs_count = count.to_i
+
+      {
+        billed_runs_count: billed_runs_count,
+        total_cost_usd: billed_runs_count.zero? ? nil : total.to_d
+      }
     end
 
     def payload_prepare_skip_reason

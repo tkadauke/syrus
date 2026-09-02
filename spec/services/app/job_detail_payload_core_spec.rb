@@ -155,6 +155,23 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).dig(:job, :pr_checks)).to be_nil
     end
 
+    it "loads billed run count and total cost with one aggregate query" do
+      job = Factories.job_with_run(repository: repo, run_attrs: { state: "succeeded", cost_usd: BigDecimal("0.12") })
+      workflow = job.workflows.first
+      paid_step = workflow.steps.create!(kind: "grader", position: 2, state: "succeeded")
+      unpaid_step = workflow.steps.create!(kind: "summarize", position: 3, state: "succeeded")
+      Run.create!(job: job, step: paid_step, trigger_kind: "initial", state: "succeeded", cost_usd: BigDecimal("0.34"))
+      Run.create!(job: job, step: unpaid_step, trigger_kind: "initial", state: "succeeded", cost_usd: nil)
+
+      queries = capture_sql { @payload = payload_for(job) }
+
+      expect(@payload.dig(:job, :total_cost_usd)).to eq(0.46)
+      expect(@payload.dig(:job, :billed_runs_count)).to eq(2)
+      cost_queries = queries.grep(/FROM ["`]?runs["`]?/i).grep(/cost_usd/i)
+      expect(cost_queries.size).to eq(1)
+      expect(cost_queries.first).to match(/COUNT\(\*\).*SUM\(cost_usd\)|SUM\(cost_usd\).*COUNT\(\*\)/i)
+    end
+
     it "includes a link to the repository's edit settings page" do
       job = Factories.job_record(user: user, repository: repo)
 
