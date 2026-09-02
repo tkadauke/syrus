@@ -488,10 +488,15 @@ class WorkflowAdmissionBudget
   end
 
   def active_workflow_scope
-    workflow_ids = WorkUnits::Ownership.active_workflow_ids(nil, states: WorkUnits::Ownership::RUNNABLE_STATES).to_a
-    return Workflow.none if workflow_ids.empty?
+    Workflow.where(id: active_work_unit_workflow_ids)
+  end
 
-    Workflow.where(id: workflow_ids)
+  def active_work_unit_workflow_ids
+    WorkUnit
+      .where(state: WorkUnits::Ownership::RUNNABLE_STATES)
+      .where.not(workflow_id: nil)
+      .select(:workflow_id)
+      .distinct
   end
 
   def host_pressure
