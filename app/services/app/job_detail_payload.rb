@@ -269,7 +269,7 @@ module App
       return "repository_configuration" unless @job.repository.effective_prepare_enabled
       return "issue_label" if @job.prepare_skip_reason_override == "issue_label"
       return "issue_label" if @job.skip_prepare?
-      return "issue_label" if artifact_workflows.any? { |workflow| workflow.artifact("prepare_skipped_reason") == "issue_label" }
+      return "issue_label" if artifact_workflows_matching("prepare_skipped_reason").any? { |workflow| workflow.artifact("prepare_skipped_reason") == "issue_label" }
 
       nil
     end
@@ -424,12 +424,7 @@ module App
     end
 
     def no_pr_reason_json
-      @job.workflows
-          .where.not(artifacts: [ nil, "", "{}" ])
-          .where("artifacts LIKE ?", "%no_pr_reason%")
-          .select(:id, :artifacts, :created_at)
-          .reorder(created_at: :desc, id: :desc)
-          .each do |workflow|
+      artifact_workflows_matching("no_pr_reason", order: { created_at: :desc, id: :desc }).each do |workflow|
         reason = workflow.artifact("no_pr_reason")
         return reason if reason.is_a?(Hash)
       end
@@ -503,7 +498,7 @@ module App
       # Collect typed artifacts from all workflows, deduplicating by type and
       # keeping the most recent entry (by workflow created_at) for each type.
       latest_by_type = {}
-      artifact_workflows.each do |wf|
+      artifact_workflows_matching("typed_artifacts").each do |wf|
         next unless wf.artifacts.is_a?(Hash)
 
         Array(wf.artifact("typed_artifacts")).each do |entry|
@@ -525,7 +520,7 @@ module App
     end
 
     def latest_coverage_json
-      entry = artifact_workflows.filter_map do |workflow|
+      entry = artifact_workflows_matching("coverage").filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         coverage = workflow.artifact("coverage")
@@ -550,7 +545,7 @@ module App
     # or a worker image without the sccache wrapper) — the UI omits the panel
     # silently in that case.
     def latest_sccache_json
-      entry = artifact_workflows.filter_map do |workflow|
+      entry = artifact_workflows_matching("sccache_stats").filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         latest = Workflow::SccacheArtifact.read(workflow).last
@@ -621,7 +616,7 @@ module App
     end
 
     def latest_canonical_metadata_entry
-      artifact_workflows.filter_map do |workflow|
+      artifact_workflows_matching("job_metadata", states: "succeeded").filter_map do |workflow|
         next unless workflow.succeeded?
 
         metadata = workflow.artifact("job_metadata")
@@ -725,6 +720,18 @@ module App
         .where.not(artifacts: [ nil, "", "{}" ])
         .reorder(created_at: :asc, id: :asc)
         .to_a
+    end
+
+    def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
+      relation = @job.workflows
+        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .where.not(artifacts: [ nil, "", "{}" ])
+      keys.each do |key|
+        relation = relation.where("artifacts LIKE ?", "%#{key}%")
+      end
+      relation = relation.where(state: states) if states.present?
+      relation = relation.where(trigger_kind: trigger_kinds) if trigger_kinds.present?
+      relation.reorder(order)
     end
 
     def actions_json
