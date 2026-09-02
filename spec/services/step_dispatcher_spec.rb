@@ -1201,7 +1201,7 @@ RSpec.describe StepDispatcher, :ci_only do
 
       expect {
         described_class.fail_from(land)
-      }.to change { try_workflow.steps.count }.by(4)
+      }.to change { try_workflow.steps.count }.by(5)
         .and change { Run.count }.by(1)
 
       branch_steps = try_workflow.reload.steps.order(:position).to_a
@@ -1211,9 +1211,10 @@ RSpec.describe StepDispatcher, :ci_only do
         [ "merge_train_build",            0, 1, nil ],
         [ "merge_train_land",             1, 1, nil ],
         [ "merge_train_rebase",           2, 1, nil ],
-        [ "grader_fanout",                3, 1, loop_id ],
-        [ "grader_collect",               4, 1, loop_id ],
-        [ "merge_train_land_after_rebase", 5, 1, nil ]
+        [ "merge_train_agent_rebase",     3, 1, nil ],
+        [ "grader_fanout",                4, 1, loop_id ],
+        [ "grader_collect",               5, 1, loop_id ],
+        [ "merge_train_land_after_rebase", 6, 1, nil ]
       ])
       expect(land.reload.next_step).to eq(try_workflow.steps.find_by!(kind: "merge_train_rebase"))
       retry_land = try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase")
@@ -1237,17 +1238,19 @@ RSpec.describe StepDispatcher, :ci_only do
 
       expect {
         described_class.fail_from(retry_land)
-      }.to change { try_workflow.steps.count }.by(4)
+      }.to change { try_workflow.steps.count }.by(5)
         .and change { Run.count }.by(1)
 
       expect(try_workflow.reload.steps.order(:position).pluck(:kind)).to eq(%w[
         merge_train_build
         merge_train_land
         merge_train_rebase
+        merge_train_agent_rebase
         grader_fanout
         grader_collect
         merge_train_land_after_rebase
         merge_train_rebase
+        merge_train_agent_rebase
         grader_fanout
         grader_collect
         merge_train_land_after_rebase
@@ -1892,6 +1895,7 @@ RSpec.describe StepDispatcher, :ci_only do
           "on_failure" => {
             Steps::MergeTrainLand::BaseMoved::FAILURE_CODE => [
               { "type" => "step", "kind" => "merge_train_rebase" },
+              { "type" => "step", "kind" => "merge_train_agent_rebase" },
               {
                 "type" => "retry_until",
                 "max_iterations" => 2,
@@ -1906,6 +1910,7 @@ RSpec.describe StepDispatcher, :ci_only do
                 "on_failure" => {
                   Steps::MergeTrainLand::BaseMoved::FAILURE_CODE => [
                     { "type" => "step", "kind" => "merge_train_rebase" },
+                    { "type" => "step", "kind" => "merge_train_agent_rebase" },
                     {
                       "type" => "retry_until",
                       "max_iterations" => 2,

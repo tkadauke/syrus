@@ -10,6 +10,7 @@ class RunCheckpointPublisher
     push_agent_rebase
     agent_rebase
     stack_agent_rebase
+    merge_train_agent_rebase
   ].freeze
 
   def self.publish!(...) = new(...).publish!

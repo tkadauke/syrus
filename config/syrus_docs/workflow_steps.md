@@ -469,9 +469,14 @@ Agentic. Runs on the built merge-train integration branch before prepare, grader
 
 Non-agentic. Pushes the integration branch, merges one integration PR into base, then comments on and closes the member PRs.
 
-### merge_train_rebase / merge_train_land_after_rebase
+### merge_train_rebase / merge_train_agent_rebase / merge_train_land_after_rebase
 
-Non-agentic. Recovery chain when the base branch moves during merge-train landing.
+Base-moved recovery chain during merge-train landing. `merge_train_rebase` is
+non-agentic and attempts a deterministic integration-branch rebase onto the
+moved base. `merge_train_agent_rebase` is agentic and is skipped on a clean
+deterministic rebase; when the deterministic rebase conflicts, it resolves and
+completes that in-progress rebase. `merge_train_land_after_rebase` is
+non-agentic and lands the recovered integration branch after validation.
 
 ## Coverage steps
 

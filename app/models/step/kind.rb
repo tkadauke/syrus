@@ -202,6 +202,7 @@ class Step
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "merge_train_rebase", handler: "MergeTrainRebase",   label: "Rebase integration branch", style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
+      Entry.new(kind: "merge_train_agent_rebase", handler: "MergeTrainAgentRebase", label: "Resolve train rebase", style: "bg-teal-100 text-teal-700", agentic: true),
       Entry.new(kind: "merge_train_land_after_rebase", handler: "MergeTrainLandAfterRebase", label: "Land Epic after rebase", style: "bg-green-100 text-green-800", agentic: false,
                 repair_semantics: :publication,
                 reconcile_strategy: :merge_train_land),
