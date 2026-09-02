@@ -1187,14 +1187,12 @@ module Api
             return candidates.where(id: inactive_job_ids)
           end
 
-          candidate_ids = candidates.pluck(:id)
-          return repository.jobs.none if candidate_ids.empty?
+          active_candidate_job_ids = WorkUnitMember
+            .joins(:work_unit)
+            .where(job_id: candidates.select(:id), work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
+            .select(:job_id)
 
-          active_ids = WorkUnits::Ownership.active_job_ids(candidate_ids)
-          inactive_ids = candidate_ids - active_ids.to_a
-          return repository.jobs.none if inactive_ids.empty?
-
-          candidates.where(id: inactive_ids)
+          candidates.where.not(id: active_candidate_job_ids)
         end
 
         def preload_repository_index_job_state(repositories)
@@ -1256,22 +1254,13 @@ module Api
         end
 
         def repository_run_job_counts(repository)
-          row = Run.joins(:job)
-            .where(jobs: { repository_id: repository.id })
-            .pluck(
-              Arel.sql("COUNT(DISTINCT CASE WHEN runs.state = 'running' THEN runs.job_id END)"),
-              Arel.sql("COUNT(DISTINCT CASE WHEN runs.state = 'queued' THEN runs.job_id END)"),
-              Arel.sql(ActiveRecord::Base.sanitize_sql_array([
-                "COUNT(DISTINCT CASE WHEN runs.state = 'failed' AND runs.updated_at >= ? THEN runs.job_id END)",
-                7.days.ago
-              ]))
-            )
-            .first || []
+          repository_job_ids = repository.jobs.select(:id)
+          runs_for_repository = Run.where(job_id: repository_job_ids)
 
           {
-            running: row[0].to_i,
-            queued: row[1].to_i,
-            failed_7d: row[2].to_i
+            running: runs_for_repository.where(state: "running").distinct.count(:job_id),
+            queued: runs_for_repository.where(state: "queued").distinct.count(:job_id),
+            failed_7d: runs_for_repository.where(state: "failed", updated_at: 7.days.ago..).distinct.count(:job_id)
           }
         end
 
