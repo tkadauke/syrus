@@ -737,19 +737,20 @@ module App
     def actions_json
       retry_actions = ::App::JobRetryActions.for(@job)
       send_job_upstream_action = send_job_upstream_action_json
+      active_runtime_work = job_has_active_runtime_work?
       {
-        can_start: @job.direct? && @job.open? && !@job.runs.exists? && !@job.active_runtime_work?,
+        can_start: @job.direct? && @job.open? && !@job.runs.exists? && !active_runtime_work,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
           !RebaseWorkflowSelector.active_merge_train_for_stack?(@job),
         can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
-        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !WorkUnits::Ownership.active_for_job?(@job),
+        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !active_runtime_work,
         can_retry: retry_actions[:implementation].present?,
         can_retry_from_failed_step: retry_actions[:failed_step].present?,
         retry_failed_step_action: retry_actions[:failed_step],
         retry_implementation_action: retry_actions[:implementation],
-        can_restart: !@job.active_runtime_work? && !@job.cron? && !@job.no_change_needed? &&
+        can_restart: !active_runtime_work && !@job.cron? && !@job.no_change_needed? &&
           (
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
