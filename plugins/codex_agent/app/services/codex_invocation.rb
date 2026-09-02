@@ -280,6 +280,12 @@ class CodexInvocation
 
   def process_event(line, log_sink)
     event = JSON.parse(line.strip)
+    unless event.is_a?(Hash)
+      detail = sanitize_startup_output(line.chomp)
+      log_sink.call(detail)
+      return detail.present? ? { startup_output: detail } : nil
+    end
+
     case event["type"]
     when "thread.started"
       { session_id: event["thread_id"] }
