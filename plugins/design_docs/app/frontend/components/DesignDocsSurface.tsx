@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -33,7 +33,9 @@ import {
 } from "../api/designDocs"
 import {
   applyDesignDocFormattingCommand,
-  type DesignDocFormattingCommand
+  canApplyDesignDocFormattingCommand,
+  type DesignDocFormattingCommand,
+  type DesignDocFormattingSelection
 } from "./designDocFormattingCommands"
 
 type SurfaceMode = "index" | "repository" | "show" | "chat"
@@ -42,6 +44,7 @@ type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
+type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -577,43 +580,21 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            <div className="flex flex-wrap items-center gap-2">
-              <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
-                {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
-                  <button
-                    aria-selected={editorMode === candidate}
-                    className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                    key={candidate}
-                    onClick={() => setEditorMode(candidate)}
-                    role="tab"
-                    type="button"
-                  >
-                    {candidate === "markdown" ? "Markdown" : "Rich Text"}
-                  </button>
-                ))}
-              </div>
-              <div aria-label="Change mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-                {canWriteCanonical ? (
-                  (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
-                    <button
-                      aria-pressed={effectiveChangeMode === candidate}
-                      className={`px-3 py-1.5 font-medium capitalize ${effectiveChangeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                      key={candidate}
-                      onClick={() => setChangeMode(candidate)}
-                      type="button"
-                    >
-                      {candidate === "edit" ? "Edit" : "Suggest"}
-                    </button>
-                  ))
-                ) : (
-                  <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
-                )}
-              </div>
-            </div>
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
-          <DesignDocFormattingToolbar onCommand={applyFormattingCommand} />
+          ) : null}
+          <DesignDocFormattingToolbar
+            canWriteCanonical={canWriteCanonical}
+            changeMode={effectiveChangeMode}
+            draft={draft}
+            editorMode={editorMode}
+            selection={selection}
+            setChangeMode={setChangeMode}
+            setEditorMode={setEditorMode}
+            onCommand={applyFormattingCommand}
+          />
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
@@ -883,54 +864,212 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
   )
 }
 
-function DesignDocFormattingToolbar({ onCommand }: { onCommand: (command: DesignDocFormattingCommand) => void }) {
-  const groups: Array<Array<{ command: DesignDocFormattingCommand; label: string; title: string }>> = [
-    [
-      { command: "bold", label: "B", title: "Bold" },
-      { command: "italic", label: "I", title: "Italic" },
-      { command: "inline_code", label: "`", title: "Inline code" },
-      { command: "link", label: "Link", title: "Link" },
-      { command: "strikethrough", label: "S", title: "Strikethrough" }
-    ],
-    [
-      { command: "paragraph", label: "P", title: "Paragraph" },
-      { command: "heading_1", label: "H1", title: "Heading 1" },
-      { command: "heading_2", label: "H2", title: "Heading 2" },
-      { command: "heading_3", label: "H3", title: "Heading 3" },
-      { command: "heading_4", label: "H4", title: "Heading 4" },
-      { command: "blockquote", label: "Quote", title: "Blockquote" }
-    ],
-    [
-      { command: "unordered_list", label: "UL", title: "Unordered list" },
-      { command: "ordered_list", label: "OL", title: "Ordered list" },
-      { command: "nested_list", label: "Indent", title: "Nested list" },
-      { command: "fenced_code", label: "Code", title: "Fenced code block" },
-      { command: "horizontal_rule", label: "HR", title: "Horizontal rule" },
-      { command: "table", label: "Table", title: "Table" }
-    ]
+function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, selection, setChangeMode, setEditorMode, onCommand }: {
+  canWriteCanonical: boolean
+  changeMode: ChangeMode
+  draft: string
+  editorMode: EditorMode
+  selection: SelectionRange
+  setChangeMode: (mode: ChangeMode) => void
+  setEditorMode: (mode: EditorMode) => void
+  onCommand: (command: DesignDocFormattingCommand) => void
+}) {
+  const wideToolbar = useMediaQuery("(min-width: 768px)", true)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
+  const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
+    { command: "paragraph", label: "Paragraph" },
+    { command: "heading_1", label: "H1" },
+    { command: "heading_2", label: "H2" },
+    { command: "heading_3", label: "H3" },
+    { command: "heading_4", label: "H4" },
+    { command: "blockquote", label: "Quote" },
+    { command: "fenced_code", label: "Code block" }
   ]
+  const inlineItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string; className?: string }> = [
+    { command: "bold", icon: "B", label: "Bold", className: "font-black" },
+    { command: "italic", icon: "I", label: "Italic", className: "font-serif italic" },
+    { command: "inline_code", icon: "`", label: "Inline code", className: "font-mono" },
+    { command: "link", icon: "[]", label: "Link" },
+    { command: "strikethrough", icon: "S", label: "Strikethrough", className: "line-through" }
+  ]
+  const listItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string }> = [
+    { command: "unordered_list", icon: "-.", label: "Bulleted list" },
+    { command: "ordered_list", icon: "1.", label: "Numbered list" }
+  ]
+  const moreItems: Array<{ command: DesignDocFormattingCommand; label: string }> = [
+    { command: "table", label: "Table" },
+    { command: "horizontal_rule", label: "Divider" },
+    { command: "nested_list", label: "Indent list item" }
+  ]
+  const selectedBlock = currentBlockCommand(draft, range)
+
+  useEffect(() => {
+    if (!moreOpen) return
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMoreOpen(false)
+    }
+
+    document.addEventListener("keydown", closeOnEscape)
+    return () => document.removeEventListener("keydown", closeOnEscape)
+  }, [moreOpen])
+
+  function commandDisabled(command: DesignDocFormattingCommand) {
+    return !canApplyDesignDocFormattingCommand(draft, range, command)
+  }
+
+  function runCommand(command: DesignDocFormattingCommand) {
+    if (commandDisabled(command)) return
+    setMoreOpen(false)
+    onCommand(command)
+  }
 
   return (
-    <div aria-label="Formatting toolbar" className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40" role="toolbar">
-      {groups.map((group, groupIndex) => (
-        <div className="inline-flex overflow-hidden rounded border border-border bg-surface" key={groupIndex}>
-          {group.map((item) => (
+    <div
+      aria-label="Formatting toolbar"
+      className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      data-testid="design-doc-formatting-toolbar"
+      role="toolbar"
+    >
+      <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+        {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
+          <button
+            aria-selected={editorMode === candidate}
+            className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+            key={candidate}
+            onClick={() => setEditorMode(candidate)}
+            role="tab"
+            type="button"
+          >
+            {candidate === "markdown" ? "Markdown" : "Rich Text"}
+          </button>
+        ))}
+      </div>
+
+      <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+        {canWriteCanonical ? (
+          (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
             <button
-              aria-label={item.title}
-              className="h-8 min-w-8 border-r border-border px-2 text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              key={item.command}
-              onClick={() => onCommand(item.command)}
-              onMouseDown={(event) => event.preventDefault()}
-              title={item.title}
+              aria-pressed={changeMode === candidate}
+              className={`px-3 py-1.5 font-medium capitalize ${changeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+              key={candidate}
+              onClick={() => setChangeMode(candidate)}
               type="button"
             >
-              {item.label}
+              {candidate === "edit" ? "Edit" : "Suggest"}
             </button>
+          ))
+        ) : (
+          <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+        )}
+      </div>
+
+      <Select
+        aria-label="Block type"
+        className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
+        fullWidth={false}
+        value={selectedBlock}
+        onChange={(event) => runCommand(event.target.value as ToolbarBlockCommand)}
+      >
+        {blockOptions.map((option) => (
+          <option disabled={commandDisabled(option.command)} key={option.command} value={option.command}>{option.label}</option>
+        ))}
+      </Select>
+
+      <ToolbarButtonGroup label="Inline formatting">
+        {inlineItems.map((item) => (
+          <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
+        ))}
+      </ToolbarButtonGroup>
+
+      {wideToolbar ? (
+        <ToolbarButtonGroup label="List formatting">
+          {listItems.map((item) => (
+            <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
           ))}
-        </div>
-      ))}
+        </ToolbarButtonGroup>
+      ) : null}
+
+      <div className="relative shrink-0">
+        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        {moreOpen ? (
+          <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+            {!wideToolbar ? listItems.map((item) => (
+              <button
+                className="block w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={commandDisabled(item.command)}
+                key={item.command}
+                onClick={() => runCommand(item.command)}
+                role="menuitem"
+                type="button"
+              >
+                {item.label}
+              </button>
+            )) : null}
+            {moreItems.map((item) => (
+              <button
+                className="block w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={commandDisabled(item.command)}
+                key={item.command}
+                onClick={() => runCommand(item.command)}
+                role="menuitem"
+                type="button"
+              >
+                {item.label}
+              </button>
+            ))}
+            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table row actions</button>
+            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table column actions</button>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
+}
+
+function ToolbarButtonGroup({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div aria-label={label} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface" role="group">
+      {children}
+    </div>
+  )
+}
+
+function ToolbarIconButton({ ariaExpanded, disabled = false, icon, iconClassName = "", label, onClick }: {
+  ariaExpanded?: boolean
+  disabled?: boolean
+  icon: string
+  iconClassName?: string
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-expanded={ariaExpanded}
+      aria-label={label}
+      className="flex h-8 w-8 items-center justify-center border-r border-border text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={disabled}
+      onClick={onClick}
+      onMouseDown={(event) => event.preventDefault()}
+      title={label}
+      type="button"
+    >
+      <span aria-hidden="true" className={iconClassName}>{icon}</span>
+    </button>
+  )
+}
+
+function currentBlockCommand(markdown: string, selection: DesignDocFormattingSelection): ToolbarBlockCommand {
+  const start = Math.max(0, Math.min(markdown.length, selection.start))
+  const lineStart = markdown.lastIndexOf("\n", Math.max(0, start - 1)) + 1
+  const lineEnd = markdown.indexOf("\n", start)
+  const line = markdown.slice(lineStart, lineEnd === -1 ? markdown.length : lineEnd)
+  const heading = line.match(/^\s{0,3}(#{1,4})\s+/)
+  if (heading) return `heading_${heading[1].length}` as ToolbarBlockCommand
+  if (/^\s{0,3}>\s?/.test(line)) return "blockquote"
+  if (/^\s*```/.test(line)) return "fenced_code"
+  return "paragraph"
 }
 
 function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
