@@ -104,9 +104,9 @@ module ChatIndexPayload
     blank_title_ids = chat_sessions.select { |chat_session| chat_session.title.blank? }.map(&:id)
     workdirs_by_id = chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.workspace_root.to_s ] }
     busy_workdirs = if workdirs_by_id.empty?
-      []
+      Set.new
     else
-      SpawnedProcess.live_agent.where(workdir: workdirs_by_id.values).pluck(:workdir)
+      SpawnedProcess.live_agent.where(workdir: workdirs_by_id.values).pluck(:workdir).to_set
     end
     providers = chat_sessions.map(&:effective_chat_provider).compact.uniq
 

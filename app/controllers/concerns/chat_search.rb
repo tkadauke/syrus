@@ -13,7 +13,7 @@ module ChatSearch
   SEARCH_TOP_MATCHES = 3
 
   def search_payload_for_query(scope, query, page)
-    allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i)
+    allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i).to_set
     grouped_matches = []
     matches_by_chat = {}
 
