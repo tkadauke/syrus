@@ -116,6 +116,20 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_summarize.reload.runs).to be_empty
   end
 
+  it "skips a duplicate delivery when the same Run is already freshly running" do
+    StepDispatcher.start_workflow(workflow)
+    run = s_implement.runs.last
+    run.update!(state: "running", started_at: 1.minute.ago, last_heartbeat_at: 1.minute.ago)
+
+    expect(Steps).not_to receive(:handler_for)
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_running
+    expect(s_implement.reload).to be_queued
+    expect(run.job_logs.reload).to be_empty
+  end
+
   it "continues inline after a Try failure branch expands" do
     try_workflow = workflow_with_try_push_branch
     handler_class = Class.new(Steps::Base) do
