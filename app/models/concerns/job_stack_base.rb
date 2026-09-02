@@ -16,6 +16,7 @@ module JobStackBase
     return base_default_branch if stack_base_forces_main?
 
     if parent_job.present? &&
+        parent_job.repository_id == repository_id &&
         parent_job.open? &&
         parent_job.pr_number.present? &&
         parent_job.branch_name.present? &&
@@ -25,6 +26,7 @@ module JobStackBase
 
     parent = dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find do |dependency_job|
       dependency_job.open? &&
+        dependency_job.repository_id == repository_id &&
         dependency_job.pr_number.present? &&
         dependency_job.branch_name.present? &&
         !dependency_job.dependency_succeeded?

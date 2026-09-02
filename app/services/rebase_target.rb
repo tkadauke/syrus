@@ -16,6 +16,7 @@ class RebaseTarget
 
   def self.open_parent_branch(job)
     parent = job.parent_job
+    return unless parent&.repository_id == job.repository_id
     return unless parent&.open? && parent.branch_name.present?
     parent.branch_name
   end

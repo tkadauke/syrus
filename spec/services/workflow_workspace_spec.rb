@@ -816,6 +816,23 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(RebaseTarget.branch_for(job: child)).to eq("syrus/direct-parent")
       expect(described_class.base_ref_for(child)).to eq("origin/syrus/direct-parent")
     end
+
+    it "does not use a foreign dependency branch as the base ref" do
+      other_repo = Factories.repository(user: user, owner: "other", name: "api")
+      dependency = Factories.job_record(
+        repository: other_repo,
+        state: "implemented",
+        branch_name: "syrus/direct-parent",
+        pr_number: 41
+      )
+      dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: "a" * 40)
+      child = Factories.job_record(repository: repository, parent_job: dependency)
+      Factories.legacy_job_dependency(job: child, depends_on_job: dependency)
+
+      expect(child.effective_base_branch).to eq(repository.default_branch)
+      expect(RebaseTarget.branch_for(job: child)).to eq(repository.default_branch)
+      expect(described_class.base_ref_for(child)).to eq("origin/#{repository.default_branch}")
+    end
   end
 
   describe ".cleanable_here? / worker affinity" do

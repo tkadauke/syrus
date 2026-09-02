@@ -24,7 +24,7 @@ class JobStackResolver
     return ready_result(@job.parent_job) if @job.dependencies_overridden_at.present?
 
     dependencies = @job.dependencies.includes(:depends_on_job).to_a
-    return update_parent!(@job.parent_job) if dependencies.empty? && parent_branch_ready?(@job.parent_job)
+    return update_parent!(@job.parent_job) if dependencies.empty? && stackable_parent_ready?(@job.parent_job)
     return force_main! if dependencies.empty?
 
     unresolved = dependencies.reject(&:dependency_succeeded?)
@@ -35,6 +35,7 @@ class JobStackResolver
       # yet. Stack on that branch instead of defaulting to main.
       open_unmerged = dependencies.select { |dep|
         dep.depends_on_job.present? &&
+          stackable_parent?(dep.depends_on_job) &&
           !dep.depends_on_job.dependency_succeeded? &&
           parent_ready?(dep.depends_on_job)
       }
@@ -49,7 +50,11 @@ class JobStackResolver
     return blocked_result(STACK_BLOCK_REASON, pending_blocker(unresolved)) if unresolved.any?(&:pending?)
     return blocked_result(STACK_BLOCK_REASON, missing_job_blocker(unresolved)) if unresolved.any? { |dependency| dependency.depends_on_job_id.blank? }
 
-    parent = stack_parent_for(unresolved)
+    stackable_unresolved = unresolved.select { |dependency| stackable_parent?(dependency.depends_on_job) }
+    return force_main! if stackable_unresolved.empty? && unresolved.all?(&:execution_dependency_satisfied?)
+    return blocked_result(STACK_BLOCK_REASON, pending_blocker(unresolved)) if stackable_unresolved.empty?
+
+    parent = stack_parent_for(stackable_unresolved)
     return blocked_result(STACK_BLOCK_REASON, fan_in_blocker(unresolved.map(&:depends_on_job).compact)) unless parent
     return blocked_result(STACK_BLOCK_REASON, parent_not_ready_blocker(parent)) unless parent_ready?(parent)
 
@@ -90,7 +95,7 @@ class JobStackResolver
   end
 
   def parent_ready?(parent)
-    parent_branch_ready?(parent) &&
+    stackable_parent_ready?(parent) &&
       parent.head_sha.present?
   end
 
@@ -98,6 +103,14 @@ class JobStackResolver
     parent&.open? &&
       parent.pr_number.present? &&
       parent.branch_name.present?
+  end
+
+  def stackable_parent_ready?(parent)
+    stackable_parent?(parent) && parent_branch_ready?(parent)
+  end
+
+  def stackable_parent?(parent)
+    parent.present? && parent.repository_id == @job.repository_id
   end
 
   def fan_in_result(dependencies)

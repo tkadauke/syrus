@@ -2606,6 +2606,26 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
     expect(s1.runs.count).to eq(0)
   end
 
+  it "does not stack on a ready dependency from another repository" do
+    other_repo = Factories.repository(user: job_model.user, owner: "other", name: "api")
+    dependency = Factories.job_record(
+      user: job_model.user,
+      repository: other_repo,
+      state: "implemented",
+      issue_number: 99,
+      branch_name: "syrus/issue-99",
+      pr_number: 99
+    )
+    dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: "a" * 40)
+    JobDependency.create!(job: job_model, depends_on_job: dependency, source: "manual")
+
+    described_class.start_workflow(workflow)
+
+    expect(s1.runs.count).to eq(1)
+    expect(job_model.reload.parent_job).to be_nil
+    expect(job_model.effective_base_branch).to eq(job_model.repository.default_branch)
+  end
+
   it "does not record the block reason on a rebase workflow (rebase is cancelled instead)" do
     prerequisite = Factories.job_record(repository: job_model.repository, issue_number: 99, state: "closed", closure_reason: "pr_closed")
     blocked_job = Factories.job_record(
