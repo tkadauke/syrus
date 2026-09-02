@@ -75,6 +75,41 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe ".timeline" do
+    it "resolves referenced workflow links without loading the full workflow history again" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflows = 26.times.map do |index|
+        Workflow.create!(
+          job: job,
+          user: user,
+          trigger_kind: "retry",
+          state: "succeeded",
+          created_at: Time.zone.parse("2026-09-01 12:00:00") + index.minutes
+        )
+      end
+      referenced_workflow = workflows.first
+      event = Jobs::Timeline::Event.new(
+        at: Time.current,
+        kind: :info,
+        source: "workflow",
+        transition_source: nil,
+        title: "#{referenced_workflow.slug} created",
+        detail: nil,
+        ref: { workflow_id: referenced_workflow.id }
+      )
+      allow(Jobs::Timeline).to receive(:for).with(job).and_return([ event ])
+
+      queries = capture_sql { @payload = described_class.timeline(job: job) }
+
+      expect(@payload.fetch(:events).first).to include(
+        ref_label: referenced_workflow.slug,
+        workflow_path: "/jobs/#{job.id}?tab=workflows&workflows_page=3#workflow-#{referenced_workflow.id}"
+      )
+      expect(queries.grep(/SELECT ["`]?workflows["`]?\.\* FROM ["`]?workflows["`]? WHERE ["`]?workflows["`]?\.["`]?job_id["`]? =/i)).to be_empty
+      expect(queries.grep(/SELECT ["`]?workflows["`]?\.["`]?id["`]? FROM ["`]?workflows["`]? WHERE ["`]?workflows["`]?\.["`]?job_id["`]? = .*ORDER BY ["`]?workflows["`]?\.["`]?created_at["`]? DESC/i)).to be_empty
+    end
+  end
+
   describe "#job_json" do
     it "does not include hidden worker health correlation in the default job detail payload" do
       job = Factories.job(repository: repo)

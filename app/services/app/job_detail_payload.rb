@@ -91,9 +91,11 @@ module App
 
     def timeline_payload
       PerformanceLogging.phase("job_timeline_payload", job_id: @job.id) do
+        events = PerformanceLogging.phase("job_timeline.events.query", job_id: @job.id) { Jobs::Timeline.for(@job) }
+        preload_timeline_workflows(events)
         {
           job_id: @job.id,
-          events: PerformanceLogging.phase("job_timeline.events", job_id: @job.id) { Jobs::Timeline.for(@job).map { |event| timeline_event_json(event) } }
+          events: PerformanceLogging.phase("job_timeline.events.serialize", job_id: @job.id, event_count: events.size) { events.map { |event| timeline_event_json(event) } }
         }
       end
     end
@@ -958,18 +960,54 @@ module App
         detail: event.detail,
         ref: event.ref,
         ref_label: timeline_ref_label(event.ref, workflow: workflow),
-        workflow_path: workflow ? workflow_navigation_path(workflow) : nil
+        workflow_path: workflow ? workflow_navigation_path(workflow, page: timeline_workflow_navigation_page(workflow)) : nil
       }
     end
 
+    def preload_timeline_workflows(events)
+      workflow_ids = events.filter_map { |event| timeline_workflow_id(event.ref) }.uniq
+      @timeline_workflows = if workflow_ids.empty?
+        {}
+      else
+        Workflow
+          .where(id: workflow_ids)
+          .select(:id, :job_id, :trigger_kind, :state, :created_at)
+          .index_by(&:id)
+      end
+    end
+
     def timeline_workflow(ref)
+      workflow_id = timeline_workflow_id(ref)
+      return unless workflow_id
+
+      @timeline_workflows ||= {}
+      @timeline_workflows.fetch(workflow_id) do
+        @timeline_workflows[workflow_id] = Workflow
+          .select(:id, :job_id, :trigger_kind, :state, :created_at)
+          .find_by(id: workflow_id)
+      end
+    end
+
+    def timeline_workflow_id(ref)
       return unless ref.is_a?(Hash)
 
       workflow_id = ref[:workflow_id] || ref["workflow_id"]
-      return unless workflow_id
+      return if workflow_id.blank?
 
-      @timeline_workflows ||= @job.workflows.index_by(&:id)
-      @timeline_workflows[workflow_id.to_i]
+      workflow_id.to_i
+    end
+
+    def timeline_workflow_navigation_page(workflow)
+      return unless workflow.job_id == @job.id
+
+      @timeline_workflow_navigation_pages ||= {}
+      @timeline_workflow_navigation_pages.fetch(workflow.id) do
+        newer_count = Workflow
+          .where(job_id: @job.id)
+          .where("created_at > :created_at OR (created_at = :created_at AND id > :id)", created_at: workflow.created_at, id: workflow.id)
+          .count
+        @timeline_workflow_navigation_pages[workflow.id] = (newer_count / WORKFLOWS_PER_PAGE) + 1
+      end
     end
 
     def timeline_ref_label(ref, workflow:)
