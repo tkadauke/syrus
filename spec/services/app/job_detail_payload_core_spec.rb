@@ -456,7 +456,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         "base_branch" => "syrus/direct-parent"
       )
       no_pr_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
-      expect(no_pr_queries).to be_empty
+      expect(no_pr_queries).not_to be_empty
     end
   end
 
@@ -721,6 +721,43 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         steps: [ "Run bin/rspec spec/services/job_metadata_refresh_applier_spec.rb" ],
         notes: "Review refreshed PR body."
       )
+    end
+
+    it "does not scan every workflow artifact blob when building the detail payload" do
+      job = Factories.job_record(repository: repo)
+      10.times do |index|
+        Workflow.create!(
+          job: job,
+          trigger_kind: "retry",
+          state: "failed",
+          created_at: (20 - index).minutes.ago,
+          artifacts: {
+            "large_irrelevant_blob" => "x" * 10_000,
+            "index" => index
+          }
+        )
+      end
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: { "test_plan" => { "steps" => [ "Run bin/rspec" ] } }
+      )
+
+      queries = capture_sql { expect(payload_for(job)[:test_plan]).to include(steps: [ "Run bin/rspec" ]) }
+      artifact_selects = queries.select do |sql|
+        sql.match?(/SELECT .*[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/im) &&
+          sql.match?(/FROM [`"]?workflows[`"]?/i)
+      end
+
+      expect(artifact_selects).not_to be_empty
+      targeted_artifact_selects = artifact_selects.select do |sql|
+        sql.match?(/[`"]?workflows[`"]?\.[`"]?artifacts[`"]? LIKE/i)
+      end
+      broad_artifact_selects = artifact_selects - targeted_artifact_selects
+
+      expect(targeted_artifact_selects).not_to be_empty
+      expect(broad_artifact_selects).to all(match(/trigger_kind/i))
     end
   end
 

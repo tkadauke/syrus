@@ -647,7 +647,7 @@ module App
     end
 
     def test_plan_json
-      entry = artifact_workflows_matching(states: "succeeded").filter_map do |workflow|
+      entry = test_plan_workflows.filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         plan = canonical_test_plan_for(workflow)
@@ -667,6 +667,15 @@ module App
         steps: steps,
         notes: plan["notes"].presence
       }
+    end
+
+    def test_plan_workflows
+      workflows = artifact_workflows_matching(
+        "test_plan",
+        states: "succeeded",
+        trigger_kinds: %w[initial retry]
+      ) + artifact_workflows_matching("job_metadata", states: "succeeded")
+      workflows.uniq(&:id)
     end
 
     def latest_canonical_metadata_entry
@@ -769,38 +778,45 @@ module App
       }
     end
 
-    def artifact_workflows
-      @artifact_workflows ||= @job.workflows
-        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
-        .where.not(artifacts: [ nil, "", "{}" ])
-        .reorder(created_at: :asc, id: :asc)
-        .to_a
+    def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
+      cache_key = [
+        keys.map(&:to_s).sort,
+        Array(states).presence&.map(&:to_s)&.sort,
+        Array(trigger_kinds).presence&.map(&:to_s)&.sort,
+        order.to_a
+      ]
+      artifact_workflows_cache.fetch(cache_key) do
+        workflows = artifact_workflows_scope_for(keys: keys, states: states, trigger_kinds: trigger_kinds, order: order).to_a
+        artifact_workflows_cache[cache_key] = workflows.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) }
+      end
     end
 
-    def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
-      workflows = artifact_workflows
-      workflows = workflows.select { |workflow| Array(states).include?(workflow.state) } if states.present?
-      workflows = workflows.select { |workflow| Array(trigger_kinds).include?(workflow.trigger_kind) } if trigger_kinds.present?
-      workflows = workflows.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) } if keys.present?
-      sort_artifact_workflows(workflows, order)
+    def artifact_workflows_cache
+      @artifact_workflows_cache ||= {}
+    end
+
+    def artifact_workflows_scope_for(keys:, states:, trigger_kinds:, order:)
+      scope = @job.workflows
+        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .where.not(artifacts: [ nil, "", "{}" ])
+
+      scope = scope.where(state: states) if states.present?
+      scope = scope.where(trigger_kind: trigger_kinds) if trigger_kinds.present?
+      keys.map(&:to_s).each do |key|
+        escaped_key = ActiveRecord::Base.sanitize_sql_like(key)
+        scope = scope.where("workflows.artifacts LIKE ? ESCAPE '\\'", "%\"#{escaped_key}\"%")
+      end
+
+      scope.reorder(order)
     end
 
     def artifact_workflow_matches_keys?(workflow, keys)
+      return true if keys.empty?
+
       artifacts = workflow.artifacts
       return false unless artifacts.is_a?(Hash)
 
       keys.all? { |key| artifacts.key?(key.to_s) }
-    end
-
-    def sort_artifact_workflows(workflows, order)
-      sorted = workflows.sort_by do |workflow|
-        order.keys.map do |attribute|
-          value = workflow.public_send(attribute)
-          value.respond_to?(:to_i) ? value.to_i : value
-        end
-      end
-
-      order.values.first == :desc ? sorted.reverse : sorted
     end
 
     def actions_json
