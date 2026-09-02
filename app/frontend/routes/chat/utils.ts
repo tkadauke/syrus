@@ -5,6 +5,7 @@
 // module lets the rendering helpers and components move out of the 6k-line
 // Chat.tsx without importing back from it.
 import type { ChatNavRecord, ChatPayload, WhiteboardSnapshot } from "../../api/chats"
+import { buttonClasses } from "../../components/Button"
 import { CHAT_ENTER_SUBMIT_MIN_WIDTH } from "./constants"
 
 export function stringValue(value: unknown) {
@@ -83,7 +84,7 @@ export function appendSearch(path: string, search: string) {
 }
 
 export function primaryButton() {
-  return "flex h-11 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+  return buttonClasses("primary", "md", "h-11")
 }
 
 export function secondaryButton() {
@@ -95,7 +96,7 @@ export function diffLineClass(line: string): string {
     return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
   }
   if (line.startsWith("@@")) {
-    return "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+    return "bg-info/10 text-info"
   }
   if (line.startsWith("+")) {
     return "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"

@@ -1763,8 +1763,8 @@ describe("App", () => {
       expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
       expect(within(adminNav).getByRole("link", { name: "Invitations" })).toHaveAttribute("href", "/app-shell/invitations")
       expect(within(adminNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/settings/edit")
-      expect(within(adminNav).getByRole("link", { name: "Overview" })).not.toHaveClass("bg-blue-50")
-      expect(within(adminNav).getByRole("link", { name: "Console" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(adminNav).getByRole("link", { name: "Overview" })).not.toHaveClass("bg-brand/10")
+      expect(within(adminNav).getByRole("link", { name: "Console" })).toHaveClass("bg-brand/10", "text-brand")
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/admin/console",
         expect.objectContaining({
@@ -1969,7 +1969,7 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/2")
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveClass("text-gray-700")
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
       expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
@@ -8080,8 +8080,8 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveClass("sm:bg-blue-50", "text-blue-700")
-      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).not.toHaveClass("bg-blue-50")
+      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveClass("sm:bg-brand/10", "text-brand")
+      expect(within(primaryNav).getByRole("link", { name: "Schedules" })).not.toHaveClass("bg-brand/10")
       expect(await screen.findByRole("main", { name: "Repository scheduled tasks" })).toHaveClass("max-w-[96rem]")
       const scheduledTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
       expect(within(scheduledTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
@@ -8154,7 +8154,7 @@ describe("App", () => {
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-brand/10")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
-    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-brand/10")
 
     // One card per provider, replacing the single monolithic form.
     expect(await screen.findByTestId("credential-card-github")).toBeInTheDocument()
@@ -12036,7 +12036,7 @@ describe("App", () => {
       expect(mobileTabs.parentElement).not.toHaveClass("rounded")
       expect(mobileTabs.parentElement).not.toHaveClass("border")
       expect(mobileTabs.parentElement?.lastElementChild).not.toHaveClass("p-3")
-      expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toBeInTheDocument()
       expect(within(mobileTabs).queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
@@ -12054,13 +12054,13 @@ describe("App", () => {
       expect(screen.getByText("Discuss aqueducts.").parentElement?.parentElement).toHaveClass("px-0", "sm:rounded")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
-      expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
       expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Context" }))
-      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-brand")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.getByText("Launch notes")).toBeInTheDocument()
 

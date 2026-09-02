@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import { AdminEventFilterBar, AdminEventLogTable } from "./AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, adminEventLinkClass } from "./AdminEventLogPanel"
 
 function LocationProbe() {
   const location = useLocation()
@@ -83,6 +83,13 @@ describe("AdminEventFilterBar", () => {
 })
 
 describe("AdminEventLogTable", () => {
+  it("uses semantic brand tokens for event links", () => {
+    const className = adminEventLinkClass()
+
+    expect(className).toContain("text-brand")
+    expect(className).not.toMatch(/\b(?:text|bg|border)-blue-/)
+  })
+
   it("renders sortable columns and expandable detail rows", () => {
     const onNavigate = vi.fn()
 
