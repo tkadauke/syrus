@@ -69,6 +69,46 @@ RSpec.describe AutoRetryAttempt, type: :model do
     expect(described_class.new(valid_attrs(run: nil))).to be_valid
   end
 
+  it "records failed host pressure context for worker_died retries" do
+    started_at = 3.minutes.ago
+    finished_at = 2.minutes.ago
+    run.create_run_resource_summary!(
+      job: job,
+      workflow: workflow,
+      step: run.step,
+      repository: job.repository,
+      user: run.user,
+      agent_provider: run.agent_provider,
+      trigger_kind: workflow.trigger_kind,
+      step_kind: run.step.kind,
+      hostname: "worker-critical",
+      started_at: started_at,
+      finished_at: finished_at,
+      duration_seconds: finished_at - started_at,
+      host_sample_count: 4,
+      host_sample_confidence: "sufficient",
+      host_pressure_level: "critical",
+      host_pressure_reasons: [ "CPU pressure 55.0% >= 50%" ],
+      process_attribution_method: "none",
+      process_attribution_version: 1,
+      process_attribution_confidence: "unknown",
+      summary_version: RunResourceSummary::SUMMARY_VERSION
+    )
+    run.update!(agent_outcome: "worker_died")
+
+    attempt = described_class.create!(valid_attrs)
+
+    expect(attempt).to have_attributes(
+      failed_hostname: "worker-critical",
+      failed_host_pressure_level: "critical",
+      failed_host_pressure_started_at: be_within(1.second).of(started_at),
+      failed_host_pressure_finished_at: be_within(1.second).of(finished_at),
+      failed_host_pressure_sample_count: 4
+    )
+    expect(attempt.failed_host_pressure_reasons).to eq([ "CPU pressure 55.0% >= 50%" ])
+    expect(attempt.failed_under_critical_pressure_on?("worker-critical")).to eq(true)
+  end
+
   describe ".budget_scope_for" do
     it "returns attempts matching job, provider, and failure classification" do
       attempt = described_class.create!(valid_attrs)

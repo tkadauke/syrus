@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_153500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -114,6 +114,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.string "agent_provider", null: false
     t.integer "attempt_number", null: false
     t.datetime "created_at", null: false
+    t.datetime "failed_host_pressure_finished_at"
+    t.string "failed_host_pressure_level", limit: 32
+    t.json "failed_host_pressure_reasons"
+    t.integer "failed_host_pressure_sample_count"
+    t.datetime "failed_host_pressure_started_at"
+    t.string "failed_hostname", limit: 255
     t.string "failure_classification", null: false
     t.integer "job_id", null: false
     t.datetime "performed_at"
@@ -128,6 +134,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.index ["job_id"], name: "index_auto_retry_attempts_on_job_id"
     t.index ["performed_at", "skipped_reason", "scheduled_at", "id"], name: "idx_auto_retry_attempts_pending_schedule"
     t.index ["run_id"], name: "index_auto_retry_attempts_on_run_id"
+    t.index ["workflow_id", "failed_hostname", "failure_classification", "scheduled_at"], name: "idx_auto_retry_attempts_failed_host_context"
     t.index ["workflow_id", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_workflow_pending"
     t.index ["workflow_id", "retry_kind"], name: "index_auto_retry_attempts_on_workflow_retry_kind"
     t.index ["workflow_id"], name: "index_auto_retry_attempts_on_workflow_id"

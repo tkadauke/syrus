@@ -19,6 +19,8 @@ class AutoRetryAttempt < ApplicationRecord
   belongs_to :workflow
   belongs_to :run, optional: true
 
+  before_validation :capture_failed_host_context, on: :create
+
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :failure_classification, presence: true
   validates :retry_kind, presence: true, inclusion: { in: RETRY_KINDS }
@@ -70,7 +72,31 @@ class AutoRetryAttempt < ApplicationRecord
     WorkUnits::AutoRetryBackoff.clear!(self)
   end
 
+  def failed_under_critical_pressure_on?(hostname)
+    failed_hostname.to_s == hostname.to_s &&
+      failed_host_pressure_level == "critical"
+  end
+
   private
+
+  def capture_failed_host_context
+    return unless run
+    return unless worker_died_failure?
+
+    summary = run.run_resource_summary || RunResourceSummary.refresh_for(run)
+    self.failed_hostname ||= summary&.hostname.presence || run.workflow&.worker_hostname
+    self.failed_host_pressure_level ||= summary&.host_pressure_level
+    self.failed_host_pressure_started_at ||= summary&.started_at
+    self.failed_host_pressure_finished_at ||= summary&.finished_at
+    self.failed_host_pressure_sample_count ||= summary&.host_sample_count
+    self.failed_host_pressure_reasons ||= summary&.host_pressure_reasons || []
+  end
+
+  def worker_died_failure?
+    failure_classification == WORKER_DIED_CLASSIFICATION ||
+      failure_classification == "worker_died_under_resource_pressure" ||
+      run&.agent_outcome == WORKER_DIED_CLASSIFICATION
+  end
 
   def superseded_by_successful_workflow?
     Workflows::ValidationSupersession.superseded_by_successful_workflow?(workflow)
