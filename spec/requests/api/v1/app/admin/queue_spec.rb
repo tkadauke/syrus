@@ -82,6 +82,26 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     expect(body["smart_folders"].find { |row| row["id"] == folder.id }).to include("active" => true, "count" => 1)
   end
 
+  it "counts builtin queue folders with one grouped query" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    run_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
+    chat_job = solid_queue_job(class_name: "ChatTurnJob", queue_name: "chat")
+    SolidQueue::ClaimedExecution.create!(job: run_job, process: process, created_at: 2.minutes.ago)
+    SolidQueue::ClaimedExecution.create!(job: chat_job, process: process, created_at: 1.minute.ago)
+
+    queries = capture_sql { get "/api/v1/app/admin/queue/active" }
+
+    expect(response).to have_http_status(:ok)
+    folders = parse_body["smart_folders"].index_by { |folder| folder["name"] }
+    expect(folders.fetch("Runs")["count"]).to eq(1)
+    expect(folders.fetch("Chat")["count"]).to eq(1)
+    grouped_queue_count_queries = queries.select { |sql| grouped_queue_count_query?(sql) }
+    per_folder_queue_count_queries = queries.select { |sql| per_folder_queue_count_query?(sql) }
+    expect(grouped_queue_count_queries.size).to eq(1)
+    expect(per_folder_queue_count_queries).to be_empty
+  end
+
   it "returns the active user-defined queue folder filter when no q is present" do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)
@@ -452,5 +472,21 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
           normalized.match?(/\bjob_id\b.*\bin\s*\(\s*(?:\?|\d|'|")/)
       end
     end
+  end
+
+  def grouped_queue_count_query?(sql)
+    normalized = sql.squish.downcase
+    normalized.include?("count") &&
+      normalized.include?("solid_queue_jobs") &&
+      normalized.include?("queue_name") &&
+      normalized.include?("group by")
+  end
+
+  def per_folder_queue_count_query?(sql)
+    normalized = sql.squish.downcase
+    normalized.include?("count") &&
+      normalized.include?("solid_queue_jobs") &&
+      normalized.match?(/\bqueue_name\b\s*=\s*(?:\?|['"])/) &&
+      !normalized.include?("group by")
   end
 end

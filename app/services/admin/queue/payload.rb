@@ -148,9 +148,45 @@ module Admin
               active_folder: active_folder,
               base_scope: base_scope,
               filter_class: ::Admin::Queue::Filter,
-              path_context: { tab: tab }
+              path_context: { tab: tab },
+              count_provider: queue_name_count_provider(base_scope)
             ).folders
           }
+        end
+      end
+
+      def queue_name_count_provider(base_scope)
+        counts = nil
+
+        lambda do |folder|
+          queue_name = builtin_queue_name_filter_value(folder)
+          next nil if queue_name.blank?
+
+          counts ||= queue_name_counts_for(base_scope)
+          counts.fetch(queue_name, 0)
+        end
+      end
+
+      def builtin_queue_name_filter_value(folder)
+        return nil unless folder.builtin?
+
+        clauses = folder.filter.to_h["and"]
+        return nil unless clauses.is_a?(Array) && clauses.one?
+
+        clause = clauses.first
+        return nil unless clause.is_a?(Hash)
+        return nil unless clause["field"].to_s == "queue_name"
+        return nil unless clause["op"].to_s == "is"
+
+        clause["value"].to_s
+      end
+
+      def queue_name_counts_for(base_scope)
+        table = SolidQueue::Job.quoted_table_name
+        column = SolidQueue::Job.connection.quote_column_name(:queue_name)
+
+        PerformanceLogging.phase("admin_queue.smart_folders.queue_name_counts") do
+          base_scope.group("#{table}.#{column}").count
         end
       end
 

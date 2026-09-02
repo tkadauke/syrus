@@ -12,13 +12,14 @@ module Admin
         .find_by(id: id)
     end
 
-    def initialize(subject:, user:, active_folder:, base_scope:, filter_class:, path_context: {})
+    def initialize(subject:, user:, active_folder:, base_scope:, filter_class:, path_context: {}, count_provider: nil)
       @subject = subject.to_s
       @user = user
       @active_folder = active_folder
       @base_scope = base_scope
       @filter_class = filter_class
       @path_context = path_context
+      @count_provider = count_provider
     end
 
     def folders
@@ -44,7 +45,7 @@ module Admin
 
     private
 
-    attr_reader :subject, :user, :active_folder, :base_scope, :filter_class, :path_context
+    attr_reader :subject, :user, :active_folder, :base_scope, :filter_class, :path_context, :count_provider
 
     def builtin_i18n_key(folder)
       return nil unless folder.builtin?
@@ -88,6 +89,9 @@ module Admin
     end
 
     def smart_folder_count(folder)
+      provided = count_provider&.call(folder)
+      return provided unless provided.nil?
+
       filter_class.from_tree(folder.filter, user: user).apply(base_scope).count
     end
 
