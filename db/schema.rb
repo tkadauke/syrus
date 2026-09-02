@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_031000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -273,7 +273,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.string "approval_policy", default: "manual", null: false
     t.boolean "auto_file_proposals", default: false, null: false
     t.boolean "auto_submit_jobs", default: false, null: false
-    t.bigint "chat_session_id", null: false
+    t.integer "chat_session_id", null: false
     t.text "completion_condition"
     t.integer "consecutive_blocked_events", default: 0, null: false
     t.integer "consecutive_no_op_iterations", default: 0, null: false
@@ -283,13 +283,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.string "last_iteration_signature"
     t.json "mode_snapshot", null: false
     t.text "prompt", null: false
-    t.bigint "repository_id"
+    t.integer "repository_id"
     t.string "status", default: "active", null: false
     t.datetime "terminal_at"
     t.json "terminal_details"
     t.string "terminal_reason"
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.integer "user_id", null: false
     t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
     t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
     t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
@@ -444,7 +444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -894,7 +894,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
@@ -1241,7 +1241,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
@@ -1350,7 +1350,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["grace_period_expires_at"], name: "index_jobs_on_grace_period_expires_at"
     t.index ["input_source_id"], name: "index_jobs_on_input_source_id"
-    t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["landing_blocker_override_key"], name: "index_jobs_on_landing_blocker_override_key"
     t.index ["landing_blocker_override_requested_by_user_id"], name: "index_jobs_on_landing_blocker_override_requested_by_user_id"
     t.index ["landing_queue_cached_at", "state"], name: "index_jobs_on_landing_queue_cached_at_and_state"
@@ -1363,7 +1362,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
-    t.index ["repository_id", "validity", "created_at", "id"], name: "idx_jobs_classifier_candidates"
+    t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "owner_user_id", "kind", "state"], name: "idx_jobs_dashboard_repo_owner_kind_state"
     t.index ["repository_id", "state", "closure_reason", "finished_at"], name: "idx_jobs_repo_state_closure_finished"
@@ -1371,6 +1370,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["repository_id", "system_kind", "state"], name: "index_jobs_on_repository_id_system_kind_state"
     t.index ["repository_id", "updated_at", "id"], name: "idx_jobs_repo_updated_latest"
     t.index ["repository_id", "user_id", "kind", "state"], name: "idx_jobs_dashboard_repo_user_kind_state"
+    t.index ["repository_id", "validity", "created_at", "id"], name: "idx_jobs_classifier_candidates"
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
     t.index ["slug"], name: "index_jobs_on_slug", unique: true
@@ -1486,6 +1486,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
   end
 
   create_table "mcp_tool_usages", force: :cascade do |t|
+    t.text "backtrace_excerpt"
     t.integer "chat_session_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -1512,7 +1513,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.datetime "updated_at", null: false
     t.integer "user_id"
     t.integer "workflow_id"
-    t.text "backtrace_excerpt"
     t.index ["chat_session_id", "tool_use_id"], name: "index_mcp_tool_usages_on_chat_session_id_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_mcp_tool_usages_on_chat_session_id"
     t.index ["created_at"], name: "index_mcp_tool_usages_on_created_at"
@@ -2301,6 +2301,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["kind", "state", "finished_at", "workflow_id"], name: "idx_steps_throughput_kind_state_finished"
     t.index ["kind", "workflow_id"], name: "idx_steps_kind_workflow_id"
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
+    t.index ["state", "updated_at", "id"], name: "idx_steps_state_updated_id"
     t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
@@ -2383,8 +2384,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["test_identity_id", "duration_ms", "created_at", "id"], name: "idx_test_cases_identity_duration_created_id"
     t.index ["test_identity_id", "id"], name: "idx_test_cases_identity_id_latest"
     t.index ["test_identity_id", "status", "created_at"], name: "idx_test_cases_identity_status_created"
-    t.index ["test_run_id", "test_identity_id"], name: "idx_test_cases_run_identity"
     t.index ["test_run_id", "status", "suite_name", "name"], name: "idx_test_cases_run_status_case"
+    t.index ["test_run_id", "test_identity_id"], name: "idx_test_cases_run_identity"
   end
 
   create_table "test_identities", force: :cascade do |t|
@@ -2856,4 +2857,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-end
+  add_foreign_key "admin_build_cache_clear_requests", "users"
+  add_foreign_key "chat_goals", "chat_sessions"
+  add_foreign_key "chat_goals", "repositories"
+  add_foreign_key "chat_goals", "users"
+  add_foreign_key "chat_proposals", "chat_goals"
+  add_foreign_key "design_doc_anchors", "design_doc_versions"
+  add_foreign_key "design_doc_anchors", "design_docs"
+  add_foreign_key "design_doc_collaborators", "design_docs"
+  add_foreign_key "design_doc_collaborators", "users"
+  add_foreign_key "design_doc_collaborators", "users", column: "added_by_user_id"
+  add_foreign_key "design_doc_comments", "design_doc_threads"
+  add_foreign_key "design_doc_comments", "users", column: "author_user_id"
+  add_foreign_key "design_doc_repositories", "design_docs"
+  add_foreign_key "design_doc_repositories", "repositories"
+  add_foreign_key "design_doc_suggestions", "design_doc_anchors"
+  add_foreign_key "design_doc_suggestions", "design_doc_threads"
+  add_foreign_key "design_doc_suggestions", "design_doc_versions", column: "base_version_id"
+  add_foreign_key "design_doc_suggestions", "design_docs"
+  add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
+  add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
+  add_foreign_key "design_doc_threads", "design_doc_anchors"
+  add_foreign_key "design_doc_threads", "design_docs"
+  add_foreign_key "design_doc_threads", "users", column: "opened_by_user_id"
+  add_foreign_key "design_doc_threads", "users", column: "resolved_by_user_id"
+  add_foreign_key "design_doc_versions", "design_docs"
+  add_foreign_key "design_doc_versions", "users", column: "actor_user_id"
+  add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
+  add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id", on_delete: :nullify
+  add_foreign_key "design_docs", "users", column: "owner_user_id"
+  add_foreign_key "epics", "chat_goals"
+  add_foreign_key "github_collaborator_discrepancies", "repositories"
+  add_foreign_key "jobs", "chat_goals"
+  add_foreign_key "preview_environments", "repositories"
+  add_foreign_key "team_memberships", "teams"
+  add_foreign_key "team_memberships", "users"
+  add_foreign_key "team_repositories", "repositories"
+  add_foreign_key "team_repositories", "teams"
+  add_foreign_key "test_identity_runtime_summaries", "repositories"
+  add_foreign_key "test_identity_runtime_summaries", "test_identities"
+
+  # Virtual tables defined in this database.
+  # Note that virtual tables may not work with other database engines. Be careful if changing database.
