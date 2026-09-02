@@ -180,6 +180,7 @@
     "appCrashHeading": "An unexpected error has occurred."
   },
   "status": {
+    "backlog": "backlog",
     "needs_triage": "needs triage",
     "triaging": "triaging",
     "queued": "queued",
