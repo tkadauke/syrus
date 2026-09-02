@@ -273,6 +273,18 @@ It defaults to false. Set it true only when the proposed work directly advances
 the chat's active goal; unrelated or opportunistic follow-up proposals should
 remain unlinked so their later Job state changes do not wake the goal loop.
 
+`propose_job` also accepts `route_to_backlog` for a single direct Job proposal
+card. It defaults to false, preserving the current confirmation path: the Job
+starts normally after dependency wiring and triage advancement when it is not
+blocked. When true, the card shows the route as Backlog before confirmation,
+and confirming creates an owned `direct` Job in `state: "backlog"`, links it
+to the originating chat, wires dependencies, attaches proposal media, and does
+not call `advance_after_triage!`, so no initial Workflow or Run is created
+until an operator releases the Job from backlog. The route is editable only on
+the standalone direct Job proposal card; grouped Epic proposal children keep
+their existing materialization behavior and cannot be routed to backlog by this
+v1 control.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the
