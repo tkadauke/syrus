@@ -63,11 +63,25 @@ module App
     end
 
     def queue_length_for(track)
-      landing_queue_jobs.count { |job| policy.job_landing_branch(job) == track.branch }
+      landing_queue_counts_by_branch.fetch(track.branch, 0)
     end
 
-    def landing_queue_jobs
-      @landing_queue_jobs ||= repository.jobs.landing_queue.to_a
+    def landing_queue_counts_by_branch
+      @landing_queue_counts_by_branch ||= begin
+        counts_by_track = repository.jobs
+          .landing_queue
+          .group(:delivery_track)
+          .count
+
+        counts_by_track.each_with_object(Hash.new(0)) do |(track_name, count), result|
+          result[branch_for_delivery_track_name(track_name)] += count.to_i
+        end
+      end
+    end
+
+    def branch_for_delivery_track_name(track_name)
+      track = policy.tracks[track_name.presence] || policy.tracks[SyrusYml::DEFAULT_DELIVERY_TRACK_NAME]
+      track&.branch || repository.default_branch
     end
 
     def promotion_source_branch

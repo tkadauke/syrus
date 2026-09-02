@@ -68,6 +68,8 @@ RSpec.describe App::DeliveryTracksPayload do
     landed.update_columns(state: "closed", closure_reason: "pr_merged")
 
     queued_on_hotfix = Factories.job_record(repository: repository, issue_number: 2, state: "approved", delivery_track: "hotfix")
+    queued_on_default = Factories.job_record(repository: repository, issue_number: 3, state: "approved")
+    queued_on_unknown = Factories.job_record(repository: repository, issue_number: 4, state: "approved", delivery_track: "missing")
 
     external_job = Job.create!(
       user: repository.user,
@@ -97,6 +99,7 @@ RSpec.describe App::DeliveryTracksPayload do
     default_track = payload[:tracks].find { |track| track[:name] == "default" }
     expect(default_track[:branch]).to eq("develop")
     expect(default_track[:is_default]).to be(true)
+    expect(default_track[:queue_length]).to eq(2)
     expect(default_track[:last_promotion]).to include(source_ref: "develop", target_ref: "main")
 
     hotfix_track = payload[:tracks].find { |track| track[:name] == "hotfix" }
@@ -115,6 +118,8 @@ RSpec.describe App::DeliveryTracksPayload do
     expect(ingestion_entry).to include(pr_number: 9, classification: "syrus_job_export")
 
     expect(queued_on_hotfix).to be_present
+    expect(queued_on_default).to be_present
+    expect(queued_on_unknown).to be_present
   end
 
   it "defaults PR ingestion classification to external_unknown when no provenance link exists" do
