@@ -73,6 +73,13 @@ JSON API controller, policy, serializer, and create/update/review services. The
 host app loads bundled plugin migration paths and keeps the shared Rails schema
 dump.
 
+Design Docs v1 supports a safe GitHub-ish Markdown command set for the editor
+toolbar and renderer: headings `#` through `####`, bold, italic,
+strikethrough, inline code, links with safe URL schemes, ordered and unordered
+lists including nesting, blockquotes, fenced code blocks, simple pipe tables,
+and horizontal rules. Raw HTML is not rendered as HTML in v1; it remains inert
+text unless a future change adds an explicit sanitization plan.
+
 The plugin registers:
 
 - top-level sidebar page: `/design_docs`

@@ -37,7 +37,7 @@ type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number; containerWidth: number }
-type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
+type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -1198,13 +1198,71 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
       continue
     }
 
-    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    const heading = line.match(/^(#{1,4})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
       const headingOffset = offset + heading[1].length + 1
       blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId, focusedSuggestionId)}</h${level}>`)
       offset += line.length + 1
       index += 1
+      continue
+    }
+
+    const fence = line.match(/^\s*```[\w.-]*\s*$/)
+    if (fence) {
+      const codeLines: string[] = []
+      index += 1
+      offset += line.length + 1
+      while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) {
+        codeLines.push(lines[index])
+        offset += lines[index].length + 1
+        index += 1
+      }
+      if (index < lines.length) {
+        offset += lines[index].length + 1
+        index += 1
+      }
+      blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`)
+      continue
+    }
+
+    if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
+      blocks.push("<hr>")
+      offset += line.length + 1
+      index += 1
+      continue
+    }
+
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines: string[] = []
+      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+        const quoteLine = lines[index]
+        quoteLines.push(quoteLine.replace(/^\s*>\s?/, ""))
+        offset += quoteLine.length + 1
+        index += 1
+      }
+      blocks.push(`<blockquote>${quoteLines.map((quoteLine) => renderWysiwygInline(quoteLine, [], 0, null, null)).join("<br>")}</blockquote>`)
+      continue
+    }
+
+    if (isSimpleMarkdownTable(lines, index)) {
+      const headers = splitMarkdownTableRow(lines[index])
+      const rows: string[][] = []
+      offset += lines[index].length + 1
+      offset += lines[index + 1].length + 1
+      index += 2
+      while (index < lines.length && lines[index].includes("|") && lines[index].trim() !== "") {
+        rows.push(splitMarkdownTableRow(lines[index]))
+        offset += lines[index].length + 1
+        index += 1
+      }
+      blocks.push([
+        "<table><thead><tr>",
+        headers.map((header) => `<th>${renderWysiwygInline(header)}</th>`).join(""),
+        "</tr></thead><tbody>",
+        rows.map((row) => `<tr>${headers.map((_header, cellIndex) => `<td>${renderWysiwygInline(row[cellIndex] || "")}</td>`).join("")}</tr>`).join(""),
+        "</tbody></table>"
+      ].join(""))
       continue
     }
 
@@ -1239,7 +1297,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     }
 
     const paragraph: string[] = []
-    while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index])) {
+    while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,4})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index]) && !/^\s*```/.test(lines[index]) && !/^\s*>\s?/.test(lines[index]) && !/^\s*(?:---+|\*\*\*+)\s*$/.test(lines[index]) && !isSimpleMarkdownTable(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId, focusedSuggestionId))
@@ -1259,7 +1317,11 @@ function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [
       if (token.kind === "code") return `<code>${content}</code>`
       if (token.kind === "strong") return `<strong>${content}</strong>`
       if (token.kind === "emphasis") return `<em>${content}</em>`
-      if (token.kind === "link") return `<a href="${escapeHtml(token.href || "")}">${content}</a>`
+      if (token.kind === "strike") return `<del>${content}</del>`
+      if (token.kind === "link") {
+        const href = safeMarkdownHref(token.href || "")
+        return href ? `<a href="${escapeHtml(href)}">${content}</a>` : content
+      }
 
       return content
     })
@@ -1279,11 +1341,14 @@ function nodeToMarkdown(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? ""
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
+  if (node.tagName === "PRE") return `\`\`\`\n${node.textContent?.replace(/\n$/, "") ?? ""}\n\`\`\``
+  if (node.tagName === "HR") return "---"
+  if (node.tagName === "TABLE") return tableToMarkdown(node)
 
   const text = inlineMarkdownText(node).trim()
   if (text.length === 0) return ""
 
-  if (/^H[1-3]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
+  if (/^H[1-4]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
   if (node.tagName === "LI") return `- ${text}`
   if (node.tagName === "UL") return Array.from(node.children).map((child) => nodeToMarkdown(child)).join("\n")
   if (node.tagName === "OL") return Array.from(node.children).map((child, childIndex) => `${childIndex + 1}. ${inlineMarkdownText(child).trim()}`).join("\n")
@@ -1297,9 +1362,49 @@ function inlineMarkdownText(node: ChildNode): string {
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
   if (node.tagName === "BR") return "\n"
+  if (node.tagName === "STRONG" || node.tagName === "B") return `**${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}**`
+  if (node.tagName === "EM" || node.tagName === "I") return `*${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}*`
+  if (node.tagName === "DEL" || node.tagName === "S" || node.tagName === "STRIKE") return `~~${Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")}~~`
+  if (node.tagName === "CODE") return `\`${node.textContent ?? ""}\``
+  if (node.tagName === "A") {
+    const label = Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
+    const href = safeMarkdownHref(node.getAttribute("href") || "")
+    return href ? `[${label}](${href})` : label
+  }
   if (node.childNodes.length === 0) return node.textContent ?? ""
 
   return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
+}
+
+function isSimpleMarkdownTable(lines: string[], index: number) {
+  return index + 1 < lines.length && lines[index].includes("|") && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
+}
+
+function splitMarkdownTableRow(line: string) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
+}
+
+function tableToMarkdown(table: HTMLElement) {
+  const headers = Array.from(table.querySelectorAll("thead th")).map((cell) => inlineMarkdownText(cell).trim())
+  const bodyRows = Array.from(table.querySelectorAll("tbody tr")).map((row) => Array.from(row.querySelectorAll("td")).map((cell) => inlineMarkdownText(cell).trim()))
+  if (headers.length === 0) return ""
+
+  return [
+    `| ${headers.join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...bodyRows.map((row) => `| ${headers.map((_header, index) => row[index] || "").join(" | ")} |`)
+  ].join("\n")
+}
+
+function safeMarkdownHref(href: string) {
+  if (href.startsWith("/") || href.startsWith("#")) return href
+
+  try {
+    const url = new URL(href, window.location.origin)
+    return ["http:", "https:", "mailto:"].includes(url.protocol) ? href : null
+  } catch (_error) {
+    return null
+  }
 }
 
 function escapeHtml(value: string) {
@@ -1381,6 +1486,13 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
+    const strike = markdown.slice(index).match(/^~~([^~]+)~~/)
+    if (strike) {
+      tokens.push({ kind: "strike", text: strike[1], sourceStart: baseOffset + index + 2 })
+      index += strike[0].length
+      continue
+    }
+
     const code = markdown.slice(index).match(/^`([^`]+)`/)
     if (code) {
       tokens.push({ kind: "code", text: code[1], sourceStart: baseOffset + index + 1 })
@@ -1395,7 +1507,7 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
-    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|`|\[)/)
+    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|~~|`|\[)/)
     const end = nextSpecial === -1 ? markdown.length : index + 1 + nextSpecial
     tokens.push({ kind: "text", text: markdown.slice(index, end), sourceStart: baseOffset + index })
     index = end
