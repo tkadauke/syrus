@@ -164,7 +164,7 @@ module Filters
         end
 
         def apply_backlog
-          scope.where(state: "backlog")
+          scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType::USER_KINDS)
         end
 
         def apply_queued
