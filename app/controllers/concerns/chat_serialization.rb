@@ -339,8 +339,8 @@ module ChatSerialization
     scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_active_tail)"))
   end
 
-  def hidden_chat_json(chat_session)
-    chat_index_json(chat_session).merge(
+  def hidden_chat_json(chat_session, context: nil)
+    chat_index_json(chat_session, context: context).merge(
       hidden_at: chat_session.hidden_at&.iso8601,
       app_unhide_path: "/api/v1/app/chats/#{chat_session.id}/unhide"
     )

@@ -192,9 +192,10 @@ module Api
             .order(hidden_at: :desc, id: :desc)
             .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
             .limit(HIDDEN_CHATS_PAGE_SIZE)
+          context = chat_index_context_for(chats)
 
           render json: {
-            chats: chats.map { |chat_session| hidden_chat_json(chat_session) },
+            chats: chats.map { |chat_session| hidden_chat_json(chat_session, context: context) },
             total: total,
             page: page,
             per_page: HIDDEN_CHATS_PAGE_SIZE,

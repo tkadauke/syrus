@@ -800,28 +800,38 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.hidden_at).to be_nil
   end
 
-  it "lists hidden chats for recovery in hidden order" do
+  it "lists hidden chats for recovery in hidden order with shared sidebar context" do
     sign_in_as(user)
     older = ChatSession.create!(user: user, repository: repository, title: "Older", hidden_at: 2.days.ago)
     newer = ChatSession.create!(user: user, title: "Newer", hidden_at: 1.hour.ago)
+    third = ChatSession.create!(user: user, title: "Third", hidden_at: 3.hours.ago)
+    third.proposals.create!(
+      slug: "third-proposal",
+      title: "Third proposal",
+      body: "Inspect hidden context batching.",
+      state: "proposed"
+    )
     ChatSession.create!(user: user, title: "Visible")
     ChatSession.create!(user: Factories.user, title: "Foreign", hidden_at: Time.current)
 
-    get "/api/v1/app/settings/hidden_chats"
+    queries = capture_sql { get "/api/v1/app/settings/hidden_chats" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["chats"].map { |chat| chat["id"] }).to eq([ newer.id, older.id ])
+    expect(body["chats"].map { |chat| chat["id"] }).to eq([ newer.id, third.id, older.id ])
     expect(body["chats"].first).to include(
       "title" => "Newer",
       "repository" => nil,
       "hidden_at" => newer.hidden_at.iso8601,
       "app_unhide_path" => "/api/v1/app/chats/#{newer.id}/unhide"
     )
-    expect(body["chats"].second["repository"]).to include("slug" => "acme/widgets")
-    expect(body).to include("total" => 2, "page" => 1, "per_page" => 20, "total_pages" => 1)
+    expect(body["chats"][2]["repository"]).to include("slug" => "acme/widgets")
+    expect(body).to include("total" => 3, "page" => 1, "per_page" => 20, "total_pages" => 1)
     expect(body.to_s).not_to include("Visible")
     expect(body.to_s).not_to include("Foreign")
+
+    expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?spawned_processes["`]?/i).size).to eq(1)
   end
 
   it "renames a chat for the signed-in user" do
