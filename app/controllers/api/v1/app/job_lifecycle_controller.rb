@@ -44,6 +44,27 @@ module Api
           end
         end
 
+        def release_from_backlog
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.backlog?
+            render_error("validation_failed", "Only backlogged Jobs can be released.", status: :unprocessable_content)
+            return
+          end
+          if job.active_runtime_work?
+            render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
+            return
+          end
+          unless job.may_release_from_backlog?
+            render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be released from backlog.", status: :unprocessable_content)
+            return
+          end
+
+          job.release_from_backlog!
+          render_job(job.reload, message: "Job released from backlog.", changed: [ "state", "workflows", "runs" ], tab: "workflows")
+        end
+
         def run_again
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
