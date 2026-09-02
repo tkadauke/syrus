@@ -859,7 +859,9 @@ describe("DesignDocsSurface", () => {
 
     expect(screen.getByRole("menuitem", { name: "Bulleted list" })).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: "Numbered list" })).toBeInTheDocument()
-    expect(screen.getByTestId("design-doc-formatting-toolbar")).toHaveClass("overflow-x-auto")
+    expect(screen.getByTestId("design-doc-formatting-toolbar")).not.toHaveClass("overflow-x-auto")
+    expect(screen.getByTestId("design-doc-formatting-toolbar-scroll")).toHaveClass("overflow-x-auto")
+    expect(screen.getByRole("menu").parentElement).toHaveClass("relative")
   })
 
   it("disables formatting commands that would rewrite protected Markdown spans", async () => {
