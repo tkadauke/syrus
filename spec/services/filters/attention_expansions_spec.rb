@@ -45,6 +45,14 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       )
     end
 
+    it "expands backlog as the backlog state" do
+      expect(described_class.expansion_for("backlog")).to eq(
+        "field" => "state",
+        "op" => "is",
+        "value" => "backlog"
+      )
+    end
+
     it "expands inbox lossily — the OR group covers actionable primitives" do
       inbox = described_class.expansion_for("inbox")
       expect(inbox).to have_key("and")
@@ -86,7 +94,7 @@ RSpec.describe Filters::Chips::Jobs::Attention do
     it "includes every defined expansion as parsed AST nodes" do
       expansions = described_class.expansions
       expect(expansions.keys).to match_array(%w[
-        pinned in_progress paused queued inbox awaiting_approval just_failed
+        pinned in_progress paused backlog queued inbox awaiting_approval just_failed
         stale blocked merged_this_week awaiting_epic needs_review
       ])
     end

@@ -148,6 +148,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
           )
         },
         "kanban_lanes" => [
+          { "key" => "backlog", "title" => "Backlog" },
           { "key" => "blocked", "title" => "Blocked" },
           { "key" => "queued", "title" => "Queued" },
           { "key" => "running", "title" => "Running" },
@@ -481,6 +482,19 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       expect(lane_item_ids(body, "blocked")).to include(blocked.id)
       expect(lane_item_ids(body, "queued")).not_to include(blocked.id)
+    end
+
+    it "surfaces backlogged jobs in the backlog Kanban lane by default" do
+      backlogged = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Plan arcade", state: "backlog")
+      queued = Factories.job_record(repository: repo, owner_user: user, issue_number: 11, issue_title: "Catalog marble", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(lane_item_ids(body, "backlog")).to include(backlogged.id)
+      expect(lane_item_ids(body, "queued")).to include(queued.id)
+      expect(lane_item_ids(body, "queued")).not_to include(backlogged.id)
     end
 
     it "returns per-lane Kanban counts and has_more metadata for jobs" do

@@ -881,7 +881,8 @@ module App
       visual_diff_actionable = (@job.implemented? || @job.approved? || @job.landing?) && !active_runtime_work
       visual_review_enabled = (visual_review_actionable || visual_diff_actionable) && visual_review_configured?
       {
-        can_start: @job.direct? && @job.open? && job_runs_count.zero? && !active_runtime_work,
+        can_start: @job.direct? && @job.open? && !@job.backlog? && job_runs_count.zero? && !active_runtime_work,
+        can_release_from_backlog: @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
@@ -949,6 +950,7 @@ module App
         app_test_results_path: "/api/v1/app/jobs/#{@job.id}/test_results",
         app_timeline_path: "/api/v1/app/jobs/#{@job.id}/timeline",
         app_start_path: "/api/v1/app/jobs/#{@job.id}/start",
+        app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
         app_cancel_path: "/api/v1/app/jobs/#{@job.id}/cancel",

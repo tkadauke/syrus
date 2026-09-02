@@ -8,7 +8,7 @@ Default tabular view. Supports column visibility, sorting, and pagination. Colum
 
 ## kanban
 
-Board view grouped by configurable lanes (e.g. Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows.
+Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows. Backlogged Jobs are open planned work, but they do not dispatch Workflows or Runs until an operator releases them from backlog.
 
 Kanban payloads are paginated per lane. Each lane includes `total_count`, `loaded_count`, `has_more`, and `next_offset`; when `has_more` is true, the UI shows a lane-specific Load more button. Follow-up lane fetches call `GET /api/v1/app/dashboard` with the existing dashboard filters plus `kanban_lane` and `kanban_offset`, so loading older cards preserves the current smart folder, ownership scope, and other lane state.
 
