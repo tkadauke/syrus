@@ -278,7 +278,23 @@ module App
     def job_has_active_runtime_work?
       return @job_has_active_runtime_work if defined?(@job_has_active_runtime_work)
 
-      @job_has_active_runtime_work = PerformanceLogging.phase("job_detail.job.active_runtime_work", job_id: @job.id) { @job.active_runtime_work? }
+      @job_has_active_runtime_work = PerformanceLogging.phase("job_detail.job.active_runtime_work", job_id: @job.id) do
+        job_has_active_run? || active_work_units_for_job.any?
+      end
+    end
+
+    def job_has_active_run?
+      return @job_has_active_run if defined?(@job_has_active_run)
+
+      @job_has_active_run = @job.runs.active.exists?
+    end
+
+    def active_work_units_for_job
+      return @active_work_units_for_job if defined?(@active_work_units_for_job)
+
+      @active_work_units_for_job = PerformanceLogging.phase("job_detail.job.active_work_units", job_id: @job.id) do
+        WorkUnits::Ownership.active_units_for_job(@job)
+      end
     end
 
     def active_repair_work_for_job
@@ -967,8 +983,7 @@ module App
       return @job_running_runtime_work if defined?(@job_running_runtime_work)
 
       @job_running_runtime_work = PerformanceLogging.phase("job_detail.job.running_runtime_work", job_id: @job.id) do
-        @job.runs.where(state: "running").exists? ||
-          WorkUnits::Ownership.active_units_for_job(@job).any?(&:running?)
+        @job.runs.where(state: "running").exists? || active_work_units_for_job.any?(&:running?)
       end
     end
 

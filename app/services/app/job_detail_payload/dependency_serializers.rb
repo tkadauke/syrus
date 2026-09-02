@@ -39,7 +39,7 @@ module App
           id: job.id,
           kind: job.kind,
           state: job.state,
-          summary_state: summary_state(job),
+          summary_state: dependency_job_summary_state(job),
           repository_slug: job.repository.slug,
           issue_number: job.issue_number,
           issue_title: job.issue_title,
@@ -47,6 +47,14 @@ module App
           pr_number: job.pr_number,
           job_path: job_path(job)
         }
+      end
+
+      def dependency_job_summary_state(job)
+        return "preempted" if job.closure_reason == "preempted"
+        return "preempted" if job.closure_reason&.start_with?("external_pr_")
+        return job.state if job.closed? || job.landing?
+
+        job.state
       end
 
       def dependency_epic_json(epic)

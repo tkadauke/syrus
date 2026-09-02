@@ -72,6 +72,33 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         epic_path: "/epics/#{blocker.id}"
       )
     end
+
+    it "does not probe runtime ownership for dependency target jobs" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      blocker = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      expect(WorkUnits::Ownership).to receive(:active_units_for_job).with(job).once.and_return([])
+      expect(WorkUnits::Ownership).not_to receive(:active_units_for_job).with(blocker)
+
+      dependency = payload_for(job).fetch(:dependencies).sole
+
+      expect(dependency.fetch(:depends_on_job)).to include(
+        id: blocker.id,
+        summary_state: "implemented"
+      )
+    end
+
+    it "reuses the job detail active work unit lookup across runtime predicates" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(WorkUnits::Ownership).to receive(:active_units_for_job).with(job).once.and_return([])
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:job, :summary_state)).to eq("implemented")
+      expect(payload.dig(:actions, :can_start)).to be(false)
+    end
   end
 
   describe "#actions_json can_run_visual_review" do
