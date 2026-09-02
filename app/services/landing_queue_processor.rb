@@ -209,6 +209,7 @@ class LandingQueueProcessor
 
   def landing_units(scope = Job.all)
     chronological = queue_candidates(scope)
+    sync_terminal_work_units(chronological)
     preload_active_trigger_kinds(chronological)
     next_position = 1
     ordered_landing_units(landing_units_for(chronological), chronological).map do |unit|
@@ -238,6 +239,10 @@ class LandingQueueProcessor
   end
 
   private
+
+  def sync_terminal_work_units(jobs)
+    jobs.each { |job| WorkUnits::TerminalWorkflowSync.for_job(job) }
+  end
 
   def persist_snapshot!(scope, queue_entries)
     now = Time.current

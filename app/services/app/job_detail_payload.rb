@@ -629,7 +629,7 @@ module App
     end
 
     def test_plan_json
-      entry = artifact_workflows_matching("test_plan", states: "succeeded").filter_map do |workflow|
+      entry = test_plan_artifact_workflows.filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         plan = canonical_test_plan_for(workflow)
@@ -649,6 +649,12 @@ module App
         steps: steps,
         notes: plan["notes"].presence
       }
+    end
+
+    def test_plan_artifact_workflows
+      workflows = artifact_workflows_matching("test_plan", states: "succeeded") +
+        artifact_workflows_matching("job_metadata", states: "succeeded")
+      workflows.uniq(&:id)
     end
 
     def latest_canonical_metadata_entry
@@ -758,11 +764,29 @@ module App
     end
 
     def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
-      workflows = artifact_workflows
+      workflows = keys.present? ? artifact_workflows_prefiltered_by_keys(keys) : artifact_workflows
       workflows = workflows.select { |workflow| Array(states).include?(workflow.state) } if states.present?
       workflows = workflows.select { |workflow| Array(trigger_kinds).include?(workflow.trigger_kind) } if trigger_kinds.present?
       workflows = workflows.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) } if keys.present?
       sort_artifact_workflows(workflows, order)
+    end
+
+    def artifact_workflows_prefiltered_by_keys(keys)
+      keys
+        .map(&:to_s)
+        .uniq
+        .reduce(artifact_workflow_scope) do |scope, key|
+          pattern = "%\"#{ActiveRecord::Base.sanitize_sql_like(key, "!")}\"%"
+          scope.where("artifacts LIKE ? ESCAPE '!'", pattern)
+        end
+        .to_a
+    end
+
+    def artifact_workflow_scope
+      @job.workflows
+        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .where.not(artifacts: [ nil, "", "{}" ])
+        .reorder(created_at: :asc, id: :asc)
     end
 
     def artifact_workflow_matches_keys?(workflow, keys)
