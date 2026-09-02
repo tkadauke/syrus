@@ -212,6 +212,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies non-canonical Codex rollout filenames as resume-unavailable" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    JobLog.append!(
+      run: run,
+      chunk: "[codex resume] resume for session 019f-bad did not complete successfully: `rollout-restored-019f-bad.jsonl` does not have a canonical rollout filename",
+      kind: "system"
+    )
+
+    result = classification
+    expect(result.classification).to eq("agent_resume_unavailable")
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies agent wait misconceptions as retryable" do
     run.update!(state: "failed")
     diagnostic(
