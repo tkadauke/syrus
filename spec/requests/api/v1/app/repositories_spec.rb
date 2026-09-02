@@ -556,11 +556,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 1)
 
+    expect(queries).not_to include(a_string_including("COUNT(DISTINCT CASE WHEN"))
     run_count_queries = queries.select do |query|
-      query.include?("COUNT(DISTINCT CASE WHEN") && query.include?("runs") && query.include?("state")
+      query.include?("COUNT(*)") && query.include?("runs") && query.include?("jobs") && query.include?("state")
     end
-    expect(run_count_queries.size).to eq(1)
-    expect(run_count_queries.first.scan("COUNT(DISTINCT CASE WHEN").size).to eq(3)
+    expect(run_count_queries.size).to eq(3)
   end
 
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do

@@ -1262,18 +1262,12 @@ module Api
         end
 
         def repository_run_job_counts(repository)
-          repository_job_ids = repository.jobs.select(:id)
-          connection = Run.connection
-          failed_since = connection.quote(7.days.ago)
-
-          row = Run.where(job_id: repository_job_ids).pick(
-            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'running' THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)"),
-            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'queued' THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)"),
-            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'failed' AND #{Run.quoted_table_name}.#{connection.quote_column_name(:updated_at)} >= #{failed_since} THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)")
-          )
-
-          running, queued, failed_7d = row || [ 0, 0, 0 ]
-          { running: running.to_i, queued: queued.to_i, failed_7d: failed_7d.to_i }
+          repository_jobs = repository.jobs
+          {
+            running: repository_jobs.where(id: Run.where(state: "running").select(:job_id)).count,
+            queued: repository_jobs.where(id: Run.where(state: "queued").select(:job_id)).count,
+            failed_7d: repository_jobs.where(id: Run.where(state: "failed", updated_at: 7.days.ago..).select(:job_id)).count
+          }
         end
 
         def latest_jobs_by_repository_id(repository_ids)
