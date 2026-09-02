@@ -4981,6 +4981,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_actions"]).to be_empty
   end
 
+  it "only includes recently confirmed pending actions in the chat payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    fresh_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
+    stale_action = chat.pending_actions.create!(action: "retry_job", payload: { "job_id" => Factories.job_record(repository: repository, issue_number: 44).id })
+    fresh_action.update!(state: "confirmed", confirmed_at: Time.current)
+    stale_action.update!(state: "confirmed", confirmed_at: 1.minute.ago)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"].map { |action| action.fetch("id") }).to contain_exactly(fresh_action.id)
+  end
+
   it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

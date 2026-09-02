@@ -352,7 +352,7 @@ module ChatSerialization
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
     chat_session.association(:pending_actions).reset
 
-    chat_session.pending_actions.includes(:tool_call_message, :message).where(state: %w[queued pending confirming confirmed failed]).order(:created_at, :id).select(&:visible_in_chat_payload?).map do |action|
+    pending_actions_for_payload(chat_session).map do |action|
       {
         id: action.id,
         label: pending_action_label(action),
@@ -375,6 +375,14 @@ module ChatSerialization
         payload.merge!(resource) if resource
       end
     end
+  end
+
+  def pending_actions_for_payload(chat_session)
+    base_scope = chat_session.pending_actions.includes(:tool_call_message, :message)
+    active_scope = base_scope.where(state: %w[queued pending confirming failed])
+    recent_confirmed_scope = base_scope.where(state: "confirmed").where("confirmed_at >= ?", ChatPendingAction::CONFIRMED_VISIBLE_FOR.ago)
+
+    active_scope.or(recent_confirmed_scope).order(:created_at, :id)
   end
 
   def pending_action_resource(action)
