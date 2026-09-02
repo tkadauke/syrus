@@ -101,8 +101,8 @@ module App
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
           can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
-          can_release_from_backlog: job.backlog? && job.open? && !job.active_runtime_work? && job.may_release_from_backlog? && JobPolicy.new(user, job).write?,
-          can_move_to_backlog: job.open? && !job.active_runtime_work? && job.may_move_to_backlog? && JobPolicy.new(user, job).write?,
+          can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
+          can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
           can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
             job_path: job_path(job),
@@ -125,6 +125,32 @@ module App
         end
 
         payload
+      end
+
+      def dashboard_job_active_runtime_work?(job)
+        if defined?(@job_runtime_active_job_ids)
+          return @job_runtime_active_job_ids.key?(job.id)
+        end
+
+        job.active_runtime_work?
+      end
+
+      def dashboard_job_can_release_from_backlog?(job)
+        job.backlog? &&
+          job.open? &&
+          !dashboard_job_active_runtime_work?(job) &&
+          job.may_release_from_backlog? &&
+          JobPolicy.new(user, job).write?
+      end
+
+      def dashboard_job_can_move_to_backlog?(job)
+        job.open? &&
+          job.state.in?(%w[needs_triage triaging blocked_by_epic queued]) &&
+          job.pr_number.blank? &&
+          job.external_pr_number.blank? &&
+          job.fork_review_pr_number.blank? &&
+          !dashboard_job_active_runtime_work?(job) &&
+          JobPolicy.new(user, job).write?
       end
 
       def dashboard_job_dependencies_json(dependencies)
