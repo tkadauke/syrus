@@ -285,7 +285,7 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :runs, :workflows), params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:repository), params[:job_id])
         end
 
         # approve/run_again/cancel resolve through the wider,
@@ -295,7 +295,7 @@ module Api
         # them; authorize_job_mutation! (BaseController) still gates the
         # actual mutation.
         def find_mutable_job
-          find_job_by_ref(policy_scope(Job).includes(:repository, :runs, :workflows), params[:job_id])
+          find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
         end
 
         def render_job(job, message:, changed:, tab: nil)
@@ -334,8 +334,8 @@ module Api
             approved_at: job.approved_at&.iso8601,
             approved_via: job.approved_via,
             approved_by_user_id: job.approved_by_user_id,
-            runs_count: job.runs.size,
-            workflows_count: job.workflows.size
+            runs_count: job.runs.count,
+            workflows_count: job.workflows.count
           }
         end
 

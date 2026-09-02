@@ -9,6 +9,18 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
   def parse_body = JSON.parse(response.body)
   def app_job_path(job_record, action) = "/api/v1/app/jobs/#{job_record.id}/#{action}"
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   def finish_work_units_for(job_record)
     WorkUnit
       .joins(:work_unit_members)
@@ -36,6 +48,29 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Initial workflow enqueued.")
     expect(parse_body.dig("job", "runs_count")).to eq(1)
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
+  end
+
+  it "does not preload historical workflows or runs for lifecycle responses" do
+    job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+    job.update!(state: "failed")
+    finish_work_units_for(job)
+    3.times do
+      workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
+      step = workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider, state: "failed")
+    end
+
+    queries = capture_sql do
+      post app_job_path(job, "run_again"), as: :json
+    end
+
+    expect(response).to have_http_status(:ok)
+    normalized_queries = queries.map { |sql| sql.squish }
+    broad_workflow_preload = /SELECT\s+["`]?workflows["`]?\.\*\s+FROM\s+["`]?workflows["`]?\s+WHERE\s+["`]?workflows["`]?\.[ "`]?job_id["`]?\s*=\s*\?\z/i
+    broad_run_preload = /SELECT\s+["`]?runs["`]?\.\*\s+FROM\s+["`]?runs["`]?\s+WHERE\s+["`]?runs["`]?\.[ "`]?job_id["`]?\s*=\s*\?\z/i
+
+    expect(normalized_queries).not_to include(match(broad_workflow_preload))
+    expect(normalized_queries).not_to include(match(broad_run_preload))
   end
 
   it "reports a blocked reason instead of a false success when the initial workflow is admission-blocked" do
