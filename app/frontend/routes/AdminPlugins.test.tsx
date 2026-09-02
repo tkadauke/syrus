@@ -167,6 +167,40 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("AgentProviders::Claude")).toBeInTheDocument()
   })
 
+  it("uses semantic info tokens for required extension point status badges", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "rails",
+          display_name: "Rails",
+          disable_blockers: [],
+          version: "1.0.0",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: null,
+          homepage: null,
+          author: null,
+          source: null,
+          extension_points: [
+            {
+              extension_point: "rails_artifact_renderer",
+              class_name: "Rails::ArtifactRenderer",
+              availability: { status: "required", label: "Required" }
+            }
+          ]
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    const badge = await screen.findByText("Required")
+    expect(badge.className).toContain("bg-info/10")
+    expect(badge.className).toContain("text-info")
+    expect(badge.className).not.toMatch(/\b(?:bg|text)-blue-/)
+  })
+
   it("tooltips the disable button with a single blocker reason", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
