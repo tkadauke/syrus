@@ -707,6 +707,52 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from Rich Text")
   })
 
+  it("renders the documented Markdown command set in the Rich Text editor without activating raw HTML", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    const markdown = [
+      "#### Scope",
+      "",
+      "> Quote **important** context.",
+      "",
+      "| Feature | Status |",
+      "| --- | --- |",
+      "| `code` | ~~removed~~ |",
+      "",
+      "1. First",
+      "   - Nested",
+      "2. Second",
+      "",
+      "---",
+      "",
+      "Plain *italic*, **bold**, `inline`, [link](https://example.test), and ~~strike~~.",
+      "",
+      "```ts",
+      "<script>alert('x')</script>",
+      "```"
+    ].join("\n")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: markdown } })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    expect(within(editor).getByRole("heading", { level: 4, name: "Scope" })).toBeInTheDocument()
+    expect(editor.querySelector("blockquote strong")).toHaveTextContent("important")
+    expect(editor.querySelector("table th")).toHaveTextContent("Feature")
+    expect(editor.querySelector("table code")).toHaveTextContent("code")
+    expect(editor.querySelector("table del")).toHaveTextContent("removed")
+    expect(editor.querySelector("ol > li > ul")).toHaveTextContent("Nested")
+    expect(editor.querySelector("hr")).not.toBeNull()
+    expect(editor.querySelector("em")).toHaveTextContent("italic")
+    expect(editor.querySelector("strong")).toHaveTextContent("important")
+    expect(editor.querySelector("p code")).toHaveTextContent("inline")
+    expect(within(editor).getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.test")
+    expect(editor.querySelector("p del")).toHaveTextContent("strike")
+    expect(editor.querySelector("pre code")).toHaveTextContent("<script>alert('x')</script>")
+    expect(container.querySelector("script")).toBeNull()
+  })
+
   it("lets owners switch between Edit and Suggest change modes", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")

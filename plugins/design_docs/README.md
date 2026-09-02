@@ -89,6 +89,31 @@ beside it with the active theme's success token. The rendered suggestion text is
 display-only: hidden anchor comments and proposed replacement previews are not
 written into canonical Markdown until the owner accepts the suggestion.
 
+### Markdown Command Set
+
+Design Docs v1 stores canonical Markdown and supports a GitHub-ish safe subset
+that matches Syrus' shared React Markdown renderer and the plugin Rich Text
+preview:
+
+- headings `#` through `####`
+- blockquotes with `>`
+- fenced code blocks with triple backticks
+- pipe tables with a header delimiter row
+- ordered lists, unordered lists, and indented nested lists
+- horizontal rules with `---` or `***`
+- inline code with backticks
+- bold with `**text**`
+- italic with `*text*`
+- links with `[label](https://example.test)`, root-relative paths, anchors,
+  and `mailto:` URLs
+- strikethrough with `~~text~~`
+- Syrus slug autolinks such as `DOC-1`, `JOB-1`, and `EPIC-1` wherever the
+  shared renderer is used
+
+Raw HTML is intentionally excluded from the v1 command set. User-entered HTML is
+rendered as inert text unless a future Job adds an explicit sanitization plan for
+safe raw HTML.
+
 ## Agent Tools
 
 Chat agents receive deferred Design Docs tools:
