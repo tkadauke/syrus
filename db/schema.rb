@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_102000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_104500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2684,6 +2684,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_102000) do
     t.index ["hostname", "observed_at"], name: "idx_worker_health_hostname_observed"
     t.index ["hostname", "role", "observed_at"], name: "idx_worker_host_health_samples_host_role_observed", unique: true
     t.index ["observed_at"], name: "index_worker_host_health_samples_on_observed_at"
+    t.index ["role", "observed_at", "hostname"], name: "idx_worker_health_role_observed_host"
   end
 
   create_table "workflow_activity_events", force: :cascade do |t|

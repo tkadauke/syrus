@@ -195,6 +195,7 @@ module Admin
 
     def samples
       @samples ||= WorkerHostHealthSample
+        .worker_role
         .where(observed_at: since..until_time)
         .then { |scope| hostname ? scope.where(hostname: hostname) : scope }
         .then { |scope| include_raw_metrics? ? scope : scope.select(worker_health_scalar_columns) }
