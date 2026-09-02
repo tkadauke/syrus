@@ -422,6 +422,28 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(workflow_id_scans).to be_empty
     end
 
+    it "bounds loaded workflow steps while preserving active steps outside the display window" do
+      stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_STEPS_PER_WORKFLOW", 3)
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      active_step = Step.create!(workflow: workflow, kind: "prepare", position: 1, state: "running")
+      5.times do |index|
+        Step.create!(workflow: workflow, kind: "implement", position: index + 2, state: "succeeded")
+      end
+
+      payload = workflows_payload_for(job)
+      workflow_payload = payload.fetch(:workflows).first
+      step_ids = workflow_payload.fetch(:steps).map { |step| step.fetch(:id) }
+
+      expect(workflow_payload).to include(
+        steps_total: 6,
+        steps_displayed: 4,
+        steps_truncated: true
+      )
+      expect(step_ids).to include(active_step.id)
+      expect(step_ids.last(3)).to eq(Step.where(workflow: workflow).order(:position, :id).last(3).map(&:id))
+    end
+
     it "renders step state from the latest run projection while preserving drift diagnostics" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

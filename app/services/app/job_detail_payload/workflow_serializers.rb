@@ -14,6 +14,7 @@ module App
       MAX_STEPS_PER_WORKFLOW = Integer(ENV["SYRUS_JOB_DETAIL_MAX_STEPS_PER_WORKFLOW"], exception: false) || 250
       MAX_RUNS_PER_STEP = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_RUNS_PER_STEP"], exception: false) || 20, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
+      ACTIVE_STEP_STATES = %w[queued running].freeze
 
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
@@ -353,17 +354,19 @@ module App
 
       def steps_by_workflow_id
         @steps_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.steps.query", job_id: @job.id, workflow_count: serialized_workflows.size) do
-          ids = serialized_workflows.map(&:id)
+          ids = visible_step_ids_by_workflow_id.keys
           next {} if ids.empty?
+          step_ids = visible_step_ids_by_workflow_id.values.flatten
+          next {} if step_ids.empty?
 
           steps = Step
-            .where(workflow_id: ids)
+            .where(id: step_ids)
             .order(:workflow_id, :position, :id)
             .to_a
 
           grouped = steps.group_by(&:workflow_id)
           ids.to_h do |workflow_id|
-            [ workflow_id, grouped.fetch(workflow_id, []).last(MAX_STEPS_PER_WORKFLOW) ]
+            [ workflow_id, grouped.fetch(workflow_id, []) ]
           end
         end
       end
@@ -647,6 +650,35 @@ module App
         @visible_step_ids ||= serialized_workflows.flat_map do |workflow|
           ordered_steps_for(workflow).map(&:id)
         end.compact
+      end
+
+      def visible_step_ids_by_workflow_id
+        @visible_step_ids_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.step_ids.query", job_id: @job.id, workflow_count: serialized_workflows.size, step_limit: MAX_STEPS_PER_WORKFLOW) do
+          ids = serialized_workflows.map { |workflow| Integer(workflow.id) }
+          next {} if ids.empty?
+
+          rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
+            SELECT id, workflow_id
+            FROM (
+              SELECT
+                steps.id,
+                steps.workflow_id,
+                steps.state,
+                ROW_NUMBER() OVER (
+                  PARTITION BY steps.workflow_id
+                  ORDER BY steps.position DESC, steps.id DESC
+                ) AS syrus_step_rank
+              FROM steps
+              WHERE steps.workflow_id IN (#{ids.join(",")})
+            ) ranked_steps
+            WHERE ranked_steps.syrus_step_rank <= #{MAX_STEPS_PER_WORKFLOW}
+               OR ranked_steps.state IN (#{ACTIVE_STEP_STATES.map { |state| ApplicationRecord.connection.quote(state) }.join(",")})
+          SQL
+
+          rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
+            grouped[row.fetch("workflow_id").to_i] << row.fetch("id").to_i
+          end
+        end
       end
 
       def runs_by_step_id
