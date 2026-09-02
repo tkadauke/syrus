@@ -156,8 +156,16 @@ RSpec.describe JunitXmlParser do
       XML
     end
 
-    it "does not error on nested suites (treats inner testsuite as opaque)" do
-      expect { parse(xml) }.not_to raise_error
+    it "extracts cases from nested suites" do
+      result = parse(xml)
+
+      expect(result.total_count).to eq(1)
+      expect(result.duration_ms).to eq(200)
+      expect(result.cases.first).to have_attributes(
+        suite_name: "Inner",
+        name: "nested",
+        status: "passed"
+      )
     end
   end
 
