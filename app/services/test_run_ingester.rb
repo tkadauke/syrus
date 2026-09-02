@@ -38,13 +38,37 @@ class TestRunIngester
     end
 
     touched_test_identity_ids.uniq!
-    TestIdentity.refresh_many!(touched_test_identity_ids)
-    TestIdentityRuntimeSummary.refresh_many!(touched_test_identity_ids, grader_names: [ @grader_name ])
-    TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: touched_test_identity_ids))
+    refresh_test_identities(touched_test_identity_ids)
+    refresh_runtime_summaries(touched_test_identity_ids)
+    refresh_search_index(touched_test_identity_ids)
     test_run
   end
 
   private
+
+  def refresh_test_identities(test_identity_ids)
+    TestIdentity.refresh_many!(test_identity_ids)
+  rescue StandardError => e
+    log_enrichment_failure("test identity refresh", e)
+  end
+
+  def refresh_runtime_summaries(test_identity_ids)
+    TestIdentityRuntimeSummary.refresh_many!(test_identity_ids, grader_names: [ @grader_name ])
+  rescue StandardError => e
+    log_enrichment_failure("runtime summary refresh", e)
+  end
+
+  def refresh_search_index(test_identity_ids)
+    TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: test_identity_ids))
+  rescue StandardError => e
+    log_enrichment_failure("search indexing", e)
+  end
+
+  def log_enrichment_failure(stage, error)
+    Rails.logger.warn(
+      "[TestRunIngester] #{stage} failed for Run #{@run.id} grader #{@grader_name}: #{error.class}: #{error.message}"
+    )
+  end
 
   def insert_test_cases(test_run)
     now = Time.current
