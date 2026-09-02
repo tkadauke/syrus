@@ -183,4 +183,77 @@ RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
     expect(pending_action.reload).to be_confirmed
     expect(pending_action.result).to be_nil
   end
+
+  it "auto-enqueues confirmation for active coding goals that auto-submit jobs" do
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Implement it",
+      mode_snapshot: { "mode" => "coding", "repository_id" => repository.id },
+      auto_submit_jobs: true
+    )
+
+    response = nil
+    expect {
+      response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+    expect(body).to include(state: "confirming")
+    expect(body[:message]).to include("auto-confirmed")
+    expect(pending_action).to be_confirming
+    expect(pending_action.execution_status).to eq("queued")
+  end
+
+  it "auto-enqueues confirmation for active local goals that auto-submit jobs" do
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Implement it locally",
+      mode_snapshot: { "mode" => "local", "repository_id" => repository.id },
+      auto_submit_jobs: true
+    )
+
+    response = nil
+    expect {
+      response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+    body = payload(response)
+    expect(body).to include(state: "confirming")
+  end
+
+  it "keeps manual pending-action confirmation for non-goal chats" do
+    response = nil
+    expect {
+      response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+    }.not_to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+    body = payload(response)
+    expect(body).to include(state: "pending")
+    expect(body[:message]).to include("pending operator confirmation")
+  end
+
+  it "keeps manual pending-action confirmation for coding goals without auto-submit" do
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Implement it",
+      mode_snapshot: { "mode" => "coding", "repository_id" => repository.id },
+      auto_submit_jobs: false
+    )
+
+    response = nil
+    expect {
+      response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+    }.not_to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+    body = payload(response)
+    expect(body).to include(state: "pending")
+    expect(body[:message]).to include("pending operator confirmation")
+  end
 end

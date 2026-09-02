@@ -69,13 +69,14 @@ module Mcp::Tools
           payload: payload,
           requested_by: "agent"
         )
+        auto_submitted = auto_submit_coding_handoff?(chat_session)
+        pending_action.enqueue_confirmation! if auto_submitted
+        pending_action.reload
 
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state,
-          message: "Submit coding changes is pending operator confirmation. " \
-                   "Once confirmed, a Job will be created and the CodingHandoff workflow " \
-                   "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
+          message: message_for(branch: branch, auto_submitted: auto_submitted)
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
@@ -95,6 +96,22 @@ module Mcp::Tools
         ChatWorkspace.coding_checkout_snapshot(chat_session, repository)[:current_branch].presence
       rescue StandardError
         nil
+      end
+
+      def auto_submit_coding_handoff?(chat_session)
+        chat_session.active_goal&.auto_submit_coding_handoff? || false
+      end
+
+      def message_for(branch:, auto_submitted:)
+        if auto_submitted
+          return "Submit coding changes was auto-confirmed by the active goal policy. " \
+                 "A Job will be created and the CodingHandoff workflow " \
+                 "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
+        end
+
+        "Submit coding changes is pending operator confirmation. " \
+          "Once confirmed, a Job will be created and the CodingHandoff workflow " \
+          "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
       end
     end
   end
