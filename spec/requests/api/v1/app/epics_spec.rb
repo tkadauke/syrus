@@ -8,6 +8,18 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql.squish unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/epics/new"
 
@@ -204,6 +216,25 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       "app_review_feedback_path" => "/api/v1/app/epics/#{epic.id}/review/feedback",
       "app_start_preview_path" => nil
     )
+  end
+
+  it "does not preload every child Job workflow on the Epic detail payload" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "ready")
+    2.times do |index|
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: index + 1)
+      3.times do
+        Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
+      end
+    end
+
+    queries = capture_sql do
+      get "/api/v1/app/epics/#{epic.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    broad_workflow_preload = /SELECT\s+["`]?workflows["`]?\.\*\s+FROM\s+["`]?workflows["`]?\s+WHERE\s+["`]?workflows["`]?\.[ "`]?job_id["`]?\s+IN/i
+    expect(queries).not_to include(match(broad_workflow_preload))
   end
 
   it "includes configured deployment stage statuses on Epic detail child Jobs" do

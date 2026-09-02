@@ -296,7 +296,11 @@ module Api
 
         def detail_payload(epic, message: nil)
           jobs = PerformanceLogging.phase("epic_detail.jobs", epic_id: epic.id) do
-            unordered_jobs = epic.jobs.includes(:repository, :owner_user, :deployment_stage_statuses, :dependencies, :dependent_links, :workflows).order(:id).to_a
+            unordered_jobs = epic.jobs
+                                 .with_latest_workflow_snapshot
+                                 .includes(:repository, :owner_user, :deployment_stage_statuses, :dependencies, :dependent_links)
+                                 .order(:id)
+                                 .to_a
             order_jobs_by_chain(unordered_jobs)
           end
           preload_epic_job_provider_availability(jobs)
