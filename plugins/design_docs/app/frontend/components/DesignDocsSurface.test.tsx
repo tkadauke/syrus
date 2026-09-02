@@ -535,7 +535,7 @@ describe("DesignDocsSurface", () => {
     })
   })
 
-  it("creates WYSIWYG comments from source offsets in long formatted list docs", async () => {
+  it("creates Rich Text comments from source offsets in long formatted list docs", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
     const markdown = [
@@ -549,7 +549,8 @@ describe("DesignDocsSurface", () => {
       "- Should backlogged Jobs be owned, claimed, both, or neither by default?"
     ].join("\n")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(markdownEditor, { target: { value: markdown } })
     fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
     const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
@@ -564,7 +565,9 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify question" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify question" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
