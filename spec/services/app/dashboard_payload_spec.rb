@@ -112,6 +112,64 @@ RSpec.describe App::DashboardPayload, :ci_only do
       pr_link_queries = queries.grep(/FROM ["`]?job_pr_links["`]?/i)
       expect(pr_link_queries.size).to eq(1)
     end
+
+    it "preloads lightweight Kanban job row associations" do
+      policy = instance_double(
+        DeliveryPolicy,
+        promotion_enabled?: false,
+        hotfix_sync_enabled?: false,
+        upstream_export_enabled?: true
+      )
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(policy)
+
+      chat = ChatSession.create!(user: user, chat_provider: "claude")
+      jobs = Array.new(3) do |index|
+        job = Factories.job_record(user: user, repository: repo, issue_number: index + 11, state: "approved")
+        JobPrLink.create!(job: job, role: JobPrLink::ROLE_UPSTREAM_EXPORT, pr_number: index + 20, metadata: { "pr_state" => "open" })
+        proposal = ChatProposal.create!(
+          chat_session: chat,
+          repository: repo,
+          job: job,
+          slug: "proposal-#{index}",
+          title: "Proposal #{index}",
+          body: "x" * 20_000
+        )
+        ChatMessage.create!(
+          chat_session: chat,
+          proposal: proposal,
+          role: "user",
+          content: { "text" => "message body #{index}" }
+        )
+        job
+      end
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA"
+        next if payload[:cached]
+
+        queries << payload[:sql].to_s.squish
+      end
+
+      result = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        payload = described_class.new(
+          user: user,
+          params: ActionController::Parameters.new(subject: "job", view: "kanban", kanban_limit: 5)
+        )
+        result = payload.send(:job_lanes_json)
+      end
+
+      items = result.flat_map { |lane| lane.fetch(:items) }.index_by { |item| item.fetch(:id) }
+      expect(jobs).to all(satisfy { |job| items.fetch(job.id).fetch(:delivery_status) == :waiting_for_upstream_approval })
+      expect(jobs).to all(satisfy { |job| items.fetch(job.id).dig(:source_chat, :message_id).present? })
+
+      pr_link_queries = queries.grep(/FROM ["`]?job_pr_links["`]?/i)
+      expect(pr_link_queries.size).to eq(1)
+      message_queries = queries.grep(/FROM ["`]?chat_messages["`]?/i)
+      expect(message_queries).not_to include(match(/SELECT ["`]?chat_messages["`]?\.\*/i))
+      expect(message_queries).not_to include(match(/["`]?chat_messages["`]?\.[ "`]?content/i))
+    end
   end
 
   describe "latest_workflow_started_at on job items" do

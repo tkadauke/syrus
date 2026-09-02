@@ -37,9 +37,11 @@ module App
               :owner_user,
               :claimed_by_user,
               :tags,
+              :pr_links,
+              :deployment_stage_statuses,
               { dependencies: [ :depends_on_epic, { depends_on_job: :repository } ] },
-              { chat_proposals: [ :chat_session, :messages ] },
-              { epic: { chat_proposals: [ :chat_session, :messages ] } }
+              { chat_proposals: [ :chat_session, :message_anchors ] },
+              { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
             )
             .order(created_at: :desc, id: :desc)
             .to_a
