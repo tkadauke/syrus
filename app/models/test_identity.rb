@@ -77,6 +77,10 @@ class TestIdentity < ApplicationRecord
     TestIdentitySearchIndex.upsert_many(where(id: identities.values.map(&:id)).includes(:repository)) if index_search
   end
 
+  def self.ensure_for_repository_later(repository)
+    BackfillTestIdentitiesJob.perform_later(repository.id)
+  end
+
   def self.refresh_many!(ids)
     ids = Array(ids).compact.uniq
     return if ids.empty?
@@ -183,7 +187,7 @@ class TestIdentity < ApplicationRecord
   end
 
   def self.interesting_for_repository(repository, query: nil, limit: INTERESTING_LIMIT)
-    ensure_for_repository!(repository) if repository.test_identities.none? && TestCase.where(repository_id: repository.id).exists?
+    ensure_for_repository_later(repository) if repository.test_identities.none?
 
     scope = repository.test_identities
     if query.present?

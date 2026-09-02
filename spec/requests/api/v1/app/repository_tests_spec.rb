@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "App API repository tests", type: :request do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }
 
@@ -106,6 +108,35 @@ RSpec.describe "App API repository tests", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to contain_exactly("slow browser test", "flaky browser test")
+      expect(test_case_selects).to be_empty
+    end
+
+    it "enqueues missing identity backfills instead of doing them inline" do
+      TestCase.create!(
+        test_run: make_test_run,
+        repository: repo,
+        suite_name: "BackfillSpec",
+        name: "creates identity later",
+        status: "passed",
+        duration_ms: 25
+      )
+
+      test_case_selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        test_case_selects << sql if sql.match?(/FROM "?test_cases"?/i)
+      end
+
+      begin
+        expect {
+          get "/api/v1/app/repositories/#{repo.id}/tests"
+        }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("indexing")
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("tests")).to eq([])
       expect(test_case_selects).to be_empty
     end
 
