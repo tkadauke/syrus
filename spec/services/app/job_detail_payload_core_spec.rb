@@ -759,6 +759,43 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(targeted_artifact_selects).not_to be_empty
       expect(broad_artifact_selects).to all(match(/trigger_kind/i))
     end
+
+    it "builds feedback history from targeted feedback artifact keys only" do
+      job = Factories.job_record(repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "succeeded",
+        artifacts: { "chat_feedback" => "Please preserve local mode state." }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "Nit: clarify the message." } ] }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "failed",
+        artifacts: { "large_irrelevant_blob" => "x" * 10_000 }
+      )
+
+      queries = capture_sql do
+        history = payload_for(job).fetch(:feedback_history)
+        expect(history.map { |entry| entry[:kind] }).to eq(%w[chat_feedback pr_comment])
+      end
+
+      artifact_selects = queries.select do |sql|
+        sql.match?(/SELECT .*[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/im) &&
+          sql.match?(/FROM [`"]?workflows[`"]?/i)
+      end
+      feedback_artifact_selects = artifact_selects.select { |sql| sql.match?(/trigger_kind/i) && sql.match?(/artifacts[`"]? LIKE/i) }
+
+      expect(feedback_artifact_selects.size).to be >= 2
+      expect(feedback_artifact_selects.last(2)).to all(match(/"workflows"\."trigger_kind" = \?/))
+      expect(feedback_artifact_selects.last(2)).to all(match(/artifacts[`"]? LIKE \?/i))
+    end
   end
 
   describe "#sccache" do

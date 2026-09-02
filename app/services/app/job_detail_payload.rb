@@ -747,10 +747,21 @@ module App
     end
 
     def feedback_history_json
-      artifact_workflows_matching(trigger_kinds: Workflow::TriggerKind.feedback_values)
+      feedback_history_workflows
         .filter_map do |workflow|
           feedback_entry_for(workflow)
         end
+    end
+
+    def feedback_history_workflows
+      workflows = artifact_workflows_matching(
+        "chat_feedback",
+        trigger_kinds: [ "chat_feedback" ]
+      ) + artifact_workflows_matching(
+        "pr_comments",
+        trigger_kinds: [ "pr_comment" ]
+      )
+      workflows.uniq(&:id).sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id ] }
     end
 
     def feedback_entry_for(workflow)
