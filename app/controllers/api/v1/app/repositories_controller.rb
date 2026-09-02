@@ -1306,24 +1306,33 @@ module Api
             .pluck(:step_id)
           active_steps = Step.where(workflow_id: workflow_ids, state: %w[ queued running ])
             .or(Step.where(id: active_run_step_ids))
-            .includes(:runs)
             .order(:workflow_id, :position, :id)
             .to_a
+          runs_by_step_id = active_runs_by_step_id(active_steps.map(&:id))
           steps_by_workflow_id = active_steps
             .group_by(&:workflow_id)
             .transform_values do |steps|
-              steps.detect { |step| step.visible_state == "running" } ||
-                steps.detect { |step| step.visible_state == "queued" } ||
+              steps.detect { |step| step.visible_state(runs: runs_by_step_id.fetch(step.id, [])) == "running" } ||
+                steps.detect { |step| step.visible_state(runs: runs_by_step_id.fetch(step.id, [])) == "queued" } ||
                 steps.first
             end
           missing_workflow_ids = workflow_ids - steps_by_workflow_id.keys
           return steps_by_workflow_id if missing_workflow_ids.empty?
 
           last_steps = Step.where(workflow_id: missing_workflow_ids)
-            .includes(:runs)
             .order(:workflow_id, position: :desc, id: :desc)
             .to_a
           steps_by_workflow_id.merge(last_steps.group_by(&:workflow_id).transform_values(&:first))
+        end
+
+        def active_runs_by_step_id(step_ids)
+          return {} if step_ids.empty?
+
+          Run
+            .where(step_id: step_ids, state: Run::ACTIVE_STATES)
+            .select(:id, :step_id, :state, :created_at)
+            .order(:step_id, :created_at, :id)
+            .group_by(&:step_id)
         end
 
         def runs_count_for(job)
