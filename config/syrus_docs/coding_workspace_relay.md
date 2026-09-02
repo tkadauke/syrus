@@ -79,8 +79,11 @@ not reset the checkout, so local work remains available for recovery.
 `coding_checkout_prepare_finished_at`, and `coding_checkout_prepare_failure`.
 The Coding Mode prompt and chat environment snapshot report the checkout path,
 current branch/ref, default branch, and prep status (`queued`, `running`,
-`succeeded`, `failed`, or `unknown`) so setup failures remain visible even
-though they do not block the agent turn.
+`succeeded`, `failed`, or `unknown`). Ordinary Coding Mode turns can still see
+and recover from setup failures, but coding Chat Goal continuations wait until
+the checkout exists and prep has reached `succeeded`. If prep fails while a goal
+continuation is waiting, Syrus records a readiness system event instead of
+waking the agent into a half-prepared checkout.
 
 ## Multi-worker note
 
