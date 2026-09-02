@@ -93,7 +93,32 @@ module Steps
         repository_ids: [ job.repository_id ],
         injected_context: collect_injected_context
       ).to_s
-      append_grade_failure_feedback(append_review_feedback(prompt))
+      append_preflight_failure_feedback(
+        append_grade_failure_feedback(
+          append_review_feedback(prompt)
+        )
+      )
+    end
+
+    def append_preflight_failure_feedback(prompt)
+      failures = Array(workflow.artifact("preflight_failures"))
+      return prompt unless workflow.trigger_kind == "main_branch_repair" && failures.any?
+
+      [
+        prompt,
+        Prompts::GradeFailureFeedback.new(
+          iterations: [ failures ],
+          intro: <<~INTRO.strip,
+            The main-branch repair preflight failed before this implement step.
+            Reproduce the exact failed grader command(s) below first, then run
+            the smallest focused examples that cover the failure tail. Once the
+            focused checks pass, commit the repair before optional full-suite
+            verification so a later timeout cannot discard the fix.
+          INTRO
+          include_guidance: false,
+          include_git_safety: false
+        ).to_s
+      ].join("\n\n")
     end
 
     # Computes commits and diff on the default branch since the Job was

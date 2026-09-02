@@ -175,6 +175,73 @@ RSpec.describe Steps::Implement do
       expect(run.reload.prompt).to include("expected greeting helper to exist")
     end
 
+    it "appends main_branch_repair preflight failure commands and output to the prompt" do
+      workflow.update!(trigger_kind: "main_branch_repair")
+      workflow.set_artifact!("preflight_failures", [
+        {
+          "name" => "rspec-ci",
+          "command" => "bin/rspec-ci",
+          "status" => "failed",
+          "required" => true,
+          "exit_code" => 1,
+          "log_path" => ".syrus/grade-output/preflight/rspec-ci.log",
+          "output" => "Failures:\n  expected true, got false\n"
+        }
+      ])
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).to include("The main-branch repair preflight failed")
+      expect(prompt).to include("Command: bin/rspec-ci")
+      expect(prompt).to include("expected true, got false")
+      expect(prompt).to include("commit the repair before optional full-suite")
+    end
+
+    it "captures a clean committed diff when the agent times out after committing" do
+      initialize_git_workspace
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      allow(handler).to receive(:run_agent) do
+        File.write(@ws_path.join("feature.rb"), "def greet = 'hello'\n")
+        sh("git -C #{@ws_path} add feature.rb")
+        sh("git -C #{@ws_path} commit -q -m 'repair main'")
+        raise Steps::Base::AgentTimedOut, "agent timed out"
+      end
+      allow(handler).to receive(:commit_agent_changes).and_call_original
+      allow(handler).to receive(:assert_branch_history_intact!).and_call_original
+      allow(handler).to receive(:diff_against_default).and_call_original
+      allow(handler).to receive(:diff_against_sha).and_call_original
+      allow(handler).to receive(:head_sha).and_call_original
+      run.update!(prompt: "repair prompt")
+
+      expect { handler.call }.not_to raise_error
+
+      run.reload
+      expect(run.agent_diff).to include("def greet = 'hello'")
+      expect(run.step_agent_diff).to include("def greet = 'hello'")
+      expect(step.reload.details).to include("captured_after_agent_timeout" => true)
+      expect(RunCheckpointPublisher).to have_received(:publish!).with(run: run, workspace: fake_ws, log: anything)
+    end
+
+    it "does not capture a timeout result when the agent leaves uncommitted changes" do
+      initialize_git_workspace
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      allow(handler).to receive(:run_agent) do
+        File.write(@ws_path.join("feature.rb"), "def greet = 'hello'\n")
+        raise Steps::Base::AgentTimedOut, "agent timed out"
+      end
+      allow(handler).to receive(:assert_branch_history_intact!).and_call_original
+      allow(handler).to receive(:diff_against_sha).and_call_original
+      allow(handler).to receive(:head_sha).and_call_original
+      run.update!(prompt: "repair prompt")
+
+      expect { handler.call }.to raise_error(Steps::Base::AgentTimedOut)
+      expect(run.reload.agent_diff).to be_nil
+      expect(step.reload.details).not_to include("captured_after_agent_timeout" => true)
+    end
+
     it "appends needs_work adversarial_review findings to the prompt" do
       workflow.set_artifact!("adversarial_review_iterations", [
         { "iteration" => 1, "verdict" => "needs_work", "critique" => "The rescue clause swallows a real error." },
@@ -409,5 +476,23 @@ RSpec.describe Steps::Implement do
         expect(prompt.index("Injected by Alpha")).to be < prompt.index("Injected by Beta")
       end
     end
+  end
+
+  def initialize_git_workspace
+    sh("git init -q -b main #{@ws_path}")
+    sh("git -C #{@ws_path} config user.name Test")
+    sh("git -C #{@ws_path} config user.email test@example.com")
+    File.write(@ws_path.join("README.md"), "hello\n")
+    sh("git -C #{@ws_path} add README.md")
+    sh("git -C #{@ws_path} commit -q -m initial")
+    sh("git -C #{@ws_path} update-ref refs/remotes/origin/main HEAD")
+    sh("git -C #{@ws_path} checkout -q -b syrus/direct-test")
+  end
+
+  def sh(command)
+    output = `#{command} 2>&1`
+    raise "shell failed: #{command}\n#{output}" unless $?.success?
+
+    output
   end
 end
