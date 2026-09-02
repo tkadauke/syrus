@@ -58,6 +58,7 @@ class RunJob < ApplicationJob
   # not days.
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
+  FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
     Thread.current[:syrus_current_queue_role] = queue_name.to_s
@@ -222,32 +223,7 @@ class RunJob < ApplicationJob
       return
     end
 
-    if @run.running?
-      # Worker died mid-perform on a prior attempt (or SQ re-claimed
-      # us after a process prune). Fail with worker_died so the
-      # operator gets a Retry button on the dashboard.
-      if (reconciliation = RunCompletionReconciler.call(@run)).reconciled?
-        log("run reconciled on re-entry: #{reconciliation.reason}")
-        return
-      end
-
-      @run.agent_outcome = "worker_died"
-      @run.fail!
-      @run.save!
-      # run failure propagation may have created an in-place retry run when
-      # the worker_died budget isn't exhausted. Only fail the step explicitly
-      # when no active retry run was queued by the callback.
-      @step.reload
-      if @step.runs.where.not(id: @run.id).active.exists?
-        log("run abandoned — worker died mid-execution; retrying in-place automatically")
-      else
-        @step.fail! if @step.may_fail?
-        @step.save!
-        @workflow.record_run_failure!
-        log("run abandoned — worker died mid-execution; use Retry to try again")
-      end
-      return
-    end
+    return if handle_running_reentry
 
     if workflow_starting? && (merged_pr = merged_pull_request)
       succeed_workflow_for_merged_pull_request!(merged_pr)
@@ -256,13 +232,7 @@ class RunJob < ApplicationJob
 
     return if defer_for_host_admission?
 
-    @workflow.start! if @workflow.may_start?
-    @workflow.save!
-    @step.start! if @step.may_start?
-    @step.save!
-    @run.start!
-    @run.save!
-    @job.update!(started_at: Time.current) if @job.started_at.nil?
+    return unless acquire_run_execution!
 
     target = @job.cron? ? "scheduled task ##{@job.scheduled_task_id}" : "#{@job.repository.slug}##{@job.issue_number}"
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
@@ -288,6 +258,96 @@ class RunJob < ApplicationJob
     @step.succeed!
     @step.save!
     log("step #{@step.kind} done (#{@workflow.slug})")
+  end
+
+  def handle_running_reentry
+    return false unless @run.running?
+
+    # Side-effecting handlers like pr_open can complete externally before the
+    # Run's terminal state is recorded. Always try this first so a duplicate
+    # delivery does not leave a successful side effect hidden behind a failed or
+    # running Run.
+    if (reconciliation = RunCompletionReconciler.call(@run)).reconciled?
+      log("run reconciled on re-entry: #{reconciliation.reason}")
+      return true
+    end
+
+    if fresh_running_run?
+      Rails.logger.info("[RunJob] Run ##{@run.id} is already running with a fresh execution lease; skipping duplicate delivery")
+      return true
+    end
+
+    # Worker died mid-perform on a prior attempt (or SQ re-claimed us after a
+    # process prune). Fail with worker_died so the operator gets a Retry button
+    # on the dashboard.
+    @run.agent_outcome = "worker_died"
+    @run.fail!
+    @run.save!
+    # run failure propagation may have created an in-place retry run when
+    # the worker_died budget isn't exhausted. Only fail the step explicitly
+    # when no active retry run was queued by the callback.
+    @step.reload
+    if @step.runs.where.not(id: @run.id).active.exists?
+      log("run abandoned — worker died mid-execution; retrying in-place automatically")
+    else
+      @step.fail! if @step.may_fail?
+      @step.save!
+      @workflow.record_run_failure!
+      log("run abandoned — worker died mid-execution; use Retry to try again")
+    end
+    true
+  end
+
+  def acquire_run_execution!
+    stale_reentry = false
+    acquired = false
+
+    @run.with_lock do
+      @run.reload
+      @step = @run.step
+      @workflow = @step&.workflow
+      @job = @run.job
+
+      if @run.terminal?
+        acquired = false
+      elsif @run.running?
+        stale_reentry = !fresh_running_run?
+        acquired = false
+      else
+        @workflow.start! if @workflow.may_start?
+        @workflow.save!
+        @step.start! if @step.may_start?
+        @step.save!
+        @run.start!
+        @run.save!
+        @job.update!(started_at: Time.current) if @job.started_at.nil?
+        acquired = true
+      end
+    end
+
+    return handle_running_reentry if stale_reentry
+    record_run_started_activity! if acquired
+
+    acquired
+  end
+
+  def fresh_running_run?
+    reference_time = @run.last_heartbeat_at || @run.started_at
+    reference_time.present? && reference_time > FRESH_RUNNING_REENTRY_THRESHOLD.ago
+  end
+
+  def record_run_started_activity!
+    WorkflowActivity.record!(
+      event_type: "run_started",
+      source: "run",
+      run: @run,
+      duration_ms: nil,
+      message: "Run ##{@run.id} queued -> running.",
+      metadata: {
+        from_state: "queued",
+        to_state: "running"
+      }.merge(StateTransition.transition_metadata_for(@run)).compact
+    )
   end
 
   def cancel_ineligible_retry_workflow!

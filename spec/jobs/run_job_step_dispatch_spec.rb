@@ -116,6 +116,49 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_summarize.reload.runs).to be_empty
   end
 
+  it "reconciles a pr_open success when a duplicate execution failed the Run before the handler returned" do
+    job.update!(state: "running", pr_number: nil, branch_name: "syrus/issue-42-#{job.id}")
+    workflow.update!(state: "running", started_at: 5.minutes.ago)
+    s_implement.update_columns(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+    s_summarize.update_columns(state: "succeeded", started_at: 4.minutes.ago, finished_at: 3.minutes.ago)
+    s_pr_open.update_columns(state: "queued")
+    run = s_pr_open.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+
+    pr_open_race_handler = Class.new(Steps::Base) do
+      def call
+        JobLog.append!(run: run, chunk: 'pr_open: opened PR #321 ("Add greeting helper")')
+        Run.find(run.id).update_columns(state: "failed", finished_at: Time.current)
+        Step.find(run.step_id).update_columns(state: "failed", finished_at: Time.current)
+        run.workflow.update_columns(state: "failed", finished_at: Time.current)
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(pr_open_race_handler)
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_succeeded
+    expect(s_pr_open.reload).to be_succeeded
+    expect(workflow.reload).to be_succeeded
+    expect(job.reload.pr_number).to eq(321)
+    expect(run.job_logs.pluck(:chunk)).to include(
+      "run reconciled after terminal success race: pr_open already opened PR #321"
+    )
+  end
+
+  it "skips a duplicate delivery when the same Run is already freshly running" do
+    StepDispatcher.start_workflow(workflow)
+    run = s_implement.runs.last
+    run.update!(state: "running", started_at: 1.minute.ago, last_heartbeat_at: 1.minute.ago)
+
+    expect(Steps).not_to receive(:handler_for)
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_running
+    expect(s_implement.reload).to be_queued
+    expect(run.job_logs.reload).to be_empty
+  end
+
   it "continues inline after a Try failure branch expands" do
     try_workflow = workflow_with_try_push_branch
     handler_class = Class.new(Steps::Base) do
