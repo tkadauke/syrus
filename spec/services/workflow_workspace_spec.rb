@@ -380,6 +380,9 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect { ws.setup }.not_to raise_error
 
         expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-#{direct_job.id}")
+        next_step_workspace = described_class.new(retry_workflow.reload)
+        expect(next_step_workspace.branch_name).to eq("syrus/direct-#{direct_job.id}")
+        expect(retry_workflow.artifact(RebaseTarget::BRANCH_ARTIFACT)).to eq("syrus/direct-#{direct_job.id}")
         expect(retry_workflow.reload.artifact("missing_branch_recovery")).to include(
           "kind" => "missing_work_branch",
           "missing_branch" => "syrus/direct-4056",
