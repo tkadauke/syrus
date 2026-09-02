@@ -592,8 +592,7 @@ module App
     end
 
     def test_plan_json
-      entry = artifact_workflows.filter_map do |workflow|
-        next unless workflow.succeeded?
+      entry = artifact_workflows_matching("test_plan", states: "succeeded").filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         plan = canonical_test_plan_for(workflow)
