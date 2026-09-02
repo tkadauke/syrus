@@ -432,9 +432,10 @@ module App
 
     def workflows_result
       PerformanceLogging.phase("dashboard_workflows_result", view: view, ownership_scope: ownership_scope) do
-        scope = filtered_workflows_scope.includes(:steps, job: [ :repository, :user, :owner_user ])
+        scope = filtered_workflows_scope.includes(job: [ :repository, :user, :owner_user ])
         total = PerformanceLogging.phase("dashboard_workflows.total") { scope.count }
         workflows = PerformanceLogging.phase("dashboard_workflows.query", page: page, view: view) { paginate(apply_sort(scope, :workflow)).to_a }
+        PerformanceLogging.phase("dashboard_workflows.preload_step_counts", count: workflows.size) { preload_workflow_step_counts(workflows) }
         items = PerformanceLogging.phase("dashboard_workflows.serialize", count: workflows.size, view: view) { workflows.map { |workflow| workflow_json(workflow) } }
 
         { total: total, items: items }
@@ -897,6 +898,14 @@ module App
       @epic_dashboard_job_stats_by_epic_id.each_value do |stats|
         stats[:job_state_counts] = stats[:job_state_counts].to_h
       end
+    end
+
+    def preload_workflow_step_counts(workflows)
+      workflow_ids = workflows.map(&:id)
+      @workflow_step_counts_by_workflow_id = {}
+      return if workflow_ids.empty?
+
+      @workflow_step_counts_by_workflow_id = Step.where(workflow_id: workflow_ids).group(:workflow_id).count
     end
   end
 end

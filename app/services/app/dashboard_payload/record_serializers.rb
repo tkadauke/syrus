@@ -389,7 +389,7 @@ module App
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
           cleaned_up_at: workflow.cleaned_up_at&.iso8601,
-          steps_count: workflow.steps.size,
+          steps_count: workflow_steps_count(workflow),
           job: {
             id: job.id,
             title: job.issue_title.presence || job.kind.humanize,
@@ -401,6 +401,14 @@ module App
             path: job_path(job)
           }
         }
+      end
+
+      def workflow_steps_count(workflow)
+        if defined?(@workflow_step_counts_by_workflow_id) && @workflow_step_counts_by_workflow_id
+          return @workflow_step_counts_by_workflow_id.fetch(workflow.id, 0)
+        end
+
+        workflow.steps.size
       end
 
       def epic_owner_status(epic)

@@ -1370,6 +1370,34 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "workflow row step counts" do
+    it "serializes step counts without loading full step rows" do
+      job = Factories.job_record(user: user, repository: repo, issue_number: 301)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "prepare", position: 1, state: "succeeded")
+      Step.create!(workflow: workflow, kind: "implement", position: 2, state: "running")
+      Step.create!(workflow: workflow, kind: "summarize", position: 3, state: "queued")
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA"
+        next if payload[:cached]
+
+        queries << payload[:sql].to_s.squish
+      end
+
+      result = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        result = call(subject: "workflow", section: "rows")
+      end
+
+      item = result[:items].find { |row| row[:id] == workflow.id }
+      expect(item[:steps_count]).to eq(3)
+      expect(queries.grep(/SELECT ["`]?steps["`]?\.\* FROM ["`]?steps["`]?/i)).to be_empty
+      expect(queries.grep(/FROM ["`]?steps["`]?/i).size).to eq(1)
+    end
+  end
+
   describe "untagged_issues chrome field" do
     it "returns a zero total and no repositories when nothing has untagged open issues" do
       repo.update_columns(untagged_open_issue_count: 0)

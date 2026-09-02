@@ -98,10 +98,11 @@ module App
         records = PerformanceLogging.phase("dashboard_kanban_workflows.query", lanes: lanes.join(","), limit: kanban_limit) do
           filtered_workflows_scope
             .where(state: workflow_kanban_candidate_states(lanes))
-            .includes(:steps, job: [ :repository, :user, :owner_user ])
+            .includes(job: [ :repository, :user, :owner_user ])
             .order(created_at: :desc, id: :desc)
             .to_a
         end
+        preload_workflow_step_counts(records)
 
         records.each do |workflow|
           lane = workflow_kanban_column_for(workflow, lanes)
