@@ -541,6 +541,24 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(broad_run_loads).to be_empty
   end
 
+  it "selects one preview environment without loading every historical preview" do
+    PreviewEnvironment.create!(job: job, state: "failed", error_message: "old failure", created_at: 3.hours.ago)
+    PreviewEnvironment.create!(job: job, state: "stopped", created_at: 2.hours.ago)
+    active = PreviewEnvironment.create!(job: job, state: "running", expires_at: 10.minutes.from_now, created_at: 1.hour.ago)
+
+    queries = capture_sql do
+      get "/api/v1/app/jobs/#{job.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["preview"]).to include("id" => active.id, "state" => "running")
+
+    preview_queries = queries.grep(/FROM ["`]?preview_environments["`]?/i)
+    expect(preview_queries).not_to be_empty
+    expect(preview_queries).to all(match(/LIMIT/i))
+    expect(preview_queries.join("\n")).to include("state")
+  end
+
   it "returns active work from the current WorkUnit without loading the workflow graph" do
     AppSetting.current.update!(show_work_unit_debug: true)
     bare_job = Factories.job_record(

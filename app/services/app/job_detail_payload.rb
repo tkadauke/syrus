@@ -985,8 +985,8 @@ module App
     end
 
     def preview_env_json
-      envs = @job.preview_environments.to_a
-      env = envs.find(&:active?) || envs.max_by(&:created_at)
+      env = @job.preview_environments.active.reorder(created_at: :desc, id: :desc).first ||
+        @job.preview_environments.reorder(created_at: :desc, id: :desc).first
       return nil unless env
 
       base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
