@@ -397,6 +397,7 @@ module App
           :owner_user,
           :claimed_by_user,
           :tags,
+          :pr_links,
           :deployment_stage_statuses,
           { dependencies: [ :depends_on_epic, { depends_on_job: :repository } ] },
           { chat_proposals: [ :chat_session, :message_anchors ] },

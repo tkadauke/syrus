@@ -78,6 +78,42 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "delivery status" do
+    it "preloads PR links used by delivery status for job rows" do
+      policy = instance_double(
+        DeliveryPolicy,
+        promotion_enabled?: false,
+        hotfix_sync_enabled?: false,
+        upstream_export_enabled?: true
+      )
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(policy)
+      jobs = Array.new(3) do |index|
+        Factories.job_record(user: user, repository: repo, issue_number: index + 1, state: "closed", closure_reason: "pr_merged")
+      end
+      jobs.each_with_index do |job, index|
+        JobPrLink.create!(job: job, role: JobPrLink::ROLE_UPSTREAM_EXPORT, pr_number: index + 10, metadata: { "pr_state" => "open" })
+      end
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA"
+        next if payload[:cached]
+
+        queries << payload[:sql].to_s.squish
+      end
+
+      result = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        result = call(subject: "job", section: "rows")
+      end
+
+      items = result[:items].index_by { |item| item[:id] }
+      expect(jobs).to all(satisfy { |job| items.fetch(job.id).fetch(:delivery_status) == :waiting_for_upstream_approval })
+      pr_link_queries = queries.grep(/FROM ["`]?job_pr_links["`]?/i)
+      expect(pr_link_queries.size).to eq(1)
+    end
+  end
+
   describe "latest_workflow_started_at on job items" do
     it "exposes the started_at of the job's latest workflow, not the job's own started_at" do
       job = Factories.job_record(user: user, repository: repo, started_at: Time.zone.parse("2026-07-31T10:00:00Z"))
