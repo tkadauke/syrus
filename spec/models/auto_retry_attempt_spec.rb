@@ -113,6 +113,41 @@ RSpec.describe AutoRetryAttempt, type: :model do
     end
   end
 
+  describe ".retry_workflow_scheduled_for?" do
+    it "treats performed retry_workflow attempts as scheduled ownership for the source workflow" do
+      attempt = described_class.create!(
+        valid_attrs(retry_kind: "retry_workflow", performed_at: Time.current)
+      )
+
+      expect(described_class.retry_workflow_scheduled_for?(workflow)).to eq(true)
+
+      attempt.update!(skipped_reason: "source workflow was already superseded by a successful workflow")
+
+      expect(described_class.retry_workflow_scheduled_for?(workflow)).to eq(false)
+    end
+
+    it "enforces at most one unskipped retry_workflow attempt for a source workflow" do
+      attempt = described_class.create!(valid_attrs(retry_kind: "retry_workflow", performed_at: Time.current))
+
+      expect(attempt.retry_workflow_uniqueness_key).to eq("retry_workflow")
+
+      expect {
+        described_class.create!(valid_attrs(retry_kind: "retry_workflow", failure_classification: "timeout"))
+      }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it "allows skipped retry_workflow attempts to coexist with active retry_workflow ownership" do
+      skipped = described_class.create!(
+        valid_attrs(retry_kind: "retry_workflow", skipped_reason: "retry target is missing")
+      )
+
+      expect(skipped.retry_workflow_uniqueness_key).to be_nil
+      expect {
+        described_class.create!(valid_attrs(retry_kind: "retry_workflow", failure_classification: "timeout"))
+      }.to change(described_class, :count).by(1)
+    end
+  end
+
   describe ".prune_stale_pending!" do
     it "skips pending attempts for terminal jobs" do
       attempt = described_class.create!(valid_attrs)

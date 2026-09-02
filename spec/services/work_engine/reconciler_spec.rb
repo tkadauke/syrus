@@ -133,6 +133,51 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  def assert_retry_workflow_reconcile_idempotent!(step_kind:, provider:, classification:, reason:)
+    failed_at = Time.current
+    job.user.update_columns(agent_provider: provider)
+    job.update_columns(state: "failed")
+    workflow.update_columns(
+      trigger_kind: "main_branch_repair",
+      state: "failed",
+      agent_provider: provider,
+      finished_at: failed_at,
+      cleaned_up_at: failed_at
+    )
+    step.update_columns(kind: step_kind, state: "failed", finished_at: failed_at)
+    run.update_columns(
+      state: "failed",
+      agent_provider: provider,
+      agent_outcome: classification,
+      finished_at: failed_at
+    )
+    RunFailureClassification.create!(
+      run: run,
+      classification: classification,
+      retryable: true,
+      confidence: 0.9,
+      reason: reason,
+      classified_at: failed_at
+    )
+
+    result = reconcile_and_execute(run_id: run.id)
+    first_attempt = AutoRetryAttempt.find_by!(
+      workflow: workflow,
+      retry_kind: "retry_workflow",
+      failure_classification: classification
+    )
+    first_attempt.update!(performed_at: failed_at + 1.second)
+
+    3.times { reconcile_and_execute(run_id: run.id) }
+
+    expect(plan(result, :retry_workflow)).to have_attributes(auto_executable: true)
+    expect(AutoRetryAttempt.where(workflow: workflow, retry_kind: "retry_workflow").count).to eq(1)
+    expect(first_attempt.reload).to have_attributes(
+      performed_at: be_present,
+      skipped_reason: nil
+    )
+  end
+
   def ready_main_repair_job!(repository)
     repair_job = Factories.job_record(
       user: repository.user,
@@ -5026,6 +5071,33 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     audit_chunks = JobLog.where(run: run, kind: "system").pluck(:chunk)
     expect(audit_chunks.grep(/\[work-engine reconciler\] applying retry_failed_step/).size).to eq(1)
     expect(audit_chunks.grep(/\[work-engine reconciler\] skipped retry_failed_step: retry already pending/).size).to eq(1)
+  end
+
+  it "does not schedule duplicate retry_workflow attempts for repeated worker_died repair ticks" do
+    assert_retry_workflow_reconcile_idempotent!(
+      step_kind: "implement",
+      provider: "claude",
+      classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+      reason: "worker process disappeared"
+    )
+  end
+
+  it "does not schedule duplicate retry_workflow attempts for repeated grader failure repair ticks" do
+    assert_retry_workflow_reconcile_idempotent!(
+      step_kind: "preflight_grader_collect",
+      provider: "claude",
+      classification: "grader_failure",
+      reason: "preflight migration-baselines failed"
+    )
+  end
+
+  it "does not schedule duplicate retry_workflow attempts for repeated Codex resume failure repair ticks" do
+    assert_retry_workflow_reconcile_idempotent!(
+      step_kind: "summarize",
+      provider: "codex",
+      classification: "agent_resume_unavailable",
+      reason: "Codex resume state was unavailable"
+    )
   end
 
   it "executes unambiguous Job state drift repairs" do

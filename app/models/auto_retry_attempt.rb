@@ -19,6 +19,8 @@ class AutoRetryAttempt < ApplicationRecord
   belongs_to :workflow
   belongs_to :run, optional: true
 
+  before_validation :assign_retry_workflow_uniqueness_key
+
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :failure_classification, presence: true
   validates :retry_kind, presence: true, inclusion: { in: RETRY_KINDS }
@@ -40,6 +42,12 @@ class AutoRetryAttempt < ApplicationRecord
   # Not yet performed and not skipped — a retry that is still going to happen.
   scope :pending, -> { where(performed_at: nil, skipped_reason: nil) }
   scope :pending_in_schedule_order, -> { pending.order(:scheduled_at, :id) }
+  scope :retry_workflow, -> { where(retry_kind: "retry_workflow") }
+  scope :unskipped, -> { where(skipped_reason: nil) }
+
+  def self.retry_workflow_scheduled_for?(workflow)
+    where(workflow: workflow).retry_workflow.unskipped.exists?
+  end
 
   def self.prune_stale_pending!(limit: 1_000)
     count = 0
@@ -71,6 +79,10 @@ class AutoRetryAttempt < ApplicationRecord
   end
 
   private
+
+  def assign_retry_workflow_uniqueness_key
+    self.retry_workflow_uniqueness_key = retry_kind == "retry_workflow" && skipped_reason.blank? ? "retry_workflow" : nil
+  end
 
   def superseded_by_successful_workflow?
     Workflows::ValidationSupersession.superseded_by_successful_workflow?(workflow)
