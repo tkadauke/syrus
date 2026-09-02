@@ -9,6 +9,7 @@ import { updateAdminSettings } from "../api/adminSettings"
 import { GithubTokenModal } from "../components/GithubTokenModal"
 import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
+import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
@@ -265,7 +266,7 @@ function providerLabel(provider: SetupStatus["credential_status"]["active_agent_
 
 function statusMarkerClass(complete: boolean, current: boolean) {
   if (complete) return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs font-semibold text-white"
-  if (current) return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg leading-none text-white"
+  if (current) return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-lg leading-none text-on-brand"
 
   return "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
 }
@@ -284,11 +285,11 @@ function checklistContentClass(current: boolean) {
 
 function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
-  return current ? `${base} min-w-48 bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
+  return current ? buttonClasses("primary", "md", "min-w-48 shrink-0 justify-center") : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
 }
 
 // Small text-style action for revisiting an already-completed step, shown
 // next to the "Complete" badge instead of the full-size primary CTA.
 function secondaryCtaClass() {
-  return "inline-flex shrink-0 justify-center rounded px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline"
+  return "inline-flex shrink-0 justify-center rounded px-2 py-1 text-xs font-medium text-brand dark:text-brand-emphasis hover:underline"
 }

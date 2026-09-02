@@ -14,7 +14,7 @@ export function Stepper({ steps, active }: { steps: StepperStep[]; active: strin
         const tone = step.done
           ? "bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300"
           : current
-            ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+            ? "bg-brand/10 text-brand dark:bg-brand/10 dark:text-brand-emphasis"
             : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
         return (
           <li className="flex items-center gap-2" key={step.key}>
