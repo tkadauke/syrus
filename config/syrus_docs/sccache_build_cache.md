@@ -48,6 +48,93 @@ Every Syrus Workflow clones to a fresh, never-reused `$SYRUS_DATA_ROOT/workflows
 
 Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker cache benefit once a bucket is configured. Coverage-instrumented compiles only benefit from same-Workflow reruns (still valuable — that's every retry in a grade loop) until a dedicated fix ships. This is an accepted interim limitation, not a bug.
 
+## Cache-safe coverage recipe for projects that opt into path normalization
+
+Syrus itself should keep leaving `SCCACHE_BASEDIRS` out of the worker env. A
+repository may still set it inside a wrapper script or CI job when that project
+has proved its coverage build is path-stable. The validated `tkadauke/raytracer`
+approach is the generic shape to copy, with project paths and thresholds
+replaced by local values.
+
+For GCC/gcov coverage builds, compile coverage objects with both coverage
+instrumentation and prefix remapping so cached `.gcno` notes do not contain the
+ephemeral Syrus workspace path:
+
+```cmake
+# CMakeLists.txt, a toolchain file, or a coverage preset include.
+add_compile_options(
+  $<$<CONFIG:Coverage>:-O0>
+  $<$<CONFIG:Coverage>:-g>
+  $<$<CONFIG:Coverage>:--coverage>
+  $<$<CONFIG:Coverage>:-fprofile-abs-path>
+  $<$<CONFIG:Coverage>:-fprofile-prefix-map=${CMAKE_SOURCE_DIR}=.>
+  $<$<CONFIG:Coverage>:-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.>
+  $<$<CONFIG:Coverage>:-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.>
+)
+add_link_options("$<$<CONFIG:Coverage>:--coverage>")
+```
+
+Equivalent wrapper-script form:
+
+```bash
+repo_root="$(pwd)"
+export CFLAGS="${CFLAGS:-} --coverage -O0 -g -fprofile-abs-path -fprofile-prefix-map=${repo_root}=. -ffile-prefix-map=${repo_root}=. -fdebug-prefix-map=${repo_root}=."
+export CXXFLAGS="${CXXFLAGS:-} --coverage -O0 -g -fprofile-abs-path -fprofile-prefix-map=${repo_root}=. -ffile-prefix-map=${repo_root}=. -fdebug-prefix-map=${repo_root}=."
+export LDFLAGS="${LDFLAGS:-} --coverage"
+
+cmake -S . -B build/coverage -DCMAKE_BUILD_TYPE=Coverage
+cmake --build build/coverage
+ctest --test-dir build/coverage --output-on-failure
+gcovr --root . --object-directory build/coverage --lcov coverage/lcov.info
+```
+
+Only after that remapping is in place should the wrapper opt into shared
+absolute-path normalization for the coverage build:
+
+```bash
+export SCCACHE_BASEDIRS="$repo_root"
+```
+
+Do not set a broad value such as `/syrus-home`, `$SYRUS_DATA_ROOT`, or `/`.
+Normalize only the current repository checkout, and only from the command that
+has already added the coverage prefix-map flags.
+
+### Two-path validation before enabling it
+
+Validate the recipe from two different absolute checkouts before committing the
+`SCCACHE_BASEDIRS` export:
+
+1. Build and test coverage from checkout A with an empty or isolated sccache
+   namespace. Keep the cache warm.
+2. Build and test coverage from checkout B at a different absolute path, using
+   the same sccache namespace and `SCCACHE_BASEDIRS` value so the second build
+   can hit objects produced by checkout A.
+3. Inspect the `.gcno` files produced or restored in checkout B:
+
+   ```bash
+   strings build/coverage/**/*.gcno | grep -F "$checkout_a" && exit 1
+   strings build/coverage/**/*.gcno | grep -F "$checkout_b" && exit 1
+   ```
+
+   The exact glob may differ by generator; the important assertion is that no
+   `.gcno` restored into checkout B mentions either ephemeral absolute checkout
+   path. Stable project-relative paths, compiler-internal paths, and system
+   include paths are fine.
+4. Generate the normal coverage artifact from checkout B and confirm it resolves
+   source files under checkout B, not checkout A, and does not report missing
+   source files.
+5. Repeat with the order reversed when practical: prime from checkout B, then
+   build and report from checkout A.
+
+If any `.gcno`, `gcov`, `gcovr`, lcov, or Cobertura output still contains the
+other checkout's absolute path, the project is not safe for normalized shared
+coverage caching. Leave `SCCACHE_BASEDIRS` disabled for coverage commands until
+the notes are path-remapped or otherwise proven stable.
+
+The rule is intentionally conservative: generic path normalization is unsafe for
+coverage unless coverage notes are known to be path-stable or path-remapped.
+Non-coverage compile commands can still use shared sccache normally.
+
 ## Cache stats
 
 After every `prepare` and `grader` shell command runs (with the compiler masquerade active), Syrus captures `sccache --show-stats --stats-format=json` best-effort and appends it to `workflow.artifacts["sccache_stats"]` (see `Workflow::SccacheArtifact`). Each entry records which Run/Step produced it and the raw stats payload. `--show-stats` reports the sccache daemon's cumulative counters since the local server process started, not a delta for the single command that just ran — diff adjacent entries for a per-command figure.
