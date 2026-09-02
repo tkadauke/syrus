@@ -309,6 +309,13 @@ class CodexInvocation
           final_text: detail
         }
       end
+      if ProviderAuthFailure.detect?(detail)
+        return {
+          is_error: true,
+          outcome: ProviderAuthFailure::OUTCOME,
+          final_text: detail
+        }
+      end
 
       { is_error: true, outcome: "turn_failed", final_text: detail }
     when "error"
@@ -321,6 +328,13 @@ class CodexInvocation
         return {
           is_error: true,
           outcome: ProviderUsageLimit::OUTCOME,
+          final_text: detail
+        }
+      end
+      if ProviderAuthFailure.detect?(detail)
+        return {
+          is_error: true,
+          outcome: ProviderAuthFailure::OUTCOME,
           final_text: detail
         }
       end
