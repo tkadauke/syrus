@@ -439,7 +439,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         "base_branch" => "syrus/direct-parent"
       )
       no_pr_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
-      expect(no_pr_queries).not_to be_empty
+      expect(no_pr_queries).to be_empty
     end
   end
 
@@ -507,6 +507,43 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
 
       expect(payload_for(job)[:origin_chat]).to be_nil
+    end
+
+    it "prefers a direct job proposal over the epic proposal without loading full proposal rows" do
+      chat = ChatSession.create!(user: user, repository: repo)
+      epic = Factories.epic(user: user, repository: repo, title: "Auth")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 7)
+      epic_proposal = chat.proposals.create!(
+        slug: "auth",
+        title: "Auth",
+        body: "Group auth work.",
+        kind: "epic",
+        epic: epic,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      direct_proposal = chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      chat.messages.create!(role: "assistant", proposal: epic_proposal, content: { "text" => "Epic proposed." })
+      direct_message = chat.messages.create!(role: "assistant", proposal: direct_proposal, content: { "text" => "Proposal proposed." })
+
+      queries = capture_sql { @payload = payload_for(job) }
+
+      expect(@payload[:origin_chat]).to eq(
+        chat_session_id: chat.id,
+        message_id: direct_message.id
+      )
+      origin_query = queries.grep(/FROM ["`]?chat_proposals["`]?/i).find { |sql| sql.include?("CASE WHEN job_id") }
+      expect(origin_query).to match(/SELECT ["`]?chat_proposals["`]?\./i)
+      expect(origin_query).not_to match(/SELECT\s+["`]?chat_proposals["`]?\.\*/i)
     end
   end
 

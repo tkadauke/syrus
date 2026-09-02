@@ -629,7 +629,7 @@ module App
     end
 
     def test_plan_json
-      entry = artifact_workflows_matching("test_plan", states: "succeeded").filter_map do |workflow|
+      entry = artifact_workflows_matching(states: "succeeded").filter_map do |workflow|
         next unless workflow.artifacts.is_a?(Hash)
 
         plan = canonical_test_plan_for(workflow)
@@ -680,17 +680,28 @@ module App
     end
 
     def origin_chat_json
-      proposal = ChatProposal.where(job_id: @job.id).first
-      proposal ||= ChatProposal.where(epic_id: @job.epic_id).first if @job.epic_id
+      proposal = origin_chat_proposal
       return unless proposal
 
-      message = ChatMessage.where(proposal_id: proposal.id).first
-      return unless message
+      message_id = ChatMessage.where(proposal_id: proposal.id).reorder(:id).pick(:id)
+      return unless message_id
 
       {
         chat_session_id: proposal.chat_session_id,
-        message_id: message.id
+        message_id: message_id
       }
+    end
+
+    def origin_chat_proposal
+      scope = ChatProposal.select(:id, :chat_session_id).where(job_id: @job.id)
+      if @job.epic_id
+        direct_first_order = ChatProposal.sanitize_sql_array([ "CASE WHEN job_id = ? THEN 0 ELSE 1 END", @job.id ])
+        scope = scope.or(ChatProposal.select(:id, :chat_session_id).where(epic_id: @job.epic_id))
+        scope = scope.reorder(Arel.sql(direct_first_order), :id)
+      else
+        scope = scope.reorder(:id)
+      end
+      scope.first
     end
 
     def pending_feedback_json
