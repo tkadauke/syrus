@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
+  after do
+    @fake_whisper_scripts&.each(&:close!)
+  end
+
   def audio_file
     file = Tempfile.new([ "dictation", ".webm" ])
     file.binmode
@@ -15,6 +19,7 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
   # it back exactly as it would in production.
   def fake_whisper_script(body)
     script = Tempfile.new([ "fake-whisper-cli", "" ])
+    (@fake_whisper_scripts ||= []) << script
     script.write(<<~BASH)
       #!/usr/bin/env bash
       audio_file=""
@@ -90,15 +95,21 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
     file = audio_file
 
     expect do
-      provider.transcribe_batch(
-        ChatSpeechToText::Providers::TranscriptionRequest.new(
-          audio: file,
-          content_type: "audio/webm",
-          language: nil,
-          prompt: nil
+      expect do
+        provider.transcribe_batch(
+          ChatSpeechToText::Providers::TranscriptionRequest.new(
+            audio: file,
+            content_type: "audio/webm",
+            language: nil,
+            prompt: nil
+          )
         )
-      )
-    end.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "whisper.cpp returned an empty transcript")
+      end.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "whisper.cpp returned an empty transcript")
+    end.to change(SpawnedProcess, :count).by(1)
+
+    spawned = SpawnedProcess.last
+    expect(spawned.kind).to eq("chat_stt")
+    expect(spawned.outcome).to eq("succeeded")
   ensure
     file&.close!
   end
