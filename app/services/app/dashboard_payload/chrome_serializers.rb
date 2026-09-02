@@ -191,6 +191,7 @@ module App
             views: available_views,
             ownership_scopes: ownership_scope_options_json,
             owners: PerformanceLogging.phase("dashboard_controls.owners", subject: subject) { owner_options.map { |owner| owner_option_json(owner) } },
+            priorities: Job::PRIORITIES.map { |priority| { value: priority, label: priority.humanize } },
             sort_columns: User::DASHBOARD_SORT_COLUMNS.fetch(subject),
             sort_directions: User::DASHBOARD_SORT_DIRECTIONS,
             columns: column_options_json,

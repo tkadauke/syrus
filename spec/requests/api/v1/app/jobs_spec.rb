@@ -871,8 +871,32 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     delete "/api/v1/app/jobs/#{job.id}/claim"
 
     expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "message")).to eq("Only the current owner can release this claim.")
+    expect(parse_body.dig("error", "message")).to eq("Only the current claimant can release this claim.")
     expect(job.reload.claimed_by_user).to eq(teammate)
+  end
+
+  it "assigns the job owner separately from claim ownership" do
+    teammate = Factories.user(email_address: "teammate@example.com")
+    RepositoryMembership.create!(repository: repo, user: teammate, role: "read")
+
+    patch "/api/v1/app/jobs/#{job.id}/owner", params: { owner_user_id: teammate.id }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job owner assigned.")
+    expect(parse_body.dig("job", "owner_user_id")).to eq(teammate.id)
+    expect(parse_body.dig("job", "owner_user")).to include("id" => teammate.id, "email_address" => "teammate@example.com")
+    expect(parse_body.dig("job", "claimed_by_user")).to be_nil
+    expect(job.reload.owner_user).to eq(teammate)
+  end
+
+  it "rejects assigning an owner without repository access" do
+    outsider = Factories.user(email_address: "outsider@example.com")
+
+    patch "/api/v1/app/jobs/#{job.id}/owner", params: { owner_user_id: outsider.id }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Owner must have repository access.")
+    expect(job.reload.owner_user).to eq(user)
   end
 
   it "paginates workflows on the workflow-only job detail payload" do

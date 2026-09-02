@@ -65,6 +65,19 @@ module Api
           render_job(job.reload, message: "Job released from backlog.", changed: [ "state", "workflows", "runs" ], tab: "workflows")
         end
 
+        def move_to_backlog
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.may_move_to_backlog?
+            render_error("validation_failed", "#{job.slug} cannot move to backlog after runtime work, review, landing, or PR creation has started.", status: :unprocessable_content)
+            return
+          end
+
+          job.move_to_backlog!
+          render_job(job.reload, message: "Job moved to backlog.", changed: [ "state" ])
+        end
+
         def run_again
           job = find_mutable_job
           return unless authorize_job_mutation!(job)

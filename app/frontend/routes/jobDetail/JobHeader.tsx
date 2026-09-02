@@ -192,6 +192,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
 
   if (actions.can_start) available.push({ key: "start", label: t("start_run"), input: { method: "post", path: paths.app_start_path }, tone: "primary" })
   if (actions.can_release_from_backlog) available.push({ key: "release_from_backlog", label: t("release_from_backlog"), input: { method: "post", path: paths.app_release_from_backlog_path }, tone: "primary" })
+  if (actions.can_move_to_backlog && paths.app_move_to_backlog_path) available.push({ key: "move_to_backlog", label: t("move_to_backlog"), input: { method: "post", path: paths.app_move_to_backlog_path }, tone: "secondary" })
   if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
   if (actions.can_rebase) {
     available.push({
@@ -289,6 +290,7 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("retry_implementation")
   } else {
     add("release_from_backlog")
+    add("move_to_backlog")
     add("start")
     add("mark_valid")
   }

@@ -684,6 +684,7 @@ export type RunFailureClassification = {
 export type JobActions = {
   can_start: boolean
   can_release_from_backlog: boolean
+  can_move_to_backlog?: boolean
   can_poll_feedback: boolean
   can_rebase: boolean
   can_check_mergeability: boolean
@@ -800,6 +801,7 @@ export type JobPaths = {
   app_timeline_path: string
   app_start_path: string
   app_release_from_backlog_path: string
+  app_move_to_backlog_path?: string
   app_run_again_path: string
   app_restart_path: string
   app_cancel_path: string
@@ -813,6 +815,7 @@ export type JobPaths = {
   app_resume_path: string
   app_tags_path: string
   app_claim_path: string
+  app_owner_path?: string
   app_dependencies_path: string
   app_dependency_options_path?: string
   app_dependency_override_path: string

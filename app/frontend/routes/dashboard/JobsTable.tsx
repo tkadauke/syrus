@@ -17,7 +17,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
-import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus } from "../../api/dashboard"
+import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload } from "../../api/dashboard"
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
@@ -28,7 +28,7 @@ import { useConfirm } from "../../hooks/useConfirm"
 // per-job cells, and the mobile jobs list. Entry point rendered by the table
 // view. Depends only on leaf modules and shared UI imports.
 
-export function JobsDashboardTable({ items, columns, landingQueueEntries, landingQueueStatus, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
+export function JobsDashboardTable({ items, columns, controls, landingQueueEntries, landingQueueStatus, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; controls: DashboardPayload["controls"]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -60,7 +60,7 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, landin
 
   return (
     <div className="space-y-3">
-      <BulkJobActions selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      <BulkJobActions controls={controls} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
       <JobsTable
         allSelected={allSelected}
@@ -259,13 +259,20 @@ function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: Pr
   )
 }
 
-function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
+function BulkJobActions({ controls, selectedIds, onClear }: { controls: DashboardPayload["controls"]; selectedIds: number[]; onClear: () => void }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
+  const [ownerUserId, setOwnerUserId] = useState("")
+  const [priority, setPriority] = useState("medium")
   const action = useMutation({
-    mutationFn: (bulkAction: DashboardBulkJobAction) => bulkDashboardJobs({ job_ids: selectedIds, bulk_action: bulkAction }),
+    mutationFn: (bulkAction: DashboardBulkJobAction) => bulkDashboardJobs({
+      job_ids: selectedIds,
+      bulk_action: bulkAction,
+      owner_user_id: bulkAction === "assign_owner" && ownerUserId ? Number(ownerUserId) : undefined,
+      priority: bulkAction === "set_priority" ? priority : undefined
+    }),
     onSuccess: (payload) => {
       setNotice(payload.message)
       onClear()
@@ -277,6 +284,7 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
   async function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
     if (bulkAction === "close" && !await confirm({ message: t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }), destructive: true })) return
+    if (bulkAction === "move_to_backlog" && !await confirm({ message: t("move_to_backlog_confirm", { count: selectedIds.length }), destructive: false })) return
     action.mutate(bulkAction)
   }
 
@@ -293,10 +301,21 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button>
+        <select aria-label={t("assign_owner")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
+          <option value="">{t("assign_owner")}</option>
+          {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
+        </select>
+        <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
+        <select aria-label={t("priority")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setPriority(event.target.value)} value={priority}>
+          {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
         <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
       </div>
@@ -983,14 +1002,13 @@ function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: s
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
   const { t } = useT("dashboard")
-  const owner = job.claimed_by_user
+  const owner = job.owner_user
   if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">{t("unclaimed")}</span>
-  if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">{t("claimed_by_you")}</span>
 
   return (
-    <Link className="text-xs font-medium text-gray-600 hover:text-brand hover:underline dark:text-gray-300" to={withRoutePrefix(owner.profile_path, prefix)}>
-      {owner.display_name}
-    </Link>
+    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+      {owner.name || owner.email_address}
+    </span>
   )
 }
 
