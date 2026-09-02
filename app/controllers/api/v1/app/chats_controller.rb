@@ -993,6 +993,7 @@ module Api
             }
             update_attrs[:media_ids] = Array(attrs[:media_ids]).reject(&:blank?) if attrs.key?(:media_ids)
             update_attrs[:target_epic_id] = attrs[:target_epic_id].presence if attrs.key?(:target_epic_id)
+            update_attrs[:route_to_backlog] = route_to_backlog_update_value(proposal, attrs) if attrs.key?(:route_to_backlog)
             proposal.update!(update_attrs)
             rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
             proposal.reset_to_proposed_after_edit!
@@ -1484,7 +1485,15 @@ module Api
 
 
         def proposal_update_params
-          params.require(:proposal).permit(:title, :body, :target_epic_id, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+          params.require(:proposal).permit(:title, :body, :target_epic_id, :route_to_backlog, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+        end
+
+        def route_to_backlog_update_value(proposal, attrs)
+          unless proposal.direct_job_proposal? && proposal.parent_proposal_id.nil?
+            raise ArgumentError, "Backlog routing is only available for direct Job proposals."
+          end
+
+          ActiveModel::Type::Boolean.new.cast(attrs[:route_to_backlog])
         end
 
         def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

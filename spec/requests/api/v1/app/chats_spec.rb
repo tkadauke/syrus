@@ -3371,6 +3371,28 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(proposal_payload).not_to have_key("body_html")
   end
 
+  it "serializes direct proposal route metadata in chat payloads" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(
+      chat_session: chat,
+      slug: "hold-auth",
+      title: "Hold auth",
+      body: "Keep this for later.",
+      kind: "job",
+      route_to_backlog: true
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    proposal_payload = parse_body["messages"].first.fetch("proposal")
+    expect(proposal_payload).to include(
+      "route_to_backlog" => true,
+      "route_label" => "Backlog"
+    )
+  end
+
   it "includes media refs for child proposal payloads" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -3446,6 +3468,47 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("proposal", "depends_on_job_ids")).to eq([ job_dependency.id ])
     expect(parse_body.dig("proposal", "media_ids")).to eq([ "snapshot:#{snapshot.id}" ])
     expect(parse_body.dig("message")).to eq("Proposal updated.")
+  end
+
+  it "updates backlog routing on a proposed direct Job proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Old body.", kind: "job")
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Build UI",
+        body: "Old body.",
+        dependency_slugs: [],
+        route_to_backlog: true
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.route_to_backlog).to be(true)
+    expect(parse_body.dig("proposal", "route_to_backlog")).to be(true)
+    expect(parse_body.dig("proposal", "route_label")).to eq("Backlog")
+  end
+
+  it "rejects backlog routing updates on Epic child proposals" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    parent = ChatProposal.create!(chat_session: chat, slug: "ship-auth", title: "Ship auth", body: "Group it.", kind: "epic")
+    child = parent.child_proposals.create!(chat_session: chat, slug: "auth-ui", title: "Auth UI", body: "Build it.", kind: "job")
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{child.id}", params: {
+      proposal: {
+        title: "Auth UI",
+        body: "Build it.",
+        dependency_slugs: [],
+        route_to_backlog: true
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Backlog routing is only available for direct Job proposals.")
+    expect(child.reload.route_to_backlog).to be(false)
   end
 
   it "rejects proposal media refs from another chat on update" do
@@ -4493,6 +4556,47 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "acknowledgment" => "Rejected proposal cleanup."
     )
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, rejection_message.id)
+  end
+
+  it "confirms a backlog-routed direct proposal without creating initial workflow work" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8)
+    prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat,
+      name: "Mockup",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+    proposal = chat.proposals.create!(
+      slug: "hold-auth",
+      title: "Hold auth",
+      body: "Keep it for later.",
+      kind: "job",
+      depends_on_job_ids: [ prerequisite.id ],
+      media_ids: [ "snapshot:#{snapshot.id}" ],
+      route_to_backlog: true
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(Job, :count).by(1)
+      .and change(JobDependency, :count).by(1)
+      .and change(Document, :count).by(1)
+      .and change(Workflow, :count).by(0)
+      .and change(Run, :count).by(0)
+
+    expect(response).to have_http_status(:ok)
+    job = proposal.reload.job
+    expect(job).to be_backlog
+    expect(job.owner_user).to eq(user)
+    expect(chat.reload.attached_jobs).to include(job)
+    expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
+    expect(job.job_attachments.first.source_url).to eq("snapshot:#{snapshot.id}")
+    expect(parse_body.dig("proposal", "materialized", "job_state")).to eq("backlog")
   end
 
   it "broadcasts update_proposal after confirming a proposal" do

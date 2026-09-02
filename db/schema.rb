@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_120500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -465,6 +465,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_110000) do
     t.integer "parent_proposal_id"
     t.datetime "rejected_at"
     t.integer "repository_id"
+    t.boolean "route_to_backlog", default: false, null: false
     t.string "slug", null: false
     t.string "state", default: "proposed", null: false
     t.integer "target_epic_id"

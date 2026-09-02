@@ -128,6 +128,8 @@ export type ChatProposal = {
   has_dependencies: boolean
   target_epic_id: number | null
   target_epic_label: string | null
+  route_to_backlog?: boolean
+  route_label?: string
   app_update_path: string
   app_confirm_path: string
   app_reject_path: string
@@ -229,6 +231,7 @@ export type ChatProposalUpdateInput = {
   depends_on_epic_ids: number[]
   media_ids?: string[]
   target_epic_id?: number | null
+  route_to_backlog?: boolean
 }
 
 export type ChatMediaSnapshot = {
