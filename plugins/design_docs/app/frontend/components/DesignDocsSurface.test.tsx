@@ -253,7 +253,7 @@ function indexPayload() {
   }
 }
 
-function mockFetch() {
+function mockFetch(firstDoc = docDetail) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = new URL(String(input), "http://test.host")
     if (url.pathname === "/api/v1/app/repositories") {
@@ -266,10 +266,10 @@ function mockFetch() {
       return jsonResponse(indexPayload())
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
-      return jsonResponse({ design_doc: docDetail })
+      return jsonResponse({ design_doc: firstDoc })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
-      return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
+      return jsonResponse({ design_doc: firstDoc, mode: "canonical", message: "Design doc updated." })
     }
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
@@ -705,6 +705,66 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(markdownTab)
 
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from Rich Text")
+  })
+
+  it("renders and preserves the v1 markdown command set in the Rich Text editor", async () => {
+    const markdown = [
+      "# Heading",
+      "",
+      "> Quoted **context**",
+      "",
+      "Use **bold**, *italic*, ~~removed~~, `code`, and [docs](/docs).",
+      "",
+      "1. Ordered",
+      "   - Nested unordered",
+      "      1. Nested ordered",
+      "2. Again",
+      "",
+      "- Unordered",
+      "",
+      "| Command | Result |",
+      "| --- | --- |",
+      "| strike | ~~gone~~ |",
+      "",
+      "---",
+      "",
+      "```",
+      "const value = 1",
+      "```"
+    ].join("\n")
+    mockFetch({
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      threads: [],
+      suggestions: [],
+      pending_suggestions_count: 0,
+      open_threads_count: 0
+    })
+    renderSurface("/design_docs/1")
+
+    const richTextEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(richTextEditor.querySelector("h1")).toHaveTextContent("Heading")
+    expect(richTextEditor.querySelector("blockquote strong")).toHaveTextContent("context")
+    expect(richTextEditor.querySelector("strong")).toHaveTextContent("context")
+    expect(richTextEditor.querySelector("em")).toHaveTextContent("italic")
+    expect(richTextEditor.querySelector("del")).toHaveTextContent("removed")
+    expect(richTextEditor.querySelector("code")).toHaveTextContent("code")
+    expect(richTextEditor.querySelector("a")).toHaveAttribute("href", "/docs")
+    const orderedList = richTextEditor.querySelector(":scope > ol")
+    expect(orderedList?.querySelectorAll(":scope > li")).toHaveLength(2)
+    expect(orderedList?.querySelector(":scope > li > ul > li")).toHaveTextContent("Nested unordered")
+    expect(orderedList?.querySelector(":scope > li > ul > li > ol > li")).toHaveTextContent("Nested ordered")
+    expect(richTextEditor.querySelectorAll(":scope > ul > li")).toHaveLength(1)
+    expect(richTextEditor.querySelector("table th")).toHaveTextContent("Command")
+    expect(richTextEditor.querySelector("table td del")).toHaveTextContent("gone")
+    expect(richTextEditor.querySelector("hr")).toBeInTheDocument()
+    expect(richTextEditor.querySelector("pre code")).toHaveTextContent("const value = 1")
+
+    fireEvent.input(richTextEditor)
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue(markdown)
   })
 
   it("lets owners switch between Edit and Suggest change modes", async () => {

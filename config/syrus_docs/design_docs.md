@@ -76,6 +76,27 @@ toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
 
+## Supported Markdown
+
+Design Docs v1 supports the safe GitHub-ish Markdown subset used by Syrus'
+shared renderer and editor toolbar:
+
+- headings `#` through `####`
+- bold `**text**`, italic `*text*`, strikethrough `~~text~~`, and inline code
+  spans
+- links with safe `/`, `#`, `http`, `https`, and `mailto` targets
+- unordered lists, ordered lists with preserved source numbering, and nested
+  lists
+- blockquotes
+- fenced code blocks
+- simple pipe tables with a header separator row
+- horizontal rules with `---` or `***`
+
+Raw HTML is intentionally not part of the v1 command set. The renderer treats
+HTML as inert text except for Syrus-owned hidden anchor comments that are
+stripped before rendering, avoiding unsafe HTML expansion until there is a
+separate sanitization plan.
+
 ## Chat Workspace Tabs
 
 The Design Docs chat workspace surface is document-focused, not the top-level

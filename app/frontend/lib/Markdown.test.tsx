@@ -14,6 +14,58 @@ describe("Markdown", () => {
     expect(screen.getByText("Survey")).toBeInTheDocument()
   })
 
+  it("renders the Design Docs v1 supported markdown command set", () => {
+    const { container } = render(
+      <Markdown
+        text={[
+          "# H1",
+          "## H2",
+          "### H3",
+          "#### H4",
+          "",
+          "> Quoted **context**",
+          "",
+          "Use **bold**, *italic*, ~~removed~~, `code`, and [docs](/docs).",
+          "",
+          "1. Ordered",
+          "   - Nested unordered",
+          "2. Ordered again",
+          "",
+          "- Unordered",
+          "- Also unordered",
+          "",
+          "| Command | Result |",
+          "| --- | --- |",
+          "| strike | ~~gone~~ |",
+          "",
+          "---",
+          "",
+          "```ts",
+          "const value = 1",
+          "```"
+        ].join("\n")}
+      />
+    )
+
+    expect(screen.getByRole("heading", { level: 1, name: "H1" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 2, name: "H2" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 3, name: "H3" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { level: 4, name: "H4" })).toBeInTheDocument()
+    expect(container.querySelector("blockquote strong")).toHaveTextContent("context")
+    expect(screen.getByText("bold").tagName).toBe("STRONG")
+    expect(screen.getByText("italic").tagName).toBe("EM")
+    expect(screen.getByText("removed").tagName).toBe("DEL")
+    expect(screen.getByText("code").tagName).toBe("CODE")
+    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute("href", "/docs")
+    expect(container.querySelectorAll("ol > li")).toHaveLength(2)
+    expect(container.querySelector("ol > li > ul > li")).toHaveTextContent("Nested unordered")
+    expect(container.querySelectorAll("ul > li")).toHaveLength(3)
+    expect(container.querySelector("table th")).toHaveTextContent("Command")
+    expect(container.querySelector("table td del")).toHaveTextContent("gone")
+    expect(container.querySelector("hr")).toBeInTheDocument()
+    expect(container.querySelector("pre code")).toHaveTextContent("const value = 1")
+  })
+
   it("keeps raw HTML as inert text", () => {
     const { container } = render(<Markdown text={"Hello <script>alert('x')</script> **friend**"} />)
 
