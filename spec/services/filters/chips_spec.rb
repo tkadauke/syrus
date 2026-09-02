@@ -299,12 +299,21 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
+    it "stale: excludes backlogged jobs solely aged past the stale window" do
+      stale_queued = Factories.job_record(repository: repo, issue_number: 28, state: "queued")
+      backlogged = Factories.job_record(repository: repo, issue_number: 29, state: "backlog")
+      stale_queued.update!(updated_at: 8.days.ago)
+      backlogged.update!(updated_at: 8.days.ago)
+
+      expect(run(field: "attention", op: "is", value: "stale")).to contain_exactly(stale_queued)
+    end
+
     it "paused: returns manually paused jobs and WorkUnit-paused jobs" do
-      manual = Factories.job_record(repository: repo, issue_number: 28, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
+      manual = Factories.job_record(repository: repo, issue_number: 30, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
       work_unit_paused = Factories.job_record(repository: repo, issue_number: 31, state: "running")
       landing_paused = Factories.job_record(repository: repo, issue_number: 32, state: "landing")
       repair_paused = Factories.job_record(repository: repo, issue_number: 37, state: "failed")
-      Factories.job_record(repository: repo, issue_number: 30, state: "queued")
+      Factories.job_record(repository: repo, issue_number: 33, state: "queued")
       create_blocked_work_unit_for(work_unit_paused)
       create_blocked_work_unit_for(landing_paused, kind: "auto_merge")
       create_blocked_work_unit_for(repair_paused, kind: "ci_failure")
