@@ -393,24 +393,24 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
               {showDirectRouteActions ? (
                 <>
                   <button
-                    aria-label="Confirm proposal to backlog"
+                    aria-label={t("aria_confirm_proposal_to_backlog")}
                     className={proposalActionButton("secondary")}
                     disabled={proposalAction.isPending}
                     onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: true })}
-                    title="Confirm proposal to backlog"
+                    title={t("aria_confirm_proposal_to_backlog")}
                     type="button"
                   >
-                    Backlog
+                    {t("proposal_route_backlog")}
                   </button>
                   <button
-                    aria-label="Confirm proposal and implement"
+                    aria-label={t("aria_confirm_proposal_and_implement")}
                     className={proposalActionButton("primary")}
                     disabled={proposalAction.isPending}
                     onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
-                    title="Confirm proposal and implement"
+                    title={t("aria_confirm_proposal_and_implement")}
                     type="button"
                   >
-                    Implement
+                    {t("proposal_route_implement")}
                   </button>
                 </>
               ) : (
@@ -932,10 +932,11 @@ function ProposalResultLink({ path, prefix, children }: { path: string | null; p
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   const { t } = useT("chat")
+  const routeLabel = proposal.route_to_backlog ? t("proposal_route_backlog") : t("proposal_route_start_normally")
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
       <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("attached_scope")}</dt><dd>{proposal.scoped_repository_slug || t("no_repository_attached")}</dd></div>
-      {proposalSupportsBacklogRoute(proposal) ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">Route</dt><dd>{proposal.route_label || (proposal.route_to_backlog ? "Backlog" : "Start normally")}</dd></div> : null}
+      {proposalSupportsBacklogRoute(proposal) ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_route")}</dt><dd>{routeLabel}</dd></div> : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
