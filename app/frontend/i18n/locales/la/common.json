@@ -180,6 +180,7 @@
     "appCrashHeading": "Error inopinatus accidit."
   },
   "status": {
+    "backlog": "In tabulario",
     "needs_triage": "Auspicanda",
     "triaging": "Auspicia",
     "queued": "In acie",
