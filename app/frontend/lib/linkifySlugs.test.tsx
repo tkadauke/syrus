@@ -57,7 +57,7 @@ describe("linkifySlugs", () => {
     for (const slug of ["JOB-42", "EPIC-7", "DOC-9"]) {
       const link = screen.getByRole("link", { name: slug })
 
-      expect(link).toHaveClass("text-brand", "hover:underline", "dark:text-brand")
+      expect(link).toHaveClass("text-brand", "hover:underline", "dark:text-brand-emphasis")
       expect(link.className).not.toMatch(/\b(?:text-)?blue-\d{2,3}\b/)
     }
   })
