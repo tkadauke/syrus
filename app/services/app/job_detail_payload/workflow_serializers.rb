@@ -725,23 +725,27 @@ module App
 
       def run_counts_by_step_id
         @run_counts_by_step_id ||= begin
-          ids = visible_step_ids
-          ids.empty? ? {} : Run.where(step_id: ids).group(:step_id).count
+          visible_run_ids_by_step_id
+          @run_counts_by_step_id_from_visible_query || {}
         end
       end
 
       def visible_run_ids_by_step_id
         @visible_run_ids_by_step_id ||= PerformanceLogging.phase("job_detail.workflow.run_ids.query", job_id: @job.id, step_count: visible_step_ids.size, run_limit: MAX_RUNS_PER_STEP) do
           ids = visible_step_ids.map { |id| Integer(id) }
-          next {} if ids.empty?
+          if ids.empty?
+            @run_counts_by_step_id_from_visible_query = {}
+            next {}
+          end
 
           rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
-            SELECT id, step_id
+            SELECT id, step_id, step_run_count
             FROM (
               SELECT
                 runs.id,
                 runs.step_id,
                 runs.state,
+                COUNT(*) OVER (PARTITION BY runs.step_id) AS step_run_count,
                 ROW_NUMBER() OVER (
                   PARTITION BY runs.step_id
                   ORDER BY runs.created_at DESC, runs.id DESC
@@ -752,6 +756,11 @@ module App
             WHERE ranked_runs.syrus_run_rank <= #{MAX_RUNS_PER_STEP}
                OR ranked_runs.state IN (#{ACTIVE_RUN_STATES.map { |state| ApplicationRecord.connection.quote(state) }.join(",")})
           SQL
+
+          @run_counts_by_step_id_from_visible_query = rows.each_with_object({}) do |row, counts|
+            step_id = row.fetch("step_id").to_i
+            counts[step_id] ||= row.fetch("step_run_count").to_i
+          end
 
           rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
             grouped[row.fetch("step_id").to_i] << row.fetch("id").to_i

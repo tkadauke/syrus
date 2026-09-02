@@ -636,6 +636,27 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(step_payload.fetch(:runs).map { |run| run[:id] }).to eq([ active_run.id, recent_succeeded.id, recent_failed.id ])
     end
 
+    it "reuses the visible-run window query for per-step run totals" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "running")
+      2.times do
+        Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+      end
+
+      payload = nil
+      queries = capture_sql do
+        payload = workflows_payload_for(job)
+      end
+
+      expect(payload.dig(:workflows, 0, :steps, 0, :runs_total)).to eq(2)
+      run_count_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?runs[`"]?/i) &&
+          sql.match?(/GROUP BY [`"]?runs[`"]?.[`"]?step_id/i)
+      end
+      expect(run_count_queries).to be_empty
+    end
+
     it "does not query command spans or spawned processes once per run" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
