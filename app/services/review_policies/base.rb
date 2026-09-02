@@ -1,7 +1,8 @@
 module ReviewPolicies
   class Base
-    def initialize(job)
+    def initialize(job, approvals: nil)
       @job = job
+      @preloaded_approvals = approvals
     end
 
     def satisfied?
@@ -23,7 +24,26 @@ module ReviewPolicies
     end
 
     def owner_approved?
-      @job.job_approvals.where(user_id: effective_owner_id).exists?
+      approval_from?(effective_owner_id)
+    end
+
+    def approval_from?(user_ids)
+      ids = Array(user_ids).compact
+      return false if ids.empty?
+
+      if @preloaded_approvals
+        @preloaded_approvals.any? { |approval| ids.include?(approval.user_id) }
+      else
+        @job.job_approvals.where(user_id: ids).exists?
+      end
+    end
+
+    def approval_from_non_owner?
+      if @preloaded_approvals
+        @preloaded_approvals.any? { |approval| approval.user_id != effective_owner_id }
+      else
+        @job.job_approvals.where.not(user_id: effective_owner_id).exists?
+      end
     end
   end
 end

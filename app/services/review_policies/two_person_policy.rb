@@ -6,13 +6,13 @@ module ReviewPolicies
 
     def satisfied?
       owner_approved? &&
-        @job.job_approvals.where.not(user_id: effective_owner_id).exists?
+        approval_from_non_owner?
     end
 
     def pending_description
       return "Waiting for owner approval" unless owner_approved?
 
-      "Waiting for one additional approval" unless @job.job_approvals.where.not(user_id: effective_owner_id).exists?
+      "Waiting for one additional approval" unless approval_from_non_owner?
     end
   end
 end

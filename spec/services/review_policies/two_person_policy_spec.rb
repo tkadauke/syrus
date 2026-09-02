@@ -38,6 +38,25 @@ RSpec.describe ReviewPolicies::TwoPersonPolicy do
     subject { described_class.new(job_with_approvals(owner, other)) }
     it { is_expected.to be_satisfied }
     it { expect(subject.pending_description).to be_nil }
+
+    it "can use preloaded approvals without querying job approvals again" do
+      job = job_with_approvals(owner, other)
+      approvals = job.job_approvals.to_a
+      policy = described_class.new(job, approvals: approvals)
+      approval_queries = 0
+      counter = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:cached] || payload[:name] == "SCHEMA"
+
+        approval_queries += 1 if payload[:sql].include?("job_approvals")
+      end
+
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        expect(policy).to be_satisfied
+        expect(policy.pending_description).to be_nil
+      end
+
+      expect(approval_queries).to eq(0)
+    end
   end
 
   context "when owner_user_id is nil (falls back to user_id)" do

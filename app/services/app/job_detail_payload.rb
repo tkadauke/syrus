@@ -145,7 +145,8 @@ module App
       retry_state = PerformanceLogging.phase("job_detail.job.retry_state", job_id: @job.id) do
         ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
       end
-      approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json }
+      job_approvals = PerformanceLogging.phase("job_detail.job.approvals", job_id: @job.id) { job_approvals_with_users }
+      approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json(job_approvals) }
       active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
@@ -210,7 +211,7 @@ module App
         owner_user_id: @job.owner_user_id,
         owner_user: owner_user_json(@job.owner_user),
         approval_evidence: approval_evidence_json,
-        job_approvals: @job.job_approvals.includes(:user).map { |a| job_approval_json(a) },
+        job_approvals: job_approvals.map { |a| job_approval_json(a) },
         approval_status: approval_status,
         claimed_at: iso8601(@job.claimed_at),
         claimed_by_user: owner_json(@job.claimed_by_user),
@@ -410,10 +411,13 @@ module App
       }
     end
 
-    def approval_status_json
+    def job_approvals_with_users
+      @job.job_approvals.includes(:user).to_a
+    end
+
+    def approval_status_json(approvals = job_approvals_with_users)
       policy_name = @job.repository.review_policy
-      policy_obj = ReviewPolicies.for(policy_name).new(@job)
-      approvals = @job.job_approvals.includes(:user)
+      policy_obj = ReviewPolicies.for(policy_name).new(@job, approvals: approvals)
 
       {
         policy: policy_name,

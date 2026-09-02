@@ -9,7 +9,7 @@ module ReviewPolicies
         owner_approved?
       else
         owner_approved? &&
-          @job.job_approvals.where(user_id: final_approver_ids).exists?
+          approval_from?(final_approver_ids)
       end
     end
 
@@ -18,7 +18,7 @@ module ReviewPolicies
         owner_approved? ? nil : "Waiting for owner to approve"
       elsif !owner_approved?
         "Waiting for owner approval"
-      elsif !@job.job_approvals.where(user_id: final_approver_ids).exists?
+      elsif !approval_from?(final_approver_ids)
         "Waiting for final approver"
       end
     end
