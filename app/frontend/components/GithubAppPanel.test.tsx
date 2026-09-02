@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { GithubAppPanel } from "./GithubAppPanel"
 
-function renderPanel(props: { onClose?: () => void; onSaved?: () => void } = {}) {
+function renderPanel(props: { onClose?: () => void; onSaved?: () => void; confirmRefetchIntervalMs?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <GithubAppPanel onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      <GithubAppPanel confirmRefetchIntervalMs={props.confirmRefetchIntervalMs} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
     </QueryClientProvider>
   )
 }
@@ -57,7 +57,7 @@ describe("GithubAppPanel", () => {
     const opened = { opener: {} as unknown }
     const openSpy = vi.spyOn(window, "open").mockReturnValue(opened as Window)
     const onSaved = vi.fn()
-    renderPanel({ onSaved })
+    renderPanel({ onSaved, confirmRefetchIntervalMs: 10 })
 
     expect(await screen.findByText("The Syrus GitHub App is registered.")).toBeInTheDocument()
     expect(screen.getByText(/All repositories/)).toBeInTheDocument()
@@ -76,7 +76,7 @@ describe("GithubAppPanel", () => {
 
     // Once the sync links the installation, the panel flips by itself.
     confirmedInstall = true
-    await waitFor(() => expect(screen.getByText(/Installed on octocat/)).toBeInTheDocument(), { timeout: 8000 })
+    await waitFor(() => expect(screen.getByText(/Installed on octocat/)).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument()
   })
 
