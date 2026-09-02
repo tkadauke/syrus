@@ -319,13 +319,18 @@ module WorkEngine
             classification: classification
           )
           provider_switched = agent_provider != previous_provider
+          if retry_kind == "retry_workflow" && workflow.auto_retry_attempts.retry_workflow.pending.exists?
+            return skipped("retry_workflow already pending")
+          end
+
           skip_stale_default_provider_attempts!(
             workflow: workflow,
             previous_provider: previous_provider,
             current_provider: agent_provider,
             classification: classification
           ) if provider_switched
-          return skipped("retry already pending") if workflow.auto_retry_attempts.pending.exists?
+          retry_blocker = auto_retry_blocker_for(workflow, retry_kind)
+          return skipped(retry_blocker) if retry_blocker
 
           circuit = ProviderCircuitBreaker.call(agent_provider, now: now, include_logs: false)
           if respect_provider_circuit && circuit.open?
@@ -333,27 +338,43 @@ module WorkEngine
             return skipped("provider circuit is open for #{agent_provider}#{retry_at}: #{circuit.reason}")
           end
 
-          attempt_number = AutoRetryAttempt.budget_scope_for(
-            job: job,
-            agent_provider: agent_provider,
-            failure_classification: classification
-          ).count + 1
-          return skipped("retry budget exhausted for #{agent_provider}/#{classification}") if attempt_number > retry_budget_limit(classification)
-
+          attempt = nil
+          locked_skip = nil
           scheduled_at = provider_switched ? now : (plan.retry_after || now)
-          attempt = AutoRetryAttempt.create!(
-            job: job,
-            workflow: workflow,
-            run: source_run,
-            agent_provider: agent_provider,
-            failure_classification: classification,
-            retry_kind: retry_kind,
-            attempt_number: attempt_number,
-            scheduled_at: scheduled_at
-          )
+          workflow.with_lock do
+            workflow.reload
+            retry_blocker = auto_retry_blocker_for(workflow, retry_kind)
+            if retry_blocker
+              locked_skip = skipped(retry_blocker)
+            else
+              attempt_number = AutoRetryAttempt.budget_scope_for(
+                job: job,
+                agent_provider: agent_provider,
+                failure_classification: classification
+              ).count + 1
+              if attempt_number > retry_budget_limit(classification)
+                locked_skip = skipped("retry budget exhausted for #{agent_provider}/#{classification}")
+              else
+                attempt = AutoRetryAttempt.create!(
+                  job: job,
+                  workflow: workflow,
+                  run: source_run,
+                  agent_provider: agent_provider,
+                  failure_classification: classification,
+                  retry_kind: retry_kind,
+                  attempt_number: attempt_number,
+                  scheduled_at: scheduled_at
+                )
+              end
+            end
+          end
+          return locked_skip if locked_skip
+
           WorkUnits::AutoRetryBackoff.record!(attempt)
           AutoRetryJob.set(wait_until: scheduled_at, priority: job.solid_queue_priority).perform_later(attempt.id)
           success("scheduled #{retry_kind} auto-retry attempt ##{attempt.id} for #{scheduled_at.iso8601}")
+        rescue ActiveRecord::RecordNotUnique
+          skipped(retry_kind == "retry_workflow" ? "retry_workflow already scheduled for workflow" : "retry already pending")
         end
 
         def retry_agent_provider_for(job:, previous_provider:, classification:)
@@ -378,6 +399,13 @@ module WorkEngine
 
         def retry_budget_limit(classification)
           classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
+        end
+
+        def auto_retry_blocker_for(workflow, retry_kind)
+          return "retry already pending" if workflow.auto_retry_attempts.pending.exists?
+          return nil unless retry_kind == "retry_workflow"
+
+          "retry_workflow already scheduled for workflow" if AutoRetryAttempt.retry_workflow_scheduled_for?(workflow)
         end
 
         def mark_worker_died!

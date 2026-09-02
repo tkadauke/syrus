@@ -40,6 +40,12 @@ class AutoRetryAttempt < ApplicationRecord
   # Not yet performed and not skipped — a retry that is still going to happen.
   scope :pending, -> { where(performed_at: nil, skipped_reason: nil) }
   scope :pending_in_schedule_order, -> { pending.order(:scheduled_at, :id) }
+  scope :retry_workflow, -> { where(retry_kind: "retry_workflow") }
+  scope :unskipped, -> { where(skipped_reason: nil) }
+
+  def self.retry_workflow_scheduled_for?(workflow)
+    where(workflow: workflow).retry_workflow.unskipped.exists?
+  end
 
   def self.prune_stale_pending!(limit: 1_000)
     count = 0
