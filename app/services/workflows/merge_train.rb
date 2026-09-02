@@ -4,7 +4,7 @@ module Workflows
   #   merge_train_assemble → merge_train_build → merge_train_reconcile → prepare →
   #     retry_until(grader_fanout → grader_collect, repair: landing_fix) →
   #     try(merge_train_land).on_failure("merge_train_base_moved",
-  #       merge_train_rebase →
+  #       merge_train_rebase → merge_train_agent_rebase →
   #       retry_until(grader_fanout → grader_collect, repair: landing_fix) →
   #       try(merge_train_land_after_rebase) ...)
   #
@@ -20,12 +20,11 @@ module Workflows
   # When merge_train_land detects that the base branch moved (before or during
   # the merge API call), it raises BaseMoved with failure_code
   # "merge_train_base_moved". The Try node inserts merge_train_rebase (tries a
-  # mechanical git-rebase of the integration branch onto the new base tip), a
-  # fresh grader loop, and another guarded land step. If the base keeps moving,
-  # the guarded land step repeats the same recovery path up to a bounded budget.
-  # If the incremental rebase conflicts, merge_train_rebase fails with "rebuild
-  # required" and MergeTrainFailureHandler falls back to a full merge_train
-  # rebuild.
+  # mechanical git-rebase of the integration branch onto the new base tip),
+  # merge_train_agent_rebase (skipped when the mechanical rebase was clean; on
+  # conflict, resolves the in-progress rebase), a fresh grader loop, and another
+  # guarded land step. If the base keeps moving, the guarded land step repeats
+  # the same recovery path up to a bounded budget.
   class MergeTrain < Base
     BASE_MOVE_RECOVERY_ATTEMPTS = 3
 
@@ -52,6 +51,7 @@ module Workflows
         Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
         [
           :merge_train_rebase,
+          :merge_train_agent_rebase,
           landing_grader_retry_loop,
           merge_train_land_with_rebase_recovery(:merge_train_land_after_rebase, remaining_attempts: remaining_attempts - 1)
         ]
