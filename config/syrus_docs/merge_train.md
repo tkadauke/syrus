@@ -67,7 +67,14 @@ Syrus then runs the required grader suite on the integration branch (same as `au
 2. Merges the integration PR into the base branch via the GitHub API.
 3. Comments on and closes each member PR with a note that it was included in the train.
 
-If the base branch advances between build and land (GitHub returns a base-moved error), Syrus inserts a `merge_train_rebase` → re-grade → `merge_train_land_after_rebase` recovery chain dynamically.
+If the base branch advances between build and land (GitHub returns a
+base-moved error), Syrus inserts a `merge_train_rebase` →
+`merge_train_agent_rebase` → re-grade → `merge_train_land_after_rebase`
+recovery chain dynamically. `merge_train_rebase` first tries a deterministic
+rebase of the integration branch onto the moved base. When that rebase is
+clean, Syrus skips `merge_train_agent_rebase`; when it conflicts, the agentic
+step resolves and completes the in-progress rebase before the train re-runs
+landing graders.
 
 While a merge train is active, Syrus suppresses new `rebase`, `stack_rebase`,
 and ordinary Job workflows for child Jobs in the Epic. Those workflows resume

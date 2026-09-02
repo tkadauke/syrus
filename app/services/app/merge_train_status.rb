@@ -11,6 +11,7 @@ module App
       "landing_fix" => "grading",
       "merge_train_land" => "landing",
       "merge_train_rebase" => "landing",
+      "merge_train_agent_rebase" => "landing",
       "merge_train_land_after_rebase" => "landing"
     }.freeze
 

@@ -186,7 +186,12 @@ a fix.
 
 **Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
 
-Atomically lands all Epic child PRs through a single integration branch. See the Merge Train documentation for details.
+Atomically lands all Epic child PRs through a single integration branch. If the
+base branch moves during landing, the workflow dynamically inserts
+`merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair:
+landing_fix) → merge_train_land_after_rebase`; the agentic rebase step is
+skipped when the deterministic rebase succeeds cleanly. See the Merge Train
+documentation for details.
 
 ## rebase
 

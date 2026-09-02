@@ -10,14 +10,14 @@ class RepositoryThroughputMetricContract
 
   OUTPUT_STEP_KINDS = %w[
     implement respond analyze_and_fix landing_fix merge_train_build
-    agent_rebase stack_agent_rebase push_agent_rebase
+    agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
   ].freeze
   LANDING_TRIGGER_KINDS = %w[ auto_merge merge_train ].freeze
   REBASE_TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze
   LANDING_GRADER_STEP_KINDS = %w[ grader_fanout grader grader_collect ].freeze
   MERGEABILITY_REBASE_WAIT_STEP_KINDS = %w[
-    mergeability_preflight merge_train_rebase auto_rebase agent_rebase
-    stack_auto_rebase stack_agent_rebase
+    mergeability_preflight merge_train_rebase merge_train_agent_rebase
+    auto_rebase agent_rebase stack_auto_rebase stack_agent_rebase
   ].freeze
   LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
   MAX_DIFF_SAMPLE_BYTES = 256.kilobytes

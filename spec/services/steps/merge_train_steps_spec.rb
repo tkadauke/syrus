@@ -1083,11 +1083,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
     def append_recovery_steps(handler)
       rebase_step = handler.step
-      prepare = Step.create!(workflow: handler.workflow, kind: "prepare", position: 1)
-      fanout = Step.create!(workflow: handler.workflow, kind: "grader_fanout", position: 2)
-      collect = Step.create!(workflow: handler.workflow, kind: "grader_collect", position: 3)
-      land = Step.create!(workflow: handler.workflow, kind: "merge_train_land_after_rebase", position: 4)
-      rebase_step.update!(next_step: prepare)
+      agent_rebase = Step.create!(workflow: handler.workflow, kind: "merge_train_agent_rebase", position: 1)
+      prepare = Step.create!(workflow: handler.workflow, kind: "prepare", position: 2)
+      fanout = Step.create!(workflow: handler.workflow, kind: "grader_fanout", position: 3)
+      collect = Step.create!(workflow: handler.workflow, kind: "grader_collect", position: 4)
+      land = Step.create!(workflow: handler.workflow, kind: "merge_train_land_after_rebase", position: 5)
+      rebase_step.update!(next_step: agent_rebase)
+      agent_rebase.update!(next_step: prepare)
       prepare.update!(next_step: fanout)
       fanout.update!(next_step: collect)
       collect.update!(next_step: land)
@@ -1099,6 +1101,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       train.update!(integration_branch: "syrus/merge-train-epic-#{epic.id}-x", integration_sha: "intsha111")
 
       handler = rebase_step_handler(train)
+      append_recovery_steps(handler)
       allow(handler).to receive(:repository).and_return(repository)
       workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
       git = instance_double(GitRunner)
@@ -1112,6 +1115,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       expect(git).to have_received(:run).with("fetch", "https://push.example/repo.git", "refs/heads/master", chdir: "/tmp/ws")
       expect(git).to have_received(:run).with("rebase", "FETCH_HEAD", chdir: "/tmp/ws")
+      expect(handler.workflow.steps.find_by!(kind: "merge_train_agent_rebase")).to be_skipped
       expect(handler.workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
     end
@@ -1222,7 +1226,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("required grader configuration changed")
     end
 
-    it "raises StepFailed with rebuild-required message when the mechanical rebase conflicts" do
+    it "leaves a conflicted mechanical rebase for merge_train_agent_rebase" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
       train.update!(integration_branch: "syrus/merge-train-epic-#{epic.id}-x", integration_sha: "intsha111")
@@ -1238,12 +1242,75 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rebase", "FETCH_HEAD", chdir: "/tmp/ws")
         .and_raise(GitRunner::GitError.new([ "git", "rebase", "FETCH_HEAD" ], 1, "CONFLICT (content): merge conflict in foo.rb"))
 
-      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /base moved .* rebuild required/)
-      expect(git).to have_received(:run).with("rebase", "--abort", chdir: "/tmp/ws")
-      expect(handler.workflow.artifact(Steps::MergeTrainLand::STALE_BASE_ARTIFACT)).to include(
-        "current_base_sha" => "newbase222",
-        "reason" => "base_moved"
+      expect { handler.call }.not_to raise_error
+      expect(git).not_to have_received(:run).with("rebase", "--abort", chdir: "/tmp/ws")
+      expect(handler.workflow.artifact("merge_train_rebase_new_base_sha")).to eq("newbase222")
+      expect(handler.workflow.artifact("merge_train_rebase_reason")).to include("CONFLICT")
+      expect(handler.workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("oldbase111")
+      expect(train.reload.integration_sha).to eq("intsha111")
+    end
+  end
+
+  describe Steps::MergeTrainAgentRebase do
+    it "lets the agent complete the in-progress integration rebase and updates train state" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_branch: "syrus/merge-train-epic-#{epic.id}-x", integration_sha: "intsha111")
+      workflow = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          "merge_train_id" => train.id,
+          "merge_train_rebase_new_base_sha" => "newbase222"
+        }
       )
+      step = Step.create!(workflow: workflow, kind: "merge_train_agent_rebase", position: 0)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run)
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-merge\n")
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-apply\n")
+      allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return("")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+
+      handler.call
+
+      expect(handler).to have_received(:run_agent).with(prompt: run.reload.prompt)
+      expect(run.prompt).to include(train.integration_branch, "newbase222")
+      expect(git).to have_received(:run).with("merge-base", "--is-ancestor", "newbase222", "HEAD", chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("merge-base", "--is-ancestor", "newbase222", train.integration_branch, chdir: "/tmp/ws")
+      expect(workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
+      expect(train.reload.integration_sha).to eq("newintsha999")
+      expect(run.head_sha).to eq("newintsha999")
+    end
+
+    it "fails when the agent leaves the rebase in progress" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          "merge_train_id" => train.id,
+          "merge_train_rebase_new_base_sha" => "newbase222"
+        }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_agent_rebase", position: 0)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return(__dir__)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /rebase is still in progress/)
     end
   end
 

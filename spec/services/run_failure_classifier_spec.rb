@@ -666,6 +666,17 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(false)
   end
 
+  it "classifies unresolved agentic merge-train rebases separately from generic git corruption" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "merge_train_agent_rebase: rebase is still in progress; run git rebase --continue until it completes"
+    )
+
+    expect(classification.classification).to eq("merge_train_rebase_conflict")
+    expect(classification.retryable).to eq(false)
+  end
+
   it "prefers MCP sidecar failures over max-turns when the tool never registered" do
     run.update!(state: "failed", agent_outcome: "error_max_turns")
     process("stopped")

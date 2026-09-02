@@ -210,7 +210,7 @@ class RunFailureClassifier
 
   def merge_train_rebase_conflict?
     text_match?(
-      /merge_train: rebase for .* was not completed|merge_train: integrating .* left a dirty worktree|merge_train: .* was not rebased onto the integration branch/i
+      /merge_train: rebase for .* was not completed|merge_train: integrating .* left a dirty worktree|merge_train: .* was not rebased onto the integration branch|merge_train_agent_rebase: rebase is still in progress|merge_train_agent_rebase: working tree is not clean|merge_train_agent_rebase: .* was not rebased onto the moved base/i
     )
   end
 
