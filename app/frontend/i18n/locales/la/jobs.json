@@ -131,6 +131,7 @@
   "landing_blocker_override_note": "Concessa ab {{user}} hora",
   "detail_state": "Status",
   "detail_owner": "Dominus",
+  "detail_work_claim": "Operis vindicatio",
   "detail_priority": "Prioritas",
   "detail_provider": "Provider",
   "provider_setting_default": "Default",

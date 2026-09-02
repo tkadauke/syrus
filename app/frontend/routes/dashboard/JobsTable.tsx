@@ -1006,9 +1006,9 @@ function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJob
   if (!owner) return quiet ? null : <span className="text-xs text-gray-400 dark:text-gray-500">{t("unclaimed")}</span>
 
   return (
-    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+    <Link className="text-xs font-medium text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(`/profiles/${owner.id}`, prefix)}>
       {owner.name || owner.email_address}
-    </span>
+    </Link>
   )
 }
 
