@@ -135,6 +135,7 @@
   "landing_blocker_override_note": "Gewährt von {{user}} am",
   "detail_state": "Status",
   "detail_owner": "Besitzer",
+  "detail_work_claim": "Arbeitsanspruch",
   "detail_priority": "Priorität",
   "detail_provider": "Provider",
   "provider_setting_default": "Standard",

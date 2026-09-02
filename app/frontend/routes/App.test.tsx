@@ -3373,7 +3373,7 @@ describe("App", () => {
     }
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
-    expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
+    expect(screen.getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/profiles/1")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveAttribute("href", "/app-shell/epics/new")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-brand", "text-on-brand")
@@ -3405,7 +3405,7 @@ describe("App", () => {
     )
 
     fireEvent.click(screen.getByLabelText("Select Repair aqueduct"))
-    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+    fireEvent.click(screen.getByRole("button", { name: "Claim work" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/dashboard/jobs/bulk",
@@ -9969,9 +9969,9 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText("Add tag")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
-    expect(screen.getByText("Unclaimed")).toBeInTheDocument()
+    expect(screen.getByText("No work claim")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+    fireEvent.click(screen.getByRole("button", { name: "Claim work" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/claim",
