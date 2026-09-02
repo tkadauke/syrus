@@ -31,8 +31,18 @@ RSpec.describe CaptureRunDiagnostic, :ci_only do
     }.not_to change { RunDiagnostic.count }
   end
 
+  it "keeps the existing diagnostic when another worker wins the insert race" do
+    existing = RunDiagnostic.create!(run: run, error_class: "FirstFailure", error_message: "first")
+
+    expect {
+      described_class.capture(run, exception)
+    }.not_to change { RunDiagnostic.count }
+    expect(run.reload.run_diagnostic).to eq(existing)
+    expect(existing.reload.error_class).to eq("FirstFailure")
+  end
+
   it "swallows its own errors instead of double-faulting the failing rescue path" do
-    allow(RunDiagnostic).to receive(:create!).and_raise(StandardError, "oops")
+    allow(RunDiagnostic).to receive(:create_or_find_by!).and_raise(StandardError, "oops")
     expect {
       described_class.capture(run, exception)
     }.not_to raise_error
