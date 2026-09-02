@@ -433,7 +433,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         textareaRef.current?.setSelectionRange(result.selection.start, result.selection.end)
       }, 0)
     } else {
-      window.setTimeout(() => wysiwygRef.current?.focus(), 0)
+      window.setTimeout(() => {
+        if (!wysiwygRef.current) return
+
+        const nextHighlights = result.markdown === (doc.rendered_markdown || doc.markdown) ? activeHighlights : []
+        wysiwygRef.current.innerHTML = markdownToWysiwygHtml(result.markdown, nextHighlights, focusedThreadId, focusedSuggestionId)
+        wysiwygRef.current.focus()
+      }, 0)
     }
   }
 

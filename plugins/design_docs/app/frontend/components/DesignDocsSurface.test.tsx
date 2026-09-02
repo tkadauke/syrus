@@ -824,6 +824,18 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("visibly applies formatting toolbar commands while the Rich Text editor stays focused", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }))
+
+    await waitFor(() => expect(within(editor).getByText("text").closest("strong")).not.toBeNull())
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("**text**Alpha beta gamma")
+  })
+
   it("applies toolbar block dropdown and More menu insert commands while keeping Rich Text synchronized", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
