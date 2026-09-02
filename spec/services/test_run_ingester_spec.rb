@@ -193,6 +193,24 @@ RSpec.describe TestRunIngester do
     expect(TestRun.where(run: run, grader_name: "react-tests").sole.passed_count).to eq(5)
   end
 
+  it "preserves TestRun and TestCase rows when search indexing fails" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
+
+    expect { ingester.ingest! }.to change(TestRun, :count).by(1)
+                              .and change(TestCase, :count).by(3)
+
+    expect(TestRun.find_by!(run: run, grader_name: "rspec").failed_count).to eq(1)
+  end
+
+  it "preserves TestRun and TestCase rows when runtime summary refresh fails" do
+    allow(TestIdentityRuntimeSummary).to receive(:refresh_many!).and_raise(ArgumentError, "no conflict target")
+
+    expect { ingester.ingest! }.to change(TestRun, :count).by(1)
+                              .and change(TestCase, :count).by(3)
+
+    expect(TestCase.find_by!(name: "fail_0")).to have_attributes(status: "failed", failure_message: "assertion 0")
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)

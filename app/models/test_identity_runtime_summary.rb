@@ -22,7 +22,7 @@ class TestIdentityRuntimeSummary < ApplicationRecord
       refreshed_grader_names = summary_grader_names(identities.keys, grader_names: grader_names)
       delete_stale_summaries!(identities.keys, refreshed_grader_names)
       rows = summary_rows(identities, refreshed_grader_names)
-      upsert_all(rows, unique_by: "idx_test_runtime_summary_identity_grader_window") if rows.any?
+      upsert_all(rows, **upsert_options) if rows.any?
     end
 
     private
@@ -139,6 +139,14 @@ class TestIdentityRuntimeSummary < ApplicationRecord
 
     def percentile(sorted_values, percentile)
       sorted_values[[ (sorted_values.size * percentile).ceil - 1, 0 ].max]
+    end
+
+    def upsert_options
+      options = {}
+      if connection.supports_insert_conflict_target?
+        options[:unique_by] = "idx_test_runtime_summary_identity_grader_window"
+      end
+      options
     end
   end
 end

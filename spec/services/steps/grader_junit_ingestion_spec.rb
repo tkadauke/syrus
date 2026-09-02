@@ -80,6 +80,32 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
     XML
   end
 
+  let(:nested_rspec_ci_xml) do
+    <<~XML
+      <testsuites tests="2" failures="1" errors="0" skipped="0" time="0.5">
+        <testsuite name="merged" tests="2" failures="1" errors="0" skipped="0" time="0.5">
+          <testsuite name="spec/models/job_spec.rb" tests="2" failures="1" errors="0" skipped="0" time="0.5">
+            <testcase classname="Job" name="passes" time="0.2"/>
+            <testcase classname="Job" name="fails" time="0.3">
+              <failure message="expected failure">spec/models/job_spec.rb:10</failure>
+            </testcase>
+          </testsuite>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
+  let(:green_vitest_xml) do
+    <<~XML
+      <testsuites tests="2" failures="0" errors="0" skipped="0" time="0.42">
+        <testsuite name="app/frontend/routes/JobDetail.test.tsx" tests="2" failures="0" errors="0" skipped="0" time="0.42">
+          <testcase classname="JobDetail" name="renders test runs" time="0.12"/>
+          <testcase classname="JobDetail" name="shows test cases" time="0.30"/>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
   context "when junit_output is configured and file exists" do
     it "creates a TestRun and TestCase records" do
       step = make_step(junit_output: "tmp/results.xml")
@@ -158,6 +184,36 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
         .to change { TestRun.where(run: run2, grader_name: "tests").count }.from(0).to(1)
 
       expect(TestRun.where(run: run, grader_name: "tests").count).to eq(1)
+    end
+
+    it "ingests failing nested rspec-ci JUnit output" do
+      step = make_step(junit_output: "rspec-junit.xml")
+      @ws_path.join("rspec-junit.xml").write(nested_rspec_ci_xml)
+
+      handler, run = handler_for(step)
+
+      expect { handler.call rescue nil }
+        .to change(TestRun, :count).by(1)
+        .and change(TestCase, :count).by(2)
+
+      tr = TestRun.find_by!(run: run, grader_name: "tests")
+      expect(tr).to have_attributes(total_count: 2, failed_count: 1)
+      expect(tr.test_cases.find_by!(name: "fails").failure_message).to eq("expected failure")
+    end
+
+    it "ingests green frontend JUnit output when the adapter does not support conflict targets" do
+      step = make_step(junit_output: "react-tests-focused-junit.xml")
+      @ws_path.join("react-tests-focused-junit.xml").write(green_vitest_xml)
+      allow(TestIdentityRuntimeSummary.connection).to receive(:supports_insert_conflict_target?).and_return(false)
+
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestRun, :count).by(1)
+        .and change(TestCase, :count).by(2)
+
+      tr = TestRun.find_by!(run: run, grader_name: "tests")
+      expect(tr).to have_attributes(total_count: 2, passed_count: 2, failed_count: 0)
     end
   end
 

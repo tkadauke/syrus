@@ -67,11 +67,24 @@ class JunitXmlParser
   private
 
   def parse_suite(suite)
-    suite_name = suite.attributes["name"].to_s.strip.presence || "unknown"
+    cases = []
+    collect_testcases(suite, suite_name_for(suite), cases)
+    cases
+  end
 
-    suite.elements.to_a("testcase").map do |tc|
-      parse_testcase(tc, suite_name)
+  def collect_testcases(element, suite_name, cases)
+    element.elements.each do |child|
+      case child.name
+      when "testcase"
+        cases << parse_testcase(child, suite_name)
+      when "testsuite"
+        collect_testcases(child, suite_name_for(child, fallback: suite_name), cases)
+      end
     end
+  end
+
+  def suite_name_for(suite, fallback: "unknown")
+    suite.attributes["name"].to_s.strip.presence || fallback
   end
 
   def parse_testcase(tc, suite_name)
