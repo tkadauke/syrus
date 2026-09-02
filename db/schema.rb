@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_113000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_114000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2026,6 +2026,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_113000) do
     t.text "worktree_recent_commits"
     t.index ["created_at"], name: "index_run_health_snapshots_on_created_at"
     t.index ["run_id", "created_at", "id"], name: "idx_run_health_snapshots_run_created"
+    t.index ["run_id", "id"], name: "idx_run_health_snapshots_run_latest"
     t.index ["run_id"], name: "index_run_health_snapshots_on_run_id"
   end
 
