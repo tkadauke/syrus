@@ -106,6 +106,22 @@ RSpec.describe "Admin spawned processes (API)", type: :request do
       expect(stale_folder).to be_present
       expect(stale_folder["i18n_key"]).to eq("stale")
     end
+
+    it "counts spawned-process built-in folders" do
+      running = fixture
+      stale = fixture(started_at: 10.minutes.ago, last_chunk_at: 10.minutes.ago)
+      failed = fixture(started_at: 20.minutes.ago, finished_at: 15.minutes.ago, outcome: "failed", exit_status: 1)
+      fixture(started_at: 3.hours.ago, finished_at: 2.hours.ago, outcome: "failed", exit_status: 1)
+
+      get "/api/v1/admin/processes", headers: headers
+      payload = JSON.parse(response.body)
+      folders = payload["smart_folders"].index_by { |folder| folder["i18n_key"] }
+
+      expect(folders.dig("running", "count")).to eq(2)
+      expect(folders.dig("stale", "count")).to eq(1)
+      expect(folders.dig("recently_failed", "count")).to eq(1)
+      expect(payload["processes"].map { |process| process["id"] }).to include(running.id, stale.id, failed.id)
+    end
   end
 
   describe "GET /api/v1/admin/processes/:id" do

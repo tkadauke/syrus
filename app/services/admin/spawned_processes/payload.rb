@@ -90,8 +90,32 @@ module Admin
           user: user,
           active_folder: active_folder,
           base_scope: base_scope,
-          filter_class: ::Admin::SpawnedProcesses::Filter
+          filter_class: ::Admin::SpawnedProcesses::Filter,
+          count_provider: ->(folder) { builtin_count_for(folder) }
         ).folders
+      end
+
+      def builtin_count_for(folder)
+        return nil unless folder.builtin? && folder.user_id.nil?
+
+        case SmartFolder.builtin_key_for(folder.subject_type, folder.name).to_s
+        when "running"
+          spawned_process_counts.fetch(:running)
+        when "stale"
+          spawned_process_counts.fetch(:stale)
+        when "recently_failed"
+          spawned_process_counts.fetch(:recently_failed)
+        end
+      end
+
+      def spawned_process_counts
+        @spawned_process_counts ||= begin
+          {
+            running: SpawnedProcess.running.count,
+            stale: SpawnedProcess.stale.count,
+            recently_failed: SpawnedProcess.where(outcome: "failed").where("started_at >= ?", 1.hour.ago).count
+          }
+        end
       end
 
       def controls_json
