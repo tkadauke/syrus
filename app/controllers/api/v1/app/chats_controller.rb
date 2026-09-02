@@ -1648,7 +1648,7 @@ module Api
           { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" }
         ].freeze
 
-        def chat_json(chat_session)
+        def chat_json(chat_session, counts: nil)
           PerformanceLogging.phase("chat_json", chat_id: chat_session.id) do
             chat_session_json(chat_session)
           end
@@ -1665,6 +1665,9 @@ module Api
           end
           available_chat_models_payload = PerformanceLogging.phase("chat_json.available_models", chat_id: chat_session.id, provider: effective_provider) do
             available_chat_models_for(chat_session)
+          end
+          counts ||= PerformanceLogging.phase("chat_json.counts", chat_id: chat_session.id) do
+            chat_session_payload_counts(chat_session.id)
           end
 
           {
@@ -1697,19 +1700,39 @@ module Api
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
-            pending_proposal_count: PerformanceLogging.phase("chat_json.pending_proposal_count", chat_id: chat_session.id) do
-              chat_session.proposals.where(state: "proposed").count +
-                chat_session.pending_actions.where(state: "pending").count
-            end,
-            confirmed_proposal_count: PerformanceLogging.phase("chat_json.confirmed_proposal_count", chat_id: chat_session.id) { chat_session.proposals.confirmed.count },
-            linked_direct_job_count: PerformanceLogging.phase("chat_json.linked_direct_job_count", chat_id: chat_session.id) { Job.where(linked_chat_id: chat_session.id, kind: "direct").count },
-            scratchpad_items_count: PerformanceLogging.phase("chat_json.scratchpad_items_count", chat_id: chat_session.id) { chat_session.scratchpad_items.count },
-            whiteboard_snapshot_count: PerformanceLogging.phase("chat_json.whiteboard_snapshot_count", chat_id: chat_session.id) { chat_session.whiteboard_snapshots.count },
+            pending_proposal_count: counts.fetch(:proposed_proposals) + counts.fetch(:pending_actions),
+            confirmed_proposal_count: counts.fetch(:confirmed_proposals),
+            linked_direct_job_count: counts.fetch(:linked_direct_jobs),
+            scratchpad_items_count: counts.fetch(:scratchpad_items),
+            whiteboard_snapshot_count: counts.fetch(:whiteboard_snapshots),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
             coding_relay_ready: chat_session.coding_relay_address.present? && chat_session.coding_relay_token.present?,
             chat_effort: chat_session.chat_effort
+          }
+        end
+
+        def chat_session_payload_counts(chat_session_id)
+          id = chat_session_id.to_i
+          sql = <<~SQL.squish
+            SELECT
+              (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'proposed') AS proposed_proposals,
+              (SELECT COUNT(*) FROM chat_pending_actions WHERE chat_session_id = #{id} AND state = 'pending') AS pending_actions,
+              (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'confirmed') AS confirmed_proposals,
+              (SELECT COUNT(*) FROM jobs WHERE linked_chat_id = #{id} AND kind = 'direct') AS linked_direct_jobs,
+              (SELECT COUNT(*) FROM chat_scratchpad_items WHERE chat_session_id = #{id}) AS scratchpad_items,
+              (SELECT COUNT(*) FROM whiteboard_snapshots WHERE chat_session_id = #{id}) AS whiteboard_snapshots
+          SQL
+
+          row = ActiveRecord::Base.connection.select_one(sql) || {}
+          {
+            proposed_proposals: row.fetch("proposed_proposals", 0).to_i,
+            pending_actions: row.fetch("pending_actions", 0).to_i,
+            confirmed_proposals: row.fetch("confirmed_proposals", 0).to_i,
+            linked_direct_jobs: row.fetch("linked_direct_jobs", 0).to_i,
+            scratchpad_items: row.fetch("scratchpad_items", 0).to_i,
+            whiteboard_snapshots: row.fetch("whiteboard_snapshots", 0).to_i
           }
         end
 

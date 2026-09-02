@@ -71,19 +71,22 @@ module ChatSerialization
       repository = chat_session.repository
       attachment_groups = PerformanceLogging.phase("chat_payload.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }
       whiteboard_scene = PerformanceLogging.phase("chat_payload.whiteboard", chat_id: chat_session.id) { whiteboard_state_for_payload(chat_session, include_scene: include_whiteboard_in_chat_payload?) }
+      counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
+        chat_session_payload_counts(chat_session.id)
+      end
       speech_to_text = PerformanceLogging.phase("chat_payload.speech_to_text", chat_id: chat_session.id) do
         ChatSpeechToText::Capability.for(user: Current.user).as_json
       end
 
       {
         message: message,
-        chat: PerformanceLogging.phase("chat_payload.chat", chat_id: chat_session.id) { chat_json(chat_session) },
+        chat: PerformanceLogging.phase("chat_payload.chat", chat_id: chat_session.id) { chat_json(chat_session, counts: counts) },
         chat_available: Current.user.chat_available?,
         turn_in_flight: chat_session.turn_in_flight?,
         agent_busy: chat_session.agent_busy?,
         switching_provider: false,
         has_more_older: has_more_older,
-        pending_proposal_count: PerformanceLogging.phase("chat_payload.pending_proposal_count", chat_id: chat_session.id) { chat_session.proposals.where(state: "proposed").count },
+        pending_proposal_count: counts.fetch(:proposed_proposals),
         messages: PerformanceLogging.phase("chat_payload.messages_json", chat_id: chat_session.id, message_count: messages.size) { messages_json(messages, repository: repository) },
         bookmarks: preload_bookmarks_in_chat_payload?(chat_session) ? PerformanceLogging.phase("chat_payload.bookmarks", chat_id: chat_session.id) { bookmarks_json(chat_session) } : [],
         recent_chats: [],
