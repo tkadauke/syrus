@@ -667,7 +667,7 @@ module Api
         end
 
         def repository_preview_json(repository)
-          env = repository.preview_environments.order(created_at: :desc).first
+          env = repository.preview_environments.reorder(created_at: :desc, id: :desc).first
           return nil unless env
 
           {

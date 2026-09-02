@@ -1751,8 +1751,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.datetime "updated_at", null: false
     t.string "workspace_path"
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
+    t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
+    t.index ["job_id", "state", "created_at", "id"], name: "idx_preview_environments_job_state_latest"
     t.index ["job_id"], name: "index_preview_environments_on_job_id"
     t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"
+    t.index ["repository_id", "created_at", "id"], name: "idx_preview_environments_repository_latest"
     t.index ["repository_id", "created_at"], name: "index_preview_environments_on_repository_id_and_created_at"
     t.index ["repository_id"], name: "index_preview_environments_on_repository_id"
     t.index ["state"], name: "index_preview_environments_on_state"
@@ -2909,7 +2912,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
   add_foreign_key "team_repositories", "teams"
   add_foreign_key "test_identity_runtime_summaries", "repositories"
   add_foreign_key "test_identity_runtime_summaries", "test_identities"
-
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end

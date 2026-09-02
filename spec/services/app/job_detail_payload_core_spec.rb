@@ -1043,7 +1043,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   describe "#preview_env_json" do
-    it "returns the newest active preview before newer terminal previews with one preview query" do
+    it "returns the newest active preview before newer terminal previews without CASE ordering" do
       job = Factories.job(user: user, repository: repo)
       PreviewEnvironment.create!(
         job: job,
@@ -1071,7 +1071,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         id: active.id,
         state: "running"
       )
-      expect(preview_queries.size).to eq(1)
+      expect(preview_queries).not_to be_empty
+      expect(preview_queries).to all(satisfy { |sql| !sql.match?(/CASE WHEN/i) })
     end
 
     it "falls back to the newest terminal preview when none are active" do

@@ -1180,13 +1180,7 @@ module App
     end
 
     def preview_env_json
-      active_first_order = PreviewEnvironment.sanitize_sql_array([
-        "CASE WHEN state IN (?) THEN 0 ELSE 1 END",
-        PreviewEnvironment::ACTIVE_STATES
-      ])
-      env = @job.preview_environments
-        .reorder(Arel.sql(active_first_order), created_at: :desc, id: :desc)
-        .first
+      env = latest_preview_environment
       return nil unless env
 
       base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
@@ -1197,6 +1191,13 @@ module App
         expires_at: env.expires_at&.iso8601,
         error_message: env.error_message
       }
+    end
+
+    def latest_preview_environment
+      @latest_preview_environment ||= begin
+        active = @job.preview_environments.active.reorder(created_at: :desc, id: :desc).first
+        active || @job.preview_environments.reorder(created_at: :desc, id: :desc).first
+      end
     end
 
     def deploy_workflow_json
