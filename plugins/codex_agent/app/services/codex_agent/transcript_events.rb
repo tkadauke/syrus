@@ -25,14 +25,16 @@ module CodexAgent
         [ ClaudeTranscript::Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: payload["message"] }) ]
       when "mcp_tool_call_end"
         result = payload["result"]
+        name = codex_mcp_tool_name(payload)
         [ ClaudeTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
           data: {
             tool_use_id: payload["call_id"],
+            name: name,
             content: result,
             error: result.is_a?(Hash) && result.key?("Err")
-          }
+          }.compact
         ) ]
       when "task_complete"
         [ ClaudeTranscript::Event.new(
@@ -78,7 +80,12 @@ module CodexAgent
         [ ClaudeTranscript::Event.new(
           kind: :tool_result,
           timestamp: timestamp,
-          data: { tool_use_id: payload["call_id"], content: payload["output"], error: false }
+          data: {
+            tool_use_id: payload["call_id"],
+            name: [ payload["namespace"], payload["name"] ].compact.join.presence,
+            content: payload["output"],
+            error: false
+          }.compact
         ) ]
       else
         []
@@ -173,6 +180,7 @@ module CodexAgent
           timestamp: timestamp,
           data: {
             tool_use_id: id,
+            name: name,
             content: content,
             error: item["error"].present?
           }
