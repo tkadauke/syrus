@@ -134,7 +134,7 @@ describe("renderChatMessages tool grouping", () => {
     expect(items[1]).toMatchObject({ type: "message", role: "assistant" })
   })
 
-  it("keeps failed read-only groups prominent instead of collapsed after the assistant replies", () => {
+  it("keeps failed read-only groups prominent while still collapsed after the assistant replies", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "missing.rb" } }),
       toolResult(2, { toolUseId: "tu_1", content: "No such file", isError: true }),
@@ -143,7 +143,7 @@ describe("renderChatMessages tool grouping", () => {
 
     const toolGroup = group(items[0])
     expect(toolGroup.prominent).toBe(true)
-    expect(toolGroup.collapsed_by_default).toBe(false)
+    expect(toolGroup.collapsed_by_default).toBe(true)
     expect(toolGroup.outcome_label).toBe("Needs attention")
   })
 
@@ -160,7 +160,8 @@ describe("renderChatMessages tool grouping", () => {
       tool: "Bash",
       summary_label: "Bash",
       outcome_label: "Running",
-      prominent: true
+      prominent: true,
+      collapsed_by_default: true
     })
   })
 

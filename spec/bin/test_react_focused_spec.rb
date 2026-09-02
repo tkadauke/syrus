@@ -105,6 +105,7 @@ RSpec.describe "bin/test-react-focused", :ci_only do
       call = File.read(npx_log).lines.first.chomp
 
       expect(call).to start_with("vitest related --run --passWithNoTests")
+      expect(call).to include("--maxWorkers=1")
       expect(call).to include("--reporter=junit")
       expect(call).to include("--outputFile.junit=.syrus/grade-output/react-tests-focused-junit.xml")
 
