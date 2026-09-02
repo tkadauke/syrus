@@ -29,6 +29,28 @@ RSpec.describe Steps::StateProjection do
     expect(projection.latest_terminal_run).to eq(latest)
   end
 
+  it "can trust a preordered run list from a caller that already sorted in SQL" do
+    step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+    older = Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed", created_at: 2.minutes.ago)
+    latest = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded", created_at: 1.minute.ago)
+
+    projection = described_class.for(step, runs: [ older, latest ], ordered: true)
+
+    expect(projection.latest_run).to eq(latest)
+    expect(projection.visible_state).to eq("succeeded")
+  end
+
+  it "still sorts caller-provided runs by default" do
+    step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+    older = Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed", created_at: 2.minutes.ago)
+    latest = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded", created_at: 1.minute.ago)
+
+    projection = described_class.for(step, runs: [ latest, older ])
+
+    expect(projection.latest_run).to eq(latest)
+    expect(projection.visible_state).to eq("succeeded")
+  end
+
   it "falls back to the persisted step state when there are no runs" do
     step = Step.create!(workflow: workflow, kind: "prepare", position: 0, state: "queued")
 

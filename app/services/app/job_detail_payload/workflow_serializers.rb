@@ -489,7 +489,7 @@ module App
       end
 
       def step_state_projection(step, runs: ordered_runs_for(step))
-        ::Steps::StateProjection.for(step, runs: runs)
+        ::Steps::StateProjection.for(step, runs: runs, ordered: true)
       end
 
       def run_json(run, workflow:, step:)

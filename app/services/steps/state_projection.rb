@@ -3,11 +3,12 @@ module Steps
     ACTIVE_STATES = %w[ queued running ].freeze
     TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
 
-    def self.for(step, runs: nil) = new(step, runs: runs)
+    def self.for(step, runs: nil, ordered: false) = new(step, runs: runs, ordered: ordered)
 
-    def initialize(step, runs: nil)
+    def initialize(step, runs: nil, ordered: false)
       @step = step
       @runs = runs
+      @ordered = ordered
     end
 
     def visible_state
@@ -57,7 +58,11 @@ module Steps
     def ordered_runs
       @ordered_runs ||= begin
         rows = @runs || step.runs.to_a
-        rows.sort_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+        if @ordered
+          rows
+        else
+          rows.sort_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+        end
       end
     end
   end
