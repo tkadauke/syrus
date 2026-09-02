@@ -1321,6 +1321,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["can_release_triage_jobs"]).to eq(true)
+    expect(parse_body["needs_triage_count"]).to eq(1)
     expect(parse_body["needs_triage_jobs"]).to contain_exactly(include("id" => job.id, "issue_title" => "Scope the importer"))
 
     expect {
@@ -1340,6 +1341,28 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "bounds needs-triage jobs serialized on repository detail" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    55.times do |index|
+      user.jobs.create!(
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Needs triage #{index.to_s.rjust(2, "0")}",
+        issue_body: "Make this ready for implementation.",
+        state: "needs_triage",
+        created_at: index.minutes.ago
+      )
+    end
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["needs_triage_count"]).to eq(55)
+    expect(parse_body["needs_triage_jobs"].size).to eq(20)
+  end
+
   it "hides and rejects needs-triage release for product owners" do
     user.update!(role: "product_owner", global_role: "user")
     sign_in_as(user)
@@ -1357,6 +1380,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["can_release_triage_jobs"]).to eq(false)
+    expect(parse_body["needs_triage_count"]).to eq(0)
     expect(parse_body["needs_triage_jobs"]).to eq([])
 
     post "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job", params: { job_id: job.id }

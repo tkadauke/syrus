@@ -468,6 +468,7 @@ module Api
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
               retry_failed_jobs: PerformanceLogging.phase("repository_detail.retry_failed_jobs", repository_id: repository.id) { retry_failed_jobs_json(repository) },
               can_release_triage_jobs: can_release_triage_jobs?,
+              needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
@@ -771,7 +772,14 @@ module Api
             .needs_triage
             .includes(:owner_user)
             .order(created_at: :asc)
+            .limit(PER_PAGE)
             .map { |job| needs_triage_job_json(job) }
+        end
+
+        def needs_triage_jobs_count(repository)
+          return 0 unless can_release_triage_jobs?
+
+          repository.jobs.needs_triage.count
         end
 
         def needs_triage_job_json(job)

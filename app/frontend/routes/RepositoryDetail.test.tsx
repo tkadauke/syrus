@@ -53,6 +53,7 @@ function repositoryDetailPayload() {
       provider_circuit: { provider: "claude", open: false, reason: null, retry_after: null, failure_count: 0, job_count: 0, signature: null }
     },
     can_release_triage_jobs: false,
+    needs_triage_count: 0,
     needs_triage_jobs: [],
     credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
     jobs: [],

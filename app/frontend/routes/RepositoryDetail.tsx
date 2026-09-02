@@ -605,6 +605,14 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
     <section>
       <SectionHeading className="mb-3">
         {t('repository.needs_triage')}
+        {payload.needs_triage_count > payload.needs_triage_jobs.length ? (
+          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+            {t('repository.needs_triage_showing_limited', {
+              shown: payload.needs_triage_jobs.length,
+              total: payload.needs_triage_count
+            })}
+          </span>
+        ) : null}
       </SectionHeading>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {payload.needs_triage_jobs.length > 0 ? (

@@ -201,6 +201,7 @@ export type RepositoryDetailPayload = {
     }
   }
   can_release_triage_jobs: boolean
+  needs_triage_count: number
   needs_triage_jobs: RepositoryNeedsTriageJob[]
   credential_status: RepositoryCredentialStatus
   jobs: RepositoryDetailJob[]

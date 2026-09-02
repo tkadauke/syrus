@@ -354,6 +354,7 @@
     "owner_prefix": "Owner:",
     "release_for_triage": "Release for triage",
     "no_triage_jobs": "No jobs are waiting for triage release.",
+    "needs_triage_showing_limited": "Showing {{shown}} of {{total}}",
     "recent_jobs": "Recent jobs",
     "col_state": "State",
     "col_runs": "Runs",
