@@ -775,6 +775,10 @@ class LandingQueueProcessor
     return override_or_block(job, { key: "auto_merge_not_enabled" }, consume: consume_override) unless job.auto_merge_enabled?
     return override_or_block(job, { key: "review_requested_changes" }, consume: consume_override) if job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
     return blocked({ key: "missing_pull_request" }) if job.pr_number.blank? && job.external_pr_number.blank?
+    if job.epic
+      unapproved_siblings = unapproved_epic_siblings(job)
+      return override_or_block(job, { key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings, consume: consume_override) if unapproved_siblings.any?
+    end
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
     # One pluck covers both checks instead of two separate EXISTS round trips per Job.
@@ -798,9 +802,6 @@ class LandingQueueProcessor
     return override_or_block(job, { key: "waiting_github_mergeability_noop" }, consume: consume_override) if RebaseLoopGuard.waiting_after_noop?(job)
     return override_or_block(job, { key: "rebase_cap_reached" }, consume: consume_override) if RebaseAttemptGuard.blocking_landing?(job)
     if job.epic
-      unapproved_siblings = unapproved_epic_siblings(job)
-      return override_or_block(job, { key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings, consume: consume_override) if unapproved_siblings.any?
-
       if (blocker = ci_failure_workflow_epic_sibling(job))
         return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker], consume: consume_override)
       end
