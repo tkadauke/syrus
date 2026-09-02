@@ -105,6 +105,16 @@ export function TeamIcon({ className = "h-4 w-4 shrink-0" }: { className?: strin
   )
 }
 
+export function TargetIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="7.25" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="12" cy="12" r="3.75" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="12" cy="12" fill="currentColor" r="1.25" />
+    </svg>
+  )
+}
+
 export function UserIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
