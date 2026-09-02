@@ -380,6 +380,7 @@ export type DashboardPayload = {
     views: string[]
     ownership_scopes: Array<{ value: string; label: string }>
     owners: Array<{ id: number; label: string; current: boolean }>
+    priorities?: Array<{ value: string; label: string }>
     sort_columns: string[]
     sort_directions: string[]
     columns: {
@@ -454,7 +455,7 @@ export type DashboardPreferencesPayload = {
   dashboard_preferences: Record<string, unknown>
 }
 
-export type DashboardBulkJobAction = "retry" | "close" | "approve" | "claim" | "release_claim" | "pause" | "unpause"
+export type DashboardBulkJobAction = "retry" | "close" | "approve" | "claim" | "release_claim" | "release_from_backlog" | "move_to_backlog" | "assign_owner" | "set_priority" | "pause" | "unpause"
 export type DashboardBulkEpicAction = "start"
 
 export type DashboardBulkJobsInput = {
@@ -462,6 +463,8 @@ export type DashboardBulkJobsInput = {
   bulk_action: DashboardBulkJobAction | string
   tag_id?: number
   tag_name?: string
+  owner_user_id?: number
+  priority?: string
 }
 
 export type DashboardBulkJobsPayload = {

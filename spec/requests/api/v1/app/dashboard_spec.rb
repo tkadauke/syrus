@@ -2158,6 +2158,95 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body["affected_job_ids"]).to contain_exactly(first.id, second.id)
     end
 
+    it "reports partial success when claiming skips jobs already claimed by another user" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      available = Factories.job_record(repository: repo, issue_number: 31)
+      claimed = Factories.job_record(repository: repo, issue_number: 32, claimed_by_user: teammate, claimed_at: Time.current)
+      allow(AppEvents).to receive(:broadcast)
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ available.id, claimed.id ], bulk_action: "claim" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(available.reload.claimed_by_user).to eq(user)
+      expect(claimed.reload.claimed_by_user).to eq(teammate)
+      expect(parse_body["message"]).to eq("Claimed 1 job. Skipped 1 job.")
+      expect(parse_body["affected_job_ids"]).to eq([ available.id ])
+      expect(parse_body["skipped_job_ids"]).to eq([ claimed.id ])
+    end
+
+    it "releases selected backlogged jobs through dependency admission and reports skipped jobs" do
+      backlogged = Job.create!(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Start me", issue_body: "Start me later.")
+      prerequisite = Factories.job_record(repository: repo, issue_number: 33, state: "queued")
+      blocked = Job.create!(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Blocked", issue_body: "Wait.")
+      JobDependency.create!(job: blocked, depends_on_job: prerequisite, source: "manual")
+      not_backlogged = Factories.job_record(repository: repo, issue_number: 34, state: "queued")
+      allow(AppEvents).to receive(:broadcast)
+
+      expect {
+        post "/api/v1/app/dashboard/jobs/bulk",
+             params: { job_ids: [ backlogged.id, blocked.id, not_backlogged.id ], bulk_action: "release_from_backlog" },
+             as: :json
+      }.to change { Workflow.count }.by(2)
+
+      expect(response).to have_http_status(:ok)
+      expect(backlogged.reload).to be_queued
+      expect(backlogged.runs.count).to eq(1)
+      expect(blocked.reload).to be_queued
+      expect(blocked.runs.count).to eq(0)
+      expect(WorkUnits::StartBlock.for(blocked.workflows.last).reason).to eq(StepDispatcher::STACK_BLOCK_REASON)
+      expect(not_backlogged.reload).to be_queued
+      expect(parse_body["message"]).to eq("Released 2 jobs from backlog. Skipped 1 job.")
+      expect(parse_body["affected_job_ids"]).to contain_exactly(backlogged.id, blocked.id)
+      expect(parse_body["skipped_job_ids"]).to eq([ not_backlogged.id ])
+    end
+
+    it "moves only early pre-PR jobs to backlog in bulk" do
+      early = Factories.job_record(repository: repo, issue_number: 35, state: "triaging")
+      post_pr = Factories.job_record(repository: repo, issue_number: 36, state: "implemented", pr_number: 88)
+      active = Factories.job_record(repository: repo, issue_number: 37, state: "queued")
+      Workflow.create!(job: active, trigger_kind: "initial", state: "queued")
+      allow(AppEvents).to receive(:broadcast)
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ early.id, post_pr.id, active.id ], bulk_action: "move_to_backlog" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(early.reload).to be_backlog
+      expect(post_pr.reload).to be_implemented
+      expect(active.reload).to be_queued
+      expect(parse_body["message"]).to eq("Moved 1 job to backlog. Skipped 2 jobs.")
+      expect(parse_body["affected_job_ids"]).to eq([ early.id ])
+      expect(parse_body["skipped_job_ids"]).to contain_exactly(post_pr.id, active.id)
+    end
+
+    it "assigns owners and priority to selected jobs in bulk" do
+      teammate = Factories.user(email_address: "teammate@example.com")
+      RepositoryMembership.create!(repository: repo, user: teammate, role: "read")
+      first = Factories.job_record(repository: repo, issue_number: 38, priority: "medium")
+      second = Factories.job_record(repository: repo, issue_number: 39, priority: "medium")
+      allow(AppEvents).to receive(:broadcast)
+
+      patch_params = { job_ids: [ first.id, second.id ], bulk_action: "assign_owner", owner_user_id: teammate.id }
+      post "/api/v1/app/dashboard/jobs/bulk", params: patch_params, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(first.reload.owner_user).to eq(teammate)
+      expect(second.reload.owner_user).to eq(teammate)
+      expect(parse_body["message"]).to eq("Assigned 2 jobs to teammate@example.com.")
+
+      post "/api/v1/app/dashboard/jobs/bulk",
+           params: { job_ids: [ first.id, second.id ], bulk_action: "set_priority", priority: "urgent" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(first.reload.priority).to eq("urgent")
+      expect(second.reload.priority).to eq("urgent")
+      expect(parse_body["message"]).to eq("Set 2 jobs to urgent priority.")
+    end
+
     it "does not preload historical workflow or run rows for lightweight bulk actions" do
       first = Factories.job_record(repository: repo, issue_number: 1)
       second = Factories.job_record(repository: repo, issue_number: 2)
@@ -2237,8 +2326,9 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(mine.reload.claimed_by_user).to be_nil
       expect(theirs.reload.claimed_by_user).to eq(teammate)
-      expect(parse_body["message"]).to eq("Released 1 claim.")
+      expect(parse_body["message"]).to eq("Released 1 claim. Skipped 1 job.")
       expect(parse_body["affected_job_ids"]).to eq([ mine.id ])
+      expect(parse_body["skipped_job_ids"]).to eq([ theirs.id ])
     end
   end
 

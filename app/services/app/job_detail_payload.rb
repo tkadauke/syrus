@@ -883,6 +883,7 @@ module App
       {
         can_start: @job.direct? && @job.open? && !@job.backlog? && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
+        can_move_to_backlog: @job.open? && @job.may_move_to_backlog? && !active_runtime_work,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
@@ -951,6 +952,7 @@ module App
         app_timeline_path: "/api/v1/app/jobs/#{@job.id}/timeline",
         app_start_path: "/api/v1/app/jobs/#{@job.id}/start",
         app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",
+        app_move_to_backlog_path: "/api/v1/app/jobs/#{@job.id}/move_to_backlog",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
         app_cancel_path: "/api/v1/app/jobs/#{@job.id}/cancel",
@@ -964,6 +966,7 @@ module App
         app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
         app_tags_path: "/api/v1/app/jobs/#{@job.id}/tags",
         app_claim_path: "/api/v1/app/jobs/#{@job.id}/claim",
+        app_owner_path: "/api/v1/app/jobs/#{@job.id}/owner",
         app_dependencies_path: "/api/v1/app/jobs/#{@job.id}/dependencies",
         app_dependency_options_path: "/api/v1/app/jobs/#{@job.id}/dependency_options",
         app_dependency_override_path: "/api/v1/app/jobs/#{@job.id}/dependencies/override",
