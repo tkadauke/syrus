@@ -333,10 +333,19 @@ class RunJob < ApplicationJob
   end
 
   def expected_handler_terminal_return?
+    return false if terminal_recovery_step_after_publication?
+
     @workflow.cancelled? &&
       (@workflow.artifact("cancelled_reason").present? ||
        @workflow.artifact("retry_cancelled_reason").present? ||
        @workflow.artifact("start_cancelled_reason").present?)
+  end
+
+  def terminal_recovery_step_after_publication?
+    return false unless RunCompletionReconciler.terminal_recovery_step_kind?(@step.kind)
+
+    @job.reload.closure_reason.in?(%w[ pr_merged external_pr_merged ]) ||
+      @workflow.artifact(Steps::MergeTrainLand::INTEGRATION_PR_ARTIFACT).present?
   end
 
   def work_definition_for_run(run)
