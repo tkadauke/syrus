@@ -1910,7 +1910,7 @@ describe("chat pending proposal jump banner", () => {
 
     expect(await screen.findByText("1 pending proposal")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
     await waitFor(() => {
       expect(screen.queryByText("1 pending proposal")).not.toBeInTheDocument()
@@ -2455,7 +2455,7 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    expect(await screen.findByRole("button", { name: "Confirm" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Confirm proposal and implement" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
   })
 })

@@ -1194,8 +1194,13 @@ export function fetchChatPreviewPanelFile(basePath: string, filePath: string, ve
 
 // `start: true` asks the server to also move a materialized Epic to
 // In progress and dispatch its ready child Jobs right after confirming.
-export function confirmChatProposal(path: string, options: { start?: boolean } = {}) {
-  return postJson<ChatPayload | ChatProposalMutationPayload>(path, options.start ? { start: true } : undefined)
+// `route_to_backlog` is accepted only for direct Job proposal confirmation.
+export function confirmChatProposal(path: string, options: { start?: boolean; route_to_backlog?: boolean } = {}) {
+  const body: { start?: boolean; route_to_backlog?: boolean } = {}
+  if (options.start) body.start = true
+  if (options.route_to_backlog !== undefined) body.route_to_backlog = options.route_to_backlog
+
+  return postJson<ChatPayload | ChatProposalMutationPayload>(path, Object.keys(body).length > 0 ? body : undefined)
 }
 
 export function rejectChatProposal(path: string) {
