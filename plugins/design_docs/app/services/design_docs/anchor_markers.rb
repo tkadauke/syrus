@@ -91,6 +91,39 @@ module DesignDocs
       raw[0...start_match.end(0)] + proposed_markdown.to_s + raw[end_match.begin(0)..]
     end
 
+    def project(markdown:, visible_markdown:, anchors:)
+      raw = markdown.to_s
+      next_visible = visible_markdown.to_s
+      return next_visible unless raw.match?(ANY_PATTERN)
+
+      old_visible = strip(raw)
+      projection = OffsetProjection.new(old_visible, next_visible)
+      insertions = anchors.filter_map do |anchor|
+        next unless anchor.status == "active"
+        next unless raw.include?(anchor.marker_id)
+
+        if anchor.anchor_kind.to_s == "point"
+          [ { offset: projection.point(anchor.last_known_start_offset || anchor.start_offset), marker: point_marker(anchor.marker_id), order: 0 } ]
+        else
+          projected_start, projected_end = projection.range(
+            anchor.last_known_start_offset || anchor.start_offset,
+            anchor.last_known_end_offset || anchor.end_offset,
+            selected_markdown: anchor.selected_markdown
+          )
+          [
+            { offset: projected_end, marker: range_end_marker(anchor.marker_id), order: 0 },
+            { offset: projected_start, marker: range_start_marker(anchor.marker_id), order: 1 }
+          ]
+        end
+      end.flatten
+
+      insertions
+        .sort_by { |insertion| [ -insertion[:offset], insertion[:order] ] }
+        .each_with_object(next_visible.dup) do |insertion, marked|
+          marked.insert(clamp_offset(insertion[:offset], next_visible.length), insertion[:marker])
+        end
+    end
+
     def refresh_anchor!(anchor, markdown)
       location = locate(markdown: markdown, marker_id: anchor.marker_id, anchor_kind: anchor.anchor_kind)
       anchor.update!(
@@ -143,6 +176,77 @@ module DesignDocs
       end
 
       raw_index
+    end
+
+    class OffsetProjection
+      def initialize(old_visible, next_visible)
+        @old_visible = old_visible.to_s
+        @next_visible = next_visible.to_s
+        @prefix_length = common_prefix_length
+        @suffix_length = common_suffix_length
+      end
+
+      def start(offset)
+        project(offset, affinity: :start)
+      end
+
+      def end(offset)
+        project(offset, affinity: :end)
+      end
+
+      def range(start_offset, end_offset, selected_markdown:)
+        selected = selected_markdown.to_s
+        if selected.present?
+          matches = exact_matches(next_visible, selected)
+          return [ matches.first, matches.first + selected.length ] if matches.one?
+        end
+
+        [ start(start_offset), self.end(end_offset) ]
+      end
+
+      def point(offset)
+        project(offset, affinity: :start)
+      end
+
+      private
+
+      attr_reader :old_visible, :next_visible, :prefix_length, :suffix_length
+
+      def project(offset, affinity:)
+        old_offset = offset.to_i.clamp(0, old_visible.length)
+        old_change_end = old_visible.length - suffix_length
+        next_change_end = next_visible.length - suffix_length
+        delta = next_visible.length - old_visible.length
+
+        return old_offset if old_offset <= prefix_length
+        return (old_offset + delta).clamp(0, next_visible.length) if old_offset >= old_change_end
+
+        affinity == :end ? next_change_end : prefix_length
+      end
+
+      def common_prefix_length
+        limit = [ old_visible.length, next_visible.length ].min
+        index = 0
+        index += 1 while index < limit && old_visible[index] == next_visible[index]
+        index
+      end
+
+      def common_suffix_length
+        limit = [ old_visible.length - prefix_length, next_visible.length - prefix_length ].min
+        count = 0
+        count += 1 while count < limit && old_visible[old_visible.length - count - 1] == next_visible[next_visible.length - count - 1]
+        count
+      end
+
+      def exact_matches(markdown, selected)
+        matches = []
+        offset = 0
+        while (index = markdown.index(selected, offset))
+          matches << index
+          offset = index + 1
+        end
+        matches
+      end
     end
   end
 end
