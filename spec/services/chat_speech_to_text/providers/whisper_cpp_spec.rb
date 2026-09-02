@@ -1,6 +1,18 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
+  around do |example|
+    Dir.mktmpdir("fake-whisper-cli") do |dir|
+      @fake_whisper_dir = dir
+      @fake_whisper_script_count = 0
+      example.run
+    ensure
+      @fake_whisper_dir = nil
+      @fake_whisper_script_count = nil
+    end
+  end
+
   def audio_file
     file = Tempfile.new([ "dictation", ".webm" ])
     file.binmode
@@ -14,8 +26,9 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
   # file whisper.cpp itself would produce, so `extract_transcript` reads
   # it back exactly as it would in production.
   def fake_whisper_script(body)
-    script = Tempfile.new([ "fake-whisper-cli", "" ])
-    script.write(<<~BASH)
+    @fake_whisper_script_count += 1
+    path = File.join(@fake_whisper_dir, "whisper-cli-#{@fake_whisper_script_count}")
+    File.write(path, <<~BASH)
       #!/usr/bin/env bash
       audio_file=""
       while [[ $# -gt 0 ]]; do
@@ -26,9 +39,8 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
       done
       #{body}
     BASH
-    script.close
-    FileUtils.chmod("+x", script.path)
-    script.path
+    FileUtils.chmod("+x", path)
+    path
   end
 
   it "runs whisper.cpp through ProcessRunner and records a chat_stt SpawnedProcess row on success" do
