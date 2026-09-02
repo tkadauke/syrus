@@ -13,4 +13,12 @@ class ChatGoal::ModePolicy
   def validate(goal)
     raise NotImplementedError
   end
+
+  def auto_submit_coding_handoffs?(_goal)
+    false
+  end
+
+  def require_ready_coding_checkout_for_continuation?
+    false
+  end
 end

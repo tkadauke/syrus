@@ -69,13 +69,23 @@ module Mcp::Tools
           payload: payload,
           requested_by: "agent"
         )
+        PendingActions::GoalPolicy.apply_after_create!(pending_action)
+        pending_action.reload
+
+        message = if pending_action.confirming?
+          "Submit coding changes was auto-submitted under the active Chat Goal policy. " \
+            "A Job will be created and the CodingHandoff workflow " \
+            "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
+        else
+          "Submit coding changes is pending operator confirmation. " \
+            "Once confirmed, a Job will be created and the CodingHandoff workflow " \
+            "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
+        end
 
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state,
-          message: "Submit coding changes is pending operator confirmation. " \
-                   "Once confirmed, a Job will be created and the CodingHandoff workflow " \
-                   "(graders, summarize, PR open) will be dispatched for branch '#{branch}'."
+          message: message
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

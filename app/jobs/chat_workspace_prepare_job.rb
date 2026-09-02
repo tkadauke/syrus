@@ -32,6 +32,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
       Rails.logger.info("[ChatWorkspacePrepareJob] no commands to run; skipping")
       refresh_relay_credentials!(chat_session, repository)
       mark_prepare_succeeded!(chat_session)
+      promote_queued_messages_if_idle!(chat_session)
       return
     end
 
@@ -53,6 +54,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
     Rails.logger.info("[ChatWorkspacePrepareJob] all commands completed successfully")
     refresh_relay_credentials!(chat_session, repository)
     mark_prepare_succeeded!(chat_session)
+    promote_queued_messages_if_idle!(chat_session)
   rescue StandardError => e
     mark_prepare_failed!(chat_session, "#{e.class}: #{e.message}") if defined?(chat_session) && chat_session
     raise
@@ -108,5 +110,12 @@ class ChatWorkspacePrepareJob < ApplicationJob
       coding_checkout_prepare_failure: message.to_s.truncate(2_000),
       updated_at: Time.current
     )
+    promote_queued_messages_if_idle!(chat_session)
+  end
+
+  def promote_queued_messages_if_idle!(chat_session)
+    ChatQueuedMessagePromoter.deliver_one_if_idle!(chat_session)
+  rescue StandardError => e
+    Rails.logger.warn("[ChatWorkspacePrepareJob] queued message promotion failed: #{e.class}: #{e.message}")
   end
 end

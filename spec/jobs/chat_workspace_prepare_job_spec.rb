@@ -65,6 +65,36 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(chat_session.coding_checkout_prepare_finished_at).to be_present
   end
 
+  it "promotes a queued goal continuation after prepare succeeds" do
+    chat_session.update!(repository: repository, mode: "coding")
+    goal = chat_session.chat_goals.create!(
+      user: user,
+      repository: repository,
+      prompt: "Keep coding.",
+      auto_submit_jobs: true
+    )
+    chat_session.chat_queued_messages.create!(
+      content: {
+        "text" => "Goal continuation started.",
+        "internal_prompt" => "Continue with private goal context.",
+        "source" => "goal_continuation",
+        "goal_continuation" => true,
+        "chat_goal_id" => goal.id
+      }
+    )
+    make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [], source: ".syrus.yml", note: "opted out")
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+
+    expect {
+      described_class.perform_now(chat_session.id, repository.id)
+    }.to have_enqueued_job(ChatTurnJob)
+
+    message = chat_session.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content).to include("source" => "goal_continuation")
+  end
+
   it "refreshes relay credentials after a successful prepare" do
     chat_session.update!(repository: repository)
     make_checkout_path

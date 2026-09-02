@@ -5,6 +5,7 @@ RSpec.describe ChatQueuedMessagePromoter do
 
   let(:user) { Factories.user }
   let(:chat) { ChatSession.create!(user: user) }
+  let(:repository) { Factories.repository(user: user) }
 
   def enqueue_message(text = "Hello")
     chat.chat_queued_messages.create!(content: { "text" => text })
@@ -99,6 +100,99 @@ RSpec.describe ChatQueuedMessagePromoter do
       }.to have_enqueued_job(ChatTurnJob)
 
       expect(ChatMessage.where(chat_session: group_chat).last.role).to eq("system")
+    end
+
+    it "defers coding goal continuations while checkout prepare is queued" do
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "queued")
+      goal = chat.chat_goals.create!(
+        user: user,
+        repository: repository,
+        prompt: "Keep coding.",
+        auto_submit_jobs: true
+      )
+      queued = chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true,
+          "chat_goal_id" => goal.id
+        }
+      )
+
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "queued")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be false
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(queued.reload.delivered_at).to be_nil
+      expect(chat.messages).to be_empty
+      expect(chat.scoped_events.last.payload.dig("work_state", "state")).to eq("waiting")
+    end
+
+    it "promotes coding goal continuations after checkout prepare succeeds" do
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "succeeded")
+      goal = chat.chat_goals.create!(
+        user: user,
+        repository: repository,
+        prompt: "Keep coding.",
+        auto_submit_jobs: true
+      )
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true,
+          "chat_goal_id" => goal.id
+        }
+      )
+
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "succeeded")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob)
+
+      expect(chat.messages.last.content).to include("source" => "goal_continuation")
+    end
+
+    it "records a blocked readiness event instead of waking a continuation when prepare failed" do
+      chat.update!(repository: repository, mode: "coding", coding_checkout_prepare_status: "failed")
+      goal = chat.chat_goals.create!(
+        user: user,
+        repository: repository,
+        prompt: "Keep coding.",
+        auto_submit_jobs: true
+      )
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true,
+          "chat_goal_id" => goal.id
+        }
+      )
+
+      allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+        .with(instance_of(ChatSession), repository)
+        .and_return(exists: true, prepare_status: "failed", prepare_failure: "npm ci failed")
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be false
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      event = chat.scoped_events.last
+      expect(event.source_kind).to eq("goal_coding_checkout_readiness")
+      expect(event.payload).to include("severity" => "warning")
+      expect(event.payload.dig("work_state", "state")).to eq("blocked")
+      expect(event.payload.dig("work_state", "reason")).to include("npm ci failed")
     end
 
     it "preserves attachments when promoting a queued message" do

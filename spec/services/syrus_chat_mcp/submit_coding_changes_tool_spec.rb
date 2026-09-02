@@ -75,6 +75,28 @@ RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
     )
   end
 
+  it "auto-enqueues confirmation for coding goals with auto job submission enabled" do
+    chat_session.update!(mode: "coding")
+    chat_session.chat_goals.create!(
+      user: user,
+      repository: repository,
+      prompt: "Keep coding until done.",
+      auto_submit_jobs: true
+    )
+
+    expect {
+      response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
+      body = payload(response)
+      pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "confirming")
+      expect(body[:message]).to include("auto-submitted")
+      expect(pending_action).to be_confirming
+      expect(pending_action.execution_status).to eq("queued")
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob)
+  end
+
   it "stores title in the payload" do
     response = call_tool(branch: "feature/my-work", title: "Add user profile page", description: "Adds a user profile page.")
     body = payload(response)
