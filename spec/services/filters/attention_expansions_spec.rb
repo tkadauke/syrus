@@ -13,6 +13,7 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       expect(stale).to have_key("and")
       expect(stale["and"]).to include(
         hash_including("field" => "state", "op" => "is", "value" => "open"),
+        hash_including("field" => "state", "op" => "is_none_of", "value" => %w[backlog]),
         hash_including(
           "field" => "updated_at",
           "op" => "more_than_ago",

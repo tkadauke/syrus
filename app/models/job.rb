@@ -29,6 +29,21 @@ class Job < ApplicationRecord
   MAX_TOTAL_WORKFLOWS = 50
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
+  STATES = %w[
+    backlog
+    needs_triage
+    triaging
+    blocked_by_epic
+    queued
+    running
+    implemented
+    coding
+    failed
+    no_change_needed
+    approved
+    landing
+    closed
+  ].freeze
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
   REQUESTED_CHANGES_ATTENTION_REASON = "upstream_pr_changes_requested".freeze
 
@@ -42,7 +57,7 @@ class Job < ApplicationRecord
   # and low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "urgent" => -10, "high" => 0, "medium" => 10, "low" => 20 }.freeze
-  attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition
+  attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition, :releasing_from_backlog
 
   belongs_to :user
   belongs_to :owner_user, class_name: "User", optional: true
@@ -103,6 +118,7 @@ class Job < ApplicationRecord
   has_many :preview_environments, dependent: :destroy
 
   validates :kind, presence: true, inclusion: { in: KINDS }
+  validates :state, presence: true, inclusion: { in: STATES }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :job_provider_setting, presence: true, inclusion: { in: ->(_) { Job.provider_settings } }
@@ -399,6 +415,7 @@ class Job < ApplicationRecord
   # `from:` reference.
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
+    state :backlog
     state :needs_triage
     state :triaging, initial: true
     state :blocked_by_epic
@@ -420,6 +437,16 @@ class Job < ApplicationRecord
     event :advance_after_triage do
       transitions from: :triaging, to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
       transitions from: :triaging, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
+    end
+
+    event :release_from_backlog do
+      transitions from: :backlog, to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
+      transitions from: :backlog, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_after_backlog_release
+      transitions from: :backlog, to: :triaging
+    end
+
+    event :move_to_backlog do
+      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued ], to: :backlog, guard: :backlog_move_allowed?
     end
 
     event :release_for_triage do
@@ -490,6 +517,7 @@ class Job < ApplicationRecord
     # propagated back to the Job. Leaves the Job open and retryable.
     event :force_fail do
       transitions from: [
+        :backlog,
         :needs_triage,
         :triaging,
         :blocked_by_epic,
@@ -585,7 +613,7 @@ class Job < ApplicationRecord
     # with the after_save callback and just made the wiring harder
     # to read.
     event :close do
-      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :no_change_needed, :approved, :landing, :coding ], to: :closed, after: -> {
+      transitions from: [ :backlog, :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :no_change_needed, :approved, :landing, :coding ], to: :closed, after: -> {
         self.finished_at = Time.current
         self.commits_behind_base = nil
         record_outcome_to_scheduled_task! if cron?
@@ -709,6 +737,14 @@ class Job < ApplicationRecord
 
   def ready_for_execution?
     validity == "valid" && !triaging_reason_pending_epic_ref? && !blocked_by_epic_before_execution?
+  end
+
+  def backlog_move_allowed?
+    return false if pr_number.present? || external_pr_number.present? || fork_review_pr_number.present?
+    return false if workflows.where(state: %w[queued running]).exists?
+    return false if runs.active.exists?
+
+    true
   end
 
   def effective_target_repository
@@ -1409,6 +1445,19 @@ class Job < ApplicationRecord
   # excluded; PollScheduledTasksJob seeds them with a pre-rendered
   # prompt at fire time.
   def create_initial_run_if_needed
+    return if backlog?
+
+    create_initial_run_unless_started
+  end
+
+  def create_initial_run_after_backlog_release
+    self.releasing_from_backlog = true
+    create_initial_run_unless_started
+  ensure
+    self.releasing_from_backlog = false
+  end
+
+  def create_initial_run_unless_started
     return if cron?
     return if infrastructure_job?
     return if workflows.where.not(state: "cancelled").exists?

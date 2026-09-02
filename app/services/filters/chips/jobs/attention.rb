@@ -79,6 +79,7 @@ module Filters
           "stale"              => -> {
             and_node(
               chip_node("state", "is", "open"),
+              chip_node("state", "is_none_of", %w[backlog]),
               chip_node("updated_at", "more_than_ago", { "n" => 7, "unit" => "days" })
             )
           },
@@ -200,7 +201,7 @@ module Filters
         end
 
         def apply_stale
-          scope.open_threads.where(updated_at: ..7.days.ago)
+          scope.open_threads.where.not(state: "backlog").where(updated_at: ..7.days.ago)
         end
 
         def apply_blocked
