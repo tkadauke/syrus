@@ -28,6 +28,7 @@ module Steps
         workflow.set_artifact!("preflight_passed", true)
         cancel_downstream!(reason: "preflight graders passed — main is already healthy")
       else
+        workflow.set_artifact!("preflight_failures", preflight_failure_entries(failed_required))
         failed_names = failed_required.map { |g| g.details["name"] }.join(", ")
         log("[preflight_grader_collect] preflight graders failed: #{failed_names} — proceeding to implement")
       end
@@ -37,6 +38,24 @@ module Steps
 
     def preflight_grader_steps
       workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+    end
+
+    def preflight_failure_entries(failed_required)
+      failed_required.map do |grader_step|
+        details = grader_step.details.to_h
+        {
+          "name" => details["name"],
+          "command" => details["command"],
+          "required" => details["required"],
+          "status" => "failed",
+          "exit_code" => details["exit_code"],
+          "duration_s" => details["duration_s"],
+          "timed_out" => details["timed_out"],
+          "log_path" => details["log_path"],
+          "log_bytes" => details["log_bytes"],
+          "output" => details["output"]
+        }.compact
+      end
     end
   end
 end
