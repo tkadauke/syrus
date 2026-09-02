@@ -29,6 +29,7 @@ export const BANNER_TONE_CLASSES: Record<BannerTone, string> = {
 
 const STATE_LATIN: Record<string, string> = {
   // Job states
+  backlog:     "In tabulario — In the register",
   triaging:    "Auspicia consuluntur — The omens are being consulted",
   queued:      "In acie stat — It stands in the battle line",
   open:        "Agitur — It is being done",
@@ -55,7 +56,8 @@ export function StatusPill({ state }: { state: string }) {
   const normalized = state.toLowerCase()
   const tone = normalized.includes("fail") || normalized.includes("invalid") || normalized.includes("cancel") ? "red" :
     normalized.includes("success") || normalized.includes("approved") || normalized.includes("merged") || normalized.includes("closed") ? "green" :
-      normalized.includes("running") || normalized.includes("queued") ? "blue" : "gray"
+      normalized.includes("running") || normalized.includes("queued") ? "blue" :
+        normalized.includes("backlog") || normalized.includes("paused") ? "amber" : "gray"
 
   // Translated label with a humanized fallback for states not in the locale.
   const label = t(`status.${normalized}`, { defaultValue: state.replaceAll("_", " ") })

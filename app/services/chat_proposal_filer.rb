@@ -57,7 +57,7 @@ class ChatProposalFiler
         # check sees the JobDependency rows. Without this ordering,
         # a freshly-created direct Job would auto-start before its
         # upstream deps existed, ignoring the chain.
-        materialized.advance_after_triage! if materialized.is_a?(Job) && materialized.may_advance_after_triage?
+        materialized.advance_after_triage! if materialized.is_a?(Job) && should_advance_after_triage?(proposal, materialized)
       end
     end
 
@@ -135,7 +135,7 @@ class ChatProposalFiler
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       agent_provider: target_repository.effective_agent_provider,
-      state: Job.initial_state_for_creator(user)
+      state: proposal.initial_job_state_for(user)
     )
 
     attach_media_to_job!(proposal, job)
@@ -156,6 +156,10 @@ class ChatProposalFiler
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       state: "ready"
     )
+  end
+
+  def should_advance_after_triage?(proposal, job)
+    !proposal.route_to_backlog? && job.may_advance_after_triage?
   end
 
   def attach_to_chat_session!(proposal, attachable)

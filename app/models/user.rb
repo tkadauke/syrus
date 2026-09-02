@@ -70,7 +70,7 @@ class User < ApplicationRecord
       "folder_prefs" => {},
       "ownership_scope" => "team",
       "visible_columns" => %w[checkbox issue state repository latest workflows_count started],
-      "kanban_lanes" => %w[queued running landing]
+      "kanban_lanes" => %w[backlog queued running landing]
     },
     "workflows" => {
       "last_view" => "list",
@@ -85,7 +85,7 @@ class User < ApplicationRecord
   }.freeze
   DASHBOARD_KANBAN_LANES = {
     "epics" => %w[backlog ready in_progress done],
-    "jobs" => %w[blocked queued running succeeded landing failed],
+    "jobs" => %w[backlog blocked queued running succeeded landing failed],
     "workflows" => %w[queued running done succeeded failed]
   }.freeze
   DASHBOARD_REQUIRED_COLUMNS = {

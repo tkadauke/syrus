@@ -53,6 +53,14 @@ RSpec.describe Filters::Chips::Jobs::State do
       expect(results).not_to include(approved, landing)
     end
 
+    it "matches only user-facing Jobs for the backlog value" do
+      backlogged = Factories.job_record(user: user, repository: repository, kind: "direct", state: "backlog", issue_number: nil)
+      infrastructure = Factories.job_record(user: user, repository: repository, kind: "main_grader", state: "backlog", issue_number: nil)
+
+      expect(apply("backlog").to_a).to contain_exactly(backlogged)
+      expect(apply("backlog")).not_to include(infrastructure)
+    end
+
     it "matches Jobs in the landing_failed state directly" do
       failed = job_in("landing_failed")
       ok     = job_in("approved")

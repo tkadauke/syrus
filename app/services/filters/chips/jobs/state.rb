@@ -9,7 +9,7 @@ module Filters
       #    the AASM :open / :closed state names; the composites win.
       #    Labeled distinctly in the picker ("Any open", "Closed or
       #    merged") to make the override obvious.
-      # 2. Individual AASM states (triaging, queued, running,
+      # 2. Individual AASM states (backlog, triaging, queued, running,
       #    implemented, failed, approved, landing, blocked_by_epic)
       #    — passed through as literal `state` column matches via the
       #    `else` branch in scope_for. The AASM :open and :closed
@@ -28,6 +28,7 @@ module Filters
         values(
           { "value" => "open",   "label" => "Any open" },
           { "value" => "closed", "label" => "Closed or merged" },
+          "backlog",
           "triaging",
           "blocked_by_epic",
           "queued",
@@ -70,6 +71,7 @@ module Filters
           case value.to_s
           when "open"   then Job.open_threads
           when "closed" then Job.closed_threads
+          when "backlog" then Job.where(state: "backlog", kind: Filters::Chips::Jobs::JobType::USER_KINDS)
           else Job.where(state: value)
           end
         end

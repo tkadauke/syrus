@@ -3373,7 +3373,7 @@ describe("App", () => {
     }
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
-    expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
+    expect(screen.getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/profiles/1")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveAttribute("href", "/app-shell/epics/new")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-brand", "text-on-brand")
@@ -3405,7 +3405,7 @@ describe("App", () => {
     )
 
     fireEvent.click(screen.getByLabelText("Select Repair aqueduct"))
-    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+    fireEvent.click(screen.getByRole("button", { name: "Claim work" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/dashboard/jobs/bulk",
@@ -5650,6 +5650,87 @@ describe("App", () => {
 
     const card = await screen.findByLabelText("EPIC-7 Raise the forum")
     expect(within(card).queryByText("Needs attention")).not.toBeInTheDocument()
+  })
+
+  it("renders backlog job kanban cards with source, age, dependencies, and actions", async () => {
+    const backloggedJob = dashboardJobItem({
+      id: 88,
+      kind: "direct",
+      title: "Backlog dashboard lane",
+      state: "backlog",
+      summary_state: "backlog",
+      priority: "high",
+      issue_number: null,
+      issue_url: null,
+      pr_number: null,
+      pr_url: null,
+      active_workflow_trigger_kind: null,
+      latest_workflow_id: null,
+      latest_workflow_trigger_kind: null,
+      latest_workflow_state: "backlog",
+      workflows_count: 0,
+      dependencies: [
+        {
+          id: 4,
+          pending: false,
+          succeeded: false,
+          unresolved_slug: null,
+          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
+          depends_on_epic: null
+        }
+      ],
+      unsatisfied_dependencies: [
+        {
+          id: 4,
+          pending: false,
+          succeeded: false,
+          unresolved_slug: null,
+          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
+          depends_on_epic: null
+        }
+      ],
+      can_release_from_backlog: true,
+      paths: {
+        job_path: "/jobs/88",
+        source_path: "/jobs/88/source",
+        app_release_from_backlog_path: "/api/v1/app/jobs/88/release_from_backlog"
+      }
+    })
+    mockDashboardFetch(dashboardPayload({
+      subject: "job",
+      view: "kanban",
+      total: 1,
+      preferences: {
+        ...dashboardPayload().preferences,
+        kanban_lanes: ["backlog"]
+      },
+      controls: {
+        ...dashboardPayload().controls,
+        kanban_lanes: [{ key: "backlog", title: "Backlog" }]
+      },
+      lanes: [
+        { key: "backlog", title: "Backlog", count: 1, items: [backloggedJob] }
+      ],
+      kanban_limit: 100
+    }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const title = await screen.findByRole("link", { name: "Backlog dashboard lane" })
+    const card = title.closest("article")
+    expect(card).not.toBeNull()
+    expect(within(card!).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(card!).getByText("High")).toBeInTheDocument()
+    expect(within(card!).getByText("Direct")).toBeInTheDocument()
+    expect(within(card!).getByText("1/1 deps blocked")).toBeInTheDocument()
+    expect(card!.querySelector("time")).toHaveAttribute("datetime", "2026-05-30T10:00:00Z")
+    expect(within(card!).getByRole("button", { name: "Start" })).toBeInTheDocument()
   })
 
   it("moves Epic kanban cards with drag and drop", async () => {
@@ -9969,9 +10050,9 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText("Add tag")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
-    expect(screen.getByText("Unclaimed")).toBeInTheDocument()
+    expect(screen.getByText("No work claim")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Claim" }))
+    fireEvent.click(screen.getByRole("button", { name: "Claim work" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/claim",
@@ -10458,6 +10539,7 @@ describe("App", () => {
         pinned: true,
         actions: {
           can_start: true,
+          can_release_from_backlog: false,
           can_poll_feedback: true,
           can_rebase: true,
           can_check_mergeability: true,
@@ -13961,7 +14043,7 @@ describe("App", () => {
       )
     })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Confirm" })[1])
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         `/api/v1/app/chats/8/proposals/5/confirm${search}`,
@@ -16679,6 +16761,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     },
     actions: {
       can_start: false,
+      can_release_from_backlog: false,
       can_poll_feedback: true,
       can_rebase: true,
       can_check_mergeability: true,
@@ -16708,6 +16791,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_source_path: "/api/v1/app/jobs/42/source",
       app_timeline_path: "/api/v1/app/jobs/42/timeline",
       app_start_path: "/api/v1/app/jobs/42/start",
+      app_release_from_backlog_path: "/api/v1/app/jobs/42/release_from_backlog",
       app_run_again_path: "/api/v1/app/jobs/42/run_again",
       app_restart_path: "/api/v1/app/jobs/42/restart",
       app_cancel_path: "/api/v1/app/jobs/42/cancel",

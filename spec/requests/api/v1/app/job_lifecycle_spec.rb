@@ -104,6 +104,137 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(WorkUnits::StartBlock.for(blocked_workflow).reason).to eq("admission_control")
   end
 
+  it "releases a backlogged direct job through normal initial admission" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Planned repair",
+      issue_body: "Repair the forum."
+    )
+
+    expect {
+      post app_job_path(direct, "release_from_backlog"), as: :json
+    }.to change { direct.reload.workflows.count }.from(0).to(1)
+      .and change { direct.runs.count }.from(0).to(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(direct).to be_queued
+    expect(parse_body).to include("message" => "Job released from backlog.")
+    expect(parse_body.dig("job", "runs_count")).to eq(1)
+    expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
+  end
+
+  it "does not release a job that is not backlogged" do
+    expect {
+      post app_job_path(job, "release_from_backlog"), as: :json
+    }.not_to change { job.reload.workflows.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Only backlogged Jobs can be released.")
+  end
+
+  it "lets a write-tier repository member release a dependency-blocked backlogged job without starting a run" do
+    writer = Factories.user
+    RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+    prerequisite = Factories.job_record(user: user, repository: repo, issue_number: 50, state: "queued")
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Blocked planned repair",
+      issue_body: "Repair the forum."
+    )
+    JobDependency.create!(job: direct, depends_on_job: prerequisite, source: "manual")
+    sign_in_as(writer)
+
+    expect {
+      post app_job_path(direct, "release_from_backlog"), as: :json
+    }.to change { direct.reload.workflows.count }.from(0).to(1)
+      .and change { direct.runs.count }.by(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(direct).to be_queued
+    expect(WorkUnits::StartBlock.for(direct.workflows.last).reason).to eq(StepDispatcher::STACK_BLOCK_REASON)
+  end
+
+  it "releases a backlogged job to triage without creating work when triage checks have not passed" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      validity: "duplicate",
+      issue_number: nil,
+      issue_title: "Needs triage",
+      issue_body: "Hold until triaged."
+    )
+
+    expect {
+      post app_job_path(direct, "release_from_backlog"), as: :json
+    }.to change { direct.reload.state }.from("backlog").to("triaging")
+      .and change { direct.workflows.count }.by(0)
+      .and change { direct.runs.count }.by(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Job released from backlog.")
+  end
+
+  it "rejects release from backlog for read-tier repository members" do
+    reader = Factories.user
+    RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Planned repair",
+      issue_body: "Repair the forum."
+    )
+    sign_in_as(reader)
+
+    post app_job_path(direct, "release_from_backlog"), as: :json
+
+    expect(response).to have_http_status(:forbidden)
+    expect(direct.reload).to be_backlog
+  end
+
+  it "moves early jobs with no runtime or PR back to backlog" do
+    early = Factories.job_record(repository: repo, issue_number: 60, state: "needs_triage")
+
+    post app_job_path(early, "move_to_backlog"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(early.reload).to be_backlog
+    expect(parse_body).to include("message" => "Job moved to backlog.")
+  end
+
+  it "rejects moving post-PR jobs back to backlog" do
+    implemented = Factories.job_record(repository: repo, issue_number: 61, state: "implemented", pr_number: 17)
+
+    post app_job_path(implemented, "move_to_backlog"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(implemented.reload).to be_implemented
+  end
+
+  it "rejects moving jobs with active runtime work back to backlog" do
+    active = Factories.job_record(repository: repo, issue_number: 62, state: "queued")
+    workflow = Workflow.create!(job: active, trigger_kind: "initial", state: "running")
+    attach_work_unit(workflow, member_jobs: [ active ], state: "running")
+
+    post app_job_path(active, "move_to_backlog"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(active.reload).to be_queued
+  end
+
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     finish_work_units_for(job)

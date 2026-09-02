@@ -125,6 +125,7 @@ Rails.application.routes.draw do
         delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/, tag_id: /\d+/ }
         post "jobs/:job_id/claim", to: "job_claims#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/claim", to: "job_claims#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        patch "jobs/:job_id/owner", to: "job_claims#update_owner", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/dependency_options", to: "job_metadata#dependency_options", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, dependency_id: /\d+/ }
@@ -134,6 +135,8 @@ Rails.application.routes.draw do
         patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/mark_valid", to: "job_metadata#mark_valid", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/start", to: "job_lifecycle#start", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/release_from_backlog", to: "job_lifecycle#release_from_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/move_to_backlog", to: "job_lifecycle#move_to_backlog", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

@@ -49,6 +49,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
   const [targetEpicId, setTargetEpicId] = useState<number | null>(proposal.target_epic_id ?? null)
   const [mediaIds, setMediaIds] = useState<string[]>(proposal.media_ids || [])
+  const [routeToBacklog, setRouteToBacklog] = useState(Boolean(proposal.route_to_backlog))
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -72,7 +73,9 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
     !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
     !sameValues(mediaIds, proposal.media_ids || []) ||
+    routeToBacklog !== Boolean(proposal.route_to_backlog) ||
     targetEpicId !== (proposal.target_epic_id ?? null)
+  const canRouteToBacklog = proposalSupportsBacklogRoute(proposal)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -97,7 +100,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
       depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
       media_ids: mediaIds,
-      target_epic_id: targetEpicId
+      target_epic_id: targetEpicId,
+      ...(canRouteToBacklog ? { route_to_backlog: routeToBacklog } : {})
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -183,6 +187,39 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 </div>
               </div>
             ) : null}
+            {canRouteToBacklog ? (
+              <fieldset>
+                <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">Route</legend>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${!routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
+                    <input
+                      checked={!routeToBacklog}
+                      className="mt-1"
+                      name="proposal-route"
+                      onChange={() => setRouteToBacklog(false)}
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block font-medium">Start normally</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates and admits the Job to the usual start path.</span>
+                    </span>
+                  </label>
+                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
+                    <input
+                      checked={routeToBacklog}
+                      className="mt-1"
+                      name="proposal-route"
+                      onChange={() => setRouteToBacklog(true)}
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block font-medium">Backlog</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates the Job without launching an initial workflow.</span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+            ) : null}
             <div className="grid gap-4 lg:grid-cols-3">
               <DependencyPicker
                 label="Proposal dependencies"
@@ -242,6 +279,10 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
 function sameValues(first: string[], second: string[]) {
   if (first.length !== second.length) return false
   return first.every((value, index) => value === second[index])
+}
+
+function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epic_bundle"> | EditableProposal) {
+  return !proposal.epic_bundle && (proposal.kind === "job" || proposal.kind === "syrus_issue")
 }
 
 function DependencyPicker({ label, placeholder, query, results, selected, setQuery, setSelected }: { label: string; placeholder: string; query: string; results: DependencyPill[]; selected: DependencyPill[]; setQuery: (query: string) => void; setSelected: (selected: DependencyPill[]) => void }) {
@@ -316,7 +357,7 @@ function useDebouncedDependencySearch<T>(query: string, searcher: (query: string
   }, [query, searcher, setResults])
 }
 
-type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean }
+type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean; routeToBacklog?: boolean }
 
 function proposalActionButton(tone: "primary" | "secondary") {
   const shared = "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
@@ -342,10 +383,11 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
   const payload = queryClient.getQueryData<ChatPayload>(queryKey)
   const currentUser = bootstrap.data?.current_user
   const showConfirmAndStart = proposal.epic_bundle && (currentUser?.role === "developer" || currentUser?.admin === true)
+  const showDirectRouteActions = proposalSupportsBacklogRoute(proposal)
   const proposalAction = useMutation({
     mutationFn: (input: ProposalActionInput) => {
       const path = appendSearch(input.path, search)
-      return input.action === "confirm" ? confirmChatProposal(path, { start: input.start }) : rejectChatProposal(path)
+      return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated))
@@ -385,16 +427,41 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
           <ProposalMediaTiles media={media.data} mediaIds={proposal.media_ids || []} previewPanels={payload?.preview_panels || []} />
           {proposal.proposed ? (
             <div className="mt-4 flex flex-nowrap gap-2 overflow-hidden" data-testid="proposal-action-footer">
-              <button
-                aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
-                className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
-                disabled={proposalAction.isPending}
-                onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
-                title={proposalConfirmAriaLabel(proposal, childJobCount)}
-                type="button"
-              >
-                {proposalConfirmLabel(proposal, childJobCount)}
-              </button>
+              {showDirectRouteActions ? (
+                <>
+                  <button
+                    aria-label={t("aria_confirm_proposal_to_backlog")}
+                    className={proposalActionButton("secondary")}
+                    disabled={proposalAction.isPending}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: true })}
+                    title={t("aria_confirm_proposal_to_backlog")}
+                    type="button"
+                  >
+                    {t("proposal_route_backlog")}
+                  </button>
+                  <button
+                    aria-label={t("aria_confirm_proposal_and_implement")}
+                    className={proposalActionButton("primary")}
+                    disabled={proposalAction.isPending}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
+                    title={t("aria_confirm_proposal_and_implement")}
+                    type="button"
+                  >
+                    {t("proposal_route_implement")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
+                  className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
+                  disabled={proposalAction.isPending}
+                  onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                  title={proposalConfirmAriaLabel(proposal, childJobCount)}
+                  type="button"
+                >
+                  {proposalConfirmLabel(proposal, childJobCount)}
+                </button>
+              )}
               {showConfirmAndStart ? (
                 <button
                   aria-label={t("create_epic_and_start")}
@@ -902,9 +969,11 @@ function ProposalResultLink({ path, prefix, children }: { path: string | null; p
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   const { t } = useT("chat")
+  const routeLabel = proposal.route_to_backlog ? t("proposal_route_backlog") : t("proposal_route_start_normally")
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
       <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("attached_scope")}</dt><dd>{proposal.scoped_repository_slug || t("no_repository_attached")}</dd></div>
+      {proposalSupportsBacklogRoute(proposal) ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("proposal_route")}</dt><dd>{routeLabel}</dd></div> : null}
       <div>
         <dt className="font-medium text-gray-500 dark:text-gray-400">{t("dependencies")}</dt>
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>

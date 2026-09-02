@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { PendingActionCard, ProposalCard } from "./ProposalCards"
+import { PendingActionCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
 
@@ -56,6 +56,8 @@ function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
     has_dependencies: false,
     target_epic_id: null,
     target_epic_label: null,
+    route_to_backlog: false,
+    route_label: "Start normally",
     app_update_path: "/api/v1/app/chats/122/proposals/17",
     app_confirm_path: "/api/v1/app/chats/122/proposals/17/confirm",
     app_reject_path: "/api/v1/app/chats/122/proposals/17/reject",
@@ -153,6 +155,21 @@ function renderProposalCard(p: ChatProposal, onNotice = vi.fn()) {
   return { client, onNotice, queryKey }
 }
 
+function renderProposalEditModal(p: ChatProposal, onNotice = vi.fn()) {
+  const queryKey: ChatQueryKey = ["chats", "122", ""]
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(queryKey, payloadFor(queryKey, p))
+  client.setQueryData(["chat_media", "122"], mediaPayload)
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <ProposalEditModal chatId="122" onClose={vi.fn()} onNotice={onNotice} proposal={p} queryKey={queryKey} search="" />
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
+  return { client, onNotice, queryKey }
+}
+
 describe("PendingActionCard", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -231,5 +248,103 @@ describe("ProposalCard media", () => {
         proposal: { media_ids: ["chat_image:77"] }
       })
     })
+  })
+})
+
+describe("ProposalCard routing", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows the selected route on direct Job proposal cards", async () => {
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", route_to_backlog: true, route_label: "Backlog" }))
+
+    expect(screen.getByText("Route")).toBeInTheDocument()
+    expect(screen.getAllByText("Backlog").length).toBeGreaterThan(0)
+  })
+
+  it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "PATCH") return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalEditModal(proposal({ kind: "job", kind_label: "Job" }))
+    const routeGroup = await screen.findByRole("group", { name: "Route" })
+    fireEvent.click(within(routeGroup).getAllByRole("radio")[1])
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+        proposal: { route_to_backlog: true }
+      })
+    })
+  })
+
+  it("lets operators confirm a direct Job proposal to backlog from the card", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job" }))
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal to backlog" }))
+
+    await waitFor(() => {
+      const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
+      expect(postCall).toBeTruthy()
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ route_to_backlog: true })
+    })
+  })
+
+  it("lets operators confirm a direct Job proposal for implementation from the card", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalCard(proposal({ kind: "job", kind_label: "Job", route_to_backlog: true, route_label: "Backlog" }))
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => {
+      const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
+      expect(postCall).toBeTruthy()
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ route_to_backlog: false })
+    })
+  })
+
+  it("does not show route selection for Epic bundle child edits", async () => {
+    renderProposalCard(proposal({
+      kind: "epic",
+      kind_label: "Epic",
+      epic_bundle: true,
+      children: [{
+        id: 18,
+        title: "Child",
+        slug: "child",
+        body: "Build it.",
+        state: "proposed",
+        state_label: "Proposed",
+        proposed: true,
+        repository_slug: "tkadauke/syrus",
+        dependencies: [],
+        depends_on_job_ids: [],
+        depends_on_epic_ids: [],
+        media_ids: [],
+        dependency_details: [],
+        app_update_path: "/api/v1/app/chats/122/proposals/18",
+        app_reject_path: "/api/v1/app/chats/122/proposals/18/reject"
+      }]
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit child" }))
+
+    expect(await screen.findByRole("dialog", { name: "Edit proposal" })).toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Route" })).not.toBeInTheDocument()
   })
 })

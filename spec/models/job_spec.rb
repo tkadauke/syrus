@@ -70,12 +70,14 @@ RSpec.describe Job, :ci_only do
 
   describe ".open_threads" do
     it "excludes closed and no-change-needed jobs" do
+      backlog = Factories.job_record(state: "backlog", issue_number: 4)
       open_job = Factories.job_record(state: "running", issue_number: 1)
       closed = Factories.job_record(state: "closed", issue_number: 2)
       no_change_needed = Factories.job_record(state: "no_change_needed", issue_number: 3)
 
       result = described_class.open_threads
 
+      expect(result).to include(backlog)
       expect(result).to include(open_job)
       expect(result).not_to include(closed, no_change_needed)
     end
@@ -1637,6 +1639,94 @@ describe "running / failed lifecycle (new in this commit)" do
   describe "triage lifecycle" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
+
+    it "keeps explicitly backlogged direct jobs open without creating workflow work" do
+      job = nil
+
+      expect {
+        job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          issue_title: "t",
+          issue_body: "hold this for later",
+          state: "backlog"
+        )
+      }.not_to change { Workflow.count }
+
+      expect(job).to be_backlog
+      expect(job).to be_open
+      expect(job.workflows).to be_empty
+      expect(job.runs).to be_empty
+    end
+
+    it "releases a backlogged direct job into the normal initial workflow path" do
+      job = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "t",
+        issue_body: "do a thing",
+        state: "backlog"
+      )
+
+      expect { job.release_from_backlog! }
+        .to change { job.reload.state }.from("backlog").to("queued")
+        .and change { job.workflows.count }.by(1)
+        .and change { job.runs.count }.by(1)
+
+      expect(job.workflows.first.trigger_kind).to eq("initial")
+      expect(job.runs.first.prompt).to include("do a thing")
+    end
+
+    it "releases a backlogged job to blocked_by_epic when the parent Epic has not released execution" do
+      epic = Factories.epic(user: user, repository: repository, state: "backlog")
+      job = Job.create!(user: user, repository: repository, issue_number: 1, epic: epic, state: "backlog")
+
+      expect { job.release_from_backlog! }
+        .to change { job.reload.state }.from("backlog").to("blocked_by_epic")
+        .and change { job.runs.count }.by(0)
+    end
+
+    it "releases a backlogged job through dependency admission without starting a run when dependencies are pending" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 1, state: "queued")
+      job = Job.create!(user: user, repository: repository, issue_number: 2, state: "backlog")
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect { job.release_from_backlog! }
+        .to change { job.reload.state }.from("backlog").to("queued")
+        .and change { job.workflows.count }.by(1)
+        .and change { job.runs.count }.by(0)
+
+      workflow = job.workflows.first
+      expect(WorkUnits::StartBlock.for(workflow.reload)).to be_blocked_for(StepDispatcher::STACK_BLOCK_REASON)
+    end
+
+    it "moves only early pre-PR jobs with no active workflow back to backlog" do
+      job = Factories.job_record(user: user, repository: repository, state: "triaging")
+
+      expect { job.move_to_backlog! }
+        .to change { job.reload.state }.from("triaging").to("backlog")
+    end
+
+    it "rejects moving a job back to backlog once it has produced a PR" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented", pr_number: 123)
+
+      expect(job.may_move_to_backlog?).to be(false)
+      expect { expect(job.move_to_backlog!).to be(false) }.not_to change { job.reload.state }
+      expect(job.reload).to be_implemented
+    end
+
+    it "rejects moving an early job with active workflow work back to backlog" do
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+
+      expect(job.may_move_to_backlog?).to be(false)
+      expect { expect(job.move_to_backlog!).to be(false) }.not_to change { job.reload.state }
+      expect(job.reload).to be_queued
+    end
 
     it "creates issue jobs in triaging with classifier_pending reason and no run" do
       job = Job.create!(user: user, repository: repository, issue_number: 1)

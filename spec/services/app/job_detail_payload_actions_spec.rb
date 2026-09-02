@@ -53,6 +53,94 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
     unit
   end
+
+  describe "#actions_json backlog admission" do
+    it "offers release from backlog instead of manual start for an unstarted backlogged direct job" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_start)).to be(false)
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(true)
+      expect(payload.dig(:actions, :can_cancel)).to be(false)
+      expect(payload.dig(:actions, :can_approve)).to be(false)
+      expect(payload.dig(:actions, :can_check_mergeability)).to be(false)
+      expect(payload.dig(:actions, :can_rebase)).to be(false)
+      expect(payload.dig(:paths, :app_release_from_backlog_path)).to eq("/api/v1/app/jobs/#{job.id}/release_from_backlog")
+    end
+
+    it "does not offer release from backlog for active runtime work" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "running")
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_start)).to be(false)
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
+    end
+
+    it "does not expose mutating backlog actions to read-only repository members" do
+      user
+      reader = Factories.user(admin: false)
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+
+      payload = described_class.build(job: job, user: reader)
+
+      expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
+      expect(payload.dig(:actions, :can_move_to_backlog)).to be(false)
+      expect(payload.dig(:actions, :can_claim)).to be(false)
+      expect(payload.dig(:actions, :can_unclaim)).to be(false)
+      expect(payload.dig(:actions, :can_manage_tags)).to be(false)
+    end
+
+    it "keeps manual start visibility aligned with the owner-scoped start endpoint" do
+      user
+      writer = Factories.user(admin: false)
+      RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "queued",
+        issue_number: nil,
+        issue_title: "Ready direct",
+        issue_body: "Start me later."
+      )
+
+      owner_payload = described_class.build(job: job, user: user)
+      writer_payload = described_class.build(job: job, user: writer)
+
+      expect(owner_payload.dig(:actions, :can_start)).to be(true)
+      expect(writer_payload.dig(:actions, :can_start)).to be(false)
+    end
+  end
+
   describe "#feedback_history_json" do
     it "returns chat feedback workflow artifacts in chronological order" do
       job = Factories.job_record(repository: repo)
@@ -842,5 +930,4 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(breakdown["telemetry_absent"]).to be(true)
     end
   end
-
 end

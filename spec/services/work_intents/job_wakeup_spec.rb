@@ -85,6 +85,26 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(unit.workflow.first_step.runs.last).to be_queued
   end
 
+  it "does not launch persisted job intents for backlogged jobs" do
+    job = Factories.job_record(user: user, repository: repository, state: "backlog")
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { WorkUnit.count }
+
+    expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
+  end
+
   it "uses execution dependency semantics so stack children can start before parent merge" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     parent = Factories.job_record(

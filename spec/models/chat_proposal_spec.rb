@@ -199,6 +199,22 @@ RSpec.describe ChatProposal do
 
     expect(proposal).to be_proposed
     expect(proposal).to be_syrus_issue
+    expect(proposal.route_to_backlog).to be(false)
+    expect(proposal.initial_job_state_for(user)).to eq("triaging")
+  end
+
+  it "routes direct Job proposals to backlog when explicitly requested" do
+    proposal = described_class.create!(
+      chat_session: chat_session,
+      slug: "hold-direct-job",
+      title: "Hold direct Job",
+      body: "Queue later.",
+      kind: "job",
+      route_to_backlog: true
+    )
+
+    expect(proposal).to be_direct_job_proposal
+    expect(proposal.initial_job_state_for(user)).to eq("backlog")
   end
 
   it "validates required fields and enum values" do

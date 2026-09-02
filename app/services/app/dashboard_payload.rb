@@ -28,6 +28,7 @@ module App
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
     KANBAN_PER_PAGE = 100
     JOB_KANBAN_LANES = [
+      { key: "backlog", title: "Backlog" },
       { key: "blocked", title: "Blocked" },
       { key: "queued", title: "Queued" },
       { key: "running", title: "Running" },

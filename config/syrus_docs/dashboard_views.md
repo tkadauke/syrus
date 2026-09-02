@@ -8,9 +8,22 @@ Default tabular view. Supports column visibility, sorting, and pagination. Colum
 
 ## kanban
 
-Board view grouped by configurable lanes (e.g. Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows.
+Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows. Backlogged Jobs are open planned work, but they do not dispatch Workflows or Runs until an operator releases them from backlog.
 
 Kanban payloads are paginated per lane. Each lane includes `total_count`, `loaded_count`, `has_more`, and `next_offset`; when `has_more` is true, the UI shows a lane-specific Load more button. Follow-up lane fetches call `GET /api/v1/app/dashboard` with the existing dashboard filters plus `kanban_lane` and `kanban_offset`, so loading older cards preserves the current smart folder, ownership scope, and other lane state.
+
+## Backlogged Job actions
+
+Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
+
+Single-Job lifecycle endpoints:
+
+- `POST /api/v1/app/jobs/:job_id/release_from_backlog` releases a backlogged Job into the normal admission flow. A valid, dependency-ready Job transitions to `queued` and creates initial Workflow work through the same path as post-triage startup. A dependency-blocked Job transitions to `blocked_by_epic` without starting a Run. A Job that still needs classifier/triage resolution moves to `triaging`.
+- `POST /api/v1/app/jobs/:job_id/move_to_backlog` moves only early, pre-runtime Jobs (`needs_triage`, `triaging`, `blocked_by_epic`, or `queued`) back to backlog. The guard rejects Jobs with queued/running Workflows, active Runs, local PRs, fork-review PRs, external PRs, review/landing states, and any post-PR work.
+- `PATCH /api/v1/app/jobs/:job_id/owner` assigns or reassigns `owner_user_id`. The selected owner must be a repository member with read access. This does not claim the Job for active work.
+- `POST /api/v1/app/jobs/:job_id/claim` and `DELETE /api/v1/app/jobs/:job_id/claim` operate only on the work-claim overlay. A Job claimed by another user cannot be claimed, and only the current claimant can release their claim.
+
+The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.
 
 Queued Job cards can carry a start-blocked badge when Syrus has deferred the first Run because dependencies are unfinished, a dependency failed or was cancelled, the Job/Epic is not ready for execution, main is broken, an urgent Job is active, provider availability is below the user's per-agent threshold, or workflow admission budgeting delayed the start. The Queued smart folder also shows a blocked sub-count; selecting that count filters to only queued Jobs with a persisted start-blocked reason.
 
