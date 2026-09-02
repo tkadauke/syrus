@@ -582,6 +582,30 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(member_payload.fetch("retry_state")).to include("retryable" => false)
   end
 
+  it "loads latest repository-detail runs with one ranked query" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    job = Factories.job_with_run(repository: repository, run_attrs: { state: "failed" })
+    Run.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "claude", state: "queued")
+
+    queries = capture_sql do
+      get "/api/v1/app/repositories/#{repository.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    latest_run_queries = queries.select do |query|
+      query.match?(/ROW_NUMBER\(\) OVER \(PARTITION BY runs\.job_id ORDER BY runs\.id DESC\)/i)
+    end
+    grouped_latest_run_queries = queries.select do |query|
+      query.match?(/FROM [`"]?runs[`"]?/i) &&
+        query.match?(/GROUP BY [`"]?runs[`"]?\.[`"]?job_id[`"]?/i) &&
+        query.match?(/MAX\([`"]?runs[`"]?\.[`"]?id[`"]?\)/i)
+    end
+
+    expect(latest_run_queries.size).to eq(1)
+    expect(grouped_latest_run_queries).to be_empty
+  end
+
   it "omits GitHub Issues, Tests, and scheduled task tabs in simple mode" do
     sign_in_as(user)
     AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)

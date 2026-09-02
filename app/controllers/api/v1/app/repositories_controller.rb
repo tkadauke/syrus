@@ -1283,8 +1283,16 @@ module Api
         def latest_runs_by_job_id(job_ids)
           return {} if job_ids.empty?
 
-          latest_ids = Run.where(job_id: job_ids).group(:job_id).maximum(:id).values
-          latest_ids.empty? ? {} : Run.where(id: latest_ids).index_by(&:job_id)
+          ranked = Run
+            .where(job_id: job_ids)
+            .select(
+              "runs.*",
+              "ROW_NUMBER() OVER (PARTITION BY runs.job_id ORDER BY runs.id DESC) AS syrus_row_number"
+            )
+          Run
+            .from("(#{ranked.to_sql}) runs")
+            .where("syrus_row_number = 1")
+            .index_by(&:job_id)
         end
 
         def latest_workflows_by_job_id(job_ids, active_units_by_job_id: nil)
