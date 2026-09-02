@@ -101,8 +101,8 @@ module App
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
           can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
-          can_release_from_backlog: job.backlog? && job.open? && !job.active_runtime_work? && job.may_release_from_backlog? && JobPolicy.new(user, job).write?,
-          can_move_to_backlog: job.open? && !job.active_runtime_work? && job.may_move_to_backlog? && JobPolicy.new(user, job).write?,
+          can_release_from_backlog: job.backlog? && job.open? && !job_active_runtime_work?(job) && job.may_release_from_backlog? && JobPolicy.new(user, job).write?,
+          can_move_to_backlog: job.open? && !job_active_runtime_work?(job) && job.may_move_to_backlog? && JobPolicy.new(user, job).write?,
           can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
             job_path: job_path(job),

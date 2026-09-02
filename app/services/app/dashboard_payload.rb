@@ -822,6 +822,14 @@ module App
         WorkUnits::Ownership.active_units_for_job(job).any?(&:running?)
     end
 
+    def job_active_runtime_work?(job)
+      if defined?(@job_runtime_active_job_ids)
+        return @job_runtime_active_job_ids.key?(job.id)
+      end
+
+      job.active_runtime_work?
+    end
+
     def workflow_pause_artifact?(workflow)
       WorkUnits::StartBlock.for(workflow).reason.present?
     end
