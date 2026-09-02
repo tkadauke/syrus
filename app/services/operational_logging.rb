@@ -95,8 +95,10 @@ module OperationalLogging
 
     request = payload[:request]
     status = payload[:status].to_i
+    expected_failure = expected_request_failure(payload)
+    level = expected_failure.present? ? "info" : (status >= 500 || payload[:exception].present? ? "error" : "info")
     ingest(
-      level: status >= 500 || payload[:exception].present? ? "error" : "info",
+      level: level,
       role: "web",
       source: "action_controller",
       message: "#{payload[:method]} #{payload[:path]} #{status} #{duration_ms.to_f.round(1)}ms",
@@ -108,6 +110,7 @@ module OperationalLogging
         action: payload[:action],
         format: payload[:format],
         status: status,
+        expected_failure: expected_failure,
         duration_ms: duration_ms.to_f.round(1),
         exception: Array(payload[:exception]).first,
         exception_message: Array(payload[:exception])[1],
@@ -206,6 +209,12 @@ module OperationalLogging
       "/api/v1/app/admin/performance",
       "/api/v1/app/admin/operational_logs"
     )
+  end
+
+  def expected_request_failure(payload)
+    return if payload[:exception].present?
+
+    payload[:request]&.env&.fetch("syrus.expected_action_controller_failure", nil)
   end
 
   def ignored_job?(job, payload)
