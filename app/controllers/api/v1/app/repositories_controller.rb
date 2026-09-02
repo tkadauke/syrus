@@ -1178,11 +1178,11 @@ module Api
         end
 
         def retryable_failed_jobs(repository)
-          retryable_failed_jobs_scope(repository).to_a
+          retryable_failed_jobs_scope(repository, inactive_job_ids: inactive_retryable_failed_job_ids(repository)).to_a
         end
 
         def retryable_failed_jobs_count(repository)
-          retryable_failed_jobs_scope(repository).count
+          inactive_retryable_failed_job_ids(repository).size
         end
 
         def retryable_failed_jobs_scope(repository, inactive_job_ids: nil)
@@ -1195,12 +1195,28 @@ module Api
             return candidates.where(id: inactive_job_ids)
           end
 
-          active_candidate_job_ids = WorkUnitMember
-            .joins(:work_unit)
-            .where(job_id: candidates.select(:id), work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
-            .select(:job_id)
+          candidates.where(id: inactive_retryable_failed_job_ids(repository))
+        end
 
-          candidates.where.not(id: active_candidate_job_ids)
+        def inactive_retryable_failed_job_ids(repository)
+          @inactive_retryable_failed_job_ids_by_repository ||= {}
+          @inactive_retryable_failed_job_ids_by_repository[repository.id] ||= begin
+            base = repository.jobs.open_threads
+            candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
+            candidate_ids = candidates.reorder(nil).pluck(:id)
+
+            if candidate_ids.empty?
+              []
+            else
+              active_candidate_job_ids = WorkUnitMember
+                .joins(:work_unit)
+                .where(job_id: candidate_ids, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
+                .distinct
+                .pluck(:job_id)
+
+              candidate_ids - active_candidate_job_ids
+            end
+          end
         end
 
         def preload_repository_index_job_state(repositories)
