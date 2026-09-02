@@ -129,9 +129,21 @@ module ChatIndexPayload
   def visible_chat_goals_for(chat_session_ids)
     return {} if chat_session_ids.empty?
 
-    ChatGoal.where(chat_session_id: chat_session_ids).newest_first.group_by(&:chat_session_id).transform_values do |goals|
-      goals.find(&:non_terminal?) || goals.first
-    end
+    active_by_chat_id = ChatGoal.where(chat_session_id: chat_session_ids, active_slot: ChatGoal::ACTIVE_SLOT).index_by(&:chat_session_id)
+    fallback_ids = chat_session_ids - active_by_chat_id.keys
+    return active_by_chat_id if fallback_ids.empty?
+
+    latest_terminal_by_chat_id = latest_terminal_chat_goals_for(fallback_ids).index_by(&:chat_session_id)
+    latest_terminal_by_chat_id.merge(active_by_chat_id)
+  end
+
+  def latest_terminal_chat_goals_for(chat_session_ids)
+    return [] if chat_session_ids.empty?
+
+    ranked_goals = ChatGoal.terminal.where(chat_session_id: chat_session_ids).select(
+      "chat_goals.*, ROW_NUMBER() OVER (PARTITION BY chat_session_id ORDER BY created_at DESC, id DESC) AS syrus_goal_rank"
+    )
+    ChatGoal.from("(#{ranked_goals.to_sql}) chat_goals").where("syrus_goal_rank = 1")
   end
 
   def chat_index_pending_proposal_counts(chat_session_ids)

@@ -303,6 +303,8 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
   it "returns the latest terminal goal when no goal is active" do
     goal = chat.chat_goals.create!(prompt: "Make progress")
     goal.block!(reason: "needs_credentials")
+    older_goal = chat.chat_goals.create!(prompt: "Older terminal goal", created_at: 1.hour.ago, updated_at: 1.hour.ago)
+    older_goal.cancel!(reason: "superseded")
 
     get "/api/v1/app/chats/#{chat.id}/goal"
     expect(response).to have_http_status(:ok)
@@ -316,6 +318,18 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(response).to have_http_status(:ok)
     serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
     expect(serialized["active_goal"]).to include("id" => goal.id, "status" => "blocked")
+  end
+
+  it "prefers an active goal over a newer terminal goal in the index payload" do
+    terminal_goal = chat.chat_goals.create!(prompt: "Newer terminal goal", created_at: Time.current, updated_at: Time.current)
+    terminal_goal.complete!(reason: "done")
+    active_goal = chat.chat_goals.create!(prompt: "Keep going", created_at: 1.hour.ago, updated_at: 1.hour.ago)
+
+    get "/api/v1/app/chats"
+    expect(response).to have_http_status(:ok)
+
+    serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
+    expect(serialized["active_goal"]).to include("id" => active_goal.id, "status" => "active")
   end
 
   it "does not expose another user's chat goal" do
