@@ -41,6 +41,16 @@ RSpec.describe CaptureRunDiagnostic, :ci_only do
     expect(existing.reload.error_class).to eq("FirstFailure")
   end
 
+  it "returns the existing diagnostic if the insert race raises RecordNotUnique" do
+    existing = RunDiagnostic.create!(run: run, error_class: "FirstFailure", error_message: "first")
+    allow(RunDiagnostic).to receive(:create_or_find_by!).and_raise(ActiveRecord::RecordNotUnique)
+
+    result = described_class.capture(run, exception)
+
+    expect(result).to eq(existing)
+    expect(existing.reload.error_class).to eq("FirstFailure")
+  end
+
   it "swallows its own errors instead of double-faulting the failing rescue path" do
     allow(RunDiagnostic).to receive(:create_or_find_by!).and_raise(StandardError, "oops")
     expect {

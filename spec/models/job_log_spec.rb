@@ -58,12 +58,13 @@ RSpec.describe JobLog do
     expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
   end
 
-  it "gives up after exhausting retry attempts on persistent collisions" do
+  it "falls back to a run-row lock after exhausting optimistic append attempts" do
     JobLog.create!(run: run, chunk: "first", sequence: 0)
 
     allow(described_class).to receive(:next_sequence_for).and_return(0)
 
-    expect { described_class.append!(run: run, chunk: "second") }.to raise_error(ActiveRecord::RecordInvalid)
+    expect { described_class.append!(run: run, chunk: "second") }.not_to raise_error
+    expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
   end
 
   it "does not reload or save dirty state on the caller's run instance" do
