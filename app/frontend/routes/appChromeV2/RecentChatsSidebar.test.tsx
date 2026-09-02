@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { ChatBookmark, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
+import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 function LocationProbe() {
@@ -146,6 +146,21 @@ describe("RecentChatsSidebar group chat icon", () => {
     renderSidebar([chatNav({ id: 1, title: "Legacy Chat" })])
 
     expect(screen.queryByTestId("group-chat-icon")).not.toBeInTheDocument()
+  })
+})
+
+describe("RecentChatsSidebar goal marker", () => {
+  it("marks chats with active or paused goals", () => {
+    renderSidebar([
+      chatNav({ id: 1, title: "Active Goal Chat", active_goal: chatGoal({ status: "active" }) }),
+      chatNav({ id: 2, title: "Paused Goal Chat", active_goal: chatGoal({ id: 2, status: "paused" }) }),
+      chatNav({ id: 3, title: "Completed Goal Chat", active_goal: chatGoal({ id: 3, status: "completed" }) }),
+      chatNav({ id: 4, title: "No Goal Chat", active_goal: null })
+    ])
+
+    expect(screen.getByTitle("Active goal")).toBeInTheDocument()
+    expect(screen.getByTitle("Paused goal")).toHaveClass("opacity-60")
+    expect(screen.getAllByTestId("chat-goal-marker")).toHaveLength(2)
   })
 })
 
@@ -404,6 +419,29 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     current: false,
     last_message_at: "2026-06-27T12:00:00Z",
     unread: false,
+    created_at: "2026-06-27T12:00:00Z",
+    updated_at: "2026-06-27T12:00:00Z",
+    ...overrides
+  }
+}
+
+function chatGoal(overrides: Partial<ChatGoal> = {}): ChatGoal {
+  return {
+    id: 1,
+    chat_session_id: 1,
+    user_id: 1,
+    repository_id: null,
+    prompt: "Keep making progress",
+    completion_condition: null,
+    mode_snapshot: {},
+    status: "active",
+    approval_policy: "manual",
+    auto_file_proposals: false,
+    auto_submit_jobs: false,
+    iteration_count: 0,
+    terminal_at: null,
+    terminal_reason: null,
+    terminal_details: null,
     created_at: "2026-06-27T12:00:00Z",
     updated_at: "2026-06-27T12:00:00Z",
     ...overrides
