@@ -190,4 +190,38 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "artifact workflow loading" do
+    it "loads artifact-bearing workflows once for all artifact-backed panels" do
+      job = Factories.job_record(user: user, repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: {
+          "coverage" => { "covered_percent" => 92.3 },
+          "sccache_stats" => [ { "captured_at" => "2026-08-06T10:00:00Z", "stats" => {} } ],
+          "test_plan" => { "steps" => [ "Run the app" ] },
+          "typed_artifacts" => [
+            { "type" => "ok", "title" => "OK", "payload" => {}, "created_at" => "2026-08-06T10:00:00Z" }
+          ]
+        }
+      )
+      Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        artifacts: { "job_metadata" => { "changed" => true, "summary" => "Updated summary" } }
+      )
+
+      queries = capture_sql { payload_for(job) }
+      artifact_workflow_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?workflows[`"]?/i) &&
+          sql.match?(/[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/i) &&
+          sql.match?(/[`"]?workflows[`"]?\.[`"]?job_id[`"]?/i)
+      end
+
+      expect(artifact_workflow_queries.size).to eq(1)
+    end
+  end
+
 end

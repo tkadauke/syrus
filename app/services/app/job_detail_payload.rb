@@ -758,15 +758,29 @@ module App
     end
 
     def artifact_workflows_matching(*keys, order: { created_at: :asc, id: :asc }, states: nil, trigger_kinds: nil)
-      relation = @job.workflows
-        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
-        .where.not(artifacts: [ nil, "", "{}" ])
-      keys.each do |key|
-        relation = relation.where("artifacts LIKE ?", "%#{key}%")
+      workflows = artifact_workflows
+      workflows = workflows.select { |workflow| Array(states).include?(workflow.state) } if states.present?
+      workflows = workflows.select { |workflow| Array(trigger_kinds).include?(workflow.trigger_kind) } if trigger_kinds.present?
+      workflows = workflows.select { |workflow| artifact_workflow_matches_keys?(workflow, keys) } if keys.present?
+      sort_artifact_workflows(workflows, order)
+    end
+
+    def artifact_workflow_matches_keys?(workflow, keys)
+      artifacts = workflow.artifacts
+      return false unless artifacts.is_a?(Hash)
+
+      keys.all? { |key| artifacts.key?(key.to_s) }
+    end
+
+    def sort_artifact_workflows(workflows, order)
+      sorted = workflows.sort_by do |workflow|
+        order.keys.map do |attribute|
+          value = workflow.public_send(attribute)
+          value.respond_to?(:to_i) ? value.to_i : value
+        end
       end
-      relation = relation.where(state: states) if states.present?
-      relation = relation.where(trigger_kind: trigger_kinds) if trigger_kinds.present?
-      relation.reorder(order)
+
+      order.values.first == :desc ? sorted.reverse : sorted
     end
 
     def actions_json
