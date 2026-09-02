@@ -31,6 +31,10 @@ import {
   type DesignDocSummary,
   type DesignDocVersion
 } from "../api/designDocs"
+import {
+  applyDesignDocFormattingCommand,
+  type DesignDocFormattingCommand
+} from "./designDocFormattingCommands"
 
 type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
@@ -406,6 +410,30 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     })
   }
 
+  function applyFormattingCommand(command: DesignDocFormattingCommand) {
+    const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0, text: "", selectedText: "", rect: null }
+    const options = command === "link" ? { href: window.prompt("Link URL", "https://example.com") || "" } : {}
+    const result = applyDesignDocFormattingCommand(draft, activeSelection, command, options)
+    if (!result.applied) return
+
+    setDraft(result.markdown)
+    setSelection({
+      start: result.selection.start,
+      end: result.selection.end,
+      text: result.markdown.slice(result.selection.start, result.selection.end),
+      selectedText: result.markdown.slice(result.selection.start, result.selection.end),
+      rect: null
+    })
+    if (editorMode === "markdown") {
+      window.setTimeout(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(result.selection.start, result.selection.end)
+      }, 0)
+    } else {
+      window.setTimeout(() => wysiwygRef.current?.focus(), 0)
+    }
+  }
+
   useEffect(() => {
     if (editorMode !== "rich_text" || !wysiwygRef.current) return
     if (document.activeElement === wysiwygRef.current) return
@@ -585,6 +613,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             </div>
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
+          <DesignDocFormattingToolbar onCommand={applyFormattingCommand} />
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
@@ -850,6 +879,56 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
           </mark>
         )
       })}
+    </div>
+  )
+}
+
+function DesignDocFormattingToolbar({ onCommand }: { onCommand: (command: DesignDocFormattingCommand) => void }) {
+  const groups: Array<Array<{ command: DesignDocFormattingCommand; label: string; title: string }>> = [
+    [
+      { command: "bold", label: "B", title: "Bold" },
+      { command: "italic", label: "I", title: "Italic" },
+      { command: "inline_code", label: "`", title: "Inline code" },
+      { command: "link", label: "Link", title: "Link" },
+      { command: "strikethrough", label: "S", title: "Strikethrough" }
+    ],
+    [
+      { command: "paragraph", label: "P", title: "Paragraph" },
+      { command: "heading_1", label: "H1", title: "Heading 1" },
+      { command: "heading_2", label: "H2", title: "Heading 2" },
+      { command: "heading_3", label: "H3", title: "Heading 3" },
+      { command: "heading_4", label: "H4", title: "Heading 4" },
+      { command: "blockquote", label: "Quote", title: "Blockquote" }
+    ],
+    [
+      { command: "unordered_list", label: "UL", title: "Unordered list" },
+      { command: "ordered_list", label: "OL", title: "Ordered list" },
+      { command: "nested_list", label: "Indent", title: "Nested list" },
+      { command: "fenced_code", label: "Code", title: "Fenced code block" },
+      { command: "horizontal_rule", label: "HR", title: "Horizontal rule" },
+      { command: "table", label: "Table", title: "Table" }
+    ]
+  ]
+
+  return (
+    <div aria-label="Formatting toolbar" className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40" role="toolbar">
+      {groups.map((group, groupIndex) => (
+        <div className="inline-flex overflow-hidden rounded border border-border bg-surface" key={groupIndex}>
+          {group.map((item) => (
+            <button
+              aria-label={item.title}
+              className="h-8 min-w-8 border-r border-border px-2 text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              key={item.command}
+              onClick={() => onCommand(item.command)}
+              onMouseDown={(event) => event.preventDefault()}
+              title={item.title}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
