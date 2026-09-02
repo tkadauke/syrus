@@ -359,6 +359,8 @@ module PerformanceLogging
   end
 
   def emit(event, flush: true)
+    return if suppressed?
+
     Rails.logger.info(event.to_json)
     Store.append(event)
   rescue StandardError
