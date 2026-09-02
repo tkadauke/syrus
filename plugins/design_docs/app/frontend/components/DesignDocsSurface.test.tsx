@@ -369,6 +369,7 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("button", { name: /Checkout design/ })).toBeInTheDocument()
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: /\+ Add filter/ })).toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Design doc editor toolbar" })).not.toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "Repository filter" })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
@@ -384,6 +385,7 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("Use newer name")).toBeInTheDocument()
     expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Design doc editor toolbar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
   })
 
@@ -394,6 +396,7 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Design doc editor toolbar" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Checkout design/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
@@ -821,6 +824,64 @@ describe("DesignDocsSurface", () => {
         proposed_markdown: "Alpha **beta** gamma"
       }
     })
+  })
+
+  it("places the secondary editor toolbar between title metadata and document content", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    const toolbar = screen.getByRole("region", { name: "Design doc editor toolbar" })
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+
+    expect(titleBar.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(toolbar.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(titleBar).queryByRole("button", { name: "Bold" })).not.toBeInTheDocument()
+    expect(within(toolbar).getByRole("tab", { name: "Rich Text" })).toHaveAttribute("aria-selected", "true")
+    expect(within(toolbar).getByRole("tab", { name: "Markdown" })).toHaveAttribute("aria-selected", "false")
+    expect(within(toolbar).getByRole("group", { name: "Change mode" })).toBeInTheDocument()
+  })
+
+  it("uses dropdown and overflow commands from the secondary toolbar", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    editor.setSelectionRange(0, 5)
+    fireEvent.mouseUp(editor)
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Block type" }), { target: { value: "heading_2" } })
+    await waitFor(() => expect(editor).toHaveValue("## Alpha beta gamma"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Insert and more" }))
+    fireEvent.click(screen.getByRole("button", { name: "Insert divider" }))
+
+    await waitFor(() => expect(editor.value).toContain("---"))
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }))
+    await waitFor(() => expect(editor.value).not.toContain("---"))
+    expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled()
+  })
+
+  it("keeps protected selections disabled and uses overflow instead of wrapping on narrow toolbars", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: "Alpha `beta` gamma" } })
+    editor.setSelectionRange(7, 11)
+    fireEvent.mouseUp(editor)
+
+    expect(screen.getByRole("button", { name: "Bold" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Link" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+    const toolbarRow = screen.getByRole("toolbar")
+    expect(toolbarRow).toHaveClass("overflow-x-auto")
+    expect(toolbarRow).not.toHaveClass("flex-wrap")
+    expect(container.querySelector(".flex-wrap [aria-label='Formatting toolbar']")).toBeNull()
   })
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {

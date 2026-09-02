@@ -48,6 +48,15 @@ export function applyDesignDocFormattingCommand(markdown: string, selection: Des
   return applyBlockCommand(source, range, command, options)
 }
 
+export function canApplyDesignDocFormattingCommand(markdown: string, selection: DesignDocFormattingSelection, command: DesignDocFormattingCommand) {
+  const source = markdown.replace(/\r\n?/g, "\n")
+  const range = normalizeSelection(source, selection)
+
+  if (isInlineCommand(command)) return !selectionTouchesProtectedMarkdown(source, range)
+
+  return !selectionTouchesBlockProtectedMarkdown(source, range)
+}
+
 function applyInlineCommand(markdown: string, selection: DesignDocFormattingSelection, command: DesignDocFormattingCommand, options: DesignDocFormattingOptions): DesignDocFormattingResult {
   if (selectionTouchesProtectedMarkdown(markdown, selection)) {
     return unchanged(markdown, selection)

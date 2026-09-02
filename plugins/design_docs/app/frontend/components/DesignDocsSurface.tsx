@@ -33,6 +33,7 @@ import {
 } from "../api/designDocs"
 import {
   applyDesignDocFormattingCommand,
+  canApplyDesignDocFormattingCommand,
   type DesignDocFormattingCommand
 } from "./designDocFormattingCommands"
 
@@ -262,6 +263,8 @@ function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, tit
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
+  const [undoStack, setUndoStack] = useState<string[]>([])
+  const [redoStack, setRedoStack] = useState<string[]>([])
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
@@ -376,6 +379,45 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     () => draft === (doc.rendered_markdown || doc.markdown) ? highlights : [],
     [doc.markdown, doc.rendered_markdown, draft, highlights]
   )
+  const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0 }
+  const canApplyCommand = (command: DesignDocFormattingCommand) => canApplyDesignDocFormattingCommand(draft, activeSelection, command)
+
+  function updateDraft(nextDraft: string, options: { recordHistory?: boolean } = {}) {
+    const recordHistory = options.recordHistory ?? true
+    if (nextDraft === draft) return
+
+    if (recordHistory) {
+      setUndoStack((current) => [...current.slice(-49), draft])
+      setRedoStack([])
+    }
+    setDraft(nextDraft)
+  }
+
+  function replaceDraft(nextDraft: string) {
+    setDraft(nextDraft)
+  }
+
+  function undoDraft() {
+    setUndoStack((current) => {
+      const previous = current.at(-1)
+      if (previous == null) return current
+
+      setRedoStack((redo) => [...redo.slice(-49), draft])
+      setDraft(previous)
+      return current.slice(0, -1)
+    })
+  }
+
+  function redoDraft() {
+    setRedoStack((current) => {
+      const next = current.at(-1)
+      if (next == null) return current
+
+      setUndoStack((undo) => [...undo.slice(-49), draft])
+      setDraft(next)
+      return current.slice(0, -1)
+    })
+  }
 
   function updateSelection(event?: ChangeEvent<HTMLTextAreaElement>) {
     const target = event?.target ?? textareaRef.current
@@ -411,12 +453,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }
 
   function applyFormattingCommand(command: DesignDocFormattingCommand) {
-    const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0, text: "", selectedText: "", rect: null }
     const options = command === "link" ? { href: window.prompt("Link URL", "https://example.com") || "" } : {}
     const result = applyDesignDocFormattingCommand(draft, activeSelection, command, options)
     if (!result.applied) return
 
-    setDraft(result.markdown)
+    updateDraft(result.markdown)
     setSelection({
       start: result.selection.start,
       end: result.selection.end,
@@ -448,6 +489,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
   useEffect(() => {
     persistedDraftRef.current = persistedDraftFingerprint(doc.id, canWriteCanonical ? "edit" : "suggest", doc.title, doc.rendered_markdown || doc.markdown)
+    setUndoStack([])
+    setRedoStack([])
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
@@ -475,14 +518,18 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     setVersionsOpen(true)
     setSelectedVersionId(versionId)
     if (versionId === "current") {
-      setDraft(doc.rendered_markdown || doc.markdown)
+      replaceDraft(doc.rendered_markdown || doc.markdown)
+      setUndoStack([])
+      setRedoStack([])
       return
     }
 
     const version = versions.data?.versions.find((candidate) => String(candidate.id) === versionId)
     if (!version) return
 
-    setDraft(version.markdown)
+    replaceDraft(version.markdown)
+    setUndoStack([])
+    setRedoStack([])
     setSummary(version.change_summary ?? "")
   }
 
@@ -574,46 +621,27 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         onVersionsOpen={() => setVersionsOpen(true)}
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
+      <DesignDocFormattingToolbar
+        canApplyCommand={canApplyCommand}
+        canRedo={redoStack.length > 0}
+        canUndo={undoStack.length > 0}
+        changeMode={effectiveChangeMode}
+        editorMode={editorMode}
+        onChangeMode={setChangeMode}
+        onCommand={applyFormattingCommand}
+        onEditorModeChange={setEditorMode}
+        onRedo={redoDraft}
+        onUndo={undoDraft}
+        showEditMode={canWriteCanonical}
+      />
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            <div className="flex flex-wrap items-center gap-2">
-              <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
-                {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
-                  <button
-                    aria-selected={editorMode === candidate}
-                    className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                    key={candidate}
-                    onClick={() => setEditorMode(candidate)}
-                    role="tab"
-                    type="button"
-                  >
-                    {candidate === "markdown" ? "Markdown" : "Rich Text"}
-                  </button>
-                ))}
-              </div>
-              <div aria-label="Change mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-                {canWriteCanonical ? (
-                  (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
-                    <button
-                      aria-pressed={effectiveChangeMode === candidate}
-                      className={`px-3 py-1.5 font-medium capitalize ${effectiveChangeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                      key={candidate}
-                      onClick={() => setChangeMode(candidate)}
-                      type="button"
-                    >
-                      {candidate === "edit" ? "Edit" : "Suggest"}
-                    </button>
-                  ))
-                ) : (
-                  <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
-                )}
-              </div>
-            </div>
+          {summaryVisible ? (
+          <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
-          <DesignDocFormattingToolbar onCommand={applyFormattingCommand} />
+          ) : null}
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
@@ -624,7 +652,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
                 onBlur={() => updateSelection()}
                 onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => updateDraft(event.target.value)}
                 onKeyUp={() => updateSelection()}
                 onMouseUp={() => updateSelection()}
                 onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
@@ -637,7 +665,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
               aria-label="Rich Text editor"
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable
-              onBlur={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onBlur={() => updateDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
               onClick={(event) => {
                 const target = event.target as HTMLElement
                 const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
@@ -648,7 +676,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 const marker = target.closest("[data-thread-id]") as HTMLElement | null
                 if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
               }}
-              onInput={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onInput={() => updateDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
               onKeyUp={updateWysiwygSelection}
               onMouseUp={updateWysiwygSelection}
               ref={wysiwygRef}
@@ -883,53 +911,158 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
   )
 }
 
-function DesignDocFormattingToolbar({ onCommand }: { onCommand: (command: DesignDocFormattingCommand) => void }) {
-  const groups: Array<Array<{ command: DesignDocFormattingCommand; label: string; title: string }>> = [
-    [
-      { command: "bold", label: "B", title: "Bold" },
-      { command: "italic", label: "I", title: "Italic" },
-      { command: "inline_code", label: "`", title: "Inline code" },
-      { command: "link", label: "Link", title: "Link" },
-      { command: "strikethrough", label: "S", title: "Strikethrough" }
-    ],
-    [
-      { command: "paragraph", label: "P", title: "Paragraph" },
-      { command: "heading_1", label: "H1", title: "Heading 1" },
-      { command: "heading_2", label: "H2", title: "Heading 2" },
-      { command: "heading_3", label: "H3", title: "Heading 3" },
-      { command: "heading_4", label: "H4", title: "Heading 4" },
-      { command: "blockquote", label: "Quote", title: "Blockquote" }
-    ],
-    [
-      { command: "unordered_list", label: "UL", title: "Unordered list" },
-      { command: "ordered_list", label: "OL", title: "Ordered list" },
-      { command: "nested_list", label: "Indent", title: "Nested list" },
-      { command: "fenced_code", label: "Code", title: "Fenced code block" },
-      { command: "horizontal_rule", label: "HR", title: "Horizontal rule" },
-      { command: "table", label: "Table", title: "Table" }
-    ]
+function DesignDocFormattingToolbar({ canApplyCommand, canRedo, canUndo, changeMode, editorMode, onChangeMode, onCommand, onEditorModeChange, onRedo, onUndo, showEditMode }: {
+  canApplyCommand: (command: DesignDocFormattingCommand) => boolean
+  canRedo: boolean
+  canUndo: boolean
+  changeMode: ChangeMode
+  editorMode: EditorMode
+  onChangeMode: (mode: ChangeMode) => void
+  onCommand: (command: DesignDocFormattingCommand) => void
+  onEditorModeChange: (mode: EditorMode) => void
+  onRedo: () => void
+  onUndo: () => void
+  showEditMode: boolean
+}) {
+  const [moreOpen, setMoreOpen] = useState(false)
+  const blockOptions: Array<{ command: DesignDocFormattingCommand; label: string }> = [
+    { command: "paragraph", label: "Paragraph" },
+    { command: "heading_1", label: "H1" },
+    { command: "heading_2", label: "H2" },
+    { command: "heading_3", label: "H3" },
+    { command: "heading_4", label: "H4" },
+    { command: "blockquote", label: "Quote" },
+    { command: "fenced_code", label: "Code block" }
+  ]
+  const inlineCommands: Array<{ command: DesignDocFormattingCommand; label: string; glyph: string }> = [
+    { command: "bold", label: "Bold", glyph: "B" },
+    { command: "italic", label: "Italic", glyph: "I" },
+    { command: "inline_code", label: "Inline code", glyph: "`" },
+    { command: "link", label: "Link", glyph: "Link" },
+    { command: "strikethrough", label: "Strikethrough", glyph: "S" }
+  ]
+  const listCommands: Array<{ command: DesignDocFormattingCommand; label: string; glyph: string }> = [
+    { command: "unordered_list", label: "Bulleted list", glyph: "UL" },
+    { command: "ordered_list", label: "Numbered list", glyph: "OL" }
+  ]
+  const moreCommands: Array<{ command: DesignDocFormattingCommand; label: string }> = [
+    { command: "table", label: "Insert table" },
+    { command: "horizontal_rule", label: "Insert divider" },
+    { command: "nested_list", label: "Indent list item" }
   ]
 
+  function runCommand(command: DesignDocFormattingCommand) {
+    if (!canApplyCommand(command)) return
+    setMoreOpen(false)
+    onCommand(command)
+  }
+
   return (
-    <div aria-label="Formatting toolbar" className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40" role="toolbar">
-      {groups.map((group, groupIndex) => (
-        <div className="inline-flex overflow-hidden rounded border border-border bg-surface" key={groupIndex}>
-          {group.map((item) => (
+    <section aria-label="Design doc editor toolbar" className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex min-w-0 items-center gap-2 overflow-x-auto px-3 py-2" role="toolbar">
+        <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+          {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
             <button
-              aria-label={item.title}
-              className="h-8 min-w-8 border-r border-border px-2 text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              key={item.command}
-              onClick={() => onCommand(item.command)}
-              onMouseDown={(event) => event.preventDefault()}
-              title={item.title}
+              aria-selected={editorMode === candidate}
+              className={`whitespace-nowrap px-3 py-1.5 font-medium ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+              key={candidate}
+              onClick={() => onEditorModeChange(candidate)}
+              role="tab"
               type="button"
             >
-              {item.label}
+              {candidate === "markdown" ? "Markdown" : "Rich Text"}
             </button>
           ))}
         </div>
-      ))}
-    </div>
+        <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+          {showEditMode ? (
+            (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
+              <button
+                aria-pressed={changeMode === candidate}
+                className={`px-3 py-1.5 font-medium capitalize ${changeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                key={candidate}
+                onClick={() => onChangeMode(candidate)}
+                type="button"
+              >
+                {candidate === "edit" ? "Edit" : "Suggest"}
+              </button>
+            ))
+          ) : (
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+          )}
+        </div>
+        <label className="shrink-0">
+          <span className="sr-only">Block type</span>
+          <Select
+            aria-label="Block type"
+            className="h-8 min-w-[9rem] py-1 text-sm"
+            fullWidth={false}
+            onChange={(event) => runCommand(event.target.value as DesignDocFormattingCommand)}
+            value=""
+          >
+            <option value="">Block</option>
+            {blockOptions.map((option) => (
+              <option disabled={!canApplyCommand(option.command)} key={option.command} value={option.command}>{option.label}</option>
+            ))}
+          </Select>
+        </label>
+        <ToolbarButton disabled={!canUndo} label="Undo" onClick={onUndo}>Undo</ToolbarButton>
+        <ToolbarButton disabled={!canRedo} label="Redo" onClick={onRedo}>Redo</ToolbarButton>
+        <ToolbarButtonGroup>
+          {inlineCommands.map((item) => (
+            <ToolbarButton disabled={!canApplyCommand(item.command)} key={item.command} label={item.label} onClick={() => runCommand(item.command)}>{item.glyph}</ToolbarButton>
+          ))}
+        </ToolbarButtonGroup>
+        <ToolbarButtonGroup>
+          {listCommands.map((item) => (
+            <ToolbarButton disabled={!canApplyCommand(item.command)} key={item.command} label={item.label} onClick={() => runCommand(item.command)}>{item.glyph}</ToolbarButton>
+          ))}
+        </ToolbarButtonGroup>
+        <div className="relative shrink-0">
+          <ToolbarButton ariaExpanded={moreOpen} label="Insert and more" onClick={() => setMoreOpen((open) => !open)}>...</ToolbarButton>
+          {moreOpen ? (
+            <div className="absolute right-0 z-20 mt-2 w-52 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+              {moreCommands.map((item) => (
+                <button
+                  aria-label={item.label}
+                  className="block w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!canApplyCommand(item.command)}
+                  key={item.command}
+                  onClick={() => runCommand(item.command)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+              <div className="my-1 border-t border-border" />
+              <button className="block w-full cursor-not-allowed px-3 py-2 text-left text-sm text-text-secondary opacity-50" disabled type="button">Add table row</button>
+              <button className="block w-full cursor-not-allowed px-3 py-2 text-left text-sm text-text-secondary opacity-50" disabled type="button">Add table column</button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ToolbarButtonGroup({ children }: { children: React.ReactNode }) {
+  return <div className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface">{children}</div>
+}
+
+function ToolbarButton({ ariaExpanded, children, disabled = false, label, onClick }: { ariaExpanded?: boolean; children: React.ReactNode; disabled?: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      aria-expanded={ariaExpanded}
+      aria-label={label}
+      className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center border-r border-border px-2 text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-45"
+      disabled={disabled}
+      onClick={onClick}
+      onMouseDown={(event) => event.preventDefault()}
+      title={label}
+      type="button"
+    >
+      <span aria-hidden="true">{children}</span>
+    </button>
   )
 }
 
