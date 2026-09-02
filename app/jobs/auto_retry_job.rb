@@ -23,6 +23,7 @@ class AutoRetryJob < ApplicationJob
     return if skip_if_default_provider_changed(attempt)
     return if skip_if_provider_delay_no_longer_matches(attempt)
     return if reschedule_if_provider_blocked(attempt)
+    return if reschedule_if_failed_worker_host_still_critical(attempt)
     return if reschedule_if_active_work_owns_failed_step_retry(attempt)
 
     result = perform_retry(attempt)
@@ -50,6 +51,7 @@ class AutoRetryJob < ApplicationJob
     "retry_workflow"     => :retry_workflow
   }.freeze
   ACTIVE_WORK_UNIT_RETRY_DELAY = 5.minutes
+  FAILED_WORKER_RETRY_DELAY = 5.minutes
 
   private
 
@@ -115,6 +117,55 @@ class AutoRetryJob < ApplicationJob
     WorkUnits::AutoRetryBackoff.record!(attempt)
     AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
     log(attempt, "auto-retry delayed until #{retry_after.iso8601}: #{circuit.reason}")
+  end
+
+  def reschedule_if_failed_worker_host_still_critical(attempt)
+    return false unless attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+
+    failed_host = attempt.workflow&.worker_hostname.presence
+    return false unless failed_host
+
+    sample = latest_failed_worker_sample(failed_host)
+    return false unless sample
+
+    health = WorkerHealthSampleAnalysis.health_for(sample).stringify_keys
+    return false unless health["level"] == "critical"
+
+    retry_after = Time.current + FAILED_WORKER_RETRY_DELAY
+    context = {
+      "reason" => "failed_worker_host_still_critical",
+      "failed_worker_hostname" => failed_host,
+      "sample_observed_at" => sample.observed_at.iso8601,
+      "sample_health" => health,
+      "retry_kind" => attempt.retry_kind,
+      "workflow_id" => attempt.workflow_id,
+      "run_id" => attempt.run_id,
+      "checked_at" => Time.current.iso8601,
+      "retry_at" => retry_after.iso8601
+    }
+
+    attempt.update!(
+      scheduled_at: retry_after,
+      failed_worker_hostname: failed_host,
+      failed_worker_health_level: health["level"],
+      failed_worker_health_reasons: health["reasons"],
+      failed_worker_sample_observed_at: sample.observed_at,
+      failed_worker_retry_deferred_until: retry_after,
+      failed_worker_retry_context: context
+    )
+    WorkUnits::AutoRetryBackoff.record!(attempt)
+    AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
+    log(attempt, "auto-retry delayed until #{retry_after.iso8601}: failed worker host #{failed_host} is still critical")
+    true
+  end
+
+  def latest_failed_worker_sample(hostname)
+    WorkerHostHealthSample
+      .worker_role
+      .where(hostname: hostname)
+      .where("observed_at >= ?", Time.current - RunHostAdmission::HOST_SAMPLE_WINDOW)
+      .order(observed_at: :desc)
+      .first
   end
 
   def reschedule_for_active_work_unit(attempt, conflict)
