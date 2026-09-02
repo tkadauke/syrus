@@ -2,6 +2,7 @@
 set -euo pipefail
 
 mkdir -p app/assets/builds log tmp/pids
+rm -f app/assets/builds/spa.js app/assets/builds/tailwind.css
 
 pids=()
 rails_pid=""
