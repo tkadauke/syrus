@@ -157,4 +157,32 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     expect(screen.getByRole("button", { name: "Configure GitHub" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Edit GitHub connection" })).not.toBeInTheDocument()
   })
+
+  it("uses semantic brand tokens for the current marker and onboarding actions", () => {
+    const { unmount } = renderOnboarding(bootstrap({
+      setup_status: {
+        ...bootstrap().setup_status!,
+        credential_status: {
+          github: false,
+          github_pat: false,
+          github_app: false,
+          agent: true,
+          active_agent_provider: "claude"
+        }
+      }
+    }))
+
+    expect(screen.getByText(">")).toHaveClass("bg-brand", "text-on-brand")
+
+    const primary = screen.getByRole("button", { name: "Configure GitHub" })
+    expect(primary).toHaveClass("bg-brand", "text-on-brand", "hover:opacity-90", "focus-visible:ring-brand")
+    expect(primary.className).not.toMatch(/\b(?:bg|text|hover:bg)-blue-/)
+
+    unmount()
+    renderOnboarding(bootstrap())
+
+    const secondary = screen.getByRole("button", { name: "Edit GitHub connection" })
+    expect(secondary).toHaveClass("text-brand", "dark:text-brand-emphasis")
+    expect(secondary.className).not.toMatch(/\btext-blue-/)
+  })
 })
