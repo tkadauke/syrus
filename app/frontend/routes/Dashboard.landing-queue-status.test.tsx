@@ -229,6 +229,30 @@ describe("landing queue status column", () => {
     expect(screen.getByRole("link", { name: "WF-10" })).toHaveAttribute("href", "/jobs/6?tab=workflows#workflow-10")
   })
 
+  it("uses semantic info tokens for the neutral landing queue summary", () => {
+    renderTable(
+      [ jobItem({ id: 8 }) ],
+      {
+        landing_queue: {
+          visible: true,
+          paused: false,
+          toggle_path: "",
+          entries: [],
+          status: {
+            tone: "info",
+            title: "Landing queue is waiting.",
+            summary: "The next approved job will start when the current landing unit finishes.",
+            links: []
+          }
+        }
+      }
+    )
+
+    const summary = screen.getByRole("status")
+    expect(summary).toHaveClass("border-info/30", "bg-info/10", "text-info")
+    expect(summary.className).not.toMatch(/\b(?:bg|text|border)-blue-/)
+  })
+
   it("does not render a landing queue summary when none is provided", () => {
     renderTable([ jobItem({ id: 7 }) ])
 

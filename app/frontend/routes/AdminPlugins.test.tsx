@@ -77,6 +77,39 @@ describe("AdminPlugins", () => {
     expect(within(list).getByText("OpenAI")).toBeInTheDocument()
   })
 
+  it("uses semantic info tokens for required extension points", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "rails",
+          display_name: "Rails",
+          disable_blockers: [],
+          version: "1.0.0",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: null,
+          homepage: null,
+          author: null,
+          source: null,
+          extension_points: [
+            {
+              extension_point: "autofix_command",
+              class_name: "Plugins::Rails::AutofixCommand",
+              availability: { status: "required", label: "Required" }
+            }
+          ]
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    const badge = await screen.findByText("Required")
+    expect(badge).toHaveClass("bg-info/10", "text-info")
+    expect(badge.className).not.toMatch(/\b(?:bg|text|border)-blue-/)
+  })
+
   it("renders the plugin icon at the expected size", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
