@@ -110,4 +110,16 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("server_error")
     expect(result.reason).to eq("provider reported a server-side transient error")
   end
+
+  it "classifies GitHub bad-gateway diagnostics as retryable" do
+    fail_run!(
+      error_class: "Octokit::BadGateway",
+      error_message: "POST https://api.github.com/repos/tkadauke/syrus/pulls: Server Error"
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("Octokit::BadGateway")
+  end
 end
