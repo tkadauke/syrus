@@ -54,6 +54,12 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::WORKFLOW_REBASE_CONFLICT)
     end
 
+    it "assigns WORKFLOW_REBASE_CONFLICT for merge_train_agent_rebase step kind" do
+      run.step.update_columns(kind: "merge_train_agent_rebase")
+      context = described_class.from_run(run.reload)
+      expect(context.role).to eq(AgentRole::WORKFLOW_REBASE_CONFLICT)
+    end
+
     it "assigns WORKFLOW_IMPLEMENT for merge_train_reconcile step kind" do
       run.step.update_columns(kind: "merge_train_reconcile")
       context = described_class.from_run(run.reload)

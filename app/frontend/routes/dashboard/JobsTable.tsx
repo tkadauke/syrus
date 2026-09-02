@@ -770,8 +770,8 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
           <NeutralStatePill state={job.state} />
           <RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} />
         </div>
-        <div className="mt-1">
-          <Link className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+        <div className="mt-1 min-w-0">
+          <Link className="block max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={job.title} to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
@@ -810,8 +810,8 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+        <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <Link aria-label={job.title} className="block min-w-0 max-w-full truncate rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
@@ -850,9 +850,9 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          <Link className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">

@@ -209,7 +209,8 @@ prevents endless CI-failure loops on the same Job.
 | `merge_train_assemble` | No | Validate an Epic train's locked members |
 | `merge_train_build` | Yes | Merge the Epic's members into one integration branch, handing conflicts to the agent |
 | `merge_train_reconcile` | Yes | Reconcile cross-Job inconsistencies on the integration branch before validation |
-| `merge_train_rebase` | No | Rebuild a merge train when the base branch moves during landing |
+| `merge_train_rebase` | No | Try a deterministic integration-branch rebase when the base branch moves during landing |
+| `merge_train_agent_rebase` | Yes | Resolve a conflicting merge-train integration rebase before re-validation |
 | `merge_train_land` | No | Atomically merge the integration branch and close member PRs |
 | `merge_train_land_after_rebase` | No | Land a merge train after base-moved recovery and validation |
 | `manual` | Yes | Run an operator-supplied prompt |

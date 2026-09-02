@@ -28,6 +28,7 @@ RSpec.describe Steps do
       expect(described_class.handler_for("grade")).to eq(Steps::Grade)
       expect(described_class.handler_for("auto_merge")).to eq(Steps::AutoMerge)
       expect(described_class.handler_for("merge_train_reconcile")).to eq(Steps::MergeTrainReconcile)
+      expect(described_class.handler_for("merge_train_agent_rebase")).to eq(Steps::MergeTrainAgentRebase)
       expect(described_class.handler_for("manual")).to eq(Steps::Manual)
     end
 

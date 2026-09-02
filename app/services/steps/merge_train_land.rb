@@ -16,7 +16,8 @@ module Steps
 
     # Raised when the base moved and an incremental rebase may recover without
     # a full rebuild. The Try node in Workflows::MergeTrain catches this failure
-    # code and inserts merge_train_rebase → graders → merge_train_land_after_rebase.
+    # code and inserts merge_train_rebase → merge_train_agent_rebase → graders
+    # → merge_train_land_after_rebase.
     class BaseMoved < StepFailed
       FAILURE_CODE = "merge_train_base_moved".freeze
     end

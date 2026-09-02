@@ -135,6 +135,16 @@ function mockMobileViewport() {
 }
 
 describe("mobile jobs list row", () => {
+  it("truncates long titles instead of letting them widen the viewport", () => {
+    mockMobileViewport()
+    const longTitle = "main_grader:e7e0e7b265416479972bc0775728b307ee4ba88e"
+    renderTable([ mobileJobItem({ title: longTitle }) ])
+
+    const title = screen.getByRole("link", { name: longTitle })
+    expect(title).toHaveClass("block", "min-w-0", "max-w-full", "truncate")
+    expect(title).toHaveAttribute("title", longTitle)
+  })
+
   it("does not render the workflow count", () => {
     mockMobileViewport()
     renderTable([ mobileJobItem() ])

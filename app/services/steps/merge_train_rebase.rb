@@ -7,9 +7,8 @@ module Steps
   # merge_train_land_after_rebase sees a fresh base match, and updates
   # MergeTrain#integration_sha for grader context.
   #
-  # Failure path (rebase conflict): aborts and raises StepFailed with a
-  # "rebuild required" message so MergeTrainFailureHandler falls back to
-  # a full merge_train rebuild via LandingFailureHandler#defer_landing!.
+  # Conflict path: leaves the in-progress rebase intact, records the new base
+  # SHA, and lets merge_train_agent_rebase resolve and complete it.
   class MergeTrainRebase < Base
     include MergeTrainStep
 
@@ -27,21 +26,24 @@ module Steps
       new_base_sha = git.run("rev-parse", "FETCH_HEAD", chdir: chdir).strip
 
       old_base_sha = workflow.artifact(MergeTrainLand::BASE_SHA_ARTIFACT).to_s
+      workflow.set_artifact!("merge_train_rebase_old_base_sha", old_base_sha.presence)
+      workflow.set_artifact!("merge_train_rebase_new_base_sha", new_base_sha)
       log("merge_train_rebase: rebasing integration branch #{train.integration_branch} " \
           "onto #{train.base_branch}@#{new_base_sha.first(9)} (was #{old_base_sha.first(9)})")
 
       begin
         git.run("rebase", "FETCH_HEAD", chdir: chdir)
       rescue GitRunner::GitError => e
-        abort_rebase!(git, chdir)
-        raise_rebuild_needed!(train, old_base_sha, new_base_sha,
-          "incremental rebase of #{train.integration_branch} conflicted: #{e.message.truncate(200)}")
+        workflow.set_artifact!("merge_train_rebase_reason", e.message.truncate(500))
+        log("merge_train_rebase: incremental rebase conflicted; falling through to merge_train_agent_rebase", kind: "system")
+        return
       end
 
       new_integration_sha = git.run("rev-parse", "HEAD", chdir: chdir).strip
       tree_sha = git.run("rev-parse", "HEAD^{tree}", chdir: chdir).to_s.strip.presence
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
+      skip_agent_rebase!(reason: "merge_train_rebase already succeeded; agent rebase not needed")
 
       log("merge_train_rebase: rebased #{train.integration_branch} to " \
           "#{new_integration_sha.first(9)} (new base #{new_base_sha.first(9)})")
@@ -121,28 +123,13 @@ module Steps
       end
     end
 
-    def abort_rebase!(git, chdir)
-      git.run("rebase", "--abort", chdir: chdir)
-    rescue GitRunner::GitError
-      nil
-    end
+    def skip_agent_rebase!(reason:)
+      next_step = step.next_step
+      return unless next_step&.kind == "merge_train_agent_rebase"
+      return unless next_step.may_skip?
 
-    def raise_rebuild_needed!(train, old_base_sha, new_base_sha, detail)
-      # Update the stale-base artifact so MergeTrainFailureHandler can
-      # reconstruct the "base moved; rebuild required" reason string that
-      # LandingFailureHandler recognises as merge_train_rebuild_required?.
-      workflow.set_artifact!(
-        MergeTrainLand::STALE_BASE_ARTIFACT,
-        {
-          "base_branch" => train.base_branch,
-          "built_base_sha" => old_base_sha.presence,
-          "current_base_sha" => new_base_sha,
-          "reason" => "base_moved"
-        }
-      )
-      raise StepFailed,
-            "#{MergeTrainLand::STALE_BASE_FAILURE_PREFIX} from #{old_base_sha.first(12)} to " \
-            "#{new_base_sha.first(12)}; rebuild required (#{detail})"
+      log("[#{step.kind}] skipping downstream step ##{next_step.id} (#{next_step.kind}): #{reason}")
+      next_step.skip_with_reason!(reason)
     end
   end
 end
