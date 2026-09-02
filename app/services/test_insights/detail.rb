@@ -28,7 +28,7 @@ module TestInsights
 
       {
         repository: repository_payload(repository),
-        test: test_identity_payload(identity),
+        test: test_identity_payload(identity, history_cases: history_cases),
         history_limit: @history_limit,
         history: history_cases.map { |test_case| history_payload(test_case) },
         duration_points: duration_points(identity),
@@ -56,8 +56,8 @@ module TestInsights
       }
     end
 
-    def test_identity_payload(identity)
-      stats = identity.recent_stats(lookback: @history_limit)
+    def test_identity_payload(identity, history_cases:)
+      stats = stats_for_history(history_cases)
 
       {
         id: identity.id,
@@ -80,6 +80,21 @@ module TestInsights
         links: {
           app_path: repository_path(identity.repository, tab: "tests", test_id: identity.id)
         }
+      }
+    end
+
+    def stats_for_history(history_cases)
+      total = history_cases.size
+      failed = history_cases.count { |test_case| test_case.status.in?(%w[failed error]) }
+      passed = history_cases.count { |test_case| test_case.status == "passed" }
+      durations = history_cases.filter_map(&:duration_ms)
+
+      {
+        total_count: total,
+        failed_count: failed,
+        passed_count: passed,
+        failure_rate: total.positive? ? failed.to_f / total : 0.0,
+        avg_duration_ms: durations.any? ? (durations.sum.to_f / durations.size).round : nil
       }
     end
 
