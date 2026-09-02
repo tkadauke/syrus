@@ -63,6 +63,31 @@ RSpec.describe RunHostAdmission do
     expect(decision.details).to include("active_guarded_run_count" => 1)
   end
 
+  it "does not load resource profiles when an active run is obviously guarded by step kind" do
+    active_job = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 44)
+    active_workflow = Workflows::Initial.instantiate(job: active_job, agent_provider: "codex")
+    active_workflow.update!(state: "running", worker_hostname: "worker-a")
+    active_step = active_workflow.steps.find_by!(kind: "implement")
+    active_step.update!(state: "running")
+    active_step.runs.create!(
+      job: active_job,
+      trigger_kind: active_workflow.trigger_kind,
+      agent_provider: active_workflow.agent_provider,
+      state: "running",
+      started_at: 5.minutes.ago
+    )
+    workflow.update!(state: "running")
+    implement_step = workflow.steps.find_by!(kind: "implement")
+    run.update!(step: implement_step)
+
+    expect(WorkflowStepResourceProfile).not_to receive(:where)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.reason).to eq("host_resource_semaphore_busy")
+  end
+
   it "admits guarded work when the host has no critical pressure or active guarded run" do
     worker_sample(cpu_pressure_some: 10.0)
     low_cost_profile(step_kind: "prepare")

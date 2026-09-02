@@ -10,6 +10,7 @@ class RunHostAdmission
   HEAVY_STEP_KINDS = %w[grader preflight_grader].freeze
   CPU_HEAVY_PRESSURE = 50.0
   CPU_HEAVY_PROCESS_PERCENT = 75.0
+  ALWAYS_GUARDED_STEP_KINDS = (Step::AGENTIC_KINDS + HEAVY_STEP_KINDS).uniq.freeze
 
   def self.call(...) = new(...).call
 
@@ -87,14 +88,17 @@ class RunHostAdmission
   end
 
   def active_guarded_run_count
-    @active_guarded_run_count ||= Run
-      .where(state: "running")
-      .where.not(id: run.id)
-      .joins(step: :workflow)
-      .where(workflows: { worker_hostname: hostname })
-      .includes(:step, step: :workflow)
-      .to_a
-      .count { |candidate| resource_guarded?(candidate) }
+    @active_guarded_run_count ||= begin
+      if active_always_guarded_run_scope.exists?
+        1
+      else
+        active_run_scope
+          .where.not(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
+          .includes(:job, step: :workflow)
+          .to_a
+          .count { |candidate| resource_guarded?(candidate) }
+      end
+    end
   end
 
   def resource_guarded?(candidate)
@@ -139,6 +143,18 @@ class RunHostAdmission
     end
   rescue ArgumentError
     []
+  end
+
+  def active_always_guarded_run_scope
+    active_run_scope.where(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
+  end
+
+  def active_run_scope
+    Run
+      .where(state: "running")
+      .where.not(id: run.id)
+      .joins(step: :workflow)
+      .where(workflows: { worker_hostname: hostname })
   end
 
   def hostname
