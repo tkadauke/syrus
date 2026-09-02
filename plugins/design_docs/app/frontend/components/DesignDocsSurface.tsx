@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -31,13 +31,20 @@ import {
   type DesignDocSummary,
   type DesignDocVersion
 } from "../api/designDocs"
+import {
+  applyDesignDocFormattingCommand,
+  canApplyDesignDocFormattingCommand,
+  type DesignDocFormattingCommand,
+  type DesignDocFormattingSelection
+} from "./designDocFormattingCommands"
 
 type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number; containerWidth: number }
-type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
+type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
+type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -406,6 +413,36 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     })
   }
 
+  function applyFormattingCommand(command: DesignDocFormattingCommand) {
+    const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0, text: "", selectedText: "", rect: null }
+    const options = command === "link" ? { href: window.prompt("Link URL", "https://example.com") || "" } : {}
+    const result = applyDesignDocFormattingCommand(draft, activeSelection, command, options)
+    if (!result.applied) return
+
+    setDraft(result.markdown)
+    setSelection({
+      start: result.selection.start,
+      end: result.selection.end,
+      text: result.markdown.slice(result.selection.start, result.selection.end),
+      selectedText: result.markdown.slice(result.selection.start, result.selection.end),
+      rect: null
+    })
+    if (editorMode === "markdown") {
+      window.setTimeout(() => {
+        textareaRef.current?.focus()
+        textareaRef.current?.setSelectionRange(result.selection.start, result.selection.end)
+      }, 0)
+    } else {
+      window.setTimeout(() => {
+        if (!wysiwygRef.current) return
+
+        const nextHighlights = result.markdown === (doc.rendered_markdown || doc.markdown) ? activeHighlights : []
+        wysiwygRef.current.innerHTML = markdownToWysiwygHtml(result.markdown, nextHighlights, focusedThreadId, focusedSuggestionId)
+        wysiwygRef.current.focus()
+      }, 0)
+    }
+  }
+
   useEffect(() => {
     if (editorMode !== "rich_text" || !wysiwygRef.current) return
     if (document.activeElement === wysiwygRef.current) return
@@ -549,42 +586,21 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            <div className="flex flex-wrap items-center gap-2">
-              <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
-                {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
-                  <button
-                    aria-selected={editorMode === candidate}
-                    className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                    key={candidate}
-                    onClick={() => setEditorMode(candidate)}
-                    role="tab"
-                    type="button"
-                  >
-                    {candidate === "markdown" ? "Markdown" : "Rich Text"}
-                  </button>
-                ))}
-              </div>
-              <div aria-label="Change mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-                {canWriteCanonical ? (
-                  (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
-                    <button
-                      aria-pressed={effectiveChangeMode === candidate}
-                      className={`px-3 py-1.5 font-medium capitalize ${effectiveChangeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                      key={candidate}
-                      onClick={() => setChangeMode(candidate)}
-                      type="button"
-                    >
-                      {candidate === "edit" ? "Edit" : "Suggest"}
-                    </button>
-                  ))
-                ) : (
-                  <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
-                )}
-              </div>
-            </div>
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
+          ) : null}
+          <DesignDocFormattingToolbar
+            canWriteCanonical={canWriteCanonical}
+            changeMode={effectiveChangeMode}
+            draft={draft}
+            editorMode={editorMode}
+            selection={selection}
+            setChangeMode={setChangeMode}
+            setEditorMode={setEditorMode}
+            onCommand={applyFormattingCommand}
+          />
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
@@ -852,6 +868,216 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
       })}
     </div>
   )
+}
+
+function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, selection, setChangeMode, setEditorMode, onCommand }: {
+  canWriteCanonical: boolean
+  changeMode: ChangeMode
+  draft: string
+  editorMode: EditorMode
+  selection: SelectionRange
+  setChangeMode: (mode: ChangeMode) => void
+  setEditorMode: (mode: EditorMode) => void
+  onCommand: (command: DesignDocFormattingCommand) => void
+}) {
+  const wideToolbar = useMediaQuery("(min-width: 768px)", true)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
+  const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
+    { command: "paragraph", label: "Paragraph" },
+    { command: "heading_1", label: "H1" },
+    { command: "heading_2", label: "H2" },
+    { command: "heading_3", label: "H3" },
+    { command: "heading_4", label: "H4" },
+    { command: "blockquote", label: "Quote" },
+    { command: "fenced_code", label: "Code block" }
+  ]
+  const inlineItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string; className?: string }> = [
+    { command: "bold", icon: "B", label: "Bold", className: "font-black" },
+    { command: "italic", icon: "I", label: "Italic", className: "font-serif italic" },
+    { command: "inline_code", icon: "`", label: "Inline code", className: "font-mono" },
+    { command: "link", icon: "[]", label: "Link" },
+    { command: "strikethrough", icon: "S", label: "Strikethrough", className: "line-through" }
+  ]
+  const listItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string }> = [
+    { command: "unordered_list", icon: "-.", label: "Bulleted list" },
+    { command: "ordered_list", icon: "1.", label: "Numbered list" }
+  ]
+  const moreItems: Array<{ command: DesignDocFormattingCommand; label: string }> = [
+    { command: "table", label: "Table" },
+    { command: "horizontal_rule", label: "Divider" },
+    { command: "nested_list", label: "Indent list item" }
+  ]
+  const selectedBlock = currentBlockCommand(draft, range)
+
+  useEffect(() => {
+    if (!moreOpen) return
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMoreOpen(false)
+    }
+
+    document.addEventListener("keydown", closeOnEscape)
+    return () => document.removeEventListener("keydown", closeOnEscape)
+  }, [moreOpen])
+
+  function commandDisabled(command: DesignDocFormattingCommand) {
+    return !canApplyDesignDocFormattingCommand(draft, range, command)
+  }
+
+  function runCommand(command: DesignDocFormattingCommand) {
+    if (commandDisabled(command)) return
+    setMoreOpen(false)
+    onCommand(command)
+  }
+
+  return (
+    <div
+      aria-label="Formatting toolbar"
+      className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      data-testid="design-doc-formatting-toolbar"
+      role="toolbar"
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" data-testid="design-doc-formatting-toolbar-scroll">
+        <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+          {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
+            <button
+              aria-selected={editorMode === candidate}
+              className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+              key={candidate}
+              onClick={() => setEditorMode(candidate)}
+              role="tab"
+              type="button"
+            >
+              {candidate === "markdown" ? "Markdown" : "Rich Text"}
+            </button>
+          ))}
+        </div>
+
+        <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+          {canWriteCanonical ? (
+            (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
+              <button
+                aria-pressed={changeMode === candidate}
+                className={`px-3 py-1.5 font-medium capitalize ${changeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                key={candidate}
+                onClick={() => setChangeMode(candidate)}
+                type="button"
+              >
+                {candidate === "edit" ? "Edit" : "Suggest"}
+              </button>
+            ))
+          ) : (
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+          )}
+        </div>
+
+        <Select
+          aria-label="Block type"
+          className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
+          fullWidth={false}
+          value={selectedBlock}
+          onChange={(event) => runCommand(event.target.value as ToolbarBlockCommand)}
+        >
+          {blockOptions.map((option) => (
+            <option disabled={commandDisabled(option.command)} key={option.command} value={option.command}>{option.label}</option>
+          ))}
+        </Select>
+
+        <ToolbarButtonGroup label="Inline formatting">
+          {inlineItems.map((item) => (
+            <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
+          ))}
+        </ToolbarButtonGroup>
+
+        {wideToolbar ? (
+          <ToolbarButtonGroup label="List formatting">
+            {listItems.map((item) => (
+              <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
+            ))}
+          </ToolbarButtonGroup>
+        ) : null}
+      </div>
+
+      <div className="relative shrink-0">
+        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        {moreOpen ? (
+          <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+            {!wideToolbar ? listItems.map((item) => (
+              <button
+                className="block w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={commandDisabled(item.command)}
+                key={item.command}
+                onClick={() => runCommand(item.command)}
+                role="menuitem"
+                type="button"
+              >
+                {item.label}
+              </button>
+            )) : null}
+            {moreItems.map((item) => (
+              <button
+                className="block w-full px-3 py-2 text-left text-sm text-text-primary hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={commandDisabled(item.command)}
+                key={item.command}
+                onClick={() => runCommand(item.command)}
+                role="menuitem"
+                type="button"
+              >
+                {item.label}
+              </button>
+            ))}
+            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table row actions</button>
+            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table column actions</button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function ToolbarButtonGroup({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div aria-label={label} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface" role="group">
+      {children}
+    </div>
+  )
+}
+
+function ToolbarIconButton({ ariaExpanded, disabled = false, icon, iconClassName = "", label, onClick }: {
+  ariaExpanded?: boolean
+  disabled?: boolean
+  icon: string
+  iconClassName?: string
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      aria-expanded={ariaExpanded}
+      aria-label={label}
+      className="flex h-8 w-8 items-center justify-center border-r border-border text-xs font-semibold text-text-secondary last:border-r-0 hover:bg-surface-raised hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50"
+      disabled={disabled}
+      onClick={onClick}
+      onMouseDown={(event) => event.preventDefault()}
+      title={label}
+      type="button"
+    >
+      <span aria-hidden="true" className={iconClassName}>{icon}</span>
+    </button>
+  )
+}
+
+function currentBlockCommand(markdown: string, selection: DesignDocFormattingSelection): ToolbarBlockCommand {
+  const start = Math.max(0, Math.min(markdown.length, selection.start))
+  const lineStart = markdown.lastIndexOf("\n", Math.max(0, start - 1)) + 1
+  const lineEnd = markdown.indexOf("\n", start)
+  const line = markdown.slice(lineStart, lineEnd === -1 ? markdown.length : lineEnd)
+  const heading = line.match(/^\s{0,3}(#{1,4})\s+/)
+  if (heading) return `heading_${heading[1].length}` as ToolbarBlockCommand
+  if (/^\s{0,3}>\s?/.test(line)) return "blockquote"
+  if (/^\s*```/.test(line)) return "fenced_code"
+  return "paragraph"
 }
 
 function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
@@ -1198,7 +1424,33 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
       continue
     }
 
-    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    const fence = line.match(/^\s*```([\w.-]+)?\s*$/)
+    if (fence) {
+      const codeLines: string[] = []
+      offset += line.length + 1
+      index += 1
+      while (index < lines.length && !lines[index].match(/^\s*```\s*$/)) {
+        codeLines.push(lines[index])
+        offset += lines[index].length + 1
+        index += 1
+      }
+      if (index < lines.length) {
+        offset += lines[index].length + 1
+        index += 1
+      }
+      const languageAttr = fence[1] ? ` data-code-language="${escapeHtml(fence[1])}"` : ""
+      blocks.push(`<pre${languageAttr}><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`)
+      continue
+    }
+
+    if (/^\s*(?:---+|\*\*\*+)\s*$/.test(line)) {
+      blocks.push("<hr>")
+      offset += line.length + 1
+      index += 1
+      continue
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
       const headingOffset = offset + heading[1].length + 1
@@ -1208,38 +1460,35 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
       continue
     }
 
-    const unordered = line.match(/^\s*[-*+]\s+(.+)$/)
-    if (unordered) {
-      const items: string[] = []
-      while (index < lines.length) {
-        const itemLine = lines[index]
-        const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
-        if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
-        offset += itemLine.length + 1
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines: string[] = []
+      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index].replace(/^\s*>\s?/, ""))
+        offset += lines[index].length + 1
         index += 1
       }
-      blocks.push(`<ul>${items.join("")}</ul>`)
+      blocks.push(`<blockquote>${markdownToWysiwygHtml(quoteLines.join("\n"), [], null, null)}</blockquote>`)
       continue
     }
 
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/)
-    if (ordered) {
-      const items: string[] = []
-      while (index < lines.length) {
-        const itemLine = lines[index]
-        const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
-        if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId, focusedSuggestionId)}</li>`)
-        offset += itemLine.length + 1
-        index += 1
-      }
-      blocks.push(`<ol>${items.join("")}</ol>`)
+    if (isWysiwygTableStart(lines, index)) {
+      const table = renderWysiwygTable(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      blocks.push(table.html)
+      index = table.nextIndex
+      offset = table.nextOffset
+      continue
+    }
+
+    if (wysiwygListMarker(line)) {
+      const list = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      blocks.push(list.html)
+      index = list.nextIndex
+      offset = list.nextOffset
       continue
     }
 
     const paragraph: string[] = []
-    while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index])) {
+    while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
       paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId, focusedSuggestionId))
@@ -1259,7 +1508,11 @@ function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [
       if (token.kind === "code") return `<code>${content}</code>`
       if (token.kind === "strong") return `<strong>${content}</strong>`
       if (token.kind === "emphasis") return `<em>${content}</em>`
-      if (token.kind === "link") return `<a href="${escapeHtml(token.href || "")}">${content}</a>`
+      if (token.kind === "strike") return `<del>${content}</del>`
+      if (token.kind === "link") {
+        const href = safeWysiwygHref(token.href || "")
+        return href ? `<a href="${escapeHtml(href)}">${content}</a>` : content
+      }
 
       return content
     })
@@ -1280,14 +1533,18 @@ function nodeToMarkdown(node: ChildNode): string {
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
 
+  if (node.tagName === "HR") return "---"
+  if (node.tagName === "PRE") return fencedCodeMarkdown(node)
+  if (node.tagName === "TABLE") return tableMarkdown(node)
+  if (node.tagName === "UL") return listMarkdown(node, 0)
+  if (node.tagName === "OL") return listMarkdown(node, 0)
+  if (node.tagName === "BLOCKQUOTE") return blockquoteMarkdown(node)
+
   const text = inlineMarkdownText(node).trim()
   if (text.length === 0) return ""
 
-  if (/^H[1-3]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
-  if (node.tagName === "LI") return `- ${text}`
-  if (node.tagName === "UL") return Array.from(node.children).map((child) => nodeToMarkdown(child)).join("\n")
-  if (node.tagName === "OL") return Array.from(node.children).map((child, childIndex) => `${childIndex + 1}. ${inlineMarkdownText(child).trim()}`).join("\n")
-  if (node.tagName === "BLOCKQUOTE") return text.split("\n").map((line) => `> ${line}`).join("\n")
+  if (/^H[1-4]$/.test(node.tagName)) return `${"#".repeat(Number(node.tagName.slice(1)))} ${text}`
+  if (node.tagName === "LI") return listItemMarkdown(node, "-", 0)
 
   return text
 }
@@ -1297,13 +1554,219 @@ function inlineMarkdownText(node: ChildNode): string {
   if (!(node instanceof HTMLElement)) return ""
   if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
   if (node.tagName === "BR") return "\n"
+  if (node.tagName === "STRONG" || node.tagName === "B") return `**${inlineMarkdownChildren(node)}**`
+  if (node.tagName === "EM" || node.tagName === "I") return `*${inlineMarkdownChildren(node)}*`
+  if (node.tagName === "DEL" || node.tagName === "S") return `~~${inlineMarkdownChildren(node)}~~`
+  if (node.tagName === "CODE" && node.parentElement?.tagName !== "PRE") return `\`${node.textContent ?? ""}\``
+  if (node.tagName === "A") {
+    const text = inlineMarkdownChildren(node)
+    const href = safeWysiwygHref(node.getAttribute("href") ?? "")
+    return href ? `[${text}](${href})` : text
+  }
   if (node.childNodes.length === 0) return node.textContent ?? ""
 
+  return inlineMarkdownChildren(node)
+}
+
+function inlineMarkdownChildren(node: HTMLElement) {
   return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
+}
+
+function fencedCodeMarkdown(node: HTMLElement) {
+  const code = node.querySelector("code")?.textContent ?? node.textContent ?? ""
+  const longestFence = code.match(/`{3,}/g)?.reduce((longest, fence) => Math.max(longest, fence.length), 2) ?? 2
+  const fence = "`".repeat(longestFence + 1)
+  const language = node.dataset.codeLanguage ?? ""
+  return `${fence}${language}\n${code}\n${fence}`
+}
+
+function tableMarkdown(node: HTMLElement) {
+  const headers = Array.from(node.querySelectorAll("thead th")).map((cell) => inlineMarkdownText(cell).trim())
+  if (headers.length === 0) return inlineMarkdownText(node).trim()
+
+  const rows = Array.from(node.querySelectorAll("tbody tr")).map((row) => {
+    const cells = Array.from(row.querySelectorAll("td")).map((cell) => inlineMarkdownText(cell).trim())
+    while (cells.length < headers.length) cells.push("")
+    return cells.slice(0, headers.length)
+  })
+
+  return [
+    tableRowMarkdown(headers),
+    tableRowMarkdown(headers.map(() => "---")),
+    ...rows.map((row) => tableRowMarkdown(row))
+  ].join("\n")
+}
+
+function tableRowMarkdown(cells: string[]) {
+  return `| ${cells.join(" | ")} |`
+}
+
+function listMarkdown(node: HTMLElement, depth: number): string {
+  return Array.from(node.children)
+    .filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI")
+    .map((item, index) => {
+      const marker = node.tagName === "OL" ? `${Number(item.getAttribute("value")) || index + 1}.` : "-"
+      return listItemMarkdown(item, marker, depth)
+    })
+    .join("\n")
+}
+
+function listItemMarkdown(node: HTMLElement, marker: string, depth: number): string {
+  const nestedLists: HTMLElement[] = []
+  const inlineParts: string[] = []
+
+  Array.from(node.childNodes).forEach((child) => {
+    if (child instanceof HTMLElement && (child.tagName === "UL" || child.tagName === "OL")) {
+      nestedLists.push(child)
+      return
+    }
+
+    inlineParts.push(inlineMarkdownText(child))
+  })
+
+  const indent = "   ".repeat(depth)
+  const firstLine = `${indent}${marker} ${inlineParts.join("").trim()}`
+  const nested: string[] = nestedLists.map((list) => listMarkdown(list, depth + 1)).filter(Boolean)
+  return [firstLine, ...nested].join("\n")
+}
+
+function blockquoteMarkdown(node: HTMLElement) {
+  const markdown = Array.from(node.childNodes)
+    .map((child) => nodeToMarkdown(child))
+    .filter((block) => block.trim().length > 0)
+    .join("\n\n")
+
+  return markdown.split("\n").map((line) => `> ${line}`).join("\n")
+}
+
+function startsWysiwygBlock(lines: string[], index: number) {
+  return (
+    /^\s*```/.test(lines[index]) ||
+    /^(#{1,4})\s+/.test(lines[index]) ||
+    /^\s*>\s?/.test(lines[index]) ||
+    /^\s*(?:---+|\*\*\*+)\s*$/.test(lines[index]) ||
+    Boolean(wysiwygListMarker(lines[index])) ||
+    isWysiwygTableStart(lines, index)
+  )
+}
+
+function isWysiwygTableStart(lines: string[], index: number) {
+  return index + 1 < lines.length && lines[index].includes("|") && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
+}
+
+function splitWysiwygTableRow(line: string) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())
+}
+
+function splitWysiwygTableRowWithOffsets(line: string, rowOffset: number) {
+  const cells = splitWysiwygTableRow(line)
+  let searchFrom = 0
+
+  return cells.map((cell) => {
+    const sourceIndex = cell.length === 0 ? -1 : line.indexOf(cell, searchFrom)
+    if (sourceIndex >= 0) searchFrom = sourceIndex + cell.length
+
+    return {
+      text: cell,
+      sourceStart: rowOffset + (sourceIndex >= 0 ? sourceIndex : searchFrom)
+    }
+  })
+}
+
+function renderWysiwygTable(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+  const headers = splitWysiwygTableRowWithOffsets(lines[index], offset)
+  offset += lines[index].length + 1
+  offset += lines[index + 1].length + 1
+  index += 2
+
+  const rows: Array<Array<{ text: string; sourceStart: number }>> = []
+  while (index < lines.length && lines[index].includes("|") && lines[index].trim() !== "") {
+    rows.push(splitWysiwygTableRowWithOffsets(lines[index], offset))
+    offset += lines[index].length + 1
+    index += 1
+  }
+
+  const headerHtml = headers
+    .map((header) => `<th>${renderWysiwygInline(header.text, highlights, header.sourceStart, focusedThreadId, focusedSuggestionId)}</th>`)
+    .join("")
+  const bodyHtml = rows
+    .map((row) => {
+      const cells = headers.map((_header, cellIndex) => {
+        const cell = row[cellIndex] || { text: "", sourceStart: offset }
+        return `<td>${renderWysiwygInline(cell.text, highlights, cell.sourceStart, focusedThreadId, focusedSuggestionId)}</td>`
+      })
+      return `<tr>${cells.join("")}</tr>`
+    })
+    .join("")
+
+  return {
+    html: `<table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`,
+    nextIndex: index,
+    nextOffset: offset
+  }
+}
+
+function wysiwygListMarker(line: string) {
+  const marker = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/)
+  if (!marker) return null
+
+  return {
+    content: marker[3],
+    indent: marker[1].replace(/\t/g, "    ").length,
+    ordered: /^\d/.test(marker[2]),
+    prefixLength: marker[1].length + marker[2].length + 1,
+    value: /^\d/.test(marker[2]) ? Number.parseInt(marker[2], 10) : undefined
+  }
+}
+
+function renderWysiwygList(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+  const firstMarker = wysiwygListMarker(lines[index])
+  if (!firstMarker) return { html: "", nextIndex: index, nextOffset: offset }
+
+  const items: string[] = []
+  const { indent, ordered } = firstMarker
+
+  while (index < lines.length) {
+    const marker = wysiwygListMarker(lines[index])
+    if (!marker || marker.indent !== indent || marker.ordered !== ordered) break
+
+    let itemHtml = renderWysiwygInline(marker.content, highlights, offset + marker.prefixLength, focusedThreadId, focusedSuggestionId)
+    offset += lines[index].length + 1
+    index += 1
+
+    while (index < lines.length) {
+      const nestedMarker = wysiwygListMarker(lines[index])
+      if (!nestedMarker || nestedMarker.indent <= indent) break
+
+      const nested = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      itemHtml += nested.html
+      index = nested.nextIndex
+      offset = nested.nextOffset
+    }
+
+    items.push(`<li${ordered && marker.value ? ` value="${marker.value}"` : ""}>${itemHtml}</li>`)
+  }
+
+  return {
+    html: ordered ? `<ol start="${firstMarker.value ?? 1}">${items.join("")}</ol>` : `<ul>${items.join("")}</ul>`,
+    nextIndex: index,
+    nextOffset: offset
+  }
 }
 
 function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function safeWysiwygHref(href: string) {
+  if (href.startsWith("/") || href.startsWith("#")) return href
+
+  try {
+    const url = new URL(href, window.location.origin)
+    return ["http:", "https:", "mailto:"].includes(url.protocol) ? href : null
+  } catch (_error) {
+    return null
+  }
 }
 
 function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
@@ -1381,6 +1844,13 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
+    const strike = markdown.slice(index).match(/^~~([^~]+)~~/)
+    if (strike) {
+      tokens.push({ kind: "strike", text: strike[1], sourceStart: baseOffset + index + 2 })
+      index += strike[0].length
+      continue
+    }
+
     const code = markdown.slice(index).match(/^`([^`]+)`/)
     if (code) {
       tokens.push({ kind: "code", text: code[1], sourceStart: baseOffset + index + 1 })
@@ -1395,7 +1865,7 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
       continue
     }
 
-    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|`|\[)/)
+    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|~~|`|\[)/)
     const end = nextSpecial === -1 ? markdown.length : index + 1 + nextSpecial
     tokens.push({ kind: "text", text: markdown.slice(index, end), sourceStart: baseOffset + index })
     index = end

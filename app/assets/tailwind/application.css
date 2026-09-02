@@ -162,6 +162,7 @@
 .chat-prose p { margin: 0; }
 .chat-prose strong { font-weight: 600; }
 .chat-prose em { font-style: italic; }
+.chat-prose del { text-decoration: line-through; }
 
 .chat-prose h1, .chat-prose h2, .chat-prose h3, .chat-prose h4 {
   font-weight: 600;

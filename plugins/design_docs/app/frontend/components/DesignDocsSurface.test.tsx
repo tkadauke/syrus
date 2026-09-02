@@ -385,6 +385,7 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    expect(screen.getByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
   })
 
   it("loads the focused detail route without fetching or rendering list-page controls", async () => {
@@ -707,6 +708,56 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from Rich Text")
   })
 
+  it("renders the documented Markdown command set in the Rich Text editor without activating raw HTML", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    const markdown = [
+      "#### Scope",
+      "",
+      "> Quote **important** context.",
+      "",
+      "| Feature | Status |",
+      "| --- | --- |",
+      "| `code` | ~~removed~~ |",
+      "",
+      "1. First",
+      "   - Nested",
+      "2. Second",
+      "",
+      "---",
+      "",
+      "Plain *italic*, **bold**, `inline`, [link](https://example.test), and ~~strike~~.",
+      "",
+      "```ts",
+      "<script>alert('x')</script>",
+      "```"
+    ].join("\n")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: markdown } })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    expect(within(editor).getByRole("heading", { level: 4, name: "Scope" })).toBeInTheDocument()
+    expect(editor.querySelector("blockquote strong")).toHaveTextContent("important")
+    expect(editor.querySelector("table th")).toHaveTextContent("Feature")
+    expect(editor.querySelector("table code")).toHaveTextContent("code")
+    expect(editor.querySelector("table del")).toHaveTextContent("removed")
+    expect(editor.querySelector("ol > li > ul")).toHaveTextContent("Nested")
+    expect(editor.querySelector("hr")).not.toBeNull()
+    expect(editor.querySelector("em")).toHaveTextContent("italic")
+    expect(editor.querySelector("strong")).toHaveTextContent("important")
+    expect(editor.querySelector("p code")).toHaveTextContent("inline")
+    expect(within(editor).getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.test")
+    expect(editor.querySelector("p del")).toHaveTextContent("strike")
+    expect(editor.querySelector("pre code")).toHaveTextContent("<script>alert('x')</script>")
+    expect(container.querySelector("script")).toBeNull()
+
+    fireEvent.input(editor)
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue(markdown)
+  })
+
   it("lets owners switch between Edit and Suggest change modes", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
@@ -745,6 +796,98 @@ describe("DesignDocsSurface", () => {
     expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
       suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Owner suggested edit" }
     })
+  })
+
+  it("runs formatting toolbar commands against Markdown and persists Suggest mode as a suggestion", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const changeMode = screen.getByRole("group", { name: "Change mode" })
+    fireEvent.click(within(changeMode).getByRole("button", { name: "Suggest" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }))
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha **beta** gamma"))
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions", expect.objectContaining({ method: "POST" })))
+    const suggestionRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/suggestions")
+    expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
+      suggestion: {
+        original_markdown: "Alpha beta gamma",
+        proposed_markdown: "Alpha **beta** gamma"
+      }
+    })
+  })
+
+  it("visibly applies formatting toolbar commands while the Rich Text editor stays focused", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }))
+
+    await waitFor(() => expect(within(editor).getByText("text").closest("strong")).not.toBeNull())
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("**text**Alpha beta gamma")
+  })
+
+  it("applies toolbar block dropdown and More menu insert commands while keeping Rich Text synchronized", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: "Alpha\nbeta\ngamma" } })
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.change(screen.getByRole("combobox", { name: "Block type" }), { target: { value: "heading_2" } })
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha\n## beta\ngamma"))
+    expect(screen.getByRole("combobox", { name: "Block type" })).toHaveValue("heading_2")
+
+    editor.setSelectionRange(editor.value.length, editor.value.length)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "More formatting" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Divider" }))
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha\n## beta\ngamma\n\n---"))
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" }).querySelector("hr")).not.toBeNull()
+  })
+
+  it("collapses list controls into the formatting overflow menu on narrow viewports", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(screen.queryByRole("group", { name: "List formatting" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More formatting" }))
+
+    expect(screen.getByRole("menuitem", { name: "Bulleted list" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "Numbered list" })).toBeInTheDocument()
+    expect(screen.getByTestId("design-doc-formatting-toolbar")).not.toHaveClass("overflow-x-auto")
+    expect(screen.getByTestId("design-doc-formatting-toolbar-scroll")).toHaveClass("overflow-x-auto")
+    expect(screen.getByRole("menu").parentElement).toHaveClass("relative")
+  })
+
+  it("disables formatting commands that would rewrite protected Markdown spans", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: "Alpha `beta` gamma" } })
+    editor.setSelectionRange(7, 11)
+    fireEvent.mouseUp(editor)
+
+    expect(screen.getByRole("button", { name: "Bold" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Inline code" })).toBeDisabled()
   })
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {

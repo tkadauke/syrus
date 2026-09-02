@@ -14,6 +14,45 @@ describe("Markdown", () => {
     expect(screen.getByText("Survey")).toBeInTheDocument()
   })
 
+  it("renders GitHub-ish basics used by Design Docs formatting controls", () => {
+    const markdown = [
+      "#### Scope",
+      "",
+      "> Quote **important** context.",
+      "",
+      "| Feature | Status |",
+      "| --- | --- |",
+      "| `code` | ~~removed~~ |",
+      "",
+      "1. First",
+      "   - Nested",
+      "2. Second",
+      "",
+      "---",
+      "",
+      "Plain *italic*, **bold**, `inline`, [link](https://example.test), and ~~strike~~.",
+      "",
+      "```ts",
+      "const enabled = true",
+      "```"
+    ].join("\n")
+    const { container } = render(<Markdown text={markdown} />)
+
+    expect(screen.getByRole("heading", { level: 4, name: "Scope" })).toBeInTheDocument()
+    expect(container.querySelector("blockquote strong")).toHaveTextContent("important")
+    expect(container.querySelector("table th")).toHaveTextContent("Feature")
+    expect(container.querySelector("table code")).toHaveTextContent("code")
+    expect(container.querySelector("table del")).toHaveTextContent("removed")
+    expect(container.querySelector("ol > li > ul")).toHaveTextContent("Nested")
+    expect(container.querySelector("hr")).toBeInTheDocument()
+    expect(screen.getByText("italic").tagName).toBe("EM")
+    expect(screen.getByText("bold").tagName).toBe("STRONG")
+    expect(screen.getByText("inline").tagName).toBe("CODE")
+    expect(screen.getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.test")
+    expect(screen.getByText("strike").tagName).toBe("DEL")
+    expect(container.querySelector("pre code")).toHaveTextContent("const enabled = true")
+  })
+
   it("keeps raw HTML as inert text", () => {
     const { container } = render(<Markdown text={"Hello <script>alert('x')</script> **friend**"} />)
 
