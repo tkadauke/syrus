@@ -385,6 +385,7 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+    expect(screen.getByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
   })
 
   it("loads the focused detail route without fetching or rendering list-page controls", async () => {
@@ -821,6 +822,58 @@ describe("DesignDocsSurface", () => {
         proposed_markdown: "Alpha **beta** gamma"
       }
     })
+  })
+
+  it("applies toolbar block dropdown and More menu insert commands while keeping Rich Text synchronized", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: "Alpha\nbeta\ngamma" } })
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.change(screen.getByRole("combobox", { name: "Block type" }), { target: { value: "heading_2" } })
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha\n## beta\ngamma"))
+    expect(screen.getByRole("combobox", { name: "Block type" })).toHaveValue("heading_2")
+
+    editor.setSelectionRange(editor.value.length, editor.value.length)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "More formatting" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Divider" }))
+
+    await waitFor(() => expect(editor).toHaveValue("Alpha\n## beta\ngamma\n\n---"))
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" }).querySelector("hr")).not.toBeNull()
+  })
+
+  it("collapses list controls into the formatting overflow menu on narrow viewports", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(screen.queryByRole("group", { name: "List formatting" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More formatting" }))
+
+    expect(screen.getByRole("menuitem", { name: "Bulleted list" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: "Numbered list" })).toBeInTheDocument()
+    expect(screen.getByTestId("design-doc-formatting-toolbar")).toHaveClass("overflow-x-auto")
+  })
+
+  it("disables formatting commands that would rewrite protected Markdown spans", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: "Alpha `beta` gamma" } })
+    editor.setSelectionRange(7, 11)
+    fireEvent.mouseUp(editor)
+
+    expect(screen.getByRole("button", { name: "Bold" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Inline code" })).toBeDisabled()
   })
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
