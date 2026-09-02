@@ -4614,6 +4614,30 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(job.dependencies.first.depends_on_job).to eq(prerequisite)
     expect(job.job_attachments.first.source_url).to eq("snapshot:#{snapshot.id}")
     expect(parse_body.dig("proposal", "materialized", "job_state")).to eq("backlog")
+
+    get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
+
+    expect(response).to have_http_status(:ok)
+    backlog_lane = parse_body.fetch("lanes").find { |lane| lane.fetch("key") == "backlog" }
+    queued_lane = parse_body.fetch("lanes").find { |lane| lane.fetch("key") == "queued" }
+    expect(backlog_lane.fetch("items").map { |item| item.fetch("id") }).to include(job.id)
+    expect(queued_lane.fetch("items").map { |item| item.fetch("id") }).not_to include(job.id)
+
+    SmartFolder.ensure_builtins_for_subject!(:job)
+    folder = SmartFolder.find_builtin_by_attention("backlog")
+    get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("items").map { |item| item.fetch("id") }).to include(job.id)
+
+    expect {
+      post "/api/v1/app/jobs/#{job.id}/release_from_backlog", as: :json
+    }.to change { job.reload.workflows.count }.from(0).to(1)
+      .and change { job.runs.count }.from(0).to(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_queued
   end
 
   it "confirms direct proposal implementation from explicit route params" do
