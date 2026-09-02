@@ -292,6 +292,40 @@ RSpec.describe PerformanceLogging do
     expect(described_class::Store.recent).to be_empty
   end
 
+  it "suppresses slow phase events from memory and persisted sinks" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
+
+    described_class.suppress do
+      described_class.phase("diagnostics.provider_availability") { "done" }
+    end
+    described_class::Store.flush!
+
+    expect(described_class::Store.recent).to be_empty
+    expect(PerformanceLogEvent.count).to eq(0)
+    expect(Rails.logger).not_to have_received(:info)
+  end
+
+  it "does not emit directly while suppressed" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+
+    described_class.suppress do
+      described_class.emit(
+        described_class.base_event(described_class::SLOW_PHASE_EVENT).merge(
+          "phase" => "diagnostics.provider_availability",
+          "duration_ms" => 1_000.0
+        )
+      )
+    end
+    described_class::Store.flush!
+
+    expect(described_class::Store.recent).to be_empty
+    expect(PerformanceLogEvent.count).to eq(0)
+    expect(Rails.logger).not_to have_received(:info)
+  end
+
   it "records slow phase events with safe metadata" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
