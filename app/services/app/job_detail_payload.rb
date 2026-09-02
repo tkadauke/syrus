@@ -149,7 +149,7 @@ module App
       job_approvals = PerformanceLogging.phase("job_detail.job.approvals", job_id: @job.id) { job_approvals_with_users }
       approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json(job_approvals) }
       active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
-      source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
+      source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { source_chat_payload }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { job_runs_count }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
@@ -685,28 +685,18 @@ module App
     end
 
     def origin_chat_json
-      proposal = origin_chat_proposal
-      return unless proposal
-
-      message_id = ChatMessage.where(proposal_id: proposal.id).reorder(:id).pick(:id)
+      source_chat = source_chat_payload
+      message_id = source_chat&.dig(:message_id)
       return unless message_id
 
       {
-        chat_session_id: proposal.chat_session_id,
+        chat_session_id: source_chat.fetch(:chat_id),
         message_id: message_id
       }
     end
 
-    def origin_chat_proposal
-      scope = ChatProposal.select(:id, :chat_session_id).where(job_id: @job.id)
-      if @job.epic_id
-        direct_first_order = ChatProposal.sanitize_sql_array([ "CASE WHEN job_id = ? THEN 0 ELSE 1 END", @job.id ])
-        scope = scope.or(ChatProposal.select(:id, :chat_session_id).where(epic_id: @job.epic_id))
-        scope = scope.reorder(Arel.sql(direct_first_order), :id)
-      else
-        scope = scope.reorder(:id)
-      end
-      scope.first
+    def source_chat_payload
+      @source_chat_payload ||= App::JobSourceChat.for(@job)
     end
 
     def pending_feedback_json

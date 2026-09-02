@@ -509,7 +509,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job)[:origin_chat]).to be_nil
     end
 
-    it "prefers a direct job proposal over the epic proposal without loading full proposal rows" do
+    it "reuses the source chat payload for origin chat" do
       chat = ChatSession.create!(user: user, repository: repo)
       epic = Factories.epic(user: user, repository: repo, title: "Auth")
       job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 7)
@@ -541,9 +541,11 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         chat_session_id: chat.id,
         message_id: direct_message.id
       )
-      origin_query = queries.grep(/FROM ["`]?chat_proposals["`]?/i).find { |sql| sql.include?("CASE WHEN job_id") }
-      expect(origin_query).to match(/SELECT ["`]?chat_proposals["`]?\./i)
-      expect(origin_query).not_to match(/SELECT\s+["`]?chat_proposals["`]?\.\*/i)
+      expect(@payload.dig(:job, :source_chat)).to include(
+        chat_id: chat.id,
+        message_id: direct_message.id
+      )
+      expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i).size).to eq(1)
     end
   end
 
