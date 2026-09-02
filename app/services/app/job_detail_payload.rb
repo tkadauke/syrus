@@ -424,11 +424,17 @@ module App
     end
 
     def no_pr_reason_json
-      artifact_workflows
-          .select { |workflow| workflow.artifacts.is_a?(Hash) && workflow.artifacts["no_pr_reason"].is_a?(Hash) }
-          .max_by(&:created_at)
-          &.artifacts
-          &.fetch("no_pr_reason", nil)
+      @job.workflows
+          .where.not(artifacts: [ nil, "", "{}" ])
+          .where("artifacts LIKE ?", "%no_pr_reason%")
+          .select(:id, :artifacts, :created_at)
+          .reorder(created_at: :desc, id: :desc)
+          .each do |workflow|
+        reason = workflow.artifact("no_pr_reason")
+        return reason if reason.is_a?(Hash)
+      end
+
+      nil
     end
 
     def attachment_json(attachment)

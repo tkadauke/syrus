@@ -413,6 +413,13 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Review stack")
       Workflow.create!(
         job: job,
+        trigger_kind: "retry",
+        state: "succeeded",
+        artifacts: { "summary" => "Older workflow without no-PR metadata" },
+        created_at: 2.hours.ago
+      )
+      Workflow.create!(
+        job: job,
         trigger_kind: "initial",
         state: "succeeded",
         artifacts: {
@@ -424,11 +431,15 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         }
       )
 
-      expect(payload_for(job).dig(:job, :no_pr_reason)).to include(
+      queries = capture_sql { @payload = payload_for(job) }
+
+      expect(@payload.dig(:job, :no_pr_reason)).to include(
         "kind" => "no_effective_changes",
         "message" => "No PR was opened because the workflow made no effective changes.",
         "base_branch" => "syrus/direct-parent"
       )
+      no_pr_queries = queries.grep(/FROM ["`]?workflows["`]?.*artifacts LIKE/im)
+      expect(no_pr_queries).not_to be_empty
     end
   end
 
