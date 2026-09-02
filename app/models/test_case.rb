@@ -70,7 +70,7 @@ class TestCase < ApplicationRecord
       .order(last_failed_at: :desc, last_passed_at: :desc, id: :desc)
       .limit(limit * 4)
       .filter_map do |identity|
-        stats = identity.recent_stats(lookback: lookback)
+        stats = lookback == TestIdentity::LIST_LOOKBACK ? identity.persisted_recent_stats : identity.recent_stats(lookback: lookback)
         total = stats.fetch(:total_count)
         failed = stats.fetch(:failed_count)
         next unless failed.positive? && stats.fetch(:passed_count).positive?

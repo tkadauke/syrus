@@ -281,6 +281,18 @@ RSpec.describe TestCase do
       expect(tests.size).to eq(3)
     end
 
+    it "uses persisted recent stats for the default lookback" do
+      create_case(name: "flaky", suite_name: "S", status: "passed", duration_ms: 100)
+      create_case(name: "flaky", suite_name: "S", status: "failed", duration_ms: 200)
+      backfill_test_identities
+
+      expect_any_instance_of(TestIdentity).not_to receive(:recent_stats)
+
+      test = TestCase.top_flaky_tests(repository: repo).first
+      expect(test[:name]).to eq("flaky")
+      expect(test[:avg_duration_ms]).to eq(150)
+    end
+
     it "enqueues missing durable test identities instead of building them inline" do
       create_case(name: "flaky", suite_name: "S", status: "passed")
       create_case(name: "flaky", suite_name: "S", status: "failed")
