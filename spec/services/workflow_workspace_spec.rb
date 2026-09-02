@@ -106,6 +106,67 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(`git -C #{ws.path} log --oneline | wc -l`.strip.to_i).to be >= 1
       end
 
+      it "recovers a direct initial workflow from a missing Syrus-managed base branch when no PR exists" do
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "queued",
+          branch_name: "syrus/direct-4057",
+          target_branch: "syrus/direct-4056"
+        )
+        direct_workflow = Workflow.create!(job: direct_job, trigger_kind: "initial")
+
+        ws = described_class.new(direct_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-4057")
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip)
+        expect(direct_workflow.reload.artifact("missing_clone_base_branch")).to eq("syrus/direct-4056")
+        expect(direct_workflow.artifact("clone_base_branch_recovered_to")).to eq("main")
+        expect(direct_workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("main")
+      end
+
+      it "recovers a direct retry workflow from a missing Syrus-managed base branch when no PR exists" do
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "failed",
+          branch_name: "syrus/direct-4057",
+          target_branch: "syrus/direct-4056"
+        )
+        initial_workflow = Workflow.create!(job: direct_job, trigger_kind: "initial")
+        initial_workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+        retry_workflow = Workflow.create!(job: direct_job, trigger_kind: "retry")
+
+        ws = described_class.new(retry_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/direct-4057")
+        expect(retry_workflow.reload.artifact("missing_clone_base_branch")).to eq("syrus/direct-4056")
+        expect(retry_workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("main")
+      end
+
+      it "does not silently retarget a direct workflow when a non-Syrus base branch is missing" do
+        direct_job = Factories.job_record(
+          user: user,
+          repository: repository,
+          kind: "direct",
+          issue_number: nil,
+          state: "queued",
+          branch_name: "syrus/direct-4057",
+          target_branch: "release/4.2"
+        )
+        direct_workflow = Workflow.create!(job: direct_job, trigger_kind: "initial")
+
+        ws = described_class.new(direct_workflow)
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /remote branch release\/4\.2 not found/)
+        expect(direct_workflow.reload.artifact("clone_base_branch_recovered_to")).to be_nil
+      end
+
       it "creates a fresh child branch from the parent branch head when stacked" do
         parent = Factories.job(repository: repository, issue_number: 6)
         parent_branch = "syrus/issue-6-#{parent.id}"

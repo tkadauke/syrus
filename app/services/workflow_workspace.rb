@@ -275,6 +275,8 @@ class WorkflowWorkspace
       return
     end
 
+    recover_missing_clone_base_branch!
+
     begin
       @git.run(
         "clone",
@@ -503,6 +505,53 @@ class WorkflowWorkspace
     return @repository.default_branch if commit_sha_revision? || base_on_upstream_default?
 
     base_branch
+  end
+
+  def recover_missing_clone_base_branch!
+    branch = clone_checkout_branch
+    return if branch == @repository.default_branch
+    return if remote_branch_exists?(branch)
+    return if remote_repo_empty?
+
+    unless recoverable_missing_direct_base_branch?(branch)
+      raise GitRunner::GitError.new(
+        [ "ls-remote", "--heads", "origin", "refs/heads/#{branch}" ],
+        2,
+        "remote branch #{branch} not found for #{@workflow.trigger_kind} workflow #{workflow_label}"
+      )
+    end
+
+    fallback = @repository.default_branch
+    notify("remote base branch #{branch} is missing for direct Job without a PR; recreating #{branch_name} from #{fallback}")
+    @workflow.set_artifact!("missing_clone_base_branch", branch)
+    @workflow.set_artifact!("clone_base_branch_recovered_to", fallback)
+    @workflow.set_artifact!(RebaseTarget::BASE_BRANCH_ARTIFACT, fallback)
+    @base_branch = nil
+  end
+
+  def remote_branch_exists?(branch)
+    output = authenticated_git("git_workflow_check_clone_base") do |url|
+      @git.run(
+        "ls-remote", "--heads", url,
+        "refs/heads/#{branch}",
+        chdir: path.dirname.to_s, env: @env
+      )
+    end
+
+    output.strip.present?
+  end
+
+  def recoverable_missing_direct_base_branch?(branch)
+    @job.direct? &&
+      @job.pr_number.blank? &&
+      @job.external_pr_number.blank? &&
+      @job.fork_review_pr_number.blank? &&
+      @workflow.trigger_kind.in?(%w[initial retry]) &&
+      branch.start_with?("syrus/")
+  end
+
+  def workflow_label
+    @workflow.respond_to?(:slug) ? @workflow.slug : "##{@workflow.id}"
   end
 
   # A closed, landed Job's PR branch is typically deleted right after
