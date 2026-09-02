@@ -399,8 +399,8 @@ module App
           :tags,
           :deployment_stage_statuses,
           { dependencies: [ :depends_on_epic, { depends_on_job: :repository } ] },
-          { chat_proposals: [ :chat_session, :messages ] },
-          { epic: { chat_proposals: [ :chat_session, :messages ] } }
+          { chat_proposals: [ :chat_session, :message_anchors ] },
+          { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
         )
         jobs = PerformanceLogging.phase("dashboard_jobs.query", page: page, view: view, rows_only_estimate: rows_only_estimate) do
           sorted_jobs(scope, limit_extra: rows_only_estimate).to_a

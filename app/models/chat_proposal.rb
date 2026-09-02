@@ -46,6 +46,10 @@ class ChatProposal < ApplicationRecord
   has_many :dependents, through: :dependent_edges, source: :proposal
 
   has_many :messages, class_name: "ChatMessage", foreign_key: :proposal_id, dependent: :nullify
+  has_many :message_anchors,
+           -> { select(:id, :proposal_id).order(:id) },
+           class_name: "ChatMessage",
+           foreign_key: :proposal_id
   has_many :unresolved_job_dependencies,
            class_name: "JobDependency",
            foreign_key: :unresolved_chat_proposal_id,

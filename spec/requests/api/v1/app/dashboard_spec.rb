@@ -214,6 +214,36 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(rows).not_to have_key("smart_folders")
     end
 
+    it "does not preload chat message bodies when building source chat anchors" do
+      job = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", owner_user: user)
+      chat = ChatSession.create!(user: user, repository: repo, title: "Roadmap chat")
+      proposal = chat.proposals.create!(
+        slug: "build-aqueduct",
+        title: "Build aqueduct",
+        body: "Bring water across the valley.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      chat.messages.create!(
+        role: "assistant",
+        proposal: proposal,
+        content: { "text" => "x" * 45_000 }
+      )
+
+      queries = capture_sql do
+        get "/api/v1/app/dashboard", params: { subject: "job", section: "rows" }
+      end
+
+      expect(response).to have_http_status(:ok)
+      chat_message_queries = queries.grep(/FROM ["`]?chat_messages["`]?/i)
+      expect(chat_message_queries).to be_present
+      expect(chat_message_queries).to all(match(/["`]?chat_messages["`]?\.["`]?id["`]?/i))
+      expect(chat_message_queries).to all(match(/["`]?chat_messages["`]?\.["`]?proposal_id["`]?/i))
+      expect(chat_message_queries.join("\n")).not_to match(/["`]?chat_messages["`]?\.["`]?content["`]?/i)
+    end
+
     it "marks the PR shown for a Job as external when it was not opened by Syrus" do
       own_pr_job = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Own PR", state: "implemented", pr_number: 17, owner_user: user)
       external_pr_job = Job.create!(

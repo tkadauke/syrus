@@ -40,6 +40,10 @@ module App
     end
 
     def anchor_message_id(proposal)
+      if proposal.association(:message_anchors).loaded?
+        return proposal.message_anchors.first&.id
+      end
+
       messages = proposal.messages
       if messages.loaded?
         messages.min_by(&:id)&.id
