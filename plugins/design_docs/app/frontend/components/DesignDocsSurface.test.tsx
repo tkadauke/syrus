@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
@@ -56,6 +56,30 @@ const docDetail = {
     comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
     created_at: "2026-08-29T12:01:00Z",
     updated_at: "2026-08-29T12:01:00Z"
+  }, {
+    id: 17,
+    state: "open",
+    anchor: {
+      id: 21,
+      anchor_key: "b",
+      marker_id: "m2",
+      anchor_kind: "range",
+      status: "active",
+      start_offset: 11,
+      end_offset: 16,
+      last_known_start_offset: 11,
+      last_known_end_offset: 16,
+      selected_markdown: "gamma",
+      selected_text: "gamma",
+      prefix_context: null,
+      suffix_context: null
+    },
+    opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+    resolved_by: null,
+    resolved_at: null,
+    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+    created_at: "2026-08-29T12:02:00Z",
+    updated_at: "2026-08-29T12:02:30Z"
   }],
   suggestions: [{
     id: 9,
@@ -84,6 +108,31 @@ const docDetail = {
       selected_text: "gamma",
       prefix_context: null,
       suffix_context: null
+    },
+    thread: {
+      id: 17,
+      state: "open",
+      anchor: {
+        id: 21,
+        anchor_key: "b",
+        marker_id: "m2",
+        anchor_kind: "range",
+        status: "active",
+        start_offset: 11,
+        end_offset: 16,
+        last_known_start_offset: 11,
+        last_known_end_offset: 16,
+        selected_markdown: "gamma",
+        selected_text: "gamma",
+        prefix_context: null,
+        suffix_context: null
+      },
+      opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      resolved_by: null,
+      resolved_at: null,
+      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+      created_at: "2026-08-29T12:02:00Z",
+      updated_at: "2026-08-29T12:02:30Z"
     },
     reviewed_by: null,
     reviewed_at: null,
@@ -137,9 +186,11 @@ function renderSurface(path = "/design_docs") {
 }
 
 function DesignDocsTestRoute() {
+  const params = useParams()
+
   return (
     <>
-      <DesignDocsSurface mode="index" />
+      <DesignDocsSurface mode={params.id ? "show" : "index"} />
       <LocationProbe />
     </>
   )
@@ -217,6 +268,9 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: docDetail })
     }
+    if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
@@ -226,16 +280,38 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
     }
+    if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
+      return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
+    }
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions") {
+      return jsonResponse({ design_doc: docDetail, suggestion: { ...docDetail.suggestions[0], id: 12 }, message: "Suggestion created." }, 201)
+    }
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
       if (payload.comment?.thread_id === 7) {
+        const commentThread = {
+          ...docDetail.threads[0],
+          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+        }
         return jsonResponse({
           design_doc: {
             ...docDetail,
-            threads: [{
-              ...docDetail.threads[0],
-              comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
-            }]
+            threads: [commentThread, docDetail.threads[1]]
+          },
+          message: "Comment created."
+        }, 201)
+      }
+      if (payload.comment?.thread_id === 17) {
+        const suggestionThread = {
+          ...docDetail.threads[1],
+          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
+        }
+        const suggestion = { ...docDetail.suggestions[0], thread: suggestionThread }
+        return jsonResponse({
+          design_doc: {
+            ...docDetail,
+            threads: [docDetail.threads[0], suggestionThread],
+            suggestions: [suggestion]
           },
           message: "Comment created."
         }, 201)
@@ -285,7 +361,7 @@ describe("DesignDocsSurface", () => {
     }
   })
 
-  it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
+  it("shows index filters on the list page, then navigates into a focused detail editor", async () => {
     mockFetch()
     renderSurface()
 
@@ -298,11 +374,30 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     expect(screen.getByText("Threads")).toBeInTheDocument()
-    expect(screen.getByText("Suggestions")).toBeInTheDocument()
+    expect(screen.getByText("Use newer name")).toBeInTheDocument()
+    expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
+  })
+
+  it("loads the focused detail route without fetching or rendering list-page controls", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Checkout design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
   it("shows smart folders and filters in a mobile disclosure", async () => {
@@ -336,7 +431,8 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
@@ -354,14 +450,22 @@ describe("DesignDocsSurface", () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
-  it("creates and resolves comments from an editor selection", async () => {
+  it("opens the Threads composer from a compact Markdown selection affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
-    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify this" } })
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "New thread comment" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify this" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -374,14 +478,40 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
   })
 
-  it("creates comments from a WYSIWYG selection", async () => {
+  it("keeps the compact selection affordance near right-side Markdown selections", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    editor.getBoundingClientRect = vi.fn(() => ({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 900,
+      top: 0,
+      width: 900,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }))
+
+    fireEvent.change(editor, { target: { value: "Alpha beta gamma ".repeat(8) } })
+    editor.setSelectionRange(80, 84)
+    fireEvent.mouseUp(editor)
+
+    const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+    expect(affordance).toHaveStyle({ left: "688px" })
+  })
+
+  it("opens the Threads composer from a compact Rich Text selection affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(markdownEditor, { target: { value: "Alpha **beta** gamma" } })
-    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
-    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const textNode = editor.querySelector("strong [data-source-start]")!.firstChild!
     const range = document.createRange()
     range.setStart(textNode, 0)
@@ -390,7 +520,12 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -400,7 +535,7 @@ describe("DesignDocsSurface", () => {
     })
   })
 
-  it("creates WYSIWYG comments from source offsets in long formatted list docs", async () => {
+  it("creates Rich Text comments from source offsets in long formatted list docs", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
     const markdown = [
@@ -414,10 +549,11 @@ describe("DesignDocsSurface", () => {
       "- Should backlogged Jobs be owned, claimed, both, or neither by default?"
     ].join("\n")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(markdownEditor, { target: { value: markdown } })
-    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
-    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
     const textNode = Array.from(editor.querySelectorAll("[data-source-start]"))
       .find((node) => node.textContent === selected)!
@@ -429,7 +565,9 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify question" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify question" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -448,7 +586,8 @@ describe("DesignDocsSurface", () => {
   it("synchronizes focus between inline highlights and the comment rail", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
-    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
 
     expect(container.querySelector("mark[data-anchor-status='active']")).not.toBeNull()
     fireEvent.click(screen.getByText("Needs evidence"))
@@ -456,7 +595,7 @@ describe("DesignDocsSurface", () => {
     expect(editor.selectionStart).toBe(6)
     expect(editor.selectionEnd).toBe(10)
 
-    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
     const wysiwygHighlight = await waitFor(() => container.querySelector("mark[data-thread-id='7']"))
     fireEvent.click(wysiwygHighlight!)
 
@@ -469,7 +608,7 @@ describe("DesignDocsSurface", () => {
 
     await screen.findByText("Needs evidence")
     fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
-    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
     const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
@@ -479,16 +618,56 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByText("Follow up")).toBeInTheDocument()
   })
 
-  it("resets draft editor state when switching between design docs", async () => {
+  it("supports replies on pending suggestion threads", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Use newer name")
+    expect(screen.getByText("Why this wording?")).toBeInTheDocument()
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply to suggestion 9" }), { target: { value: "Agreed" } })
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" }).at(-1)!)
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Agreed", thread_id: 17 }
+    })
+    expect(await screen.findByText("Agreed")).toBeInTheDocument()
+  })
+
+  it("removes reviewed suggestions from active threads after accept or reject", async () => {
+    const fetchSpy = mockFetch()
+    const acceptedRender = renderSurface("/design_docs/1")
+
+    await screen.findByText("Use newer name")
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
+    expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+
+    acceptedRender.unmount()
+    renderSurface("/design_docs/1")
+    await screen.findByText("Use newer name")
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/reject", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
+    expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+  })
+
+  it("resets draft editor state when opening a different focused design doc route", async () => {
     mockFetch()
-    renderSurface()
+    const first = renderSurface("/design_docs/1")
 
-    fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
-    const firstEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const firstEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(firstEditor, { target: { value: "Unsaved first doc edits" } })
-    fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
+    first.unmount()
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
+    renderSurface("/design_docs/2")
+
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Second document body")
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
   })
 
@@ -498,7 +677,8 @@ describe("DesignDocsSurface", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/2?q=eyJhbmQiOltdfQ%3D%3D")
   })
 
@@ -506,24 +686,65 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/design_docs/1")
 
-    const markdownTab = await screen.findByRole("tab", { name: "Markdown" })
-    const wysiwygTab = screen.getByRole("tab", { name: "WYSIWYG" })
+    const richTextTab = await screen.findByRole("tab", { name: "Rich Text" })
+    const markdownTab = screen.getByRole("tab", { name: "Markdown" })
+
+    expect(richTextTab).toHaveAttribute("aria-selected", "true")
+    fireEvent.click(markdownTab)
     const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
-
-    expect(markdownTab).toHaveAttribute("aria-selected", "true")
     fireEvent.change(markdownEditor, { target: { value: "Unsaved **local** edits" } })
-    fireEvent.click(wysiwygTab)
+    fireEvent.click(richTextTab)
 
-    expect(wysiwygTab).toHaveAttribute("aria-selected", "true")
-    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
-    expect(wysiwygEditor).toHaveTextContent("Unsaved local edits")
-    expect(wysiwygEditor).not.toHaveTextContent("**local**")
+    expect(richTextTab).toHaveAttribute("aria-selected", "true")
+    const richTextEditor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    expect(richTextEditor).toHaveTextContent("Unsaved local edits")
+    expect(richTextEditor).not.toHaveTextContent("**local**")
 
-    wysiwygEditor.textContent = "Edited from WYSIWYG"
-    fireEvent.input(wysiwygEditor)
+    richTextEditor.textContent = "Edited from Rich Text"
+    fireEvent.input(richTextEditor)
     fireEvent.click(markdownTab)
 
-    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from WYSIWYG")
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from Rich Text")
+  })
+
+  it("lets owners switch between Edit and Suggest change modes", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const changeMode = screen.getByRole("group", { name: "Change mode" })
+    const editButton = within(changeMode).getByRole("button", { name: "Edit" })
+    const suggestButton = within(changeMode).getByRole("button", { name: "Suggest" })
+
+    expect(editButton).toHaveAttribute("aria-pressed", "true")
+    expect(suggestButton).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Change summary" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner direct edit" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("textbox", { name: "Change summary" })).toHaveAttribute("placeholder", "Optional change summary")
+    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), { target: { value: "Checkpoint notes" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const checkpointRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(checkpointRequest?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Owner direct edit", checkpoint: true, change_summary: "Checkpoint notes" }
+    })
+
+    fireEvent.click(suggestButton)
+    expect(suggestButton).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Suggest changes" })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner suggested edit" } })
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions", expect.objectContaining({ method: "POST" })))
+    const suggestionRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/suggestions")
+    expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
+      suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Owner suggested edit" }
+    })
   })
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
@@ -553,7 +774,7 @@ describe("DesignDocsSurface", () => {
     await within(titleBar).findByRole("option", { name: "v1 - Initial" })
     fireEvent.change(versionSelect, { target: { value: "1" } })
 
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Historical body"))
   })
 
   it("opens the share popup toward available space inside the wrapped title bar", async () => {
@@ -605,11 +826,12 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
   })
 
-  it("renders pending suggestions inline in Markdown and WYSIWYG without changing canonical markdown", async () => {
+  it("renders pending suggestions inline in Markdown and Rich Text without changing canonical markdown", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     expect(markdownEditor).toHaveValue("Alpha beta gamma")
     const markdownSuggestion = container.querySelector("[data-inline-suggestion-state='pending']")
     expect(markdownSuggestion?.querySelector("del")).toHaveTextContent("gamma")
@@ -617,8 +839,8 @@ describe("DesignDocsSurface", () => {
     expect(markdownSuggestion?.querySelector("del")).toHaveClass("text-warning")
     expect(markdownSuggestion?.querySelector("ins")).toHaveClass("text-success")
 
-    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
-    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    const wysiwygEditor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const wysiwygSuggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
     expect(wysiwygSuggestion?.querySelector("del")).toHaveTextContent("gamma")
     expect(wysiwygSuggestion?.querySelector("ins")).toHaveTextContent("delta")
@@ -632,7 +854,8 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
     const mirror = container.querySelector("[data-testid='markdown-highlight-mirror']")
     expect(mirror).not.toBeNull()
 
@@ -646,20 +869,23 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/3")
 
-    expect(await screen.findByRole("button", { name: "Propose changes" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Suggest changes" })).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Change mode" })).toHaveTextContent("Suggest")
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
     expect(screen.getByText("Pending owner review.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Add repository" })).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Alpha beta delta" } })
-    fireEvent.click(screen.getByRole("button", { name: "Propose changes" }))
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3", expect.objectContaining({ method: "PATCH" })))
-    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3" && call[1]?.method === "PATCH")
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3/suggestions" && call[1]?.method === "POST")
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
-      design_doc: { markdown: "Alpha beta delta" }
+      suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Alpha beta delta" }
     })
   })
 
@@ -667,9 +893,100 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    await screen.findByRole("textbox", { name: "Markdown editor" })
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
     expect(container.querySelector(".min-h-\\[36rem\\]")).not.toBeNull()
     expect(container.querySelector(".xl\\:grid-cols-\\[minmax\\(0\\,1fr\\)_22rem\\]")).not.toBeNull()
     expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull()
+  })
+
+  it("autosaves owner draft edits so reload preserves them before checkpoint save", async () => {
+    let currentDoc = { ...docDetail }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: currentDoc })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+        const payload = JSON.parse(String(init.body))
+        currentDoc = {
+          ...currentDoc,
+          title: payload.design_doc.title,
+          markdown: payload.design_doc.markdown,
+          rendered_markdown: payload.design_doc.markdown
+        }
+        return jsonResponse({ design_doc: currentDoc, mode: "canonical", message: "Design doc updated." })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const first = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved owner draft" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" }))
+    }, { timeout: 1500 })
+    const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Autosaved owner draft" }
+    })
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body)).design_doc.checkpoint).toBeUndefined()
+
+    first.unmount()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Autosaved owner draft")
+  })
+
+  it("autosaves pending suggestions so reload preserves them before owner review", async () => {
+    const reviewerDoc = { ...reviewerDocDetail, suggestions: [] as typeof docDetail.suggestions, pending_suggestions_count: 0 }
+    let currentDoc = reviewerDoc
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/3" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: currentDoc })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/3/suggestions" && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body))
+        currentDoc = {
+          ...currentDoc,
+          suggestions: [{
+            ...docDetail.suggestions[0],
+            id: 40,
+            original_markdown: payload.suggestion.original_markdown,
+            proposed_markdown: payload.suggestion.proposed_markdown,
+            suggested_markdown: payload.suggestion.proposed_markdown,
+            provenance: { autosave: true }
+          }],
+          pending_suggestions_count: 1
+        }
+        return jsonResponse({ design_doc: currentDoc, suggestion: currentDoc.suggestions[0], message: "Suggestion created." }, 201)
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const first = renderSurface("/design_docs/3")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Autosaved suggestion draft" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" }))
+    }, { timeout: 1500 })
+    const autosaveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3/suggestions" && call[1]?.method === "POST")
+    expect(JSON.parse(String(autosaveRequest?.[1]?.body))).toMatchObject({
+      suggestion: { proposed_markdown: "Autosaved suggestion draft", autosave: true }
+    })
+
+    first.unmount()
+    renderSurface("/design_docs/3")
+
+    await waitFor(() => expect(screen.getAllByText("Autosaved suggestion draft").length).toBeGreaterThan(0))
   })
 })

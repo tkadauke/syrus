@@ -19,7 +19,7 @@ module Api
         end
 
         def show
-          render json: { design_doc: serializer.detail(find_design_doc, user: Current.user) }
+          render json: { design_doc: serializer.detail(ensure_suggestion_threads(find_design_doc), user: Current.user) }
         end
 
         def create
@@ -99,12 +99,13 @@ module Api
             actor_kind: design_doc_actor_kind
           )
 
-          render json: {
+          payload = {
             design_doc: serializer.detail(result.design_doc, user: Current.user),
             suggestion: serializer.suggestion(result.suggestion),
-            version: serializer.version(result.version),
             message: "Suggestion created."
-          }, status: :created
+          }
+          payload[:version] = serializer.version(result.version) if result.version
+          render json: payload, status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
@@ -195,6 +196,10 @@ module Api
           ::DesignDocs::Serializer
         end
 
+        def ensure_suggestion_threads(design_doc)
+          ::DesignDocs::EnsureSuggestionThreads.call(design_doc: design_doc)
+        end
+
         def update_message(result)
           return "Suggestion created." if result.suggestion
           return "Design doc updated." if result.version
@@ -222,6 +227,7 @@ module Api
             :state,
             :origin_chat_session_id,
             :change_summary,
+            :checkpoint,
             :start_offset,
             :end_offset,
             :selected_markdown,
@@ -248,7 +254,8 @@ module Api
             :thread_id,
             :run_id,
             :workflow_id,
-            :chat_message_id
+            :chat_message_id,
+            :autosave
           )
         end
 

@@ -16,12 +16,17 @@ RSpec.describe "App API pending feedback", type: :request do
   def parse_body = JSON.parse(response.body)
   let(:submitted_workflow) { Workflow.create!(job: job, trigger_kind: "chat_feedback") }
 
+  def next_github_comment_id
+    @next_github_comment_id ||= 10_000
+    @next_github_comment_id += 1
+  end
+
   def make_pr_comment(**attrs)
     PrReviewComment.create!({
       job: job,
       pr_type: "direct",
       comment_kind: "issue",
-      github_comment_id: SecureRandom.random_number(999_999),
+      github_comment_id: next_github_comment_id,
       github_handle: "reviewer",
       attributed_to: "external",
       actionable: true,

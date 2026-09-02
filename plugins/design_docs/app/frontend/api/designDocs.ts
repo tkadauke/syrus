@@ -79,6 +79,7 @@ export type DesignDocSuggestion = {
   provenance: Record<string, unknown>
   conflict_reason: string | null
   anchor: DesignDocAnchor
+  thread: DesignDocThread | null
   reviewed_by: DesignDocUser | null
   reviewed_at: string | null
   created_at: string
@@ -145,6 +146,7 @@ export type DesignDocInput = {
   visibility?: "private" | "public"
   state?: "draft" | "accepted" | "archived"
   change_summary?: string
+  checkpoint?: boolean
   origin_chat_session_id?: number
   repository_ids?: number[]
   collaborator_user_ids?: number[]
@@ -177,7 +179,7 @@ export function createDesignDocComment(id: string | number, input: { body: strin
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/comments`, { comment: input })
 }
 
-export function createDesignDocSuggestion(id: string | number, input: { start_offset: number; end_offset: number; original_markdown: string; proposed_markdown: string; change_summary?: string; selected_text?: string }) {
+export function createDesignDocSuggestion(id: string | number, input: { start_offset: number; end_offset: number; original_markdown: string; proposed_markdown: string; change_summary?: string; selected_text?: string; autosave?: boolean }) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/suggestions`, { suggestion: { ...input, change_type: "replace" } })
 }
 

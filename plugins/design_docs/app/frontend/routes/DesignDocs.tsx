@@ -1,5 +1,7 @@
+import { useParams } from "react-router-dom"
 import { DesignDocsSurface } from "../components/DesignDocsSurface"
 
 export default function DesignDocsRoute() {
-  return <DesignDocsSurface mode="index" />
+  const params = useParams()
+  return <DesignDocsSurface mode={params.id ? "show" : "index"} />
 }
