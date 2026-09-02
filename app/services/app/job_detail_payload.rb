@@ -738,6 +738,8 @@ module App
       retry_actions = ::App::JobRetryActions.for(@job)
       send_job_upstream_action = send_job_upstream_action_json
       active_runtime_work = job_has_active_runtime_work?
+      alternate_agent_options = @job.alternate_configured_agent_providers
+      visual_review_enabled = visual_review_configured?
       {
         can_start: @job.direct? && @job.open? && !@job.runs.exists? && !active_runtime_work,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
@@ -774,13 +776,13 @@ module App
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
         can_deploy: deploy_configured? && @job.deployable?,
-        can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
-        can_run_visual_diff: visual_review_configured? && @job.visual_diff_runnable? && visual_diff_available?,
+        can_run_visual_review: visual_review_enabled && (@job.implemented? || @job.approved?) && !active_runtime_work,
+        can_run_visual_diff: visual_review_enabled && (@job.implemented? || @job.approved? || @job.landing?) && !active_runtime_work && visual_diff_available?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
         send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
-        feedback_agent_options: @job.alternate_configured_agent_providers,
-        rebase_agent_options: @job.alternate_configured_agent_providers,
+        feedback_agent_options: alternate_agent_options,
+        rebase_agent_options: alternate_agent_options,
         retry_agent_options: @job.retry_with_agent_providers
       }
     end
