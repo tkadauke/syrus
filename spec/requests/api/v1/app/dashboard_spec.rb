@@ -1588,13 +1588,22 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
     it "returns a nullable cost until a job has a billed run" do
       unbilled = Factories.job_record(repository: repo, owner_user: user, issue_number: 1, issue_title: "Wait in queue")
       billed = Factories.job_record(repository: repo, owner_user: user, issue_number: 2, issue_title: "Spend carefully")
+      other_billed = Factories.job_record(repository: repo, owner_user: user, issue_number: 3, issue_title: "Spend again")
       Run.create!(job: billed, trigger_kind: "initial", cost_usd: 0.12)
+      Run.create!(job: other_billed, trigger_kind: "initial", cost_usd: 0.34)
 
-      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
+      queries = capture_sql do
+        get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
+      end
 
       body = parse_body
       expect(body["items"].find { |item| item.fetch("id") == unbilled.id }.fetch("total_cost_usd")).to be_nil
       expect(body["items"].find { |item| item.fetch("id") == billed.id }.fetch("total_cost_usd")).to eq(0.12)
+      expect(body["items"].find { |item| item.fetch("id") == other_billed.id }.fetch("total_cost_usd")).to eq(0.34)
+
+      cost_queries = queries.grep(/FROM ["`]?runs["`]?/i).grep(/cost_usd/i)
+      expect(cost_queries.size).to eq(1)
+      expect(cost_queries.first.squish).to match(/COUNT\(cost_usd\).*SUM\(cost_usd\)|SUM\(cost_usd\).*COUNT\(cost_usd\)/i)
     end
 
     it "defaults jobs and workflows to team work" do

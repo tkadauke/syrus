@@ -43,7 +43,7 @@ module App
           agent_provider: workflow_agent_provider,
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
-          total_cost_usd: job.display_total_cost_usd&.to_f,
+          total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
           branch_name: job.branch_name,
@@ -134,6 +134,16 @@ module App
         return job.workflows.size unless defined?(@job_runtime_workflow_counts_by_job_id)
 
         @job_runtime_workflow_counts_by_job_id.fetch(job.id, 0)
+      end
+
+      def total_cost_usd_for(job)
+        return job.display_total_cost_usd unless defined?(@job_runtime_cost_snapshots_by_job_id)
+
+        snapshot = @job_runtime_cost_snapshots_by_job_id[job.id]
+        return nil unless snapshot
+        return nil if snapshot.fetch(:billed_runs_count).zero?
+
+        snapshot.fetch(:total_cost_usd)
       end
 
       def active_repair_work_json(active_work)

@@ -612,6 +612,9 @@ module App
       @job_runtime_workflow_counts_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.workflow_counts", count: job_ids.size) do
         job_ids.empty? ? {} : Workflow.where(job_id: job_ids).group(:job_id).count
       end
+      @job_runtime_cost_snapshots_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.cost_snapshots", count: job_ids.size) do
+        job_cost_snapshots_by_job_id(job_ids)
+      end
       @job_runtime_latest_runs_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.latest_runs", count: job_ids.size) { latest_runs_for_jobs(jobs) }
       @job_runtime_latest_workflows_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.latest_workflows", count: job_ids.size) { latest_workflows_for_jobs(jobs) }
       run_ids = @job_runtime_latest_runs_by_job_id.values.map(&:id)
@@ -653,6 +656,29 @@ module App
 
       latest_ids = Run.where(job_id: job_ids).group(:job_id).maximum(:id).values
       latest_ids.empty? ? {} : Run.where(id: latest_ids).select(:id, :job_id, :state, :finished_at, :updated_at).index_by(&:job_id)
+    end
+
+    def job_cost_snapshots_by_job_id(job_ids)
+      return {} if job_ids.empty?
+
+      rows = Run
+        .where(job_id: job_ids)
+        .group(:job_id)
+        .pluck(
+          :job_id,
+          Arel.sql("COUNT(cost_usd)"),
+          Arel.sql("COALESCE(SUM(cost_usd), 0)")
+        )
+
+      rows.to_h do |job_id, billed_runs_count, total_cost_usd|
+        [
+          job_id,
+          {
+            billed_runs_count: billed_runs_count.to_i,
+            total_cost_usd: total_cost_usd.to_d
+          }
+        ]
+      end
     end
 
     def latest_workflows_by_job_id(job_ids)
