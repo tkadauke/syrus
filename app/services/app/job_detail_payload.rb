@@ -42,9 +42,9 @@ module App
           pinned: PerformanceLogging.phase("job_detail.pinned", job_id: @job.id) { @user.job_pins.exists?(job: @job) },
           tags: PerformanceLogging.phase("job_detail.tags", job_id: @job.id) { @job.tags.ordered.map { |tag| tag_json(tag) } },
           tag_options: PerformanceLogging.phase("job_detail.tag_options", job_id: @job.id) { @user.tags.ordered.map { |tag| tag_json(tag) } },
-          dependencies: PerformanceLogging.phase("job_detail.dependencies", job_id: @job.id) { @job.dependencies.includes(:created_by_user, depends_on_job: :repository, depends_on_epic: :repository).map { |dependency| dependency_json(dependency) } },
+          dependencies: PerformanceLogging.phase("job_detail.dependencies", job_id: @job.id) { job_detail_dependencies.map { |dependency| dependency_json(dependency) } },
           dependents: PerformanceLogging.phase("job_detail.dependents", job_id: @job.id) { @job.dependent_links.includes(job: :repository).map { |dependency| dependent_json(dependency) } },
-          unsatisfied_dependencies: PerformanceLogging.phase("job_detail.unsatisfied_dependencies", job_id: @job.id) { @job.unsatisfied_dependencies.map { |dependency| dependency_json(dependency) } },
+          unsatisfied_dependencies: PerformanceLogging.phase("job_detail.unsatisfied_dependencies", job_id: @job.id) { unsatisfied_job_detail_dependencies.map { |dependency| dependency_json(dependency) } },
           dependency_target_options: [],
           epic_dependency_target_options: [],
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
@@ -136,6 +136,7 @@ module App
     end
 
     def job_json
+      job_detail_dependencies
       workflow_agent_provider = PerformanceLogging.phase("job_detail.job.workflow_agent_provider", job_id: @job.id) { @job.workflow_agent_provider }
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
         App::ProviderAvailability.for_user(@user, workflow_agent_provider)
@@ -273,6 +274,22 @@ module App
       return "issue_label" if artifact_workflows_matching("prepare_skipped_reason").any? { |workflow| workflow.artifact("prepare_skipped_reason") == "issue_label" }
 
       nil
+    end
+
+    def job_detail_dependencies
+      @job_detail_dependencies ||= begin
+        records = @job
+          .dependencies
+          .includes(:created_by_user, depends_on_job: :repository, depends_on_epic: :repository)
+          .to_a
+        @job.association(:dependencies).target = records
+        @job.association(:dependencies).loaded!
+        records
+      end
+    end
+
+    def unsatisfied_job_detail_dependencies
+      @unsatisfied_job_detail_dependencies ||= job_detail_dependencies.reject(&:dependency_succeeded?)
     end
 
     def job_has_active_runtime_work?

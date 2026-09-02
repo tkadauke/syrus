@@ -99,6 +99,21 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:job, :summary_state)).to eq("implemented")
       expect(payload.dig(:actions, :can_start)).to be(false)
     end
+
+    it "loads dependency rows once for dependencies and unsatisfied dependencies" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      satisfied = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      unsatisfied = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobDependency.create!(job: job, depends_on_job: satisfied, source: "manual", created_by_user: user)
+      JobDependency.create!(job: job, depends_on_job: unsatisfied, source: "manual", created_by_user: user)
+
+      queries = capture_sql { payload_for(job) }
+      dependency_loads = queries.select do |sql|
+        sql.match?(/FROM "?job_dependencies"? WHERE "?job_dependencies"?\."?job_id"? =/)
+      end
+
+      expect(dependency_loads.size).to eq(1)
+    end
   end
 
   describe "#actions_json can_run_visual_review" do

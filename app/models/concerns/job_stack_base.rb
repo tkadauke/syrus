@@ -24,7 +24,8 @@ module JobStackBase
       return parent_job.branch_name
     end
 
-    parent = dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find do |dependency_job|
+    dependency_records = dependencies.loaded? ? dependencies.to_a : dependencies.includes(:depends_on_job).to_a
+    parent = dependency_records.map(&:depends_on_job).compact.find do |dependency_job|
       dependency_job.open? &&
         dependency_job.repository_id == repository_id &&
         dependency_job.pr_number.present? &&
