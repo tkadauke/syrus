@@ -18,7 +18,7 @@ module App
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
           paginated_workflows.map do |workflow|
-            workflow_json(workflow)
+            workflow_json(workflow, navigation_page: workflows_page)
           end
         end
       end
@@ -216,7 +216,7 @@ module App
         }
       end
 
-      def workflow_json(workflow)
+      def workflow_json(workflow, navigation_page: nil)
         @workflow_json_by_id ||= {}
         return @workflow_json_by_id[workflow.id] if @workflow_json_by_id.key?(workflow.id)
 
@@ -228,7 +228,7 @@ module App
           {
             id: workflow.id,
             slug: workflow.slug,
-            path: workflow_navigation_path(workflow),
+            path: workflow_navigation_path(workflow, page: navigation_page),
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
             state: workflow.state,
@@ -306,7 +306,7 @@ module App
         "#{job_path(@job)}?#{ { tab: "workflows", workflows_page: page }.to_query }"
       end
 
-      def workflow_navigation_path(workflow)
+      def workflow_navigation_path(workflow, page: nil)
         unless workflow.job_id == @job.id
           query = { tab: "workflows" }
           page = external_workflow_navigation_page_by_workflow_id[workflow.id]
@@ -316,7 +316,7 @@ module App
         end
 
         query = { tab: "workflows" }
-        page = workflow_navigation_page_by_workflow_id[workflow.id]
+        page ||= workflow_navigation_page_by_workflow_id[workflow.id]
         query[:workflows_page] = page if page.to_i > 1
 
         "#{job_path(@job)}?#{query.to_query}#workflow-#{workflow.id}"

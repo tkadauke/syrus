@@ -10,8 +10,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     described_class.build(job: job, user: user)
   end
 
-  def workflows_payload_for(job)
-    described_class.workflows(job: job, user: user)
+  def workflows_payload_for(job, params: {})
+    described_class.workflows(job: job, user: user, params: params)
   end
 
   def capture_sql
@@ -395,6 +395,31 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       payload = payload_for(job)
 
       expect(payload.dig(:workflows_pagination, :total_workflows)).to eq(1)
+    end
+
+    it "does not scan all workflow ids to link current-page workflow rows" do
+      job = Factories.job_record(user: user, repository: repo)
+      51.times do |index|
+        workflow = Workflow.create!(
+          job: job,
+          trigger_kind: "initial",
+          state: "succeeded",
+          created_at: index.minutes.ago
+        )
+        Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      end
+
+      payload = nil
+      queries = capture_sql do
+        payload = workflows_payload_for(job, params: { workflows_page: 2 })
+      end
+
+      expect(payload.dig(:workflows, 0, :path)).to include("workflows_page=2")
+      workflow_id_scans = queries.select do |sql|
+        sql.match?(/\ASELECT [`"]?workflows[`"]?\.[`"]?id[`"]? FROM [`"]?workflows[`"]?/i) &&
+          sql.match?(/WHERE [`"]?workflows[`"]?\.[`"]?job_id[`"]? = /i)
+      end
+      expect(workflow_id_scans).to be_empty
     end
 
     it "renders step state from the latest run projection while preserving drift diagnostics" do
