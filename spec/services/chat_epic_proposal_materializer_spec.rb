@@ -66,6 +66,24 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "keeps Epic child Jobs on the current materialization path even when a child proposal carries backlog route metadata" do
+    proposal = epic_proposal
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository,
+      route_to_backlog: true
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(child.reload.job).to eq(result.jobs.sole)
+    expect(child.job).to be_blocked_by_epic
+    expect(child.job).not_to be_backlog
+  end
+
   it "copies goal provenance to a bundled Epic and its child Jobs" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
