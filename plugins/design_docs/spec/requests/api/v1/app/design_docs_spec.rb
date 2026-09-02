@@ -262,6 +262,38 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
   end
 
+  it "projects hidden anchor markers when owners save formatted visible markdown nearby" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    comment_result = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    )
+    marker_id = comment_result.anchor.marker_id
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        markdown: "Intro Alpha **beta** gamma",
+        change_summary: "Format keyword",
+        checkpoint: true
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    doc.reload
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Intro Alpha **beta** gamma")
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{marker_id}\" -->")
+    expect(doc.markdown).to include("<!-- syrus:range-end id=\"#{marker_id}\" -->")
+    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Intro Alpha **beta** gamma")
+    location = DesignDocs::AnchorMarkers.locate(markdown: doc.markdown, marker_id: marker_id, anchor_kind: "range")
+    expect(location).to have_attributes(
+      status: "active",
+      selected_markdown: "beta"
+    )
+  end
+
   it "turns collaborator markdown edits into suggestions without mutating canonical markdown" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
