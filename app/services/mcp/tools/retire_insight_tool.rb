@@ -1,10 +1,11 @@
 require "mcp"
 
 module Mcp::Tools
-  # MCP tool for insight agents to retire a stale, duplicated, or superseded
-  # InsightSuggestion with an audit trail. Retirement is a state transition
-  # (state: "retired"), never a physical delete, so historical evidence stays
-  # inspectable via list_insights(state: "retired"/"all") and read_insight.
+  # MCP tool for insight agents and repository chat agents to retire a stale,
+  # duplicated, or superseded InsightSuggestion with an audit trail.
+  # Retirement is a state transition (state: "retired"), never a physical
+  # delete, so historical evidence stays inspectable via
+  # list_insights(state: "retired"/"all") and read_insight.
   class RetireInsightTool < MCP::Tool
     tool_name "retire_insight"
 
@@ -47,11 +48,11 @@ module Mcp::Tools
     class << self
       def call(target_insight_id:, reason:, server_context:,
                superseded_by_insight_id: nil, superseded_by_job_id: nil, retire_accepted: false)
-        run = Mcp::Tools.run_from_context(server_context)
+        context = McpToolContext.from_server_context(server_context)
         reason_s = CommandRedactor.redact(Mcp::Tools.utf8(reason)).strip
         return Mcp::Tools.invalid("reason is required") if reason_s.empty?
 
-        insight = visible_insight(target_insight_id, run)
+        insight = visible_insight(target_insight_id, context)
         return Mcp::Tools.invalid("target_insight_id must reference an accessible insight") unless insight
         return Mcp::Tools.invalid("InsightSuggestion ##{insight.id} is already retired.") if insight.retired?
 
@@ -65,20 +66,21 @@ module Mcp::Tools
 
         superseding_insight = nil
         if superseded_by_insight_id.present?
-          superseding_insight = visible_insight(superseded_by_insight_id, run)
+          superseding_insight = visible_insight(superseded_by_insight_id, context)
           return Mcp::Tools.invalid("superseded_by_insight_id must reference an accessible insight in the current repository") unless superseding_insight
           return Mcp::Tools.invalid("superseded_by_insight_id cannot reference the insight being retired") if superseding_insight.id == insight.id
+          return Mcp::Tools.invalid("superseded_by_insight_id must reference an insight in the same repository") if superseding_insight.repository_id != insight.repository_id
         end
 
         superseding_job = nil
         if superseded_by_job_id.present?
-          superseding_job = visible_job(superseded_by_job_id, run)
+          superseding_job = visible_job(superseded_by_job_id, insight)
           return Mcp::Tools.invalid("superseded_by_job_id must reference an accessible Job in the current repository") unless superseding_job
         end
 
         unless insight.retire!(
           reason: reason_s,
-          actor: run,
+          actor: context.run || context.user,
           superseded_by_insight: superseding_insight,
           superseded_by_job: superseding_job,
           retire_accepted: !!retire_accepted
@@ -86,8 +88,8 @@ module Mcp::Tools
           return Mcp::Tools.invalid("InsightSuggestion ##{insight.id} could not be retired (state changed concurrently).")
         end
 
-        append_workflow_artifact(run, insight)
-        Mcp::Tools.write_log(run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}")
+        append_workflow_artifact(context.run, insight) if context.run
+        Mcp::Tools.write_log(context.run, "[mcp] retire_insight: ##{insight.id} #{insight.title.truncate(80)}") if context.run
 
         MCP::Tool::Response.new([
           { type: "text", text: "InsightSuggestion ##{insight.id} retired." }
@@ -99,18 +101,29 @@ module Mcp::Tools
 
       private
 
-      def visible_insight(insight_id, run)
+      def visible_insight(insight_id, context)
         id = Integer(insight_id, exception: false)
         return unless id
 
-        InsightSuggestion.for_repository(run.job.repository).find_by(id: id)
+        visible_scope(context).find_by(id: id)
       end
 
-      def visible_job(job_id, run)
+      def visible_scope(context)
+        scope = InsightSuggestion.all
+        if context.run?
+          scope.for_repository(context.repository || context.run&.job&.repository)
+        elsif context.user.admin?
+          scope
+        else
+          scope.where(repository_id: context.allowed_repository_ids)
+        end
+      end
+
+      def visible_job(job_id, insight)
         id = Integer(job_id, exception: false)
         return unless id
 
-        Job.find_by(id: id, repository_id: run.job.repository_id)
+        Job.find_by(id: id, repository_id: insight.repository_id)
       end
 
       def append_workflow_artifact(run, insight)

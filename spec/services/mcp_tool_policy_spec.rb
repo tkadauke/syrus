@@ -312,22 +312,28 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
     end
 
-    it "includes insight read tools when agent_insights is enabled" do
+    it "includes insight read and retire tools when agent_insights is enabled" do
       Feature.find_by!(slug: "agent_insights").update!(enabled: true)
       Feature.clear_enabled_cache!("agent_insights")
 
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool)
-      expect(tools).not_to include(Mcp::Tools::SubmitInsightTool)
+      expect(tools).to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool, Mcp::Tools::RetireInsightTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitInsightTool, Mcp::Tools::UpdateInsightTool)
     end
 
-    it "excludes insight read tools when agent_insights is disabled" do
+    it "excludes insight tools when agent_insights is disabled" do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools).not_to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool, Mcp::Tools::SubmitInsightTool)
+      expect(tools).not_to include(
+        Mcp::Tools::ListInsightsTool,
+        Mcp::Tools::ReadInsightTool,
+        Mcp::Tools::RetireInsightTool,
+        Mcp::Tools::SubmitInsightTool,
+        Mcp::Tools::UpdateInsightTool
+      )
     end
 
     it "excludes coding tools" do

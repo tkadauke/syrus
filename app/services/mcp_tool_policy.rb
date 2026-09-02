@@ -306,7 +306,8 @@ class McpToolPolicy
     [
       Mcp::Tools::ListInsightsTool,
       Mcp::Tools::ReadInsightTool,
-      Mcp::Tools::UpdateInsightTool
+      Mcp::Tools::UpdateInsightTool,
+      Mcp::Tools::RetireInsightTool
     ]
   end
 end
