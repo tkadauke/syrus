@@ -28,6 +28,7 @@ module Filters
         values(
           { "value" => "open",   "label" => "Any open" },
           { "value" => "closed", "label" => "Closed or merged" },
+          "backlog",
           "triaging",
           "blocked_by_epic",
           "queued",

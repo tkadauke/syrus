@@ -123,6 +123,25 @@ export type ActiveRepairWork = {
   blocked_reason: string | null
 }
 
+export type DashboardDependencyTarget = {
+  id: number
+  slug: string
+  title: string | null
+  state: string
+  repository_slug?: string
+  job_path?: string
+  epic_path?: string
+}
+
+export type DashboardJobDependency = {
+  id: number
+  pending: boolean
+  succeeded: boolean
+  unresolved_slug: string | null
+  depends_on_job: DashboardDependencyTarget | null
+  depends_on_epic: DashboardDependencyTarget | null
+}
+
 export type DashboardLandingQueueEntry = {
   key: string
   position: number
@@ -184,6 +203,8 @@ export type DashboardJobItem = {
   claimed_by_user: DashboardClaimOwner | null
   claimed_by_current_user: boolean
   dependencies_overridden_at: string | null
+  dependencies?: DashboardJobDependency[]
+  unsatisfied_dependencies?: DashboardJobDependency[]
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
@@ -208,12 +229,16 @@ export type DashboardJobItem = {
   manual_paused_by_user?: DashboardOwnerUser | null
   active_repair_work?: ActiveRepairWork | null
   can_approve?: boolean
+  can_release_from_backlog?: boolean
+  can_move_to_backlog?: boolean
   can_start_preview?: boolean
   paths: {
     job_path: string
     source_path: string
     app_pause_path?: string
     app_unpause_path?: string
+    app_release_from_backlog_path?: string
+    app_move_to_backlog_path?: string
     app_approve_path?: string
     app_preview_path?: string
     app_preview_logs_path?: string
@@ -646,6 +671,10 @@ export function bulkDashboardJobs(input: DashboardBulkJobsInput) {
 
 export function unpauseDashboardJob(path: string) {
   return postJson<{ message?: string }>(path, {})
+}
+
+export function releaseDashboardJob(path: string) {
+  return postJson<{ message?: string; job?: { id: number; state: string } }>(path, {})
 }
 
 export function approveDashboardJob(path: string) {

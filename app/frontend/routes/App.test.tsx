@@ -5652,6 +5652,87 @@ describe("App", () => {
     expect(within(card).queryByText("Needs attention")).not.toBeInTheDocument()
   })
 
+  it("renders backlog job kanban cards with source, age, dependencies, and actions", async () => {
+    const backloggedJob = dashboardJobItem({
+      id: 88,
+      kind: "direct",
+      title: "Backlog dashboard lane",
+      state: "backlog",
+      summary_state: "backlog",
+      priority: "high",
+      issue_number: null,
+      issue_url: null,
+      pr_number: null,
+      pr_url: null,
+      active_workflow_trigger_kind: null,
+      latest_workflow_id: null,
+      latest_workflow_trigger_kind: null,
+      latest_workflow_state: "backlog",
+      workflows_count: 0,
+      dependencies: [
+        {
+          id: 4,
+          pending: false,
+          succeeded: false,
+          unresolved_slug: null,
+          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
+          depends_on_epic: null
+        }
+      ],
+      unsatisfied_dependencies: [
+        {
+          id: 4,
+          pending: false,
+          succeeded: false,
+          unresolved_slug: null,
+          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
+          depends_on_epic: null
+        }
+      ],
+      can_release_from_backlog: true,
+      paths: {
+        job_path: "/jobs/88",
+        source_path: "/jobs/88/source",
+        app_release_from_backlog_path: "/api/v1/app/jobs/88/release_from_backlog"
+      }
+    })
+    mockDashboardFetch(dashboardPayload({
+      subject: "job",
+      view: "kanban",
+      total: 1,
+      preferences: {
+        ...dashboardPayload().preferences,
+        kanban_lanes: ["backlog"]
+      },
+      controls: {
+        ...dashboardPayload().controls,
+        kanban_lanes: [{ key: "backlog", title: "Backlog" }]
+      },
+      lanes: [
+        { key: "backlog", title: "Backlog", count: 1, items: [backloggedJob] }
+      ],
+      kanban_limit: 100
+    }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const title = await screen.findByRole("link", { name: "Backlog dashboard lane" })
+    const card = title.closest("article")
+    expect(card).not.toBeNull()
+    expect(within(card!).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(card!).getByText("High")).toBeInTheDocument()
+    expect(within(card!).getByText("Direct")).toBeInTheDocument()
+    expect(within(card!).getByText("1/1 deps blocked")).toBeInTheDocument()
+    expect(card!.querySelector("time")).toHaveAttribute("datetime", "2026-05-30T10:00:00Z")
+    expect(within(card!).getByRole("button", { name: "Start" })).toBeInTheDocument()
+  })
+
   it("moves Epic kanban cards with drag and drop", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
