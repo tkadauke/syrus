@@ -11,7 +11,15 @@ import { Button } from "./Button"
 // repos added to Syrus later connect automatically). Registering the App
 // satisfies the GitHub onboarding step; installation is encouraged here but
 // skippable, with a per-repository fallback offer at add-repository time.
-export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+export function GithubAppPanel({
+  onClose,
+  onSaved,
+  confirmRefetchIntervalMs = 3000
+}: {
+  onClose: () => void
+  onSaved?: () => void
+  confirmRefetchIntervalMs?: number
+}) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [awaiting, setAwaiting] = useState(false)
@@ -32,7 +40,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
   const confirm = useQuery({
     queryKey: ["admin", "github_app", "confirm"],
     queryFn: fetchAdminGithubAppConfirm,
-    refetchInterval: awaiting || awaitingInstall ? 3000 : false,
+    refetchInterval: awaiting || awaitingInstall ? confirmRefetchIntervalMs : false,
     refetchOnWindowFocus: true
   })
 

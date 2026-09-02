@@ -313,11 +313,11 @@ grade:
     description: |
       React SPA tests and TypeScript typecheck. This is the main
       frontend regression gate after the SPA migration; it runs
-      Vitest and `tsc --noEmit` concurrently through `bin/test-react`.
+      `tsc --noEmit` first, then Vitest coverage through `bin/test-react`.
       Failures here usually mean the rendered app/API contract or
-      typed frontend model drifted. Vitest alone now runs close to the
-      old 15-minute budget as the suite has grown, leaving no room for
-      `tsc --noEmit` even running concurrently; bumped for headroom.
+      typed frontend model drifted. Vitest coverage dominates runtime, so
+      typecheck fails fast before the long pass and Vitest runs without
+      competing type-aware tooling on shared grader hosts.
     run: bin/test-react
     phases: [landing, ci]
     junit_output: .syrus/grade-output/react-tests-junit.xml

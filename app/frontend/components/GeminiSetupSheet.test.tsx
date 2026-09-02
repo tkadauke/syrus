@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { GeminiSetupSheet, looksLikeGeminiKey } from "./GeminiSetupSheet"
 import { testGeminiKey, updateCredentials } from "../api/credentials"
 
@@ -8,11 +8,6 @@ vi.mock("../api/credentials", () => ({
   testGeminiKey: vi.fn(),
   updateCredentials: vi.fn()
 }))
-
-// The staged validation deliberately pauses (~350ms per stage plus a 600ms
-// beat before onConfigured) so the checks read as a cascade — give async
-// assertions headroom beyond waitFor's 1s default.
-const STAGE_TIMEOUT = { timeout: 4000 }
 
 const labels = {
   title: "Set up Gemini",
@@ -44,6 +39,18 @@ function submitKey(key: string) {
   fireEvent.click(screen.getByRole("button", { name: labels.validateAndSave }))
 }
 
+async function advanceValidationBy(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms)
+  })
+}
+
+async function completeSuccessfulValidationTimers() {
+  await advanceValidationBy(350)
+  await advanceValidationBy(350)
+  await advanceValidationBy(600)
+}
+
 describe("looksLikeGeminiKey", () => {
   it("rejects short strings", () => {
     expect(looksLikeGeminiKey("AIza123")).toBe(false)
@@ -70,8 +77,13 @@ describe("looksLikeGeminiKey", () => {
 
 describe("GeminiSetupSheet", () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.mocked(testGeminiKey).mockReset()
     vi.mocked(updateCredentials).mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it("validates a good key end-to-end: stages cascade to ok, saves, and fires onConfigured", async () => {
@@ -90,14 +102,19 @@ describe("GeminiSetupSheet", () => {
     expect(screen.getByTestId("gemini-stage-format")).toHaveAttribute("data-status", "pending")
     submitKey(VALID_KEY)
 
-    await waitFor(() => expect(screen.getByTestId("gemini-stage-format")).toHaveAttribute("data-status", "ok"), STAGE_TIMEOUT)
-    await waitFor(() => expect(screen.getByTestId("gemini-stage-reach")).toHaveAttribute("data-status", "ok"), STAGE_TIMEOUT)
-    await waitFor(() => expect(screen.getByTestId("gemini-stage-video")).toHaveAttribute("data-status", "ok"), STAGE_TIMEOUT)
+    await advanceValidationBy(350)
+    expect(screen.getByTestId("gemini-stage-format")).toHaveAttribute("data-status", "ok")
+    expect(screen.getByTestId("gemini-stage-reach")).toHaveAttribute("data-status", "ok")
+    expect(screen.getByTestId("gemini-stage-video")).toHaveAttribute("data-status", "running")
 
-    expect(await screen.findByRole("status", {}, STAGE_TIMEOUT)).toHaveTextContent("Key saved.")
+    await advanceValidationBy(350)
+    expect(screen.getByTestId("gemini-stage-video")).toHaveAttribute("data-status", "ok")
     expect(testGeminiKey).toHaveBeenCalledWith(VALID_KEY)
     expect(updateCredentials).toHaveBeenCalledWith({ gemini_api_key: VALID_KEY })
-    await waitFor(() => expect(onConfigured).toHaveBeenCalledTimes(1), STAGE_TIMEOUT)
+    expect(screen.getByRole("status")).toHaveTextContent("Key saved.")
+
+    await advanceValidationBy(600)
+    expect(onConfigured).toHaveBeenCalledTimes(1)
   })
 
   it("marks the reach stage failed and skips the save when Google rejects the key", async () => {
@@ -114,7 +131,8 @@ describe("GeminiSetupSheet", () => {
 
     submitKey(VALID_KEY)
 
-    await waitFor(() => expect(screen.getByTestId("gemini-stage-reach")).toHaveAttribute("data-status", "failed"), STAGE_TIMEOUT)
+    await advanceValidationBy(350)
+    expect(screen.getByTestId("gemini-stage-reach")).toHaveAttribute("data-status", "failed")
     expect(screen.getByRole("alert")).toHaveTextContent("Google rejected this key.")
     expect(screen.getByTestId("gemini-stage-video")).toHaveAttribute("data-status", "pending")
     expect(updateCredentials).not.toHaveBeenCalled()
@@ -127,7 +145,8 @@ describe("GeminiSetupSheet", () => {
 
     submitKey("not a key")
 
-    await waitFor(() => expect(screen.getByTestId("gemini-stage-format")).toHaveAttribute("data-status", "failed"), STAGE_TIMEOUT)
+    await advanceValidationBy(350)
+    expect(screen.getByTestId("gemini-stage-format")).toHaveAttribute("data-status", "failed")
     expect(screen.getByRole("alert")).toHaveTextContent(labels.keyHelp)
     expect(testGeminiKey).not.toHaveBeenCalled()
     expect(updateCredentials).not.toHaveBeenCalled()
@@ -146,7 +165,10 @@ describe("GeminiSetupSheet", () => {
     const input = screen.getByPlaceholderText(labels.keyPlaceholder)
     fireEvent.paste(input, { clipboardData: { getData: () => VALID_KEY } })
 
-    await waitFor(() => expect(testGeminiKey).toHaveBeenCalledWith(VALID_KEY), STAGE_TIMEOUT)
-    await waitFor(() => expect(onConfigured).toHaveBeenCalledTimes(1), STAGE_TIMEOUT)
+    await advanceValidationBy(0)
+    await completeSuccessfulValidationTimers()
+
+    expect(testGeminiKey).toHaveBeenCalledWith(VALID_KEY)
+    expect(onConfigured).toHaveBeenCalledTimes(1)
   })
 })
