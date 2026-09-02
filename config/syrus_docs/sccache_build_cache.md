@@ -34,9 +34,14 @@ These are forwarded into `prepare` and `grader` subprocess env by `Steps::Prepar
 
 Verify this list against [sccache's S3 docs](https://github.com/mozilla/sccache/blob/main/docs/S3.md) before changing it — it's the source of truth for what sccache's S3 backend actually reads.
 
-### Deliberately not forwarded: `SCCACHE_BASEDIRS`
+### Deliberately not forwarded by default: `SCCACHE_BASEDIRS`
 
-sccache supports normalizing away a base directory before hashing (`SCCACHE_BASEDIRS`), which lets a cache hit span builds run from different absolute paths. Syrus does **not** forward this var, and it should stay that way — see the coverage-correctness note below.
+sccache supports normalizing away a base directory before hashing
+(`SCCACHE_BASEDIRS`), which lets a cache hit span builds run from different
+absolute paths. Syrus does **not** forward this var globally, and it should
+stay that way. Project-specific grader scripts may opt in only after proving
+their coverage notes are path-stable or path-remapped; see the
+coverage-correctness guidance below.
 
 ## Coverage builds (`gcov`/`--coverage`) and cache correctness
 
@@ -44,9 +49,82 @@ sccache supports normalizing away a base directory before hashing (`SCCACHE_BASE
 
 Every Syrus Workflow clones to a fresh, never-reused `$SYRUS_DATA_ROOT/workflows/<workflow_id>/` path. Combined with sccache's *default* behavior — an exact absolute-path match is required for a cache hit — this means a coverage build's `.gcno` cache entry can only ever be reused by a later compile from the **same Workflow's same still-live workspace**. It cannot be served to a different Workflow, because the absolute path never matches. This is what keeps `gcovr`/coverage output safe: a served `.gcno` always points at a workspace that still exists on disk.
 
-**This safety property depends on never setting `SCCACHE_BASEDIRS`.** That variable exists specifically to let cache hits span different absolute paths by normalizing them away before hashing — turning it on for this fleet would let a coverage build's `.gcno` cache-hit across Workflows, silently corrupting downstream coverage reports with a notes file pointing at a different (likely deleted) workspace. If a future change wants cross-Workflow cache benefit for coverage builds specifically, it needs its own solution (e.g. rewriting/stripping the cached `.gcno`'s embedded path before use) — don't just flip on `SCCACHE_BASEDIRS`.
+**This safety property depends on never setting `SCCACHE_BASEDIRS` for an
+unvalidated coverage build.** That variable exists specifically to let cache
+hits span different absolute paths by normalizing them away before hashing.
+Turning it on globally would let a coverage build's `.gcno` cache-hit across
+Workflows and could silently corrupt downstream coverage reports with a notes
+file pointing at a different (likely deleted) workspace.
 
-Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker cache benefit once a bucket is configured. Coverage-instrumented compiles only benefit from same-Workflow reruns (still valuable — that's every retry in a grade loop) until a dedicated fix ships. This is an accepted interim limitation, not a bug.
+Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker
+cache benefit once a bucket is configured. Coverage-instrumented compiles only
+benefit from same-Workflow reruns (still valuable -- that's every retry in a
+grade loop) unless the repository's coverage recipe deliberately remaps the
+paths embedded in coverage notes. This is the safe default, not a cache bug.
+
+## Cache-safe GCC coverage recipe
+
+The safe way to combine shared sccache reuse with GCC coverage is to make the
+coverage notes path-independent before enabling `SCCACHE_BASEDIRS`. The
+raytracer validation from JOB-4056 is the reference example, but future
+projects should copy the shape, not raytracer-specific directories or
+thresholds.
+
+For GCC/gcov coverage builds, compile with coverage instrumentation plus path
+remapping for both the source/build path recorded in generated debug or
+coverage metadata and the profile path used by GCC's coverage runtime:
+
+```cmake
+# CMake example for a coverage build type or preset.
+add_compile_options(
+  --coverage
+  -fprofile-prefix-map=${CMAKE_SOURCE_DIR}=.
+  -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
+)
+
+add_link_options(--coverage)
+```
+
+Equivalent shell flags for a wrapper script:
+
+```sh
+export CFLAGS="${CFLAGS:-} --coverage -fprofile-prefix-map=$PWD=. -ffile-prefix-map=$PWD=."
+export CXXFLAGS="${CXXFLAGS:-} --coverage -fprofile-prefix-map=$PWD=. -ffile-prefix-map=$PWD=."
+export LDFLAGS="${LDFLAGS:-} --coverage"
+```
+
+Use the build-system equivalent if the project already centralizes flags in a
+CMake preset, toolchain file, Meson native file, Make wrapper, or CI script.
+The important invariant is that the `.gcno` files restored from sccache do not
+contain the absolute Syrus workflow path that produced them.
+
+### Validation before opting in
+
+Before a project sets `SCCACHE_BASEDIRS` in a grader or prepare wrapper, prove
+the coverage notes are path-stable across two different checkout roots:
+
+1. Build and run the coverage suite in one clean path, for example
+   `/tmp/syrus-coverage-a/project`, with the proposed remapping flags and
+   `SCCACHE_BASEDIRS` enabled for that path.
+2. Build and run the same coverage suite in a second clean path, for example
+   `/tmp/syrus-coverage-b/project`, with the same flags and
+   `SCCACHE_BASEDIRS` enabled for that second path. Warm the cache from the
+   first build so the second path exercises restored cached compiler outputs,
+   not only fresh compiles.
+3. Inspect representative `.gcno` files from the second build with
+   `strings path/to/file.gcno` (or the project's chosen gcov/gcovr debug
+   tooling). The first checkout root must not appear, and neither Syrus
+   workflow path should be required for `gcovr` or the configured coverage
+   reporter to find sources.
+4. Generate the normal coverage artifact from the second path and confirm it
+   reports paths relative to the repository (or another stable prefix the
+   project's coverage parser understands), not `/tmp/syrus-coverage-a/...` or
+   `$SYRUS_DATA_ROOT/workflows/<old_workflow_id>/...`.
+
+If any `.gcno` restored in path B still names path A, the recipe is unsafe:
+leave `SCCACHE_BASEDIRS` disabled for coverage builds. If non-coverage builds
+want cross-workflow cache hits, split them from coverage builds instead of
+normalizing every compile indiscriminately.
 
 ## Cache stats
 
