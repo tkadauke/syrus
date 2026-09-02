@@ -420,6 +420,22 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
   end
 
+  it "stores backlog routing and returns it in the proposal payload" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Hold this Job",
+      description: "Create it later.",
+      route_to_backlog: true
+    )
+
+    expect(response[:result]).to be_present
+    proposal = chat_session.proposals.find_by!(title: "Hold this Job")
+    payload = response_payload(response)
+    expect(proposal.route_to_backlog).to be(true)
+    expect(payload[:route_to_backlog]).to be(true)
+    expect(payload[:initial_job_state]).to eq("backlog")
+  end
+
   it "stores an empty media_ids array when media is omitted" do
     response = call_tool(
       repo: repository.slug,

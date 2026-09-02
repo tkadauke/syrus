@@ -130,6 +130,14 @@ class ChatProposal < ApplicationRecord
     epic?
   end
 
+  def direct_job_proposal?
+    syrus_issue? || job?
+  end
+
+  def initial_job_state_for(user)
+    route_to_backlog? ? "backlog" : Job.initial_state_for_creator(user)
+  end
+
   def epic_dependency_tokens
     JSON.parse(epic_depends_on_tokens.presence || "[]")
   rescue JSON::ParserError

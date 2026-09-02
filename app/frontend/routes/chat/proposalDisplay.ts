@@ -7,7 +7,7 @@
 // proposal components move out of the 6k-line Chat.tsx next.
 import type { ChatProposal, ChatProposalChild, ChatProposalDependency } from "../../api/chats"
 
-export type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "body" | "proposed" | "epic_bundle" | "app_update_path"> & {
+export type EditableProposal = Pick<ChatProposal, "id" | "kind" | "title" | "slug" | "body" | "proposed" | "epic_bundle" | "app_update_path"> & {
   dependency_slugs?: string[]
   dependencies?: ChatProposalDependency[]
   depends_on_job_ids?: number[]
@@ -15,6 +15,7 @@ export type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "bod
   media_ids?: string[]
   target_epic_id?: number | null
   target_epic_label?: string | null
+  route_to_backlog?: boolean
 }
 
 export type DependencyPill = {
@@ -32,6 +33,7 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
   return {
     id: child.id,
     title: child.title,
+    kind: "child_job",
     slug: child.slug,
     body: child.body,
     proposed: child.proposed,
