@@ -22,8 +22,36 @@ class PrReviewComment < ApplicationRecord
   scope :not_ignored, -> { where(ignored_at: nil).where.not(handling_state: "ignored") }
   scope :for_pr_type, ->(type) { where(pr_type: type) }
   scope :job_owner_comments, -> { where(attributed_to: "job_owner") }
+  scope :not_job_owner_comments, -> { where(attributed_to: [ nil, "member", "external" ]) }
   scope :member_comments, -> { where(attributed_to: "member") }
   scope :external_comments, -> { where(attributed_to: "external") }
+  scope :not_operator_ignored, -> {
+    table = arel_table
+    where(table[:actioned_by].eq(nil).or(table[:actioned_by].not_eq("operator:ignore")))
+  }
+  scope :without_active_handling_workflow, -> {
+    workflow_table = Workflow.arel_table
+    left_outer_joins(:handling_workflow)
+      .where(workflow_table[:id].eq(nil).or(workflow_table[:state].not_in(%w[queued running])))
+  }
+  scope :pending_for_operator_review, -> {
+    table = arel_table
+    actionable_comments
+      .not_job_owner_comments
+      .not_operator_ignored
+      .without_active_handling_workflow
+      .where(ignored_at: nil, handled_at: nil)
+      .where(handling_state: [ nil, "pending", "failed" ])
+      .where(table[:actioned_at].eq(nil).or(table[:handling_state].eq("failed")))
+  }
+  scope :retryable_handling_review, -> {
+    actionable_comments
+      .not_job_owner_comments
+      .not_operator_ignored
+      .without_active_handling_workflow
+      .where(ignored_at: nil, handled_at: nil, handling_state: "failed")
+      .where.not(handling_workflow_id: nil)
+  }
 
   def job_owner? = attributed_to == "job_owner"
   def member? = attributed_to == "member"
@@ -49,6 +77,10 @@ class PrReviewComment < ApplicationRecord
     return false if ignored? || handled? || handling_active?
 
     handling_failed? && handling_workflow_id.present?
+  end
+
+  def retryable_handling_without_workflow_load?
+    handling_state == "failed" && handling_workflow_id.present?
   end
 
   def mark_actioned!(by:)

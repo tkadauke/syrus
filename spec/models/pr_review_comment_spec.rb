@@ -128,5 +128,39 @@ RSpec.describe PrReviewComment do
       build_comment(github_comment_id: 1003, pr_type: "fork_review").save!
       expect(PrReviewComment.for_pr_type("fork_review").count).to eq(1)
     end
+
+    it "pending_for_operator_review matches the instance predicate without loading every comment" do
+      active_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued", agent_provider: "claude")
+      handled_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "failed", agent_provider: "claude")
+      comments = [
+        build_comment(github_comment_id: 1010, attributed_to: "external", actionable: true, actioned_at: nil),
+        build_comment(github_comment_id: 1011, attributed_to: "member", actionable: true, handling_state: "failed", handling_workflow: handled_workflow, actioned_at: 1.minute.ago),
+        build_comment(github_comment_id: 1012, attributed_to: nil, actionable: true, actioned_at: nil),
+        build_comment(github_comment_id: 1013, attributed_to: "job_owner", actionable: true, actioned_at: nil),
+        build_comment(github_comment_id: 1014, attributed_to: "external", actionable: false, actioned_at: nil),
+        build_comment(github_comment_id: 1015, attributed_to: "external", actionable: true, handling_state: "handled", handled_at: 1.minute.ago),
+        build_comment(github_comment_id: 1016, attributed_to: "external", actionable: true, handling_state: "ignored", ignored_at: 1.minute.ago),
+        build_comment(github_comment_id: 1017, attributed_to: "external", actionable: true, actioned_by: "operator:ignore"),
+        build_comment(github_comment_id: 1018, attributed_to: "external", actionable: true, handling_state: "active"),
+        build_comment(github_comment_id: 1019, attributed_to: "external", actionable: true, handling_workflow: active_workflow)
+      ]
+      comments.each(&:save!)
+
+      expected = comments.select(&:pending_for_operator?).map(&:id)
+      expect(job.pr_review_comments.pending_for_operator_review.order(:id).pluck(:id)).to eq(expected)
+    end
+
+    it "retryable_handling_review matches failed inactive handling comments" do
+      active_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running", agent_provider: "claude")
+      failed_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "failed", agent_provider: "claude")
+      retryable = build_comment(github_comment_id: 1020, attributed_to: "external", actionable: true, handling_state: "failed", handling_workflow: failed_workflow)
+      no_workflow = build_comment(github_comment_id: 1021, attributed_to: "external", actionable: true, handling_state: "failed", handling_workflow: nil)
+      active = build_comment(github_comment_id: 1022, attributed_to: "external", actionable: true, handling_state: "failed", handling_workflow: active_workflow)
+      owner = build_comment(github_comment_id: 1023, attributed_to: "job_owner", actionable: true, handling_state: "failed", handling_workflow: failed_workflow)
+      ignored = build_comment(github_comment_id: 1024, attributed_to: "external", actionable: true, handling_state: "failed", handling_workflow: failed_workflow, actioned_by: "operator:ignore")
+      [ retryable, no_workflow, active, owner, ignored ].each(&:save!)
+
+      expect(job.pr_review_comments.retryable_handling_review.pluck(:id)).to eq([ retryable.id ])
+    end
   end
 end

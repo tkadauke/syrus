@@ -723,12 +723,14 @@ module App
     end
 
     def pending_feedback_json
-      @job.pr_review_comments
-          .actionable_comments
-          .where.not(attributed_to: "job_owner")
-          .order(:comment_created_at, :id)
-          .select { |comment| @job.repository.feedback_policy_confirm? ? comment.pending_for_operator? : comment.retryable_handling? }
-          .map do |comment|
+      scope = @job.pr_review_comments.order(:comment_created_at, :id)
+      scope = if @job.repository.feedback_policy_confirm?
+        scope.pending_for_operator_review
+      else
+        scope.retryable_handling_review
+      end
+
+      scope.map do |comment|
         {
           id: comment.id,
           github_handle: comment.github_handle,
@@ -741,7 +743,7 @@ module App
           handling_workflow_id: comment.handling_workflow_id,
           handling_failed_at: iso8601(comment.handling_failed_at),
           handling_failure_reason: comment.handling_failure_reason,
-          retryable: comment.retryable_handling?
+          retryable: comment.retryable_handling_without_workflow_load?
         }
       end
     end

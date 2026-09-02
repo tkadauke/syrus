@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_114000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_115000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1731,6 +1731,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_114000) do
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
     t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"
     t.index ["handling_workflow_id"], name: "index_pr_review_comments_on_handling_workflow_id"
+    t.index ["job_id", "actionable", "attributed_to", "handling_state", "comment_created_at", "id"], name: "idx_pr_review_comments_pending_feedback"
     t.index ["job_id", "pr_type", "comment_kind", "github_comment_id"], name: "index_pr_review_comments_uniqueness", unique: true
     t.index ["job_id"], name: "index_pr_review_comments_on_job_id"
   end
