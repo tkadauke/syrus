@@ -321,6 +321,13 @@ describe("chat workspace source links", () => {
 })
 
 describe("tool result rendering", () => {
+  function expandToolGroup(label: string) {
+    const summary = screen.getByText(label).closest("summary")
+    expect(summary).not.toBeNull()
+    if (!summary) throw new Error(`missing summary for ${label}`)
+    fireEvent.click(summary)
+  }
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -357,7 +364,44 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
-  it("opens a reused collapsed group when a streamed result turns it into a failure", () => {
+  it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Bash",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Bash",
+          raw_name: "Bash",
+          detail: "bin/rspec",
+          display_label: "Bash",
+          progress_label: "Running command",
+          raw_payload: { command: "bin/rspec" },
+          result_body: "",
+          result_error: false,
+          result_kind: "unknown",
+          result_summary: ""
+        }
+      ],
+      summary_label: "Bash",
+      outcome_label: "Running",
+      collapsed_by_default: false,
+      prominent: true
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Bash")).toBeInTheDocument()
+    expect(screen.getByText("Running")).toBeInTheDocument()
+    expect(screen.getByText("bin/rspec")).toBeInTheDocument()
+    expect(screen.queryByText("Raw details")).not.toBeInTheDocument()
+
+    expandToolGroup("Bash")
+
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
+  it("keeps a reused collapsed group closed when a streamed result turns it into a failure", () => {
     const baseCall = {
       message_id: 1,
       tool_name: "Read",
@@ -402,6 +446,10 @@ describe("tool result rendering", () => {
     )
 
     expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.queryByText("No such file")).not.toBeInTheDocument()
+
+    expandToolGroup("Inspected missing.rb")
+
     expect(screen.getByText("No such file")).toBeInTheDocument()
   })
 
@@ -465,6 +513,12 @@ describe("tool result rendering", () => {
     }
 
     render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("2 media items")).toBeInTheDocument()
+    expect(screen.queryByText("7 whiteboard elements")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open desktop.png" })).not.toBeInTheDocument()
+
+    expandToolGroup("List chat media")
 
     expect(screen.getAllByText("2 media items")).toHaveLength(2)
     expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
@@ -542,6 +596,15 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
+    expect(screen.getByText("1 bookmark")).toBeInTheDocument()
+    expect(screen.getByText("1 proposal")).toBeInTheDocument()
+    expect(screen.getByText("1 Job")).toBeInTheDocument()
+    expect(screen.queryByText("Bookmark added: Launch notes")).not.toBeInTheDocument()
+    expect(screen.queryByText("Job proposal ready: Fix output")).not.toBeInTheDocument()
+    expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
+
+    expandToolGroup("Actions")
+
     expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
     expect(screen.getByText("Job proposal ready: Fix output")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
@@ -573,7 +636,42 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
+    expect(screen.queryByText("{\"label\":")).not.toBeInTheDocument()
+
+    expandToolGroup("Unknown tool")
+
     expect(screen.getByText("{\"label\":")).toBeInTheDocument()
+  })
+
+  it("keeps standalone structured tool messages collapsed until expansion", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 11,
+      role: "tool_use",
+      text: "fallback raw payload",
+      bookmarkable: false,
+      tool: {
+        name: "read_job",
+        raw_name: "syrus-chat-sidecar.read_job",
+        display_label: "Read job",
+        argument_summary: "JOB-4072",
+        raw_payload: { job_id: 4072 },
+        result_kind: "record",
+        result_summary: "1 Job",
+        payload: { job: { id: 4072, issue_title: "Collapsed tools" } },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    })
+
+    expect(screen.getByText("Read job")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4072")).toBeInTheDocument()
+    expect(screen.getByText("1 Job")).toBeInTheDocument()
+    expect(screen.queryByText(/Collapsed tools/)).not.toBeInTheDocument()
+
+    expandToolGroup("Read job")
+
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
   })
 })
 
