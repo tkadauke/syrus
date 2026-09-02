@@ -68,7 +68,7 @@ RSpec.describe Workflows::MergeTrain do
     branch = try_node.dig("on_failure", Steps::MergeTrainLand::BaseMoved::FAILURE_CODE)
 
     kinds = branch.map { |n| n["type"] == "step" ? n["kind"] : n["type"] }
-    expect(kinds).to eq(%w[ merge_train_rebase retry_until try ])
+    expect(kinds).to eq(%w[ merge_train_rebase merge_train_agent_rebase retry_until try ])
 
     retry_land = branch.last
     expect(retry_land).to include("type" => "try", "step" => "merge_train_land_after_rebase")
