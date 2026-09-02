@@ -100,6 +100,58 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "backlogged job dashboard surfaces" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    it "places user-facing backlogged jobs in the backlog lane with dependencies and actions" do
+      blocker = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, issue_title: "Prepare schema")
+      backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Build dashboard lane", priority: "high", owner_user: user)
+      infrastructure = Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, issue_title: "Main grader backlog")
+      JobDependency.create!(job: backlogged, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      result = call(subject: "job", view: "kanban", scope: "mine")
+      lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "backlog" }
+      item = lane.fetch(:items).find { |candidate| candidate.fetch(:id) == backlogged.id }
+
+      expect(lane.fetch(:count)).to eq(1)
+      expect(lane.fetch(:items).map { |candidate| candidate.fetch(:id) }).not_to include(infrastructure.id)
+      expect(item).to include(
+        kind: "direct",
+        title: "Build dashboard lane",
+        state: "backlog",
+        priority: "high",
+        owner_user: include(id: user.id),
+        repository: include(slug: repo.slug),
+        can_release_from_backlog: true,
+        can_move_to_backlog: false
+      )
+      expect(item.fetch(:dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
+      expect(item.fetch(:unsatisfied_dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
+      expect(item.fetch(:paths)).to include(
+        app_release_from_backlog_path: "/api/v1/app/jobs/#{backlogged.id}/release_from_backlog",
+        app_move_to_backlog_path: "/api/v1/app/jobs/#{backlogged.id}/move_to_backlog"
+      )
+    end
+
+    it "keeps the on-demand backlogged jobs SmartFolder user-facing and owner scoped" do
+      mine = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user)
+      Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, owner_user: user)
+      Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: Factories.user)
+      folder = SmartFolder.for_subject(:job).find_by!(name: "Backlogged jobs")
+
+      result = call(subject: "job", smart_folder_id: folder.id, scope: "team")
+
+      expect(folder.visibility).to eq(:on_demand)
+      expect(folder.filter).to eq(SmartFolder.user_job_attention_preset_filter("backlog"))
+      expect(result.fetch(:items).map { |item| item.fetch(:id) }).to contain_exactly(mine.id)
+      expect(result.fetch(:smart_folders).find { |candidate| candidate.fetch(:id) == folder.id }).to include(
+        key: "backlogged_jobs",
+        visibility: "on_demand",
+        active: true
+      )
+    end
+  end
+
   describe "active workflow trigger on job items" do
     it "uses preloaded active workflow trigger data for running jobs" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
@@ -631,8 +683,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(result.dig(:landing_queue, :status)).to include(
         tone: "danger",
-        title: "Landing queue is wedged on #{job.slug}.",
-        summary: include("#{workflow.slug} is failed")
+        title: "Landing queue is stopped on #{job.slug}.",
+        summary: include("#{workflow.slug} failed: the workflow failed without a failed Step")
       )
     end
 

@@ -151,7 +151,7 @@ module App
 
       def job_kanban_lane_for(job, visible_lanes)
         candidates = []
-        candidates << "backlog" if job.backlog?
+        candidates << "backlog" if job.backlog? && Filters::Chips::Jobs::JobType::USER_KINDS.include?(job.kind)
         candidates << "landing" if job.approved? || job.landing?
         candidates << "failed" if job.failed? || (job.closed? && !job.dependency_succeeded?)
         candidates << "running" if job.running?
