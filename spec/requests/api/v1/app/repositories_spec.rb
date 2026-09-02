@@ -536,7 +536,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
 
-  it "loads repository detail run counts through one batched aggregate" do
+  it "loads repository detail run counts through one grouped query" do
     sign_in_as(user)
     repository = Factories.repository(user: user)
     running = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
@@ -558,9 +558,9 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(queries).not_to include(a_string_including("COUNT(DISTINCT CASE WHEN"))
     run_count_queries = queries.select do |query|
-      query.include?("COUNT(*)") && query.include?("runs") && query.include?("jobs") && query.include?("state")
+      query.include?("COUNT(DISTINCT") && query.include?("runs") && query.include?("jobs") && query.include?("GROUP BY")
     end
-    expect(run_count_queries.size).to eq(3)
+    expect(run_count_queries.size).to eq(1)
   end
 
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do

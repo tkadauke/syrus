@@ -1262,11 +1262,23 @@ module Api
         end
 
         def repository_run_job_counts(repository)
-          repository_jobs = repository.jobs
+          rows = Run
+            .joins(:job)
+            .where(jobs: { repository_id: repository.id })
+            .where(
+              "runs.state IN (:active_states) OR (runs.state = :failed_state AND runs.updated_at >= :failed_since)",
+              active_states: %w[ running queued ],
+              failed_state: "failed",
+              failed_since: 7.days.ago
+            )
+            .group(:state)
+            .distinct
+            .count(:job_id)
+
           {
-            running: repository_jobs.where(id: Run.where(state: "running").select(:job_id)).count,
-            queued: repository_jobs.where(id: Run.where(state: "queued").select(:job_id)).count,
-            failed_7d: repository_jobs.where(id: Run.where(state: "failed", updated_at: 7.days.ago..).select(:job_id)).count
+            running: rows.fetch("running", 0),
+            queued: rows.fetch("queued", 0),
+            failed_7d: rows.fetch("failed", 0)
           }
         end
 
