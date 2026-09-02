@@ -316,41 +316,32 @@ module App
       def workflow_navigation_path(workflow, page: nil)
         unless workflow.job_id == @job.id
           query = { tab: "workflows" }
-          page = external_workflow_navigation_page_by_workflow_id[workflow.id]
+          page = workflow_navigation_page(workflow)
           query[:workflows_page] = page if page.to_i > 1
 
           return "#{job_path(workflow.job_id)}?#{query.to_query}#workflow-#{workflow.id}"
         end
 
         query = { tab: "workflows" }
-        page ||= workflow_navigation_page_by_workflow_id[workflow.id]
+        page ||= workflow_navigation_page(workflow)
         query[:workflows_page] = page if page.to_i > 1
 
         "#{job_path(@job)}?#{query.to_query}#workflow-#{workflow.id}"
       end
 
-      def workflow_navigation_page_by_workflow_id
-        @workflow_navigation_page_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.navigation_pages", job_id: @job.id) do
-          ids = @job.workflows.reorder(created_at: :desc, id: :desc).pluck(:id)
-          ids.each_with_index.to_h do |workflow_id, index|
-            [ workflow_id, (index / App::WorkflowNavigation::PER_PAGE) + 1 ]
-          end
-        end
-      end
+      def workflow_navigation_page(workflow)
+        @workflow_navigation_page_by_id ||= {}
+        @workflow_navigation_page_by_id[workflow.id] ||= PerformanceLogging.phase("job_detail.workflow.navigation_page", job_id: @job.id, workflow_id: workflow.id) do
+          newer_count = Workflow
+            .where(job_id: workflow.job_id || @job.id)
+            .where(
+              "created_at > :created_at OR (created_at = :created_at AND id > :id)",
+              created_at: workflow.created_at,
+              id: workflow.id
+            )
+            .count
 
-      def external_workflow_navigation_page_by_workflow_id
-        @external_workflow_navigation_page_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.external_navigation_pages", job_id: @job.id) do
-          workflows = serialized_workflows.reject { |workflow| workflow.job_id == @job.id }
-          next {} if workflows.empty?
-
-          workflow_ids_by_job_id = workflows.group_by(&:job_id).transform_values { |group| group.map(&:id) }
-          workflow_ids_by_job_id.flat_map do |job_id, workflow_ids|
-            ordered_ids = Workflow.where(job_id: job_id).reorder(created_at: :desc, id: :desc).pluck(:id)
-            workflow_ids.map do |workflow_id|
-              index = ordered_ids.index(workflow_id)
-              [ workflow_id, index ? (index / App::WorkflowNavigation::PER_PAGE) + 1 : 1 ]
-            end
-          end.to_h
+          (newer_count / App::WorkflowNavigation::PER_PAGE) + 1
         end
       end
 
