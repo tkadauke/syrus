@@ -1135,13 +1135,13 @@ module App
     def deploy_configured?
       return @deploy_configured unless @deploy_configured.nil?
 
-      @deploy_configured = App::DeployAvailability.configured?(@job.repository)
+      @deploy_configured = local_syrus_yml_config&.deploy.present?
     end
 
     def preview_provider_configured?
       return @preview_provider_configured unless @preview_provider_configured.nil?
 
-      @preview_provider_configured = App::PreviewAvailability.configured?(@job.repository)
+      @preview_provider_configured = Syrus::Plugin::PreviewProvider.configured? || local_syrus_yml_config&.preview.present?
     end
 
     # Mirrors preview_provider_configured?'s read-the-local-bare-clone
@@ -1156,7 +1156,7 @@ module App
     def visual_review_configured?
       return @visual_review_configured unless @visual_review_configured.nil?
 
-      enabled = syrus_yml_visual_review_config&.enabled
+      enabled = local_syrus_yml_config&.visual_review&.enabled
       @visual_review_configured = enabled.nil? ? Feature.visual_review_enabled? : enabled
     end
 
@@ -1171,20 +1171,22 @@ module App
         end
     end
 
-    def syrus_yml_visual_review_config
+    def local_syrus_yml_config
+      return @local_syrus_yml_config if defined?(@local_syrus_yml_config)
+
       clone_path = File.join(
         ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
         "clones",
         "#{@job.repository_id}.git"
       )
-      return nil unless File.directory?(clone_path)
+      return @local_syrus_yml_config = nil unless File.directory?(clone_path)
 
       yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return nil unless $?.success? && yml_content.present?
+      return @local_syrus_yml_config = nil unless $?.success? && yml_content.present?
 
-      SyrusYml.new(yml_content).parse.visual_review
+      @local_syrus_yml_config = SyrusYml.new(yml_content).parse
     rescue StandardError
-      nil
+      @local_syrus_yml_config = nil
     end
   end
 end

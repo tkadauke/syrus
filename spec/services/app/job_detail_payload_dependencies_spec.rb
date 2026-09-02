@@ -216,6 +216,37 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
+
+    it "reuses one local .syrus.yml read for deploy, preview, and visual-review action gates" do
+      allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(false)
+      write_bare_clone(
+        repo,
+        syrus_yml: <<~YAML
+          preview:
+            start: bin/dev
+          deploy:
+            run: bin/deploy
+          visual_review:
+            enabled: true
+        YAML
+      )
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      git_show_calls = 0
+
+      allow_any_instance_of(described_class).to receive(:`).and_wrap_original do |original, command|
+        git_show_calls += 1 if command.include?(" show HEAD:.syrus.yml ")
+        original.call(command)
+      end
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions).to include(
+        can_deploy: true,
+        can_start_preview: true,
+        can_run_visual_review: true
+      )
+      expect(git_show_calls).to eq(1)
+    end
   end
 
   describe "#actions_json can_request_changes" do
