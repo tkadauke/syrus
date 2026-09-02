@@ -439,7 +439,7 @@ class WorkflowAdmissionBudget
       .where.not(id: workflow.id)
       .where.not(job_id: job.id)
       .where(created_at: (now - ACTIVE_WORKFLOW_WINDOW)..)
-      .includes(:steps)
+      .where.not(id: workflow_ids_with_agentic_runs)
       .select { |candidate| minimum_progress_handoff_slot?(candidate) }
       .size
   end
@@ -447,9 +447,16 @@ class WorkflowAdmissionBudget
   def minimum_progress_handoff_slot?(candidate)
     return false unless admission_controlled_active_workflow?(candidate)
     override = candidate.artifact("workflow_admission_override").to_h
-    return false unless (override["reason"] || override[:reason]) == "minimum_progress_floor"
 
-    candidate.steps.none? { |candidate_step| candidate_step.agentic? && candidate_step.runs.exists? }
+    (override["reason"] || override[:reason]) == "minimum_progress_floor"
+  end
+
+  def workflow_ids_with_agentic_runs
+    Step
+      .where(kind: Step::AGENTIC_KINDS)
+      .joins(:runs)
+      .select(:workflow_id)
+      .distinct
   end
 
   def minimum_progress_floor_reason(candidate, active, pressure)
