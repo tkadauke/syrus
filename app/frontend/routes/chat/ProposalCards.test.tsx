@@ -261,6 +261,29 @@ describe("ProposalCard routing", () => {
     expect(screen.getAllByText("Backlog").length).toBeGreaterThan(0)
   })
 
+  it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "PATCH") return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderProposalEditModal(proposal({ kind: "job", kind_label: "Job" }))
+    const routeGroup = await screen.findByRole("group", { name: "Route" })
+    fireEvent.click(within(routeGroup).getAllByRole("radio")[1])
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+        proposal: { route_to_backlog: true }
+      })
+    })
+  })
+
   it("lets operators confirm a direct Job proposal to backlog from the card", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "job", state: "confirmed", proposed: false }) }))

@@ -49,6 +49,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
   const [targetEpicId, setTargetEpicId] = useState<number | null>(proposal.target_epic_id ?? null)
   const [mediaIds, setMediaIds] = useState<string[]>(proposal.media_ids || [])
+  const [routeToBacklog, setRouteToBacklog] = useState(Boolean(proposal.route_to_backlog))
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -72,7 +73,9 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
     !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
     !sameValues(mediaIds, proposal.media_ids || []) ||
+    routeToBacklog !== Boolean(proposal.route_to_backlog) ||
     targetEpicId !== (proposal.target_epic_id ?? null)
+  const canRouteToBacklog = proposalSupportsBacklogRoute(proposal)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -98,6 +101,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
       media_ids: mediaIds,
       target_epic_id: targetEpicId,
+      ...(canRouteToBacklog ? { route_to_backlog: routeToBacklog } : {})
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -182,6 +186,39 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                   )}
                 </div>
               </div>
+            ) : null}
+            {canRouteToBacklog ? (
+              <fieldset>
+                <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">Route</legend>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${!routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
+                    <input
+                      checked={!routeToBacklog}
+                      className="mt-1"
+                      name="proposal-route"
+                      onChange={() => setRouteToBacklog(false)}
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block font-medium">Start normally</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates and admits the Job to the usual start path.</span>
+                    </span>
+                  </label>
+                  <label className={`flex cursor-pointer items-start gap-3 rounded border px-3 py-2 text-sm ${routeToBacklog ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200"}`}>
+                    <input
+                      checked={routeToBacklog}
+                      className="mt-1"
+                      name="proposal-route"
+                      onChange={() => setRouteToBacklog(true)}
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block font-medium">Backlog</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Confirming creates the Job without launching an initial workflow.</span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
             ) : null}
             <div className="grid gap-4 lg:grid-cols-3">
               <DependencyPicker
