@@ -163,7 +163,7 @@ class WorkerHealthRunCorrelation
         next if span.hostname.blank? || span.started_at.blank?
 
         starts << [ span.started_at, retained_since ].max
-        finishes << (span.finished_at || now)
+        finishes << SpanCorrelation.window_finish_for(span: span, run: run, processes: run_processes, now: now)
       end
     end
 
@@ -281,7 +281,7 @@ class WorkerHealthRunCorrelation
 
   def command_span_payloads
     command_spans.map do |span|
-      SpanCorrelation.new(span: span, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json
+      SpanCorrelation.new(span: span, sample_limit: 0, now: now, run: run, processes: processes, samples_by_hostname: samples_by_hostname).as_json
     end
   end
 
@@ -368,12 +368,22 @@ class WorkerHealthRunCorrelation
   end
 
   class SpanCorrelation
-    def initialize(span:, sample_limit:, now:, samples: nil, samples_by_hostname: nil)
+    def self.window_finish_for(span:, run: nil, processes: nil, now:)
+      new(span: span, sample_limit: 0, now: now, run: run, processes: processes).window_finish
+    end
+
+    def initialize(span:, sample_limit:, now:, run: nil, processes: nil, samples: nil, samples_by_hostname: nil)
       @span = span
       @sample_limit = sample_limit.to_i.clamp(0, 100)
       @now = now
+      @run = run
+      @processes = processes
       @samples_override = samples
       @samples_by_hostname = samples_by_hostname
+    end
+
+    def window_finish
+      range_finish
     end
 
     def as_json
@@ -389,6 +399,10 @@ class WorkerHealthRunCorrelation
         command_excerpt: CommandRedactor.redact(span.command_excerpt),
         started_at: span.started_at&.iso8601,
         finished_at: span.finished_at&.iso8601,
+        effective_finished_at: range_finish&.iso8601,
+        truncated: truncated?,
+        orphaned: orphaned?,
+        truncation_reasons: truncation_reasons,
         duration_ms: span.duration_ms,
         duration_s: span.duration_s,
         exit_status: span.exit_status,
@@ -421,9 +435,12 @@ class WorkerHealthRunCorrelation
       if span.started_at.blank? || range_finish.blank?
         level = "unknown"
         reasons << "command span has no complete timing window"
-      elsif samples.empty?
-        level = "unknown"
-        reasons << "no retained host health samples for command span window"
+      else
+        reasons.concat(truncation_reasons) if truncated?
+        if samples.empty?
+          level = "unknown"
+          reasons << "no retained host health samples for command span window"
+        end
       end
 
       if retention_limited?
@@ -477,7 +494,60 @@ class WorkerHealthRunCorrelation
     end
 
     def range_finish
-      span.finished_at || now
+      @range_finish ||= finish_candidates.min_by(&:second)&.second
+    end
+
+    def truncated?
+      range_finish.present? && span.finished_at != range_finish
+    end
+
+    def orphaned?
+      span.finished_at.blank? && (spawned_process&.finished_at.present? || owning_run_terminal?)
+    end
+
+    def truncation_reasons
+      return [] unless truncated?
+
+      reasons = []
+      reasons << "command span has no finished_at" if span.finished_at.blank?
+      reasons << "command span bounded by #{range_finish_source}"
+      reasons << "command span is orphaned from a terminal owner" if orphaned?
+      reasons
+    end
+
+    def range_finish_source
+      finish_candidates.min_by(&:second)&.first
+    end
+
+    def finish_candidates
+      @finish_candidates ||= begin
+        candidates = []
+        candidates << [ "command_span.finished_at", span.finished_at ] if span.finished_at.present?
+        candidates << [ "spawned_process.finished_at", spawned_process.finished_at ] if spawned_process&.finished_at.present?
+        candidates << [ "run.finished_at", owning_run.finished_at ] if owning_run_terminal? && owning_run.finished_at.present?
+        candidates << [ "query window", now ]
+        candidates
+      end
+    end
+
+    def spawned_process
+      @spawned_process ||= begin
+        return nil if span.spawned_process_id.blank?
+
+        if @processes
+          @processes.find { |process| process.id == span.spawned_process_id }
+        else
+          span.spawned_process
+        end
+      end
+    end
+
+    def owning_run
+      @owning_run ||= @run || span.run
+    end
+
+    def owning_run_terminal?
+      owning_run&.finished_at.present? || owning_run&.terminal?
     end
 
     def effective_since

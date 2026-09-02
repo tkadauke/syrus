@@ -190,6 +190,60 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload.dig(:command_spans, 0, :summary, :cpu_used_percent)).to eq(avg: 99.0, max: 99.0)
   end
 
+  it "bounds orphaned unfinished command spans by terminal process and Run windows" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step, state: "failed", started_at: now - 20.minutes, finished_at: now - 10.minutes)
+    process = SpawnedProcess.create!(
+      run: run,
+      workflow: wf,
+      kind: "grader",
+      command: "bin/rspec",
+      hostname: "worker-a",
+      started_at: now - 18.minutes,
+      finished_at: now - 8.minutes,
+      outcome: "orphaned"
+    )
+    span = CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      spawned_process: process,
+      sequence: 1,
+      name: "rspec",
+      command_excerpt: "bin/rspec",
+      hostname: "worker-a",
+      started_at: now - 17.minutes,
+      finished_at: nil,
+      duration_ms: nil,
+      outcome: "incomplete",
+      exit_status: nil
+    )
+    sample(observed_at: now - 12.minutes, cpu_used_percent: 40.0, memory_used_percent: 50.0)
+    sample(observed_at: now - 9.minutes, cpu_used_percent: 99.0, cpu_pressure_some: 65.0)
+
+    payload = described_class.for_run(run, now: now)
+    span_payload = payload[:command_spans].first
+
+    expect(span_payload).to include(
+      id: span.id,
+      finished_at: nil,
+      effective_finished_at: run.finished_at.iso8601,
+      truncated: true,
+      orphaned: true,
+      sample_count: 1,
+      samples_missing: false
+    )
+    expect(span_payload[:truncation_reasons]).to include(
+      "command span has no finished_at",
+      "command span bounded by run.finished_at",
+      "command span is orphaned from a terminal owner"
+    )
+    expect(span_payload.dig(:summary, :cpu_used_percent)).to eq(avg: 40.0, max: 40.0)
+    expect(span_payload.dig(:pressure, :level)).to eq("ok")
+  end
+
   it "uses now as the end of the window for a still-running Run" do
     wf = workflow
     step = step_for(wf, kind: "implement", details: {})
