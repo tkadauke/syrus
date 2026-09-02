@@ -144,12 +144,21 @@ Run could still land on the one compute host already saturated by unrelated
 CPU-heavy work.
 
 The pickup guard applies to Runs whose workflow template uses the `:runs`
-compute queue. It uses the current worker hostname (`SyrusVersion.hostname`),
-fresh `worker_host_health_samples`, `workflows.worker_hostname` on already
-running workflows, and `workflow_step_resource_profiles` where available.
+compute queue or the `:merges` queue. It also applies to storage-affinity
+`resume-<worker-storage-key>` queues, because a resume queue can otherwise pin
+retry work to the same worker data root that just lost the prior attempt. It
+uses the current worker hostname (`SyrusVersion.hostname`), fresh
+`worker_host_health_samples`, `workflows.worker_hostname` on already running
+workflows, `auto_retry_attempts` failed-host context, prior failed same-step
+Runs, and `workflow_step_resource_profiles` where available.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
   Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
+  Storage-affinity resume queues are normally allowed through local pressure so
+  they can reach their on-disk workspace, but they are still deferred when a
+  recent `worker_died` / `worker_died_under_resource_pressure` retry would
+  restart on the same host whose failed run recorded critical pressure. That
+  deferral uses reason `failed_worker_host_still_critical`.
 - If the candidate Run is resource-guarded and that same host already has a
   resource-guarded Run executing, `RunJob` also defers it. Resource-guarded
   means any agentic Step, `grader` / `preflight_grader`, or another Step whose
@@ -165,8 +174,12 @@ This is intentionally a pickup-time deferral, not a failure. The Run remains
 iteration is spent, and the re-enqueued job preserves the current Solid Queue
 queue and priority. On deferral, the Workflow artifact
 `run_host_admission` records the action, reason, hostname, sampled health,
-guard count/limit, step kind, Run id, `deferred_at`, and `retry_at`. The Run
-also receives a system `JobLog` line:
+guard count/limit, step kind, Run id, queue name, sticky-resume flag,
+`deferred_at`, and `retry_at`. When the deferral is tied to a failed-worker
+retry, the artifact also includes `failed_worker_retry` with the source
+(`auto_retry_attempt` or `prior_step_run`), source Run id, failed hostname,
+failed pressure level, pressure-window start/finish, sample count, and pressure
+reasons. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
 
 ## Retry-from-failed-step storage affinity
@@ -448,9 +461,13 @@ either wakeup path.
 The per-host Run pickup admission described above is separate from
 `WorkflowAdmissionBudget`: it runs after Solid Queue selects a concrete worker
 and can therefore act on that worker's local pressure and already-running
-guarded Runs. It records `run_host_admission` artifacts instead of
+guarded Runs, including `:merges` landing repair and storage-affinity retry
+resumes. It records `run_host_admission` artifacts instead of
 `start_blocked_details` / `pause_details`, because it does not change workflow
-phase ownership or create a WorkUnit admission block.
+phase ownership or create a WorkUnit admission block. For worker-death retries,
+`AutoRetryAttempt` snapshots the failed hostname, pressure level, pressure
+window, sample count, and pressure reasons so later admission decisions can
+avoid immediately restarting on a host that is still critical.
 
 Manual Job pause is operator-controlled and is not an admission-control signal.
 It persists on the Job (`manual_paused`) and takes effect at the next Step

@@ -4,11 +4,15 @@ Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke th
 
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
-resource-guarded Run. This host-local guard applies to `:runs` queue workflows
-and covers agentic Steps plus CPU-heavy grader work. A deferred pickup leaves
-the Run queued, records a `run_host_admission` Workflow artifact and a system
-JobLog line, then re-enqueues the same Run without spending a retry or repair
-iteration. See [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
+resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and
+storage-affinity resume queues, and covers agentic Steps plus CPU-heavy grader
+work. For worker-death retries, admission also checks the failed host and
+pressure window recorded on the `AutoRetryAttempt` or prior same-step failed
+Run; when that same host remains critical it defers with
+`failed_worker_host_still_critical`. A deferred pickup leaves the Run queued,
+records a `run_host_admission` Workflow artifact and a system JobLog line, then
+re-enqueues the same Run without spending a retry or repair iteration. See
+[`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
 
 ## Setup steps
 
@@ -571,6 +575,6 @@ retryable infrastructure failure, so operators can distinguish prompt-delivery
 races from genuine agent/application errors and automatic retry scheduling can
 handle them through the normal retryable-failure path.
 
-Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
+Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority. For `worker_died` and `worker_died_under_resource_pressure`, those retry attempts snapshot the failed hostname, host-pressure level, observed pressure window, sample count, and pressure reasons for later host-admission decisions.
 
 The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.
