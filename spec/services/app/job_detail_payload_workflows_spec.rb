@@ -774,11 +774,13 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
     it "loads workflow failure classifications in bulk" do
       job = Factories.job_record(repository: repo)
+      newest_reason = nil
+      workflow_with_multiple_failures_id = nil
 
       3.times do |index|
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", created_at: (3 - index).minutes.ago)
         step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed")
-        run = Run.create!(
+        old_run = Run.create!(
           job: job,
           step: step,
           trigger_kind: "initial",
@@ -787,17 +789,42 @@ RSpec.describe App::JobDetailPayload, :ci_only do
           finished_at: (3 - index).minutes.ago
         )
         RunFailureClassification.create!(
-          run: run,
+          run: old_run,
           classification: "grader_failure",
           retryable: true,
           confidence: 0.9,
           reason: "rspec failed #{index}",
           classified_at: Time.current
         )
+        next unless index == 0
+
+        workflow_with_multiple_failures_id = workflow.id
+        newest_run = Run.create!(
+          job: job,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: "failed",
+          finished_at: 1.minute.ago
+        )
+        newest_reason = "newest rspec failed"
+        RunFailureClassification.create!(
+          run: newest_run,
+          classification: "grader_failure",
+          retryable: true,
+          confidence: 0.9,
+          reason: newest_reason,
+          classified_at: Time.current
+        )
       end
 
-      queries = capture_sql { workflows_payload_for(job) }
+      payload = nil
+      queries = capture_sql do
+        payload = workflows_payload_for(job)
+      end
 
+      newest_workflow_payload = payload.fetch(:workflows).find { |workflow_payload| workflow_payload[:id] == workflow_with_multiple_failures_id }
+      expect(newest_workflow_payload.dig(:failure_classification, :reason)).to eq(newest_reason)
       per_workflow_failed_run_queries = queries.grep(/FROM [`"]?runs[`"]?.*WHERE .*[`"]?steps[`"]?\.[`"]?workflow_id[`"]? =/im)
       expect(per_workflow_failed_run_queries).to be_empty
     end

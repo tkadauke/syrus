@@ -896,25 +896,30 @@ module App
 
       def workflow_failure_classifications_by_workflow_id
         @workflow_failure_classifications_by_workflow_id ||= begin
-          workflow_ids = serialized_workflows.map(&:id)
+          workflow_ids = serialized_workflows.map { |workflow| Integer(workflow.id) }
           if workflow_ids.empty?
             {}
           else
-            rows = Run
-              .joins(:step)
-              .where(steps: { workflow_id: workflow_ids }, state: "failed")
-              .select(
-                :id,
-                "steps.workflow_id AS workflow_id_for_failure_classification",
-                Arel.sql("COALESCE(runs.finished_at, runs.updated_at, runs.created_at) AS failure_sort_at")
-              )
-              .order(Arel.sql("steps.workflow_id ASC, failure_sort_at DESC, runs.id DESC"))
-              .to_a
+            rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
+              SELECT workflow_id, id
+              FROM (
+                SELECT
+                  steps.workflow_id,
+                  runs.id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY steps.workflow_id
+                    ORDER BY COALESCE(runs.finished_at, runs.updated_at, runs.created_at) DESC, runs.id DESC
+                  ) AS syrus_failure_rank
+                FROM runs
+                INNER JOIN steps ON steps.id = runs.step_id
+                WHERE runs.state = 'failed'
+                  AND steps.workflow_id IN (#{workflow_ids.join(",")})
+              ) ranked_failed_runs
+              WHERE ranked_failed_runs.syrus_failure_rank = 1
+            SQL
 
-            run_ids_by_workflow_id = {}
-            rows.each do |run|
-              workflow_id = run.read_attribute("workflow_id_for_failure_classification")
-              run_ids_by_workflow_id[workflow_id] ||= run.id
+            run_ids_by_workflow_id = rows.to_h do |row|
+              [ row.fetch("workflow_id").to_i, row.fetch("id").to_i ]
             end
 
             classifications = RunFailureClassification.where(run_id: run_ids_by_workflow_id.values).index_by(&:run_id)
