@@ -677,6 +677,34 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(run_selects.grep(/SELECT\s+[`"]?runs[`"]?\.\*/i)).to be_empty
     end
 
+    it "loads log counts and rate-limit markers with one grouped job log query" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded"
+      )
+      JobLog.create!(run: run, sequence: 0, chunk: "started")
+      JobLog.create!(run: run, sequence: 1, chunk: "limited", kind: "rate_limited")
+
+      payload = nil
+      queries = capture_sql do
+        payload = workflows_payload_for(job)
+      end
+
+      run_payload = payload.dig(:workflows, 0, :steps, 0, :runs, 0)
+      expect(run_payload).to include(job_log_count: 2, rate_limited: true)
+
+      job_log_queries = queries.select { |sql| sql.match?(/FROM [`"]?job_logs[`"]?/i) }
+      expect(job_log_queries.size).to eq(1)
+      expect(job_log_queries.first).to include("MAX(sequence)")
+      expect(job_log_queries.first).to include("rate_limited")
+    end
+
     it "loads workflow failure classifications in bulk" do
       job = Factories.job_record(repository: repo)
 
