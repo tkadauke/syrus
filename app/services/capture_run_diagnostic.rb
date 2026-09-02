@@ -68,6 +68,8 @@ class CaptureRunDiagnostic
       diagnostic.environment_snapshot = capture_environment_snapshot
       diagnostic.repo_snapshot = capture_repo_snapshot
     end
+  rescue ActiveRecord::RecordNotUnique
+    RunDiagnostic.find_by(run: @run)
   rescue StandardError => e
     Rails.logger.warn("[CaptureRunDiagnostic] failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
     nil
