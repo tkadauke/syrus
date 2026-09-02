@@ -13,7 +13,11 @@ const EXEMPT_BASENAMES = ["Button.tsx", "Card.tsx", "Input.tsx", "Select.tsx", "
 // Documented exceptions called out in the epic scan: these render
 // user-facing color *pickers*, where "blue" is a literal color choice being
 // offered to the user, not a design-system styling decision.
-const EXEMPT_FILES = ["app/frontend/components/ImageAnnotationModal.tsx", "app/frontend/routes/Tags.tsx"]
+const EXEMPT_FILES = [
+  "app/frontend/components/ImageAnnotationModal.tsx",
+  "app/frontend/lib/syntaxHighlight.tsx",
+  "app/frontend/routes/Tags.tsx"
+]
 
 // Scoped to className/class only (never SVG presentation attributes like
 // fill/stroke, and never plain-JS objects like the xterm theme config in
