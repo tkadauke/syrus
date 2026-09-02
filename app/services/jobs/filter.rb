@@ -76,15 +76,21 @@ module Jobs
       when "0", "false" then chips << chip("has_start_blocked_reason", "is_false", nil)
       end
 
-      # state=open/closed is a direct state filter; state=failed/succeeded
-      # is sugar for "open AND latest_workflow_state matches" — same
-      # semantics today's dropdown emits.
+      # state=open/closed uses composite state filters; literal AASM states
+      # (including backlog) pass through directly. state=failed/succeeded
+      # remains legacy sugar for "open AND latest_workflow_state matches" —
+      # same semantics today's dropdown emits.
       case params["state"]
       when "open", "closed"
         chips << chip("state", "is", params["state"])
+      when "backlog"
+        chips << chip("state", "is", "backlog")
+        chips << chip("job_type", "is", "user")
       when "failed", "succeeded"
         chips << chip("state", "is", "open")
         chips << chip("latest_workflow_state", "is", params["state"])
+      else
+        chips << chip("state", "is", params["state"]) if Job::STATES.include?(params["state"])
       end
 
       if (repository_id = params["repository_id"]).present?

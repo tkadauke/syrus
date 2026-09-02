@@ -188,6 +188,8 @@ module App
         has_dependencies: visible_dependencies.any?,
         target_epic_id: proposal.target_epic_id,
         target_epic_label: proposal.target_epic&.slug,
+        route_to_backlog: proposal.route_to_backlog?,
+        route_label: proposal.route_to_backlog? ? "Backlog" : "Start normally",
         goal_provenance: App::GoalProvenancePayload.for(proposal),
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",

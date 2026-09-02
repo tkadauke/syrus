@@ -143,6 +143,7 @@ module App
 
       def job_kanban_candidate_states(lanes)
         states = []
+        states << "backlog" if lanes.include?("backlog")
         states.concat(%w[triaging queued]) if lanes.include?("queued")
         states << "running" if lanes.include?("running")
         states.concat(%w[implemented closed]) if lanes.include?("succeeded")
@@ -154,6 +155,7 @@ module App
 
       def job_kanban_lane_for(job, visible_lanes)
         candidates = []
+        candidates << "backlog" if job.backlog? && Filters::Chips::Jobs::JobType::USER_KINDS.include?(job.kind)
         candidates << "landing" if job.approved? || job.landing?
         candidates << "failed" if job.failed? || (job.closed? && !job.dependency_succeeded?)
         candidates << "running" if job.running?

@@ -365,6 +365,9 @@ that Epic's existing Jobs.
 When a Job proposal card targets an Epic, editing the card shows the target
 Epic as a removable pill so an operator can clear it before confirming,
 turning the proposal back into an epicless direct Job.
+The per-card Backlog route is intentionally scoped to standalone direct Job
+cards. Child Jobs inside grouped Epic proposal cards keep the normal Epic
+materialization path and are not individually routed to the Job backlog.
 
 ### Epic reconciliation
 
@@ -635,6 +638,13 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
+Standalone direct Job proposal cards also show a route before confirmation:
+**Start normally** by default, or **Backlog** when the card is explicitly
+routed there. Operators can change that route on the single direct Job card.
+Confirming a Backlog-routed direct Job creates the owned Job, links it back to
+the chat, attaches any selected media, and preserves dependency wiring, but it
+does not start the initial workflow until the Job is later released from
+backlog.
 When a product owner confirms proposals, Syrus accepts a new Epic proposed
 together with its own required initial child Job(s) and accepts non-Epic
 Jobs, but rejects any proposal that would add further Jobs to an
@@ -971,6 +981,12 @@ Direct Jobs are for work that should start from an operator prompt instead
 of a GitHub issue. Choose a repository, title, priority, optional provider,
 prompt, and attachments. Syrus creates a `direct` Job and runs the normal
 Initial workflow.
+
+Chat proposal cards for a single direct Job can be routed to Backlog before
+confirmation. The default remains Start normally. A Backlog-routed direct Job
+is created as owned planned work, keeps its chat link, dependencies, and media
+attachments, and does not create an initial Workflow or Run until it is
+released from backlog.
 
 When the creator is a `product_owner`, Syrus holds the Job in
 `needs_triage` instead of starting implementation. A developer or admin can

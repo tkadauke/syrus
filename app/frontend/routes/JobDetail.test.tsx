@@ -919,6 +919,30 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("Initial workflow enqueued.")).not.toBeInTheDocument()
   })
 
+  it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } })
+    )
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "backlog", summary_state: "backlog", kind: "direct" }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_start: false, can_release_from_backlog: true }
+    })
+
+    expect(screen.getAllByText("backlog").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("button", { name: "Start Run" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Release from backlog" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/release_from_backlog",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } })
@@ -2277,6 +2301,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     feature_flags: { terminal: false },
     actions: {
       can_start: false,
+      can_release_from_backlog: false,
       can_poll_feedback: false,
       can_rebase: false,
       can_check_mergeability: false,
@@ -2317,6 +2342,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_test_results_path: "/api/v1/app/jobs/1/test_results",
       app_timeline_path: "/api/v1/app/jobs/1/timeline",
       app_start_path: "/api/v1/app/jobs/1/start",
+      app_release_from_backlog_path: "/api/v1/app/jobs/1/release_from_backlog",
       app_run_again_path: "/api/v1/app/jobs/1/run_again",
       app_restart_path: "/api/v1/app/jobs/1/restart",
       app_cancel_path: "/api/v1/app/jobs/1/cancel",

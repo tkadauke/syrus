@@ -121,6 +121,8 @@ module Mcp
           dependencies: proposal.dependencies.order(:slug).pluck(:slug),
           depends_on_epic_ids: Array(proposal.depends_on_epic_ids),
           depends_on_job_ids: Array(proposal.depends_on_job_ids),
+          route_to_backlog: proposal.route_to_backlog?,
+          initial_job_state: proposal.route_to_backlog? ? "backlog" : "default",
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
           repository: proposal.effective_repository&.slug,
           goal_provenance: App::GoalProvenancePayload.for(proposal),

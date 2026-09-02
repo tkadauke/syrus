@@ -84,6 +84,8 @@ module App
           claimed_by_user: claim_owner_json(job.claimed_by_user),
           claimed_by_current_user: job.claimed_by_user_id == user.id,
           dependencies_overridden_at: job.dependencies_overridden_at&.iso8601,
+          dependencies: dashboard_job_dependencies_json(job.dependencies),
+          unsatisfied_dependencies: dashboard_job_dependencies_json(job.unsatisfied_dependencies),
           last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
           last_seen_comment_at: job.last_seen_comment_at&.iso8601,
           pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
@@ -99,12 +101,16 @@ module App
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
           can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
+          can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
+          can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
           can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
             job_path: job_path(job),
             source_path: source_job_path(job),
             app_pause_path: "/api/v1/app/jobs/#{job.id}/pause",
             app_unpause_path: "/api/v1/app/jobs/#{job.id}/unpause",
+            app_release_from_backlog_path: "/api/v1/app/jobs/#{job.id}/release_from_backlog",
+            app_move_to_backlog_path: "/api/v1/app/jobs/#{job.id}/move_to_backlog",
             app_approve_path: "/api/v1/app/jobs/#{job.id}/approve",
             app_preview_path: "/api/v1/app/jobs/#{job.id}/preview",
             app_preview_logs_path: "/api/v1/app/jobs/#{job.id}/preview/logs"
@@ -119,6 +125,70 @@ module App
         end
 
         payload
+      end
+
+      def dashboard_job_active_runtime_work?(job)
+        if defined?(@job_runtime_active_job_ids)
+          return @job_runtime_active_job_ids.key?(job.id)
+        end
+
+        job.active_runtime_work?
+      end
+
+      def dashboard_job_can_release_from_backlog?(job)
+        job.backlog? &&
+          job.open? &&
+          !dashboard_job_active_runtime_work?(job) &&
+          job.may_release_from_backlog? &&
+          JobPolicy.new(user, job).write?
+      end
+
+      def dashboard_job_can_move_to_backlog?(job)
+        job.open? &&
+          job.state.in?(%w[needs_triage triaging blocked_by_epic queued]) &&
+          job.pr_number.blank? &&
+          job.external_pr_number.blank? &&
+          job.fork_review_pr_number.blank? &&
+          !dashboard_job_active_runtime_work?(job) &&
+          JobPolicy.new(user, job).write?
+      end
+
+      def dashboard_job_dependencies_json(dependencies)
+        dependencies.map do |dependency|
+          {
+            id: dependency.id,
+            pending: dependency.pending?,
+            succeeded: dependency.dependency_succeeded?,
+            unresolved_slug: dependency.unresolved_slug,
+            depends_on_job: dashboard_dependency_job_json(dependency.depends_on_job),
+            depends_on_epic: dashboard_dependency_epic_json(dependency.depends_on_epic)
+          }
+        end
+      end
+
+      def dashboard_dependency_job_json(job)
+        return nil unless job
+
+        {
+          id: job.id,
+          slug: job.slug,
+          title: job.issue_title,
+          state: job.state,
+          repository_slug: job.repository.slug,
+          job_path: job_path(job)
+        }
+      end
+
+      def dashboard_dependency_epic_json(epic)
+        return nil unless epic
+
+        {
+          id: epic.id,
+          slug: epic.slug,
+          title: epic.title,
+          state: epic.state,
+          epic_path: epic_path(epic)
+        }
       end
 
       # Memoized per repository within one payload build so N dashboard rows

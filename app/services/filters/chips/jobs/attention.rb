@@ -2,7 +2,7 @@ module Filters
   module Chips
     module Jobs
       # Preset macro chip — value selects a named composite filter
-      # (pinned / in_progress / queued / inbox / awaiting_approval / just_failed /
+      # (pinned / in_progress / backlog / queued / inbox / awaiting_approval / just_failed /
       # stale / blocked / merged_this_week / awaiting_epic /
       # needs_review / landing_queue). Each
       # preset compiles to whatever sub-scope it needs; the UI will
@@ -15,7 +15,7 @@ module Filters
         operators :is
 
         PRESETS = %w[
-          pinned in_progress paused queued inbox awaiting_approval just_failed
+          pinned in_progress paused backlog queued inbox awaiting_approval just_failed
           stale blocked merged_this_week awaiting_epic needs_review landing_queue
           waiting_for_upstream promotion_pending delivery_needs_attention
         ].freeze
@@ -48,6 +48,7 @@ module Filters
             )
           },
           "paused"             => -> { chip_node("has_start_blocked_reason", "is_true", nil) },
+          "backlog"            => -> { chip_node("state", "is", "backlog") },
           "queued"             => -> {
             or_node(
               chip_node("state", "is", "queued"),
@@ -79,6 +80,7 @@ module Filters
           "stale"              => -> {
             and_node(
               chip_node("state", "is", "open"),
+              chip_node("state", "is_none_of", %w[backlog]),
               chip_node("updated_at", "more_than_ago", { "n" => 7, "unit" => "days" })
             )
           },
@@ -161,6 +163,10 @@ module Filters
                .or(scope.open_threads.where(id: paused_job_ids))
         end
 
+        def apply_backlog
+          scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType::USER_KINDS)
+        end
+
         def apply_queued
           # Infrastructure workflows skip propagate_start_to_job!, leaving the job :queued while the workflow runs; exclude them so they appear in_progress instead.
           running_infra_ids = runtime_running_job_ids(trigger_kind: WorkDefinitions.lifecycle_managed_workflow_kinds)
@@ -200,7 +206,7 @@ module Filters
         end
 
         def apply_stale
-          scope.open_threads.where(updated_at: ..7.days.ago)
+          scope.open_threads.where.not(state: "backlog").where(updated_at: ..7.days.ago)
         end
 
         def apply_blocked

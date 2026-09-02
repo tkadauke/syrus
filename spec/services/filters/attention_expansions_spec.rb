@@ -13,6 +13,7 @@ RSpec.describe Filters::Chips::Jobs::Attention do
       expect(stale).to have_key("and")
       expect(stale["and"]).to include(
         hash_including("field" => "state", "op" => "is", "value" => "open"),
+        hash_including("field" => "state", "op" => "is_none_of", "value" => %w[backlog]),
         hash_including(
           "field" => "updated_at",
           "op" => "more_than_ago",
@@ -41,6 +42,14 @@ RSpec.describe Filters::Chips::Jobs::Attention do
           { "field" => "state", "op" => "is", "value" => "queued" },
           { "field" => "latest_workflow_state", "op" => "is", "value" => "queued" }
         ]
+      )
+    end
+
+    it "expands backlog as the backlog state" do
+      expect(described_class.expansion_for("backlog")).to eq(
+        "field" => "state",
+        "op" => "is",
+        "value" => "backlog"
       )
     end
 
@@ -85,7 +94,7 @@ RSpec.describe Filters::Chips::Jobs::Attention do
     it "includes every defined expansion as parsed AST nodes" do
       expansions = described_class.expansions
       expect(expansions.keys).to match_array(%w[
-        pinned in_progress paused queued inbox awaiting_approval just_failed
+        pinned in_progress paused backlog queued inbox awaiting_approval just_failed
         stale blocked merged_this_week awaiting_epic needs_review
       ])
     end

@@ -466,6 +466,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_152000) do
     t.integer "parent_proposal_id"
     t.datetime "rejected_at"
     t.integer "repository_id"
+    t.boolean "route_to_backlog", default: false, null: false
     t.string "slug", null: false
     t.string "state", default: "proposed", null: false
     t.integer "target_epic_id"

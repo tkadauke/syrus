@@ -882,6 +882,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       <JobsDashboardTable
         columns={columns}
         items={items.filter((item): item is DashboardJobItem => item.type === "job")}
+        controls={payload.controls}
         landingQueueEntries={payload.landing_queue.entries ?? []}
         landingQueueStatus={payload.landing_queue.status ?? null}
         prefix={prefix}

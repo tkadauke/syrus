@@ -57,6 +57,8 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         depends_on_job_ids: [],
         depends_on_proposal_slugs: [],
         repository: repository.slug,
+        route_to_backlog: false,
+        initial_job_state: "default",
         goal_provenance: nil,
         target_epic: nil,
         materialized: nil
@@ -74,6 +76,8 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         depends_on_job_ids: [],
         depends_on_proposal_slugs: [],
         repository: repository.slug,
+        route_to_backlog: false,
+        initial_job_state: "default",
         goal_provenance: nil,
         target_epic: nil,
         materialized: {

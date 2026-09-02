@@ -12,6 +12,10 @@ module Api
             render_error("validation_failed", "Thread is closed - reopen it before starting work.", status: :unprocessable_content)
             return
           end
+          if job.backlog?
+            render_error("validation_failed", "Job is in backlog - release it before starting work.", status: :unprocessable_content)
+            return
+          end
           if job.active_runtime_work?
             render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
             return
@@ -38,6 +42,40 @@ module Api
           else
             render_error("validation_failed", start_blocked_message(workflow.reload), status: :unprocessable_content)
           end
+        end
+
+        def release_from_backlog
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.backlog?
+            render_error("validation_failed", "Only backlogged Jobs can be released.", status: :unprocessable_content)
+            return
+          end
+          if job.active_runtime_work?
+            render_error("validation_failed", "A Run is already in progress - wait for it to finish.", status: :unprocessable_content)
+            return
+          end
+          unless job.may_release_from_backlog?
+            render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be released from backlog.", status: :unprocessable_content)
+            return
+          end
+
+          job.release_from_backlog!
+          render_job(job.reload, message: "Job released from backlog.", changed: [ "state", "workflows", "runs" ], tab: "workflows")
+        end
+
+        def move_to_backlog
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.may_move_to_backlog?
+            render_error("validation_failed", "#{job.slug} cannot move to backlog after runtime work, review, landing, or PR creation has started.", status: :unprocessable_content)
+            return
+          end
+
+          job.move_to_backlog!
+          render_job(job.reload, message: "Job moved to backlog.", changed: [ "state" ])
         end
 
         def run_again
