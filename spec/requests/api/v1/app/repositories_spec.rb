@@ -536,7 +536,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
 
-  it "loads repository detail run counts through state-specific indexed counts" do
+  it "loads repository detail run counts through one batched aggregate" do
     sign_in_as(user)
     repository = Factories.repository(user: user)
     running = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
@@ -555,13 +555,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 1)
-    expect(queries.grep(/COUNT\(DISTINCT CASE WHEN/)).to be_empty
 
     run_count_queries = queries.select do |query|
-      query.include?("COUNT(DISTINCT") && query.include?("runs") && query.include?("state")
+      query.include?("COUNT(DISTINCT CASE WHEN") && query.include?("runs") && query.include?("state")
     end
-    expect(run_count_queries.size).to eq(3)
-    expect(run_count_queries.join("\n")).to include(%("runs"."state" = ?))
+    expect(run_count_queries.size).to eq(1)
+    expect(run_count_queries.first.scan("COUNT(DISTINCT CASE WHEN").size).to eq(3)
   end
 
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do

@@ -1263,13 +1263,17 @@ module Api
 
         def repository_run_job_counts(repository)
           repository_job_ids = repository.jobs.select(:id)
-          runs_for_repository = Run.where(job_id: repository_job_ids)
+          connection = Run.connection
+          failed_since = connection.quote(7.days.ago)
 
-          {
-            running: runs_for_repository.where(state: "running").distinct.count(:job_id),
-            queued: runs_for_repository.where(state: "queued").distinct.count(:job_id),
-            failed_7d: runs_for_repository.where(state: "failed", updated_at: 7.days.ago..).distinct.count(:job_id)
-          }
+          row = Run.where(job_id: repository_job_ids).pick(
+            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'running' THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)"),
+            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'queued' THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)"),
+            Arel.sql("COUNT(DISTINCT CASE WHEN #{Run.quoted_table_name}.#{connection.quote_column_name(:state)} = 'failed' AND #{Run.quoted_table_name}.#{connection.quote_column_name(:updated_at)} >= #{failed_since} THEN #{Run.quoted_table_name}.#{connection.quote_column_name(:job_id)} END)")
+          )
+
+          running, queued, failed_7d = row || [ 0, 0, 0 ]
+          { running: running.to_i, queued: queued.to_i, failed_7d: failed_7d.to_i }
         end
 
         def latest_jobs_by_repository_id(repository_ids)
