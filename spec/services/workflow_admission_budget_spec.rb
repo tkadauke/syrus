@@ -102,6 +102,24 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("candidate", "profile_count")).to be >= 8
   end
 
+  it "uses an indexable worker role predicate for host telemetry" do
+    worker_sample(hostname: "worker-a")
+    workflow = workflow_for
+    sample_queries = []
+
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      sample_queries << sql if sql.include?("worker_host_health_samples")
+    end
+
+    described_class.call(workflow: workflow)
+
+    expect(sample_queries.join("\n")).to include('"worker_host_health_samples"."role" =')
+    expect(sample_queries.join("\n")).not_to include("LIKE")
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "includes dynamic grader profiles when predicting a grader fanout workflow" do
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
     workflow = workflow_for

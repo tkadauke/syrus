@@ -565,14 +565,14 @@ class WorkflowAdmissionBudget
   end
 
   def worker_health_samples_ever_recorded?
-    WorkerHostHealthSample.where("role LIKE ?", "%worker%").exists?
+    WorkerHostHealthSample.worker_role.exists?
   end
 
   def latest_worker_samples
     @latest_worker_samples ||= begin
       cutoff = now - HOST_SAMPLE_WINDOW
-      WorkerHostHealthSample.where("observed_at >= ?", cutoff)
-        .where("role LIKE ?", "%worker%")
+      WorkerHostHealthSample.worker_role
+        .where("observed_at >= ?", cutoff)
         .order(observed_at: :desc)
         .group_by(&:hostname)
         .values

@@ -34,8 +34,8 @@ class WorkerHostHealthTelemetryCheckJob < ApplicationJob
   end
 
   def recently_sampled_hostnames
-    WorkerHostHealthSample.where("observed_at >= ?", STALE_THRESHOLD.ago)
-                           .where("role LIKE ?", "%worker%")
+    WorkerHostHealthSample.worker_role
+                           .where("observed_at >= ?", STALE_THRESHOLD.ago)
                            .distinct
                            .pluck(:hostname)
   end

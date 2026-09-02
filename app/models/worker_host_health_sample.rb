@@ -7,6 +7,7 @@ class WorkerHostHealthSample < ApplicationRecord
 
   scope :ordered, -> { order(:observed_at) }
   scope :recent, -> { order(observed_at: :desc) }
+  scope :worker_role, -> { where(role: "worker") }
   scope :prunable, -> { where("observed_at < ?", RETAIN_AFTER.ago) }
 
   private
