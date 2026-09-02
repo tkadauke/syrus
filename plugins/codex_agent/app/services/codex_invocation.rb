@@ -7,6 +7,14 @@ class CodexInvocation
   MCP_STARTUP_TIMEOUT_SECONDS = 60
   MCP_TOOL_TIMEOUT_SECONDS = 60
   STARTUP_ERROR_MAX_BYTES = 4.kilobytes
+  AUTH_FAILURE_PATTERN = /
+    failed\ to\ refresh\ token|
+    auth\ error\ code:\s*token_expired|
+    token_expired|
+    websocket.*\b401\b|
+    \b401\b.*unauthorized|
+    unauthorized.*\b401\b
+  /ix
 
   def self.configured_model
     ENV.fetch("SYRUS_CODEX_MODEL", DEFAULT_MODEL).presence
@@ -302,30 +310,14 @@ class CodexInvocation
       scoped_detail = codex_error_detail(detail)
       detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
-        return {
-          is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
-          final_text: detail
-        }
-      end
-
-      { is_error: true, outcome: "turn_failed", final_text: detail }
+      codex_error_update(detail, fallback_outcome: "turn_failed")
     when "error"
       message = event["message"] || event["error"] || "error"
       detail = message.to_s
       scoped_detail = codex_error_detail(detail)
       detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
       log_sink.call("[codex error] #{detail}", kind: "system")
-      if ProviderUsageLimit.detect?(detail)
-        return {
-          is_error: true,
-          outcome: ProviderUsageLimit::OUTCOME,
-          final_text: detail
-        }
-      end
-
-      { is_error: true, outcome: "error", final_text: detail }
+      codex_error_update(detail, fallback_outcome: "error")
     when "item.started", "item.completed"
       process_item_event(event, log_sink)
     else
@@ -334,11 +326,39 @@ class CodexInvocation
   rescue JSON::ParserError
     detail = sanitize_startup_output(line.chomp)
     log_sink.call(detail)
-    detail.present? ? { startup_output: detail } : nil
+    return nil if detail.blank?
+
+    update = { startup_output: detail }
+    update.merge!(codex_error_update(detail, fallback_outcome: "error")) if codex_provider_auth_failure?(detail)
+    update
   end
 
   def codex_error_detail(message)
     [ "model #{@model}", message.to_s ].compact.join(": ")
+  end
+
+  def codex_error_update(detail, fallback_outcome:)
+    if ProviderUsageLimit.detect?(detail)
+      return {
+        is_error: true,
+        outcome: ProviderUsageLimit::OUTCOME,
+        final_text: detail
+      }
+    end
+
+    if codex_provider_auth_failure?(detail)
+      return {
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: detail
+      }
+    end
+
+    { is_error: true, outcome: fallback_outcome, final_text: detail }
+  end
+
+  def codex_provider_auth_failure?(detail)
+    detail.to_s.match?(AUTH_FAILURE_PATTERN)
   end
 
   def sanitize_startup_output(line)

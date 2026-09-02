@@ -199,6 +199,26 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies Codex failed token refresh text as expired provider auth" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    diagnostic("CodexInvocation::Error", "Failed to refresh token")
+
+    result = classification
+
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.retryable).to eq(false)
+  end
+
+  it "classifies Codex websocket 401 text as expired provider auth" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    diagnostic("CodexInvocation::Error", "websocket connection failed: HTTP 401 Unauthorized")
+
+    result = classification
+
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies missing provider resume state as retryable" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
     JobLog.append!(

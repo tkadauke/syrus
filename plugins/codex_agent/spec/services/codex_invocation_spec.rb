@@ -568,6 +568,58 @@ RSpec.describe CodexInvocation do
       expect(update).to include(is_error: true, outcome: "turn_failed", final_text: "temporary upstream failure")
       expect(events).to include([ "[codex error] temporary upstream failure", { kind: "system" } ])
     end
+
+    it "captures Codex token refresh failures as provider auth failures" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = { type: "turn.failed", error: "Failed to refresh token" }.to_json
+
+      update = invocation.send(:process_event, event, ->(*) { })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "Failed to refresh token"
+      )
+    end
+
+    it "captures Codex token_expired auth errors as provider auth failures" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = { type: "turn.failed", error: "auth error code: token_expired" }.to_json
+
+      update = invocation.send(:process_event, event, ->(*) { })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "auth error code: token_expired"
+      )
+    end
+
+    it "captures websocket 401 errors as provider auth failures" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = { type: "error", message: "websocket close: HTTP 401 Unauthorized" }.to_json
+
+      update = invocation.send(:process_event, event, ->(*) { })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "websocket close: HTTP 401 Unauthorized"
+      )
+    end
+
+    it "captures non-JSON token refresh stderr as provider auth failures" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+
+      update = invocation.send(:process_event, "error: Failed to refresh token", ->(*) { })
+
+      expect(update).to include(
+        startup_output: "error: Failed to refresh token",
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "error: Failed to refresh token"
+      )
+    end
   end
 
   describe "process_item_event structured tool wiring" do

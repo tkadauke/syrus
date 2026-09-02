@@ -163,7 +163,7 @@ class RunFailureClassifier
     return false if run.agent_provider.blank?
 
     text_match?(
-      /token_expired|access token could not be refreshed|authentication token (?:is )?expired|sign in again|logged out or signed in to another account|signed out or signed in to another account/i
+      /provider_auth_expired|failed to refresh token|auth error code:\s*token_expired|token_expired|access token could not be refreshed|authentication token (?:is )?expired|sign in again|logged out or signed in to another account|signed out or signed in to another account|websocket.*\b401\b|\b401\b.*unauthorized|unauthorized.*\b401\b/i
     )
   end
 

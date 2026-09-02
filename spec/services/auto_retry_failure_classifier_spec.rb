@@ -110,4 +110,39 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("server_error")
     expect(result.reason).to eq("provider reported a server-side transient error")
   end
+
+  it "does not retry Codex provider-auth outcomes" do
+    fail_run!(agent_outcome: "provider_auth_expired")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+  end
+
+  it "honors non-retryable failure classifications before generic turn_failed outcomes" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.run_failure_classification.update!(
+      classification: "provider_auth_expired",
+      confidence: 0.95,
+      retryable: false,
+      reason: "The provider authentication token expired and needs operator reauthorization.",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.reason).to eq("The provider authentication token expired and needs operator reauthorization.")
+  end
+
+  it "keeps unrelated transient turn failures retryable" do
+    fail_run!(agent_outcome: "turn_failed")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("turn_failed")
+  end
 end

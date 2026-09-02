@@ -14,6 +14,7 @@ class AutoRetryFailureClassifier
 
   NON_RETRYABLE_AGENT_OUTCOMES = {
     ProviderUsageLimit::OUTCOME => "provider usage limit or model quota exhausted",
+    "provider_auth_expired" => "provider authentication token expired or credentials are invalid",
     "error_max_turns" => "agent exhausted max turns",
     "git_state_corrupt" => "agent corrupted git state",
     "operator_cancelled" => "operator cancelled the run",
@@ -87,6 +88,9 @@ class AutoRetryFailureClassifier
     if run.run_failure_classification&.classification == "agent_resume_unavailable"
       return retryable("agent_resume_unavailable", run.run_failure_classification.reason)
     end
+    if auth_or_config_classification?(run.run_failure_classification)
+      return classification_result(run.run_failure_classification)
+    end
 
     outcome = run.agent_outcome.to_s.presence
     return non_retryable(outcome, NON_RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if NON_RETRYABLE_AGENT_OUTCOMES.key?(outcome)
@@ -114,6 +118,20 @@ class AutoRetryFailureClassifier
   def retryable_error_class?(error_class)
     RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
       error_class.to_s.end_with?("TimeoutError", "Timeout")
+  end
+
+  def classification_result(classification)
+    reason = classification.reason.presence ||
+      (classification.retryable? ? "classified retryable failure" : "classified non-retryable failure")
+    if classification.retryable?
+      retryable(classification.classification, reason)
+    else
+      non_retryable(classification.classification, reason)
+    end
+  end
+
+  def auth_or_config_classification?(classification)
+    classification&.classification.to_s.in?(%w[provider_auth_expired provider_auth_or_config])
   end
 
   def retryable(classification, reason)
