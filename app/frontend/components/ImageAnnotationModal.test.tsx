@@ -39,7 +39,7 @@ describe("ImageAnnotationModal", () => {
         width = 100
         height = 80
         onload: (() => void) | null = null
-        set src(_value: string) { window.setTimeout(() => this.onload?.(), 0) }
+        set src(_value: string) { this.onload?.() }
       }
     })
   })
