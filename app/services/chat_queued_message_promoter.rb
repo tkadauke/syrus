@@ -19,6 +19,7 @@ class ChatQueuedMessagePromoter
 
       queued_message = chat.queued_messages.first
       return false unless queued_message
+      return false unless ready_to_promote?(chat, queued_message)
 
       promoted_role = queued_message.promoted_role
       turn_triggered = turn_triggered?(chat, queued_message)
@@ -46,5 +47,24 @@ class ChatQueuedMessagePromoter
     return true if queued_message.promoted_role == "system"
 
     chat.should_trigger_agent?(queued_message.text)
+  end
+
+  def ready_to_promote?(chat, queued_message)
+    return true unless coding_goal_continuation?(chat, queued_message)
+
+    repository = chat.repository || chat.active_goal&.repository
+    return false unless repository
+
+    snapshot = ChatWorkspace.coding_checkout_snapshot(chat, repository)
+    snapshot[:exists] && snapshot[:prepare_status] == "succeeded"
+  rescue StandardError => e
+    Rails.logger.warn("[ChatQueuedMessagePromoter] coding checkout readiness check failed for chat #{chat.id}: #{e.class}: #{e.message}")
+    false
+  end
+
+  def coding_goal_continuation?(chat, queued_message)
+    return false unless queued_message.content.is_a?(Hash) && queued_message.content["goal_continuation"] == true
+
+    chat.active_goal&.requires_ready_coding_checkout_for_continuation? || false
   end
 end
