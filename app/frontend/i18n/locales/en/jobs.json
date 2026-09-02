@@ -136,6 +136,7 @@
   "landing_blocker_override_note": "Granted by {{user}} at",
   "detail_state": "State",
   "detail_owner": "Owner",
+  "detail_work_claim": "Work claim",
   "detail_priority": "Priority",
   "detail_provider": "Provider",
   "provider_setting_default": "Default",
