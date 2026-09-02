@@ -1039,7 +1039,8 @@ module Api
               title: doc.title,
               filename: doc.filename,
               content_type: doc.content_type,
-              file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file"
+              file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
+              image_url: chat_media_image_url(doc)
             }
           end
 
@@ -1073,6 +1074,17 @@ module Api
             type: document.content_type || "application/octet-stream",
             disposition: "inline"
           )
+        end
+
+        def chat_media_image_url(document)
+          return nil unless document.file.attached?
+
+          case document.attachable_type
+          when "User"
+            "/api/v1/app/credentials/documents/#{document.id}/file"
+          when "Repository"
+            "/api/v1/app/repository_documents/#{document.id}/file"
+          end
         end
 
         def cancel_coding_checkout

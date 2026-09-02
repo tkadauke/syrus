@@ -4,7 +4,7 @@ import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 
 const slugPattern = /((?:JOB|EPIC|DOC)-\d+)/
-const slugLinkClassName = "text-brand hover:underline dark:text-brand"
+const slugLinkClassName = "text-brand hover:underline dark:text-brand-emphasis"
 
 type LinkifySlugOptions = {
   jobStyle?: "link" | "copyable"

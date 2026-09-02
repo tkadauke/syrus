@@ -60,6 +60,14 @@ class ChatGoal < ApplicationRecord
     active? || paused?
   end
 
+  def auto_submit_coding_handoff?
+    active? && ChatGoal::ModePolicy.for(mode_snapshot && mode_snapshot["mode"]).auto_submit_coding_handoff?(self)
+  end
+
+  def requires_ready_coding_checkout_for_continuation?
+    active? && ChatGoal::ModePolicy.for(mode_snapshot && mode_snapshot["mode"]).requires_ready_coding_checkout_for_continuation?(self)
+  end
+
   def prompt_snapshot
     ChatProposal.goal_prompt_snapshot_for(self)
   end
