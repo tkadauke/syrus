@@ -55,8 +55,9 @@ module Api
 
           render json: PerformanceLogging.phase("chats_more_payload", before_id: before_id, repository_id: repository_id) {
             chats, has_more = paginated_chat_index_group(scope, before_chat: cursor)
+            context = PerformanceLogging.phase("chats_more.context", count: chats.size) { chat_index_context_for(chats) }
             {
-              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_index_json(chat_session) } },
+              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_index_json(chat_session, context: context) } },
               has_more: has_more
             }
           }

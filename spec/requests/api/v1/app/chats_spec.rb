@@ -479,12 +479,16 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
     expect(group["has_more"]).to eq(true)
 
-    get "/api/v1/app/chats/more", params: { repository_id: repository.id, before_id: group["chats"].last["id"] }
+    queries = capture_sql do
+      get "/api/v1/app/chats/more", params: { repository_id: repository.id, before_id: group["chats"].last["id"] }
+    end
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["chats"].map { |chat| chat["id"] }).to eq(chats.last(2).map(&:id))
     expect(body["has_more"]).to eq(false)
+    busy_agent_queries = queries.grep(/FROM ["`]?spawned_processes["`]?.*["`]?workdir["`]?/im)
+    expect(busy_agent_queries.size).to eq(1)
   end
 
   it "orders pinned sidebar chats before unpinned chats in each group" do
