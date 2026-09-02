@@ -22,6 +22,7 @@ class AutoRetryJob < ApplicationJob
 
     return if skip_if_default_provider_changed(attempt)
     return if skip_if_provider_delay_no_longer_matches(attempt)
+    return if skip_if_failure_no_longer_retryable(attempt)
     return if reschedule_if_provider_blocked(attempt)
     return if reschedule_if_failed_worker_host_still_critical(attempt)
     return if reschedule_if_active_work_owns_failed_step_retry(attempt)
@@ -74,6 +75,25 @@ class AutoRetryJob < ApplicationJob
     return false if fresh.classification == attempt.failure_classification
 
     attempt.update!(skipped_reason: "failure classification changed from #{attempt.failure_classification} to #{fresh.classification} before retry")
+    WorkUnits::AutoRetryBackoff.clear!(attempt)
+    log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
+    WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[AutoRetryJob] failed to refresh Run ##{attempt.run_id} failure classification: #{e.class}: #{e.message}")
+    false
+  end
+
+  def skip_if_failure_no_longer_retryable(attempt)
+    return false unless attempt.run
+
+    fresh = RunFailureClassifier.persist!(attempt.run)
+    return false if fresh.retryable
+    return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
+
+    attempt.update!(
+      skipped_reason: "failure classification changed from #{attempt.failure_classification} to #{fresh.classification}; #{fresh.classification} is not retryable"
+    )
     WorkUnits::AutoRetryBackoff.clear!(attempt)
     log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
     WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)

@@ -111,6 +111,23 @@ RSpec.describe AutoRetryAttempt, type: :model do
 
       expect(scope).to include(attempt)
     end
+
+    it "excludes skipped stale non-retryable reclassifications from retry budget accounting" do
+      described_class.create!(
+        valid_attrs(
+          failure_classification: "turn_failed",
+          skipped_reason: "failure classification changed from turn_failed to provider_auth_expired; provider_auth_expired is not retryable"
+        )
+      )
+
+      scope = described_class.budget_scope_for(
+        job: job,
+        agent_provider: "claude",
+        failure_classification: "turn_failed"
+      )
+
+      expect(scope).to be_empty
+    end
   end
 
   describe ".retry_workflow_scheduled_for?" do

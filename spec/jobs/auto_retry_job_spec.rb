@@ -358,6 +358,30 @@ RSpec.describe AutoRetryJob do
     expect(run.run_failure_classification.reload.classification).to eq("git_state_corrupt")
   end
 
+  it "skips stale turn_failed attempts when fresh classification shows expired provider auth" do
+    attempt, agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+    attempt.update!(failure_classification: "turn_failed")
+    agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
+    RunDiagnostic.create!(
+      run: agent_run,
+      error_class: "CodexInvocation::Error",
+      error_message: "Failed to refresh token: auth error code: token_expired"
+    )
+    allow(WorkEngine::Reconciler).to receive(:request)
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.not_to change { agent_step.runs.count }
+
+    expect(attempt.reload.skipped_reason).to eq("failure classification changed from turn_failed to provider_auth_expired; provider_auth_expired is not retryable")
+    expect(attempt.performed_at).to be_nil
+    expect(agent_run.run_failure_classification.reload).to have_attributes(
+      classification: "provider_auth_expired",
+      retryable: false
+    )
+    expect(WorkEngine::Reconciler).to have_received(:request).with(source: "AutoRetryJob", job: job)
+  end
+
   it "skips stale usage-limit attempts when a default-provider job now resolves to another provider" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     attempt.update!(failure_classification: ProviderUsageLimit::CLASSIFICATION, scheduled_at: 1.hour.from_now)

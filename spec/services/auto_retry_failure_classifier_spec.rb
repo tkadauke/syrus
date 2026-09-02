@@ -122,4 +122,62 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result).to be_retryable
     expect(result.classification).to eq("Octokit::BadGateway")
   end
+
+  it "classifies persisted provider auth expiration as non-retryable before generic turn_failed" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.update!(agent_provider: "codex")
+    classification = run.run_failure_classification || run.build_run_failure_classification
+    classification.update!(
+      classification: ProviderAuthFailure::CLASSIFICATION,
+      retryable: false,
+      confidence: 0.95,
+      reason: "The provider authentication token expired and needs operator reauthorization.",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+    expect(result.reason).to include("reauthorization")
+  end
+
+  it "classifies Codex token refresh diagnostics as non-retryable before generic turn_failed" do
+    fail_run!(
+      agent_outcome: "turn_failed",
+      error_class: "CodexInvocation::Error",
+      error_message: "Failed to refresh token: auth error code: token_expired"
+    )
+    run.update!(agent_provider: "codex")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+  end
+
+  it "classifies Codex websocket 401 logs as non-retryable before generic turn_failed" do
+    fail_run!(agent_outcome: "turn_failed")
+    run.update!(agent_provider: "codex")
+    JobLog.append!(
+      run: run,
+      chunk: "[codex error] websocket handshake failed: HTTP 401 Unauthorized",
+      kind: "system"
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_retryable
+    expect(result.classification).to eq("provider_auth_expired")
+  end
+
+  it "keeps unrelated transient turn failures retryable" do
+    fail_run!(agent_outcome: "turn_failed", error_class: "CodexInvocation::Error", error_message: "temporary upstream failure")
+    run.update!(agent_provider: "codex")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("turn_failed")
+  end
 end
