@@ -216,7 +216,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "write_memory", "read_memory", "rename_chat", "ask_user_question")
     end
 
-    it "advertises insight read tools via the deferred tools/list when agent_insights is enabled" do
+    it "advertises insight read and retire tools via the deferred tools/list when agent_insights is enabled" do
       Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
              .update!(enabled: true)
       Feature.clear_enabled_cache!("agent_insights")
@@ -227,8 +227,60 @@ RSpec.describe Mcp::Sidecar do
       response = jsonrpc(server, "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |tool| tool[:name] }
 
-      expect(tool_names).to include("list_insights", "read_insight")
-      expect(tool_names).not_to include("submit_insight")
+      expect(tool_names).to include("list_insights", "read_insight", "retire_insight")
+      expect(tool_names).not_to include("submit_insight", "update_insight")
+    end
+
+    it "does not advertise insight tools via the deferred tools/list when agent_insights is disabled" do
+      server = server_for(chat_session, tier: :deferred)
+      _ = jsonrpc(server, "initialize", id: 0)
+
+      response = jsonrpc(server, "tools/list", id: 1)
+      tool_names = response[:result][:tools].map { |tool| tool[:name] }
+
+      expect(tool_names).not_to include("list_insights", "read_insight", "retire_insight", "submit_insight", "update_insight")
+    end
+
+    it "lets repository chats retire a pending insight with a superseding Job" do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+             .update!(enabled: true)
+      Feature.clear_enabled_cache!("agent_insights")
+      insight_job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+      target = InsightSuggestion.create!(
+        job: insight_job,
+        repository: repository,
+        title: "Old chat-retirable insight",
+        category: "configuration",
+        severity: "low",
+        confidence: 0.5
+      )
+      superseding_job = Factories.job(user: user, repository: repository)
+      server = server_for(chat_session, tier: :deferred)
+      _ = jsonrpc(server, "initialize", id: 0)
+
+      expect {
+        response = call_tool(
+          server,
+          "retire_insight",
+          target_insight_id: target.id,
+          reason: "Superseded by filed work.",
+          superseded_by_job_id: superseding_job.id
+        )
+
+        expect(response.dig(:result, :isError)).to be_falsey
+        expect(response.dig(:result, :content, 0, :text)).to include("retired")
+      }.to change(InsightSuggestionAuditEvent, :count).by(1)
+
+      target.reload
+      expect(target.state).to eq("retired")
+      expect(target.retired_reason).to eq("Superseded by filed work.")
+      expect(target.superseded_by_job_id).to eq(superseding_job.id)
+
+      event = InsightSuggestionAuditEvent.last
+      expect(event.insight_suggestion).to eq(target)
+      expect(event.event_type).to eq("retired")
+      expect(event.actor_kind).to eq("user")
+      expect(event.actor_user).to eq(user)
     end
 
     it "does not advertise attachment or work-creation tools to supervisor chats" do
