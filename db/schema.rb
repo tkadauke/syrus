@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_113000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2848,6 +2848,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_110000) do
     t.index ["job_id", "finished_at", "id"], name: "idx_workflows_job_finished_latest"
     t.index ["job_id", "state", "finished_at", "id"], name: "idx_workflows_job_state_finished_latest"
     t.index ["job_id", "state"], name: "idx_workflows_job_state"
+    t.index ["job_id", "trigger_kind", "created_at", "id"], name: "idx_workflows_job_trigger_created_id"
     t.index ["job_id"], name: "index_workflows_on_job_id"
     t.index ["state", "created_at", "id"], name: "idx_workflows_state_created_at"
     t.index ["state", "finished_at", "job_id"], name: "idx_workflows_state_finished_job"
