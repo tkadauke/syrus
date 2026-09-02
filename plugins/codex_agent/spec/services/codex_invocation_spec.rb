@@ -568,6 +568,40 @@ RSpec.describe CodexInvocation do
       expect(update).to include(is_error: true, outcome: "turn_failed", final_text: "temporary upstream failure")
       expect(events).to include([ "[codex error] temporary upstream failure", { kind: "system" } ])
     end
+
+    it "captures Codex expired auth turn failures as a distinct outcome" do
+      events = []
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = {
+        type: "turn.failed",
+        error: "Failed to refresh token: auth error code: token_expired"
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "Failed to refresh token: auth error code: token_expired"
+      )
+      expect(events).to include([
+        "[codex error] Failed to refresh token: auth error code: token_expired",
+        { kind: "system" }
+      ])
+    end
+
+    it "captures Codex websocket 401 errors as expired auth" do
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test")
+      event = { type: "error", message: "websocket connection failed: HTTP 401 Unauthorized" }.to_json
+
+      update = invocation.send(:process_event, event, ->(_line, **_) { })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_auth_expired",
+        final_text: "websocket connection failed: HTTP 401 Unauthorized"
+      )
+    end
   end
 
   describe "process_item_event structured tool wiring" do
