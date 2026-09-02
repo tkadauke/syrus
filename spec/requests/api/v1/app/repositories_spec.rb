@@ -1397,6 +1397,39 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")
   end
 
+  it "scopes retryable failed job ownership checks to repository candidates" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    failed = Factories.job_with_run(
+      repository: repository,
+      issue_number: 1,
+      state: "failed",
+      workflow_attrs: { state: "failed" },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
+    other_repository = Factories.repository(user: user, owner: "acme", name: "other")
+    other_failed = Factories.job_with_run(
+      repository: other_repository,
+      issue_number: 2,
+      state: "failed",
+      workflow_attrs: { state: "failed" },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
+    attach_active_work_unit(owner_job: other_failed, member_job: other_failed, kind: "manual_visual_review")
+
+    allow(WorkUnits::Ownership).to receive(:active_job_ids).and_call_original
+    expect(WorkUnits::Ownership).not_to receive(:all_active_job_ids)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("retry_failed_jobs", "count")).to eq(1)
+    expect(WorkUnits::Ownership).to have_received(:active_job_ids).twice
+    expect(WorkUnits::Ownership).to have_received(:active_job_ids).with([ failed.id ]).twice
+  end
+
   it "rejects repository-wide retries while the provider circuit is open" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")

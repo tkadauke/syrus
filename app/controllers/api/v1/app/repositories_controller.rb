@@ -1179,15 +1179,22 @@ module Api
 
         def retryable_failed_jobs_scope(repository, inactive_job_ids: nil)
           base = repository.jobs.open_threads
-          base = if inactive_job_ids
+          candidates = base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
+
+          if inactive_job_ids
             return repository.jobs.none if inactive_job_ids.empty?
 
-            base.where(id: inactive_job_ids)
-          else
-            base.where.not(id: WorkUnits::Ownership.all_active_job_ids)
+            return candidates.where(id: inactive_job_ids)
           end
 
-          base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
+          candidate_ids = candidates.pluck(:id)
+          return repository.jobs.none if candidate_ids.empty?
+
+          active_ids = WorkUnits::Ownership.active_job_ids(candidate_ids)
+          inactive_ids = candidate_ids - active_ids.to_a
+          return repository.jobs.none if inactive_ids.empty?
+
+          candidates.where(id: inactive_ids)
         end
 
         def preload_repository_index_job_state(repositories)
