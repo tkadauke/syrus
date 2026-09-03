@@ -128,6 +128,9 @@ RSpec.describe PreviewWorkspace do
     def stub_repository!(repository, source_path)
       allow_any_instance_of(Repository).to receive(:authenticated_url).and_return(source_path)
       allow_any_instance_of(Repository).to receive(:remote_url).and_return("https://github.example/acme/app.git")
+      allow(GithubAuthenticatedGit).to receive(:run) do |**_kwargs, &block|
+        block.call(source_path)
+      end
     end
 
     it "defaults to checking out the Job's feature branch" do
