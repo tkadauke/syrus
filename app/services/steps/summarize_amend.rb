@@ -30,11 +30,23 @@ module Steps
       git_state_before_agent = capture_workspace_git_state
 
       log("invoking agent for summarize_amend step (#{workflow.slug}, --resume)")
-      run_agent(
-        prompt: run.prompt,
-        max_turns: SUMMARIZE_TURN_BUDGET,
-        required_mcp_tools: %w[submit_summary]
-      )
+      begin
+        run_agent(
+          prompt: run.prompt,
+          max_turns: SUMMARIZE_TURN_BUDGET,
+          required_mcp_tools: %w[submit_summary]
+        )
+      rescue StepFailed
+        raise unless codex_resume_unavailable_failure?
+
+        log("summarize_amend Codex resume state was unavailable; retrying without --resume")
+        run_agent(
+          prompt: fallback_prompt,
+          max_turns: SUMMARIZE_TURN_BUDGET,
+          resume_session_id: nil,
+          required_mcp_tools: %w[submit_summary]
+        )
+      end
 
       assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize_amend")
       assert_workspace_matches_upstream_head!
@@ -50,6 +62,25 @@ module Steps
 
     def upstream_agentic_run
       latest_succeeded_run_for(%w[respond analyze_and_fix manual_agentic_run])
+    end
+
+    def fallback_prompt
+      Prompts::SummarizeAmendFallback.new(
+        issue: fallback_issue,
+        trigger_kind: workflow.trigger_kind,
+        upstream_step_kind: upstream_agentic_run&.step&.kind,
+        diff: fallback_diff
+      ).to_s
+    end
+
+    def fallback_issue
+      job.synthetic_issue || Struct.new(:title, :body).new(job.title, job.issue_body.to_s)
+    end
+
+    def fallback_diff
+      upstream_agentic_run&.step_agent_diff.presence ||
+        upstream_agentic_run&.agent_diff.presence ||
+        diff_against_default
     end
 
     def promote_artifacts!(from: nil)

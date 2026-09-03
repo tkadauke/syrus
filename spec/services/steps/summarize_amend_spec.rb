@@ -307,6 +307,54 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       allow(handler).to receive(:run_agent)
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /didn't call submit_summary/)
     end
+
+    it "retries a ci_failure summary without provider resume when Codex rejects restored rollout state" do
+      workflow.update!(trigger_kind: "ci_failure")
+      run.update!(trigger_kind: "ci_failure")
+      job.update!(issue_title: "Fix flaky timeout", issue_body: "The rspec grader times out on slow machines.")
+      analyze_step = Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 0, next_step_id: step.id)
+      upstream_sha = head_sha
+      Run.create!(
+        job: job,
+        step: analyze_step,
+        trigger_kind: "ci_failure",
+        state: "succeeded",
+        head_sha: upstream_sha,
+        step_agent_diff: "diff --git a/feature.rb b/feature.rb\n-def greet = 'hello'\n+def greet = 'hello world'\n"
+      )
+
+      calls = []
+      allow(handler).to receive(:run_agent) do |**kwargs|
+        calls << kwargs
+        if calls.one?
+          JobLog.append!(
+            run: run,
+            chunk: "rollout-restored-019f.jsonl does not have a canonical rollout filename",
+            kind: "system"
+          )
+          raise Steps::Base::StepFailed, "agent reported error"
+        end
+
+        run.update!(
+          agent_pr_title: "Fix CI: stabilize timeout expectation",
+          agent_pr_body: "Adjusted the follow-up repair for the failing rspec timeout.",
+          agent_summary: "Stabilized the CI failure repair summary."
+        )
+      end
+
+      expect { handler.call }.not_to raise_error
+
+      expect(calls.size).to eq(2)
+      expect(calls.first).not_to include(resume_session_id: nil)
+      expect(calls.second).to include(resume_session_id: nil)
+      expect(calls.second[:prompt]).to match(/original agent\s+session is not available to resume/)
+      expect(calls.second[:prompt]).to include("Trigger kind: ci_failure")
+      expect(calls.second[:prompt]).to include("Upstream step: analyze_and_fix")
+      expect(calls.second[:prompt]).to include("Fix flaky timeout")
+      expect(calls.second[:prompt]).to include("+def greet = 'hello world'")
+      expect(workflow.reload.artifact("amend_commit_subject")).to eq("Fix CI: stabilize timeout expectation")
+      expect(commit_message).to start_with("Fix CI: stabilize timeout expectation")
+    end
   end
 
   def sh(*args)
