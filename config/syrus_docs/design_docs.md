@@ -55,13 +55,21 @@ title-bar dropdown loads that version's Markdown into the current working copy;
 it is autosaved like any other edit, while `Save` creates a new auditable
 version/checkpoint from the current persisted working copy.
 
-Pending suggestions appear inline at their anchored range in both editor modes
-where practical: the original Markdown range is struck through in the active
-theme warning color and the proposed replacement appears next to it in the
-active theme success color. The default Terracotta theme uses terracotta for
-warning and green for success. This inline diff is display-only. Rich Text
-conversion keeps the original anchored text in the draft, and canonical
-Markdown is not changed until the owner accepts a suggestion.
+Pending suggestions are classified before rendering. Inline-safe suggestions
+appear inline at their anchored range in both editor modes where practical: the
+original Markdown range is struck through in the active theme warning color and
+the proposed replacement appears next to it in the active theme success color.
+Block-level suggestions, including multiline replacements and replacements that
+begin with Markdown block markers such as headings, lists, blockquotes, or code
+fences, render as an anchor mark in the document body and as a structured
+Current/Proposed block diff in the Threads column. Proposed block Markdown is
+never injected as inline text inside an existing heading, paragraph, or list
+item. The default Terracotta theme uses terracotta for warning and green for
+success. Suggestion previews are display-only. Rich Text conversion keeps the
+original anchored text in the draft, and canonical Markdown is not changed
+until the owner accepts a suggestion. New pending suggestions cannot overlap an
+existing pending suggestion, and selections that cut through partial Markdown
+block syntax are rejected with a validation error.
 
 The document detail API includes editor permission flags:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see

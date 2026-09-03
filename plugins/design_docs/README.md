@@ -82,12 +82,20 @@ The plugin registers:
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
 
-Pending suggestions render inline in the document body at their anchored range
-in both Rich Text and Markdown editor tabs. The original range is struck through
-with the active theme's warning token, and the proposed replacement is shown
-beside it with the active theme's success token. The rendered suggestion text is
-display-only: hidden anchor comments and proposed replacement previews are not
-written into canonical Markdown until the owner accepts the suggestion.
+Pending suggestions are classified before rendering. Inline-safe suggestions
+render inline in the document body at their anchored range in both Rich Text and
+Markdown editor tabs: the original range is struck through with the active
+theme's warning token, and the proposed replacement is shown beside it with the
+active theme's success token. Block-level suggestions, including multiline
+replacements and replacements that begin with Markdown block markers such as
+headings, lists, blockquotes, or code fences, render as an anchor mark in the
+document body and as a structured Current/Proposed block diff in the Threads
+column. Proposed block Markdown is never injected inline into the surrounding
+heading, paragraph, or list item. Suggestion previews are display-only: hidden
+anchor comments and proposed replacement previews are not written into
+canonical Markdown until the owner accepts the suggestion. New pending
+suggestions cannot overlap an existing pending suggestion, and selections that
+cut through partial Markdown block syntax are rejected with a validation error.
 
 ### Markdown Command Set
 
