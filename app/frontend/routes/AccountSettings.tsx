@@ -288,6 +288,10 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "agent" ? (
+          <AgentProviderFailoverSettings payload={payload} setValues={setValues} values={values} />
+        ) : null}
+
+        {section === "agent" ? (
           <ProviderAvailabilitySettings
             onNotice={onNotice}
             payload={payload}
@@ -595,11 +599,106 @@ function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
     gemini_api_key: "",
     github_token: "",
     agent_max_turns: payload.user.agent_max_turns,
+    agent_provider_failover_policy: payload.user.agent_provider_failover_policy || {
+      enabled: false,
+      providers: [],
+      causes: ["usage_exhausted", "usage_low", "rate_limited", "provider_transient"],
+      override_explicit_pins: false
+    },
     provider_availability_pause_thresholds: payload.user.provider_availability_pause_thresholds || { claude: 10, codex: 10 },
     scheduling_paused: payload.user.scheduling_paused,
     auto_approve_mode: payload.user.auto_approve_mode,
     locale: payload.user.locale
   }
+}
+
+function AgentProviderFailoverSettings({
+  payload,
+  values,
+  setValues
+}: {
+  payload: CredentialsPayload
+  values: CredentialsInput
+  setValues: (values: CredentialsInput) => void
+}) {
+  const { t } = useT("settings")
+  const policy = values.agent_provider_failover_policy
+  const failoverCauses = payload.options.agent_provider_failover_causes || ["usage_exhausted", "usage_low", "rate_limited", "provider_transient", "auth_error"]
+
+  function updatePolicy(partial: Partial<CredentialsInput["agent_provider_failover_policy"]>) {
+    setValues({
+      ...values,
+      agent_provider_failover_policy: {
+        ...policy,
+        ...partial
+      }
+    })
+  }
+
+  function toggleProvider(provider: string, checked: boolean) {
+    const providers = checked
+      ? [...policy.providers, provider].filter((value, index, array) => array.indexOf(value) === index)
+      : policy.providers.filter((value) => value !== provider)
+    updatePolicy({ providers })
+  }
+
+  function toggleCause(cause: string, checked: boolean) {
+    const causes = checked
+      ? [...policy.causes, cause].filter((value, index, array) => array.indexOf(value) === index)
+      : policy.causes.filter((value) => value !== cause)
+    updatePolicy({ causes })
+  }
+
+  return (
+    <div className="space-y-3 rounded border border-gray-200 p-3 dark:border-gray-700">
+      <div>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("account_settings.provider_failover_heading")}</h3>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_desc")}</p>
+      </div>
+
+      <Checkbox
+        checked={policy.enabled}
+        label={t("account_settings.provider_failover_enabled")}
+        onChange={(event) => updatePolicy({ enabled: event.target.checked })}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <fieldset>
+          <legend className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_providers")}</legend>
+          <div className="mt-2 space-y-2">
+            {payload.options.agent_providers.map((provider) => (
+              <Checkbox
+                checked={policy.providers.includes(provider)}
+                key={provider}
+                label={titleize(provider)}
+                onChange={(event) => toggleProvider(provider, event.target.checked)}
+              />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_causes")}</legend>
+          <div className="mt-2 space-y-2">
+            {failoverCauses.map((cause) => (
+              <Checkbox
+                checked={policy.causes.includes(cause)}
+                key={cause}
+                label={t(`account_settings.provider_failover_cause_${cause}`)}
+                onChange={(event) => toggleCause(cause, event.target.checked)}
+              />
+            ))}
+          </div>
+        </fieldset>
+      </div>
+
+      <Checkbox
+        checked={policy.override_explicit_pins}
+        label={t("account_settings.provider_failover_override_explicit_pins")}
+        onChange={(event) => updatePolicy({ override_explicit_pins: event.target.checked })}
+      />
+    </div>
+  )
 }
 
 function ProviderAvailabilitySettings({

@@ -87,6 +87,17 @@ automatically once usage is above threshold. Operators can force a recheck or
 per-user/per-provider and only suppresses pauses until newer provider evidence
 arrives.
 
+**Provider failover policy:** Agent Settings persists a disabled-by-default
+agent-provider failover policy for future admission/retry selection. The policy
+stores an ordered provider list and a cause list covering usage exhausted,
+usage low, rate limited, provider transient/circuit open, and auth error. Only
+providers returned by `User#configured_agent_providers` are selectable at use
+time, so the policy never chooses an unconfigured provider. Auth errors are
+modeled for visibility but excluded from the default automatic-failover causes,
+and explicit Job provider pins are respected unless the separate
+`override_explicit_pins` setting is enabled. This policy does not switch chat
+providers or enqueue `SwitchChatProviderJob`.
+
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
 usage instead of relying solely on reactive error-text classification. It makes a

@@ -42,6 +42,15 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(body.dig("options", "chat_providers")).to eq(%w[claude codex])
     expect(body.dig("user", "role")).to eq("developer")
     expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
+    expect(body.dig("user", "agent_provider_failover_policy")).to eq(
+      "enabled" => false,
+      "providers" => [],
+      "causes" => %w[usage_exhausted usage_low rate_limited provider_transient],
+      "override_explicit_pins" => false
+    )
+    expect(body.dig("options", "agent_provider_failover_causes")).to eq(
+      %w[usage_exhausted usage_low rate_limited provider_transient auth_error]
+    )
     expect(body["credential_status"]).to include(
       "claude_oauth_token" => true,
       "codex_api_key" => true,
@@ -120,6 +129,48 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(user.reload.provider_availability_pause_threshold_for("claude")).to eq(0)
     expect(user.provider_availability_pause_threshold_for("codex")).to eq(15)
+  end
+
+  it "shows and updates the agent-provider failover policy" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: {
+      user: {
+        agent_provider_failover_policy: {
+          enabled: true,
+          providers: %w[codex claude],
+          causes: %w[usage_low rate_limited],
+          override_explicit_pins: true
+        }
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.agent_provider_failover_policy).to eq(
+      "enabled" => true,
+      "providers" => %w[codex claude],
+      "causes" => %w[usage_low rate_limited],
+      "override_explicit_pins" => true
+    )
+    expect(parse_body.dig("user", "agent_provider_failover_policy")).to eq(user.agent_provider_failover_policy)
+  end
+
+  it "rejects unknown agent-provider failover values" do
+    sign_in_as(user)
+
+    patch "/api/v1/app/credentials", params: {
+      user: {
+        agent_provider_failover_policy: {
+          enabled: true,
+          providers: %w[oracle],
+          causes: %w[solar_flare]
+        }
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("Agent provider failover policy")
   end
 
   it "forces a Codex usage recheck and wakes provider-paused workflows" do
