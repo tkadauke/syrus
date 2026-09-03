@@ -39,13 +39,14 @@ class Theme < ApplicationRecord
   validate :tokens_has_required_shape
 
   scope :selectable_by, ->(user) { where(built_in: true).or(where(owner_user_id: user)) }
+  scope :owned_custom_by, ->(user) { where(owner_user: user, built_in: false) }
 
   def self.terracotta
     find_by(slug: TERRACOTTA_SLUG)
   end
 
   def public_payload
-    { id: id, slug: slug, name: name, built_in: built_in, tokens: tokens }
+    { id: id, slug: slug, name: name, built_in: built_in, position: position, tokens: tokens }
   end
 
   # WCAG AA (4.5:1) contrast check across text/tone pairings, per mode.
