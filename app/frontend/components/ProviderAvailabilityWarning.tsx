@@ -1,7 +1,7 @@
 import type { ProviderAvailability } from "../api/providerAvailability"
 
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
-  if (!availability?.usage_exhausted && availability?.state !== "rate_limited" && availability?.state !== "auth_error") return null
+  if (!availability?.usage_exhausted && availability?.state !== "open" && availability?.state !== "rate_limited" && availability?.state !== "auth_error") return null
 
   const label = warningLabel(availability)
   const tone = availability.usage_exhausted || availability.state === "auth_error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
@@ -26,6 +26,7 @@ function warningLabel(availability: NonNullable<ProviderAvailability>): string {
     base,
     `Evidence: ${evidence.status} from ${evidence.source}`,
     evidence.observed_at ? `observed ${formatTimestamp(evidence.observed_at)}` : null,
+    availability.retry_after ? `retry after ${formatTimestamp(availability.retry_after)}` : null,
     scopeLabel(evidence),
     evidence.http_status ? `HTTP ${evidence.http_status}` : null,
   ].filter(Boolean)

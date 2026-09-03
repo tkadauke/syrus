@@ -231,6 +231,7 @@ module App
             path: workflow_navigation_path(workflow, page: navigation_page),
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
+            provider_failover: provider_failover_json(workflow),
             state: workflow.state,
             failure_count: workflow.failure_count,
             artifacts: enrich_artifacts(workflow.artifacts),
@@ -408,6 +409,10 @@ module App
           created_job_id: warning.created_job_id,
           created_at: iso8601(warning.created_at)
         }
+      end
+
+      def provider_failover_json(workflow)
+        App::ProviderFailoverPresentation.for(workflow)
       end
 
       def step_json(step, workflow:, latest_step:)

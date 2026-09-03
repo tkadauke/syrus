@@ -373,6 +373,35 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload[:start_blocked_details]).to eq("provider" => "codex")
     end
 
+    it "includes provider failover metadata on the job summary payload" do
+      job = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "codex",
+        artifacts: {
+          "provider_failover_decision" => {
+            "original_provider" => "claude",
+            "selected_provider" => "codex",
+            "reason" => "provider_rate_limited",
+            "availability_state" => "rate_limited",
+            "decided_at" => "2026-08-29T11:01:00Z",
+            "automatic_failover" => true,
+            "manual_override" => false
+          }
+        }
+      )
+
+      expect(payload_for(job).dig(:job, :provider_failover)).to include(
+        original_provider: "claude",
+        selected_provider: "codex",
+        reason: "provider_rate_limited",
+        automatic: true,
+        manual_override: false
+      )
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)

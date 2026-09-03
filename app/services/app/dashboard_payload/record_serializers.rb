@@ -43,6 +43,7 @@ module App
           agent_provider: workflow_agent_provider,
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
+          provider_failover: provider_failover_json(latest_workflow_for(job)),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
@@ -242,6 +243,10 @@ module App
           latest_run_diagnostic: latest_run && @job_runtime_run_diagnostics_by_run_id[latest_run.id],
           any_active_run: @job_runtime_active_job_ids.key?(job.id)
         )
+      end
+
+      def provider_failover_json(workflow)
+        App::ProviderFailoverPresentation.for(workflow)
       end
 
       def deployment_stages_configured?(repository)

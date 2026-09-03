@@ -649,6 +649,19 @@ function AgentProviderFailoverSettings({
     updatePolicy({ causes })
   }
 
+  function moveProvider(provider: string, direction: -1 | 1) {
+    const index = policy.providers.indexOf(provider)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= policy.providers.length) return
+
+    const providers = [...policy.providers]
+    providers[index] = policy.providers[nextIndex]
+    providers[nextIndex] = provider
+    updatePolicy({ providers })
+  }
+
+  const orderedProviders = policy.providers.filter((provider) => payload.options.agent_providers.includes(provider))
+
   return (
     <div className="space-y-3 rounded border border-gray-200 p-3 dark:border-gray-700">
       <div>
@@ -675,6 +688,35 @@ function AgentProviderFailoverSettings({
               />
             ))}
           </div>
+          {orderedProviders.length > 0 ? (
+            <ol className="mt-3 space-y-1">
+              {orderedProviders.map((provider, index) => (
+                <li className="flex items-center justify-between gap-2 rounded border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800" key={provider}>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{index + 1}. {titleize(provider)}</span>
+                  <span className="flex gap-1">
+                    <button
+                      aria-label={t("account_settings.provider_failover_move_up", { provider: titleize(provider) })}
+                      className="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      disabled={index === 0}
+                      onClick={() => moveProvider(provider, -1)}
+                      type="button"
+                    >
+                      {t("account_settings.provider_failover_up")}
+                    </button>
+                    <button
+                      aria-label={t("account_settings.provider_failover_move_down", { provider: titleize(provider) })}
+                      className="rounded bg-gray-100 px-2 py-1 font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      disabled={index === orderedProviders.length - 1}
+                      onClick={() => moveProvider(provider, 1)}
+                      type="button"
+                    >
+                      {t("account_settings.provider_failover_down")}
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
         </fieldset>
 
         <fieldset>
@@ -697,6 +739,7 @@ function AgentProviderFailoverSettings({
         label={t("account_settings.provider_failover_override_explicit_pins")}
         onChange={(event) => updatePolicy({ override_explicit_pins: event.target.checked })}
       />
+      <p className="text-xs text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_chat_exclusion")}</p>
     </div>
   )
 }

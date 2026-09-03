@@ -330,4 +330,22 @@ describe("CredentialsRoute (provider cards)", () => {
       })
     })
   })
+
+  it("lets operators order workflow failover providers and keeps chat failover separate", async () => {
+    const fetchSpy = mockRoutes(makePayload())
+    renderAgentSettings()
+
+    expect(await screen.findByText("Chat sessions keep their selected provider. Use the chat provider switcher when you want to move a chat explicitly.")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Codex"))
+    fireEvent.click(screen.getByLabelText("Claude"))
+    fireEvent.click(screen.getByRole("button", { name: "Move Claude earlier in failover order" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchSpy.mock.calls.find(([url, init]) => String(url).endsWith("/api/v1/app/credentials") && init?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(patchCall?.[1]?.body as string).user.agent_provider_failover_policy.providers).toEqual(["claude", "codex"])
+    })
+  })
 })

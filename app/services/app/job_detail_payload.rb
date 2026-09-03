@@ -181,6 +181,7 @@ module App
         job_provider_setting: @job.job_provider_setting,
         job_provider_setting_options: job_provider_setting_options,
         provider_availability: provider_availability,
+        provider_failover: provider_failover_json(@job.latest_workflow),
         stack_base: @job.stack_base,
         parent_job_id: @job.parent_job_id,
         effective_base_branch: @job.effective_base_branch,

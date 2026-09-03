@@ -76,6 +76,45 @@ RSpec.describe App::DashboardPayload, :ci_only do
         usage_exhausted: false
       )
     end
+
+    it "exposes the latest workflow provider failover decision on job rows" do
+      job = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "codex",
+        artifacts: {
+          "provider_failover_decision" => {
+            "original_provider" => "claude",
+            "selected_provider" => "codex",
+            "reason" => "provider_usage_exhausted",
+            "availability_state" => "exhausted",
+            "evidence_observed_at" => "2026-08-29T11:00:00Z",
+            "decided_at" => "2026-08-29T11:01:00Z",
+            "automatic_failover" => true,
+            "manual_override" => false
+          }
+        }
+      )
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:provider_failover]).to include(
+        original_provider: "claude",
+        original_provider_label: "Claude",
+        selected_provider: "codex",
+        selected_provider_label: "Codex",
+        reason: "provider_usage_exhausted",
+        availability_state: "exhausted",
+        evidence_observed_at: "2026-08-29T11:00:00Z",
+        decided_at: "2026-08-29T11:01:00Z",
+        automatic: true,
+        manual_override: false,
+        message: "Claude unavailable; running this workflow with Codex"
+      )
+    end
   end
 
   describe "delivery status" do

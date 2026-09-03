@@ -218,6 +218,36 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "includes provider failover metadata on workflow rows" do
+      job = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "codex",
+        artifacts: {
+          "provider_failover_decision" => {
+            "original_provider" => "claude",
+            "selected_provider" => "codex",
+            "reason" => "provider_usage_exhausted",
+            "availability_state" => "exhausted",
+            "decided_at" => "2026-08-29T11:01:00Z",
+            "automatic_failover" => true,
+            "manual_override" => false
+          }
+        }
+      )
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.dig(:workflows, 0, :id)).to eq(workflow.id)
+      expect(payload.dig(:workflows, 0, :provider_failover)).to include(
+        original_provider_label: "Claude",
+        selected_provider_label: "Codex",
+        message: "Claude unavailable; running this workflow with Codex"
+      )
+    end
+
     it "does not present stale work-unit debug state as current work after a job closes" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "failed")

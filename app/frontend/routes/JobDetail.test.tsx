@@ -86,6 +86,41 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
+  it("shows provider failover in the job detail header and workflow card", () => {
+    const failover = {
+      original_provider: "claude",
+      original_provider_label: "Claude",
+      selected_provider: "codex",
+      selected_provider_label: "Codex",
+      reason: "provider_usage_exhausted",
+      availability_state: "exhausted",
+      candidate_availability_state: "available",
+      evidence_observed_at: "2026-08-29T11:00:00Z",
+      candidate_evidence_observed_at: null,
+      decided_at: "2026-08-29T11:01:00Z",
+      automatic: true,
+      manual_override: false,
+      message: "Claude unavailable; running this workflow with Codex"
+    }
+
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        provider_failover: failover
+      },
+      workflows: [
+        workflow({
+          provider_failover: failover,
+          steps: [step({ runs: [run({ id: 2 })] })]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    expect(screen.getAllByText("Claude unavailable; running this workflow with Codex")).toHaveLength(2)
+    expect(screen.getAllByText("- automatic failover")).toHaveLength(2)
+  })
+
   it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -2435,6 +2470,7 @@ function baseJob(): JobDetailPayload["job"] {
     any_active_run: false,
     prepare_skipped: false,
     prepare_skip_reason: null,
+    provider_failover: null,
     delivery_status: "waiting_for_local_approval",
     delivery_track: "default",
     delivery_target_ref: "main",
@@ -2495,6 +2531,7 @@ function workflow(overrides: Partial<JobWorkflow>): JobWorkflow {
     path: `/workflows/${id}`,
     trigger_kind: "initial",
     agent_provider: "codex",
+    provider_failover: null,
     state: "succeeded",
     failure_count: 0,
     artifacts: {},
@@ -2582,5 +2619,3 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
-
-

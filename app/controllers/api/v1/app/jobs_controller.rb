@@ -285,6 +285,7 @@ module Api
             agent_provider: job.workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
             provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
+            provider_failover: ::App::ProviderFailoverPresentation.for(workflow),
             repository_id: job.repository_id,
             repository_slug: job.repository.slug,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
@@ -302,6 +303,7 @@ module Api
             workflow: workflow && {
               id: workflow.id,
               state: workflow.state,
+              provider_failover: ::App::ProviderFailoverPresentation.for(workflow),
               steps: steps.map { |step| compact_step_json(step) }
             }
           }

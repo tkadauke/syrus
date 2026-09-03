@@ -48,3 +48,19 @@ export type ProviderAvailabilityEvidence = {
   http_status?: number | null
   details?: Record<string, unknown> | null
 }
+
+export type ProviderFailover = {
+  original_provider: string
+  original_provider_label: string
+  selected_provider: string
+  selected_provider_label: string
+  reason?: string | null
+  availability_state?: string | null
+  candidate_availability_state?: string | null
+  evidence_observed_at?: string | null
+  candidate_evidence_observed_at?: string | null
+  decided_at?: string | null
+  automatic: boolean
+  manual_override: boolean
+  message: string
+} | null
