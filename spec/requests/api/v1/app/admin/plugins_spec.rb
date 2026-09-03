@@ -208,6 +208,54 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "observability-plugin" ])
   end
 
+  it "filters plugins by enabled state chip" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "enabled-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "disabled-plugin", version: "1.0.0")
+    PluginRecord.find_by!(name: "disabled-plugin").update!(enabled: false)
+
+    tree = { "and" => [ { "field" => "enabled", "op" => "is", "value" => "disabled" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "disabled-plugin" ])
+  end
+
+  it "filters plugins by author chip" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "ada-plugin", version: "1.0.0", author: "Ada Lovelace")
+    Syrus::PluginRegistry.register(name: "grace-plugin", version: "1.0.0", author: "Grace Hopper")
+
+    tree = { "and" => [ { "field" => "author", "op" => "contains", "value" => "Ada" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "ada-plugin" ])
+  end
+
+  it "filters plugins by extension point chip" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "agent-plugin",
+      version: "1.0.0",
+      provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
+    )
+    Syrus::PluginRegistry.register(
+      name: "input-plugin",
+      version: "1.0.0",
+      provides: { input_source: AdminPluginsSpec::CustomInputSource }
+    )
+
+    tree = { "and" => [ { "field" => "extension_point", "op" => "is", "value" => "input_source" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "input-plugin" ])
+  end
+
   it "combines category and search chips with AND semantics" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
@@ -240,7 +288,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
     expect(response).to have_http_status(:ok)
     fields = parse_body.dig("controls", "filter_schema").map { |chip| chip["field"] }
-    expect(fields).to contain_exactly("category", "search")
+    expect(fields).to contain_exactly("enabled", "author", "extension_point", "category", "search")
+    enabled_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "enabled" }
+    expect(enabled_chip["values"]).to include("value" => "enabled", "label" => "Enabled")
+    extension_point_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "extension_point" }
+    expect(extension_point_chip["values"]).to include("value" => "input_source", "label" => "Input source")
     category_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "category" }
     expect(category_chip["bucket"]).to eq("enum")
     expect(category_chip["values"]).to include("value" => "observability", "label" => "Observability")
