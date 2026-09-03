@@ -12,6 +12,7 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
+import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
 import { useT } from "@app/hooks/useT"
 import {
   acceptDesignDocSuggestion,
@@ -912,6 +913,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 }) {
   const wideToolbar = useMediaQuery("(min-width: 768px)", true)
   const [moreOpen, setMoreOpen] = useState(false)
+  const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
   const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
     { command: "paragraph", label: "Paragraph" },
@@ -939,17 +941,6 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
     { command: "nested_list", label: "Indent list item" }
   ]
   const selectedBlock = currentBlockCommand(draft, range)
-
-  useEffect(() => {
-    if (!moreOpen) return
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMoreOpen(false)
-    }
-
-    document.addEventListener("keydown", closeOnEscape)
-    return () => document.removeEventListener("keydown", closeOnEscape)
-  }, [moreOpen])
 
   function commandDisabled(command: DesignDocFormattingCommand) {
     return !canApplyDesignDocFormattingCommand(draft, range, command)
@@ -1029,7 +1020,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
         ) : null}
       </div>
 
-      <div className="relative shrink-0">
+      <div className="relative shrink-0" ref={moreMenuRef}>
         <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
