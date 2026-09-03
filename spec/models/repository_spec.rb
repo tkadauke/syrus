@@ -153,6 +153,52 @@ RSpec.describe Repository do
     end
   end
 
+  describe "#effective_agent_provider_failover_candidates" do
+    let(:repo) { Repository.create!(user: owner, owner: "acme", name: "widgets") }
+
+    before do
+      owner.update!(
+        agent_provider: "claude",
+        claude_oauth_token: "oat-test",
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-test",
+        agent_provider_failover_policy: {
+          enabled: true,
+          providers: %w[codex claude],
+          causes: %w[usage_exhausted]
+        }
+      )
+    end
+
+    it "returns filtered failover providers for the default effective provider" do
+      expect(repo.effective_agent_provider).to eq("claude")
+      expect(repo.effective_agent_provider_failover_candidates(cause: "usage_exhausted")).to eq([ "codex" ])
+    end
+
+    it "does not return failover providers for an explicit repository provider by default" do
+      repo.update!(agent_provider: "claude")
+
+      expect(repo.effective_agent_provider_failover_candidates(cause: "usage_exhausted")).to be_empty
+    end
+
+    it "does not return failover providers for an explicit write-membership provider by default" do
+      member = Factories.user(
+        agent_provider: "claude",
+        claude_oauth_token: "oat-member",
+        codex_auth_mode: "api_key",
+        codex_api_key: "sk-member",
+        agent_provider_failover_policy: {
+          enabled: true,
+          providers: %w[codex],
+          causes: %w[usage_exhausted]
+        }
+      )
+      repo.repository_memberships.create!(user: member, role: "write", agent_provider: "claude")
+
+      expect(repo.effective_agent_provider_failover_candidates(user: member, cause: "usage_exhausted")).to be_empty
+    end
+  end
+
   it "rejects unknown repository agent providers" do
     repo = Repository.new(user: owner, owner: "acme", name: "widgets", agent_provider: "oracle")
     expect(repo).not_to be_valid

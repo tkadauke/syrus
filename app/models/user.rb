@@ -35,6 +35,20 @@ class User < ApplicationRecord
   after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
+  AGENT_PROVIDER_FAILOVER_CAUSES = %w[
+    usage_exhausted
+    usage_low
+    rate_limited
+    provider_transient
+    auth_error
+  ].freeze
+  DEFAULT_AGENT_PROVIDER_FAILOVER_CAUSES = (AGENT_PROVIDER_FAILOVER_CAUSES - %w[auth_error]).freeze
+  AGENT_PROVIDER_FAILOVER_POLICY_DEFAULTS = {
+    "enabled" => false,
+    "providers" => [],
+    "causes" => DEFAULT_AGENT_PROVIDER_FAILOVER_CAUSES,
+    "override_explicit_pins" => false
+  }.freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark system ].freeze
   ROLES = %w[ developer product_owner ].freeze
@@ -191,6 +205,7 @@ class User < ApplicationRecord
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
   validate :provider_availability_pause_thresholds_valid
+  validate :agent_provider_failover_policy_valid
   after_initialize :seed_notification_preferences
   after_initialize :seed_ui_preferences
   after_initialize :seed_locale
@@ -428,6 +443,39 @@ class User < ApplicationRecord
 
   def provider_availability_recovery_threshold_for(provider)
     [ provider_availability_pause_threshold_for(provider) * 2, provider_availability_pause_threshold_for(provider) + 10 ].max.clamp(0, 100)
+  end
+
+  def agent_provider_failover_policy
+    normalize_agent_provider_failover_policy(read_attribute(:agent_provider_failover_policy))
+  end
+
+  def agent_provider_failover_policy=(value)
+    write_attribute(:agent_provider_failover_policy, normalize_agent_provider_failover_policy(value))
+  end
+
+  def agent_provider_failover_enabled?
+    ActiveModel::Type::Boolean.new.cast(agent_provider_failover_policy["enabled"])
+  end
+
+  def agent_provider_failover_causes
+    agent_provider_failover_policy["causes"]
+  end
+
+  def agent_provider_failover_cause_enabled?(cause)
+    agent_provider_failover_causes.include?(cause.to_s)
+  end
+
+  def agent_provider_failover_overrides_explicit_pins?
+    ActiveModel::Type::Boolean.new.cast(agent_provider_failover_policy["override_explicit_pins"])
+  end
+
+  def agent_provider_failover_candidates(current_provider: agent_provider, cause: nil, explicit_pin: false)
+    return [] unless agent_provider_failover_enabled?
+    return [] if cause.present? && !agent_provider_failover_cause_enabled?(cause)
+    return [] if explicit_pin && !agent_provider_failover_overrides_explicit_pins?
+
+    configured = configured_agent_providers
+    agent_provider_failover_policy["providers"].select { |provider| configured.include?(provider) } - [ current_provider.to_s ]
   end
 
   def provider_availability_override_for(provider)
@@ -738,6 +786,28 @@ class User < ApplicationRecord
     end
   end
 
+  def normalize_agent_provider_failover_policy(value)
+    source = value.is_a?(Hash) ? value : {}
+    providers = Array(source["providers"] || source[:providers]).map(&:to_s).reject(&:blank?).uniq
+    raw_causes = if source.key?("causes")
+      source["causes"]
+    elsif source.key?(:causes)
+      source[:causes]
+    end
+    causes = raw_causes.nil? ? DEFAULT_AGENT_PROVIDER_FAILOVER_CAUSES : Array(raw_causes).map(&:to_s).reject(&:blank?).uniq
+    enabled = ActiveModel::Type::Boolean.new.cast(source.fetch("enabled", source[:enabled]))
+    override_explicit_pins = ActiveModel::Type::Boolean.new.cast(
+      source.fetch("override_explicit_pins", source[:override_explicit_pins])
+    )
+
+    AGENT_PROVIDER_FAILOVER_POLICY_DEFAULTS.merge(
+      "enabled" => enabled.nil? ? false : enabled,
+      "providers" => providers,
+      "causes" => causes,
+      "override_explicit_pins" => override_explicit_pins.nil? ? false : override_explicit_pins
+    )
+  end
+
   def normalized_dashboard_preferences(value)
     case value
     when Hash
@@ -920,6 +990,17 @@ class User < ApplicationRecord
         errors.add(:provider_availability_pause_thresholds, "must contain percentages between 0 and 100")
       end
     end
+  end
+
+  def agent_provider_failover_policy_valid
+    policy = agent_provider_failover_policy
+    providers = Array(policy["providers"])
+    causes = Array(policy["causes"])
+    unknown_providers = providers - User.agent_providers
+    unknown_causes = causes - AGENT_PROVIDER_FAILOVER_CAUSES
+
+    errors.add(:agent_provider_failover_policy, "contains unknown provider #{unknown_providers.to_sentence}") if unknown_providers.any?
+    errors.add(:agent_provider_failover_policy, "contains unknown cause #{unknown_causes.to_sentence}") if unknown_causes.any?
   end
 
   def parse_provider_availability_time(value)
