@@ -42,6 +42,11 @@ default: &default
     class: LandingQueueProcessorJob
     queue: control_plane
     schedule: every 30 seconds
+  plugin_ticks:
+    class: PluginTickSchedulerJob
+    queue: control_plane
+    schedule: every minute
+
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
     queue: control_plane

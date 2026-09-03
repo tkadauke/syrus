@@ -490,9 +490,18 @@ class-level `queue_as` declaration applies. Use a named queue such as
 require queue isolation.
 
 `tick_interval:` (optional ActiveSupport duration) declares how often the
-plugin wants `on_tick` fired. Wiring the recurring Solid Queue task for a
-specific plugin is done via `config/recurring.yml` or the plugin engine's own
-initializer.
+plugin wants `on_tick` fired, and that is all a plugin needs to do -- no
+`config/recurring.yml` entry, which a plugin cannot add anyway.
+
+`PluginTickSchedulerJob` runs every minute and enqueues `PluginTickJob` for
+each enabled, healthy plugin whose interval has elapsed, on that plugin's
+`home_queue`. The claim is a conditional UPDATE on `plugin_records.last_ticked_at`,
+so overlapping scheduler runs across workers cannot double-fire an interval.
+A disabled or `degraded` plugin is skipped, and a plugin with no `:callbacks`
+provider is skipped since there is nothing to call.
+
+The interval is a floor, not a guarantee: the scheduler runs once a minute, so
+an interval shorter than that ticks at most once per minute.
 
 `on_enable` and `on_disable` are enqueued asynchronously via `PluginLifecycleJob`
 from a `PluginRecord` `after_commit` callback whenever the operator toggles a

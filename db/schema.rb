@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_045510) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -282,7 +282,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.string "approval_policy", default: "manual", null: false
     t.boolean "auto_file_proposals", default: false, null: false
     t.boolean "auto_submit_jobs", default: false, null: false
-    t.integer "chat_session_id", null: false
+    t.bigint "chat_session_id", null: false
     t.text "completion_condition"
     t.integer "consecutive_blocked_events", default: 0, null: false
     t.integer "consecutive_no_op_iterations", default: 0, null: false
@@ -292,13 +292,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.string "last_iteration_signature"
     t.json "mode_snapshot", null: false
     t.text "prompt", null: false
-    t.integer "repository_id"
+    t.bigint "repository_id"
     t.string "status", default: "active", null: false
     t.datetime "terminal_at"
     t.json "terminal_details"
     t.string "terminal_reason"
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
     t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
     t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
@@ -454,7 +454,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -905,7 +905,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
@@ -914,7 +914,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.string "github_issue_url"
     t.json "goal_prompt_snapshot"
     t.integer "number", null: false
-    t.integer "owner_id"
+    t.bigint "owner_id"
     t.integer "owner_user_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
@@ -1245,14 +1245,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", default: {}, null: false
+    t.json "approval_evidence", null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
@@ -1302,7 +1302,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
     t.datetime "last_seen_fork_review_comment_at"
-    t.integer "linked_chat_id"
+    t.bigint "linked_chat_id"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
@@ -1684,7 +1684,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.integer "slow_sql_count"
     t.integer "sql_count"
     t.float "sql_duration_ms"
-    t.string "sql_fingerprint", limit: 1000
+    t.string "sql_fingerprint", limit: 700
     t.string "trace_id", limit: 100
     t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
@@ -1713,6 +1713,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.boolean "disableable", default: true, null: false
     t.string "display_name"
     t.boolean "enabled", default: true, null: false
+    t.datetime "last_ticked_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
@@ -2141,7 +2142,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.integer "step_id"
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"
@@ -2232,7 +2233,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", default: {}, null: false
+    t.json "filter", null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -2323,7 +2324,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
-    t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end
 
@@ -2376,8 +2376,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.string "relay_address"
     t.datetime "started_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.integer "workflow_id"
+    t.bigint "user_id", null: false
+    t.bigint "workflow_id"
     t.string "working_directory", null: false
     t.index ["finished_at"], name: "index_terminal_sessions_on_finished_at"
     t.index ["user_id"], name: "index_terminal_sessions_on_user_id"
@@ -2552,7 +2552,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: {"elements" => []}, null: false
+    t.json "scene_json", null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
@@ -2860,7 +2860,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.string "state", default: "queued", null: false
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.string "worker_hostname"
     t.string "worker_storage_key"
     t.datetime "workflow_admission_override_at"
@@ -2883,4 +2883,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_162000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "design_doc_anchors", "design_doc_versions"
+  add_foreign_key "design_doc_anchors", "design_docs"
+  add_foreign_key "design_doc_collaborators", "design_docs"
+  add_foreign_key "design_doc_collaborators", "users"
+  add_foreign_key "design_doc_collaborators", "users", column: "added_by_user_id"
+  add_foreign_key "design_doc_comments", "design_doc_threads"
+  add_foreign_key "design_doc_comments", "users", column: "author_user_id"
+  add_foreign_key "design_doc_repositories", "design_docs"
+  add_foreign_key "design_doc_repositories", "repositories"
+  add_foreign_key "design_doc_suggestions", "design_doc_anchors"
+  add_foreign_key "design_doc_suggestions", "design_doc_threads"
+  add_foreign_key "design_doc_suggestions", "design_doc_versions", column: "base_version_id"
+  add_foreign_key "design_doc_suggestions", "design_docs"
+  add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
+  add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
+  add_foreign_key "design_doc_threads", "design_doc_anchors"
+  add_foreign_key "design_doc_threads", "design_docs"
+  add_foreign_key "design_doc_threads", "users", column: "opened_by_user_id"
+  add_foreign_key "design_doc_threads", "users", column: "resolved_by_user_id"
+  add_foreign_key "design_doc_versions", "design_docs"
+  add_foreign_key "design_doc_versions", "users", column: "actor_user_id"
+  add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
+  add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id", on_delete: :nullify
+  add_foreign_key "design_docs", "users", column: "owner_user_id"
 end
