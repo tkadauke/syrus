@@ -73,7 +73,11 @@ RSpec.describe Mcp::Sidecar do
 
       response = jsonrpc(server, "tools/list", id: 1)
 
-      tool_names = response[:result][:tools].map { |tool| tool[:name] }
+      # Plugin tools are appended after core's, so subtracting them leaves
+      # core's own ordered set -- which is what this example is about.
+      plugin_names = described_class.plugin_tools_for(chat_session, tier: :essential)
+                                   .map { |tool| McpToolRegistry.tool_name_for(tool) }
+      tool_names = response[:result][:tools].map { |tool| tool[:name] } - plugin_names
       expect(tool_names).to eq(%w[
         attach_repository
         propose_epic
@@ -99,14 +103,8 @@ RSpec.describe Mcp::Sidecar do
         ask_user_question
         mark_goal_completed
         mark_goal_blocked
-        write_preview_file
-        edit_preview_file
-        show_preview
-        close_preview
-        write_memory
-        read_memory
       ])
-      expect(tool_names.size).to eq(30)
+      expect(tool_names.size).to eq(24)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
@@ -138,40 +136,23 @@ RSpec.describe Mcp::Sidecar do
 
       response = jsonrpc(server, "tools/list", id: 1)
 
+      # Core's deferred set only: plugin-provided tools are advertised here
+      # too, but naming them makes their plugins undeletable.
       tool_names = response[:result][:tools].map { |tool| tool[:name] }
       expect(tool_names).to include(*%w[
-        read_scene
         update_pinned_context
         list_chats
-        list_memories
-        delete_memory
-        publish_memory
         search_chats
         read_chat_messages
         add_epic_dependency
         remove_epic_dependency
         add_job_dependency
         remove_job_dependency
-        get_spending
         get_job_diff
         list_tags
         create_tag
         add_job_tag
         remove_job_tag
-        draw_shape
-        draw_text
-        draw_line
-        draw_arrow
-        draw_freedraw
-        draw_frame
-        draw_embed
-        draw_image
-        move_element
-        delete_element
-        save_canvas
-        clear_canvas
-        load_canvas
-        update_scene
         schedule_recurring
         schedule_wakeup
         list_wakeups
@@ -259,7 +240,7 @@ RSpec.describe Mcp::Sidecar do
     it "exposes deferred tool names through the deferred sidecar" do
       names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
 
-      expect(names).to include("draw_shape", "read_workflow", "assign_job_to_epic")
+      expect(names).to include("read_workflow", "assign_job_to_epic")
       expect(names).not_to include("repo_info", "rename_chat", "ask_user_question", "admin_overview")
     end
 
@@ -274,9 +255,11 @@ RSpec.describe Mcp::Sidecar do
 
       response = jsonrpc(server, "tools/list", id: 1)
 
-      draw_shape = response[:result][:tools].find { |tool| tool[:name] == "draw_shape" }
-      expect(draw_shape[:inputSchema]).to include(type: "object")
-      expect(draw_shape[:description]).to be_present
+      expect(response[:result][:tools]).not_to be_empty
+      response[:result][:tools].each do |tool|
+        expect(tool[:inputSchema]).to include(type: "object"), "#{tool[:name]} has no object input schema"
+        expect(tool[:description]).to be_present, "#{tool[:name]} has no description"
+      end
     end
 
     it "keeps one deferred tool from each new MCP epic callable after deferred resolution" do
@@ -347,7 +330,11 @@ RSpec.describe Mcp::Sidecar do
 
       tool_names = essential_response[:result][:tools].map { |tool| tool[:name] } +
         deferred_response[:result][:tools].map { |tool| tool[:name] }
-      advertised_tool_names = AgentEnvironmentSnapshot::CHAT_TOOL_GROUPS.values.flatten
+      # The snapshot must not promise a tool the chat cannot call, so the
+      # comparison is against what it actually advertises for this session --
+      # which is plugin-dependent.
+      advertised_tool_names = AgentEnvironmentSnapshot.chat_tool_groups_for(chat_session).values.flatten
+      expect(advertised_tool_names).not_to be_empty
       expect(tool_names).to include(*advertised_tool_names)
     end
 

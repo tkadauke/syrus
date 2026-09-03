@@ -276,8 +276,12 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).not_to include("chat memory directory")
       expect(snapshot).to include('checkout=not cloned; call `attach_repository("rome/forums")`')
       expect(snapshot).to include("live Syrus state: list_chats, list_jobs, read_job, explain_stuck_job, read_pr")
-      expect(snapshot).to include("whiteboard: read_scene, draw_shape")
-      expect(snapshot).to include("save_canvas, clear_canvas")
+      # Plugin-provided groups are rendered only when their plugin is
+      # installed, so assert the mechanism rather than a specific plugin's
+      # group -- see agent_environment_snapshot_chat_tools_spec.rb.
+      described_class.chat_tool_groups_for(chat).each do |label, tools|
+        expect(snapshot).to include("#{label}: #{tools.join(', ')}")
+      end
     end
 
     it "renders writable checkout and prep status for Coding Mode chats" do

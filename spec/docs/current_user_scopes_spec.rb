@@ -14,7 +14,18 @@ RSpec.describe "Current.user scope audit" do
   def documented_scope_files
     audit = AUDIT_PATH.read
     yaml = audit.match(/```yaml current_user_scope_files\n(?<yaml>.*?)\n```/m)["yaml"]
-    YAML.safe_load(yaml).values.flatten.uniq
+    YAML.safe_load(yaml).values.flatten.uniq.reject { |path| uninstalled_plugin_file?(path) }
+  end
+
+  # A plugin can be uninstalled outright (that is what bin/plugin-boundary-audit
+  # does to prove it), which takes its controllers with it. Documented entries
+  # for a plugin that is not installed are skipped rather than reported as
+  # stale -- entries for a plugin that *is* installed stay strict.
+  def uninstalled_plugin_file?(path)
+    plugin = path[%r{\Aplugins/([^/]+)/}, 1]
+    return false if plugin.nil?
+
+    !Rails.root.join("plugins", plugin).directory?
   end
 
   it "classifies every app file that references Current.user" do

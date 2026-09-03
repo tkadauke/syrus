@@ -4,7 +4,7 @@ require "rails_helper"
 RSpec.describe "bin/plugin-boundary-audit" do
   let(:root) { Rails.root.to_s }
 
-  it "removes the selected plugin plus transitive dependents in a temporary copy" do
+  it "removes the selected plugin plus transitive dependents in a temporary copy", :requires_git_checkout do
     command = [
       "test ! -d plugins/ruby",
       "test ! -d plugins/rails",

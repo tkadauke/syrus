@@ -27,7 +27,7 @@ RSpec.describe "Plugin source boundaries" do
     expect(audit.core_violations.map(&:message)).to eq([])
   end
 
-  it "ignores untracked files under the core roots" do
+  it "ignores untracked files under the core roots", :requires_git_checkout do
     # app/assets/builds/spa.js is gitignored but present for anyone who has run
     # a frontend build, and its minified contents match short plugin names.
     # Scanning it turned a clean checkout into a failing audit.

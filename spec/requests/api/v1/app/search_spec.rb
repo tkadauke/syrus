@@ -192,56 +192,6 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
   end
 
-  it "returns test results with path to the repository test history" do
-    job = Factories.job_record(user: user, repository: repository)
-    run = Run.create!(job: job, user: user, trigger_kind: "initial")
-    test_run = TestInsights::TestRun.create!(
-      run: run,
-      repository: repository,
-      grader_name: "rspec",
-      total_count: 1,
-      passed_count: 0,
-      failed_count: 1,
-      skipped_count: 0,
-      error_count: 0
-    )
-    test_identity = TestInsights::TestIdentity.create!(
-      repository: repository,
-      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "AuthSpec", name: "LoginService validates credentials uniquely"),
-      name: "LoginService validates credentials uniquely",
-      suite_name: "AuthSpec",
-      file_path: "spec/services/login_service_spec.rb",
-      last_status: "failed",
-      last_seen_at: Time.current
-    )
-    test_case = TestInsights::TestCase.create!(
-      test_run: test_run,
-      repository: repository,
-      test_identity: test_identity,
-      name: "LoginService validates credentials uniquely",
-      suite_name: "AuthSpec",
-      file_path: "spec/services/login_service_spec.rb",
-      status: "failed"
-    )
-    TestInsights::SearchIndex.upsert(test_identity)
-
-    get "/api/v1/app/search", params: { query: "LoginService", types: [ "test_case" ] }
-
-    expect(response).to have_http_status(:ok)
-    expect(results.length).to eq(1)
-    expect(results.first).to include(
-      "type" => "test_case",
-      "id" => test_identity.id,
-      "title" => "LoginService validates credentials uniquely",
-      "suite_name" => "AuthSpec",
-      "file_path" => "spec/services/login_service_spec.rb",
-      "state" => "failed",
-      "path" => "/repositories/#{repository.id}/plugin/tests?test_id=#{test_identity.id}",
-      "repository_slug" => "acme/widgets"
-    )
-    expect(results.first.fetch("snippet")).to include("<mark>")
-  end
-
   it "does not leak indexed records that no longer belong to the current user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")

@@ -3,8 +3,14 @@ require "rails_helper"
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
     # 17 Job built-ins (14 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
-    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue + 6 Design Docs = 54.
-    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(54)
+    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue = 48 core built-ins.
+    # Plugins register their own on top (design_docs adds 6), so the total is
+    # counted rather than pinned -- pinning it makes those plugins undeletable.
+    core_builtins = described_class::BUILTINS_BY_SUBJECT.values.sum(&:size)
+    plugin_builtins = described_class.registered_subjects.values.sum { |definition| definition.fetch(:builtins).size }
+
+    expect(core_builtins).to eq(48)
+    expect { described_class.ensure_builtins! }.to change(described_class, :count).by(core_builtins + plugin_builtins)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
     expect(described_class::EPIC_BUILTINS).to eq(described_class::EPIC_BUILTIN_DEFINITIONS)
@@ -84,6 +90,11 @@ RSpec.describe SmartFolder do
     ])
     expect(described_class.builtins(:spawned_process).pluck(:user_id).uniq).to eq([ nil ])
     expect(described_class.builtins(:spawned_process).pluck(:subject_type).uniq).to eq([ "spawned_process" ])
+  end
+
+  it "materializes a plugin-registered subject's built-ins as system-owned rows", if: defined?(DesignDocs) do
+    described_class.ensure_builtins!
+
     expect(described_class.builtins(:design_doc).pluck(:name)).to eq([
       "My docs",
       "Review requested",

@@ -18,7 +18,7 @@ RSpec.describe Mcp::Sidecar, "agent insight runs" do
     raw && JSON.parse(raw, symbolize_names: true)
   end
 
-    it "advertises workflow evidence tools for agent insight runs via `tools/list`" do
+  it "advertises workflow evidence tools for agent insight runs via `tools/list`" do
       insight_job = Job.create!(user: run.job.user, repository: run.job.repository, kind: "agent_insight", priority: "low")
       insight_workflow = AgentInsights::Workflow.instantiate(job: insight_job)
       insight_step = insight_workflow.steps.find_by!(kind: "agent_insight_run")
@@ -28,22 +28,20 @@ RSpec.describe Mcp::Sidecar, "agent insight runs" do
       response = jsonrpc(server_for(insight_run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
 
+      # This plugin's own tools only. Other plugins advertise to the insight
+      # surface too (test_insights, syrus_dev), but naming theirs here would
+      # make them undeletable from a checkout that keeps this one.
       expect(tool_names).to include(
         "list_recent_workflows",
         "read_run_transcript",
-        "list_repository_test_insights",
-        "read_test_insight",
-        "read_job_test_results",
-        "read_run_test_results",
-        "compare_test_runtime",
         "submit_insight",
         "list_insights",
         "read_insight"
       )
       expect(tool_names).not_to include("submit_summary", "submit_test_plan")
-    end
+  end
 
-    it "advertises only Syrus log search for Syrus insight runs when enabled" do
+  it "advertises only Syrus log search for Syrus insight runs when enabled" do
       syrus_repository = Factories.repository(user: run.job.user, owner: "tkadauke", name: "syrus")
       insight_job = Job.create!(user: run.job.user, repository: syrus_repository, kind: "agent_insight", priority: "low")
       insight_workflow = AgentInsights::Workflow.instantiate(job: insight_job)
@@ -57,5 +55,5 @@ RSpec.describe Mcp::Sidecar, "agent insight runs" do
 
       expect(tool_names).to include("read_syrus_logs")
       expect(tool_names).not_to include("read_performance_diagnostics")
-    end
+  end
 end

@@ -57,12 +57,16 @@ RSpec.describe Mcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to contain_exactly(
-        *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern start_preview stop_preview read_preview_log submit_summary submit_test_plan submit_review_plan submit_artifact submit_visual_artifact list_design_docs read_design_doc
-            list_repository_test_insights read_test_insight
-            read_job_test_results read_run_test_results compare_test_runtime
-            browser_navigate browser_click browser_fill browser_snapshot browser_screenshot browser_wait_for browser_close
-            read_schema list_routes explain_migration]
+      # Core's own contribution, with whatever the installed plugins add
+      # subtracted -- the advertised set is plugin-dependent by design, and
+      # pinning the bundled list here makes every plugin undeletable.
+      context = McpToolContext.from_run(run.reload)
+      plugin_names = Mcp::Sidecar.plugin_workflow_tools_for(context).map { |tool| McpToolRegistry.tool_name_for(tool) }
+
+      expect(tool_names - plugin_names).to contain_exactly(
+        *%w[read_live_state read_run_worker_health get_coverage_report report_main_concern
+            start_preview stop_preview read_preview_log
+            submit_summary submit_test_plan submit_review_plan submit_artifact submit_visual_artifact]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
     end

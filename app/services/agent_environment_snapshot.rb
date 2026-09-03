@@ -20,6 +20,25 @@ class AgentEnvironmentSnapshot
     new(repository: repository, chat_session: chat_session).to_s
   end
 
+  # The advertised groups, filtered to tools this chat actually has. The
+  # groups name plugin-provided tools (design docs, test insights), so with a
+  # plugin disabled or uninstalled the static list would promise an agent
+  # tools it cannot call -- the snapshot's whole job is to be accurate about
+  # the environment.
+  def self.chat_tool_groups_for(chat_session)
+    return CHAT_TOOL_GROUPS if chat_session.nil?
+
+    available = %i[essential deferred].flat_map { |tier| Mcp::Sidecar.chat_tool_names(chat_session, tier: tier) }.to_set
+
+    CHAT_TOOL_GROUPS.each_with_object({}) do |(label, tools), groups|
+      present = tools.select { |tool| available.include?(tool) }
+      groups[label] = present if present.any?
+    end
+  rescue StandardError => e
+    Rails.logger.error("[AgentEnvironmentSnapshot] chat tool availability failed: #{e.class}: #{e.message}")
+    CHAT_TOOL_GROUPS
+  end
+
   def self.chat_elaboration_epic(chat_session)
     return unless chat_session&.user&.developer?
 
@@ -419,8 +438,11 @@ class AgentEnvironmentSnapshot
   def chat_tool_lines
     return supervisor_chat_tool_lines if supervisor_chat?
 
+    groups = self.class.chat_tool_groups_for(chat_session)
+    return [] if groups.empty?
+
     lines = [ "- MCP tool groups:" ]
-    CHAT_TOOL_GROUPS.each do |label, tools|
+    groups.each do |label, tools|
       lines << "  - #{label}: #{tools.join(', ')}"
     end
     lines
