@@ -917,6 +917,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100000) do
     t.index ["visibility", "state"], name: "index_design_docs_on_visibility_and_state"
   end
 
+  create_table "diff_review_comments", force: :cascade do |t|
+    t.string "base_ref"
+    t.text "body", null: false
+    t.json "context", null: false
+    t.datetime "created_at", null: false
+    t.text "diff_hunk"
+    t.string "head_ref"
+    t.integer "job_id", null: false
+    t.integer "new_line"
+    t.integer "old_line"
+    t.string "path", null: false
+    t.datetime "resolved_at"
+    t.integer "run_id"
+    t.string "side", null: false
+    t.string "state", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.datetime "superseded_at"
+    t.string "surface", default: "job_diff", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.integer "workflow_id"
+    t.index ["job_id", "path", "side", "old_line", "new_line"], name: "idx_diff_review_comments_line_anchor"
+    t.index ["job_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_job_surface_path_state"
+    t.index ["job_id"], name: "index_diff_review_comments_on_job_id"
+    t.index ["run_id"], name: "index_diff_review_comments_on_run_id"
+    t.index ["user_id"], name: "index_diff_review_comments_on_user_id"
+    t.index ["workflow_id"], name: "index_diff_review_comments_on_workflow_id"
+  end
+
   create_table "documents", force: :cascade do |t|
     t.integer "attachable_id", null: false
     t.string "attachable_type", null: false

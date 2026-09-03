@@ -75,6 +75,7 @@ class Job < ApplicationRecord
   has_many :job_approvals, dependent: :destroy
   has_many :pr_links, class_name: "JobPrLink", dependent: :destroy
   has_many :pr_review_comments, dependent: :destroy
+  has_many :diff_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
