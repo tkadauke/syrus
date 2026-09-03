@@ -27,6 +27,18 @@ RSpec.describe "Plugin source boundaries" do
     expect(audit.core_violations.map(&:message)).to eq([])
   end
 
+  it "ignores untracked files under the core roots" do
+    # app/assets/builds/spa.js is gitignored but present for anyone who has run
+    # a frontend build, and its minified contents match short plugin names.
+    # Scanning it turned a clean checkout into a failing audit.
+    untracked = Rails.root.join("app/services/plugin_boundary_untracked_fixture.rb")
+    untracked.write("SyrusDev::SqlExplain.call\n")
+
+    expect(Admin::PluginSourceBoundaryAudit.new.core_violations).to eq([])
+  ensure
+    untracked&.delete if untracked&.exist?
+  end
+
   it "allows plugin-to-plugin references only through declared dependencies" do
     expect(audit.plugin_violations.map(&:message)).to eq([])
   end

@@ -1,3 +1,5 @@
+require "open3"
+
 module Admin
   class PluginSourceBoundaryAudit
     Manifest = Data.define(:name, :dir_name, :path, :depends_on, :constants, :gem_name)
@@ -243,6 +245,32 @@ module Admin
         Dir.glob(absolute.join("**/*").to_s)
            .map { |candidate| Pathname.new(candidate) }
            .select { |candidate| candidate.file? && SOURCE_EXTENSIONS.include?(candidate.extname) }
+           .select { |candidate| tracked?(candidate) }
+      end
+    end
+
+    # The audit is a check on committed source, so untracked files are out of
+    # scope. Without this, any developer who has run a frontend build gets a
+    # false positive from the minified bundle in app/assets/builds (gitignored,
+    # and full of substrings that look like short plugin names).
+    #
+    # bin/plugin-boundary-audit runs against a `git archive HEAD` copy that has
+    # no .git directory, so an unavailable index means "scan everything" rather
+    # than "scan nothing".
+    def tracked?(candidate)
+      return true if tracked_paths.nil?
+
+      tracked_paths.include?(relative(candidate))
+    end
+
+    def tracked_paths
+      return @tracked_paths if defined?(@tracked_paths)
+
+      @tracked_paths = begin
+        out, status = Open3.capture2("git", "-C", root.to_s, "ls-files", "-z")
+        status.success? ? out.split("\0").to_set : nil
+      rescue StandardError
+        nil
       end
     end
 
