@@ -137,6 +137,7 @@ class StepDispatcher
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
+    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
       record_pause!(
@@ -524,6 +525,7 @@ class StepDispatcher
     return false if step.runs.any?
 
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
+    apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     unless provider_pause.pause?
       clear_start_blocked!(workflow, PROVIDER_AVAILABILITY_BLOCK_REASON)
       return false
@@ -674,6 +676,19 @@ class StepDispatcher
       kind: "system",
       chunk: "provider availability paused before #{step.kind}: #{provider_pause.reason}"
     )
+  end
+
+  def self.apply_provider_failover!(workflow, provider_pause)
+    workflow.with_lock do
+      workflow.reload
+      return if workflow.runs.exists?
+      return if workflow.agent_provider == provider_pause.failover.selected_provider
+
+      workflow.update!(
+        agent_provider: provider_pause.failover.selected_provider,
+        artifacts: workflow.artifacts.to_h.merge("provider_failover_decision" => provider_pause.failover.artifact)
+      )
+    end
   end
 
   def self.resume_deferred_phase(workflow_id, step_id = nil, check_phase_admission: true)

@@ -16,6 +16,14 @@ module JobExecutionAccessors
     user.configured_agent_providers - [ workflow_agent_provider ]
   end
 
+  def agent_provider_failover_candidates(cause: nil)
+    user.agent_provider_failover_candidates(
+      current_provider: workflow_agent_provider,
+      cause: cause,
+      explicit_pin: !job_provider_setting_default?
+    )
+  end
+
   # The very first Run — the one that created the branch and PR.
   def initial_run
     runs.find_by(trigger_kind: "initial")

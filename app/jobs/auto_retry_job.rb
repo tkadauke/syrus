@@ -57,6 +57,8 @@ class AutoRetryJob < ApplicationJob
   private
 
   def reschedule_if_provider_blocked(attempt)
+    return false if attempt.retry_kind == "retry_workflow" && provider_failover_candidate?(attempt)
+
     circuit = ProviderCircuitBreaker.call(attempt.agent_provider, include_logs: false)
     return false unless circuit.open?
 
@@ -64,7 +66,16 @@ class AutoRetryJob < ApplicationJob
     true
   end
 
+  def provider_failover_candidate?(attempt)
+    cause = PROVIDER_FAILOVER_CAUSES.fetch(attempt.failure_classification, "provider_transient")
+    attempt.job&.agent_provider_failover_candidates(cause: cause)&.any?
+  end
+
   PROVIDER_DELAYED_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+  PROVIDER_FAILOVER_CAUSES = {
+    "rate_limited" => "rate_limited",
+    ProviderUsageLimit::CLASSIFICATION => "usage_exhausted"
+  }.freeze
 
   def skip_if_provider_delay_no_longer_matches(attempt)
     return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)

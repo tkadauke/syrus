@@ -28,6 +28,28 @@ export type ProviderAvailability = {
   } | null
 } | null
 
+export type ProviderFailover = {
+  mode: "automatic" | "operator" | string
+  automatic: boolean
+  original_provider: string
+  original_provider_label: string
+  selected_provider: string
+  selected_provider_label: string
+  reason?: string | null
+  decided_at?: string | null
+  unavailable?: {
+    provider?: string | null
+    label?: string | null
+    state?: string | null
+    reason?: string | null
+    retry_after?: string | null
+    reset_at?: string | null
+    evidence_source?: string | null
+    evidence_status?: string | null
+    observed_at?: string | null
+  } | null
+} | null
+
 export type ProviderUsageWindow = {
   label: string
   remaining_percent?: number | null

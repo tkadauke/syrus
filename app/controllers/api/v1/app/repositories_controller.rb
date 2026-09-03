@@ -639,6 +639,7 @@ module Api
             agent_provider: workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
             provider_availability: provider_availability,
+            provider_failover: provider_failover_for(job, configured_provider: workflow_agent_provider),
             job_path: job_path(job),
             source: job_source_json(job),
             pr_number: job.pr_number,
@@ -1154,6 +1155,15 @@ module Api
           @repository_detail_provider_availability_by_provider[provider] ||= ::App::ProviderAvailability.for_user(Current.user, provider)
         end
 
+        def provider_failover_for(job, configured_provider:)
+          workflow = if defined?(@repository_detail_latest_workflows_by_job_id)
+            @repository_detail_latest_workflows_by_job_id[job.id]
+          else
+            job.latest_workflow
+          end
+          ::App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: configured_provider)
+        end
+
         def detail_page
           [ params.fetch(:page, 1).to_i, 1 ].max
         end
@@ -1206,7 +1216,6 @@ module Api
             status: :unprocessable_content
           )
         end
-
       end
     end
   end

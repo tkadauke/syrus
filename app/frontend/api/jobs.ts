@@ -1,7 +1,7 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
-import type { ProviderAvailability } from "./providerAvailability"
+import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
@@ -82,6 +82,7 @@ export type JobRecord = {
   job_provider_setting?: string
   job_provider_setting_options?: Array<{ value: string; label: string; configured: boolean }>
   provider_availability?: ProviderAvailability
+  provider_failover?: ProviderFailover
   stack_base: string
   issue_number: number | null
   issue_url: string | null
@@ -497,6 +498,7 @@ export type JobWorkflow = {
   path: string
   trigger_kind: string
   agent_provider: string | null
+  provider_failover?: ProviderFailover
   state: string
   failure_count: number
   artifacts: Record<string, unknown> | null

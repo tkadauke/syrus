@@ -310,6 +310,46 @@ RSpec.describe WorkUnits::Launcher do
     expect(result.run.step).to eq(result.workflow.first_step)
   end
 
+  it "starts an unstarted workflow on an available failover provider during admission" do
+    user.update!(
+      codex_auth_mode: "api_key",
+      codex_api_key: "sk-test",
+      agent_provider_failover_policy: {
+        "enabled" => true,
+        "providers" => %w[codex],
+        "causes" => %w[provider_transient],
+        "override_explicit_pins" => false
+      }
+    )
+    workflow = described_class.instantiate(kind: "initial", job: job, agent_provider: "claude")
+    allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      {
+        state: "open",
+        open: true,
+        retry_after: 10.minutes.from_now.iso8601,
+        evidence: { current: { observed_at: 1.minute.ago.iso8601 } }
+      }
+    )
+    allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
+
+    result = described_class.start!(workflow)
+
+    expect(result).to be_started
+    expect(workflow.reload.agent_provider).to eq("codex")
+    expect(result.run.agent_provider).to eq("codex")
+    expect(workflow.artifact("provider_failover_decision")).to include(
+      "original_provider" => "claude",
+      "selected_provider" => "codex",
+      "reason" => "provider_unavailable",
+      "unavailable" => include(
+        "provider" => "claude",
+        "state" => "open",
+        "retry_after" => kind_of(String),
+        "observed_at" => kind_of(String)
+      )
+    )
+  end
+
   it "runs a callback after workflow creation and before dispatch" do
     state = []
     allow(StepDispatcher).to receive(:start_workflow) do |workflow|

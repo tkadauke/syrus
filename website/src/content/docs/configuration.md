@@ -10,7 +10,7 @@ Syrus is configured in three layers:
 | Layer | Lives in | Controls |
 | --- | --- | --- |
 | Deployment | Environment variables and Rails credentials | Database access, encryption keys, worker storage, queue sizing |
-| User | The credentials/settings UI | GitHub token, agent credentials, preferred provider, max agent turns |
+| User | The credentials/settings UI | GitHub token, agent credentials, preferred provider, failover policy, max agent turns |
 | Repository | Repository settings plus optional `.syrus.yml` in the target repo | Trigger label, polling, default branch, provider override, prepare commands |
 
 For deployment-specific placement, see [Deployment](/docs/deployment).
@@ -311,6 +311,7 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, and post updates for that user's repositories; configured on `/credentials` |
 | Agent provider | Default provider for new Jobs: `claude` or `codex`; configured on `/settings/agent` |
+| Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns: `claude` or `codex`; when blank, chat follows the user's default agent provider |
 | Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
 | Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
@@ -348,6 +349,25 @@ Provider selection resolves from most specific to least specific:
 ```text
 Workflow override -> Job provider -> Repository override -> User default
 ```
+
+Agent-provider failover is configured separately from provider selection and
+applies only when Syrus is about to admit unstarted workflow work. The policy
+stores an ordered provider list, but Syrus only considers providers the user has
+actually configured credentials for. Auth errors are represented as a cause for
+visibility, but they are not enabled in the default automatic failover cause
+list. Explicit Job provider pins are respected unless the separate
+`override_explicit_pins` policy setting is enabled.
+
+When automatic failover selects another provider, dashboard rows, Job detail,
+and Workflow cards show the original unavailable provider and the selected
+provider, for example "Claude Code unavailable; running this workflow with
+Codex." App payloads expose this as `provider_failover` with `mode`,
+`automatic`, original/selected provider labels, decision time, reason, and an
+`unavailable` summary containing state, retry/reset timing, evidence source,
+and observed time when available. Operator-selected alternate retry providers
+use `mode: operator` copy instead of automatic-unavailability copy. Chat
+provider failover is out of scope: this policy does not rewrite
+`ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
 Budget thresholds are on the
 [roadmap](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#claude-usage-budgets-and-thresholds).
