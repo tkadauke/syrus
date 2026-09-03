@@ -45,6 +45,17 @@ describe("ThemesSettingsRoute", () => {
     expect(customThemeNames()).toEqual(["Solar Edited", "Night Shift"])
   })
 
+  it("live-previews token edits without persisting the active theme before save", async () => {
+    const fetchSpy = mockFetch()
+    renderRoute()
+
+    await screen.findByRole("button", { name: /Solar Draft/ })
+    fireEvent.change(screen.getByLabelText("Light brand"), { target: { value: "#0f766e" } })
+
+    expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#0f766e")
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]) === "/api/v1/app/theme" && call[1]?.method === "PATCH")).toBe(false)
+  })
+
   it("creates a new custom theme from the active theme tokens", async () => {
     const fetchSpy = mockFetch()
     renderRoute()
