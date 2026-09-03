@@ -109,6 +109,7 @@ Rails.application.routes.draw do
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/diff_review_comments", to: "diff_review_comments#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/diff_review_comments", to: "diff_review_comments#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/diff_review_comments/submit", to: "diff_review_comments#submit", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/diff_review_comments/:id", to: "diff_review_comments#update", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/diff_review_comments/:id/resolve", to: "diff_review_comments#resolve", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         patch "jobs/:job_id/priority", to: "jobs#update_priority", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

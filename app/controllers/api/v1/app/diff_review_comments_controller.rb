@@ -40,6 +40,32 @@ module Api
           render json: comments_payload(job, job.diff_review_comments.where(id: comment.id))
         end
 
+        def submit
+          job = find_job
+          return unless authorize_job_mutation!(job)
+
+          result = DiffReviewCommentFeedbackSubmission.call(
+            job: job,
+            comment_ids: params[:comment_ids],
+            actor: Current.user
+          )
+
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render json: {
+            message: "Diff comments submitted as chat feedback.",
+            workflow: {
+              id: result.workflow.id,
+              trigger_kind: result.workflow.trigger_kind,
+              state: result.workflow.state
+            },
+            comments: comments_payload(job, result.comments)[:comments]
+          }, status: :created
+        end
+
         private
 
         def find_job
