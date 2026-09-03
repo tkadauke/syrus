@@ -38,6 +38,7 @@ import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { pluginArtifactBodyFor } from "../pluginArtifactRenderers"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
+import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
 import { useBugReportTrigger } from "../lib/bugReportContext"
 import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 
@@ -298,6 +299,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} pluginTabs={payload.ui_tabs} onSelect={onSelectTab} />
 
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} /> : null}
+      {activeTab === "review" ? <ReviewWorkspace payload={payload} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
@@ -311,6 +313,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, plug
   const { t } = useT("jobs")
   const tabs: Array<{ id: JobTab; label: string }> = [
     { id: "summary", label: t("tab_summary") },
+    { id: "review", label: t("tab_review") },
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
     { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },

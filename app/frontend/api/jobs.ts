@@ -952,6 +952,61 @@ export type JobSourceDiffPayload = {
   diff_error: string | null
 }
 
+export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
+
+export type DiffReviewComment = {
+  id: number
+  job_id: number
+  user_id: number
+  user: { id: number; display_name: string; email_address: string; avatar_url: string | null } | null
+  workflow_id: number | null
+  workflow: { id: number; trigger_kind: string; state: string } | null
+  run_id: number | null
+  surface: string
+  base_ref: string | null
+  head_ref: string | null
+  path: string
+  side: "left" | "right"
+  old_line: number | null
+  new_line: number | null
+  anchor_key: string
+  diff_hunk: string | null
+  context: Record<string, unknown>
+  body: string
+  state: DiffReviewCommentState
+  created_at: string | null
+  updated_at: string | null
+  submitted_at: string | null
+  resolved_at: string | null
+  superseded_at: string | null
+}
+
+export type DiffReviewCommentsPayload = {
+  job_id: number
+  comments: DiffReviewComment[]
+  by_path: Record<string, Record<string, DiffReviewComment[]>>
+}
+
+export type DiffReviewCommentInput = {
+  surface: string
+  base_ref?: string | null
+  head_ref?: string | null
+  path: string
+  side: "left" | "right"
+  old_line?: number | null
+  new_line?: number | null
+  diff_hunk?: string | null
+  body: string
+  state?: DiffReviewCommentState
+  context?: Record<string, unknown>
+}
+
+export type DiffReviewCommentsSubmitPayload = {
+  message: string
+  workflow: { id: number; trigger_kind: string; state: string }
+  comments: DiffReviewComment[]
+}
+
 export type JobCommandPayload = {
   message?: string | null
   redirect_to?: string
@@ -1002,6 +1057,26 @@ export function fetchJobSource(id: string, search = "") {
 
 export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
+}
+
+export function fetchDiffReviewComments(jobId: string | number, search = "") {
+  return getJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments${search}`)
+}
+
+export function createDiffReviewComment(jobId: string | number, input: DiffReviewCommentInput) {
+  return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments`, { diff_review_comment: input })
+}
+
+export function updateDiffReviewComment(jobId: string | number, commentId: number, input: Partial<DiffReviewCommentInput>) {
+  return patchJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}`, { diff_review_comment: input })
+}
+
+export function resolveDiffReviewComment(jobId: string | number, commentId: number) {
+  return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}/resolve`)
+}
+
+export function submitDiffReviewComments(jobId: string | number, commentIds: number[]) {
+  return postJson<DiffReviewCommentsSubmitPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/submit`, { comment_ids: commentIds })
 }
 
 export function fetchJobGradeLog(path: string) {

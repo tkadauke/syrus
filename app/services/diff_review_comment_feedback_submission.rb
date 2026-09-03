@@ -1,6 +1,6 @@
 class DiffReviewCommentFeedbackSubmission
-  ACTIONABLE_STATES = %w[draft submitted].freeze
   ALLOWED_JOB_STATES = %w[implemented approved failed].freeze
+  RETRYABLE_WORKFLOW_STATES = %w[failed cancelled].freeze
 
   Result = Data.define(:workflow, :comments, :error) do
     def success? = error.blank?
@@ -20,7 +20,7 @@ class DiffReviewCommentFeedbackSubmission
     return Result.new(workflow: nil, comments: [], error: "Select at least one diff comment to submit.") if comment_ids.empty?
 
     comments = selected_comments
-    return Result.new(workflow: nil, comments: [], error: "No unresolved diff comments were selected.") if comments.empty?
+    return Result.new(workflow: nil, comments: [], error: "No pending or retryable diff comments were selected.") if comments.empty?
 
     result = ChatFeedbackSubmission.call(
       job: job,
@@ -46,10 +46,18 @@ class DiffReviewCommentFeedbackSubmission
 
   def selected_comments
     job.diff_review_comments
-       .includes(:user)
-       .where(id: comment_ids, state: ACTIONABLE_STATES)
+       .includes(:user, :workflow)
+       .where(id: comment_ids)
        .ordered
+       .select { |comment| submittable_comment?(comment) }
        .to_a
+  end
+
+  def submittable_comment?(comment)
+    return true if comment.state == "draft"
+    return false unless comment.state == "submitted"
+
+    RETRYABLE_WORKFLOW_STATES.include?(comment.workflow&.state)
   end
 
   def feedback_body(comments)
