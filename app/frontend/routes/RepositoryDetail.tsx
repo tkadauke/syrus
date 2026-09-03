@@ -1,13 +1,15 @@
 import { type RepositoryDetailQueryKey, appendSearch, buttonClass, PanelMessage, StatusPill } from "./repositoryDetail/shared"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { ChevronIcon } from "../components/ChevronIcon"
+import { DismissButton } from "../components/DismissButton"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -70,12 +72,12 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         </PageHeading>
       </header>
 
+      <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
       <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">
           <RepositorySummary payload={payload} />
-          <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
@@ -132,6 +134,7 @@ function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: 
   const navigate = useNavigate()
   const search = queryKey[3]
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
+  const [currentIndex, setCurrentIndex] = useState(0)
   const recommendationAction = useMutation({
     mutationFn: (recommendation: RepositoryFeatureRecommendation) => runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
     onSuccess: (updated) => {
@@ -145,7 +148,17 @@ function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: 
     }
   })
 
-  const recommendations = (payload.recommended_actions || []).filter((recommendation) => !dismissed.has(recommendation.dismissal_key)).slice(0, 3)
+  const recommendations = (payload.recommended_actions || []).filter((recommendation) => !dismissed.has(recommendation.dismissal_key))
+  const activeIndex = Math.min(currentIndex, Math.max(recommendations.length - 1, 0))
+  const recommendation = recommendations[activeIndex]
+  const hasMultiple = recommendations.length > 1
+
+  useEffect(() => {
+    if (currentIndex >= recommendations.length) {
+      setCurrentIndex(Math.max(recommendations.length - 1, 0))
+    }
+  }, [currentIndex, recommendations.length])
+
   if (recommendations.length === 0) return null
 
   function dismiss(recommendation: RepositoryFeatureRecommendation) {
@@ -153,45 +166,62 @@ function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: 
     next.add(recommendation.dismissal_key)
     setDismissed(next)
     writeDismissedRecommendations(payload.repository.id, next)
+    if (activeIndex >= recommendations.length - 1) {
+      setCurrentIndex(Math.max(recommendations.length - 2, 0))
+    }
   }
 
   return (
     <section aria-label="Recommended actions" className="space-y-2">
-      {recommendations.map((recommendation) => (
-        <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{recommendation.title}</span>
-                <span className="text-xs opacity-75">{recommendation.category}</span>
-              </div>
-              <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
+      <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{recommendation.title}</span>
+              <span className="text-xs opacity-75">{recommendation.category}</span>
+              <span className="text-xs opacity-75">Tip {activeIndex + 1} of {recommendations.length}</span>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {recommendation.cta.kind === "link" ? (
-                <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>{recommendation.cta.label}</Link>
-              ) : (
+            <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {hasMultiple ? (
+              <div className="flex items-center gap-1">
                 <button
-                  className={buttonClass(recommendation.cta.kind === "job" ? "blue" : "green")}
+                  aria-label="Previous tip"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
                   disabled={recommendationAction.isPending}
-                  onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
+                  onClick={() => setCurrentIndex((index) => (index - 1 + recommendations.length) % recommendations.length)}
                   type="button"
                 >
-                  {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
+                  <ChevronIcon className="h-4 w-4 rotate-180" />
                 </button>
-              )}
+                <button
+                  aria-label="Next tip"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
+                  disabled={recommendationAction.isPending}
+                  onClick={() => setCurrentIndex((index) => (index + 1) % recommendations.length)}
+                  type="button"
+                >
+                  <ChevronIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
+            {recommendation.cta.kind === "link" ? (
+              <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>{recommendation.cta.label}</Link>
+            ) : (
               <button
-                aria-label={`Dismiss ${recommendation.title}`}
-                className="rounded px-2 py-1 text-xs opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
-                onClick={() => dismiss(recommendation)}
+                className={buttonClass(recommendation.cta.kind === "job" ? "blue" : "green")}
+                disabled={recommendationAction.isPending}
+                onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
                 type="button"
               >
-                Dismiss
+                {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
               </button>
-            </div>
+            )}
+            <DismissButton label={`Dismiss ${recommendation.title}`} onClick={() => dismiss(recommendation)} />
           </div>
         </div>
-      ))}
+      </div>
       {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage> : null}
     </section>
   )

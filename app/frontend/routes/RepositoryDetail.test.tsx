@@ -106,7 +106,7 @@ function renderRoute(payloadOverrides = {}) {
     return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), ...payloadOverrides }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
         <Routes>
@@ -258,13 +258,59 @@ describe("RepositoryDetailRoute recommendations", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders concise recommendation banners above repository actions", async () => {
-    renderRoute({ recommended_actions: [recommendation()] })
+  it("renders one concise recommendation banner above repository tabs", async () => {
+    const view = renderRoute({
+      tabs: [{ key: "overview", label: "Overview", path: "/repositories/1" }],
+      recommended_actions: [recommendation()]
+    })
 
     expect(await screen.findByRole("region", { name: "Recommended actions" })).toBeInTheDocument()
     expect(screen.getByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 1")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Previous tip" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Poll now" })).toBeInTheDocument()
+
+    const banner = screen.getByRole("region", { name: "Recommended actions" })
+    const tabs = view.container.querySelector("nav")
+    expect(tabs).toBeTruthy()
+    expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("shows one recommendation at a time and pages through multiple tips", async () => {
+    renderRoute({
+      recommended_actions: [
+        recommendation(),
+        recommendation({
+          id: "pr_cost_footer",
+          title: "Show PR cost footer",
+          body: "Add PR cost visibility for operators.",
+          dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1",
+          cta: {
+            label: "Enable",
+            kind: "toggle" as const,
+            path: "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
+            method: "POST" as const,
+            action_id: "enable_pr_cost_footer"
+          }
+        })
+      ]
+    })
+
+    expect(await screen.findByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 2")).toBeInTheDocument()
+    expect(screen.queryByText("Show PR cost footer")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next tip" }))
+
+    expect(screen.getByText("Show PR cost footer")).toBeInTheDocument()
+    expect(screen.getByText("Tip 2 of 2")).toBeInTheDocument()
+    expect(screen.queryByText("Add visual review")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous tip" }))
+
+    expect(screen.getByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 2")).toBeInTheDocument()
   })
 
   it("persists dismissals in local storage for the repository", async () => {
