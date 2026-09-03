@@ -152,7 +152,7 @@ module Runs
       ProviderAvailabilityEvidence.record_codex_success!(
         user: user,
         source: "run_success",
-        model: CodexInvocation.configured_model,
+        model: ProviderAvailabilityEvidence.codex_configured_model,
         run: run,
         observed_at: finished_at || Time.current,
         details: {

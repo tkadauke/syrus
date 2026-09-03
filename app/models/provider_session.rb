@@ -40,18 +40,23 @@ class ProviderSession < ApplicationRecord
   }
 
   def self.canonical_path_for(home:, cwd:, session_id:)
-    ClaudeAgent::SessionPaths.canonical_path_for(home: home, cwd: cwd, session_id: session_id)
+    claude_session_paths.canonical_path_for(home: home, cwd: cwd, session_id: session_id)
   end
 
   def self.canonical_transcript_jsonl(home:, cwd:, session_id:)
-    ClaudeAgent::SessionPaths.canonical_transcript_jsonl(home: home, cwd: cwd, session_id: session_id)
+    claude_session_paths.canonical_transcript_jsonl(home: home, cwd: cwd, session_id: session_id)
   end
 
   def self.canonical_subagents_dir_for(home:, cwd:, session_id:)
-    ClaudeAgent::SessionPaths.canonical_subagents_dir_for(home: home, cwd: cwd, session_id: session_id)
+    claude_session_paths.canonical_subagents_dir_for(home: home, cwd: cwd, session_id: session_id)
   end
 
   private
+
+  def self.claude_session_paths
+    "ClaudeAgent::SessionPaths".safe_constantize ||
+      raise(ChatProviders::ConfigurationError, "Claude provider plugin is not installed")
+  end
 
   def mirror_run_id_for_run_resumables
     self.run_id = resumable_id if resumable_type == "Run" && resumable_id.present?

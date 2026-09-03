@@ -28,6 +28,29 @@ module ChatProviders
 
     def self.provider = provider_key
 
+    def self.invoke_event_evaluator(chat_session:, workspace_path:, prompt:, session_id:, transcript_jsonl:, mcp_config:, timeout:, max_turns:, runner:)
+      path = ProviderSession.canonical_path_for(home: ENV.fetch("HOME"), cwd: workspace_path, session_id: session_id)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, transcript_jsonl)
+
+      ClaudeInvocation.new(
+        workspace_path,
+        prompt: prompt,
+        oauth_token: chat_session.user.claude_oauth_token,
+        log_sink: ->(*) { },
+        runner: runner,
+        timeout: timeout,
+        max_turns: max_turns,
+        mcp_config: mcp_config,
+        resume_session_id: session_id,
+        disallowed_tools: PLANNING_DISALLOWED_TOOLS,
+        model: chat_session.chat_model.presence,
+        effort_level: chat_session.chat_effort
+      ).run
+    ensure
+      FileUtils.rm_f(path) if path
+    end
+
     def credentials_missing?
       chat.user.claude_oauth_token.blank?
     end

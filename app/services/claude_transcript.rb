@@ -13,8 +13,12 @@ require "set"
 #
 # Used by the admin transcript APIs to render the transcript viewer.
 class ClaudeTranscript
-  include ClaudeAgent::TranscriptEvents
-  include CodexAgent::TranscriptEvents
+  if (events = "ClaudeAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
+  if (events = "CodexAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
 
   Event = Data.define(:kind, :timestamp, :data)
   # `kind` is one of:
