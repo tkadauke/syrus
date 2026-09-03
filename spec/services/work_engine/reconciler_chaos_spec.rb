@@ -1202,6 +1202,25 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       )
     end
 
+    def closed_job_with_active_child_workflow
+      entry = Workflow::TriggerKind.entries.find { |candidate| candidate.kind == "landing_validation" }
+      workflow = materialized_random_workflow(entry)
+      step = workflow.first_step
+      running_run_on_step!(workflow, step, heartbeat_age: stale_heartbeat_age)
+      spec_context.attach_work_unit(workflow, state: "running")
+      workflow.job.update_columns(state: "closed", finished_at: 10.minutes.ago, closure_reason: "operator_cancelled")
+
+      expectation(
+        "closed job with active child workflow",
+        target: { workflow_id: workflow.id },
+        expected_issue: :closed_job_active_runtime_work,
+        expected_action: :cancel_workflow_for_closed_job,
+        required_plans: [ [ :cancel_workflow_for_closed_job, workflow ] ],
+        forbidden_issues: %i[running_run_without_live_worker_evidence queued_run_without_queue_claim retryable_run_failure],
+        forbidden_actions: %i[reenqueue_run mark_worker_died mark_worker_died_and_retry_failed_step mark_worker_died_and_retry_workflow]
+      )
+    end
+
     def stale_running_run_without_worker_evidence
       _job, workflow, step, run = graph
       running_run!(workflow, step, run, heartbeat_age: stale_heartbeat_age)
@@ -1571,6 +1590,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     assert_chaos_case!(simulation.send(:running_step_with_succeeded_terminal_run))
     assert_chaos_case!(simulation.send(:running_workflow_with_failed_step))
     assert_chaos_case!(simulation.send(:closed_job_with_active_workflow))
+    assert_chaos_case!(simulation.send(:closed_job_with_active_child_workflow))
   end
 
   it "reconciles one random degradation on a fully materialized random workflow topology" do
