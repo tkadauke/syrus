@@ -199,6 +199,9 @@ RSpec.describe PreviewCommandSource do
           include Syrus::Plugin::PreviewProvider
         end
 
+        # Bundled plugins (syrus-rails) supply a preview provider, so the
+        # "nothing configured" branch needs an explicitly empty registry.
+        Syrus::PluginRegistry.reset!
         expect(Syrus::Plugin::PreviewProvider.configured?).to be(false)
 
         Syrus::PluginRegistry.register(

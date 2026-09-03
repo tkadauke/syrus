@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Admin::PluginDependencyGraph do
+RSpec.describe Admin::PluginDependencyGraph, :reset_plugin_registry do
   around do |ex|
     Syrus::PluginRegistry.reset!
     ex.run

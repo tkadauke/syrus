@@ -93,16 +93,18 @@ RSpec.describe App::JobDetailPayload do
         job: job, trigger_kind: "initial", state: "succeeded",
         artifacts: {
           "typed_artifacts" => [
-            { "type" => "rails_schema_erd", "title" => "Schema ERD", "payload" => { "tables" => [] }, "created_at" => "2026-08-06T10:00:00Z" }
+            { "type" => "unowned_report", "title" => "Unowned Report", "payload" => { "tables" => [] }, "created_at" => "2026-08-06T10:00:00Z" }
           ]
         }
       )
 
+      # Deliberately a type no bundled artifact_renderer claims, so this
+      # example covers plain passthrough; the next one covers renderer_type.
       artifacts = payload_for(job).fetch(:typed_artifacts)
       expect(artifacts.size).to eq(1)
       expect(artifacts.first).to include(
-        type: "rails_schema_erd",
-        title: "Schema ERD",
+        type: "unowned_report",
+        title: "Unowned Report",
         payload: { "tables" => [] },
         created_at: "2026-08-06T10:00:00Z",
         renderer_type: nil

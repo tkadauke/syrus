@@ -218,6 +218,35 @@ module Syrus
         clear_plugin_record_cache!
       end
 
+      Snapshot = Data.define(:plugins, :direct_providers)
+
+      # Set once at boot in the test environment; see
+      # config/initializers/plugin_registry.rb.
+      attr_accessor :boot_snapshot
+
+
+      # Captures the current registry contents so they can be restored later.
+      # The test harness snapshots once after boot - when every bundled plugin
+      # engine has self-registered - and restores before each example, so specs
+      # never need a hand-maintained list of bundled plugins.
+      def snapshot
+        @mutex.synchronize do
+          Snapshot.new(
+            plugins:          @plugins.dup,
+            direct_providers: @direct_providers.transform_values(&:dup)
+          )
+        end
+      end
+
+      def restore(snapshot)
+        @mutex.synchronize do
+          @plugins = snapshot.plugins.dup
+          @direct_providers = Hash.new { |h, k| h[k] = [] }
+          snapshot.direct_providers.each { |ep, providers| @direct_providers[ep] = providers.dup }
+        end
+        clear_plugin_record_cache!
+      end
+
       def clear_plugin_record_cache!
         @plugin_record_cache_mutex.synchronize do
           @plugin_record_cache_by_name = nil

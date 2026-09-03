@@ -1,8 +1,9 @@
 require "rails_helper"
 
-RSpec.describe Admin::PluginDisableGuard do
+RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
   around do |ex|
     Syrus::PluginRegistry.reset!
+    AdminPluginsSpec.register_factory_agent_providers!
     ex.run
     Syrus::PluginRegistry.reset!
   end
