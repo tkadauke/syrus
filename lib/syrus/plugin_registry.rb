@@ -28,6 +28,7 @@ module Syrus
       ui_slot
       domain_subscriber
       step_environment
+      workflow_kinds
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -58,13 +59,15 @@ module Syrus
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
       ui_slot:                 -> { Syrus::Plugin::UiSlot },
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
-      step_environment:        -> { Syrus::Plugin::StepEnvironment }
+      step_environment:        -> { Syrus::Plugin::StepEnvironment },
+      workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
     PLUGIN_RECORD_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
 
     @mutex            = Mutex.new
+    @generation       = 0
     @plugins          = []
     @direct_providers = Hash.new { |h, k| h[k] = [] }
     @plugin_record_cache_mutex = Mutex.new
@@ -81,6 +84,7 @@ module Syrus
       def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
+          bump_generation!
           return
         end
 
@@ -92,6 +96,7 @@ module Syrus
         @mutex.synchronize do
           validate_mcp_tool_name_uniqueness!(provides)
           validate_workspace_tab_id_uniqueness!(provides)
+          @generation += 1
           @plugins << Syrus::Plugin::Manifest.new(
             name:            name,
             display_name:    display_name,
@@ -259,10 +264,23 @@ module Syrus
         raise RegistrationError, errors.join("; ") if errors.any?
       end
 
+      # Bumped whenever the set of registered or enabled plugins can have
+      # changed. Derived caches (Syrus::KindRegistry) key on this instead of a
+      # TTL, so invalidation is exact rather than eventually-correct and a
+      # zero-TTL test environment does not recompute on every read.
+      def generation
+        @mutex.synchronize { @generation }
+      end
+
+      def bump_generation!
+        @mutex.synchronize { @generation += 1 }
+      end
+
       def reset!
         @mutex.synchronize do
           @plugins = []
           @direct_providers = Hash.new { |h, k| h[k] = [] }
+          @generation += 1
         end
         clear_plugin_record_cache!
       end
@@ -289,6 +307,7 @@ module Syrus
 
       def restore(snapshot)
         @mutex.synchronize do
+          @generation += 1
           @plugins = snapshot.plugins.dup
           @direct_providers = Hash.new { |h, k| h[k] = [] }
           snapshot.direct_providers.each { |ep, providers| @direct_providers[ep] = providers.dup }
@@ -297,6 +316,7 @@ module Syrus
       end
 
       def clear_plugin_record_cache!
+        @mutex.synchronize { @generation += 1 }
         @plugin_record_cache_mutex.synchronize do
           @plugin_record_cache_by_name = nil
           @plugin_record_cache_expires_at = nil

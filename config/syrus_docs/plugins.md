@@ -790,6 +790,49 @@ stale value. Read through this rather than reaching into
 `PluginRecord#config["settings"]` directly: the raw row has no defaults applied
 and no secret handling.
 
+## `workflow_kinds`
+
+`Workflow::TriggerKind::ENTRIES` and `Step::Kind::ENTRIES` were frozen array
+literals, so a plugin could not describe its own workflow at all: a subsystem
+with its own trigger kind and step handlers had to be core by construction,
+whatever else it was.
+
+```ruby
+# app/services/my_plugin/workflow_kinds.rb
+module MyPlugin
+  class WorkflowKinds
+    include Syrus::Plugin::WorkflowKinds
+
+    def self.trigger_kinds
+      [ { kind: "my_plugin_sweep", template: "MyPluginSweep", label: "Plugin sweep",
+          style: "bg-amber-100 text-amber-700", retry_label: nil,
+          feedback_kind: nil, runtime_role: "infrastructure" } ]
+    end
+
+    def self.step_kinds
+      [ { kind: "my_plugin_run", handler: "MyPluginRun", label: "Plugin run",
+          style: "bg-amber-100 text-amber-700", agentic: true } ]
+    end
+  end
+end
+```
+
+Attribute hashes take the same shape as the built-in literals, so the entry
+`Data` classes stay the single description of what a kind is. Both methods are
+optional -- contribute only trigger kinds, or only step kinds.
+
+**A plugin may not redefine a built-in kind.** Core keeps its own and the
+collision is logged, because workflow behavior that depends on plugin load
+order is worse than a rejected registration. Two plugins claiming the same new
+kind is rejected the same way. A provider that raises is skipped rather than
+taking the whole table down with it.
+
+Disabling the plugin removes its kinds. The merged table is cached and keyed on
+`Syrus::PluginRegistry.generation`, which is bumped by registration, reset, and
+any `PluginRecord` commit -- so enable and disable take effect on the next read
+with no staleness window, and hot paths like label rendering and step dispatch
+do not re-merge on every call.
+
 ## `domain_subscriber`
 
 Every other extension point lets a plugin contribute behavior when core asks

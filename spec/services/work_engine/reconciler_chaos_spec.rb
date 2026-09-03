@@ -130,7 +130,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       clear_solid_queue
       reset_shared_repository!
 
-      entry = Workflow::TriggerKind::ENTRIES.sample(random: random)
+      entry = Workflow::TriggerKind.entries.sample(random: random)
       workflow = materialized_random_workflow(entry)
       step = workflow.steps.order(:position, :id).sample(random: random)
       degradation = TOPOLOGY_DEGRADATIONS.sample(random: random)
@@ -1592,10 +1592,10 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     )
     user = Factories.user
     repository = Factories.repository(user: user)
-    template_classes = Workflow::TriggerKind::ENTRIES.map(&:template_class).uniq
+    template_classes = Workflow::TriggerKind.entries.map(&:template_class).uniq
     static_step_kinds = Set.new
 
-    Workflow::TriggerKind::ENTRIES.each do |entry|
+    Workflow::TriggerKind.entries.each do |entry|
       expect(Workflows.for(trigger_kind: entry.kind)).to eq(entry.template_class)
     end
 

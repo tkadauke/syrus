@@ -86,7 +86,7 @@ class Step
       end
     end
 
-    ENTRIES = [
+    BUILT_IN_ENTRIES = [
       Entry.new(kind: "prepare",            handler: "Prepare",            label: "Prepare workspace",         style: "bg-gray-100 text-gray-700",   agentic: false,
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "implement",          handler: "Implement",          label: "Implement",                  style: "bg-blue-100 text-blue-700",   agentic: true),
@@ -247,20 +247,27 @@ class Step
       Entry.new(kind: "deploy",             handler: "Deploy",             label: "Deploy",                     style: "bg-sky-100 text-sky-700",     agentic: false)
     ].freeze
 
-    BY_KIND = ENTRIES.index_by(&:kind).freeze
+    # Plugins that own a workflow contribute their own step kinds through
+    # :workflow_kinds; see Syrus::KindRegistry.
+    REGISTRY = Syrus::KindRegistry.new(
+      built_in: BUILT_IN_ENTRIES, entry_class: Entry, provider_method: :step_kinds
+    )
+
+    def self.entries = REGISTRY.entries
+    def self.by_kind = REGISTRY.by_key
 
     module_function
 
     def values
-      BY_KIND.keys.freeze
+      by_kind.keys.freeze
     end
 
     def agentic_values
-      ENTRIES.select(&:agentic).map(&:kind).freeze
+      entries.select(&:agentic).map(&:kind).freeze
     end
 
     def fetch(kind)
-      BY_KIND.fetch(kind.to_s) do
+      by_kind.fetch(kind.to_s) do
         raise ArgumentError, "unknown step kind=#{kind.inspect}"
       end
     end
@@ -270,7 +277,7 @@ class Step
     end
 
     def registry
-      BY_KIND.transform_values(&:handler).freeze
+      by_kind.transform_values(&:handler).freeze
     end
 
     def label_for(kind)

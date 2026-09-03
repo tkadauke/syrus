@@ -19,7 +19,7 @@ module WorkDefinitions
     private
 
     def validate_trigger_entries
-      Workflow::TriggerKind::ENTRIES.flat_map do |entry|
+      Workflow::TriggerKind.entries.flat_map do |entry|
         errors = []
         errors << error(:invalid_runtime_role, "Workflow trigger #{entry.kind.inspect} has invalid runtime_role #{entry.runtime_role.inspect}") unless Workflow::TriggerKind::RUNTIME_ROLES.include?(entry.runtime_role)
         definition_class = WorkDefinitions.registry[entry.kind]

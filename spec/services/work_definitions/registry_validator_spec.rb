@@ -24,7 +24,7 @@ RSpec.describe WorkDefinitions::RegistryValidator do
       feedback_kind: nil,
       runtime_role: "first_class"
     )
-    stub_const("Workflow::TriggerKind::ENTRIES", Workflow::TriggerKind::ENTRIES + [ entry ])
+    allow(Workflow::TriggerKind).to receive(:entries).and_return(Workflow::TriggerKind.entries + [ entry ])
 
     errors = described_class.call
 

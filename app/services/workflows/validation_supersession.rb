@@ -21,7 +21,7 @@ module Workflows
     end
 
     def self.validation_step_kinds
-      @validation_step_kinds ||= Step::Kind::ENTRIES
+      @validation_step_kinds ||= Step::Kind.entries
         .select(&:triggers_auto_approval)
         .map(&:kind)
         .to_set + %w[grader_fanout preflight_grader_fanout grade]
