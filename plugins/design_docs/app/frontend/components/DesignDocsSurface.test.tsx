@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
@@ -353,6 +353,7 @@ function mockMobileViewport() {
 
 describe("DesignDocsSurface", () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     if (originalMatchMedia) {
       Object.defineProperty(window, "matchMedia", originalMatchMedia)
@@ -796,6 +797,29 @@ describe("DesignDocsSurface", () => {
     expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
       suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Owner suggested edit" }
     })
+  })
+
+  it("uses the shared temporary toast for design doc notices", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner direct edit" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const toast = screen.getAllByRole("status").find((element) => element.textContent?.includes("Design doc saved."))
+    expect(toast).toBeDefined()
+    expect(screen.getByRole("button", { name: "Dismiss notification" })).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+
+    await waitFor(() => expect(screen.queryByText("Design doc saved.")).not.toBeInTheDocument())
   })
 
   it("runs formatting toolbar commands against Markdown and persists Suggest mode as a suggestion", async () => {
