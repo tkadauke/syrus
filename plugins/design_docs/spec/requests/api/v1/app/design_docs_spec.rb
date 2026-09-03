@@ -506,6 +506,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
   it "creates anchored comment threads with hidden markers and lets only owners resolve them" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    allow(AppEvents).to receive(:broadcast).and_call_original
     sign_in_as(collaborator)
 
     expect {
@@ -530,6 +531,27 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.dig("comment", "body")).to eq("Needs evidence")
     expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
     expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{thread.anchor.marker_id}\" -->")
+    expect(AppEvents).to have_received(:broadcast).with(
+      hash_including(
+        user: owner,
+        type: "design_doc.comment_created",
+        resource: "design_doc",
+        id: doc.id,
+        changed: [ "comments", "threads" ],
+        payload: hash_including(
+          thread: hash_including(id: thread.id),
+          comment: hash_including(body: "Needs evidence")
+        )
+      )
+    )
+    expect(AppEvents).to have_received(:broadcast).with(
+      hash_including(
+        user: collaborator,
+        type: "design_doc.comment_created",
+        resource: "design_doc",
+        id: doc.id
+      )
+    )
 
     post "/api/v1/app/design_docs/#{doc.id}/threads/#{thread.id}/resolve"
     expect(response).to have_http_status(:forbidden)

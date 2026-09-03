@@ -16,7 +16,7 @@ module DesignDocs
     def call
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
-      DesignDoc.transaction do
+      result = DesignDoc.transaction do
         if attributes[:thread_id].present?
           thread = design_doc.threads.find(attributes[:thread_id])
           comment = thread.comments.create!(
@@ -43,6 +43,9 @@ module DesignDocs
 
         Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, thread: thread, comment: comment, version: anchor_result.version)
       end
+
+      CommentBroadcaster.call(result: result)
+      result
     end
 
     private
