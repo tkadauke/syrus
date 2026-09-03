@@ -2,7 +2,7 @@
 
 GitHub Source is Syrus' built-in GitHub integration. It polls issues and pull requests, opens and updates PRs, reads check state, performs landing operations, and supplies the source-control primitives other workflows rely on.
 
-For most Syrus installations this is core infrastructure and is not disableable. Future source plugins can follow the same extension points, but GitHub remains the default path for issue-to-PR automation.
+For most Syrus installations this is the default path for issue-to-PR automation and stays enabled. It can be disabled once nothing uses it; the disable guard blocks the attempt while any input source or active repository still does. Future source plugins can follow the same extension points, but GitHub remains the default path for issue-to-PR automation.
 
 ## What It Adds
 
