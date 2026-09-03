@@ -17,10 +17,12 @@ module DesignDocs
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
       DesignDoc.transaction do
+        design_doc.lock!
         base_version = design_doc.current_version
         if autosave? || full_document_suggestion?
           draft = existing_autosave_suggestion
           if draft
+            validate_suggestion_range!(except_suggestion: draft)
             ensure_suggestion_thread!(draft)
             draft.update!(
               suggested_markdown: proposed_markdown,
@@ -38,6 +40,7 @@ module DesignDocs
 
         return create_autosave_suggestion(base_version) if autosave?
 
+        validate_suggestion_range!
         anchor_result = CreateAnchor.call(
           design_doc: design_doc,
           user: user,
@@ -67,6 +70,7 @@ module DesignDocs
     attr_reader :design_doc, :user, :attributes, :actor_kind
 
     def create_autosave_suggestion(base_version)
+      validate_suggestion_range!
       anchor = create_autosave_anchor(base_version)
       suggestion = design_doc.suggestions.create!(
         anchor: anchor,
@@ -158,6 +162,54 @@ module DesignDocs
     def full_document_suggestion?
       start_offset, end_offset = normalized_offsets(AnchorMarkers.strip(design_doc.markdown).length)
       start_offset.zero? && end_offset == AnchorMarkers.strip(design_doc.markdown).length
+    end
+
+    def validate_suggestion_range!(except_suggestion: nil)
+      visible = AnchorMarkers.strip(design_doc.markdown)
+      start_offset, end_offset = normalized_offsets(visible.length)
+      return if start_offset == end_offset
+
+      if SuggestionRendering.partial_block_syntax_selection?(markdown: design_doc.markdown, start_offset: start_offset, end_offset: end_offset)
+        invalid_suggestion!("Selection must include complete Markdown block syntax lines before it can be suggested.")
+      end
+
+      overlapping = pending_range_suggestions(except_suggestion: except_suggestion).detect do |suggestion|
+        ranges_overlap?(start_offset, end_offset, suggestion_start_offset(suggestion), suggestion_end_offset(suggestion))
+      end
+      return unless overlapping
+
+      invalid_suggestion!("Suggestion overlaps an existing pending suggestion. Review or reject the existing suggestion before creating another one for this range.")
+    end
+
+    def pending_range_suggestions(except_suggestion:)
+      design_doc.suggestions.includes(:anchor).where(state: "pending").reject do |suggestion|
+        suggestion.id == except_suggestion&.id || suggestion.anchor&.anchor_kind.to_s != "range"
+      end
+    end
+
+    def suggestion_start_offset(suggestion)
+      suggestion.anchor.last_known_start_offset || suggestion.anchor.start_offset || 0
+    end
+
+    def suggestion_end_offset(suggestion)
+      suggestion.anchor.last_known_end_offset || suggestion.anchor.end_offset || suggestion_start_offset(suggestion)
+    end
+
+    def ranges_overlap?(start_offset, end_offset, other_start_offset, other_end_offset)
+      start_offset < other_end_offset && other_start_offset < end_offset
+    end
+
+    def invalid_suggestion!(message)
+      suggestion = design_doc.suggestions.build(
+        suggested_by_kind: actor_kind,
+        suggested_by_user: actor_kind == "user" ? user : nil,
+        original_markdown: attributes[:original_markdown].presence || attributes[:selected_markdown].presence || attributes[:selected_text].presence || "",
+        suggested_markdown: proposed_markdown,
+        proposed_markdown: proposed_markdown,
+        change_type: attributes[:change_type].presence || "replace"
+      )
+      suggestion.errors.add(:base, message)
+      raise ActiveRecord::RecordInvalid.new(suggestion)
     end
 
     def normalized_offsets(length)

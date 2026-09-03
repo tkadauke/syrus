@@ -73,6 +73,7 @@ export type DesignDocSuggestion = {
   original_markdown: string
   suggested_markdown: string
   proposed_markdown: string
+  render_mode?: "inline" | "block"
   change_type: "replace"
   change_summary: string | null
   base_version_id: number | null

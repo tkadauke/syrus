@@ -680,6 +680,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "id" => suggestion_result.suggestion.id,
       "state" => "pending",
       "proposed_markdown" => "delta",
+      "render_mode" => "inline",
       "change_type" => "replace"
     )
     expect(body.dig("suggestions", 0, "thread")).to include(
@@ -694,6 +695,92 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "can_suggest" => true,
       "can_review_suggestions" => true
     )
+  end
+
+  it "serializes and accepts a block-level heading replacement suggestion" do
+    markdown = "# Network-Transparent MCP Tools for Local Mode\n\n## Problem\n\nExisting notes"
+    doc = create_design_doc(markdown: markdown)
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: markdown.lines.first.chomp.length,
+        original_markdown: "# Network-Transparent MCP Tools for Local Mode",
+        proposed_markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Relationship To DOC-17",
+        change_summary: "Add relationship section"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.last
+    expect(parse_body.dig("suggestion", "render_mode")).to eq("block")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq(markdown)
+
+    sign_in_as(owner)
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("suggestion", "state")).to eq("accepted")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq(
+      "# Network-Transparent MCP Tools for Local Mode\n\n## Relationship To DOC-17\n\n## Problem\n\nExisting notes"
+    )
+  end
+
+  it "rejects suggestions that select partial heading syntax" do
+    markdown = "# Network-Transparent MCP Tools for Local Mode\n\n## Problem\n\nExisting notes"
+    doc = create_design_doc(markdown: markdown)
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+    start_offset = markdown.index("## Problem")
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: start_offset,
+          end_offset: start_offset + "## P".length,
+          original_markdown: "## P",
+          proposed_markdown: "## Platform"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("complete Markdown block syntax lines")
+    expect(doc.reload.markdown).to eq(markdown)
+  end
+
+  it "rejects overlapping pending suggestions before nesting active markers" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: 10,
+        original_markdown: "Alpha beta",
+        proposed_markdown: "Alpha product"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    marked_markdown = doc.reload.markdown
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 6,
+          end_offset: 16,
+          original_markdown: "beta gamma",
+          proposed_markdown: "release gamma"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("overlaps an existing pending suggestion")
+    expect(doc.reload.markdown).to eq(marked_markdown)
   end
 
   it "creates suggestion threads that accept replies and leave active suggestions after replies" do

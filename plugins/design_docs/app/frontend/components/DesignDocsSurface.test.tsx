@@ -168,6 +168,62 @@ const reviewerDocDetail = {
   }
 }
 
+const blockSuggestionDocDetail = {
+  ...docDetail,
+  id: 4,
+  display_id: "DOC-4",
+  title: "Network-transparent MCP tools",
+  markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Problem",
+  rendered_markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Problem",
+  threads: [{
+    ...docDetail.threads[1],
+    id: 27,
+    anchor: {
+      ...docDetail.threads[1].anchor,
+      id: 31,
+      start_offset: 0,
+      end_offset: 48,
+      last_known_start_offset: 0,
+      last_known_end_offset: 48,
+      selected_markdown: "# Network-Transparent MCP Tools for Local Mode",
+      selected_text: "Network-Transparent MCP Tools for Local Mode"
+    }
+  }],
+  suggestions: [{
+    ...docDetail.suggestions[0],
+    id: 29,
+    original_markdown: "# Network-Transparent MCP Tools for Local Mode",
+    suggested_markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Relationship To DOC-17",
+    proposed_markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Relationship To DOC-17",
+    render_mode: "block" as const,
+    change_summary: "Add relationship section",
+    anchor: {
+      ...docDetail.suggestions[0].anchor,
+      id: 31,
+      start_offset: 0,
+      end_offset: 48,
+      last_known_start_offset: 0,
+      last_known_end_offset: 48,
+      selected_markdown: "# Network-Transparent MCP Tools for Local Mode",
+      selected_text: "Network-Transparent MCP Tools for Local Mode"
+    },
+    thread: {
+      ...docDetail.suggestions[0].thread!,
+      id: 27,
+      anchor: {
+        ...docDetail.suggestions[0].thread!.anchor,
+        id: 31,
+        start_offset: 0,
+        end_offset: 48,
+        last_known_start_offset: 0,
+        last_known_end_offset: 48,
+        selected_markdown: "# Network-Transparent MCP Tools for Local Mode",
+        selected_text: "Network-Transparent MCP Tools for Local Mode"
+      }
+    }
+  }]
+}
+
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -279,6 +335,9 @@ function mockFetch() {
     }
     if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/4" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: blockSuggestionDocDetail })
     }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
       return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
@@ -624,6 +683,21 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(wysiwygHighlight!)
 
     expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+  })
+
+  it("renders block-level suggestions as anchored review cards without inline proposed Markdown", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/4")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(within(editor).getByRole("heading", { level: 1, name: "Network-Transparent MCP Tools for Local Mode" })).toBeInTheDocument()
+    expect(screen.getByText("block suggestion")).toBeInTheDocument()
+    expect(screen.getByText("Original")).toBeInTheDocument()
+    expect(screen.getByText("Proposed")).toBeInTheDocument()
+    expect(screen.getByText(/Relationship To DOC-17/)).toBeInTheDocument()
+    expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
+    expect(container.querySelector("[data-inline-suggestion-state='pending']")).toBeNull()
+    expect(within(editor).queryByText(/Relationship To DOC-17/)).not.toBeInTheDocument()
   })
 
   it("groups replies beneath their parent comment thread", async () => {

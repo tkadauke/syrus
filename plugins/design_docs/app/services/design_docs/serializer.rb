@@ -57,6 +57,10 @@ module DesignDocs
           original_markdown: suggestion.original_markdown,
           suggested_markdown: suggestion.suggested_markdown,
           proposed_markdown: suggestion.proposed_markdown_value,
+          render_mode: DesignDocs::SuggestionRendering.render_mode(
+            original_markdown: suggestion.original_markdown,
+            proposed_markdown: suggestion.proposed_markdown_value
+          ),
           change_type: suggestion.change_type,
           change_summary: suggestion.change_summary,
           base_version_id: suggestion.base_version_id,
