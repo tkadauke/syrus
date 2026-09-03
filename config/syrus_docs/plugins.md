@@ -217,6 +217,43 @@ payload for each plugin includes its declared `depends_on` array and a derived
 on it), so the relationship is visible on the Admin → Plugins page even before
 an operator tries to disable anything.
 
+The cheap source-boundary audit runs in normal specs:
+
+```bash
+bundle exec rspec spec/architecture/plugin_source_boundary_audit_spec.rb
+```
+
+It verifies that bundled `depends_on` names resolve to installed bundled
+plugins, that the dependency graph is acyclic, that core code only reaches
+plugins through explicit extension boundaries or documented legacy exceptions,
+and that plugin-to-plugin source references follow a declared dependency edge
+directly or transitively.
+
+The stronger physical-absence prototype is manual for now:
+
+```bash
+bin/plugin-boundary-audit ruby
+bin/plugin-boundary-audit ruby --command "bundle exec rspec spec/models/job_spec.rb"
+```
+
+Given a selected plugin, the script removes that plugin plus every transitive
+dependent from a temporary `git archive` copy outside the real checkout. It
+also removes their one-line `Gemfile` path entries, runs the configured command
+in the temporary copy, and prints the removed plugins, kept plugins, command,
+and failure evidence. This intentionally models source-tree/bundle absence,
+not `PluginRecord` runtime disablement. The default command is only a boot
+smoke; set `PLUGIN_BOUNDARY_AUDIT_COMMAND` or pass `--command` for a fuller
+suite. Removed plugin-specific specs are naturally absent because the plugin
+directories are physically deleted from the temporary copy.
+
+Limitations: the script uses committed `HEAD` via `git archive`, so commit
+local edits before relying on it for a final answer; it does not edit lockfile
+contents directly, leaving Bundler to reconcile the temporary copy during the
+smoke command. A small set of legacy frontend imports is currently documented
+in `Admin::PluginSourceBoundaryAudit::LEGACY_FRONTEND_IMPORT_EXCEPTIONS`; the
+manual physical-removal check is expected to expose those remaining gaps until
+they move behind plugin-discovery boundaries.
+
 ## `:preview_provider`
 
 Preview providers tell Syrus how to start, seed, and health-check a preview

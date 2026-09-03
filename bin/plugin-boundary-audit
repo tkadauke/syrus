@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "open3"
+require "optparse"
+require "shellwords"
+require "tmpdir"
+
+ENV["RAILS_ENV"] ||= "development"
+require_relative "../config/environment"
+
+options = {
+  command: ENV.fetch(
+    "PLUGIN_BOUNDARY_AUDIT_COMMAND",
+    'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rails runner "puts :plugin_boundary_boot_ok"'
+  )
+}
+
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: bin/plugin-boundary-audit PLUGIN_NAME [--command COMMAND]"
+  opts.separator ""
+  opts.separator "Physically removes PLUGIN_NAME plus transitive dependents from a temporary"
+  opts.separator "git-archive copy, removes their Gemfile path entries, then runs COMMAND."
+  opts.separator ""
+  opts.on("--command COMMAND", "Smoke/test command to run in the temporary copy.") do |command|
+    options[:command] = command
+  end
+  opts.on("-h", "--help", "Show this help.") do
+    puts opts
+    exit 0
+  end
+end
+
+parser.parse!
+plugin_name = ARGV.shift
+
+if plugin_name.blank?
+  warn parser
+  exit 64
+end
+
+root = Rails.root
+audit = Admin::PluginSourceBoundaryAudit.new(root: root)
+removed = audit.removed_plugin_names_for(plugin_name)
+
+if removed.empty?
+  warn "Unknown bundled plugin: #{plugin_name}"
+  warn "Installed bundled plugins: #{audit.bundled_manifest_names.join(', ')}"
+  exit 64
+end
+
+gem_paths = audit.bundled_gem_paths.slice(*removed)
+kept = audit.bundled_manifest_names - removed
+temp_root = Pathname.new(Dir.mktmpdir([ "syrus-plugin-boundary-", "-#{plugin_name}" ]))
+
+puts "Plugin boundary physical-removal audit"
+puts "Selected plugin: #{plugin_name}"
+puts "Removed plugins: #{removed.join(', ')}"
+puts "Kept plugins: #{kept.join(', ')}"
+puts "Temporary copy: #{temp_root}"
+puts "Command: #{options[:command]}"
+puts
+
+archive = nil
+extract = nil
+
+Open3.pipeline_rw(
+  [ "git", "-C", root.to_s, "archive", "--format=tar", "HEAD" ],
+  [ "tar", "-x", "-C", temp_root.to_s ]
+) do |stdin, _stdout, wait_threads|
+  stdin.close
+  archive, extract = wait_threads.map(&:value)
+end
+
+unless archive.success? && extract.success?
+  warn "Failed to create temporary git archive copy"
+  exit 1
+end
+
+gem_paths.each_value do |relative_path|
+  FileUtils.rm_rf(temp_root.join(relative_path))
+end
+
+gemfile = temp_root.join("Gemfile")
+gemfile.write(
+  gemfile.readlines.reject do |line|
+    gem_paths.values.any? { |relative_path| line.include?("path: #{relative_path.inspect}") || line.include?("path: \"#{relative_path}\"") }
+  end.join
+)
+
+puts "Removed directories:"
+gem_paths.each do |name, relative_path|
+  puts "  - #{name}: #{relative_path}"
+end
+puts
+
+status = nil
+Open3.popen2e(options[:command], chdir: temp_root.to_s) do |_stdin, output, wait_thread|
+  output.each { |line| print line }
+  status = wait_thread.value
+end
+
+puts
+puts "Result: #{status.success? ? 'PASS' : "FAIL exit=#{status.exitstatus}"}"
+
+unless status.success?
+  warn
+  warn "Boundary failure evidence is in the command output above."
+end
+
+exit(status.success? ? 0 : status.exitstatus || 1)

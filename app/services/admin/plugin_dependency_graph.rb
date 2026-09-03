@@ -27,6 +27,20 @@ module Admin
       @by_name.keys.select { |candidate| candidate != name && transitively_depends_on?(candidate, name) }
     end
 
+    def cycles
+      found = []
+
+      @by_name.keys.each do |name|
+        find_cycles_from(name, [], found)
+      end
+
+      found.uniq { |cycle| canonical_cycle_key(cycle) }
+    end
+
+    def acyclic?
+      cycles.empty?
+    end
+
     private
 
     def transitively_depends_on?(name, target, seen = Set.new)
@@ -40,6 +54,25 @@ module Admin
       return true if deps.include?(target)
 
       deps.any? { |dep_name| transitively_depends_on?(dep_name, target, seen) }
+    end
+
+    def find_cycles_from(name, path, found)
+      return unless @by_name.key?(name)
+
+      if (index = path.index(name))
+        found << [ *path[index..], name ]
+        return
+      end
+
+      Array(@by_name[name].depends_on).each do |dep_name|
+        find_cycles_from(dep_name, [ *path, name ], found)
+      end
+    end
+
+    def canonical_cycle_key(cycle)
+      nodes = cycle[0...-1]
+      rotations = nodes.each_index.map { |index| nodes.rotate(index) }
+      rotations.min.join("\0")
     end
   end
 end
