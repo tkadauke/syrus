@@ -19,7 +19,7 @@ import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPil
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -75,6 +75,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">
           <RepositorySummary payload={payload} />
+          <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
@@ -124,6 +125,104 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       ))}
     </div>
   )
+}
+
+function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const search = queryKey[3]
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
+  const recommendationAction = useMutation({
+    mutationFn: (recommendation: RepositoryFeatureRecommendation) => runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
+    onSuccess: (updated) => {
+      if ("repository" in updated && "tabs" in updated) {
+        queryClient.setQueryData(queryKey, updated)
+        onNotice(updated.message || null)
+      } else {
+        onNotice(updated.message || "Recommendation job created.")
+        navigate(withRoutePrefix(updated.redirect_to, prefix))
+      }
+    }
+  })
+
+  const recommendations = (payload.recommended_actions || []).filter((recommendation) => !dismissed.has(recommendation.dismissal_key)).slice(0, 3)
+  if (recommendations.length === 0) return null
+
+  function dismiss(recommendation: RepositoryFeatureRecommendation) {
+    const next = new Set(dismissed)
+    next.add(recommendation.dismissal_key)
+    setDismissed(next)
+    writeDismissedRecommendations(payload.repository.id, next)
+  }
+
+  return (
+    <section aria-label="Recommended actions" className="space-y-2">
+      {recommendations.map((recommendation) => (
+        <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{recommendation.title}</span>
+                <span className="text-xs opacity-75">{recommendation.category}</span>
+              </div>
+              <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {recommendation.cta.kind === "link" ? (
+                <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>{recommendation.cta.label}</Link>
+              ) : (
+                <button
+                  className={buttonClass(recommendation.cta.kind === "job" ? "blue" : "green")}
+                  disabled={recommendationAction.isPending}
+                  onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
+                  type="button"
+                >
+                  {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
+                </button>
+              )}
+              <button
+                aria-label={`Dismiss ${recommendation.title}`}
+                className="rounded px-2 py-1 text-xs opacity-70 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                onClick={() => dismiss(recommendation)}
+                type="button"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage> : null}
+    </section>
+  )
+}
+
+function recommendationToneClass(tone: RepositoryFeatureRecommendation["tone"]) {
+  const classes = {
+    amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
+    blue: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
+    gray: "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  }
+  return classes[tone]
+}
+
+function dismissedRecommendationStorageKey(repositoryId: number) {
+  return `syrus:repository:${repositoryId}:dismissed-recommendations`
+}
+
+function readDismissedRecommendations(repositoryId: number) {
+  if (typeof window === "undefined") return new Set<string>()
+  try {
+    return new Set<string>(JSON.parse(window.localStorage.getItem(dismissedRecommendationStorageKey(repositoryId)) || "[]"))
+  } catch (_error) {
+    return new Set<string>()
+  }
+}
+
+function writeDismissedRecommendations(repositoryId: number, dismissed: Set<string>) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(dismissedRecommendationStorageKey(repositoryId), JSON.stringify([...dismissed]))
 }
 
 function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
