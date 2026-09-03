@@ -285,6 +285,7 @@ module Api
             agent_provider: job.workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
             provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
+            provider_failover: ::App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: job.workflow_agent_provider),
             repository_id: job.repository_id,
             repository_slug: job.repository.slug,
             goal_provenance: ::App::GoalProvenancePayload.for(job),

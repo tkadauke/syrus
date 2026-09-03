@@ -654,6 +654,7 @@ function AgentProviderFailoverSettings({
       <div>
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("account_settings.provider_failover_heading")}</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_desc")}</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.provider_failover_chat_exclusion")}</p>
       </div>
 
       <Checkbox

@@ -535,6 +535,62 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
 
+  it "returns repository job failover payloads without per-job latest workflow lookups" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, agent_provider: "claude")
+    failed_over = Factories.job_record(repository: repository, issue_number: 1, issue_title: "Fail over provider", agent_provider: "claude")
+    Workflow.create!(
+      job: failed_over,
+      trigger_kind: "retry",
+      state: "running",
+      agent_provider: "codex",
+      artifacts: {
+        "provider_failover_decision" => {
+          "original_provider" => "claude",
+          "selected_provider" => "codex",
+          "reason" => "provider_unavailable",
+          "decided_at" => "2026-08-01T12:01:00Z",
+          "automatic_failover" => true,
+          "unavailable" => {
+            "provider" => "claude",
+            "label" => "Claude Code",
+            "state" => "open",
+            "retry_after" => "2026-08-01T12:10:00Z",
+            "evidence" => {
+              "status" => "failed",
+              "source" => "provider_circuit",
+              "observed_at" => "2026-08-01T12:00:00Z"
+            }
+          }
+        }
+      }
+    )
+    2.times { |index| Factories.job_with_run(repository: repository, issue_number: index + 2) }
+
+    queries = capture_sql do
+      get "/api/v1/app/repositories/#{repository.id}"
+    end
+
+    expect(response).to have_http_status(:ok)
+    item = parse_body["jobs"].find { |job| job["id"] == failed_over.id }
+    expect(item["provider_failover"]).to include(
+      "mode" => "automatic",
+      "automatic" => true,
+      "original_provider_label" => "Claude Code",
+      "selected_provider_label" => "Codex",
+      "reason" => "provider_unavailable"
+    )
+    expect(item.dig("provider_failover", "unavailable")).to include(
+      "state" => "open",
+      "retry_after" => "2026-08-01T12:10:00Z",
+      "evidence_source" => "provider_circuit",
+      "observed_at" => "2026-08-01T12:00:00Z"
+    )
+    expect(queries).not_to include(
+      a_string_matching(/FROM "?workflows"? WHERE "?workflows"?\."?job_id"? = .*ORDER BY \(finished_at IS NULL\).*LIMIT/i)
+    )
+  end
+
   it "loads repository detail run counts through one grouped query" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

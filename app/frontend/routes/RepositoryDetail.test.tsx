@@ -231,6 +231,60 @@ describe("RepositoryDetailRoute archive", () => {
   })
 })
 
+describe("RepositoryDetailRoute jobs", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows provider failover on recent job rows", async () => {
+    renderRoute({
+      jobs: [
+        {
+          id: 4,
+          state: "running",
+          priority: "medium",
+          kind: "direct",
+          issue_title: "Inspect preview dashboard states",
+          agent_provider: "codex",
+          provider_availability: null,
+          provider_failover: {
+            mode: "automatic",
+            automatic: true,
+            original_provider: "claude",
+            original_provider_label: "Claude Code",
+            selected_provider: "codex",
+            selected_provider_label: "Codex",
+            reason: "provider_unavailable",
+            decided_at: "2026-08-01T12:01:00Z",
+            unavailable: {
+              provider: "claude",
+              label: "Claude Code",
+              state: "open",
+              reason: "usage_limit",
+              retry_after: "2026-08-01T12:10:00Z",
+              evidence_source: "provider_circuit",
+              evidence_status: "failed",
+              observed_at: "2026-08-01T12:00:00Z"
+            }
+          },
+          job_path: "/jobs/4",
+          source: { label: "Direct", url: null, external: false },
+          pr_number: null,
+          pr_url: null,
+          external_pr_number: null,
+          external_pr_url: null,
+          current_step_caption: null,
+          retry_state: null,
+          runs_count: 1,
+          updated_at: "2026-08-01T12:02:00Z"
+        }
+      ],
+      pagination: { page: 1, per_page: 20, total_jobs: 1, total_pages: 1, first_item: 1, last_item: 1, previous_path: null, next_path: null }
+    })
+
+    expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
+    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+})
+
 describe("RepositoryDetailRoute preview", () => {
   it("starts a repository-scoped preview from the Preview panel", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {

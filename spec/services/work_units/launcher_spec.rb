@@ -340,7 +340,13 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.artifact("provider_failover_decision")).to include(
       "original_provider" => "claude",
       "selected_provider" => "codex",
-      "reason" => "provider_unavailable"
+      "reason" => "provider_unavailable",
+      "unavailable" => include(
+        "provider" => "claude",
+        "state" => "open",
+        "retry_after" => kind_of(String),
+        "observed_at" => kind_of(String)
+      )
     )
   end
 

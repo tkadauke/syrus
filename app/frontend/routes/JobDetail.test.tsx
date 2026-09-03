@@ -86,6 +86,39 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
+  it("shows automatic provider failover in the job detail header", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        agent_provider: "claude",
+        provider_failover: {
+          mode: "automatic",
+          automatic: true,
+          original_provider: "claude",
+          original_provider_label: "Claude Code",
+          selected_provider: "codex",
+          selected_provider_label: "Codex",
+          reason: "provider_unavailable",
+          decided_at: "2026-08-01T12:01:00Z",
+          unavailable: {
+            provider: "claude",
+            label: "Claude Code",
+            state: "open",
+            reason: "Provider appears temporarily unavailable.",
+            retry_after: "2026-08-01T12:10:00Z",
+            evidence_source: "provider_circuit",
+            evidence_status: "failed",
+            observed_at: "2026-08-01T12:00:00Z"
+          }
+        }
+      }
+    }))
+
+    const notice = screen.getByText("Claude Code unavailable; running this workflow with Codex.")
+    expect(notice).toBeInTheDocument()
+    expect(notice).toHaveAttribute("title", expect.stringContaining("Evidence: failed from provider_circuit"))
+  })
+
   it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -2401,6 +2434,7 @@ function baseJob(): JobDetailPayload["job"] {
     validity: "valid",
     credential_mode: "app",
     agent_provider: "codex",
+    provider_failover: undefined,
     stack_base: "auto",
     issue_number: null,
     issue_url: null,
@@ -2582,5 +2616,4 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
-
 
