@@ -43,6 +43,20 @@ to be blocked, both for reasons the inventory missed:
 
 Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
 
+**Phase 6 designed, not started.** Workflow composition is written up as G12:
+four anchors (`judge`, `post_implementation`, `post_pr`, plus the existing
+fixed tail), with the `judge` contract carrying the weight because a judge is
+half a loop rather than a step. It unblocks `visual_review`, `coverage`, and a
+new candidate the design surfaced — `review_plan` as the first `post_pr`
+plugin. Graders and `format`/`generate` deliberately stay core; G12 says why.
+
+**Remaining candidates re-checked against the source, not the notes.** Two
+entries were wrong: `video_walkthroughs` was recorded as blocked on a
+`chat_messages.video_walkthrough_id` column that does not exist, and
+`syrus_dev` storage was listed as needing G2/G6, both of which have since
+landed. See the Ordering note under Implementation Order for the queue by
+readiness.
+
 **Phase 5 in progress.** `agent_insights` and `agent_memory` extracted
 (insights first, which is what unblocked memory). `agent_insights` went out of
 order: the plan put
@@ -564,6 +578,87 @@ One mechanism, one badge, one place to look.
 Deferred: version constraints (`depends_on: { "agent_memory" => ">= 2.0" }`).
 Manifests already carry `version`, so this is additive whenever it is wanted.
 
+### G12. Workflow composition — designed, not built
+
+Tier 3's shared blocker: a plugin cannot insert a step into a core workflow
+chain. `Workflows::Base.steps_for(job)` builds them, and every optional piece
+(`adversarial_review_loop`, `visual_review_loop`, `coverage_analyze_for`) is
+materialized by core reading `.syrus.yml`.
+
+The mechanics are cheaper than they look. `steps_for` already returns a flat
+array whose elements are either a step-kind string or a `Workflows::Loop` /
+`Workflows::RetryUntil` value object, and `to_chain_template` serializes all of
+them down to plain step-kind strings. A plugin-contributed node round-trips
+through the persisted `chain_template` with no new persistence work, and the
+step kind plus handler already come from `:workflow_kinds` (G3). What is
+missing is only the *positions*.
+
+**Four anchors**, of which two are ordinary step insertion:
+
+```
+prepare
+implement                                   core, always
+  <judge>            adversarial_review, visual_review ...   loop cluster
+  <grade loop>       core
+  <post_implementation>  coverage, dependency_audit ...      once, after loops
+summarize -> test_plan -> pr_open           core, fixed
+  <post_pr>          review_plan ...                         once, after PR
+```
+
+`post_implementation` and `post_pr` take a list of step kinds with an `order`
+and an `enabled_for?(job)` predicate, so the plugin reads its own `.syrus.yml`
+block — which also moves `RepoCoveragePlanReader` and `RepoVisualReviewPlan`
+out of core.
+
+**`judge` is the anchor with real content**, because a judge is not a step but
+half of a loop:
+
+```ruby
+def self.judges
+  [ {
+      step_kind: "visual_review",              # registered via workflow_kinds
+      order: 20,
+      trigger_kinds: %w[initial retry pr_comment chat_feedback],
+      rounds_for: ->(job) { VisualReview::RepoPlan.for_job(job).rounds }
+    } ]
+end
+```
+
+Core pairs the judge with whatever agent step that chain uses (`implement` or
+`respond`), builds the `Workflows::Loop`, and decides `review_first` itself.
+That flag is a property of *position*, not of the plugin — true only for the
+first judge in a chain that already ran a top-level agent step — so keeping it
+in core stops a plugin from producing a redundant re-implement.
+
+**Two things this deliberately does not move.**
+
+`format`/`generate` are not post-loop steps, despite reading like siblings of
+coverage and dependency audit. They run *inside* the grade loop on every
+iteration, so a style-only failure or stale codegen never costs an agent turn.
+Relocating them after the loop would make a formatting-only failure burn a
+grade iteration. If a formatter should ever be plugin-contributed, the anchor
+is `grade_loop_autofix`, not `post_implementation`.
+
+Graders are a different shape from judges. A judge is `Loop(agent, judge)` with
+a verdict; graders are the *check* phase of a `RetryUntil` whose repair is the
+agent step, they own `grade_max_iterations`, and they fan out into per-grader
+children at runtime. Expressing that as a plugin grows the contract from "I am
+a judge" to "I am the check phase of the repair loop, and I materialize N
+children" — a large contract for a single consumer. Graders stay core until a
+second grader implementation exists to justify it.
+
+**Risk to settle first.** `chain_template` is persisted, so an in-flight
+workflow keeps its shape when a plugin is disabled mid-run — but the handler is
+gone and `Step::Kind` lookup fails on the next dispatch. This is the
+`disableable` question from the stress-test findings with a running workflow
+attached; the "refuse the disable" option covers it directly (refuse while the
+plugin owns step kinds in a non-terminal workflow).
+
+Build order: the anchors plus `judge`, with `visual_review` as the proof, then
+`coverage` on `post_implementation` and `review_plan` on `post_pr`.
+`adversarial_review` as a second judge is what shows the anchor is not shaped
+around one caller.
+
 ## Job Origin
 
 `Job` currently records where it came from in at least five overlapping ways:
@@ -803,9 +898,18 @@ Also note `SourceControl::Providers` is a dead extension point — referenced on
 by its own spec. Either wire it or delete it.
 
 **`terminal`** — `TerminalSession`, `TerminalRelay`, `TerminalChannel`,
-`TerminalSessionJob`. Self-contained and already gated. Blocked only on G7
-(Action Cable channel registration). Per Principle 4, the existing `terminal`
-feature flag is replaced by the plugin's own enabled state.
+`TerminalSessionJob`. Self-contained and already gated. Per Principle 4, the
+existing `terminal` feature flag is replaced by the plugin's own enabled state.
+
+Blocked on **G7** (Action Cable channel registration), which is the only real
+gap. One further coupling, confirmed in the source rather than assumed:
+`app/frontend/routes/jobDetail/WorkflowGraph.tsx:7` imports
+`createTerminalSession` from core's terminal API to render its "open terminal"
+button. That is now cheap — `ui_slot` (G5) declares a `job.detail` slot, so the
+button becomes a plugin-contributed panel rather than a core import.
+
+**Nearest to ready of everything left**: one scoped gap, one small UI move, no
+schema work, no design question.
 
 **`coverage`** — **moved to Tier 3.** `coverage_snapshots`, the hit-map TTL
 prune job, the coverage PR comment steps, and the `get_coverage_report` tool.
@@ -818,10 +922,26 @@ extension point, not more plumbing.
 **`video_walkthroughs`** — `ChatVideoWalkthrough`, the Gemini client and
 transcoder, `VideoWalkthroughAnalysisJob`, `VideoWalkthroughPruneJob`, three
 chat MCP tools, four prompts, the `videos` queue, and the composer/media-panel
-UI. Strongest unlisted candidate: it is the only thing dragging a non-Anthropic
-model vendor into core, it already degrades cleanly when off, and it owns a
-retention job. Needs G2 (prune + analysis scheduling) and G4 (retention and
-storage-budget settings currently on `app_settings`).
+UI. Still the strongest candidate on value: it is the only thing dragging a
+non-Anthropic model vendor into core, it already degrades cleanly when off, and
+it owns a retention job.
+
+**Correction — the recorded schema blocker was wrong.** An earlier note had
+this waiting on a `chat_messages.video_walkthrough_id` column. That column does
+not exist. The chat linkage is a JSON key in `chat_draft_content.metadata`,
+which needs no schema inversion at all.
+
+Its two listed prerequisites, G2 and G4, have both landed. What actually
+remains:
+
+- `ChatTurnJob#walkthrough_orientation` injects prompt text into a chat turn
+  when the incoming message carries a walkthrough. There is no chat-turn
+  injection point — `prompt_injector` is workflow-only (`call(repository:,
+  job:)`). This is the real gap, and it is small and well-shaped.
+- `app_settings.video_retention_days` / `video_storage_budget_mb` move to
+  plugin settings (G4), joining the Schema Inversion Backlog entries below.
+- Remaining touch points: `chat_serialization`, `credential_probe` (the Gemini
+  key probe), `chat_session`, `chat_draft_content`.
 
 **`scheduled_tasks`** — `ScheduledTask`, `CronTemplate`, `PollScheduledTasksJob`,
 `ScheduledTaskFire`, the pileup policies, the `Schedules::*` parsing layer,
@@ -848,6 +968,16 @@ the AASM callback (→ `job.closed` subscriber), the `replaced_by_scheduled_task
 closure reason (→ G3), and `AutoApprovalRule`'s candidate chain (needs an
 auto-approval-source contribution point).
 
+**Status: the only listed prerequisite still open is G8.** G1, G2, G3 and G4
+have landed, and the `job_kinds` registry built for `agent_insights` covers the
+`Job::KINDS` half of the schema inversion. G8 remains an unanswered design
+question — the CLI has no plugin story, and `scheduled_tasks` owns a whole
+`syrus schedule` command family, so extracting it either strands those commands
+or forces the answer. That makes G8, not the code, the gate. Recommended shape
+when it is taken up: server-described commands (the instance advertises the
+command surface, the CLI renders it), with `syrus-<name>` binaries on `PATH` as
+an escape hatch for anything that needs real client-side behaviour.
+
 **`agent_insights`** — extracted. `AgentInsights::Suggestion`/`ScheduleConfig`/
 `AuditEvent` (tables `agent_insight_suggestions`,
 `agent_insight_schedule_configs`, `agent_insight_audit_events`),
@@ -873,26 +1003,27 @@ and `AgentInsights::Suggestion` has an FK to one. It declares a hard
 `agent_insights` goes `degraded` and its providers are withheld — it does not
 crash, and it does not silently half-work.
 
-### Tier 3 — needs design first
+### Tier 3 — waiting on G12
 
-Both entries here share one blocker: a plugin cannot insert a conditional step
-into a core workflow chain. `Workflows::Base` builds those chains, and both
-features are materialized by core based on `.syrus.yml` and a feature flag.
-The extension point they want lets plugins declare optional loops or steps that
-named chains will admit, with core keeping ordering and retry semantics. That
-is a real design problem and should not be smuggled in as part of a code move.
-
+Both entries share one blocker: a plugin cannot insert a step into a core
+workflow chain. That is now **designed** — see G12 for the four anchors, the
+`judge` contract, and the two things deliberately left in core — but not built.
 
 **`visual_review`** — the step, prompt, artifacts, and review-loop membership
-would move to `browser`. The hard part is not the code, it is that a plugin must
-insert a *conditional step into core workflow chains*. `Workflows::Base` builds
-those chains; today the visual review loop is materialized by core based on
-`.syrus.yml` and a feature flag.
+move to `browser`, contributed as a `judge` (G12). `RepoVisualReviewPlan` moves
+with it, so the plugin reads its own `.syrus.yml` block instead of core
+materializing the loop. Intended as the proof of the anchor, since it exercises
+the hardest part: a judge is half a loop, not a step.
 
-This needs a workflow-composition extension point: plugins declare optional
-loops or steps that named chains will admit, with core owning ordering and the
-retry semantics. That is a real design problem and should not be smuggled in as
-part of a code move. Until it exists, visual review stays core.
+**`coverage`** — `coverage_snapshots`, the hit-map TTL, the analyzer, and
+`coverage_analyze`/`coverage_pr_comment`. A `post_implementation` contribution
+plus `RepoCoveragePlanReader` moving into the plugin. Straightforward once the
+anchor exists; it is a step that runs once after the loops, not a judge.
+
+**`review_plan`** — a new candidate this design surfaces. It is already the
+only step after `pr_open`, is opt-in per repository, and must never fail the
+parent workflow. That makes it the natural first `post_pr` plugin and a useful
+test that the anchor honours `fail_policy: :advance`.
 
 ### Deferred
 
@@ -916,8 +1047,14 @@ the core workflow model. Not a move candidate.
 **`syrus_dev` storage** — the admin pages, controllers, and tools moved; the
 models did not. `OperationalLogEvent`, `OperationalLogIndex`, and
 `BrowserErrorEvent` are still core, along with their indexing and prune jobs.
-Moving them needs G2 (prune jobs) and G6 (two of the seven FTS tables are
-theirs).
+Its two listed prerequisites, G2 and G6, have both landed, so this is now
+**unblocked and purely mechanical** — the same table-move shape `test_insights`
+and `agent_insights` already went through (rename to the `syrus_dev_` prefix,
+move models and migrations, declare the FTS tables through `:search_source`).
+
+The boundary stress test showed the plugin half is already clean: removing
+`syrus_dev` leaves the suite green once its fixture-dependent core specs are
+tagged, which they now are. The remaining work is the storage, not the seams.
 
 Open question carried forward: are browser and backend exception events core
 product diagnostics or dev observability? If core pages surface them, they stay
@@ -1033,8 +1170,28 @@ Consequences worth stating:
   `scheduled_task_id`, `external_ref`, and `input_source_id`.
 
 ### Phase 6 — Design work
-- Workflow composition extension point; only then `visual_review`.
-- Revisit `main_branch_health` and the wider GitHub extraction.
+- Workflow composition (G12) — anchors plus `judge`, with `visual_review` as
+  the proof, then `coverage` on `post_implementation` and `review_plan` on
+  `post_pr`. `adversarial_review` as a second judge is what shows the anchor is
+  not shaped around one caller.
+- Answer the `disableable` question the stress test raised (see Open
+  Questions). It gates the wider GitHub extraction, the agent-provider
+  plugins, and G12's mid-run disable case — three problems, one decision.
+- Revisit `main_branch_health`.
+
+### Ordering note
+
+Of what is left, the queue by readiness rather than by phase number:
+
+| | blocker |
+|---|---|
+| `terminal` | G7 only, plus one `ui_slot` move — nearest to ready |
+| `syrus_dev` storage | none; prerequisites landed, mechanical table move |
+| `video_walkthroughs` | a chat-turn prompt injection point (small, well-shaped) |
+| `visual_review`, `coverage`, `review_plan` | G12, now designed |
+| `scheduled_tasks` | G8, an open design question, not code |
+| `github_source`, `claude_agent`, `codex_agent` | the `disableable` decision |
+| `main_branch_health`, `delivery_tracks` | deferred by decision |
 
 ## Open Questions
 
