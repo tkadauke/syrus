@@ -469,6 +469,26 @@ RSpec.describe MainBranchHealthCheck do
     end
   end
 
+  describe ".broken_ci_result_exists?" do
+    it "returns true for a broken ci result" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+
+      expect(described_class.broken_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns false for a healthy ci result" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "healthy")
+
+      expect(described_class.broken_ci_result_exists?(repository: repository, sha: "abc")).to be(false)
+    end
+
+    it "does not match another SHA" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+
+      expect(described_class.broken_ci_result_exists?(repository: repository, sha: "def")).to be(false)
+    end
+  end
+
   describe ".settled_grader_result_exists?" do
     it "returns true for a healthy grader result" do
       described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
@@ -505,6 +525,26 @@ RSpec.describe MainBranchHealthCheck do
       described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "broken")
 
       expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+  end
+
+  describe ".broken_grader_result_exists?" do
+    it "returns true for a broken grader result" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "broken")
+
+      expect(described_class.broken_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns false for a healthy grader result" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
+
+      expect(described_class.broken_grader_result_exists?(repository: repository, sha: "abc")).to be(false)
+    end
+
+    it "does not match another SHA" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "broken")
+
+      expect(described_class.broken_grader_result_exists?(repository: repository, sha: "def")).to be(false)
     end
   end
 
