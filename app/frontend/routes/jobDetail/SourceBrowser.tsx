@@ -9,9 +9,10 @@ import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type C
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
-import { ReviewableDiff } from "../../components/diff/ReviewableDiff"
+import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
+import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree, sourceLanguage } from "./sourceTree"
 
@@ -22,7 +23,7 @@ import { buildSourceTree, sourceLanguage } from "./sourceTree"
 // imports, so it carries no circular edge back to the route file. Unused header
 // imports were pruned after the move.
 
-export function SourceTab({ jobId, coverageInfo }: { jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null }) {
+export function SourceTab({ canReviewDiff = false, jobId, coverageInfo }: { canReviewDiff?: boolean; jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null }) {
   const [mode, setMode] = useState<"browse" | "diff">("browse")
   const [sourceRef, setSourceRef] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
@@ -59,7 +60,7 @@ export function SourceTab({ jobId, coverageInfo }: { jobId: string; coverageInfo
       return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, t("source_diff_error"))}</PanelMessage></SourceShell>
     }
 
-    return <SourceDiffBrowser diffAnnotations={diffAnnotations} mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
+    return <SourceDiffBrowser canReviewDiff={canReviewDiff} diffAnnotations={diffAnnotations} mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
   }
 
   return <SourceBrowser coverageWorkflowId={coverageWorkflowId} expandedPaths={expandedPaths} hitMapAttached={hitMapAttached} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
@@ -252,6 +253,7 @@ function SourceShell({
 }
 
 function SourceDiffBrowser({
+  canReviewDiff,
   diffAnnotations,
   mode,
   onModeChange,
@@ -260,6 +262,7 @@ function SourceDiffBrowser({
   payload,
   showDiffToggle
 }: {
+  canReviewDiff: boolean
   diffAnnotations: Record<string, Record<string, LineAnnotation>> | null
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
@@ -273,10 +276,21 @@ function SourceDiffBrowser({
   const [renderMode, setRenderMode] = useState<"single-file" | "continuous">("single-file")
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
+  const feedback = useDiffReviewFeedback({
+    baseRef: payload.base_ref,
+    buildContext: sourceBrowserCommentContext,
+    enabled: canReviewDiff && Boolean(payload.base_ref && payload.head_ref),
+    headRef: payload.head_ref,
+    jobId: payload.job_id,
+    surface: "job_source_diff"
+  })
 
   useEffect(() => {
     if (selectedPath && !payload.files.some((file) => file.path === selectedPath)) setSelectedPath(null)
   }, [payload.files, selectedPath])
+  useEffect(() => {
+    if (feedback.selectedCommentPath) setSelectedPath(feedback.selectedCommentPath)
+  }, [feedback.selectedCommentPath])
 
   if (payload.diff_error) return <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}><PanelMessage tone="error">{payload.diff_error}</PanelMessage></SourceShell>
 
@@ -317,6 +331,7 @@ function SourceDiffBrowser({
           {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
         </div>
       </div>
+      {feedback.panel}
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
           {payload.files.length > 0 ? payload.files.map((file) => (
@@ -329,6 +344,7 @@ function SourceDiffBrowser({
             >
               <SourceDiffStatusBadge status={file.status} />
               <span className="min-w-0 flex-1 truncate">{file.path}</span>
+              {feedback.commentCounts[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{feedback.commentCounts[file.path]}</span> : null}
             </button>
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div>
@@ -336,9 +352,11 @@ function SourceDiffBrowser({
           {renderMode === "continuous" || selectedFile ? (
             <ReviewableDiff
               annotations={diffAnnotations}
+              comments={feedback.diffThreads}
               emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
               files={payload.files}
               mode={renderMode}
+              onCommentLine={feedback.onCommentLine}
               onSelectFile={setSelectedPath}
               selectedPath={selectedPath}
               showFileHeaders
@@ -349,6 +367,13 @@ function SourceDiffBrowser({
       </div>
     </SourceShell>
   )
+}
+
+function sourceBrowserCommentContext(selection: DiffLineSelection) {
+  return {
+    source_surface: "source_browser",
+    file_status: selection.file.status || null
+  }
 }
 
 function SourceDiffStatusBadge({ status }: { status: string }) {
