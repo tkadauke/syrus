@@ -180,6 +180,95 @@ describe("Markdown", () => {
     expect(pre?.querySelector("code")?.textContent).toBe("const x = 1")
   })
 
+  it("renders inline TeX math as selectable KaTeX HTML and MathML", () => {
+    const { container } = render(<Markdown text={"Smooth interpolation uses $t^2(3 - 2t)$ for easing."} />)
+
+    const math = container.querySelector(".syrus-inline-math")
+    expect(math).toBeInTheDocument()
+    expect(math?.querySelector(".katex-html")).toBeInTheDocument()
+    expect(math?.querySelector(".katex-mathml math")).not.toBeNull()
+    expect(math).toHaveTextContent("t")
+    expect(screen.getByText(/Smooth interpolation uses/)).toBeInTheDocument()
+  })
+
+  it("renders parenthesized inline TeX math delimiters", () => {
+    const { container } = render(<Markdown text={"The derivative is \\(2t\\)."} />)
+
+    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    expect(container.querySelector(".syrus-inline-math .katex-mathml math")).not.toBeNull()
+  })
+
+  it("renders numeric inline TeX formulas without treating prices as formulas", () => {
+    const { container } = render(<Markdown text={"Arithmetic $2+2=4$ costs $5 today."} />)
+
+    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    expect(screen.getByText(/costs \$5 today/)).toBeInTheDocument()
+  })
+
+  it("renders inline TeX math in list items and table cells", () => {
+    const { container } = render(
+      <Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />
+    )
+
+    expect(container.querySelector("li .syrus-inline-math .katex-html")).toBeInTheDocument()
+    expect(container.querySelector("td .syrus-inline-math .katex-html")).toBeInTheDocument()
+  })
+
+  it("preserves dollar-delimited math inside inline code spans as code text", () => {
+    const { container } = render(<Markdown text={"Use `$t^2$` literally in docs."} />)
+
+    expect(screen.getByText("$t^2$").tagName).toBe("CODE")
+    expect(container.querySelector(".syrus-inline-math")).toBeNull()
+  })
+
+  it("does not render inline math inside markdown link labels", () => {
+    const { container } = render(<Markdown text={"[$t^2$ details](/docs)"} />)
+
+    expect(screen.getByRole("link", { name: "$t^2$ details" })).toHaveAttribute("href", "/docs")
+    expect(container.querySelector(".syrus-inline-math")).toBeNull()
+  })
+
+  it("preserves dollar-delimited math inside fenced code blocks as code text", () => {
+    const { container } = render(<Markdown text={"```\nconst label = '$t^2$'\n```"} />)
+
+    expect(container.querySelector("pre code")).toHaveTextContent("const label = '$t^2$'")
+    expect(container.querySelector(".syrus-inline-math")).toBeNull()
+  })
+
+  it("does not treat ordinary currency as inline math", () => {
+    const { container } = render(<Markdown text={"The cost is $5 today and $10 tomorrow."} />)
+
+    expect(screen.getByText("The cost is $5 today and $10 tomorrow.")).toBeInTheDocument()
+    expect(container.querySelector(".syrus-inline-math")).toBeNull()
+  })
+
+  it("does not let rejected currency spans consume later inline math", () => {
+    const { container } = render(<Markdown text={"Cost is $5 today and formula $x^2$ renders."} />)
+
+    expect(screen.getByText(/Cost is \$5 today and formula/)).toBeInTheDocument()
+    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    expect(container.querySelector(".syrus-inline-math")).toHaveTextContent("x")
+  })
+
+  it("leaves unmatched dollar delimiters as prose", () => {
+    const { container } = render(<Markdown text={"This formula starts $t^2 but never closes."} />)
+
+    expect(screen.getByText("This formula starts $t^2 but never closes.")).toBeInTheDocument()
+    expect(container.querySelector(".syrus-inline-math")).toBeNull()
+  })
+
+  it("keeps slug autolinks working next to inline math", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Markdown text={"JOB-100 uses $t^2(3 - 2t)$ before EPIC-5."} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/100")
+    expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/5")
+    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+  })
+
   it("truncates pathological lines without disabling markdown rendering", () => {
     const { container } = render(<Markdown text={`# Notes\n\n${"a".repeat(45_000)}\n\n- Review`} />)
 
