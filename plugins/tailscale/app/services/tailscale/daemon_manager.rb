@@ -86,7 +86,7 @@ module Tailscale
 
     def run_tailscale_up!
       args = [ "tailscale", "--socket=#{SOCKET_PATH}", "up",
-               "--authkey=#{ENV['TS_AUTHKEY']}" ]
+               "--authkey=#{plugin_config(:auth_key)}" ]
       hostname = plugin_config("hostname")
       args << "--hostname=#{hostname}" if hostname.present?
       args << "--advertise-exit-node" if ActiveModel::Type::Boolean.new.cast(plugin_config("exit_node"))
@@ -104,8 +104,11 @@ module Tailscale
              out: File::NULL, err: File::NULL)
     end
 
+    # Reads through the declared config_schema rather than the raw
+    # PluginRecord row, so schema defaults apply and a secret only ever
+    # resolves from its declared env var.
     def plugin_config(key)
-      PluginRecord.find_by(name: "tailscale")&.config&.dig("settings", key)
+      Syrus::PluginSettings.get("tailscale", key)
     rescue StandardError
       nil
     end

@@ -14,7 +14,7 @@ module Tailscale
         connected: connected?(status),
         hostname: hostname,
         tailscale_url: hostname ? "https://#{hostname}" : nil,
-        auth_key_present: ENV["TS_AUTHKEY"].present?,
+        auth_key_present: Syrus::PluginSettings.for("tailscale").present?(:auth_key),
         net_admin_capable: File.exist?("/dev/net/tun")
       }
     end

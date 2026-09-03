@@ -766,6 +766,30 @@ recording:
   folder imports a package), so this is a known, accepted gap rather than
   something this migration solved.
 
+## Reading plugin settings
+
+`config_schema` declares an operator settings form. `Syrus::PluginSettings`
+reads it back:
+
+```ruby
+Syrus::PluginSettings.get("tailscale", :hostname)     # stored value, else the schema default
+Syrus::PluginSettings.for("tailscale").present?(:auth_key)
+Syrus::PluginSettings.for("tailscale").to_h           # every declared key, resolved
+```
+
+Resolution follows the schema entry's type:
+
+| Type | Source |
+|---|---|
+| `:secret_env` | `ENV[env_var]` only — never stored in or read from the database, so a secret cannot be exfiltrated through the settings API |
+| anything else | the operator's saved value, else the schema's `:default` |
+
+A key the schema does not declare returns `nil` rather than reading a raw
+column, so a typo fails at the call site instead of silently resolving to a
+stale value. Read through this rather than reaching into
+`PluginRecord#config["settings"]` directly: the raw row has no defaults applied
+and no secret handling.
+
 ## `domain_subscriber`
 
 Every other extension point lets a plugin contribute behavior when core asks

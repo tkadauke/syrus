@@ -12,7 +12,7 @@ module Tailscale
       end
 
       def on_tick
-        if ENV["TS_AUTHKEY"].present?
+        if Syrus::PluginSettings.for("tailscale").present?(:auth_key)
           DaemonManager.instance.restart_if_dead
           HostAllowlist.sync if DaemonManager.instance.alive?
         end
@@ -21,7 +21,7 @@ module Tailscale
       private
 
       def start_if_authkey_present
-        DaemonManager.instance.start if ENV["TS_AUTHKEY"].present?
+        DaemonManager.instance.start if Syrus::PluginSettings.for("tailscale").present?(:auth_key)
         return unless DaemonManager.instance.alive?
 
         HostAllowlist.sync
