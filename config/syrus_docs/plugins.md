@@ -217,9 +217,11 @@ payload for each plugin includes its declared `depends_on` array and a derived
 on it), so the relationship is visible on the Admin → Plugins page even before
 an operator tries to disable anything.
 
-The cheap source-boundary audit runs in normal specs:
+The cheap source-boundary audit runs as its own grader (`plugin-boundaries`,
+required in the review/landing/ci phases) and as a spec:
 
 ```bash
+bin/check-plugin-boundaries
 bundle exec rspec spec/architecture/plugin_source_boundary_audit_spec.rb
 ```
 
@@ -228,6 +230,13 @@ plugins, that the dependency graph is acyclic, that core code only reaches
 plugins through explicit extension boundaries or documented legacy exceptions,
 and that plugin-to-plugin source references follow a declared dependency edge
 directly or transitively.
+
+The audit reads git-tracked source only. Untracked and gitignored files are
+skipped, because the working tree can contain build output — `app/assets/builds/spa.js`
+is gitignored but present after any frontend build, and its minified contents
+match short plugin names well enough to report a violation that does not exist
+in the source. When no git index is available (the `git archive` copy the
+physical-removal script builds), everything is scanned instead.
 
 The stronger physical-absence prototype is manual for now:
 

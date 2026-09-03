@@ -185,6 +185,21 @@ grade:
     # 1-minute budget even when the checker itself has no findings.
     timeout_minutes: 3
 
+  - name: plugin-boundaries
+    description: |
+      Ensures core code never references a plugin, that plugin-to-plugin
+      references are covered by a declared dependency, that every
+      depends_on names an installed plugin, and that the dependency graph
+      is acyclic. Core depending on a plugin is what makes a plugin
+      undeletable, so this has to fail fast rather than surface as a
+      mysterious boot error after someone removes a gem.
+    run: bin/check-plugin-boundaries
+    phases: [review, landing, ci]
+    required: true
+    # Boots Rails to read the plugin registry, same as the model-namespace
+    # checker; the 1-minute budget is too tight under IO pressure.
+    timeout_minutes: 3
+
   - name: eager-load
     description: |
       Forces Rails.application.eager_load! to surface Zeitwerk

@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Fails when core code reaches into a plugin, when a plugin reaches into
+# another plugin it does not declare a dependency on, when a depends_on names
+# a plugin that is not installed, or when the dependency graph has a cycle.
+#
+# This is the static half of the plugin boundary rules. The stronger check --
+# physically removing a plugin and booting without it -- is the opt-in
+# bin/plugin-boundary-audit script, which is too slow for a grade loop.
+
+ENV["RAILS_ENV"] ||= "test"
+
+require_relative "../config/environment"
+
+audit = Admin::PluginSourceBoundaryAudit.new
+
+failures = []
+
+audit.missing_dependencies.each do |source, dependency|
+  failures << "#{source} declares depends_on #{dependency.inspect}, which is not an installed plugin"
+end
+
+audit.graph.cycles.each do |cycle|
+  failures << "dependency cycle: #{cycle.join(' -> ')}"
+end
+
+failures.concat(audit.core_violations.map(&:message))
+failures.concat(audit.plugin_violations.map(&:message))
+
+if failures.empty?
+  puts "Plugin source boundaries look good."
+  exit 0
+end
+
+warn "Plugin source boundary check failed:"
+failures.each { |failure| warn "- #{failure}" }
+exit 1
