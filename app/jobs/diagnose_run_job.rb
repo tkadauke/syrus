@@ -23,7 +23,7 @@ class DiagnoseRunJob < ApplicationJob
   }.freeze
 
   def perform(run_id)
-    run = Run.includes(:job, :step, job_logs: []).find_by(id: run_id)
+    run = Run.includes(:job, :step).find_by(id: run_id)
     return unless run
 
     snapshot = RunHealthSnapshot.new(run: run)
@@ -46,9 +46,10 @@ class DiagnoseRunJob < ApplicationJob
     snapshot.last_heartbeat_at     = hb
     snapshot.heartbeat_age_seconds = hb ? (Time.current - hb).to_i : nil
 
-    last_log = run.job_logs.last
+    logs = JobLog.where(run_id: run.id)
+    last_log = logs.reorder(sequence: :desc).select(:created_at, :chunk).first
     snapshot.last_log_at    = last_log&.created_at
-    snapshot.log_count      = run.job_logs.size
+    snapshot.log_count      = logs.count
     snapshot.last_log_preview = last_log&.chunk&.first(200)
 
     snapshot.agent_turns    = run.agent_turns

@@ -31,6 +31,17 @@ RSpec.describe DiagnoseRunJob do
     described_class.new
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   describe "#perform" do
     context "healthy run — fresh heartbeat, worktree present, agent running" do
       it "captures a healthy snapshot" do
@@ -72,6 +83,21 @@ RSpec.describe DiagnoseRunJob do
         snapshot = run.run_health_snapshots.last
         expect(snapshot.log_count).to eq(2)
         expect(snapshot.last_log_preview).to eq("Writing code.")
+      end
+
+      it "does not eager-load full JobLog rows to capture log counters" do
+        run = running_run
+        run.job_logs.create!(sequence: 0, chunk: "Starting implementation...")
+        run.job_logs.create!(sequence: 1, chunk: "Writing code.")
+
+        job = build_job
+        stub_sq_state(job, "claimed")
+        queries = capture_sql { job.perform(run.id) }
+
+        job_log_selects = queries.select { |sql| sql.match?(/SELECT .* FROM [`"]?job_logs[`"]?/i) }
+        expect(job_log_selects).not_to include(match(/SELECT [`"]?job_logs[`"]?\.\*/i))
+        expect(job_log_selects).to include(match(/COUNT/i))
+        expect(job_log_selects).to include(match(/chunk/i))
       end
     end
 
