@@ -130,6 +130,98 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Attempt running")).toBeInTheDocument()
   })
 
+  it("shows automatic failover copy on workflow cards", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [{
+              id: 12,
+              slug: "WF-12",
+              path: "/jobs/1?tab=workflows#workflow-12",
+              trigger_kind: "retry",
+              agent_provider: "codex",
+              provider_failover: {
+                mode: "automatic",
+                automatic: true,
+                original_provider: "claude",
+                original_provider_label: "Claude Code",
+                selected_provider: "codex",
+                selected_provider_label: "Codex",
+                reason: "provider_unavailable",
+                decided_at: "2026-08-01T12:01:00Z"
+              },
+              state: "running",
+              failure_count: 0,
+              artifacts: {},
+              cleaned_up_at: null,
+              retry_available: false,
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-08-01T12:01:00Z",
+              updated_at: null,
+              app_retry_step_path: "/workflows/12/retry",
+              app_push_commits_path: "/workflows/12/push_commits",
+              app_force_push_branch_path: "/workflows/12/force_push_branch",
+              app_discard_branch_output_path: "/workflows/12/discard_branch_output",
+              steps: []
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+
+  it("labels operator-selected workflow providers separately from automatic failover", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [{
+              id: 13,
+              slug: "WF-13",
+              path: "/jobs/1?tab=workflows#workflow-13",
+              trigger_kind: "retry",
+              agent_provider: "codex",
+              provider_failover: {
+                mode: "operator",
+                automatic: false,
+                original_provider: "claude",
+                original_provider_label: "Claude Code",
+                selected_provider: "codex",
+                selected_provider_label: "Codex",
+                reason: "operator_selected_provider",
+                decided_at: "2026-08-01T12:01:00Z"
+              },
+              state: "running",
+              failure_count: 0,
+              artifacts: {},
+              cleaned_up_at: null,
+              retry_available: false,
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-08-01T12:01:00Z",
+              updated_at: null,
+              app_retry_step_path: "/workflows/13/retry",
+              app_push_commits_path: "/workflows/13/push_commits",
+              app_force_push_branch_path: "/workflows/13/force_push_branch",
+              app_discard_branch_output_path: "/workflows/13/discard_branch_output",
+              steps: []
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Operator selected Codex for this workflow instead of Claude Code.")).toBeInTheDocument()
+  })
+
   it("shows blocked WorkUnit reasons and details without requiring the nested Workflow to be open", () => {
     render(
       <MemoryRouter>

@@ -330,4 +330,11 @@ describe("CredentialsRoute (provider cards)", () => {
       })
     })
   })
+
+  it("keeps automatic failover copy scoped to workflows instead of chats", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    expect(await screen.findByText("Chat sessions keep their selected chat provider; chats do not automatically fail over.")).toBeInTheDocument()
+  })
 })

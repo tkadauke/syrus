@@ -639,6 +639,7 @@ module Api
             agent_provider: workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
             provider_availability: provider_availability,
+            provider_failover: App::ProviderFailoverPayload.for_workflow(job.latest_workflow, configured_provider: workflow_agent_provider),
             job_path: job_path(job),
             source: job_source_json(job),
             pr_number: job.pr_number,
@@ -1206,7 +1207,6 @@ module Api
             status: :unprocessable_content
           )
         end
-
       end
     end
   end

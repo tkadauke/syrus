@@ -182,6 +182,28 @@ describe("ChatSettingsDialog", () => {
     expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
+  it("does not render workflow failover copy in chat provider settings", () => {
+    renderDialog(makePayload({
+      effective_chat_provider: "claude",
+      effective_chat_provider_label: "Claude",
+      provider_availability: {
+        provider: "claude",
+        label: "Claude Code",
+        model: null,
+        state: "open",
+        open: true,
+        usage_exhausted: false,
+        retry_after: "2026-08-01T12:10:00Z",
+        reason: "Provider appears temporarily unavailable.",
+        message: "Claude Code appears temporarily unavailable."
+      }
+    }))
+
+    expect(screen.getByText("Claude")).toBeInTheDocument()
+    expect(screen.queryByText(/running this workflow with/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/automatic failover/i)).not.toBeInTheDocument()
+  })
+
   it("renders configured explicit provider options and switches through the switch endpoint", async () => {
     vi.mocked(switchChatProvider).mockResolvedValue({ message: "Switching to codex." })
     const payload = makePayload({

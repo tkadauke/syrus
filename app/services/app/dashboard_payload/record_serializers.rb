@@ -43,6 +43,7 @@ module App
           agent_provider: workflow_agent_provider,
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
+          provider_failover: provider_failover_for(job),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
@@ -246,6 +247,13 @@ module App
 
       def deployment_stages_configured?(repository)
         deployment_stages_for(repository).any?
+      end
+
+      def provider_failover_for(job)
+        workflow = latest_workflow_for(job)
+        return nil unless workflow
+
+        App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: job.workflow_agent_provider)
       end
 
       def deployment_stages_for(repository)
