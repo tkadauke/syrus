@@ -623,6 +623,21 @@ Language plugins keep contributing parsers via `test_result_parser`; the
 **`agent_memory`** — `ChatMemory`, `ChatMemoryAuditEvent`, nine MCP tools, the
 `/memories` page, the filter subject, and `Prompts::MemoryContext`.
 
+**Ordering constraint, found while starting it:** this cannot move before
+`agent_insights`. `InsightSuggestion` declares
+`belongs_to :target_memory, class_name: "ChatMemory"` and does
+`left_joins(:target_memory)`, and `insight_suggestions.target_memory_id` carries
+a database foreign key to `chat_memories`. Moving memory first would leave a
+core model with a `belongs_to` and a SQL join into a plugin table — a boundary
+violation the grader would reject, and one no `defined?` guard can paper over
+because it is in the schema.
+
+The two move together, or insights moves first. Since `agent_insights` also
+needs G1/G2/G3 (all now in place), the cheapest order is: `agent_insights`
+first, then `agent_memory` with `agent_insights` declaring
+`depends_on: ["agent_memory"]` — at which point the FK is plugin-to-plugin,
+which is legal.
+
 Frame this as **swappable, not merely optional**: define a `memory_store`
 extension point (read/write/delete/search/list plus prompt-context rendering),
 make the current implementation the default provider, and have core prompts call
