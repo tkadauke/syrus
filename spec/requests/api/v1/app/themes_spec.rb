@@ -299,5 +299,20 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       expect(response).to have_http_status(:not_found)
       expect(mine.reload.position).to eq(0)
     end
+
+    it "rejects malformed ids without partially reordering" do
+      user = Factories.user
+      first = theme(slug: "first", built_in: false, owner_user: user, position: 0, tokens: legible_tokens)
+      second = theme(slug: "second", built_in: false, owner_user: user, position: 1, tokens: legible_tokens)
+      sign_in_as(user)
+
+      patch "/api/v1/app/themes/reorder", params: { ids: [ second.id, "bogus" ] }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to eq("ids must contain only integers.")
+      expect(first.reload.position).to eq(0)
+      expect(second.reload.position).to eq(1)
+    end
   end
 end
