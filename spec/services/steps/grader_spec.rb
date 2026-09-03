@@ -190,11 +190,8 @@ RSpec.describe Steps::Grader, :ci_only do
       .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
       .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
 
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:domain_subscriber).and_call_original
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
@@ -207,11 +204,8 @@ RSpec.describe Steps::Grader, :ci_only do
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:domain_subscriber).and_call_original
 
     handler.call
   end
