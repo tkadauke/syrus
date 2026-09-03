@@ -43,6 +43,16 @@ to be blocked, both for reasons the inventory missed:
 
 Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
 
+**The registry model itself is changing (G13).** Registration becomes an
+*effect* — a plugin installs its contributions and hands back the teardown,
+disposed in reverse when it is disabled or unloaded — replacing 47
+`providers_for` call sites that re-derive the active set on every call, and the
+hand-invalidated caches behind them that produced most of this session's bugs.
+Extension points become owned rather than centrally enumerated, so a plugin can
+host a point other plugins contribute to (`search:source`), which is what
+"search should be a plugin" requires. This lands before further extractions,
+because it changes how every plugin registers. Principles 8 and 9, G13.
+
 **Phase 6 designed, not started.** Workflow composition is written up as G12:
 four anchors (`judge`, `post_implementation`, `post_pr`, plus the existing
 fixed tail), with the `judge` contract carrying the weight because a judge is
@@ -199,7 +209,16 @@ These are rules, not preferences. A move that cannot satisfy them is not ready.
 7. **A Job's provenance is generic.** Plugins that create Jobs record an
    origin and an id, never a bespoke core column and never a stored URL. See
    Job Origin.
-8. **Plugin tables are namespace-prefixed**, enforced by
+8. **A plugin installs its contributions and can take them back.** Registration
+   is an *effect*: the plugin performs an install and hands back the teardown,
+   and disabling or unloading runs those teardowns in reverse. Core does not
+   poll the registry from every use site to discover what is currently active;
+   the active set *is* what is installed. See G13.
+9. **Extension points are owned, not centrally enumerated.** Any plugin may
+   host a point for other plugins to contribute to, declared in its manifest
+   and named for its owner (`search:source`). Core's own points are simply
+   the ones the kernel hosts. See G13.
+10. **Plugin tables are namespace-prefixed**, enforced by
    `bin/check-plugin-model-namespaces`. STI onto a core-owned table is the only
    exception and stays rare.
 
@@ -593,7 +612,11 @@ through the persisted `chain_template` with no new persistence work, and the
 step kind plus handler already come from `:workflow_kinds` (G3). What is
 missing is only the *positions*.
 
-**Four anchors**, of which two are ordinary step insertion:
+**Four anchors**, of which two are ordinary step insertion. Under G13 these are
+points the *workflow host* declares (`workflow:judge`,
+`workflow:post_implementation`, `workflow:post_pr`) rather than three more
+names in core's frozen enum — which is the more honest home for them, since
+core never wanted to know about judges:
 
 ```
 prepare
@@ -651,13 +674,95 @@ second grader implementation exists to justify it.
 workflow keeps its shape when a plugin is disabled mid-run — but the handler is
 gone and `Step::Kind` lookup fails on the next dispatch. This is the
 `disableable` question from the stress-test findings with a running workflow
-attached; the "refuse the disable" option covers it directly (refuse while the
-plugin owns step kinds in a non-terminal workflow).
+attached. G13 supplies the mechanism (disable disposes what was installed); the
+policy on top of it is still a choice — refuse the disable while the plugin
+owns step kinds in a non-terminal workflow is the safest.
 
 Build order: the anchors plus `judge`, with `visual_review` as the proof, then
 `coverage` on `post_implementation` and `review_plan` on `post_pr`.
 `adversarial_review` as a second judge is what shows the anchor is not shaped
 around one caller.
+
+### G13. Installation effects and federated extension points
+
+The registry is a *pull* model today: 47 `providers_for(...)` call sites in
+core, each re-asking "which plugins are active and what do they contribute?"
+on every call. Nothing is ever installed, so nothing ever has to be removed —
+which sounds simple until you count what it costs.
+
+**What it actually costs.** Every derived view of plugin state has to be
+cached and invalidated by hand, and each such cache has been a bug:
+`Workflows::REGISTRY` froze the enabled set at autoload; `Job::KINDS` and
+`Workflow::TRIGGER_KINDS` did the same; `Syrus::KindRegistry` needs a
+generation counter to stay honest. Meanwhile six registrations are *already*
+push-style — `Filters.register_subject`, `SmartFolder.register_subject!`,
+`HostAssociations.apply!` — with no teardown at all, which is why
+`HostAssociations` needs a `reflect_on_association` guard to survive reload and
+why a disabled plugin's filter subject stays registered. We converged on
+push-registration independently; we just never recorded the cleanup.
+
+**The model.** Prior art: Cordis (the kernel under DeepSeek Harness). Its
+`effect(execute) -> Disposable` runs an install whose return value is the
+disposer; disposers collect on the owning fiber and run **in reverse order** on
+teardown; effects nest, so a child's disposer registers on its parent and
+unloading a plugin disposes its whole subtree. It also refuses to create an
+effect on an inactive context.
+
+**What does not transfer.** Cordis is one long-lived Node process with a live
+object graph. Syrus is multi-process — web pods, worker pods, MCP sidecar
+subprocesses, `bin/rails runner` — plus Zeitwerk reloading in development. An
+effect installed in one process cannot be disposed by an admin click served by
+another. So ours is not a one-shot mount: each process installs from current
+plugin state and re-applies (disposing first, in reverse) when
+`PluginRegistry.generation` moves. Closer to `useEffect` with a dependency than
+to a fiber mount. Reload gets *safer* rather than more dangerous, because
+teardown replaces the idempotence guards.
+
+**Registration and evaluation are different things.** An early draft of this
+section claimed context-dependent providers had to stay pull, because
+`repo_page_tabs(repository:, user:)` cannot be answered at install time. That
+conflated two steps. The *set* of tab providers is a static install; the
+per-repository, per-user filtering is evaluation over that installed set. Same
+for `available_for?(chat_session, tier:)` and `enabled_for?(job)`. Effects
+install; call sites evaluate.
+
+**Federated extension points.** `EXTENSION_POINTS` is a frozen array of names
+in core and `providers_for` raises on anything else, so a plugin can only
+contribute to a point core anticipated. `search_source` shows the limit: it
+exists and `test_insights` contributes to it, but *search itself is core*, so
+the interface had to be pre-declared by the kernel. G6 made search a plugin
+**host** without making it a plugin.
+
+Under this model a plugin declares the points it hosts, and contributions name
+them qualified — `search:source`, `workflow:judge`. Core's points are the ones
+the kernel hosts, nothing more. Contributing to `search:source` implies
+`depends_on: ["search"]`, which the existing health model already handles: a
+disabled hard dependency degrades the dependent and withholds its providers.
+
+Two properties to preserve deliberately:
+
+- **Declared, not free-form.** Plugin-hosted points still go in the manifest.
+  `EXTENSION_POINTS` + `INTERFACE_FOR` is what lets the boundary audit and the
+  graders reason about the surface; federating that list must not mean losing
+  it.
+- **Disposal cascades both ways.** A contribution to a plugin-hosted point has
+  two lifetimes — dispose when the contributor unloads, and when the host
+  unloads. This is what effect nesting buys, and it is the part most likely to
+  be got wrong if each call site hand-rolls it, so it belongs in the mechanism.
+
+**This is the answer to the `disableable` open question**, which currently
+gates three separate things: the wider `github_source` extraction, the
+agent-provider plugins, and G12's mid-run disable where a persisted
+`chain_template` references a step kind whose handler just vanished. "Disable
+means dispose what was installed" turns `disableable: true` from a claim into a
+mechanism, and reverse-order disposal is what makes `agent_insights` unwind
+before `agent_memory`.
+
+**Build order.** The mechanism first (install + teardown + generation
+re-apply), then manifest-declared namespaced points, proven on the kind
+registries — `Job::Kind`, `Workflow::TriggerKind`, `Step::Kind` — because that
+is where the staleness bugs actually happened. `bin/plugin-boundary-audit` is
+the proof that removal removes.
 
 ## Job Origin
 
@@ -1169,7 +1274,10 @@ Consequences worth stating:
 - Job Origin step 3: move readers onto origin predicates and drop
   `scheduled_task_id`, `external_ref`, and `input_source_id`.
 
-### Phase 6 — Design work
+### Phase 6 — Registry model, then design work
+- G13 first: installation effects with teardown, then manifest-declared
+  namespaced extension points, proven on the kind registries and verified with
+  `bin/plugin-boundary-audit`. Everything below assumes it.
 - Workflow composition (G12) — anchors plus `judge`, with `visual_review` as
   the proof, then `coverage` on `post_implementation` and `review_plan` on
   `post_pr`. `adversarial_review` as a second judge is what shows the anchor is
@@ -1190,7 +1298,7 @@ Of what is left, the queue by readiness rather than by phase number:
 | `video_walkthroughs` | a chat-turn prompt injection point (small, well-shaped) |
 | `visual_review`, `coverage`, `review_plan` | G12, now designed |
 | `scheduled_tasks` | G8, an open design question, not code |
-| `github_source`, `claude_agent`, `codex_agent` | the `disableable` decision |
+| `github_source`, `claude_agent`, `codex_agent` | G13 for the mechanism, then the data half of the `disableable` decision |
 | `main_branch_health`, `delivery_tracks` | deferred by decision |
 
 ## Open Questions
@@ -1198,7 +1306,13 @@ Of what is left, the queue by readiness rather than by phase number:
 **How should a plugin that rows already reference be disabled?** The stress
 test found `claude_agent` is marked `disableable: true` but disabling it makes
 every `agent_provider: "claude"` row invalid (see the stress-test findings
-above). Three candidate answers, none obviously right:
+above).
+
+G13 answers the *mechanical* half — disable disposes what the plugin installed,
+so its kinds, subjects, tabs and steps genuinely go away instead of lingering
+in a hand-invalidated cache. It does not answer the *data* half: rows that
+already reference the plugin outlive any teardown. Three candidates there, none
+obviously right:
 
 1. Dynamic default — drop the `"claude"` column default and pick the first
    registered provider at write time. Cheapest, but a migration across four
