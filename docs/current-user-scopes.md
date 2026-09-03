@@ -174,6 +174,7 @@ per-user/private:
   - plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/repository_preview_controller.rb
+  - app/controllers/api/v1/app/repository_recommendations_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -368,6 +369,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/repositories_controller.rb` | admin-tier and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, admin-tier `RepositoryMembership` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to global admins. |
 | `app/controllers/api/v1/app/repository_memberships_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `RepositoryMembership` rows, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repositories_controller.rb`. Refuses to remove or demote the last `admin`-tier member of a repository. |
 | `app/controllers/api/v1/app/repository_team_grants_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `TeamRepository` grants for a repository, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repository_memberships_controller.rb` — see [Teams](#teams). |
+| `app/controllers/api/v1/app/repository_recommendations_controller.rb` | per-user/private and repository-write affordance | Recommendation actions resolve repositories through `Repository.accessible_to(Current.user)` and re-check the applicable recommendation for that user; job CTAs require `RepositoryPolicy#write?`, while setting toggles require `RepositoryPolicy#update?`. |
 | `app/controllers/api/v1/app/teams_controller.rb` | team-tier | Team CRUD, scoped through `TeamPolicy`/`policy_scope(Team)`: visible to any team member or global admin, mutable by owner-tier `TeamMembership` or global admin. Any authenticated user may create a team. |
 | `app/controllers/api/v1/app/team_memberships_controller.rb` | team-tier | Lists, adds, changes the role of, and removes `TeamMembership` rows, gated by `TeamPolicy#write?` (owner-tier or global admin). Refuses to remove or demote the last `owner`-tier member of a team. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
