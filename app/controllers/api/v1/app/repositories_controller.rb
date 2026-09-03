@@ -366,6 +366,9 @@ module Api
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
               delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) { ::App::DeliveryTracksPayload.for(repository: repository) },
+              recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
+                ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
+              end,
               jobs: PerformanceLogging.phase("repository_detail.jobs_json", repository_id: repository.id, job_count: jobs.size) { jobs.map { |job| job_json(job) } },
               pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
               preview: PerformanceLogging.phase("repository_detail.preview", repository_id: repository.id) { repository_preview_json(repository) },
@@ -1206,7 +1209,6 @@ module Api
             status: :unprocessable_content
           )
         end
-
       end
     end
   end
