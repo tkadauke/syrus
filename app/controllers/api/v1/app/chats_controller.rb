@@ -1716,6 +1716,7 @@ module Api
 
           {
             id: chat_session.id,
+            current_user_id: Current.user.id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,

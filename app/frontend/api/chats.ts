@@ -22,6 +22,7 @@ export type ChatParticipant = {
 
 export type ChatRecord = {
   id: number
+  current_user_id?: number
   title: string | null
   title_pending: boolean
   system_kind?: ChatSystemKind | null
