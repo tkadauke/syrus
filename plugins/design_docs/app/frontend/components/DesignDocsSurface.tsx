@@ -259,8 +259,8 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
   )
 }
 
-function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, title: string, markdown: string) {
-  return `${docId}:${mode}:${title}:${markdown}`
+function persistedDraftFingerprint(docId: string | number, title: string, markdown: string) {
+  return `${docId}:${title}:${markdown}`
 }
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
@@ -293,7 +293,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
-  const persistedDraftRef = useRef(`${doc.id}:${canWriteCanonical ? "edit" : "suggest"}:${doc.title}:${doc.rendered_markdown || doc.markdown}`)
+  const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
@@ -319,7 +319,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         change_summary: summary
       }),
     onSuccess: (payload) => {
-      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
       onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
@@ -343,7 +343,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         autosave: true
       }),
     onSuccess: (payload) => {
-      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       onDocChange(payload.design_doc)
     }
   })
@@ -456,11 +456,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
-    persistedDraftRef.current = persistedDraftFingerprint(doc.id, canWriteCanonical ? "edit" : "suggest", doc.title, doc.rendered_markdown || doc.markdown)
+    persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
-    const fingerprint = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+    const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
     if (fingerprint === persistedDraftRef.current) return
     if (autosaveMutation.isPending) return
 
