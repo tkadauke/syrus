@@ -35,7 +35,7 @@ module Steps
     end
 
     # `bash -c` so quoting / pipelines / && in the command work. cwd =
-    # workspace path. Env scrubbed via Prepare::PREP_ENV_FORWARD +
+    # workspace path. Env scrubbed via Prepare.prep_env_forward +
     # unsetenv_others. Streams stdout+stderr (popen2e merges them) into
     # JobLog one buffered chunk at a time so the operator can watch the
     # deploy live. Hard timeout via a watcher thread that SIGTERMs the
@@ -57,7 +57,7 @@ module Steps
         }
       ).run
       flush_log_buffer(buffer)
-      capture_sccache_stats!(step_kind: "deploy", label: cmd)
+      publish_command_completed!(step_kind: "deploy", label: cmd)
 
       return if result.success? && !result.timed_out
 
@@ -124,7 +124,7 @@ module Steps
     end
 
     def env
-      ProcessRunner.forwarded_env(Prepare::PREP_ENV_FORWARD, extra: workspace_dependency_env)
+      ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env)
     end
   end
 end

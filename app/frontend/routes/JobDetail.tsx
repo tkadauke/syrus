@@ -21,7 +21,7 @@ import { Select } from "../components/Select"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
-import { SccacheCard } from "../components/SccacheCard"
+import { PluginUiSlot } from "../pluginUiSlots"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
@@ -404,7 +404,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 
           {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
-          {payload.sccache ? <SccacheCard sccache={payload.sccache} /> : null}
+          <PluginUiSlot panels={payload.ui_panels} props={{ job: payload.job }} />
 
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 

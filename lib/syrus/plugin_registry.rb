@@ -27,6 +27,7 @@ module Syrus
       workspace_tab
       ui_slot
       domain_subscriber
+      step_environment
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -56,7 +57,8 @@ module Syrus
       affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
       ui_slot:                 -> { Syrus::Plugin::UiSlot },
-      domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber }
+      domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
+      step_environment:        -> { Syrus::Plugin::StepEnvironment }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

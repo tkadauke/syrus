@@ -97,7 +97,7 @@ module Steps
     end
 
     def env
-      ProcessRunner.forwarded_env(Prepare::PREP_ENV_FORWARD, extra: workspace_dependency_env)
+      ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env)
     end
   end
 end

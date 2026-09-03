@@ -60,10 +60,27 @@ module Steps
       AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
     ].freeze
 
-    PREP_ENV_FORWARD = (%w[
+    BASE_ENV_FORWARD = %w[
       HOME USER LOGNAME PATH TERM LANG LC_ALL LC_CTYPE TZ HOSTNAME TMPDIR SHELL
       MISE_DATA_DIR
-    ] + SCCACHE_ENV_FORWARD).freeze
+    ].freeze
+
+    # Plugins whose tooling needs configuration inside step subprocesses
+    # contribute their own ENV names through :step_environment. Resolved per
+    # call rather than frozen into a constant so enabling or disabling a plugin
+    # takes effect without a restart.
+    def self.prep_env_forward
+      plugin_keys = Syrus::PluginRegistry.providers_for(:step_environment).flat_map do |provider|
+        PerformanceLogging.plugin_call(extension_point: :step_environment, provider: provider, operation: :forwarded_env_keys) do
+          Array(provider.forwarded_env_keys).map(&:to_s)
+        end
+      rescue StandardError => e
+        Rails.logger.error("[Steps::Prepare] #{provider} forwarded_env_keys failed: #{e.class}: #{e.message}")
+        []
+      end
+
+      (BASE_ENV_FORWARD + plugin_keys).uniq.freeze
+    end
 
     def call
       workspace.setup
@@ -129,7 +146,7 @@ module Steps
         }
       ).run
       flush_log_buffer(buffer)
-      capture_sccache_stats!(step_kind: "prepare", label: cmd)
+      publish_command_completed!(step_kind: "prepare", label: cmd)
 
       return true if result.success? && !result.timed_out
 
@@ -286,7 +303,7 @@ module Steps
     end
 
     def env
-      ProcessRunner.forwarded_env(PREP_ENV_FORWARD, extra: workspace_dependency_env)
+      ProcessRunner.forwarded_env(self.class.prep_env_forward, extra: workspace_dependency_env)
     end
 
     # Computed fresh every Run (not cached on Repository) so a repo's

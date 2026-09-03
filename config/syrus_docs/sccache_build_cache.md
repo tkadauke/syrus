@@ -146,18 +146,38 @@ Non-coverage compile commands can still use shared sccache normally.
 
 ## Cache stats
 
-After every `prepare` and `grader` shell command runs (with the compiler masquerade active), Syrus captures `sccache --show-stats --stats-format=json` best-effort and appends it to `workflow.artifacts["sccache_stats"]` (see `Workflow::SccacheArtifact`). Each entry records which Run/Step produced it and the raw stats payload. `--show-stats` reports the sccache daemon's cumulative counters since the local server process started, not a delta for the single command that just ran — diff adjacent entries for a per-command figure.
+After every `prepare` and `grader` shell command runs (with the compiler masquerade active), Syrus captures `sccache --show-stats --stats-format=json` best-effort and appends it to `workflow.artifacts["sccache_stats"]` (see `BuildCache::StatsArtifact`). Each entry records which Run/Step produced it and the raw stats payload. `--show-stats` reports the sccache daemon's cumulative counters since the local server process started, not a delta for the single command that just ran — diff adjacent entries for a per-command figure.
 
 This capture always runs (best-effort, non-fatal) regardless of whether `sccache` is actually doing anything useful for that repo — a repo with no C/C++ code just gets a near-instant no-op read (or, before the `sccache` binary existed on a given worker image, a silent skip).
 
 ## Cache stats UI
 
-The Job detail page's Summary tab shows a "Compiler Cache (sccache)" card (`SccacheCard.tsx`) next to the Coverage card, using the same pattern: `App::JobDetailPayload#latest_sccache_json` (`app/services/app/job_detail_payload.rb`) finds the most recent `sccache_stats` capture across the Job's Workflows (by the capture's own `captured_at`, not the owning Workflow's), and `SccacheStatsSummary` (`app/services/sccache_stats_summary.rb`) best-effort-normalizes the raw `stats` payload into `hits`/`misses`/`hit_rate`/`cache_size`/`max_cache_size`/`cache_location` — tolerant of the shape differences sccache versions have shown (flat integers vs. per-language `counts` maps, top-level vs. nested under a `"stats"` key). The panel renders only when at least one capture exists anywhere on the Job; older Runs, non-C++ repos, and Runs predating the sccache wrapper simply omit it — no error state.
+The Job detail page's Summary tab shows a "Compiler Cache (sccache)" card (`SccacheCard.tsx`) next to the Coverage card, using the same pattern: `BuildCache::UiSlots` (which contributes the card to the `job.detail` slot) finds the most recent `sccache_stats` capture across the Job's Workflows (by the capture's own `captured_at`, not the owning Workflow's), and `BuildCache::StatsSummary` best-effort-normalizes the raw `stats` payload into `hits`/`misses`/`hit_rate`/`cache_size`/`max_cache_size`/`cache_location` — tolerant of the shape differences sccache versions have shown (flat integers vs. per-language `counts` maps, top-level vs. nested under a `"stats"` key). The panel renders only when at least one capture exists anywhere on the Job; older Runs, non-C++ repos, and Runs predating the sccache wrapper simply omit it — no error state.
 
 ## Admin: inspecting and clearing the bucket
 
-`/admin/build_cache` (nav: Admin → Build Cache, `AdminBuildCache.tsx`) talks to the bucket directly via the S3 API — not through Run artifacts — to show aggregate footprint: object count, total size, and oldest/newest object age. `Admin::BuildCache::Client` (`app/services/admin/build_cache/client.rb`) wraps `Aws::S3::Client`, reading the exact same `SCCACHE_BUCKET` / `SCCACHE_ENDPOINT` / `SCCACHE_REGION` / `SCCACHE_S3_KEY_PREFIX` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars documented above — there is one credential source for the whole cache feature, not a second one for the admin UI. The page renders a "not configured" notice instead of an error when `SCCACHE_BUCKET` is unset. A single stats/clear pass is capped at `Admin::BuildCache::Client::MAX_OBJECTS_SCANNED` (200,000) objects; the UI surfaces a "truncated" notice when the real totals may be higher rather than silently under-reporting.
+`/admin/build_cache` (nav: Admin → Build Cache, `AdminBuildCache.tsx`) talks to the bucket directly via the S3 API — not through Run artifacts — to show aggregate footprint: object count, total size, and oldest/newest object age. `BuildCache::Client` wraps `Aws::S3::Client`, reading the exact same `SCCACHE_BUCKET` / `SCCACHE_ENDPOINT` / `SCCACHE_REGION` / `SCCACHE_S3_KEY_PREFIX` / `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars documented above — there is one credential source for the whole cache feature, not a second one for the admin UI. The page renders a "not configured" notice instead of an error when `SCCACHE_BUCKET` is unset. A single stats/clear pass is capped at `BuildCache::Client::MAX_OBJECTS_SCANNED` (200,000) objects; the UI surfaces a "truncated" notice when the real totals may be higher rather than silently under-reporting.
 
-Clearing the bucket (full, or scoped to objects older than N days) never fires directly off a button click. It follows this codebase's pending-action pattern: submitting the form creates a `pending` `AdminBuildCacheClearRequest` with a required audit `reason` but does **not** touch the bucket; a separate "Confirm and clear" action (behind a `useConfirm` dialog) actually executes the deletion via `AdminBuildCacheClearRequest#confirm!`, which records the outcome (`deleted_count`, `bytes_freed`, `truncated`) on the request and logs an `AdminAction` (`build_cache_clear`) for audit. A pending request can also be cancelled without ever touching the bucket. Only one request may be pending at a time. This mirrors — but does not reuse — `ChatPendingAction`'s confirm+reason+audit flow, since that model is chat-session-scoped and this is a plain admin-UI surface with no chat involved.
+Clearing the bucket (full, or scoped to objects older than N days) never fires directly off a button click. It follows this codebase's pending-action pattern: submitting the form creates a `pending` `BuildCache::ClearRequest` with a required audit `reason` but does **not** touch the bucket; a separate "Confirm and clear" action (behind a `useConfirm` dialog) actually executes the deletion via `BuildCache::ClearRequest#confirm!`, which records the outcome (`deleted_count`, `bytes_freed`, `truncated`) on the request and logs an `AdminAction` (`build_cache_clear`) for audit. A pending request can also be cancelled without ever touching the bucket. Only one request may be pending at a time. This mirrors — but does not reuse — `ChatPendingAction`'s confirm+reason+audit flow, since that model is chat-session-scoped and this is a plain admin-UI surface with no chat involved.
 
 Endpoints: `GET /api/v1/app/admin/build_cache` (stats + pending/recent requests), `POST /api/v1/app/admin/build_cache/clear_requests` (create pending), `POST .../clear_requests/:id/confirm`, `POST .../clear_requests/:id/cancel` — session-authenticated, admin-only. `GET /api/v1/admin/build_cache` exposes the same read-only stats to bearer-token external API clients; destructive actions are intentionally not exposed on that surface.
+
+## Plugin ownership
+
+Everything above lives in the `build_cache` plugin: the S3 client, the stats
+capture and summary, the clear-request model (table `build_cache_clear_requests`),
+the admin page, and the Job-detail card.
+
+Two core hooks make that possible. `Syrus::Plugin::StepEnvironment` lets the
+plugin contribute the `SCCACHE_*` and `AWS_*` names that `Steps::Prepare`
+forwards into prepare/grader/deploy subprocesses -- core no longer names them.
+And the capture runs as a `domain_subscriber` on `step.command.completed`, an
+inline event published after each shell command a step runs, replacing the
+`Steps::Base#capture_sccache_stats!` call that three step classes used to make
+directly. Inline delivery is what lets the subscriber still reach the workspace
+and the command's own scrubbed environment before the workspace is torn down.
+
+Disabling the plugin stops the captures, drops the `SCCACHE_*` variables from
+step subprocesses (so sccache falls back to its local cache), and removes the
+admin page and the Job-detail card. The recorded artifacts and clear-request
+rows are left alone.

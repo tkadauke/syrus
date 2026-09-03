@@ -51,9 +51,9 @@ module App
           pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
-          sccache: PerformanceLogging.phase("job_detail.sccache", job_id: @job.id) { latest_sccache_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
+          ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
           has_test_results: PerformanceLogging.phase("job_detail.has_test_results", job_id: @job.id) { has_test_results? },
           feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
@@ -620,36 +620,6 @@ module App
       {
         workflow_id: workflow.id,
         coverage: coverage_artifact_json(coverage)
-      }
-    end
-
-    # Latest sccache compiler-cache stats capture across this Job's Workflows
-    # (Workflow::SccacheArtifact, EPIC-251). Compared by the capture's own
-    # `captured_at`, not the owning workflow's created_at, so an in-progress
-    # follow-up workflow with a fresher capture always wins. Returns nil when
-    # no Workflow has ever captured a snapshot (non-C/C++ repos, older Runs,
-    # or a worker image without the sccache wrapper) — the UI omits the panel
-    # silently in that case.
-    def latest_sccache_json
-      entry = artifact_workflows_matching("sccache_stats").filter_map do |workflow|
-        next unless workflow.artifacts.is_a?(Hash)
-
-        latest = Workflow::SccacheArtifact.read(workflow).last
-        next unless latest.is_a?(Hash)
-
-        [ workflow, latest ]
-      end.max_by { |_workflow, latest| latest["captured_at"].to_s }
-      return unless entry
-
-      workflow, latest = entry
-      {
-        workflow_id: workflow.id,
-        run_id: latest["run_id"],
-        step_kind: latest["step_kind"],
-        label: latest["label"],
-        iteration: latest["iteration"],
-        captured_at: latest["captured_at"],
-        summary: SccacheStatsSummary.for(latest["stats"]).to_h
       }
     end
 

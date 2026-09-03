@@ -77,7 +77,7 @@ module Steps
       end
 
       flush.call
-      capture_sccache_stats!(step_kind: "grader", label: name)
+      publish_command_completed!(step_kind: "grader", label: name)
 
       record_grader_side_effect_warning!(
         name: name,
@@ -274,7 +274,7 @@ module Steps
     end
 
     def env
-      ProcessRunner.forwarded_env(Prepare::PREP_ENV_FORWARD)
+      ProcessRunner.forwarded_env(Prepare.prep_env_forward)
     end
   end
 end

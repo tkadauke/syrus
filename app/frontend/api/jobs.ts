@@ -889,6 +889,7 @@ export type DeployActionPayload = {
 }
 
 export type JobDetailPayload = {
+  ui_panels?: Array<{ id: string; component: string; order: number }>
   message?: string | null
   job: JobRecord
   repository: JobRepository
@@ -907,7 +908,6 @@ export type JobDetailPayload = {
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
-  sccache: JobSccacheInfo | null
   summary: JobSummary | null
   test_plan: JobTestPlan | null
   has_test_results: boolean
@@ -1077,22 +1077,6 @@ export type CoverageArtifact = {
 // Workflow::SccacheArtifact entries normalized through SccacheStatsSummary.
 // `summary` fields are individually nullable since the raw
 // `sccache --show-stats` shape isn't guaranteed across sccache versions.
-export type JobSccacheInfo = {
-  workflow_id: number
-  run_id: number | null
-  step_kind: string | null
-  label: string | null
-  iteration: number | null
-  captured_at: string | null
-  summary: {
-    hits: number | null
-    misses: number | null
-    hit_rate: number | null
-    cache_size: number | string | null
-    max_cache_size: number | string | null
-    cache_location: string | null
-  }
-}
 
 export type WorkflowCoverageHitMapPayload = {
   hit_map_attached: boolean

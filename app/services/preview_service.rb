@@ -210,7 +210,7 @@ class PreviewService
 
   def preview_process_env(source, workspace_path)
     env = ProcessRunner.forwarded_env(
-      Steps::Prepare::PREP_ENV_FORWARD,
+      Steps::Prepare.prep_env_forward,
       extra: WorkspaceDependencyEnv.for(workspace_path)
     )
     Array(source.unset_env).each { |name| env[name.to_s] = nil }

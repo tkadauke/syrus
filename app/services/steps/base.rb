@@ -93,19 +93,27 @@ module Steps
       tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
-    # Best-effort sccache stats snapshot (EPIC-251), called by Prepare and
-    # Grader after each shell command they run. Relies on the subclass's own
-    # private `env` method (both define one, forwarding
-    # Prepare::PREP_ENV_FORWARD) so the capture sees the same PATH/SCCACHE_*
-    # env the just-run command did. Never fails the step — a stats capture
-    # is diagnostic, not part of the command's own success/failure.
-    def capture_sccache_stats!(step_kind:, label:)
-      stats = SccacheStatsCapture.capture(env: env, chdir: workspace.path)
-      return if stats.nil?
-
-      Workflow::SccacheArtifact.record!(workflow, run: run, step_kind: step_kind, label: label, stats: stats)
+    # Announces that a step just finished running a shell command, so
+    # subscribers can snapshot whatever the command touched.
+    #
+    # Inline, and inline for a reason: a subscriber runs a tool against the
+    # workspace, which is torn down when the workflow reaches a terminal state,
+    # and needs the same scrubbed env the command itself had -- hence passing
+    # the subclass's own `env` through. Never fails the step; observing a
+    # command is not part of its success or failure.
+    def publish_command_completed!(step_kind:, label:)
+      Syrus::Events.publish(
+        "step.command.completed",
+        run_id: run.id,
+        workflow_id: workflow.id,
+        job_id: run.job_id,
+        step_kind: step_kind,
+        label: label,
+        workspace_path: workspace.path.to_s,
+        env: env
+      )
     rescue StandardError => e
-      log("[#{step.kind}] sccache stats capture failed: #{e.class}: #{e.message}", kind: "system")
+      log("[#{step.kind}] command-completed event failed: #{e.class}: #{e.message}", kind: "system")
     end
 
     def capture_workspace_git_state

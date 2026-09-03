@@ -22,13 +22,17 @@ module App
       end
     end
 
+    # `props` lets a provider ship the data its panel needs. Without it, core
+    # would have to compute plugin-shaped payload for a plugin-owned component,
+    # which is the coupling the slot exists to remove.
     def self.panel_payload(panel)
       panel = panel.to_h.symbolize_keys
       {
         id: panel.fetch(:id).to_s,
         component: panel.fetch(:component).to_s,
-        order: panel[:order].to_i
-      }
+        order: panel[:order].to_i,
+        props: panel[:props].presence&.as_json
+      }.compact
     end
 
     def initialize(slot:, context: {})

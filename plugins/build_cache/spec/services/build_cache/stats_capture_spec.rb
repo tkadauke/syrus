@@ -1,0 +1,54 @@
+require "rails_helper"
+
+RSpec.describe BuildCache::StatsCapture do
+  let(:env) { { "PATH" => ENV["PATH"] } }
+  let(:chdir) { Dir.tmpdir }
+
+  describe ".capture" do
+    it "returns nil when the sccache binary is not on PATH" do
+      # Stubbed rather than relying on ambient PATH: some sandboxes (this one
+      # included) do have a real `sccache` binary installed, which would
+      # otherwise make this exercise the success path instead of the
+      # Errno::ENOENT a non-C/C++ repo (or an image built before sccache
+      # existed) hits on every call.
+      allow(Open3).to receive(:capture2e)
+        .with(env, "sccache", "--show-stats", "--stats-format=json", chdir: chdir.to_s)
+        .and_raise(Errno::ENOENT)
+
+      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
+    end
+
+    it "returns the parsed stats hash on a clean JSON success" do
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to receive(:capture2e)
+        .with(env, "sccache", "--show-stats", "--stats-format=json", chdir: chdir.to_s)
+        .and_return([ '{"compile_requests": 12}', status ])
+
+      expect(described_class.capture(env: env, chdir: chdir)).to eq({ "compile_requests" => 12 })
+    end
+
+    it "returns nil when sccache exits non-zero" do
+      status = instance_double(Process::Status, success?: false)
+      allow(Open3).to receive(:capture2e).and_return([ "sccache: error: server startup failed", status ])
+
+      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
+    end
+
+    it "returns nil and logs a warning on unparseable output" do
+      status = instance_double(Process::Status, success?: true)
+      allow(Open3).to receive(:capture2e).and_return([ "not json", status ])
+      allow(Rails.logger).to receive(:warn)
+
+      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
+      expect(Rails.logger).to have_received(:warn).with(/BuildCache::StatsCapture.*JSON/)
+    end
+
+    it "returns nil and logs a warning when the call times out" do
+      allow(Open3).to receive(:capture2e).and_raise(Timeout::Error, "execution expired")
+      allow(Rails.logger).to receive(:warn)
+
+      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
+      expect(Rails.logger).to have_received(:warn).with(/BuildCache::StatsCapture/)
+    end
+  end
+end

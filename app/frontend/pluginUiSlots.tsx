@@ -8,6 +8,7 @@ export type UiSlotPanel = {
   id: string
   component: string
   order: number
+  props?: Record<string, unknown>
 }
 
 const panelModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/ui_slots/*.tsx")
@@ -58,7 +59,7 @@ export function PluginUiSlot({ panels, props }: { panels: UiSlotPanel[] | undefi
 
         return (
           <Suspense key={panel.id} fallback={null}>
-            <Component {...(props || {})} />
+            <Component {...(props || {})} {...(panel.props || {})} />
           </Suspense>
         )
       })}
