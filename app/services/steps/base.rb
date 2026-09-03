@@ -553,6 +553,12 @@ module Steps
       return if expected_sha.blank?
       return if workspace_contains_sha?(expected_sha)
 
+      if workflow_branch_contains_sha?(expected_sha)
+        checkout_workflow_branch!
+        log("#{context}: restored checkout to #{workspace.branch_name} containing Run ##{source_run.id} head #{expected_sha.first(12)}", kind: "system")
+        return
+      end
+
       checkpoint = source_run.run_checkpoint
       return unless checkpoint&.published?
 
@@ -571,13 +577,31 @@ module Steps
               "expected #{expected_sha}"
       end
 
-      streaming_git.run(
-        "checkout", "-B", workspace.branch_name, expected_sha,
-        chdir: workspace.path.to_s
-      )
+      checkout_workflow_branch_at!(expected_sha)
       log("#{context}: restored workspace from #{checkpoint.remote_ref} at #{expected_sha.first(12)}", kind: "system")
     rescue GitRunner::GitError => e
       log("#{context}: could not restore checkpoint for Run ##{source_run&.id}: #{e.message}", kind: "system")
+    end
+
+    def checkout_workflow_branch_at!(sha)
+      streaming_git.run(
+        "checkout", "-B", workspace.branch_name, sha,
+        chdir: workspace.path.to_s
+      )
+    end
+
+    def checkout_workflow_branch!
+      streaming_git.run("checkout", workspace.branch_name, chdir: workspace.path.to_s)
+    end
+
+    def workflow_branch_contains_sha?(expected_sha)
+      git = GitRunner.new
+      branch_ref = "refs/heads/#{workspace.branch_name}"
+      git.run("rev-parse", "--verify", branch_ref, chdir: workspace.path.to_s)
+      git.run("merge-base", "--is-ancestor", expected_sha, branch_ref, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
     end
 
     def workspace_contains_sha?(expected_sha)
