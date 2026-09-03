@@ -231,18 +231,6 @@ module Filters
         "started_at"  => "Filters::Chips::SpawnedProcesses::StartedAt"
       }
     ),
-    spending_report: Subject.new(
-      name: :spending_report,
-      model: Run,
-      chips: {
-        "repository_id"  => "Filters::Chips::SpendingReport::RepositoryId",
-        "user_id"        => "Filters::Chips::SpendingReport::UserId",
-        "created_at"     => "Filters::Chips::SpendingReport::CreatedAt",
-        "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
-        "trigger_kind"   => "Filters::Chips::SpendingReport::TriggerKind",
-        "epic_id"        => "Filters::Chips::SpendingReport::EpicId"
-      }
-    ),
     memory: Subject.new(
       name: :memory,
       model: ChatMemory,

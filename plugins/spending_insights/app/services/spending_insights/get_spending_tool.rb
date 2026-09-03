@@ -1,6 +1,6 @@
 require "mcp"
 
-module Mcp::Tools
+module SpendingInsights
   class GetSpendingTool < MCP::Tool
     tool_name "get_spending"
 
@@ -27,7 +27,7 @@ module Mcp::Tools
         return Mcp::Tools.invalid("window must be one of 7d, 30d, 90d") unless WINDOW_DAYS.key?(window)
 
         params = payload_params(window: window, repository_id: repository_id, epic_id: epic_id)
-        payload = App::SpendingPayload.new(user: chat_session.user, params: params).as_json
+        payload = SpendingInsights::Payload.new(user: chat_session.user, params: params).as_json
 
         Mcp::Tools.success(
           total_cost_usd: total_cost(payload),

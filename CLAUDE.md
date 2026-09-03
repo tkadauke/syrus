@@ -852,7 +852,8 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   plus `ChatSession#cumulative_cost_usd` by date window, Epic, user,
   repository, trigger kind, agent provider, trend, and top Runs. Non-admins
   only see their own spend; admins see instance-wide totals. Keep
-  cost/accounting changes aligned with `App::SpendingPayload`,
+  cost/accounting changes aligned with `SpendingInsights::Payload` (in the
+  `spending_insights` plugin),
   `docs/current-user-scopes.md`, and public docs.
 - **Workflow/Step registries** — `Workflow::TriggerKind` and `Step::Kind`
   are the single source for trigger/step metadata: valid values, handler or

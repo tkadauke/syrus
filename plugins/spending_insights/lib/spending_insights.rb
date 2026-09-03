@@ -21,9 +21,37 @@ module SpendingInsights
         },
         i18n: [ "app/frontend/i18n/locales/*/spending.json" ]
       },
+      routes: [
+        {
+          verb: "GET",
+          path: "/api/v1/app/insights/spending",
+          controller: "api/v1/app/insights/spending#show"
+        }
+      ],
       provides: {
-        sidebar_page: SpendingInsights::SidebarPages
+        sidebar_page:      SpendingInsights::SidebarPages,
+        chat_mcp_tool_set: SpendingInsights::ChatToolSet
       }
     )
+
+    # The spending FilterBar subject lives with the plugin that serves it.
+    # Registered here rather than in core's Filters::Registry so disabling the
+    # plugin also retires its filter vocabulary.
+    Filters.register_subject(
+      name: :spending_report,
+      model: Run,
+      chips: {
+        "repository_id"  => "Filters::Chips::SpendingReport::RepositoryId",
+        "user_id"        => "Filters::Chips::SpendingReport::UserId",
+        "created_at"     => "Filters::Chips::SpendingReport::CreatedAt",
+        "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
+        "trigger_kind"   => "Filters::Chips::SpendingReport::TriggerKind",
+        "epic_id"        => "Filters::Chips::SpendingReport::EpicId"
+      }
+    )
+  end
+
+  def self.enabled?
+    Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "spending_insights" && manifest.enabled? }
   end
 end

@@ -1,5 +1,5 @@
-module App
-  class SpendingFilter
+module SpendingInsights
+  class Filter
     include Filters::BaseFilter
 
     DEFAULT_WINDOW_DAYS = 90

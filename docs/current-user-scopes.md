@@ -151,7 +151,6 @@ per-user/private:
   - app/controllers/api/v1/app/filters_controller.rb
   - app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - app/controllers/api/v1/app/insight_suggestions_controller.rb
-  - app/controllers/api/v1/app/insights/spending_controller.rb
   - app/controllers/api/v1/app/input_sources_controller.rb
   - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
@@ -200,6 +199,11 @@ per-user/private:
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
+  - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
+  - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
+  - plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb
+  - plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb
+  - plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
 team-visible:
   - app/controllers/api/v1/app/profiles_controller.rb
 team-tier:
@@ -233,6 +237,7 @@ admin-only:
   - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
+  - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
 ```
 
 ## Teams
@@ -337,7 +342,6 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update paths use `Current.user.epics`; repository choices come from the same user. Index/find/dependency-target lookups go through `EpicPolicy` (`policy_scope(Epic)`, exactly `Epic.accessible_to(Current.user)` — see [Policy layer](#policy-layer-repositoryjobepic)); unclaim, reassign, and state-advancement checks are `EpicPolicy` predicates. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
-| `app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
@@ -434,3 +438,9 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/credentials_controller.rb` | per-user/private and admin-only | Normal credential reads/writes mutate only the current user's credentials. API token rotation and revocation are admin-only because API bearer access exposes admin endpoints. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with self-aware badges | Team profiles are deliberately visible across users, while ownership labels compare profile rows to the signed-in user. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the current operator's credentials, repositories, and first job progress. |
+| `plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb` | per-user/private | Design doc reads and writes resolve visibility through the signed-in user. |
+| `plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb` | per-user/private | Commit history is read for repositories the current user can access. |
+| `plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
+| `plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
+| `plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
+| `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |

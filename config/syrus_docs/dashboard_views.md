@@ -118,7 +118,7 @@ last 24 hours, last 7 days, last 30 days, this week, and this month; datetime
 fields render time-of-day controls, while date-only fields render date inputs.
 
 The spending insights page is a FilterBar-backed surface without SmartFolders.
-Its `spending_report` subject filters `Run` spending by repository, user,
+Its `spending_report` subject (registered by the `spending_insights` plugin) filters `Run` spending by repository, user,
 datetime, agent provider, trigger kind, and epic. The page keeps the historical
 90-day default by injecting a positive top-level `created_at between ...` chip
 when the URL does not provide one; negated or OR date expressions are combined

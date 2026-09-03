@@ -203,7 +203,6 @@ Rails.application.routes.draw do
         get "filters/fk_options", to: "filters#fk_options"
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
-        get "insights/spending", to: "insights/spending#show"
         get "dashboard", to: "dashboard#show"
         patch "dashboard/preferences", to: "dashboard#preferences"
         post "dashboard/landing_pause", to: "dashboard#landing_pause"

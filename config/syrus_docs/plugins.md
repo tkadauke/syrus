@@ -1520,18 +1520,19 @@ Bundled plugins:
   `icon: "spending"` (maps to `SpendingIcon` via `sidebarNav.tsx`'s
   `PLUGIN_ICONS`), `order: 60` — appended after `CORE_NAV_ITEMS`, so it
   renders at the end of the primary sidebar nav, above the pinned Supervisor
-  chat block. The underlying cost-rollup data service
-  (`App::SpendingPayload`, served over `GET /api/v1/app/insights/spending`)
-  and its SPA shell route (`config/routes.rb`'s `insights/spending`) stay in
-  core — only the nav entry, the `SpendingInsights.tsx` route component, and
-  its `spending.json` locale files (`nav_spending` key) live in the plugin.
-  The page uses the shared FilterBar (`q=` AST) with core-provided
-  `spending_report` schema metadata for repository, user, datetime, agent
-  provider, trigger kind, and epic filters; SmartFolders are intentionally not
-  enabled for this plugin surface.
-  Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
-  render its "page unavailable" fallback for `/insights/spending`, but does
-  not affect the JSON API endpoint itself.
+  chat block. The plugin owns the whole feature: `SpendingInsights::Payload`
+  and `SpendingInsights::Filter`, the `api/v1/app/insights/spending#show`
+  controller (declared as a manifest route, dispatched by the host), the
+  `get_spending` chat MCP tool, the `spending_report` FilterBar subject and its
+  six chips (registered via `Filters.register_subject` from `register!`), the
+  `SpendingInsights.tsx` route component, and the `spending` i18n namespace.
+  SmartFolders are intentionally not enabled for this surface.
+  Only the SPA shell route (`config/routes.rb`'s `insights/spending`) and its
+  `App.tsx` entry stay in core, because sidebar pages have no route wildcard —
+  the same limitation `/admin/*` and repo-page tabs do not have.
+  Disabling the plugin removes the nav entry, retires the filter subject and
+  the MCP tool, and makes both the JSON endpoint and `PluginSidebarPageRoute`
+  stop serving the page.
 - `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,

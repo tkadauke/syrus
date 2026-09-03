@@ -1,6 +1,6 @@
-module App
-  class SpendingPayload
-    DEFAULT_WINDOW_DAYS = App::SpendingFilter::DEFAULT_WINDOW_DAYS
+module SpendingInsights
+  class Payload
+    DEFAULT_WINDOW_DAYS = SpendingInsights::Filter::DEFAULT_WINDOW_DAYS
     TOP_RUN_LIMIT = 10
     TREND_LIMIT_DAYS = 370
 
@@ -8,7 +8,7 @@ module App
       @user = user
       @params = params
       @today = Time.zone.today
-      @filter = App::SpendingFilter.from_params(params, user: user)
+      @filter = SpendingInsights::Filter.from_params(params, user: user)
       @start_date = @filter.start_date
       @end_date = @filter.end_date
     end

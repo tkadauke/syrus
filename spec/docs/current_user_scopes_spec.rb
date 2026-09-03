@@ -2,9 +2,13 @@ require "rails_helper"
 
 RSpec.describe "Current.user scope audit" do
   AUDIT_PATH = Rails.root.join("docs/current-user-scopes.md")
+  # Plugin controllers are in scope too: a controller that moves into a plugin
+  # is still serving user data, and dropping it from the audit would let the
+  # extraction program quietly erode this coverage.
   SCAN_GLOBS = [
     "app/controllers/**/*.rb",
-    "app/views/**/*.erb"
+    "app/views/**/*.erb",
+    "plugins/*/app/controllers/**/*.rb"
   ].freeze
 
   def documented_scope_files

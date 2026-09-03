@@ -13,19 +13,19 @@ type SortState = { key: SortKey; direction: "asc" | "desc" }
 const formatSpendingCurrency = (value: number) => formatCurrency(value, 2)
 
 export function SpendingInsightsRoute() {
-  const { t } = useT("common")
-  usePageTitle(t("spending.title"))
+  const { t } = useT("spending")
+  usePageTitle(t("title"))
   const location = useLocation()
   const spending = useQuery({
     queryKey: ["insights", "spending", location.search],
     queryFn: () => fetchSpending(location.search)
   })
 
-  if (spending.isPending) return <main aria-label={t("spending.aria_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</main>
+  if (spending.isPending) return <main aria-label={t("aria_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("common:loading")}</main>
   if (spending.isError) {
     return (
-      <main aria-label={t("spending.aria_insights")} className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">{t("spending.unable_to_load")}</p>
+      <main aria-label={t("aria_insights")} className="p-6">
+        <p className="text-sm text-red-700 dark:text-red-300">{t("unable_to_load")}</p>
       </main>
     )
   }
@@ -34,16 +34,16 @@ export function SpendingInsightsRoute() {
 }
 
 function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayload; pathname: string; search: string }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
 
   return (
-    <main aria-label={t("spending.aria_insights")} className="mx-auto max-w-[96rem] space-y-5 p-6">
+    <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-5 p-6">
       <header className="flex flex-col gap-4 border-b border-gray-200 dark:border-gray-700 pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("spending.eyebrow")}</p>
-          <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("spending.title")}</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("spending.scope_range", { scope: payload.scope.admin ? t("spending.scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("eyebrow")}</p>
+          <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("title")}</h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("scope_range", { scope: payload.scope.admin ? t("scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
         </div>
       </header>
 
@@ -55,26 +55,26 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
         search={search}
       />
 
-      <section aria-label={t("spending.totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric title={t("spending.metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("spending.context_workflow_runs")} />
-        <Metric title={t("spending.metric_month")} value={formatSpendingCurrency(payload.totals.month_usd)} context={t("spending.context_workflow_runs")} />
-        <Metric title={t("spending.metric_lifetime")} value={formatSpendingCurrency(payload.totals.lifetime_usd)} context={t("spending.context_runs_chats", { runs: formatSpendingCurrency(payload.totals.workflow_lifetime_usd), chats: formatSpendingCurrency(payload.totals.chat_lifetime_usd) })} />
-        <Metric title={t("spending.metric_avg_job")} value={formatSpendingCurrency(payload.totals.average_job_30d_usd)} context={t("spending.context_last_30_days")} />
-        <Metric title={t("spending.metric_avg_merged_pr")} value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("spending.context_last_30_days")} />
+      <section aria-label={t("totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric title={t("metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("context_workflow_runs")} />
+        <Metric title={t("metric_month")} value={formatSpendingCurrency(payload.totals.month_usd)} context={t("context_workflow_runs")} />
+        <Metric title={t("metric_lifetime")} value={formatSpendingCurrency(payload.totals.lifetime_usd)} context={t("context_runs_chats", { runs: formatSpendingCurrency(payload.totals.workflow_lifetime_usd), chats: formatSpendingCurrency(payload.totals.chat_lifetime_usd) })} />
+        <Metric title={t("metric_avg_job")} value={formatSpendingCurrency(payload.totals.average_job_30d_usd)} context={t("context_last_30_days")} />
+        <Metric title={t("metric_avg_merged_pr")} value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("context_last_30_days")} />
       </section>
 
-      <section aria-label={t("spending.trend_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <section aria-label={t("trend_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("spending.trend")}</h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{t("spending.trend_days", { count: payload.trend.length })}</span>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("trend")}</h2>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t("trend_days", { count: payload.trend.length })}</span>
         </div>
         <TrendChart points={payload.trend} />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <BreakdownTable title={t("spending.by_epic")} entityLabel={t("spending.entity_epic")} rows={payload.breakdowns.epics} prefix={prefix} columns="standard" emptyLabel={t("spending.empty_epic")} />
-        <BreakdownTable title={t("spending.by_user")} entityLabel={t("spending.entity_user")} rows={payload.breakdowns.users} prefix={prefix} columns="users" emptyLabel={t("spending.empty_user")} />
-        <BreakdownTable title={t("spending.by_repository")} entityLabel={t("spending.entity_repository")} rows={payload.breakdowns.repositories} prefix={prefix} columns="standard" emptyLabel={t("spending.empty_repository")} />
+        <BreakdownTable title={t("by_epic")} entityLabel={t("entity_epic")} rows={payload.breakdowns.epics} prefix={prefix} columns="standard" emptyLabel={t("empty_epic")} />
+        <BreakdownTable title={t("by_user")} entityLabel={t("entity_user")} rows={payload.breakdowns.users} prefix={prefix} columns="users" emptyLabel={t("empty_user")} />
+        <BreakdownTable title={t("by_repository")} entityLabel={t("entity_repository")} rows={payload.breakdowns.repositories} prefix={prefix} columns="standard" emptyLabel={t("empty_repository")} />
         <TriggerTable rows={payload.breakdowns.trigger_kinds} />
       </div>
 
@@ -96,17 +96,17 @@ function Metric({ title, value, context }: { title: string; value: string; conte
 }
 
 function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   const max = Math.max(...points.map((point) => point.total_usd), 0)
   const width = Math.max(points.length * 7, 320)
 
   if (points.length === 0) {
-    return <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t("spending.no_spending")}</div>
+    return <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t("no_spending")}</div>
   }
 
   return (
     <div className="overflow-x-auto">
-      <svg aria-label={t("spending.daily_spend")} className="h-48 min-w-full" role="img" viewBox={`0 0 ${width} 180`} preserveAspectRatio="none">
+      <svg aria-label={t("daily_spend")} className="h-48 min-w-full" role="img" viewBox={`0 0 ${width} 180`} preserveAspectRatio="none">
         <line x1="0" y1="160" x2={width} y2="160" stroke="#e5e7eb" />
         {points.map((point, index) => {
           const barHeight = max > 0 ? Math.max(2, (point.total_usd / max) * 145) : 0
@@ -130,7 +130,7 @@ function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
 }
 
 function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel }: { title: string; entityLabel: string; rows: SpendingBreakdownRow[]; prefix: string; columns: "standard" | "users"; emptyLabel: string }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   const [sort, setSort] = useState<SortState>({ key: "total_usd", direction: "desc" })
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
@@ -149,9 +149,9 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
-                <SortableHeader label={t("spending.col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader label={t("spending.col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-                <SortableHeader label={columns === "users" ? t("spending.col_last_30") : t("spending.col_avg_job")} sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"} sort={sort} setSort={setSort} align="right" />
+                <SortableHeader label={t("col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
+                <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
+                <SortableHeader label={columns === "users" ? t("col_last_30") : t("col_avg_job")} sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"} sort={sort} setSort={setSort} align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
@@ -176,21 +176,21 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
 }
 
 function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   const [sort, setSort] = useState<SortState>({ key: "total_usd", direction: "desc" })
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
 
   return (
-    <section aria-label={t("spending.trigger_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <TableHeader title={t("spending.by_trigger_kind")} />
-      {rows.length === 0 ? <EmptyTable label={t("spending.empty_trigger")} /> : (
+    <section aria-label={t("trigger_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <TableHeader title={t("by_trigger_kind")} />
+      {rows.length === 0 ? <EmptyTable label={t("empty_trigger")} /> : (
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             <tr>
-              <SortableHeader label={t("spending.col_trigger")} sortKey="label" sort={sort} setSort={setSort} />
-              <SortableHeader label={t("spending.col_runs")} sortKey="runs_count" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={t("spending.col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={t("spending.col_avg_run")} sortKey="average_usd" sort={sort} setSort={setSort} align="right" />
+              <SortableHeader label={t("col_trigger")} sortKey="label" sort={sort} setSort={setSort} />
+              <SortableHeader label={t("col_runs")} sortKey="runs_count" sort={sort} setSort={setSort} align="right" />
+              <SortableHeader label={t("col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
+              <SortableHeader label={t("col_avg_run")} sortKey="average_usd" sort={sort} setSort={setSort} align="right" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
@@ -210,11 +210,11 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
 }
 
 function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: string }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   return (
-    <section aria-label={t("spending.top_runs_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <TableHeader title={t("spending.top_runs")} />
-      {payload.top_runs.length === 0 ? <EmptyTable label={t("spending.empty_top_runs")} /> : (
+    <section aria-label={t("top_runs_aria")} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <TableHeader title={t("top_runs")} />
+      {payload.top_runs.length === 0 ? <EmptyTable label={t("empty_top_runs")} /> : (
         <div className="overflow-x-auto">
           <table className="min-w-[56rem] table-fixed divide-y divide-gray-200 dark:divide-gray-700 text-sm w-full">
             <colgroup>
@@ -225,17 +225,17 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
             </colgroup>
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-2 font-medium">{t("spending.col_run")}</th>
-                <th className="px-4 py-2 font-medium">{t("spending.col_job")}</th>
-                <th className="px-4 py-2 font-medium">{t("spending.col_repository")}</th>
-                <th className="px-4 py-2 text-right font-medium">{t("spending.col_cost")}</th>
+                <th className="px-4 py-2 font-medium">{t("col_run")}</th>
+                <th className="px-4 py-2 font-medium">{t("col_job")}</th>
+                <th className="px-4 py-2 font-medium">{t("col_repository")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("col_cost")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
               {payload.top_runs.map((run) => (
                 <tr key={run.id}>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{t("spending.run_number", { id: run.id })}</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{t("run_number", { id: run.id })}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">{humanize(run.trigger_kind)} / {run.agent_provider}</div>
                   </td>
                   <td className="max-w-0 px-4 py-3">
@@ -265,14 +265,14 @@ function EmptyTable({ label }: { label: string }) {
 }
 
 function SortableHeader({ label, sortKey, sort, setSort, align = "left" }: { label: string; sortKey: SortKey; sort: SortState; setSort: (sort: SortState) => void; align?: "left" | "right" }) {
-  const { t } = useT("common")
+  const { t } = useT("spending")
   const active = sort.key === sortKey
   const nextDirection = active && sort.direction === "desc" ? "asc" : "desc"
   return (
     <th className={`px-4 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
       <button className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100" type="button" onClick={() => setSort({ key: sortKey, direction: nextDirection })}>
         {label}
-        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{active ? (sort.direction === "desc" ? t("spending.sort_desc") : t("spending.sort_asc")) : t("spending.sort_none")}</span>
+        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{active ? (sort.direction === "desc" ? t("sort_desc") : t("sort_asc")) : t("sort_none")}</span>
       </button>
     </th>
   )

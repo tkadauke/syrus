@@ -4,7 +4,7 @@ module Api
       module Insights
         class SpendingController < BaseController
           def show
-            render json: ::App::SpendingPayload.new(
+            render json: ::SpendingInsights::Payload.new(
               user: Current.user,
               params: params
             ).as_json
