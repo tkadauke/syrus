@@ -9,6 +9,13 @@ export type SpawnedProcessOwner = {
   path: string | null
 }
 
+export type SpawnedProcessUser = {
+  id: number
+  label: string
+  email_address: string
+  path: string | null
+}
+
 export type SpawnedProcessPayload = {
   id: number
   kind: string
@@ -32,6 +39,7 @@ export type SpawnedProcessPayload = {
   stale: boolean
   kill_requested_at: string | null
   kill_requested_by_user_id: number | null
+  user: SpawnedProcessUser | null
   owner: SpawnedProcessOwner | null
   host_metrics?: Record<string, unknown> | null
 }

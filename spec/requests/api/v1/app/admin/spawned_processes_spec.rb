@@ -51,7 +51,9 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(body["filter"]).to eq(running_folder.filter)
     expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["running_total"]).to eq(SpawnedProcess.running.count)
-    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "hostname")
+    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "user_id", "hostname")
+    user_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "user_id" }
+    expect(user_field).to include("bucket" => "fk", "typeahead" => true)
     hostname_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "hostname" }
     expect(hostname_field).to include("typeahead" => true)
     expect(hostname_field).not_to have_key("values")
@@ -236,6 +238,12 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       "label" => "JOB-#{job.id} · #{job.title}",
       "path" => "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}"
     )
+    expect(parse_body["user"]).to eq(
+      "id" => admin.id,
+      "label" => admin.display_name,
+      "email_address" => admin.email_address,
+      "path" => "/admin/users/#{admin.id}"
+    )
   end
 
   it "attributes a chat-invocation process to its chat session as the owner" do
@@ -250,6 +258,10 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       "type" => "chat",
       "label" => "Investigating flaky specs",
       "path" => "/chats/#{chat_session.id}"
+    )
+    expect(parse_body["user"]).to include(
+      "id" => admin.id,
+      "email_address" => admin.email_address
     )
   end
 
@@ -266,6 +278,10 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       "label" => "Preview · JOB-#{job.id}",
       "path" => "/jobs/#{job.id}"
     )
+    expect(parse_body["user"]).to include(
+      "id" => admin.id,
+      "email_address" => admin.email_address
+    )
   end
 
   it "reports no owner when a process carries no run/workflow/chat attribution" do
@@ -276,6 +292,7 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["owner"]).to be_nil
+    expect(parse_body["user"]).to be_nil
   end
 
   it "stamps kill_requested_at" do
