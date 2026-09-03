@@ -15,6 +15,33 @@ import { AdminPlugins } from "./AdminPlugins"
 
 const pluginFilterSchema = [
   {
+    field: "enabled",
+    label: "Enabled",
+    bucket: "enum",
+    operators: ["is"],
+    values: [
+      { value: "enabled", label: "Enabled" },
+      { value: "disabled", label: "Disabled" }
+    ]
+  },
+  {
+    field: "author",
+    label: "Author",
+    bucket: "string",
+    operators: ["contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset"],
+    values: []
+  },
+  {
+    field: "extension_point",
+    label: "Extension point",
+    bucket: "enum",
+    operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"],
+    values: [
+      { value: "agent_provider", label: "Agent provider" },
+      { value: "input_source", label: "Input source" }
+    ]
+  },
+  {
     field: "category",
     label: "Category",
     bucket: "enum",
@@ -316,6 +343,9 @@ describe("AdminPlugins", () => {
     await screen.findByRole("region", { name: "Registered plugins" })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.getByRole("button", { name: "Enabled list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Author text" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Extension point list" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
   })
