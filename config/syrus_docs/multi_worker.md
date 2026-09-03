@@ -319,8 +319,14 @@ summary plus optional raw samples. For `grader` and `preflight_grader` Runs,
 the payload also includes durable command spans for phases such as `bundle
 check`, `bundle install`, `db:test:prepare`, and `rspec`; each span carries its
 own hostname, timing window, pressure summary, sample count, and retention
-flags. The Job detail payload also includes a recent-run aggregate, and each
-serialized Run includes its own compact correlation. Runs or spans older than
+flags. Command span sample windows are bounded by the earliest available
+`command_span.finished_at`, owning `spawned_process.finished_at`,
+`run.finished_at`, or query time, and unfinished spans report
+`effective_finished_at`/`effective_duration_s` plus `truncated`,
+`truncated_by`, and `orphaned` flags when that effective window was inferred
+from owner terminal state. The Job detail payload also includes a recent-run
+aggregate, and each serialized Run includes its own compact correlation. Runs
+or spans older than
 `WorkerHostHealthSample::RETAIN_AFTER` are marked `retention_limited`; missing
 hostnames or samples return `pressure.level: "unknown"` rather than treating
 the interval as healthy.

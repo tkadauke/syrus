@@ -565,6 +565,14 @@ the Run, Step, Workflow, Job, and spawned process when available. Each span
 records sequence, name, command excerpt, start/finish timestamps, duration,
 exit status/outcome, hostname, and metadata.
 
+Worker-health correlation reports each span's persisted `finished_at` plus an
+effective bounded window. `effective_finished_at` is the earliest available
+span finish, owning spawned-process finish, Run finish, or query time; samples
+after that bound are excluded. If the effective bound differs from the
+persisted span finish, the payload marks the span `truncated: true`, identifies
+the source in `truncated_by`, and sets `orphaned: true` when the owning spawned
+process ended as `orphaned`.
+
 The Bash timing harness preserves the original single `bash -c` execution,
 output capture, timeout handling, and failure behavior. It emits private
 framed marker tokens that Syrus strips before writing grade output to
