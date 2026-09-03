@@ -18,6 +18,8 @@ module DesignDocs
 
       DesignDoc.transaction do
         base_version = design_doc.current_version
+        visible = AnchorMarkers.strip(design_doc.markdown)
+        start_offset, end_offset = normalized_offsets(visible.length)
         if autosave? || full_document_suggestion?
           draft = existing_autosave_suggestion
           if draft
@@ -29,13 +31,16 @@ module DesignDocs
               provenance: draft.provenance.merge(
                 "autosave" => autosave?,
                 "autosaved_at" => Time.current.iso8601
-              )
+              ),
+              render_mode: render_mode(visible[start_offset...end_offset].to_s, proposed_markdown)
             )
 
             return Result.new(design_doc: design_doc.reload, anchor: draft.anchor, suggestion: draft, version: nil)
           end
         end
 
+        validate_range!(visible, start_offset, end_offset) unless autosave?
+        validate_pending_overlap!(start_offset, end_offset)
         return create_autosave_suggestion(base_version) if autosave?
 
         anchor_result = CreateAnchor.call(
@@ -54,6 +59,7 @@ module DesignDocs
           suggested_markdown: proposed_markdown,
           proposed_markdown: proposed_markdown,
           change_type: attributes[:change_type].presence || "replace",
+          render_mode: render_mode(original_markdown(anchor_result.anchor), proposed_markdown),
           change_summary: attributes[:change_summary].presence,
           provenance: provenance(base_version)
         )
@@ -64,9 +70,14 @@ module DesignDocs
 
     private
 
+    BLOCK_MARKER_PATTERN = /\A\s{0,3}(\#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s?|```|~~~)/
+
     attr_reader :design_doc, :user, :attributes, :actor_kind
 
     def create_autosave_suggestion(base_version)
+      visible = AnchorMarkers.strip(design_doc.markdown)
+      start_offset, end_offset = normalized_offsets(visible.length)
+      validate_pending_overlap!(start_offset, end_offset)
       anchor = create_autosave_anchor(base_version)
       suggestion = design_doc.suggestions.create!(
         anchor: anchor,
@@ -78,6 +89,7 @@ module DesignDocs
         suggested_markdown: proposed_markdown,
         proposed_markdown: proposed_markdown,
         change_type: attributes[:change_type].presence || "replace",
+        render_mode: render_mode(original_markdown(anchor), proposed_markdown),
         change_summary: attributes[:change_summary].presence,
         provenance: provenance(base_version)
       )
@@ -175,6 +187,77 @@ module DesignDocs
         .where(state: "pending", suggested_by_kind: actor_kind)
       candidates = actor_kind == "user" ? candidates.where(suggested_by_user: user) : candidates.where(suggested_by_user_id: nil)
       candidates.order(created_at: :desc, id: :desc).detect { |suggestion| ActiveModel::Type::Boolean.new.cast(suggestion.provenance&.fetch("autosave", false)) }
+    end
+
+    def validate_range!(visible, start_offset, end_offset)
+      return if start_offset == end_offset
+      return if block_boundary?(visible, start_offset) && block_boundary?(visible, end_offset)
+
+      selected = visible[start_offset...end_offset].to_s
+      return unless selected.match?(BLOCK_MARKER_PATTERN) || cuts_block_marker?(visible, start_offset) || cuts_block_marker?(visible, end_offset)
+
+      raise_invalid_suggestion!("Suggestions cannot select only part of Markdown block syntax. Select the whole heading, list item, quote, or code fence block.")
+    end
+
+    def validate_pending_overlap!(start_offset, end_offset)
+      return if start_offset == end_offset
+
+      overlapping = design_doc.suggestions.includes(:anchor).where(state: "pending").detect do |suggestion|
+        anchor = suggestion.anchor
+        next false unless anchor&.range?
+
+        other_start = anchor.last_known_start_offset || anchor.start_offset
+        other_end = anchor.last_known_end_offset || anchor.end_offset
+        next false if other_start.nil? || other_end.nil?
+
+        start_offset < other_end && end_offset > other_start
+      end
+      return unless overlapping
+
+      raise_invalid_suggestion!("Suggestion overlaps pending suggestion ##{overlapping.id}. Review the existing thread before creating another active suggestion for the same range.")
+    end
+
+    def render_mode(original, proposed)
+      inline_safe?(original) && inline_safe?(proposed) ? "inline" : "block"
+    end
+
+    def inline_safe?(markdown)
+      text = markdown.to_s
+      return false if text.include?("\n")
+
+      !text.match?(BLOCK_MARKER_PATTERN)
+    end
+
+    def cuts_block_marker?(visible, offset)
+      line_start = visible.rindex("\n", [ offset - 1, 0 ].max)&.+(1) || 0
+      line_end = visible.index("\n", offset) || visible.length
+      line = visible[line_start...line_end].to_s
+      marker = BLOCK_MARKER_PATTERN.match(line)
+      return false unless marker
+
+      marker_end = line_start + marker[0].length
+      offset > line_start && offset < marker_end
+    end
+
+    def block_boundary?(visible, offset)
+      return true if offset.zero? || offset == visible.length
+      return true if visible[offset - 1] == "\n" && (visible[offset] == "\n" || visible[offset].nil?)
+      return true if visible[offset - 1] == "\n" && line_starts_with_block_marker?(visible, offset)
+      return true if visible[offset] == "\n" && (visible[offset + 1] == "\n" || visible[offset + 1].nil?)
+      return true if visible[offset] == "\n" && line_starts_with_block_marker?(visible, offset + 1)
+
+      false
+    end
+
+    def line_starts_with_block_marker?(visible, offset)
+      line_end = visible.index("\n", offset) || visible.length
+      visible[offset...line_end].to_s.match?(BLOCK_MARKER_PATTERN)
+    end
+
+    def raise_invalid_suggestion!(message)
+      suggestion = design_doc.suggestions.build
+      suggestion.errors.add(:base, message)
+      raise ActiveRecord::RecordInvalid.new(suggestion)
     end
   end
 end

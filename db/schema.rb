@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -850,6 +850,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
     t.text "original_markdown", null: false
     t.text "proposed_markdown", null: false
     t.json "provenance"
+    t.string "render_mode", default: "inline", null: false
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.string "state", default: "pending", null: false
