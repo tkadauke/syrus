@@ -30,7 +30,7 @@ by the signed-in user, can create a new custom theme by cloning the active
 theme's token values, supports renaming/deleting, exposes hand-edit controls
 for all 13 light and dark token values, and uses the same native
 drag-and-drop reorder pattern as the dashboard smart-folder sidebar. Edits
-reuse the app `ThemeContext#setColorTheme` path for live preview while saving
+reuse the app `ThemeContext#previewColorTheme` path for local CSS preview while saving
 through the REST API (`/api/v1/app/themes`, `/api/v1/app/themes/:id`, and
 `/api/v1/app/themes/reorder`). If the backend rejects a save for WCAG AA
 contrast, the returned issue payload is displayed beside every affected token

@@ -138,7 +138,6 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
 
   function previewColorTheme(nextColorTheme: ColorTheme) {
     applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
-    queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, nextColorTheme))
   }
 
   return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, previewColorTheme, setColorTheme }}>{children}</ThemeContext.Provider>
