@@ -790,6 +790,53 @@ stale value. Read through this rather than reaching into
 `PluginRecord#config["settings"]` directly: the raw row has no defaults applied
 and no secret handling.
 
+## `search_source`
+
+The search subsystem stays core -- it serves chats, jobs, epics, logs, and
+browser errors, and the plugin registry has no business owning a database. But
+both of its extension seams were closed: `SyrusSearchDatabaseTasks::REQUIRED_TABLE_SQL`
+was a frozen constant, and `SearchController`'s `TYPES` and dispatch tables were
+hardcoded, so a plugin could neither create an FTS table nor put a result in
+front of anyone.
+
+A provider declares the tables it owns:
+
+```ruby
+def self.search_tables
+  { "my_plugin_fts" => <<~SQL }
+    CREATE VIRTUAL TABLE IF NOT EXISTS my_plugin_fts
+    USING fts5(title, body, my_thing_id UNINDEXED, user_id UNINDEXED,
+               tokenize = 'porter unicode61')
+  SQL
+end
+```
+
+`bin/rails syrus:prepare_search` creates them alongside the built-ins. A plugin
+may not redefine a built-in table; the collision is logged and ignored.
+
+Optionally, a repopulation hook, used only when a table's column set has drifted
+and it must be dropped and recreated. Without one the table is left alone and
+the drift is logged, because losing rows Syrus cannot rebuild is worse than
+running on a stale schema:
+
+```ruby
+def self.rebuild_search_table(name) = MyPlugin::Index.rebuild!
+```
+
+To also appear in global search, a provider declares a result type:
+
+| Method | Purpose |
+|---|---|
+| `.search_type` | The type name, e.g. `"my_thing"` |
+| `.filter_subject` | The `Filters` subject its chips resolve against |
+| `.row_id_key` | Which key in a row holds the record id |
+| `.search_rows(query:, user:, limit:)` | Ranked rows from the FTS table |
+| `.filtered_scope(ids:, tree:, user:)` | Scope used to apply FilterBar chips |
+| `.result_json(row:, user:)` | The serialized result |
+
+Plugin types sort after the built-ins, so `type_order` stays meaningful, and
+they disappear when the plugin is disabled.
+
 ## `workflow_kinds`
 
 `Workflow::TriggerKind::ENTRIES` and `Step::Kind::ENTRIES` were frozen array

@@ -2,8 +2,8 @@ module Api
   module V1
     module App
       class SearchController < BaseController
-        TYPES = %w[job epic chat test_case].freeze
-        FILTER_SUBJECTS = {
+        BUILT_IN_TYPES = %w[job epic chat test_case].freeze
+        BUILT_IN_FILTER_SUBJECTS = {
           "job"       => :job,
           "epic"      => :epic,
           "chat"      => :chat_message,
@@ -59,11 +59,38 @@ module Api
           @active_filter_tree ||= ::Filters::QueryParam.decode(params[::Filters::QueryParam::PARAM_NAME])
         end
 
+        # Built-in types plus whatever enabled plugins contribute through
+        # :search_source. Ordering is stable -- plugin types sort after the
+        # built-ins -- so type_order stays meaningful.
+        def self.types
+          BUILT_IN_TYPES + search_source_providers.map { |provider| provider.search_type.to_s }
+        end
+
+        def self.filter_subjects
+          BUILT_IN_FILTER_SUBJECTS.merge(
+            search_source_providers.to_h { |p| [ p.search_type.to_s, p.filter_subject ] }
+          )
+        end
+
+        def self.search_source_providers
+          Syrus::PluginRegistry.providers_for(:search_source).select do |provider|
+            provider.respond_to?(:search_type) && provider.respond_to?(:search_rows)
+          end
+        end
+
+        def self.provider_for(type)
+          search_source_providers.find { |provider| provider.search_type.to_s == type.to_s }
+        end
+
+        def types = self.class.types
+        def filter_subjects = self.class.filter_subjects
+
         def search_types
           raw_types = Array.wrap(params[:types]).compact_blank
-          raw_types = TYPES if raw_types.empty?
+          all_types = types
+          raw_types = all_types if raw_types.empty?
           raw_types = raw_types.map(&:to_s).uniq
-          return unless (raw_types - TYPES).empty?
+          return unless (raw_types - all_types).empty?
 
           raw_types
         end
@@ -81,7 +108,7 @@ module Api
 
           rows.each_with_index.map do |row, index|
             normalized_rank = denominator.zero? ? 0.0 : (row.fetch(:rank).to_f - min_rank) / denominator
-            row.merge(type: type, type_order: TYPES.index(type), rank: normalized_rank, ordinal: index)
+            row.merge(type: type, type_order: types.index(type), rank: normalized_rank, ordinal: index)
           end
         end
 
@@ -100,7 +127,13 @@ module Api
         }.freeze
 
         def search_rows(type, query, limit)
-          send(SEARCH_ROWS_DISPATCH.fetch(type), query, limit)
+          method_name = SEARCH_ROWS_DISPATCH[type]
+          return send(method_name, query, limit) if method_name
+
+          provider = self.class.provider_for(type)
+          return [] if provider.nil?
+
+          apply_filter_to_rows(type, Array(provider.search_rows(query: query, user: Current.user, limit: limit)), provider.row_id_key)
         end
 
         def job_search_rows(query, limit)
@@ -138,7 +171,7 @@ module Api
         def apply_filter_to_rows(type, rows, id_key)
           return rows if rows.empty? || active_filter_tree.blank?
 
-          subject = FILTER_SUBJECTS.fetch(type)
+          subject = filter_subjects.fetch(type)
           tree = filter_tree_for_subject(active_filter_tree, subject)
           return rows if tree.blank?
 
@@ -168,7 +201,10 @@ module Api
               subject: :test_case
             )
           else
-            raise ArgumentError, "unknown search result type: #{type.inspect}"
+            provider = self.class.provider_for(type)
+            raise ArgumentError, "unknown search result type: #{type.inspect}" if provider.nil?
+
+            provider.filtered_scope(ids: ids, tree: tree, user: Current.user)
           end
         end
 
@@ -205,7 +241,7 @@ module Api
 
         def filter_schema(selected_types)
           if selected_types.length == 1
-            ::Filters::Schema.for(subject: FILTER_SUBJECTS.fetch(selected_types.first), user: Current.user)
+            ::Filters::Schema.for(subject: filter_subjects.fetch(selected_types.first), user: Current.user)
           else
             COMMON_FILTER_FIELDS.map { |field| ::Filters::Schema.chip_for(field, user: Current.user, subject: :job) }
           end
@@ -256,7 +292,11 @@ module Api
         end
 
         def result_json(row)
-          send(RESULT_JSON_DISPATCH.fetch(row.fetch(:type)), row)
+          type = row.fetch(:type)
+          method_name = RESULT_JSON_DISPATCH[type]
+          return send(method_name, row) if method_name
+
+          self.class.provider_for(type)&.result_json(row: row, user: Current.user)
         end
 
         def job_result_json(row)

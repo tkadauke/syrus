@@ -2,7 +2,7 @@ require "fileutils"
 require "zlib"
 
 module SyrusSearchDatabaseTasks
-  REQUIRED_TABLE_SQL = {
+  BUILT_IN_TABLE_SQL = {
     "chat_message_fts" => <<~SQL,
       CREATE VIRTUAL TABLE IF NOT EXISTS chat_message_fts
       USING fts5(
@@ -118,13 +118,61 @@ module SyrusSearchDatabaseTasks
 
   module_function
 
+  # Built-in tables plus whatever enabled plugins declare through
+  # :search_source. Resolved at call time rather than frozen into a constant so
+  # installing a plugin that owns an index needs only `syrus:prepare_search`,
+  # not a core edit.
+  #
+  # Guarded: this file loads before Rails autoloading is ready, and prepare is
+  # also run in contexts (asset precompile, a fresh database) where the plugin
+  # registry may not be reachable. Falling back to the built-ins keeps the core
+  # indexes working rather than failing the whole task.
+  def required_table_sql
+    BUILT_IN_TABLE_SQL.merge(plugin_table_sql)
+  end
+
+  def plugin_table_sql
+    return {} unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.providers_for(:search_source).each_with_object({}) do |provider, tables|
+      next unless provider.respond_to?(:search_tables)
+
+      Array(provider.search_tables).to_h.each do |name, sql|
+        name = name.to_s
+        if BUILT_IN_TABLE_SQL.key?(name)
+          Rails.logger&.error("[search] #{provider} declares built-in table #{name.inspect}; ignoring")
+          next
+        end
+
+        tables[name] = sql
+      end
+    end
+  rescue StandardError => e
+    Rails.logger&.error("[search] could not resolve plugin search tables: #{e.class}: #{e.message}")
+    {}
+  end
+
+  def plugin_rebuild_hook(table_name)
+    return nil unless defined?(Syrus::PluginRegistry)
+
+    Syrus::PluginRegistry.providers_for(:search_source).each do |provider|
+      next unless provider.respond_to?(:search_tables) && provider.respond_to?(:rebuild_search_table)
+      next unless Array(provider.search_tables).to_h.key?(table_name)
+
+      return -> { provider.rebuild_search_table(table_name) }
+    end
+    nil
+  rescue StandardError
+    nil
+  end
+
   def prepare!
     SearchRecord.connection_pool.migration_context.migrate
     ensure_required_tables!
   end
 
   def ensure_required_tables!
-    REQUIRED_TABLE_SQL.each do |table_name, sql|
+    required_table_sql.each do |table_name, sql|
       if table_exists?(table_name)
         handle_existing_table!(table_name, sql)
         next
@@ -132,7 +180,7 @@ module SyrusSearchDatabaseTasks
 
       SearchRecord.connection.execute(sql)
       AVAILABILITY_CACHES[table_name]&.call
-      REBUILD_HOOKS[table_name]&.call
+      (REBUILD_HOOKS[table_name] || plugin_rebuild_hook(table_name))&.call
     end
   end
 
@@ -145,7 +193,7 @@ module SyrusSearchDatabaseTasks
   def handle_existing_table!(table_name, sql)
     return if schema_matches?(table_name, sql)
 
-    if REBUILD_HOOKS.key?(table_name)
+    if REBUILD_HOOKS.key?(table_name) || plugin_rebuild_hook(table_name)
       rebuild_table!(table_name, sql)
     else
       Rails.logger.warn(
@@ -186,7 +234,7 @@ module SyrusSearchDatabaseTasks
     end
 
     AVAILABILITY_CACHES[table_name]&.call
-    REBUILD_HOOKS[table_name]&.call
+    (REBUILD_HOOKS[table_name] || plugin_rebuild_hook(table_name))&.call
   end
 end
 

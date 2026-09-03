@@ -15,7 +15,7 @@ RSpec.describe Api::V1::App::SearchController do
     end
 
     it "covers all declared TYPES" do
-      expect(described_class::SEARCH_ROWS_DISPATCH.keys).to match_array(described_class::TYPES)
+      expect(described_class::SEARCH_ROWS_DISPATCH.keys).to match_array(described_class::BUILT_IN_TYPES)
     end
   end
 
@@ -29,13 +29,45 @@ RSpec.describe Api::V1::App::SearchController do
     end
 
     it "covers all declared TYPES" do
-      expect(described_class::RESULT_JSON_DISPATCH.keys).to match_array(described_class::TYPES)
+      expect(described_class::RESULT_JSON_DISPATCH.keys).to match_array(described_class::BUILT_IN_TYPES)
     end
   end
 
-  describe "TYPES" do
-    it "includes test_case" do
-      expect(described_class::TYPES).to include("test_case")
+  describe ".types" do
+    it "includes the built-in types" do
+      expect(described_class.types).to include("job", "epic", "chat", "test_case")
+    end
+
+    it "appends a plugin-contributed type after the built-ins" do
+      provider = Class.new do
+        include Syrus::Plugin::SearchSource
+
+        def self.search_type = "widget"
+        def self.filter_subject = :job
+        def self.row_id_key = :widget_id
+        def self.search_rows(query:, user:, limit:) = []
+        def self.result_json(row:, user:) = { id: 1 }
+      end
+      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { search_source: provider })
+
+      expect(described_class.types.last).to eq("widget")
+      expect(described_class.filter_subjects["widget"]).to eq(:job)
+    end
+
+    it "drops a plugin type when the plugin is disabled" do
+      provider = Class.new do
+        include Syrus::Plugin::SearchSource
+
+        def self.search_type = "widget"
+        def self.filter_subject = :job
+        def self.row_id_key = :widget_id
+        def self.search_rows(query:, user:, limit:) = []
+        def self.result_json(row:, user:) = { id: 1 }
+      end
+      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { search_source: provider })
+      PluginRecord.find_or_create_by!(name: "search_plugin").update!(enabled: false, disableable: true)
+
+      expect(described_class.types).not_to include("widget")
     end
   end
 end
