@@ -7,6 +7,7 @@ export type ColorTheme = {
   slug: string
   name: string
   built_in: boolean
+  position: number | null
   tokens: {
     light: ThemeTokens
     dark: ThemeTokens

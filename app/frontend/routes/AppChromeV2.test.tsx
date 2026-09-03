@@ -2123,6 +2123,7 @@ function oceanColorTheme() {
     slug: "ocean",
     name: "Ocean",
     built_in: true,
+    position: null,
     tokens: {
       light: { brand: "#1d6fa5" },
       dark: { brand: "#4db3e8" }
@@ -2136,6 +2137,7 @@ function forestColorTheme() {
     slug: "forest",
     name: "Forest",
     built_in: true,
+    position: null,
     tokens: {
       light: { brand: "#2f7d46" },
       dark: { brand: "#5fbf7d" }
