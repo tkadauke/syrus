@@ -183,4 +183,64 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(parse_body.dig("comments", 0, "state")).to eq("resolved")
     end
   end
+
+  describe "POST /api/v1/app/jobs/:job_id/diff_review_comments/submit" do
+    it "submits selected comments as chat feedback" do
+      job.update_columns(state: "implemented")
+      comment = create_comment(diff_hunk: "@@ -10,2 +10,3 @@", context: { "symbol" => "Widget#call" })
+
+      post "#{comments_path}/submit", params: { comment_ids: [ comment.id ] }, as: :json
+
+      expect(response).to have_http_status(:created)
+      body = parse_body
+      workflow = Workflow.find(body.dig("workflow", "id"))
+      expect(workflow).to have_attributes(trigger_kind: "chat_feedback")
+      expect(workflow.artifact("diff_comments").first).to include(
+        "id" => comment.id,
+        "path" => "app/models/widget.rb",
+        "side" => "right",
+        "new_line" => 12,
+        "base_ref" => "base-sha",
+        "head_ref" => "head-sha",
+        "diff_hunk" => "@@ -10,2 +10,3 @@",
+        "context" => { "symbol" => "Widget#call" },
+        "body" => "Please tighten this up."
+      )
+      expect(comment.reload).to have_attributes(state: "submitted", workflow: workflow)
+      expect(body.dig("comments", 0, "state")).to eq("submitted")
+    end
+
+    it "rejects a blank selection" do
+      job.update_columns(state: "implemented")
+
+      post "#{comments_path}/submit", params: { comment_ids: [] }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("Select at least one")
+    end
+
+    it "rejects when an active chat feedback workflow already exists" do
+      job.update_columns(state: "implemented")
+      comment = create_comment
+      active = Workflow.create!(job: job, user: user, trigger_kind: "chat_feedback", state: "running")
+      attach_work_unit(active, kind: "chat_feedback", state: "running")
+
+      post "#{comments_path}/submit", params: { comment_ids: [ comment.id ] }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("a chat_feedback workflow is already queued or running for this job")
+      expect(comment.reload.state).to eq("draft")
+    end
+
+    it "allows approved jobs and unapproves them before dispatch" do
+      job.update_columns(state: "approved", approved_at: Time.current)
+      comment = create_comment
+
+      post "#{comments_path}/submit", params: { comment_ids: [ comment.id ] }, as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+    end
+  end
 end
