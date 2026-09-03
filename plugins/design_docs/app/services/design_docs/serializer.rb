@@ -27,9 +27,9 @@ module DesignDocs
           collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
           pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
           open_threads_count: design_doc.threads.where(state: "open").count,
-          threads: design_doc.threads.includes(:anchor, comments: :author_user).order(:created_at, :id).map { |thread| self.thread(thread) },
+          threads: design_doc.threads.includes(:anchor, :agent_runs, comments: [ :author_user, :agent_run ]).order(:created_at, :id).map { |thread| self.thread(thread) },
           suggestions: design_doc.suggestions
-            .includes(:anchor, :suggested_by_user, :reviewed_by_user, thread: [ :anchor, { comments: :author_user } ])
+            .includes(:anchor, :agent_run, :suggested_by_user, :reviewed_by_user, thread: [ :anchor, :agent_runs, { comments: [ :author_user, :agent_run ] } ])
             .order(created_at: :desc, id: :desc)
             .map { |suggestion| self.suggestion(suggestion) }
         )
@@ -61,6 +61,7 @@ module DesignDocs
           render_mode: suggestion.render_mode,
           change_summary: suggestion.change_summary,
           base_version_id: suggestion.base_version_id,
+          design_doc_agent_run_id: suggestion.design_doc_agent_run_id,
           provenance: suggestion.provenance || {},
           conflict_reason: suggestion.conflict_reason,
           anchor: anchor_json(suggestion.anchor),
@@ -79,6 +80,7 @@ module DesignDocs
           opened_by: user_json(thread.opened_by_user),
           resolved_by: user_json(thread.resolved_by_user),
           resolved_at: thread.resolved_at&.iso8601,
+          agent_run: agent_run_json(latest_agent_run(thread)),
           comments: ordered_comments(thread).map { |comment| comment_json(comment) },
           created_at: thread.created_at.iso8601,
           updated_at: thread.updated_at.iso8601
@@ -142,6 +144,7 @@ module DesignDocs
           id: comment.id,
           author_kind: comment.author_kind,
           author: user_json(comment.author_user),
+          design_doc_agent_run_id: comment.design_doc_agent_run_id,
           body: comment.body,
           created_at: comment.created_at.iso8601,
           updated_at: comment.updated_at.iso8601
@@ -151,6 +154,30 @@ module DesignDocs
       def ordered_comments(thread)
         comments = thread.association(:comments).loaded? ? thread.comments.to_a : thread.comments
         comments.sort_by { |comment| [ comment.created_at || Time.zone.at(0), comment.id || 0 ] }
+      end
+
+      def latest_agent_run(thread)
+        runs = thread.association(:agent_runs).loaded? ? thread.agent_runs.to_a : thread.agent_runs
+        runs.max_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+      end
+
+      def agent_run_json(run)
+        return nil unless run
+
+        {
+          id: run.id,
+          status: run.status,
+          triggering_comment_id: run.triggering_comment_id,
+          requested_by: user_json(run.requested_by_user),
+          agent_provider: run.agent_provider,
+          base_version_id: run.base_version_id,
+          result_summary: run.result_summary,
+          error_message: run.error_message,
+          started_at: run.started_at&.iso8601,
+          finished_at: run.finished_at&.iso8601,
+          created_at: run.created_at.iso8601,
+          updated_at: run.updated_at.iso8601
+        }
       end
     end
   end

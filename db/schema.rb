@@ -805,6 +805,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["workflow_id"], name: "index_decisions_on_workflow_id"
   end
 
+  create_table "design_doc_agent_runs", force: :cascade do |t|
+    t.string "agent_provider", null: false
+    t.integer "base_version_id"
+    t.json "context_snapshot"
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "design_doc_thread_id", null: false
+    t.text "error_message"
+    t.datetime "finished_at"
+    t.json "output_payload"
+    t.integer "requested_by_user_id", null: false
+    t.text "result_summary"
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.integer "triggering_comment_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["base_version_id"], name: "index_design_doc_agent_runs_on_base_version_id"
+    t.index ["design_doc_id"], name: "index_design_doc_agent_runs_on_design_doc_id"
+    t.index ["design_doc_thread_id", "status"], name: "index_design_doc_agent_runs_on_thread_and_status"
+    t.index ["design_doc_thread_id"], name: "index_design_doc_agent_runs_on_design_doc_thread_id"
+    t.index ["requested_by_user_id"], name: "index_design_doc_agent_runs_on_requested_by_user_id"
+    t.index ["triggering_comment_id"], name: "index_design_doc_agent_runs_on_triggering_comment", unique: true
+  end
+
   create_table "design_doc_anchors", force: :cascade do |t|
     t.string "anchor_key", null: false
     t.string "anchor_kind", default: "range", null: false
@@ -846,9 +870,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.integer "author_user_id"
     t.text "body", null: false
     t.datetime "created_at", null: false
+    t.integer "design_doc_agent_run_id"
     t.integer "design_doc_thread_id", null: false
     t.datetime "updated_at", null: false
     t.index ["author_user_id"], name: "index_design_doc_comments_on_author_user_id"
+    t.index ["design_doc_agent_run_id"], name: "index_design_doc_comments_on_design_doc_agent_run_id"
     t.index ["design_doc_thread_id", "created_at"], name: "index_design_doc_comments_on_thread_and_created_at"
     t.index ["design_doc_thread_id"], name: "index_design_doc_comments_on_design_doc_thread_id"
   end
@@ -869,6 +895,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.string "change_type", default: "replace", null: false
     t.text "conflict_reason"
     t.datetime "created_at", null: false
+    t.integer "design_doc_agent_run_id"
     t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id"
@@ -884,6 +911,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.text "suggested_markdown", null: false
     t.datetime "updated_at", null: false
     t.index ["base_version_id"], name: "index_design_doc_suggestions_on_base_version_id"
+    t.index ["design_doc_agent_run_id"], name: "index_design_doc_suggestions_on_design_doc_agent_run_id"
     t.index ["design_doc_anchor_id", "state"], name: "index_design_doc_suggestions_on_anchor_and_state"
     t.index ["design_doc_anchor_id"], name: "index_design_doc_suggestions_on_design_doc_anchor_id"
     t.index ["design_doc_id", "state"], name: "index_design_doc_suggestions_on_doc_and_state"
@@ -2947,4 +2975,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "design_doc_agent_runs", "design_doc_comments", column: "triggering_comment_id"
+  add_foreign_key "design_doc_agent_runs", "design_doc_threads"
+  add_foreign_key "design_doc_agent_runs", "design_doc_versions", column: "base_version_id"
+  add_foreign_key "design_doc_agent_runs", "design_docs"
+  add_foreign_key "design_doc_agent_runs", "users", column: "requested_by_user_id"
+  add_foreign_key "design_doc_comments", "design_doc_agent_runs"
+  add_foreign_key "design_doc_suggestions", "design_doc_agent_runs"
 end
