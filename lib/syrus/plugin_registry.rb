@@ -25,6 +25,7 @@ module Syrus
       dependency_audit_command
       affected_test_analyzer
       workspace_tab
+      ui_slot
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -52,7 +53,8 @@ module Syrus
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
       affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
-      workspace_tab:           -> { Syrus::Plugin::WorkspaceTab }
+      workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
+      ui_slot:                 -> { Syrus::Plugin::UiSlot }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

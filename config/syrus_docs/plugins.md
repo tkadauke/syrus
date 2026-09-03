@@ -757,6 +757,54 @@ recording:
   folder imports a package), so this is a known, accepted gap rather than
   something this migration solved.
 
+## `ui_slot`
+
+Admin pages, sidebar pages, and repo-page tabs each give a plugin a whole page.
+`ui_slot` gives it a section of an existing core page — the throughput panel on
+the repository detail page, a build-cache card on the job detail page.
+
+Without it, a feature that reads as part of a core page can only be extracted by
+promoting it to its own tab, which changes the product to fit the plugin
+boundary rather than the other way round.
+
+Providers expose one method:
+
+```ruby
+# app/services/my_plugin/ui_slots.rb
+module MyPlugin
+  class UiSlots
+    include Syrus::Plugin::UiSlot
+
+    def self.ui_slots(slot:, context:)
+      return [] unless slot == "repository.detail"
+      return [] if context[:repository].archived?
+
+      [ { id: "my_plugin.panel", component: "my_plugin/MyPanel", order: 30 } ]
+    end
+  end
+end
+```
+
+`slot` is one of `Syrus::Plugin::UiSlot::SLOTS` — declared rather than free-form
+so a typo fails loudly instead of rendering nowhere:
+
+| Slot | Context |
+|---|---|
+| `repository.detail` | `{ repository:, user: }` |
+| `job.detail` | `{ job:, user: }` |
+
+Visibility is per record, like `repo_page_tab` and unlike `admin_page`: the
+provider is called with the host page's context and returns `[]` to render
+nothing.
+
+Frontend components live in `plugins/<name>/app/frontend/ui_slots/*.tsx` (a
+distinct glob from `routes/` and `repo_tabs/` so component keys cannot
+collide) and are addressed as `<plugin_dir>/<Component>`. The host page fetches
+the resolved panel list in its own payload — `App::UiSlotsPayload.panels_for` —
+and renders it with `<PluginUiSlot panels={...} props={...} />`. A panel whose
+component is missing from the bundle is skipped rather than throwing, so a
+stale server-side registration cannot blank the page around it.
+
 ## `grader_augmentor`
 
 Allows plugins to append additional diagnostic output to the grade log when a

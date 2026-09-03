@@ -466,6 +466,9 @@ module Api
               simple_mode: AppSetting.simple?,
               repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository) },
               tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
+              ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
+                ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
+              end,
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
               retry_failed_jobs: PerformanceLogging.phase("repository_detail.retry_failed_jobs", repository_id: repository.id) { retry_failed_jobs_json(repository) },
               can_release_triage_jobs: can_release_triage_jobs?,
