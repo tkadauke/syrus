@@ -77,7 +77,7 @@ module Api
               ok: false,
               error: {
                 code: "workspace_active",
-                message: "Workflow workspace is still in use by active steps or runs."
+                message: "Workflow workspace is still in use by active steps, runs, or spawned processes."
               }
             }, status: :conflict
             return
