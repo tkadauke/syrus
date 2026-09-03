@@ -687,6 +687,13 @@ class Job < ApplicationRecord
   after_update_commit :enqueue_deferred_visual_diff_work_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
+  # Domain events are published from an after_*_commit hook, not from inside
+  # the AASM transition, so a subscriber never observes a state that a later
+  # rollback undoes.
+  after_create_commit :publish_job_created_event
+  after_update_commit :publish_job_closed_event, if: :saved_change_to_closed?
+  after_update_commit :publish_job_approved_event, if: :saved_change_to_approved?
+  after_update_commit :publish_job_state_changed_event, if: :saved_change_to_state?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :finish_stale_work_units_after_close, if: :saved_change_to_closed?
   after_update_commit :cancel_stale_work_intents_after_close, if: :saved_change_to_closed?
@@ -802,6 +809,37 @@ class Job < ApplicationRecord
     ).exists?
 
     nil
+  end
+
+  def domain_event_payload
+    {
+      job_id: id,
+      repository_id: repository_id,
+      user_id: user_id,
+      kind: kind,
+      state: state,
+      closure_reason: closure_reason,
+      epic_id: epic_id,
+      issue_number: issue_number,
+      pr_number: pr_number
+    }
+  end
+
+  def publish_job_created_event
+    Syrus::Events.publish("job.created", **domain_event_payload)
+  end
+
+  def publish_job_closed_event
+    Syrus::Events.publish("job.closed", **domain_event_payload)
+  end
+
+  def publish_job_approved_event
+    Syrus::Events.publish("job.approved", **domain_event_payload)
+  end
+
+  def publish_job_state_changed_event
+    previous, current = saved_change_to_state
+    Syrus::Events.publish("job.state_changed", **domain_event_payload.merge(previous_state: previous, state: current))
   end
 
   def close_with_reason!(reason)

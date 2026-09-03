@@ -757,6 +757,69 @@ recording:
   folder imports a package), so this is a known, accepted gap rather than
   something this migration solved.
 
+## `domain_subscriber`
+
+Every other extension point lets a plugin contribute behavior when core asks
+for it. This one lets a plugin *observe*.
+
+Without it, a subsystem that must react to a Job closing or a grader finishing
+can only live in core, because the only mechanism is an Active Record callback
+on a core model -- and a plugin monkey-patching a callback onto `Job` is not a
+boundary.
+
+```ruby
+# app/services/my_plugin/subscribers.rb
+module MyPlugin
+  class Subscribers
+    include Syrus::Plugin::DomainSubscriber
+
+    def self.subscriptions
+      { "job.closed" => :on_job_closed }
+    end
+
+    def self.on_job_closed(event)
+      return unless event[:closure_reason] == "pr_merged"
+
+      MyPlugin::Tally.record!(job_id: event[:job_id])
+    end
+  end
+end
+```
+
+Core publishes from explicit call sites -- `Syrus::Events.publish(...)` written
+where the decision is made -- rather than from model callbacks, so the catalog
+is greppable rather than emergent. Event names are declared in
+`Syrus::Events::EVENTS`; publishing an undeclared name raises.
+
+| Event | Delivery | Payload highlights |
+|---|---|---|
+| `job.created`, `job.closed`, `job.approved` | async | `job_id`, `repository_id`, `kind`, `state`, `closure_reason`, `epic_id` |
+| `job.state_changed` | async | the above plus `previous_state` |
+| `workflow.started`, `workflow.finished` | async | `workflow_id`, `job_id`, `trigger_kind`, `state` |
+| `run.finished` | async | `run_id`, `job_id`, `state` |
+| `step.grader.completed` | **inline** | `run_id`, `grader_name`, `parser`, `output_path`, `workspace_path` |
+| `step.command.completed` | **inline** | `run_id`, `step_kind`, `label` |
+| `repository.created`, `repository.archived`, `repository.destroyed` | async | `repository_id`, `slug` |
+
+**Delivery modes.** `:async` (the default) enqueues `DomainEventJob` onto the
+subscribing plugin's `home_queue`, one job per subscriber so a slow or failing
+one cannot delay the others. `:inline` runs synchronously inside the publishing
+call, for subscribers that need something which will not survive the turn --
+`step.grader.completed` carries a path inside a workflow workspace that is torn
+down when the workflow reaches a terminal state, so a subscriber has to read it
+now or not at all.
+
+**A subscriber failure never fails the publisher.** Both modes log and continue.
+Async delivery also drops the event if the plugin was disabled or went
+`degraded` between publish and delivery, since a plugin that is off should not
+be running behavior.
+
+**Payloads are plain data** -- ids, strings, numbers, and nested hashes or
+arrays of those, never Active Record objects. That keeps subscribers off core
+model internals and lets an event survive serialization onto a queue. Events are
+published from `after_*_commit` hooks, so a subscriber never observes a state
+that a rollback undoes.
+
 ## `ui_slot`
 
 Admin pages, sidebar pages, and repo-page tabs each give a plugin a whole page.

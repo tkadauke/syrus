@@ -238,6 +238,20 @@ module Steps
       parser_name, parsed = [ "JunitXmlParser", JunitXmlParser.parse(absolute_path.read) ] if parsed.nil?
       TestRunIngester.new(run: run, grader_name: grader_name, parsed_run: parsed).ingest!
       log("[grader:#{grader_name}] ingested #{parsed.total_count} test case(s) from #{output_path_str}")
+
+      # Inline: a subscriber that wants to parse the output file has to do it
+      # before the workflow workspace is torn down.
+      Syrus::Events.publish(
+        "step.grader.completed",
+        run_id: run.id,
+        workflow_id: run.step&.workflow_id,
+        repository_id: run.job&.repository_id,
+        grader_name: grader_name,
+        parser: parser_name || "JunitXmlParser",
+        output_path: absolute_path.to_s,
+        workspace_path: workspace.path.to_s,
+        total_count: parsed.total_count
+      )
     rescue JunitXmlParser::ParseError => e
       log("[grader:#{grader_name}] warning: JunitXmlParser: JUnit XML parse error: #{e.message}")
     rescue StandardError => e
