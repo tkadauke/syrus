@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { ReviewableDiff } from "./ReviewableDiff"
+import { AgentDiff, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 const files = [
   {
@@ -95,5 +95,28 @@ describe("ReviewableDiff", () => {
 
     expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("Please cover this branch.")
     expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("Ada")
+  })
+
+  it("splits stored unified diffs into real changed files for anchored artifact review", () => {
+    const diff = [
+      "diff --git a/app/models/job.rb b/app/models/job.rb",
+      "--- a/app/models/job.rb",
+      "+++ b/app/models/job.rb",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "diff --git a/app/models/run.rb b/app/models/run.rb",
+      "--- a/app/models/run.rb",
+      "+++ b/app/models/run.rb",
+      "@@ -4,0 +5 @@",
+      "+added"
+    ].join("\n")
+
+    expect(filesFromUnifiedDiff(diff).map((file) => file.path)).toEqual(["app/models/job.rb", "app/models/run.rb"])
+
+    render(<AgentDiff diff={diff} showFileHeaders />)
+
+    expect(screen.getByTitle("app/models/job.rb")).toBeInTheDocument()
+    expect(screen.getByTitle("app/models/run.rb")).toBeInTheDocument()
   })
 })

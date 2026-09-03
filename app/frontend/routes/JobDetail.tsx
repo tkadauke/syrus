@@ -302,10 +302,14 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
-      {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
+      {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
       <PluginUiSlot panels={(payload.ui_tabs ?? []).filter((tab) => tab.key === activeTab)} props={{ job: payload.job }} />
     </>
   )
+}
+
+function diffReviewFeedbackAllowed(jobState: string) {
+  return jobState === "implemented" || jobState === "approved" || jobState === "failed"
 }
 
 function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, pluginTabs, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; pluginTabs?: UiSlotPanel[]; onSelect: (tab: JobTab) => void }) {
