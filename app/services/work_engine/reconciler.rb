@@ -1380,6 +1380,13 @@ module WorkEngine
         .uniq(&:id)
     end
 
+    def active_work_unit_owned_workflows_for_job(job)
+      active_work_units_for_job(job)
+        .filter_map(&:workflow)
+        .uniq(&:id)
+        .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
+    end
+
     def active_runtime_work_units
       @active_runtime_work_units ||= work_units
         .select { |unit| unit.active? && unit.workflow && !unit.workflow.terminal? }
@@ -1447,7 +1454,7 @@ module WorkEngine
 
     def classify_closed_jobs_with_active_runtime_work
       jobs.select(&:closed?).flat_map do |job|
-        active_runtime_workflows_for_job(job)
+        active_work_unit_owned_workflows_for_job(job)
           .map do |workflow|
             issue(
               kind: :closed_job_active_runtime_work,

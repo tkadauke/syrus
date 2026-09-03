@@ -662,6 +662,33 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload).to be_cancelled
   end
 
+  it "cancels active infrastructure workflows on closed jobs" do
+    infrastructure_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      kind: "main_grader",
+      issue_number: nil,
+      state: "running",
+      agent_provider: "claude"
+    )
+    infrastructure_workflow = Workflows::MainGrader.instantiate(job: infrastructure_job, agent_provider: "claude")
+    infrastructure_workflow.update_columns(state: "running", started_at: 45.minutes.ago)
+    infrastructure_step = infrastructure_workflow.steps.order(:position).first
+    infrastructure_step.update_columns(state: "running", started_at: 45.minutes.ago)
+    attach_work_unit(infrastructure_workflow, kind: "main_grader", state: "running")
+    infrastructure_job.update_columns(state: "closed", finished_at: 30.minutes.ago, closure_reason: "operator_cancelled")
+
+    result = reconcile(workflow_id: infrastructure_workflow.id)
+
+    expect(kind(result, :closed_job_active_runtime_work)).to have_attributes(
+      recommended_repair_action: "cancel_workflow_for_closed_job"
+    )
+    expect(plan(result, :cancel_workflow_for_closed_job)).to have_attributes(
+      target_type: "Workflow",
+      target_id: infrastructure_workflow.id
+    )
+  end
+
   it "ignores ordinary legacy active workflows on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
