@@ -798,6 +798,27 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("does not autosave a whole-document suggestion when owners only toggle change modes", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const changeMode = screen.getByRole("group", { name: "Change mode" })
+    const editButton = within(changeMode).getByRole("button", { name: "Edit" })
+    const suggestButton = within(changeMode).getByRole("button", { name: "Suggest" })
+
+    fireEvent.click(suggestButton)
+    expect(suggestButton).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(editButton)
+    expect(editButton).toHaveAttribute("aria-pressed", "true")
+
+    await new Promise((resolve) => window.setTimeout(resolve, 900))
+
+    expect(fetchSpy.mock.calls.some((call) => (
+      String(call[0]) === "/api/v1/app/design_docs/1/suggestions" && call[1]?.method === "POST"
+    ))).toBe(false)
+  })
+
   it("runs formatting toolbar commands against Markdown and persists Suggest mode as a suggestion", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
