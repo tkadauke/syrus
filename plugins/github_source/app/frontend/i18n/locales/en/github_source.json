@@ -1,0 +1,25 @@
+{
+  "tab_issues": "GitHub Issues",
+  "repository": {
+    "loading_issues": "Loading GitHub issues...",
+    "trigger_label_prefix": "Trigger label:",
+    "showing_prefix": "Showing:",
+    "github_quota_prefix": "GitHub quota:",
+    "view_on_github": "View on GitHub",
+    "state_open": "Open",
+    "state_closed": "Closed",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "close_selected": "Close selected",
+    "delegate_selected": "Delegate selected",
+    "col_issue": "Issue",
+    "col_actions": "Actions",
+    "comment": "Comment",
+    "close": "Close",
+    "comment_on": "Comment on",
+    "cancel": "Cancel",
+    "post_comment": "Post comment",
+    "delegate": "Delegate",
+    "delegated": "Delegated"
+  }
+}

@@ -200,6 +200,7 @@ per-user/private:
   - app/views/spa/show.html.erb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
+  - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
   - plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb
   - plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb
   - plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb
@@ -440,6 +441,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the current operator's credentials, repositories, and first job progress. |
 | `plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb` | per-user/private | Design doc reads and writes resolve visibility through the signed-in user. |
 | `plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb` | per-user/private | Commit history is read for repositories the current user can access. |
+| `plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb` | per-user/private | Issue listing and triage actions resolve the repository through `Repository.accessible_to(Current.user)`. |
 | `plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
 | `plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb` | per-user/private | Throughput metrics resolve the repository through `Repository.accessible_to(Current.user)`. |
 | `plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |

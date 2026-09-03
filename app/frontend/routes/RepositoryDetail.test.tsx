@@ -160,25 +160,6 @@ function renderIssuesRoute() {
   return fetchSpy
 }
 
-describe("RepositoryDetailRoute github issues refresh", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("refetches the issues list when Refresh is clicked", async () => {
-    const fetchSpy = renderIssuesRoute()
-
-    expect(await screen.findByText("Something broke")).toBeInTheDocument()
-    const callsBeforeRefresh = fetchSpy.mock.calls.filter(([input]) => String(input) === ISSUES_PATH).length
-
-    const refreshButton = screen.getByRole("button", { name: "Refresh" })
-    fireEvent.click(refreshButton)
-
-    await waitFor(() => {
-      const callsAfterRefresh = fetchSpy.mock.calls.filter(([input]) => String(input) === ISSUES_PATH).length
-      expect(callsAfterRefresh).toBe(callsBeforeRefresh + 1)
-    })
-  })
-})
-
 describe("RepositoryDetailRoute archive", () => {
   let mockConfirm: ReturnType<typeof vi.fn>
 

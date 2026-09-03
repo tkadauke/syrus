@@ -124,7 +124,7 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       expect(response).to have_http_status(:ok)
       tab_keys = parse_body["tabs"].map { |t| t["key"] }
-      expect(tab_keys).to include("overview", "github_issues", "documents", "scheduled_tasks", "insights")
+      expect(tab_keys).to include("overview", "github_source.issues", "documents", "scheduled_tasks", "insights")
     end
 
     it "returns suggestions ordered by severity then confidence" do

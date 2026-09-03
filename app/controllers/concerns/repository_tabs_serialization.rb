@@ -10,7 +10,6 @@ module RepositoryTabsSerialization
       { key: "members", label: "Members", path: repository_memberships_path(repository) }
     ]
     unless AppSetting.simple?
-      tabs.insert(1, { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") })
       tabs << { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
     end
     if Feature.agent_insights_enabled?

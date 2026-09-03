@@ -3,7 +3,6 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
-import { RepositoryIssues } from "./repositoryDetail/RepositoryIssues"
 import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -20,7 +19,7 @@ import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPil
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -30,47 +29,26 @@ export function RepositoryDetailRoute() {
   const location = useLocation()
   const id = params.id || ""
   const query = new URLSearchParams(location.search)
-  const tabParam = query.get("tab")
-  const tab = tabParam === "github_issues" ? "github_issues" : "overview"
-  const state = query.get("state") === "closed" ? "closed" : "open"
+  const tab = "overview" as const
   const search = pageSearch(location.search)
   const prefix = routePrefix(location.pathname)
   const detailQueryKey = repositoryDetailQueryKey(id, search)
   const detail = useQuery({
     queryKey: detailQueryKey,
     queryFn: () => fetchRepositoryDetail(id, search),
-    enabled: id.length > 0 && tab === "overview"
+    enabled: id.length > 0
   })
-  const issues = useQuery({
-    queryKey: ["repositories", id, "issues", state],
-    queryFn: () => fetchRepositoryIssues(id, state),
-    enabled: id.length > 0 && tab === "github_issues"
-  })
-  usePageTitle(detail.data?.repository.slug ?? issues.data?.repository.slug)
+  usePageTitle(detail.data?.repository.slug)
 
   return (
     <main aria-label={t('repository.aria_repository')} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {tab !== "github_issues" ? (
-        <>
-          {detail.isPending ? (
-            <PanelMessage>
-              {t('repository.loading')}
-            </PanelMessage>
-          ) : null}
-          {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
-          {detail.isSuccess ? <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} /> : null}
-        </>
-      ) : (
-        <>
-          {issues.isPending ? (
-            <PanelMessage>
-              {t('repository.loading_issues')}
-            </PanelMessage>
-          ) : null}
-          {issues.isError ? <PanelMessage tone="error">{errorMessage(issues.error, "Unable to load GitHub issues.")}</PanelMessage> : null}
-          {issues.isSuccess ? <RepositoryIssues isRefreshing={issues.isFetching} onRefresh={() => { void issues.refetch() }} payload={issues.data} prefix={prefix} /> : null}
-        </>
-      )}
+      {detail.isPending ? (
+        <PanelMessage>
+          {t('repository.loading')}
+        </PanelMessage>
+      ) : null}
+      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
+      {detail.isSuccess ? <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} /> : null}
     </main>
   )
 }
@@ -79,7 +57,7 @@ function repositoryDetailQueryKey(id: string | number, search: string): Reposito
   return ["repositories", String(id), "detail", search] as const
 }
 
-function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "github_issues"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)

@@ -296,11 +296,6 @@ Rails.application.routes.draw do
         get "repositories/branches", to: "repositories#branches"
         resources :repositories, only: %i[ index show create update ] do
           member do
-            get "issues", to: "repositories#issues"
-            post "issues/comment", to: "repositories#comment_issue"
-            post "issues/close", to: "repositories#close_issue"
-            post "issues/delegate", to: "repositories#delegate_issue"
-            post "issues/bulk", to: "repositories#bulk_issues"
             post :poll
             post :archive
             post :unarchive

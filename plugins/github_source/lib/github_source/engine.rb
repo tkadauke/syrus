@@ -13,7 +13,19 @@ module SyrusGithubSource
         default_enabled: true,
         disableable:     true,
         category:        "input_source",
+        frontend: {
+          routes: { "github_source/RepositoryIssues" => "app/frontend/repo_tabs/RepositoryIssues.tsx" },
+          i18n: [ "app/frontend/i18n/locales/*/github_source.json" ]
+        },
+        routes: [
+          { verb: "GET",  path: "/api/v1/app/repositories/:repository_id/issues", controller: "api/v1/app/repository_issues#issues" },
+          { verb: "POST", path: "/api/v1/app/repositories/:repository_id/issues/comment", controller: "api/v1/app/repository_issues#comment_issue" },
+          { verb: "POST", path: "/api/v1/app/repositories/:repository_id/issues/close", controller: "api/v1/app/repository_issues#close_issue" },
+          { verb: "POST", path: "/api/v1/app/repositories/:repository_id/issues/delegate", controller: "api/v1/app/repository_issues#delegate_issue" },
+          { verb: "POST", path: "/api/v1/app/repositories/:repository_id/issues/bulk", controller: "api/v1/app/repository_issues#bulk_issues" }
+        ],
         provides: {
+          repo_page_tab:           GithubSource::RepoPageTabs,
           input_source:            InputSources::Github,
           source_control_provider: SourceControl::GithubOperations
         }

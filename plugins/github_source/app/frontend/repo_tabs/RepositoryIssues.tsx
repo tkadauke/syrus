@@ -1,18 +1,18 @@
-import { PanelMessage, StatusPill, stateFilterClass, buttonClass } from "./shared"
-import { RelativeTimestamp } from "../../components/RelativeTimestamp"
-import { withRoutePrefix } from "../../lib/routing"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { PanelMessage, StatusPill, stateFilterClass, buttonClass } from "@app/routes/repositoryDetail/shared"
+import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { withRoutePrefix } from "@app/lib/routing"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useState } from "react"
-import { Link } from "react-router-dom"
-import { useT } from "../../hooks/useT"
-import { Checkbox } from "../../components/Checkbox"
-import { NoticeToast } from "../../components/NoticeToast"
-import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
-import { RepositoryTabs } from "../../components/RepositoryTabs"
-import { Button } from "../../components/Button"
-import { bulkRepositoryIssues, closeRepositoryIssue, commentRepositoryIssue, delegateRepositoryIssue, type RepositoryIssue, type RepositoryIssuesPayload } from "../../api/repositories"
-import { errorMessage } from "../../lib/errorMessage"
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
+import { useT } from "@app/hooks/useT"
+import { Checkbox } from "@app/components/Checkbox"
+import { NoticeToast } from "@app/components/NoticeToast"
+import { OnboardingEmptyState, useSetupStatus } from "@app/components/OnboardingEmptyState"
+import { RepositoryTabs } from "@app/components/RepositoryTabs"
+import { Button } from "@app/components/Button"
+import { bulkRepositoryIssues, closeRepositoryIssue, commentRepositoryIssue, delegateRepositoryIssue, fetchRepositoryIssues, type RepositoryIssue, type RepositoryIssuesPayload } from "../api/issues"
+import { errorMessage } from "@app/lib/errorMessage"
 
 
 // Repository GitHub-issues tab extracted from RepositoryDetail.tsx: the issue
@@ -26,7 +26,7 @@ type IssueCommand =
   | { kind: "comment"; issueNumber: number; commentBody: string }
 
 export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: { isRefreshing: boolean; onRefresh: () => void; payload: RepositoryIssuesPayload; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("github_source")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const queryKey = ["repositories", String(payload.repository.id), "issues", payload.state] as const
@@ -222,7 +222,7 @@ function RepositoryIssueRow({
   selected: boolean
   state: "open" | "closed"
 }) {
-  const { t } = useT("settings")
+  const { t } = useT("github_source")
   return (
     <tr>
       <td className="px-4 py-3 align-top">
@@ -257,7 +257,7 @@ function RepositoryIssueRow({
 }
 
 function IssueLabel({ color, name }: { color: string; name: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("github_source")
   const safeColor = color.match(/^[0-9a-fA-F]{6}$/) ? color : "6b7280"
   return (
     <span
@@ -270,5 +270,35 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
     >
       {name}
     </span>
+  )
+}
+
+// Rendered by PluginRepoPageTabRoute, which passes no props: the repository
+// comes from the URL and the issue list is fetched here rather than being
+// threaded through the core repository payload.
+export default function RepositoryIssuesTab() {
+  const params = useParams()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const repositoryId = params.repositoryId || ""
+  const state = searchParams.get("state") === "closed" ? "closed" : "open"
+
+  const issues = useQuery({
+    queryKey: ["repositories", repositoryId, "issues", state],
+    queryFn: () => fetchRepositoryIssues(repositoryId, state),
+    enabled: repositoryId.length > 0
+  })
+
+  if (issues.isPending) return <PanelMessage>Loading issues...</PanelMessage>
+  if (issues.isError || !issues.data) return <PanelMessage tone="error">Unable to load issues.</PanelMessage>
+
+  return (
+    <RepositoryIssues
+      isRefreshing={issues.isFetching}
+      onRefresh={() => issues.refetch()}
+      payload={issues.data}
+      prefix={prefix}
+    />
   )
 }

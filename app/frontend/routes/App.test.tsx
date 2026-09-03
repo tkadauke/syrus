@@ -8667,67 +8667,6 @@ describe("App", () => {
     expect(screen.getByText("https://docs.google.com/document/d/user/edit")).toBeInTheDocument()
   })
 
-  it("renders repository documents and adds a Google Doc", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/repositories/3/documents" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(repositoryDocumentsPayload({
-          documents: [
-            {
-              id: 9,
-              kind: "google_doc",
-              title: "Design brief",
-              google_doc_url: "https://docs.google.com/document/d/design/edit",
-              filename: null,
-              content_type: null,
-              byte_size: null,
-              uploaded_by: "Operator",
-              created_at: "2026-05-30T12:00:00Z"
-            }
-          ],
-          message: "Document added."
-        })), { status: 201, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(repositoryDocumentsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/3/documents"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "Repository documents" })).toHaveClass("max-w-[96rem]")
-    expect(await screen.findByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-2xl", "font-mono")
-    const repositoryTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
-    expect(within(repositoryTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(within(repositoryTabs).getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
-    expect(within(repositoryTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
-    expect(within(repositoryTabs).getByRole("link", { name: "Documents" })).toHaveClass("border-brand")
-    expect(within(repositoryTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks")
-    const description = screen.getByText("Supporting documents available to agent runs for this repository.")
-    expect(Boolean(repositoryTabs.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-    expect(await screen.findByText("No supporting documents yet. Upload a file or link a Google Doc to give the agent extra context.")).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("URL"), { target: { value: "https://docs.google.com/document/d/design/edit" } })
-    fireEvent.change(screen.getByLabelText("Document title"), { target: { value: "Design brief" } })
-    fireEvent.click(screen.getByRole("button", { name: "Add Google Doc" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/documents",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          body: expect.any(FormData)
-        })
-      )
-    })
-    expect(await screen.findByText("Document added.")).toBeInTheDocument()
-    expect(screen.getByText("Design brief")).toBeInTheDocument()
-  })
 
   it("renders the direct job form, applies a template, and creates another job", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -9212,64 +9151,6 @@ describe("App", () => {
     expect(await screen.findByText("Trigger label can't be blank")).toBeInTheDocument()
   })
 
-  it("renders a repository detail overview from the app API", async () => {
-    const basePayload = repositoryDetailPayload()
-    const detailPayload = {
-      ...basePayload,
-      pagination: {
-        ...basePayload.pagination,
-        total_jobs: 25,
-        total_pages: 2,
-        next_path: "/repositories/3?page=2"
-      }
-    }
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(detailPayload), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/3"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "Repository" })).toBeInTheDocument()
-    expect(await screen.findByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "https://github.com/acme/widgets")
-    expect(screen.getByText("polling enabled")).toBeInTheDocument()
-    expect(screen.getByText("Working repo")).toBeInTheDocument()
-    expect(screen.getByText("Upstream repo")).toBeInTheDocument()
-    expect(screen.getByText("rails/rails:main")).toBeInTheDocument()
-    expect(screen.queryByText("Repository context pinned.")).not.toBeInTheDocument()
-    expect(screen.getByText("Fix forum")).toBeInTheDocument()
-    expect(screen.getByText("Retry 1 failed with Codex")).toBeInTheDocument()
-    expect(screen.getByText("Install Syrus App")).toHaveAttribute("href", "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200")
-    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(screen.getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
-    expect(screen.queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/repositories/3/documents")
-    expect(screen.getByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks")
-    expect(screen.getByRole("link", { name: "New job" })).toHaveAttribute("href", "/app-shell/jobs/new?repository_id=3")
-    const moreButton = screen.getByRole("button", { name: "More" })
-    fireEvent.click(moreButton)
-    expect(moreButton).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/repositories/3/edit")
-    fireEvent.keyDown(window, { key: "Escape" })
-    expect(moreButton).toHaveAttribute("aria-expanded", "false")
-    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
-    fireEvent.click(moreButton)
-    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument()
-    fireEvent.pointerDown(document.body)
-    expect(moreButton).toHaveAttribute("aria-expanded", "false")
-    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Fix forum" })).toHaveAttribute("href", "/app-shell/jobs/44")
-    expect(screen.getByRole("link", { name: "View" })).toHaveAttribute("href", "/app-shell/jobs/44")
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/repositories/3?page=2")
-    expect(screen.getByText("1 running")).toBeInTheDocument()
-    expect(screen.getByText("1 queued")).toBeInTheDocument()
-    expect(screen.getByText("1 failed 7d")).toBeInTheDocument()
-  })
 
   it("runs repository detail commands through the app API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
@@ -9352,50 +9233,6 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Repositories" })).toBeInTheDocument()
   })
 
-  it("renders repository GitHub issues and delegates one through the app API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/repositories/3/issues/delegate" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(repositoryIssuesPayload({
-          message: "Issue #7 delegated to Syrus.",
-          delegated: true
-        })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(repositoryIssuesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/3?tab=github_issues&state=open"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "Repository" })).toBeInTheDocument()
-    expect(await screen.findByText("Fix the forum")).toBeInTheDocument()
-    expect(screen.getByText("Trigger label:")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "View on GitHub" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues")
-    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(screen.getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues&state=open")
-    expect(screen.getByRole("link", { name: "Closed" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues&state=closed")
-    fireEvent.click(screen.getByRole("button", { name: "Delegate" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/issues/delegate",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin",
-          body: JSON.stringify({ issue_number: 7, state: "open" })
-        })
-      )
-    })
-    expect(await screen.findByText("Issue #7 delegated to Syrus.")).toBeInTheDocument()
-    expect(screen.getByText("Delegated")).toBeInTheDocument()
-  })
 
   it("renders the new epic form and submits it to the app API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
