@@ -307,6 +307,54 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       allow(handler).to receive(:run_agent)
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /didn't call submit_summary/)
     end
+
+    it "retries ci_failure summarize_amend without provider resume when Codex rejects restored rollout state" do
+      workflow.update!(trigger_kind: "ci_failure")
+      job.update!(issue_title: "Fix failing CI", issue_body: "The eager-load grader fails after the prior change.")
+      analyze_step = Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 0, next_step_id: step.id)
+      upstream_sha = head_sha
+      Run.create!(
+        job: job,
+        step: analyze_step,
+        trigger_kind: "ci_failure",
+        state: "succeeded",
+        head_sha: upstream_sha,
+        step_agent_diff: "diff --git a/app/services/example.rb b/app/services/example.rb\n+class Example; end\n",
+        agent_diff: "diff --git a/app/services/example.rb b/app/services/example.rb\n+class Example; end\n"
+      )
+      workflow.set_artifact!("summary", "Existing PR summary from the initial workflow.")
+      calls = []
+      allow(handler).to receive(:run_agent) do |**kwargs|
+        calls << kwargs
+        if calls.one?
+          JobLog.append!(
+            run: run,
+            chunk: "[codex resume] resume for session 019f-missing did not complete successfully: thread/resume failed: rollout-restored-019f-missing.jsonl does not have a canonical rollout filename",
+            kind: "system"
+          )
+          raise Steps::Base::StepFailed, "agent reported error"
+        end
+
+        run.update!(
+          agent_pr_title: "Fix CI: restore eager-load compatibility",
+          agent_pr_body: "Adjusted the service so the eager-load grader passes.",
+          agent_summary: "Fixed the eager-load regression."
+        )
+      end
+
+      expect { handler.call }.not_to raise_error
+
+      expect(calls.size).to eq(2)
+      expect(calls.first).not_to include(resume_session_id: nil)
+      expect(calls.second).to include(resume_session_id: nil)
+      expect(calls.second[:prompt]).to include("original agent session is not available to resume")
+      expect(calls.second[:prompt]).to include("Fix failing CI")
+      expect(calls.second[:prompt]).to include("The eager-load grader fails after the prior change.")
+      expect(calls.second[:prompt]).to include("Existing PR summary from the initial workflow.")
+      expect(calls.second[:prompt]).to include("+class Example; end")
+      expect(workflow.reload.artifact("amend_commit_subject")).to eq("Fix CI: restore eager-load compatibility")
+      expect(commit_message).to start_with("Fix CI: restore eager-load compatibility")
+    end
   end
 
   def sh(*args)
