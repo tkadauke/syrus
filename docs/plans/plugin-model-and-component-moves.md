@@ -11,6 +11,18 @@ This plan supersedes the earlier review-first draft. Completed extractions have
 been removed rather than re-planned; what remains is the enabling program, the
 current move candidates, and the decisions that constrain both.
 
+## Status
+
+**Phase 0 complete** except G10 (uninstall/purge lifecycle), carried to Phase 2.
+Landed: the boundary audit promoted to the required `plugin-boundaries` grader,
+`github_source` made disableable (no bundled plugin declares
+`disableable: false` any more), runtime plugin health (G11), and spec-harness
+auto-discovery (G9).
+
+**Phase 1 complete.** `spending_insights` finished, `throughput` and
+`team_directory` extracted, and the `ui_slot` extension point built.
+`build_cache` moved to Phase 2 — see its entry for why.
+
 ## Principles
 
 These are rules, not preferences. A move that cannot satisfy them is not ready.
@@ -105,6 +117,8 @@ phases:
   `Admin::PluginSourceBoundaryAudit`, `PluginDependencyGraph#cycles`,
   `bin/plugin-boundary-audit`, and absence-tolerant resolution of the
   provider and input-source constants. See the boundary section above.
+- **Extracted in this program** — `spending_insights` (finished: payload,
+  filter subject, chat tool, i18n), `throughput` (new), `team_directory` (new).
 - **Standalone pages** — `design_docs` (with its own migrations),
   `worker_timeline`, `mysql_db_browser`, `spending_insights` (page only),
   `preview_tools`, `whiteboard_tools`, `theming_tools`, `git_history`,
@@ -211,6 +225,14 @@ landing zone for the plugin-shaped columns currently sitting on `app_settings`:
 and the `github_app_*` block.
 
 ### G5. UI surfaces
+
+**Done: in-page slots.** `ui_slot` (`Syrus::Plugin::UiSlot`,
+`App::UiSlotsPayload`, `pluginUiSlots.tsx`) lets a plugin contribute a panel to
+a named slot on a core page rather than only owning a whole page. Slot names are
+declared, not free-form. `repository.detail` is in use by `throughput`;
+`job.detail` is declared and awaits `build_cache`.
+
+Still outstanding:
 
 - **Sidebar pages need two host edits** (`config/routes.rb` and
   `App.tsx`). `/admin/*` and `/repositories/:id/plugin/*` already have
@@ -464,12 +486,18 @@ reference is the panel mount in `RepositoryDetail.tsx`. Needs G5's
 repository-detail slot, or ships as a repo page tab (wildcard already works) in
 the interim. The cleanest extraction available.
 
-**`build_cache`** — sccache. One table (`admin_build_cache_clear_requests` →
+**`build_cache`** — sccache. **Moved to Tier 2 after attempting it.** The
+inventory was right — one table (`admin_build_cache_clear_requests` →
 `build_cache_clear_requests`), four services, two controllers, an admin page
-(wildcard already works), and a job-detail card. Inbound coupling is three
-sites: `Steps::Base#capture_sccache_stats!`, the `SCCACHE_ENV_FORWARD` fold into
-`Steps::Prepare::PREP_ENV_FORWARD`, and `App::JobDetailPayload`. Needs a
-step-environment contribution hook plus G5's job-detail card slot.
+(wildcard already works), a job-detail card — but "no new platform" was wrong.
+
+Two core hooks are missing. `Steps::Prepare::PREP_ENV_FORWARD` folds in
+`SCCACHE_ENV_FORWARD`, so the plugin needs to contribute environment variables
+to prepare/grader/deploy subprocesses. And `Steps::Base#capture_sccache_stats!`
+runs after every shell command in three steps, which is a domain event
+(`step.command.completed`) rather than anything build-cache-specific. Building a
+bespoke callback now would duplicate what G1 provides, so this waits for
+Phase 2. The `job.detail` slot it needs already exists.
 
 Scope note: this is *only* an S3 compiler cache. There is no cache warming and
 no shared dependency cache — `WorkspaceDependencyEnv` is per-workspace
@@ -674,7 +702,9 @@ core
  ├── agent_memory ◄── agent_insights
  ├── test_insights
  ├── build_cache
- ├── throughput
+ ├── throughput          (extracted)
+ ├── team_directory      (extracted)
+ ├── spending_insights   (completed)
  ├── coverage
  ├── video_walkthroughs
  ├── terminal
@@ -719,14 +749,20 @@ Consequences worth stating:
   lifecycle (G10).
 - Auto-discover plugins in the test harness (G9).
 
-### Phase 1 — Cheap proof
-- `throughput`, `build_cache`, finish `spending_insights`, `team_directory`.
-- Build only the UI slots these need (G5).
-- Goal: validate the template against real backends before the expensive work.
+### Phase 1 — Cheap proof (done)
+- Finished `spending_insights`; extracted `throughput` and `team_directory`;
+  built the `ui_slot` extension point.
+- `build_cache` deferred to Phase 2: it needs a step-environment hook and a
+  post-command domain event, which G1 provides.
+- What it validated: the template holds for a real backend, and two hazards
+  showed up only by doing it — a plugin controller namespace can shadow a core
+  top-level module, and the `Current.user` scope audit did not cover plugin
+  controllers, so a move would silently drop a documented scope.
 
 ### Phase 2 — Core platform
 - Domain events (G1), recurring jobs (G2), kind registries (G3), plugin
-  settings read path (G4).
+  settings read path (G4), uninstall/purge lifecycle (G10).
+- Then `build_cache`, which is waiting on G1 plus a step-environment hook.
 - Job Origin steps 1-2: add and backfill `origin` / `origin_id`, move creation
   and dedup paths onto them, register the `job_origin` extension point, and
   retire the hardcoded GitHub URL construction in `IngestionClassifier`,
