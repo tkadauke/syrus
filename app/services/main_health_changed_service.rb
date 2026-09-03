@@ -488,12 +488,12 @@ class MainHealthChangedService
   def settled_broken_ci_signal?(sha)
     @repository.last_ci_evaluated_sha == sha &&
       @repository.ci_health_broken? &&
-      MainBranchHealthCheck.settled_ci_result_exists?(repository: @repository, sha: sha)
+      MainBranchHealthCheck.broken_ci_result_exists?(repository: @repository, sha: sha)
   end
 
   def settled_broken_grader_signal?(sha)
     @repository.grader_health_broken? &&
-      MainBranchHealthCheck.settled_grader_result_exists?(repository: @repository, sha: sha)
+      MainBranchHealthCheck.broken_grader_result_exists?(repository: @repository, sha: sha)
   end
 
   def truncate_attachment_body(body, max_bytes)

@@ -31,12 +31,20 @@ class MainBranchHealthCheck < ApplicationRecord
     ).exists?
   end
 
+  def self.broken_ci_result_exists?(repository:, sha:)
+    where(repository: repository, sha: sha, ci_health: "broken").exists?
+  end
+
   def self.settled_grader_result_exists?(repository:, sha:)
     where(
       repository: repository,
       sha: sha,
       grader_health: SETTLED_GRADER_HEALTH
     ).exists?
+  end
+
+  def self.broken_grader_result_exists?(repository:, sha:)
+    where(repository: repository, sha: sha, grader_health: "broken").exists?
   end
 
   def self.record_ci_poll(repository:, sha:, ci_health:, ci_failed_checks: nil)
