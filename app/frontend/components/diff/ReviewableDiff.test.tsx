@@ -78,4 +78,22 @@ describe("ReviewableDiff", () => {
       side: "new"
     })
   })
+
+  it("renders anchored diff review threads beside matching lines", () => {
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("Please cover this branch.")
+    expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("Ada")
+  })
 })
