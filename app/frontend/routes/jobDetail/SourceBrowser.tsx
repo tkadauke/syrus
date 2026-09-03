@@ -8,9 +8,10 @@ import { highlightCode } from "../../lib/syntaxHighlight"
 import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
-import type { LineAnnotation } from "./diffRendering"
+import type { LineAnnotation } from "../../components/diff/diffRendering"
+import { ReviewableDiff } from "../../components/diff/ReviewableDiff"
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
-import { AgentDiff, PanelMessage } from "./components"
+import { PanelMessage } from "./components"
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree, sourceLanguage } from "./sourceTree"
 
@@ -269,6 +270,7 @@ function SourceDiffBrowser({
 }) {
   const { t } = useT("jobs")
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [renderMode, setRenderMode] = useState<"single-file" | "continuous">("single-file")
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
 
@@ -295,7 +297,25 @@ function SourceDiffBrowser({
             </Select>
           </label>
         </div>
-        {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
+        <div className="flex items-center gap-3">
+          <div className="inline-flex overflow-hidden rounded border border-gray-200 text-xs dark:border-gray-700">
+            <button
+              className={`px-2.5 py-1 ${renderMode === "single-file" ? "bg-brand text-white" : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              onClick={() => setRenderMode("single-file")}
+              type="button"
+            >
+              {t("source_diff_single_file")}
+            </button>
+            <button
+              className={`border-l border-gray-200 px-2.5 py-1 dark:border-gray-700 ${renderMode === "continuous" ? "bg-brand text-white" : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              onClick={() => setRenderMode("continuous")}
+              type="button"
+            >
+              {t("source_diff_continuous")}
+            </button>
+          </div>
+          {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}
+        </div>
       </div>
       <div className="grid min-h-[36rem] overflow-hidden rounded border border-gray-200 bg-white lg:grid-cols-[20rem_minmax(0,1fr)] dark:border-gray-700 dark:bg-gray-900">
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
@@ -313,17 +333,17 @@ function SourceDiffBrowser({
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div>
         <div className="min-w-0 overflow-auto">
-          {selectedFile ? (
-            selectedFile.patch !== null ? (
-              <>
-                <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
-                  <span className="min-w-0 flex-1 truncate">{selectedFile.path}</span>
-                  <span>+{selectedFile.additions}</span>
-                  <span>-{selectedFile.deletions}</span>
-                </div>
-                <AgentDiff annotations={diffAnnotations?.[selectedFile.path]} diff={selectedFile.patch} />
-              </>
-            ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_diff_not_available")}</div>
+          {renderMode === "continuous" || selectedFile ? (
+            <ReviewableDiff
+              annotations={diffAnnotations}
+              emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
+              files={payload.files}
+              mode={renderMode}
+              onSelectFile={setSelectedPath}
+              selectedPath={selectedPath}
+              showFileHeaders
+              unavailableState={t("source_diff_not_available")}
+            />
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
         </div>
       </div>

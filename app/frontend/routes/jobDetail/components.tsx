@@ -21,8 +21,7 @@ import { Link, useLocation } from "react-router-dom"
 import { AnsiText } from "../../components/AnsiText"
 import type { JobRun, fetchJobRunArtifacts } from "../../api/jobs"
 import { useT } from "../../hooks/useT"
-import type { LineAnnotation } from "./diffRendering"
-import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff } from "./diffRendering"
+export { AgentDiff } from "../../components/diff/ReviewableDiff"
 import { withRoutePrefix } from "./formatting"
 import { formatElapsed, humanize } from "./stepModel"
 import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToBottom } from "./transcript"
@@ -31,40 +30,6 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // pill/panel primitives, the live-elapsed hook, the active/queued Run banner, and
 // the run-transcript log stream. Kept in a leaf module so both the route file and
 // the workflow/step/run render subtree can import them without a circular edge.
-
-export function AgentDiff({ diff, annotations }: { diff: string; annotations?: Record<string, LineAnnotation> }) {
-  const lines = parseUnifiedDiff(diff)
-
-  return (
-    <div className="max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950" data-testid="agent-diff-viewer">
-      <table className="min-w-full border-separate border-spacing-0">
-        <tbody>
-          {lines.map((line, index) => {
-            const annotation = annotations && line.newLine != null ? annotations[String(line.newLine)] : undefined
-            return (
-              <tr
-                className={diffLineClass(line.kind)}
-                data-coverage={annotation}
-                data-diff-kind={line.kind}
-                key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}
-              >
-                <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
-                <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
-                <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
-                <td className="w-4 select-none px-1 text-center">
-                  {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                    : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
-                    : null}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 export function SmallPill({ children }: { children: ReactNode }) {
   return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>

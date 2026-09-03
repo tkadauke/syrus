@@ -337,6 +337,8 @@
   "source_error": "Inspector fontis onerari non potuit.",
   "source_diff_loading": "Diff oneratur...",
   "source_diff_error": "Diff onerari non potuit.",
+  "source_diff_single_file": "Una tabula",
+  "source_diff_continuous": "Continuum",
   "source_tree_truncated": "Arbor a GitHub truncata.",
   "source_diff_truncated": "Diff a GitHub truncatum.",
   "source_no_files": "Nulli fasciculi inventi.",
