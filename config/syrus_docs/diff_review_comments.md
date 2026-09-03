@@ -16,6 +16,7 @@ API endpoints live under the user-scoped app API:
 
 - `GET /api/v1/app/jobs/:job_id/diff_review_comments`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments`
+- `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit`
 - `PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve`
 
@@ -25,3 +26,12 @@ member. The list endpoint accepts `surface`, `base_ref`, `head_ref`, `path`,
 and `state` filters and returns both a flat `comments` array and `by_path`,
 keyed as `by_path[path][anchor_key]`, where anchor keys are `side:old:new`
 with blank coordinates left empty.
+
+The submit endpoint accepts `comment_ids` and sends selected unresolved
+comments through the normal `chat_feedback` workflow path. The workflow stores
+a readable `chat_feedback` body plus structured `diff_comments` artifacts with
+the durable anchor data: path, side, old/new line coordinates, base/head refs,
+diff hunk snapshot, context, author, and comment body. Once the feedback
+workflow is accepted, selected comments are marked `submitted` and linked to
+that workflow. Duplicate active submissions are rejected by the same active
+`chat_feedback` guard used by chat-submitted feedback.
