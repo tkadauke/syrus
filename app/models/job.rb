@@ -133,7 +133,7 @@ class Job < ApplicationRecord
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
-            if: -> { issue? && (input_source.nil? || input_source.is_a?(InputSources::Github)) }
+            if: -> { issue? && (input_source.nil? || input_source.type == "InputSources::Github") }
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_direct, if: :direct?
