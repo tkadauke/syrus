@@ -80,4 +80,11 @@ Keep plugin boundaries crisp:
 - namespace plugin models,
 - prefix plugin-owned tables,
 - use extension points instead of monkey-patching core behavior,
-- make runtime disablement leave the rest of Syrus usable.
+- make runtime disablement leave the rest of Syrus usable,
+- keep the core test suite free of plugin specifics, so removing a plugin
+  entirely leaves a passing suite rather than a red one.
+
+Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-audit
+<plugin>` copies the checkout, deletes that plugin plus everything that depends
+on it, and runs a command of your choosing — a boot check by default, or the
+full test suite — against what is left.

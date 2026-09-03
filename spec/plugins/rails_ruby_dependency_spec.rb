@@ -7,7 +7,7 @@ require "rails_helper"
 # plugins/ruby/lib/ruby/engine.rb — not a synthetic pair invented for the
 # test (see spec/requests/api/v1/admin/plugins_spec.rb for the generic
 # mechanism tests).
-RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request do
+RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, requires_plugin: %w[rails ruby] do
   let(:admin) { Factories.user(admin: true) }
   let(:admin_token) { admin.generate_api_token! }
 

@@ -62,7 +62,7 @@ RSpec.describe RepoPrepPlan do
     end
   end
 
-  describe "auto-detect" do
+  describe "auto-detect", requires_plugin: %w[ruby javascript] do
     # RepoPrepPlan no longer hardcodes Ruby/Node signals — it delegates
     # entirely to registered :prepare_detector plugins. Register the real
     # bundled `ruby` and `javascript` plugins (mirroring their engine.rb

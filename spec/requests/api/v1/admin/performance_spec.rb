@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "API: /api/v1/admin/performance", type: :request do
+RSpec.describe "API: /api/v1/admin/performance", type: :request, requires_plugin: "syrus_dev" do
   let!(:admin) { Factories.user }
   let!(:admin_token) { admin.generate_api_token! }
   let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }

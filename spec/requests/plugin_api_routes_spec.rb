@@ -40,7 +40,7 @@ RSpec.describe "Plugin API routes", type: :request do
     end
   end
 
-  it "routes plugin-owned app API endpoints through the plugin dispatcher" do
+  it "routes plugin-owned app API endpoints through the plugin dispatcher", requires_plugin: "linear_source" do
     expect(Rails.application.routes.recognize_path("/api/v1/app/linear/teams", method: :get)).to include(
       controller: "api/v1/app/plugin_routes",
       action: "show"

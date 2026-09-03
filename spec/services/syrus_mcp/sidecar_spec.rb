@@ -320,7 +320,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).to include("submit_summary")
     end
 
-    it "does not advertise Syrus Dev diagnostics while the plugin is disabled" do
+    it "does not advertise Syrus Dev diagnostics while the plugin is disabled", requires_plugin: "syrus_dev" do
       PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
 
       response = jsonrpc(server_for(run), "tools/list", id: 1)
@@ -329,7 +329,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).not_to include("read_performance_diagnostics", "read_syrus_logs")
     end
 
-    it "advertises Syrus Dev diagnostics for Syrus implementation runs when enabled" do
+    it "advertises Syrus Dev diagnostics for Syrus implementation runs when enabled", requires_plugin: "syrus_dev" do
       syrus_repository = Factories.repository(user: run.job.user, owner: "tkadauke", name: "syrus")
       syrus_run = Factories.job(repository: syrus_repository, user: run.job.user).initial_run
 
@@ -341,7 +341,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).to include("read_performance_diagnostics", "read_syrus_logs")
     end
 
-    it "does not advertise Syrus Dev diagnostics for non-implementation workflow roles" do
+    it "does not advertise Syrus Dev diagnostics for non-implementation workflow roles", requires_plugin: "syrus_dev" do
       syrus_repository = Factories.repository(user: run.job.user, owner: "tkadauke", name: "syrus")
       job = Factories.job(repository: syrus_repository, user: run.job.user)
       workflow = job.workflows.first
@@ -356,7 +356,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).not_to include("read_performance_diagnostics", "read_syrus_logs")
     end
 
-    it "does not advertise Syrus Dev diagnostics for non-Syrus repositories" do
+    it "does not advertise Syrus Dev diagnostics for non-Syrus repositories", requires_plugin: "syrus_dev" do
       PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
 
       response = jsonrpc(server_for(run), "tools/list", id: 1)

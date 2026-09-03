@@ -1,4 +1,4 @@
-module Timeline
+module WorkerTimeline
   # Parses the worker-timeline macro view's shared FilterBar query-tree
   # (`?q=` base64-JSON, same wire format as the dashboard/admin filter
   # bars -- see Filters::QueryParam) into the discrete
@@ -7,7 +7,7 @@ module Timeline
   # FilterBar component (app/frontend/components/FilterBar.tsx) renders
   # against.
   #
-  # MacroQuery isn't a single AR relation a Filters::Compiler chip can
+  # Timeline::MacroQuery isn't a single AR relation a Filters::Compiler chip can
   # `.where` against (spans come from Workflow, pending from a second
   # Workflow scope, idle lanes from InstanceVersion, and the "window"
   # is an overlap test applied across all three). So execution still only

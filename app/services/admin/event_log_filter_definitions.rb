@@ -44,7 +44,7 @@ module Admin
     def workflow_activity
       @workflow_activity ||= EventLogFilterDefinition.define(:workflow_activity, model: WorkflowActivityEvent) do
         field :event_type, label: "Event type", bucket: :enum, operators: %i[is is_not is_one_of is_none_of], values: option_values(WorkflowActivityEvent::EVENT_TYPES)
-        field :trigger_kind, label: "Trigger kind", bucket: :enum, operators: %i[is is_not is_one_of is_none_of], values: option_values(Workflow::TRIGGER_KINDS)
+        field :trigger_kind, label: "Trigger kind", bucket: :enum, operators: %i[is is_not is_one_of is_none_of], values: option_values(Workflow::TriggerKind.values)
         field :reason_key, label: "Reason", bucket: :text, operators: %i[is is_not contains]
         field :job_id, label: "Job ID", bucket: :number, operators: %i[is is_not greater_than less_than], input_mode: "numeric"
         field :workflow_id, label: "Workflow ID", bucket: :number, operators: %i[is is_not greater_than less_than], input_mode: "numeric"

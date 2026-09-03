@@ -67,7 +67,7 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
     )
   end
 
-  it "returns syrus_dev admin page metadata from the plugin contract" do
+  it "returns syrus_dev admin page metadata from the plugin contract", requires_plugin: "syrus_dev" do
     sign_in_as(admin)
     PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
     allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(true)
@@ -87,7 +87,7 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
     )
   end
 
-  it "omits the syrus_dev operational logs page while operational log indexing is disabled" do
+  it "omits the syrus_dev operational logs page while operational log indexing is disabled", requires_plugin: "syrus_dev" do
     sign_in_as(admin)
     PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
     allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(false)

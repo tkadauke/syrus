@@ -1,7 +1,9 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::Prepare do
+# Registers the real language plugins by constant in its top-level before,
+# so it needs them installed rather than merely enabled.
+RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
   # Build a Run wired to a workflow + step so the handler's
   # `workspace`, `log`, `repository`, `job` accessors all work.
   let(:job)      { Factories.job }
@@ -280,7 +282,7 @@ RSpec.describe Steps::Prepare do
       expect_mise_install_ran
     end
 
-    context "with every bundled language plugin registered" do
+    context "with every bundled language plugin registered", requires_plugin: %w[ruby javascript python go] do
       before do
         unless Syrus::PluginRegistry.registered_names.include?("javascript")
           Syrus::PluginRegistry.register(

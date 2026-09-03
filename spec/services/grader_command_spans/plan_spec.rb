@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe GraderCommandSpans::Plan do
+RSpec.describe GraderCommandSpans::Plan, requires_plugin: %w[ruby javascript] do
   # Sub-command labels for Ruby/JS-specific commands (rspec, bundle, frontend
   # tests, etc.) now come from the real `ruby`/`javascript` prepare_detector
   # plugins' `span_labels` instead of a hardcoded table here — mirroring the

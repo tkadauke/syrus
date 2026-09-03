@@ -3,7 +3,6 @@ class Workflow < ApplicationRecord
   include RecordsStateTransitions
   include BroadcastsJobProgress
 
-  TRIGGER_KINDS = Workflow::TriggerKind.values
   EPIC_WIDE_TRIGGER_KINDS = Workflow::TriggerKind.epic_wide_values
   PRIORITIES = Job::PRIORITIES
   DEFAULT_PRIORITY = "medium"

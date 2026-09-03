@@ -3,7 +3,7 @@ require "rails_helper"
 # End-to-end smoke test: registers the syrus_rails plugin, writes a typed artifact
 # via the MCP tool, serializes via JobDetailPayload, and verifies renderer_type is
 # present in the API response.
-RSpec.describe "typed artifacts in job detail payload" do
+RSpec.describe "typed artifacts in job detail payload", requires_plugin: "rails" do
   around do |example|
     Syrus::PluginRegistry.reset!
     example.run

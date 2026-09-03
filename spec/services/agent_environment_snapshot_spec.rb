@@ -175,7 +175,9 @@ RSpec.describe AgentEnvironmentSnapshot do
     end
   end
 
-  describe "#dependency_summary" do
+  # These examples register the real language plugins by constant, so they
+  # need those plugins installed rather than merely enabled.
+  describe "#dependency_summary", requires_plugin: %w[ruby javascript] do
     after { Syrus::PluginRegistry.reset! }
 
     def register_real_ruby_and_javascript_plugins
@@ -223,7 +225,7 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("Dependency signals: no common dependency signals found")
     end
 
-    it "includes Python and Go signals once those plugins are registered and enabled" do
+    it "includes Python and Go signals once those plugins are registered and enabled", requires_plugin: %w[ruby javascript python go] do
       unless Syrus::PluginRegistry.registered_names.include?("python")
         Syrus::PluginRegistry.register(
           name: "python", version: Python::VERSION, prepare_priority: 30,

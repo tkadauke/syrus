@@ -12,7 +12,7 @@ module Api
           before_action :require_worker_timeline_enabled
 
           def macro
-            filter = ::Timeline::MacroQueryFilter.from_params(params)
+            filter = ::WorkerTimeline::MacroQueryFilter.from_params(params)
 
             render json: ::Timeline::MacroQuery.call(
               from: filter.from,
@@ -24,7 +24,7 @@ module Api
               job_type: filter.job_type
             ).merge(
               filter: filter.to_h,
-              filter_schema: ::Timeline::MacroQueryFilter.schema
+              filter_schema: ::WorkerTimeline::MacroQueryFilter.schema
             )
           end
 

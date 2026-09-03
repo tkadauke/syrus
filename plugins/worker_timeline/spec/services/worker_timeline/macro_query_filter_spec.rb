@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Timeline::MacroQueryFilter do
+RSpec.describe WorkerTimeline::MacroQueryFilter do
   def encode(tree) = Filters::QueryParam.encode(tree)
 
   describe ".schema" do

@@ -24,8 +24,6 @@ module Workflows
                         &.presence
   end
 
-  REGISTRY = Workflow::TriggerKind.registry
-
   def self.for(trigger_kind:)
     Workflow::TriggerKind.template_for(trigger_kind)
   rescue ArgumentError

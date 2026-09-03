@@ -80,6 +80,87 @@ as, not a plugin — core grants live-state, worker-health, and memory tools for
 it, and any plugin can attach a step to that role. Splitting roles out is its
 own extension point and is not worth doing for one consumer.
 
+**Boundary stress test (after Phase 5).** `bin/plugin-boundary-audit` was
+documented but effectively unused. Running it across all 29 bundled plugins
+split the result cleanly:
+
+- **Runtime boundaries hold.** Every plugin boots and eager-loads with itself
+  and its transitive dependents physically deleted from a `git archive` copy.
+  The dependency graph resolves correctly (selecting `agent_memory` also
+  removes `agent_insights`).
+- **The suite did not.** Running the actual suite in the copy failed for every
+  plugin, because core specs enumerate the bundled set — so "deletable" meant
+  "deletable with a red suite." Now fixed and re-verified: **all 26 optional
+  plugins remove with 0 failures.** The fixes fell into four kinds — core specs
+  subtracting plugin contributions instead of pinning the bundled list;
+  examples that drive core logic through a plugin's provider moved into that
+  plugin; the 24 language-plugin specs moved out of core's `spec/plugins/` into
+  `plugins/<name>/spec/`; and a `:requires_plugin` tag for the handful of core
+  specs that legitimately need a plugin as a *fixture* (core ships the
+  InputSource model but no source type, the purge lifecycle needs a plugin that
+  owns a table, the cascade needs a real dependent pair).
+- **One real defect.** `AgentEnvironmentSnapshot::CHAT_TOOL_GROUPS` hardcodes
+  plugin tool names and rendered them unconditionally, so with a plugin
+  uninstalled a chat agent was told it had tools it could not call. The groups
+  are filtered to what the session actually advertises now.
+
+- **`github_source` is nominally disableable but not deletable.** It boots
+  with the plugin gone, and the boundary grader is clean, but 6,123 of 12,121
+  examples fail. First cause: `Repository` declares
+  `has_one :github_input_source, class_name: "InputSources::Github"` — a
+  *string* class name, which is exactly why the constant-based grader never saw
+  it. Reading the association raises `NameError`, and `trigger_label` /
+  `polling_enabled` read it on paths every factory touches. (The *writer*,
+  `create_github_input_source`, already guards with `safe_constantize`; the
+  reader does not.) Not fixed here: one guard would leave thousands of failures
+  and manufacture the appearance of progress. This belongs with the wider
+  GitHub extraction in Phase 6, and it now has a concrete starting point.
+
+- **`claude_agent` cannot be disabled at runtime, let alone deleted — and the
+  admin UI offers it.** `users.agent_provider` (and `runs`, `workflows`,
+  `repositories`) carry a database default of `"claude"`, while the model
+  validates `inclusion: { in: -> { User.agent_providers } }` against the
+  registry. Turn the plugin off and every existing user with
+  `agent_provider: "claude"` becomes unsaveable, and every new user invalid:
+
+  ```
+  providers with claude_agent disabled: ["codex"]
+  new user default "claude" -> valid? false
+  existing user provider="claude" -> ["Agent provider is not included in the list",
+                                      "Chat provider is not included in the list"]
+  ```
+
+  This is an operator-reachable footgun, not only a test-suite artifact. Fixing
+  it needs a decision rather than a patch: a dynamic column default, a
+  validation that tolerates a persisted-but-disabled provider, or refusing to
+  disable a provider rows still reference. Open question below.
+
+- **Agent-provider plugins are load-bearing for the suite too.** Removing
+  `codex_agent` fails ~260 examples across ~20 core spec files that hardcode
+  `agent_provider: "codex"` as *a second provider* to exercise multi-provider
+  behavior — budget scoping, the circuit breaker, provider availability
+  (`provider_availability_spec` alone names it 103 times). Deliberately not
+  mass-edited: whether those examples should skip via `requires_plugin` or
+  discover a second provider from the registry follows from the open question
+  above, and a 20-file speculative rewrite ahead of that decision is churn.
+
+Final tally, every bundled plugin removed at HEAD:
+
+| result | plugins |
+|---|---|
+| 0 failures | admin_mysql, agent_insights, agent_memory, browser, build_cache, design_docs, discord, django, git_history, go, javascript, linear_source, mysql_db_browser, preview_tools, python, ruby, spending_insights, syrus-rails, syrus_dev, tailscale, team_directory, test_insights, theming_tools, throughput, whiteboard_tools, worker_timeline |
+| structural | claude_agent (7,770), github_source (6,123), codex_agent (258) |
+
+`reconciler_chaos_spec` fails intermittently on a random seed and
+`admin/stuck_spec` on a workspace-directory leak between examples; both are
+pre-existing, unrelated to plugins, and appear in perhaps one run in ten.
+
+The lesson for the remaining moves: the boundary grader catches constant and
+path references, but it cannot see a string `class_name` or a database column
+default, and neither it nor the normal suite catches a *spec* that assumes a
+plugin is installed. The physical-removal audit is the only check that does,
+so run it for each new extraction.
+
 ## Principles
 
 These are rules, not preferences. A move that cannot satisfy them is not ready.
@@ -956,6 +1037,25 @@ Consequences worth stating:
 - Revisit `main_branch_health` and the wider GitHub extraction.
 
 ## Open Questions
+
+**How should a plugin that rows already reference be disabled?** The stress
+test found `claude_agent` is marked `disableable: true` but disabling it makes
+every `agent_provider: "claude"` row invalid (see the stress-test findings
+above). Three candidate answers, none obviously right:
+
+1. Dynamic default — drop the `"claude"` column default and pick the first
+   registered provider at write time. Cheapest, but a migration across four
+   tables, and it does not help rows already persisted.
+2. Tolerant validation — validate inclusion only when the value changed, so a
+   persisted-but-disabled provider stays readable. Keeps existing rows usable,
+   but lets a Job dispatch to a provider that is not there.
+3. Refuse the disable — the registry knows which providers rows reference, so
+   the admin action could decline with a reason. Safest, and makes
+   `disableable` mean something enforceable rather than declarative.
+
+`github_source` has the same shape through `Repository`'s `has_one`, so the
+answer should cover both.
+
 
 - Which CLI mechanism (G8 a/b/c)? This gates `scheduled_tasks`.
 - Do operational and browser-error logs stay core as product diagnostics, or

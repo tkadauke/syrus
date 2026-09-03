@@ -273,12 +273,55 @@ match short plugin names well enough to report a violation that does not exist
 in the source. When no git index is available (the `git archive` copy the
 physical-removal script builds), everything is scanned instead.
 
-The stronger physical-absence prototype is manual for now:
+The stronger physical-absence check is manual for now:
 
 ```bash
 bin/plugin-boundary-audit ruby
 bin/plugin-boundary-audit ruby --command "bundle exec rspec spec/models/job_spec.rb"
 ```
+
+Two things make it usable in practice. The temporary copy has no
+`config/master.key` (it is gitignored, so `git archive` does not carry it), so
+export `RAILS_MASTER_KEY` before running — the parent environment is inherited
+by the command, which keeps the key out of the printed command line. And the
+default command bundles into the temporary copy's *own* `vendor/bundle`, a
+full fresh install per plugin; pointing `BUNDLE_PATH` at the real checkout's
+bundle takes a run from minutes to seconds:
+
+```bash
+# The command runs with the temporary copy as its working directory, so point
+# BUNDLE_PATH at the real checkout through an env var the child inherits.
+cat > /tmp/boundary-boot.sh <<'SH'
+set -euo pipefail
+export BUNDLE_PATH="$SYRUS_REPO/vendor/bundle"
+export BUNDLE_APP_CONFIG="$PWD/.bundle"
+bundle check >/dev/null 2>&1 || bundle install --jobs 4 --quiet
+bundle exec rails runner "Rails.application.eager_load!; puts :boot_ok"
+SH
+
+SYRUS_REPO="$PWD" \
+  RAILS_MASTER_KEY="$(cat config/master.key)" \
+  PLUGIN_BOUNDARY_AUDIT_COMMAND="bash /tmp/boundary-boot.sh" \
+  bin/plugin-boundary-audit agent_memory
+```
+
+`Rails.application.eager_load!` is worth adding to the boot command: a plain
+`rails runner` in development lazily autoloads, so a core file referencing a
+removed plugin constant would not be touched.
+
+To run the suite in the copy instead, prepare its databases first
+(`rails db:test:prepare` then `rake parallel:prepare`) and then invoke
+`bin/rspec-fast` — it aborts with "pending migrations" if the parallel worker
+databases have not been created yet. Do not pipe the command's output through
+`tail`: the pipeline's exit status is `tail`'s, and the audit will report PASS
+over a failing suite.
+
+**The core suite is expected to stay green in the copy.** Core specs must not
+enumerate plugin-provided things — tool names, smart-folder counts, search
+types, migration paths. Subtract plugin contributions and assert core's own
+set (see `sidecar_registry_tool_names` in `spec/services/mcp_tool_registry_spec.rb`),
+or move the example into the plugin that owns it. Specs that genuinely need a
+git working tree are tagged `:requires_git_checkout` and skip in the copy.
 
 Given a selected plugin, the script removes that plugin plus every transitive
 dependent from a temporary `git archive` copy outside the real checkout. It
@@ -1693,7 +1736,7 @@ endpoints) is available to both the repository owner and any
 1. Create a gem directory under `plugins/<name>/`.
 2. Define your provider class, `include Syrus::Plugin::<InterfaceModule>`, and implement the interface methods.
 3. Implement a `register!` class method (or engine initializer) that calls `Syrus::PluginRegistry.register(...)`.
-4. Add a spec under `spec/plugins/<name>/` covering `detect?`, primary methods, and the registry integration.
+4. Add a spec under `plugins/<name>/spec/` covering `detect?`, primary methods, and the registry integration. Plugin specs live with the plugin so removing the plugin removes its specs — a spec under core's `spec/` that names the plugin makes it undeletable.
 5. Load the plugin by calling `YourPlugin.register!` from a Rails initializer or at Syrus boot.
 
 Bundled plugins:

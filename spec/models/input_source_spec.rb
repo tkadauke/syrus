@@ -35,7 +35,7 @@ RSpec.describe InputSource do
   end
 
   describe "#provider_enabled?" do
-    it "returns false when the owning plugin is disabled" do
+    it "returns false when the owning plugin is disabled", requires_plugin: "linear_source" do
       source = InputSources::Linear.create!(repository: repository, user: user)
       PluginRecord.find_by!(name: "linear_source").update!(enabled: false)
 

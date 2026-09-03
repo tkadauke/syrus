@@ -2,14 +2,14 @@ require "rails_helper"
 
 RSpec.describe Syrus::PluginPurge do
   describe "#report" do
-    it "lists the tables a bundled plugin's models declare" do
+    it "lists the tables a bundled plugin's models declare", requires_plugin: "build_cache" do
       report = described_class.new("build_cache").report
 
       expect(report.tables).to eq([ "build_cache_clear_requests" ])
       expect(report.row_counts).to have_key("build_cache_clear_requests")
     end
 
-    it "counts existing rows" do
+    it "counts existing rows", requires_plugin: "build_cache" do
       ENV["SCCACHE_BUCKET"] = "spec-bucket"
       BuildCache::ClearRequest.create!(scope: "full", reason: "spec", user: Factories.user)
 
@@ -18,7 +18,7 @@ RSpec.describe Syrus::PluginPurge do
       ENV.delete("SCCACHE_BUCKET")
     end
 
-    it "reports nothing for a plugin that owns no tables" do
+    it "reports nothing for a plugin that owns no tables", requires_plugin: "throughput" do
       expect(described_class.new("throughput").report).to be_empty
     end
 
@@ -28,19 +28,19 @@ RSpec.describe Syrus::PluginPurge do
   end
 
   describe "#purge!" do
-    it "refuses while the plugin is still installed" do
+    it "refuses while the plugin is still installed", requires_plugin: "build_cache" do
       expect { described_class.new("build_cache").purge! }
         .to raise_error(described_class::PluginStillInstalled, /still installed/)
     end
 
-    it "never claims a core table even if a plugin migration names one" do
+    it "never claims a core table even if a plugin migration names one", requires_plugin: "build_cache" do
       purge = described_class.new("build_cache")
       allow(purge).to receive(:migration_tables).and_return([ "jobs", "users" ])
 
       expect(purge.tables).not_to include("jobs", "users")
     end
 
-    it "drops the plugin's tables and its PluginRecord row when forced" do
+    it "drops the plugin's tables and its PluginRecord row when forced", requires_plugin: "build_cache" do
       PluginRecord.find_or_create_by!(name: "build_cache")
 
       dropped = described_class.new("build_cache").purge!(force: true)

@@ -3,8 +3,6 @@ class Run < ApplicationRecord
   include RecordsStateTransitions
   include BroadcastsJobProgress
 
-  TRIGGER_KINDS = Workflow::TriggerKind.values
-
   belongs_to :job
   belongs_to :user
   # Step is optional during the migration window: existing Runs

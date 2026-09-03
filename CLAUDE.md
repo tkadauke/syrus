@@ -947,6 +947,17 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
   don't add the class directly to `app/services/agent_providers/`.
+- **Core specs must not enumerate plugin-provided things.** A bundled plugin is
+  deletable — `bin/plugin-boundary-audit <name>` proves it by physically
+  removing the plugin and running the suite in the copy — so a core spec that
+  pins a plugin's MCP tool names, search types, smart-folder counts, or
+  migration paths makes that plugin undeletable in practice. Subtract the
+  plugin contribution and assert core's own set (`sidecar_registry_tool_names`
+  in `spec/services/mcp_tool_registry_spec.rb` is the pattern), or move the
+  example into the plugin that owns it. Specs that genuinely need a git working
+  tree are tagged `:requires_git_checkout`. Same rule between plugins: a
+  plugin spec may only name tools from a plugin it declares `depends_on`.
+  See `config/syrus_docs/plugins.md` for the audit recipe.
 - **Agent provider selection** — `User#agent_provider` defaults new Jobs
   and direct Jobs; `Repository#agent_provider` overrides it for that repo
   and drives repository-level bulk retries. Per-Job actions and new direct

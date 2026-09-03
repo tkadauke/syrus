@@ -16,7 +16,7 @@ module Api
 
         # Filters (all optional, AND-composed):
         #   ?state           one of queued|running|succeeded|failed|cancelled
-        #   ?trigger_kind    one of Run::TRIGGER_KINDS
+        #   ?trigger_kind    one of Workflow::TriggerKind.values
         #   ?job_id          numeric Job id (narrows to one Job's runs)
         #   ?since           ISO8601; bound on Run.finished_at OR
         #                    started_at if not finished. Strict gte.

@@ -104,7 +104,7 @@ module SpendingInsights
       chips << chip("epic_id", "is", params["epic_id"]) if params["epic_id"].present?
       chips << chip("user_id", "is", params["user_id"]) if params["user_id"].present?
       chips << chip("agent_provider", "is", params["agent_provider"]) if User.agent_providers.include?(params["agent_provider"])
-      chips << chip("trigger_kind", "is", params["trigger_kind"]) if Run::TRIGGER_KINDS.include?(params["trigger_kind"])
+      chips << chip("trigger_kind", "is", params["trigger_kind"]) if ::Workflow::TriggerKind.values.include?(params["trigger_kind"])
 
       return nil if chips.empty?
 

@@ -83,7 +83,7 @@ RSpec.describe Skills::OnboardToSyrus do
     end
   end
 
-  describe ".definition(workspace_path:)" do
+  describe ".definition(workspace_path:)", requires_plugin: %w[ruby javascript] do
     around do |ex|
       Dir.mktmpdir("syrus-onboard-to-syrus") { |dir| @dir = dir; ex.run }
     end

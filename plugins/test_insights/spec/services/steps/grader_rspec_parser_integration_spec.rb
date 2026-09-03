@@ -8,7 +8,10 @@ require "tmpdir"
 # parser's return value with a double), this exercises the actual parser so a
 # future TestResultParser contract regression fails a spec instead of being
 # silently swallowed by Steps::Grader's rescue.
-RSpec.describe "Steps::Grader real RSpec output ingestion" do
+# Uses the ruby plugin's parser as the concrete TestResultParser. This plugin
+# is deliberately parser-agnostic, so it declares no depends_on -- the fixture
+# requirement belongs on the example, not on the manifest.
+RSpec.describe "Steps::Grader real RSpec output ingestion", requires_plugin: "ruby" do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
   let(:fixtures_path) { Rails.root.join("spec/fixtures/rspec") }

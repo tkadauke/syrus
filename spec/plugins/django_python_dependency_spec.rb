@@ -8,7 +8,7 @@ require "rails_helper"
 # test (see spec/requests/api/v1/admin/plugins_spec.rb for the generic
 # mechanism tests, and spec/plugins/rails_ruby_dependency_spec.rb for the
 # syrus-rails/ruby equivalent).
-RSpec.describe "django depends_on python plugin cascade", type: :request do
+RSpec.describe "django depends_on python plugin cascade", type: :request, requires_plugin: %w[django python] do
   let(:admin) { Factories.user(admin: true) }
   let(:admin_token) { admin.generate_api_token! }
 

@@ -1,6 +1,8 @@
 require "rails_helper"
 
-RSpec.describe "API: /api/v1/app/input_sources", type: :request do
+# Uses the linear_source plugin as its concrete registered input source:
+# core ships the InputSource model and API, but no source type of its own.
+RSpec.describe "API: /api/v1/app/input_sources", type: :request, requires_plugin: "linear_source" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 

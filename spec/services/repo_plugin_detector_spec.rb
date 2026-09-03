@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe RepoPluginDetector do
+RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
   around do |ex|
     Dir.mktmpdir("syrus-repo-plugin-detector") { |dir| @dir = dir; ex.run }
   end

@@ -2,9 +2,15 @@ require "rails_helper"
 
 RSpec.describe Workflow::TriggerKind do
   it "is the canonical source for Workflow and Run trigger validation values" do
-    expect(Workflow::TRIGGER_KINDS).to eq(described_class.values)
-    expect(Run::TRIGGER_KINDS).to eq(described_class.values)
-    expect(Workflows::REGISTRY).to eq(described_class.registry)
+    # There used to be three load-time copies of this table (Workflow::TRIGGER_KINDS,
+    # Run::TRIGGER_KINDS, Workflows::REGISTRY). Each froze whatever plugin set
+    # happened to be enabled when the constant autoloaded, so a plugin enabled
+    # afterwards never appeared. Validation and every consumer resolve through
+    # the registry per call now; this asserts the model validations agree.
+    [ Workflow, Run ].each do |model|
+      inclusion = model.validators_on(:trigger_kind).find { |validator| validator.options.key?(:in) }
+      expect(inclusion.options[:in].call(nil)).to eq(described_class.values), "#{model} validates against a stale copy"
+    end
   end
 
   it "has a label, style, and loadable template for every trigger kind" do
