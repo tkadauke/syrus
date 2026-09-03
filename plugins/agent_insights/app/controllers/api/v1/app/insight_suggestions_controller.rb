@@ -44,13 +44,13 @@ module Api
           repository = find_repository
           return unless repository
 
-          AgentInsights::Suggestion.resolve_obsolete_remove_memory!(repository.insight_suggestions)
+          AgentInsights::Suggestion.resolve_obsolete_remove_memory!(AgentInsights::Suggestion.for_repository(repository))
 
           page     = page_param
           per_page = per_page_param
           state    = state_param
 
-          base_relation = repository.insight_suggestions
+          base_relation = AgentInsights::Suggestion.for_repository(repository)
             .includes(:job, :created_job)
             .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
 
@@ -70,7 +70,7 @@ module Api
               per_page:    per_page,
               total_pages: total_pages,
               state:       state,
-              counts:      state_counts(repository.insight_suggestions)
+              counts:      state_counts(AgentInsights::Suggestion.for_repository(repository))
             }
           }
         end
@@ -143,7 +143,7 @@ module Api
         end
 
         def suggestion_counts(repository)
-          state_counts(repository.insight_suggestions).transform_keys(&:to_s)
+          state_counts(AgentInsights::Suggestion.for_repository(repository)).transform_keys(&:to_s)
         end
 
         def require_agent_insights_feature
@@ -242,7 +242,7 @@ module Api
             return
           end
 
-          memory = Current.user.agent_memories.create!(
+          memory = AgentMemory::Entry.create!(user: Current.user, 
             kind: "project_fact",
             scope: "repository",
             scope_id: repository.id,

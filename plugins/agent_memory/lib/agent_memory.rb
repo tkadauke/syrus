@@ -1,5 +1,5 @@
 require "agent_memory/version"
-require "agent_memory/host_associations"
+require "agent_memory/data_cleanup"
 require "agent_memory/engine"
 
 module AgentMemory

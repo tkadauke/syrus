@@ -14,6 +14,10 @@ module AgentMemory
     CONTENT_MAX_LENGTH = 2000
 
     belongs_to :user, class_name: "::User"
+
+    # Replaces the injected `User has_many :agent_memories`: this plugin owns
+    # the rows, so it owns the way to reach them.
+    scope :for_user, ->(user) { where(user_id: user.is_a?(::User) ? user.id : user) }
     belongs_to :deleted_by_user, class_name: "::User", optional: true
     belongs_to :repository, class_name: "::Repository", optional: true, foreign_key: :scope_id
     has_many :audit_events, -> { order(created_at: :asc, id: :asc) }, class_name: "AgentMemory::AuditEvent", foreign_key: :entry_id, inverse_of: :entry

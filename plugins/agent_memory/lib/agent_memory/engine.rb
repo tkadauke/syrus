@@ -1,7 +1,7 @@
 module AgentMemory
   class Engine < ::Rails::Engine
     config.to_prepare do
-      AgentMemory::HostAssociations.apply!
+      AgentMemory::DataCleanup.install!
     end
 
     config.after_initialize do

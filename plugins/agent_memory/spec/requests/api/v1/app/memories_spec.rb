@@ -118,10 +118,10 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
           content: "Run frontend tests with bin/test-react."
         }
       }
-    }.to change { user.agent_memories.count }.by(1)
+    }.to change { AgentMemory::Entry.for_user(user).count }.by(1)
 
     expect(response).to have_http_status(:created)
-    memory = user.agent_memories.last
+    memory = AgentMemory::Entry.for_user(user).last
     expect(memory.scope_id).to eq(repository.id)
     expect(parse_body["message"]).to eq("Memory created.")
   end

@@ -1,7 +1,7 @@
 module DesignDocs
   class Engine < ::Rails::Engine
     config.to_prepare do
-      DesignDocs::HostAssociations.apply!
+      DesignDocs::DataCleanup.install!
     end
 
     config.after_initialize do

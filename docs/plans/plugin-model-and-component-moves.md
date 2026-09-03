@@ -191,34 +191,39 @@ These are rules, not preferences. A move that cannot satisfy them is not ready.
 
 1. **Core must not reference a plugin.** Not by constant, not by table, not by
    route name. Plugins depend on core; the reverse is a defect.
-2. **Plugins must not add columns to core tables.** A plugin that needs to
+2. **Plugins must not modify core models.** No injected associations, no
+   reopened classes. A plugin reaches its own rows through its own scopes, and
+   says "these go when that core record does" through `Syrus::DataCleanup`.
+   Note the direction: a plugin can always join *upward* (its table
+   `belongs_to` a core one), never downward.
+3. **Plugins must not add columns to core tables.** A plugin that needs to
    annotate a core record owns a side table keyed by the core record's id, and
    injects the association in `config.to_prepare`.
-3. **No circular dependencies between plugins.** The dependency graph is a DAG.
+4. **No circular dependencies between plugins.** The dependency graph is a DAG.
    `Admin::PluginDependencyGraph#cycles` / `#acyclic?` detect violations
    statically (JOB-4127); wiring that into runtime plugin health is G11.
-4. **A plugin is its own feature flag.** Plugins do not define feature flags.
+5. **A plugin is its own feature flag.** Plugins do not define feature flags.
    Enabled means the behavior is on. A plugin may *read* a globally defined
    flag, but must not require one to exist.
-5. **Plugins are genuinely disableable and deletable by default.** The model is
+6. **Plugins are genuinely disableable and deletable by default.** The model is
    Home Assistant integrations: some are more load-bearing than others, but the
    platform assumes removal is legal. `disableable: false` is a last resort and
    must carry a written justification.
-6. **Disabling never mutates schema.** Disable stops behavior and hides UI.
+7. **Disabling never mutates schema.** Disable stops behavior and hides UI.
    Deleting data is a separate, explicit operation.
-7. **A Job's provenance is generic.** Plugins that create Jobs record an
+8. **A Job's provenance is generic.** Plugins that create Jobs record an
    origin and an id, never a bespoke core column and never a stored URL. See
    Job Origin.
-8. **A plugin installs its contributions and can take them back.** Registration
+9. **A plugin installs its contributions and can take them back.** Registration
    is an *effect*: the plugin performs an install and hands back the teardown,
    and disabling or unloading runs those teardowns in reverse. Core does not
    poll the registry from every use site to discover what is currently active;
    the active set *is* what is installed. See G13.
-9. **Extension points are owned, not centrally enumerated.** Any plugin may
+10. **Extension points are owned, not centrally enumerated.** Any plugin may
    host a point for other plugins to contribute to, declared in its manifest
    and named for its owner (`search:source`). Core's own points are simply
    the ones the kernel hosts. See G13.
-10. **Plugin tables are namespace-prefixed**, enforced by
+11. **Plugin tables are namespace-prefixed**, enforced by
    `bin/check-plugin-model-namespaces`. STI onto a core-owned table is the only
    exception and stays rare.
 
@@ -513,7 +518,7 @@ table names, and refusing while the plugin is still registered.
 Original problem, for the record:
 
 There is no `plugin:purge` task and no documented uninstall path. Given
-Principle 5, define:
+"plugins are genuinely disableable and deletable by default", define:
 
 - **Disable** — behavior off, UI hidden, jobs skipped, data retained.
 - **Uninstall** — gem removed. Tables remain until purged.
@@ -575,7 +580,7 @@ becomes inert instead of fatal, and the rest of the instance is unaffected.
 **Cycle detection** is no longer new work — reuse
 `PluginDependencyGraph#cycles` at boot, mark every member `cycle`, withhold
 their providers, and report. The detector exists; only the runtime consequence
-is missing. That is what makes Principle 3 real at runtime as well as in CI.
+is missing. That is what makes the "no circular dependencies" principle real at runtime as well as in CI.
 
 **Enable/disable semantics**
 
@@ -799,9 +804,36 @@ conversions:
   where their code loads; `Installer.snapshot`/`restore` exist so a spec can
   borrow an empty installer and put the real one back.
 
-**Still to convert**: `HostAssociations.apply!` (needs association removal,
-which has no public Rails API — the riskiest of the set, and the reason its
-`reflect_on_association` guard exists), then the `providers_for` call sites
+**Step 3 landed: host associations are gone.** All four plugins that injected
+associations onto core models (`test_insights`, `agent_memory`,
+`agent_insights`, `design_docs` — 12 associations across `User`, `Repository`,
+`Run`, `ChatSession`) now reach their rows through their own scopes and clean
+up through `Syrus::DataCleanup`. No plugin modifies a core class any more, and
+`reflect_on_all_associations` no longer depends on which gems are installed.
+
+Measuring first is what made this cheap. Repository is *archived*, never
+destroyed; User is never destroyed at all; ChatSession is soft-deleted; and
+there are no database foreign keys by policy. So `dependent: :destroy` on
+those associations only ever fired in specs. Better still, four of
+`design_docs`' six injections had **zero readers** — both core call sites that
+look at design docs start from `DesignDocs::DesignDoc` and use the plugin's
+own association — so they were carrying nothing but their `dependent:`
+behaviour.
+
+Three things worth carrying into the remaining work:
+
+- An injected association is also a *join path*. Two `test_insights` queries
+  traversed `Job -> workflows -> steps -> runs -> test_runs` downward and
+  broke. A plugin can always join upward, since its own table `belongs_to` a
+  core one, so both were inverted to start from the plugin's table.
+- `dependent:` is not always `:destroy`. `design_docs` used `:nullify` for the
+  origin chat back-reference — a document outlives the chat it came from — and
+  the cleanup preserves that.
+- Cleanup registrations carry no `plugin:` scope. They could not be
+  `:domain_subscriber`s either, since `Events.subscribers_for` resolves through
+  `providers_for`, which is enabled-filtered.
+
+**Still to convert**: the `providers_for` call sites
 whose results are static installs — nav and admin pages, repo tabs, domain
 subscribers, search sources, routes. Per-call evaluation over an installed set
 (`available_for?`, `enabled_for?`) stays where it is.
@@ -855,7 +887,8 @@ Rules:
   not a special case in the rendering path.
 - **When the owning plugin is disabled or uninstalled, core degrades to
   rendering `origin` and `origin_id` as plain text.** No dangling reference, no
-  crash, no orphaned foreign key — which is exactly what Principle 5 requires
+  crash, no orphaned foreign key — which is exactly what "genuinely disableable
+  and deletable" requires
   and what a `scheduled_task_id` column can never give us.
 
 This also retires the hardcoded GitHub URL construction currently sitting in
@@ -1045,7 +1078,7 @@ Also note `SourceControl::Providers` is a dead extension point — referenced on
 by its own spec. Either wire it or delete it.
 
 **`terminal`** — `TerminalSession`, `TerminalRelay`, `TerminalChannel`,
-`TerminalSessionJob`. Self-contained and already gated. Per Principle 4, the
+`TerminalSessionJob`. Self-contained and already gated. Per "a plugin is its own feature flag", the
 existing `terminal` feature flag is replaced by the plugin's own enabled state.
 
 Blocked on **G7** (Action Cable channel registration), which is the only real
@@ -1095,7 +1128,7 @@ remains:
 twelve MCP tools, four pending actions, two controllers, five React routes, and
 the `syrus schedule` CLI family.
 
-Needs G1, G2, G3, G4, G8, and Principle 2's schema inversion. The three core
+Needs G1, G2, G3, G4, G8, and the schema inversion "plugins must not add columns to core tables" requires. The three core
 columns it owns today:
 
 | Today | Becomes |
@@ -1130,7 +1163,7 @@ an escape hatch for anything that needs real client-side behaviour.
 `agent_insight_schedule_configs`, `agent_insight_audit_events`),
 `InsightSweepJob`, `AgentInsights::Workflow`, its run step, its `WorkDefinition`,
 its Job/trigger/step kinds, seven MCP tools, three controllers, two React
-routes. Per Principle 4 the `agent_insights` feature flag and
+routes. Per "a plugin is its own feature flag" the `agent_insights` feature flag and
 `Feature.agent_insights_enabled?` are gone — the plugin is the flag, and it
 ships `default_enabled: false` to match the flag's old default.
 
@@ -1180,7 +1213,7 @@ blocks every workflow start, `LandingQueueProcessor` pauses landing on it,
 `WorkEngine::Reconciler` references it 26 times, and `SystemAlerts`,
 `PollPullRequestJob`, and `RunJob`'s concurrency exemption all branch on it. It
 also added eleven columns to `repositories` and two to `app_settings`, all of
-which Principle 2 would require inverting.
+which "plugins must not add columns to core tables" would require inverting.
 
 Revisit only behind generic `work_gate`, `system_alert`, and repair-classifier
 extension points — i.e. after core can express "something can veto a workflow
@@ -1209,7 +1242,7 @@ core and only the *dev* views move.
 
 ## Schema Inversion Backlog
 
-Principle 2 applied to what exists today. Each entry is a data migration, not
+"Plugins must not add columns to core tables", applied to what exists today. Each entry is a data migration, not
 just a code move, and each should land with its plugin.
 
 | Core table | Columns | Owner |

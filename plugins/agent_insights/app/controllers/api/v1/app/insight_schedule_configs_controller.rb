@@ -8,7 +8,7 @@ module Api
           repository = find_repository
           return unless repository
 
-          config = repository.insight_schedule_config
+          config = AgentInsights::ScheduleConfig.for_repository(repository)
           render json: config_json(config)
         end
 
@@ -16,7 +16,7 @@ module Api
           repository = find_repository
           return unless repository
 
-          config = repository.insight_schedule_config || repository.build_insight_schedule_config
+          config = AgentInsights::ScheduleConfig.for_repository(repository) || AgentInsights::ScheduleConfig.new(repository: repository)
 
           config.assign_attributes(config_params)
 

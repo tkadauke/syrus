@@ -1,5 +1,5 @@
 require "agent_insights/version"
-require "agent_insights/host_associations"
+require "agent_insights/data_cleanup"
 require "agent_insights/engine"
 
 module AgentInsights

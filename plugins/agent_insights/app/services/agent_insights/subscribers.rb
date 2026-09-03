@@ -20,7 +20,7 @@ module AgentInsights
       repository = Repository.find_by(id: event[:repository_id])
       return if repository.nil?
 
-      config = repository.insight_schedule_config
+      config = AgentInsights::ScheduleConfig.for_repository(repository)
       return unless config&.enabled?
 
       last_insight_at = Scheduler.last_insight_created_at(repository)

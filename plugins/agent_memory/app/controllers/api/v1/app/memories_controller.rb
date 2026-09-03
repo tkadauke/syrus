@@ -11,7 +11,8 @@ module Api
         end
 
         def create
-          memory = Current.user.agent_memories.new(create_memory_params)
+          memory = AgentMemory::Entry.new(create_memory_params)
+          memory.user = Current.user
 
           if memory.save
             render json: memories_payload.merge(message: "Memory created."), status: :created

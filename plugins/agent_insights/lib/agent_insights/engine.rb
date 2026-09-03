@@ -1,7 +1,7 @@
 module AgentInsights
   class Engine < ::Rails::Engine
     config.to_prepare do
-      AgentInsights::HostAssociations.apply!
+      AgentInsights::DataCleanup.install!
     end
 
     config.after_initialize do

@@ -51,9 +51,9 @@ module AgentInsights
 
     def known_insights_for_prompt
       [
-        *repository.insight_suggestions.pending.order(updated_at: :desc).limit(KNOWN_PENDING_INSIGHT_LIMIT),
-        *repository.insight_suggestions.accepted.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT),
-        *repository.insight_suggestions.dismissed.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT)
+        *AgentInsights::Suggestion.for_repository(repository).pending.order(updated_at: :desc).limit(KNOWN_PENDING_INSIGHT_LIMIT),
+        *AgentInsights::Suggestion.for_repository(repository).accepted.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT),
+        *AgentInsights::Suggestion.for_repository(repository).dismissed.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT)
       ].sort_by(&:updated_at).reverse
     end
 

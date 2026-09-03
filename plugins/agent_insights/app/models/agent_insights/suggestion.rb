@@ -8,6 +8,9 @@ module AgentInsights
 
     belongs_to :job
     belongs_to :repository
+
+    # Replaces the injected `Repository has_many :insight_suggestions`.
+    scope :for_repository, ->(repository) { where(repository_id: repository.is_a?(::Repository) ? repository.id : repository) }
     belongs_to :created_job, class_name: "Job", optional: true
     belongs_to :target_memory, class_name: "AgentMemory::Entry", optional: true
     belongs_to :target_insight, class_name: "AgentInsights::Suggestion", optional: true

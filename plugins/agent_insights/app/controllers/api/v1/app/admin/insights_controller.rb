@@ -52,7 +52,7 @@ module Api
               return
             end
 
-            memory = suggestion.job.user.agent_memories.create!(
+            memory = AgentMemory::Entry.create!(user: suggestion.job.user, 
               kind: "project_fact",
               scope: "instance",
               scope_id: nil,

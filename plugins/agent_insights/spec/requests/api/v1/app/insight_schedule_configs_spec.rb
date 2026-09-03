@@ -173,7 +173,7 @@ RSpec.describe "App API insight schedule configs", type: :request do
             params: { enabled: false }, as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(repository.insight_schedule_config.reload.enabled).to be false
+      expect(AgentInsights::ScheduleConfig.for_repository(repository).reload.enabled).to be false
     end
   end
 end
