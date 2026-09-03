@@ -72,7 +72,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], prepare_priority: 100, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           return
@@ -103,6 +103,8 @@ module Syrus
             tick_interval:   tick_interval,
             config_schema:   config_schema,
             depends_on:      Array(depends_on).map(&:to_s),
+            optionally_depends_on: Array(optionally_depends_on).map(&:to_s),
+            conflicts_with:  Array(conflicts_with).map(&:to_s),
             prepare_priority: prepare_priority
           )
         end
@@ -149,8 +151,11 @@ module Syrus
               records_for(plugins)
             end
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
-              plugins
-                .select { |m| plugin_enabled?(m, records[m.name]) }
+              enabled = plugins.select { |m| plugin_enabled?(m, records[m.name]) }
+              health = health_for(plugins, enabled_names: enabled.map(&:name))
+
+              enabled
+                .select { |m| health.healthy?(m.name) }
                 .then { |ms| sort_by_prepare_priority(ms) }
                 .flat_map { |m| Array(m.provides[ep]) }
             end
@@ -197,6 +202,44 @@ module Syrus
       # target may register after the dependent itself. Raises RegistrationError
       # listing every depends_on name that never resolved to a registered plugin;
       # callers decide whether to let that raise or just log it.
+      # Health for the current registry contents. `enabled_names` lets callers
+      # that have already resolved enablement (providers_for) avoid a second
+      # PluginRecord round trip.
+      def health(enabled_names: nil)
+        plugins = @mutex.synchronize { @plugins.dup }
+
+        if enabled_names.nil?
+          enabled_names =
+            begin
+              records = records_for(plugins)
+              plugins.select { |m| plugin_enabled?(m, records[m.name]) }.map(&:name)
+            rescue ActiveRecord::ActiveRecordError
+              plugins.map(&:name)
+            end
+        end
+
+        health_for(plugins, enabled_names: enabled_names)
+      end
+
+      # Reports dependency problems without raising. Boot calls this instead of
+      # validate_dependencies! so a misconfigured plugin leaves the instance
+      # running -- inert, logged, and fixable from the admin UI -- rather than
+      # taking the process down before an operator can reach it.
+      def report_health!(logger: Rails.logger)
+        unhealthy = health.unhealthy
+        return unhealthy if unhealthy.empty?
+
+        unhealthy.each do |status|
+          logger&.error("[PluginRegistry] #{status.name} is #{status.state}: #{status.reasons.join('; ')}")
+        end
+
+        unhealthy
+      end
+
+      def health_for(plugins, enabled_names:)
+        Syrus::PluginHealth.new(plugins, enabled_names: enabled_names)
+      end
+
       def validate_dependencies!
         plugins = @mutex.synchronize { @plugins.dup }
         names = plugins.map(&:name).to_set

@@ -559,4 +559,31 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(record.config.to_h["settings"]).to eq("hostname" => "myhost")
     end
   end
+
+  describe "plugin health" do
+    it "reports ok for a plugin with satisfied dependencies" do
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins"
+
+      entry = response.parsed_body["plugins"].find { |p| p["name"] == "github_source" }
+      expect(entry["health"]).to eq({ "state" => "ok", "reasons" => [] })
+    end
+
+    it "reports the unmet dependency for a degraded plugin" do
+      Syrus::PluginRegistry.register(
+        name: "needs_absent", version: "1.0.0", depends_on: [ "absent_plugin" ]
+      )
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins"
+
+      entry = response.parsed_body["plugins"].find { |p| p["name"] == "needs_absent" }
+      expect(entry["health"]["state"]).to eq("degraded")
+      expect(entry["health"]["reasons"]).to include("requires absent_plugin, which is not installed")
+    end
+  end
+
 end

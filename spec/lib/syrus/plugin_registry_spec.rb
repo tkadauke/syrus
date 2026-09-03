@@ -1228,4 +1228,56 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled?).to be(true)
     end
   end
+
+  describe "health-gated providers" do
+    let(:provider) do
+      Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = "x"
+      end
+    end
+
+    it "withholds providers from a plugin whose hard dependency is missing" do
+      described_class.register(
+        name: "dependent", version: "1.0.0", depends_on: [ "absent" ],
+        provides: { prompt_injector: provider }
+      )
+
+      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+      expect(described_class.health.status("dependent").state).to eq(:degraded)
+    end
+
+    it "activates providers once the dependency is registered" do
+      described_class.register(
+        name: "dependent", version: "1.0.0", depends_on: [ "base" ],
+        provides: { prompt_injector: provider }
+      )
+      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+
+      described_class.register(name: "base", version: "1.0.0")
+
+      expect(described_class.providers_for(:prompt_injector)).to include(provider)
+      expect(described_class.health.status("dependent").state).to eq(:ok)
+    end
+
+    it "withholds providers from plugins in a dependency cycle" do
+      described_class.register(
+        name: "a", version: "1.0.0", depends_on: [ "b" ],
+        provides: { prompt_injector: provider }
+      )
+      described_class.register(name: "b", version: "1.0.0", depends_on: [ "a" ])
+
+      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+      expect(described_class.health.status("a").state).to eq(:cycle)
+    end
+
+    it "reports unhealthy plugins without raising" do
+      described_class.register(name: "dependent", version: "1.0.0", depends_on: [ "absent" ])
+      logger = instance_double(Logger, error: nil)
+
+      expect { described_class.report_health!(logger: logger) }.not_to raise_error
+      expect(logger).to have_received(:error).with(/dependent is degraded: requires absent/)
+    end
+  end
+
 end

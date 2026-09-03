@@ -92,10 +92,28 @@ module Admin
           routes: Array(metadata[:routes]).map { |route| route.to_h },
           extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) },
           depends_on: Array(manifest.depends_on),
+          optionally_depends_on: Array(manifest.optionally_depends_on),
+          conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
+          health: health_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
       end
+    end
+
+    # An unhealthy plugin is enabled but inert - its providers are withheld.
+    # Surfacing the state and the specific unmet dependency is what lets an
+    # operator fix a degraded instance instead of guessing why a plugin's
+    # behavior vanished.
+    def health_payload(manifest)
+      status = plugin_health.status(manifest.name)
+      return { state: "ok", reasons: [] } if status.nil?
+
+      { state: status.state.to_s, reasons: status.reasons }
+    end
+
+    def plugin_health
+      @plugin_health ||= Syrus::PluginRegistry.health
     end
 
     def disable_blockers_payload(manifest)

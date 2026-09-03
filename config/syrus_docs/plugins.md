@@ -184,14 +184,49 @@ Enabling `syrus-rails` cascades to enable `ruby`; disabling `ruby` while
 `syrus-rails` is enabled surfaces the confirmation/cascade-disable path
 described below.
 
-Dependency names are validated once boot settles, from the same
+### Declaration strengths
+
+| Declaration | Meaning |
+|---|---|
+| `depends_on: ["x"]` | Hard. The plugin cannot function without `x` installed and enabled. |
+| `optionally_depends_on: ["y"]` | Soft. Behavior is richer when `y` is enabled, but the plugin works without it. This is the declaration form of the `defined?(Y) && Y.enabled?` guard pattern core uses for `DesignDocs`. |
+| `conflicts_with: ["z"]` | Mutually exclusive. For extension points that expect a single provider — two competing memory stores, say. |
+
+Only `depends_on` and `conflicts_with` can make a plugin unhealthy;
+`optionally_depends_on` is documentation plus admin metadata.
+
+### Plugin health
+
+Dependency problems resolve into a **health state**, never an exception. A
+misconfigured plugin must not stop Syrus from booting — the operator has to be
+able to start the instance and fix it from inside.
+
+| State | Meaning | Effect |
+|---|---|---|
+| `ok` | Dependencies satisfied | Normal |
+| `degraded` | Enabled, but a hard dependency is missing or disabled, or an enabled plugin conflicts with it | **Providers are withheld** — `providers_for` skips it. Data, admin row, and settings survive. |
+| `cycle` | Participates in a dependency cycle | Providers withheld for every member |
+
+Withholding providers rather than raising is the point: a broken plugin becomes
+inert instead of fatal, and nothing else in the instance is affected.
+
+Health is computed by `Syrus::PluginHealth` and recomputed on every
+`providers_for` call, so enabling the missing dependency fixes the degraded
+plugin immediately with no restart. `Syrus::PluginRegistry.health` returns the
+statuses; each plugin's state and the specific unmet dependency appear on the
+Admin → Plugins page under `health`.
+
+Boot calls `Syrus::PluginRegistry.report_health!` from the same
 `Rails.application.config.after_initialize` block that calls
 `fire_boot_callbacks!` — plugin engine initializer order isn't guaranteed, so a
-dependency may register after the plugin that depends on it, and validation has
-to wait until every engine has had a chance to register. An unresolved
-`depends_on` name (misspelled, or the dependency plugin was never installed) is
-logged as an error rather than crashing boot, since a bad `depends_on` in one
-plugin gem shouldn't be able to take down the whole instance.
+dependency may register after the plugin that depends on it, and the check has
+to wait until every engine has had a chance to register. Every unhealthy plugin
+is logged with its reasons; nothing raises.
+
+Cycles are reported across the whole installed set rather than only the enabled
+one, because a cycle is a packaging defect that stays true regardless of which
+plugins an operator happens to have switched on. `bin/check-plugin-boundaries`
+fails the build on one.
 
 This declaration drives two behaviors in Admin → Plugins:
 

@@ -12,10 +12,9 @@ Rails.application.config.after_initialize do
     Syrus::PluginRegistry.fire_boot_callbacks!
     at_exit { Syrus::PluginRegistry.fire_shutdown_callbacks! }
 
-    begin
-      Syrus::PluginRegistry.validate_dependencies!
-    rescue Syrus::PluginRegistry::RegistrationError => e
-      Rails.logger.error("[PluginRegistry] #{e.message}")
-    end
+    # Never raises: a plugin whose dependency is missing, disabled, or
+    # circular is reported and has its providers withheld, so the instance
+    # boots degraded and the operator can fix it from Admin -> Plugins.
+    Syrus::PluginRegistry.report_health!
   end
 end
