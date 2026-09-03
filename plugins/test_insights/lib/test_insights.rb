@@ -1,5 +1,5 @@
 require "test_insights/version"
-require "test_insights/host_associations"
+require "test_insights/data_cleanup"
 require "test_insights/engine"
 
 module TestInsights

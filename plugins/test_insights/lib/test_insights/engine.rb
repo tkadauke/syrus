@@ -1,7 +1,7 @@
 module TestInsights
   class Engine < ::Rails::Engine
     config.to_prepare do
-      TestInsights::HostAssociations.apply!
+      TestInsights::DataCleanup.install!
     end
 
     config.after_initialize do

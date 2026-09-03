@@ -1,5 +1,6 @@
 class Repository < ApplicationRecord
   include AutoApproveModes
+  include PluginDataCleanup
 
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze

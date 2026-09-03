@@ -1,4 +1,6 @@
 class ChatSession < ApplicationRecord
+  include PluginDataCleanup
+
   MESSAGE_PAGE_SIZE = 30
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200

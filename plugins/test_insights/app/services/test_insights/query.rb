@@ -31,7 +31,7 @@ module TestInsights
 
     def call
       repository = resolve_repository
-      scope = @category.apply(repository.test_identities)
+      scope = @category.apply(TestIdentity.for_repository(repository))
       scope = scope.search_by_name(@query) if @query.present?
       scope = @filters.apply_summary_filters(scope)
       scope = apply_grader_filter(scope, repository) unless @sort.runtime_summary?

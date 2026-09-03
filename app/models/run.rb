@@ -2,6 +2,7 @@ class Run < ApplicationRecord
   include AASM
   include RecordsStateTransitions
   include BroadcastsJobProgress
+  include PluginDataCleanup
 
   belongs_to :job
   belongs_to :user

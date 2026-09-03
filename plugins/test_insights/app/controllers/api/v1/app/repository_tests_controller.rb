@@ -32,7 +32,7 @@ module Api
           return render_error("not_found", "Tests are not available in simple mode.", status: :not_found) if AppSetting.simple?
 
           repository = find_repository
-          test_identity = repository.test_identities.find(params[:id])
+          test_identity = TestInsights::TestIdentity.for_repository(repository).find(params[:id])
 
           page = page_param
           per_page = per_page_param

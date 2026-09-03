@@ -12,6 +12,10 @@ module TestInsights
     REFRESH_BATCH_SIZE = 1_000
 
     belongs_to :repository
+
+    # Replaces the injected `Repository has_many :test_identities`: this
+    # plugin owns the rows, so it owns the way to reach them.
+    scope :for_repository, ->(repository) { where(repository_id: repository.is_a?(::Repository) ? repository.id : repository) }
     has_many :test_cases, class_name: "TestInsights::TestCase", dependent: :nullify
     has_many :runtime_summaries, class_name: "TestInsights::RuntimeSummary", foreign_key: :test_identity_id, dependent: :destroy
 
@@ -190,9 +194,9 @@ module TestInsights
     end
 
     def self.interesting_for_repository(repository, query: nil, limit: INTERESTING_LIMIT)
-      ensure_for_repository_later(repository) if repository.test_identities.none?
+      ensure_for_repository_later(repository) if TestIdentity.for_repository(repository).none?
 
-      scope = repository.test_identities
+      scope = TestIdentity.for_repository(repository)
       if query.present?
         scope = scope.search_by_name(query)
         return scope.order(last_seen_at: :desc, id: :desc).limit(limit)
@@ -209,7 +213,7 @@ module TestInsights
     end
 
     def self.recent_failure_ids(repository, limit:)
-      repository.test_identities
+      TestIdentity.for_repository(repository)
         .where.not(last_failed_at: nil)
         .where("last_failed_at >= ?", RECENT_FAILURE_WINDOW.ago)
         .order(last_failed_at: :desc, id: :desc)
@@ -218,7 +222,7 @@ module TestInsights
     end
 
     def self.flaky_ids(repository, limit:)
-      repository.test_identities
+      TestIdentity.for_repository(repository)
         .where.not(last_failed_at: nil)
         .where.not(last_passed_at: nil)
         .where("last_failed_at >= ? OR last_passed_at >= ?", RECENT_FAILURE_WINDOW.ago, RECENT_FAILURE_WINDOW.ago)
@@ -228,7 +232,7 @@ module TestInsights
     end
 
     def self.slow_ids(repository, limit:)
-      repository.test_identities
+      TestIdentity.for_repository(repository)
         .where.not(last_duration_ms: nil)
         .where("last_duration_ms >= ?", 1_000)
         .order(last_duration_ms: :desc, last_seen_at: :desc, id: :desc)

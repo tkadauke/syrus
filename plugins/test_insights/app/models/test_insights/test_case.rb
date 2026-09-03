@@ -65,9 +65,9 @@ module TestInsights
     def self.top_flaky_tests(repository:, lookback: FLAKINESS_LOOKBACK, limit: 20)
       lookback = lookback.to_i
       limit = limit.to_i
-      TestIdentity.ensure_for_repository_later(repository) if repository.test_identities.none?
+      TestIdentity.ensure_for_repository_later(repository) if TestIdentity.for_repository(repository).none?
 
-      repository.test_identities
+      TestIdentity.for_repository(repository)
         .where.not(last_failed_at: nil)
         .where.not(last_passed_at: nil)
         .order(last_failed_at: :desc, last_passed_at: :desc, id: :desc)

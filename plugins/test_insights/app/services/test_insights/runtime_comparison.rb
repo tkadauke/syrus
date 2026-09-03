@@ -71,7 +71,7 @@ module TestInsights
     end
 
     def selected_identities(repository)
-      scope = repository.test_identities
+      scope = TestIdentity.for_repository(repository)
 
       if @test_identity_ids.any?
         ids = @test_identity_ids.filter_map { |id| Integer(id, exception: false) }.uniq.first(MAX_LIMIT)
@@ -354,10 +354,10 @@ module TestInsights
       end
 
       def latest_workflow
-        @latest_workflow ||= @job.workflows
-          .joins(steps: { runs: :test_runs })
-          .reorder(created_at: :desc, id: :desc)
-          .first
+        workflow_ids = TestRun.workflow_ids_for_job(@job)
+        return nil if workflow_ids.empty?
+
+        @latest_workflow ||= @job.workflows.where(id: workflow_ids).reorder(created_at: :desc, id: :desc).first
       end
     end
 

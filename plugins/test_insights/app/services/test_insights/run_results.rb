@@ -36,10 +36,10 @@ module TestInsights
     private
 
     def latest_workflow_with_tests
-      @job.workflows
-        .joins(steps: { runs: :test_runs })
-        .reorder(created_at: :desc, id: :desc)
-        .first
+      workflow_ids = TestRun.workflow_ids_for_job(@job)
+      return nil if workflow_ids.empty?
+
+      @job.workflows.where(id: workflow_ids).reorder(created_at: :desc, id: :desc).first
     end
 
     def test_runs_for_workflow(workflow)
@@ -52,7 +52,7 @@ module TestInsights
     end
 
     def test_runs_for_run(run)
-      run.test_runs
+      TestRun.for_run(run)
         .then { |scope| apply_grader_filter(scope) }
         .includes(:test_cases, run: { step: :workflow })
         .order(:grader_name, :id)

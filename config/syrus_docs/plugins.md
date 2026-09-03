@@ -943,6 +943,55 @@ any `PluginRecord` commit -- so enable and disable take effect on the next read
 with no staleness window, and hot paths like label rendering and step dispatch
 do not re-merge on every call.
 
+## Owning rows on core records
+
+A plugin whose rows hang off a core record (test results per Run, suggestions
+per Repository) used to inject the association onto the core model:
+
+```ruby
+Repository.has_many :test_identities, class_name: "TestInsights::TestIdentity",
+                    dependent: :destroy
+```
+
+Don't. It makes a plugin mutate a core class, makes
+`Repository.reflect_on_all_associations` depend on which gems are installed,
+and cannot be undone — which is why those injections carried a
+`reflect_on_association` guard. Two pieces replace it.
+
+**Reaching the rows: a scope on the plugin's own model.**
+
+```ruby
+scope :for_repository, ->(repository) { where(repository_id: repository.id) }
+```
+
+Note the direction. A plugin can always join *upward* — its table
+`belongs_to` a core one — so `TestRun.joins(run: { step: :workflow })` works.
+It cannot join *downward* from a core model without the injected association,
+so a query like `job.workflows.joins(steps: { runs: :test_runs })` has to be
+inverted to start from the plugin's own table.
+
+**Cleaning up: a `Syrus::DataCleanup` registration.**
+
+```ruby
+Syrus::Installer.define("test_insights:data_cleanup") do |scope|
+  scope.effect("repository test identities") do
+    Syrus::DataCleanup.register("Repository", "test_insights.test_identities") do |repository|
+      TestInsights::TestIdentity.for_repository(repository).find_each(&:destroy)
+    end
+  end
+end
+```
+
+Core models include `PluginDataCleanup`, which runs these in `before_destroy`
+— the same point `dependent: :destroy` ran, so cleanup is inside the destroy's
+transaction.
+
+Register these **without** a `plugin:` scope, unlike every other install.
+Disabling a plugin hides a feature; it does not delete the rows, and those rows
+still have to go when their parent does. Enablement gates behaviour;
+installation gates ownership, and cleanup is ownership. This is also why it is
+not a `:domain_subscriber` — those are enabled-filtered.
+
 ## Installation effects
 
 Plugin contributions are *installed*, not polled for. An installer performs the
