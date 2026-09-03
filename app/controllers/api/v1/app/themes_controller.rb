@@ -63,9 +63,15 @@ module Api
         end
 
         def reorder
-          ids = Array(params[:ids]).map { |id| Integer(id, exception: false) }.compact
-          if ids.blank?
+          raw_ids = params[:ids]
+          unless raw_ids.is_a?(Array) && raw_ids.any?
             render_error("validation_failed", "ids is required.", status: :unprocessable_content)
+            return
+          end
+
+          ids = raw_ids.map { |id| Integer(id, exception: false) }
+          if ids.any?(&:nil?)
+            render_error("validation_failed", "ids must contain only integers.", status: :unprocessable_content)
             return
           end
 

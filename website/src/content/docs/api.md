@@ -308,7 +308,9 @@ edge and is idempotent.
 ## Update Theme Preference
 
 `PATCH /api/v1/app/theme` updates the authenticated user's app theme.
-Valid values are `light` and `dark`.
+Valid values are `light`, `dark`, and `system`. It can also set
+`color_theme_id` to one of the built-in color themes or a custom color theme
+owned by the authenticated user.
 
 ```bash
 curl -X PATCH https://syrus.example.com/api/v1/app/theme \
@@ -316,6 +318,65 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
   -H "Content-Type: application/json" \
   -d '{ "theme": "dark" }'
 ```
+
+## Manage Color Themes
+
+`GET /api/v1/app/themes` lists built-in color themes plus custom,
+non-built-in themes owned by the authenticated user. `GET
+/api/v1/app/themes/:id` returns one selectable theme. Theme payloads include:
+
+Token hashes are abbreviated below; real create requests must include every
+theme token key for both modes.
+
+```json
+{
+  "id": 123,
+  "slug": "copper-night-42",
+  "name": "Copper Night",
+  "built_in": false,
+  "position": 0,
+  "tokens": {
+    "light": { "brand": "#b6492e" },
+    "dark": { "brand": "#dba28b" }
+  }
+}
+```
+
+`POST /api/v1/app/themes` creates a custom theme for the authenticated user.
+The request body must include `name` and a complete `tokens` object with
+`light` and `dark` token hashes covering the theme token schema.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/themes \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @theme.json
+```
+
+`PATCH /api/v1/app/themes/:id` renames an owned custom theme and/or merges
+token overrides into its existing light/dark token hashes:
+
+```bash
+curl -X PATCH https://syrus.example.com/api/v1/app/themes/123 \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "theme": { "name": "Copper Night", "tokens": { "light": { "brand": "#0f766e" } } } }'
+```
+
+Create and update run the same WCAG AA contrast check used by the theming
+chat tools. A failing palette returns `422` with `contrast_check_failed` and
+an `issues` array naming the token pair, actual ratio, and required ratio.
+
+`DELETE /api/v1/app/themes/:id` deletes an owned custom theme. If it is the
+user's active color theme, Syrus first falls back to the default built-in
+Terracotta theme. Built-in themes and another user's custom themes are not
+editable through these endpoints.
+
+`PATCH /api/v1/app/themes/reorder` accepts `ids`, an ordered array of owned
+custom theme IDs, and persists their zero-based positions. Any custom themes
+owned by the user but omitted from `ids` are kept after the submitted order.
+Malformed IDs, duplicates, built-in theme IDs, and another user's theme IDs
+are rejected before positions are changed.
 
 ## Manage Notifications
 
