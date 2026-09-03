@@ -486,7 +486,6 @@ module Api
                 repositories_path: repositories_path,
                 repository_documents_path: repository_documents_path(repository),
                 repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository),
-                app_flaky_tests_path: "/api/v1/app/repositories/#{repository.id}/flaky_tests",
                 app_preview_path: "/api/v1/app/repositories/#{repository.id}/preview",
                 app_preview_logs_path: "/api/v1/app/repositories/#{repository.id}/preview/logs"
               }

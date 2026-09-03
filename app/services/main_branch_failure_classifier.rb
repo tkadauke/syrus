@@ -153,25 +153,30 @@ class MainBranchFailureClassifier
       test_case_count_for_run(base_conclusion&.run, grader_name).positive?
   end
 
+  # Asked of :test_evidence providers rather than read from a model: test
+  # result storage is not core's. With no provider the counts are zero, which
+  # routes classification to classify_binary_contextual -- the same path a
+  # repository with no test data already took.
   def test_case_count_for_run(run, grader_name)
     return 0 unless run
 
-    TestCase
-      .joins(:test_run)
-      .where(test_runs: { run_id: run.id, grader_name: grader_name })
-      .count
+    test_evidence_providers.sum do |provider|
+      provider.test_case_count(run: run, grader_name: grader_name).to_i
+    end
+  end
+
+  def test_evidence_providers
+    Syrus::PluginRegistry.providers_for(:test_evidence)
+  rescue StandardError
+    []
   end
 
   def failed_test_identities_for_run(run, grader_name)
     return [] unless run
 
-    TestCase
-      .joins(:test_run)
-      .where(test_runs: { run_id: run.id, grader_name: grader_name }, status: FAILURE_STATUSES)
-      .pluck(:suite_name, :name)
-      .map { |suite_name, name| "#{suite_name}\u0000#{name}" }
-      .uniq
-      .sort
+    test_evidence_providers.flat_map do |provider|
+      Array(provider.failed_test_identities(run: run, grader_name: grader_name))
+    end.uniq.sort
   end
 
   def classify_binary_contextual(result, details, base_conclusion)

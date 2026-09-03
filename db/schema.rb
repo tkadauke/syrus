@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_051500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_060000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2384,7 +2384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_051500) do
     t.index ["workflow_id"], name: "index_terminal_sessions_on_workflow_id"
   end
 
-  create_table "test_cases", force: :cascade do |t|
+  create_table "test_insight_cases", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "duration_ms"
     t.text "failure_backtrace"
@@ -2407,7 +2407,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_051500) do
     t.index ["test_run_id", "test_identity_id"], name: "idx_test_cases_run_identity"
   end
 
-  create_table "test_identities", force: :cascade do |t|
+  create_table "test_insight_identities", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "file_path"
     t.string "fingerprint", limit: 64, null: false
@@ -2428,10 +2428,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_051500) do
     t.index ["repository_id", "last_duration_ms", "last_seen_at", "id"], name: "idx_test_identities_repo_last_duration"
     t.index ["repository_id", "last_failed_at", "id"], name: "idx_test_identities_repo_last_failed"
     t.index ["repository_id", "last_passed_at", "id"], name: "idx_test_identities_repo_last_passed"
-    t.index ["repository_id"], name: "index_test_identities_on_repository_id"
+    t.index ["repository_id"], name: "index_test_insight_identities_on_repository_id"
   end
 
-  create_table "test_identity_runtime_summaries", force: :cascade do |t|
+  create_table "test_insight_runs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.integer "error_count", default: 0, null: false
+    t.integer "failed_count", default: 0, null: false
+    t.string "grader_name", limit: 128, null: false
+    t.integer "passed_count", default: 0, null: false
+    t.bigint "repository_id", null: false
+    t.bigint "run_id", null: false
+    t.integer "skipped_count", default: 0, null: false
+    t.integer "total_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_test_insight_runs_on_repository_id"
+    t.index ["run_id", "grader_name"], name: "idx_test_runs_run_grader_unique", unique: true
+    t.index ["run_id"], name: "index_test_insight_runs_on_run_id"
+  end
+
+  create_table "test_insight_runtime_summaries", force: :cascade do |t|
     t.integer "avg_duration_ms"
     t.datetime "created_at", null: false
     t.string "grader_name", limit: 128, null: false
@@ -2447,26 +2464,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_051500) do
     t.string "window", limit: 32, null: false
     t.index ["repository_id", "grader_name", "window", "avg_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_avg"
     t.index ["repository_id", "grader_name", "window", "p95_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_p95"
-    t.index ["repository_id"], name: "index_test_identity_runtime_summaries_on_repository_id"
+    t.index ["repository_id"], name: "index_test_insight_runtime_summaries_on_repository_id"
     t.index ["test_identity_id", "grader_name", "window"], name: "idx_test_runtime_summary_identity_grader_window", unique: true
-    t.index ["test_identity_id"], name: "index_test_identity_runtime_summaries_on_test_identity_id"
-  end
-
-  create_table "test_runs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.integer "duration_ms"
-    t.integer "error_count", default: 0, null: false
-    t.integer "failed_count", default: 0, null: false
-    t.string "grader_name", limit: 128, null: false
-    t.integer "passed_count", default: 0, null: false
-    t.bigint "repository_id", null: false
-    t.bigint "run_id", null: false
-    t.integer "skipped_count", default: 0, null: false
-    t.integer "total_count", default: 0, null: false
-    t.datetime "updated_at", null: false
-    t.index ["repository_id"], name: "index_test_runs_on_repository_id"
-    t.index ["run_id", "grader_name"], name: "idx_test_runs_run_grader_unique", unique: true
-    t.index ["run_id"], name: "index_test_runs_on_run_id"
+    t.index ["test_identity_id"], name: "index_test_insight_runtime_summaries_on_test_identity_id"
   end
 
   create_table "themes", force: :cascade do |t|

@@ -108,7 +108,6 @@ Rails.application.routes.draw do
         get "jobs/:id/workflows", to: "jobs#workflows", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
-        get "jobs/:job_id/test_results", to: "job_test_results#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         patch "jobs/:job_id/priority", to: "jobs#update_priority", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -326,9 +325,6 @@ Rails.application.routes.draw do
         get "repositories/:repository_id/preview/logs", to: "repository_preview#logs", constraints: { repository_id: /\d+/ }
         post "repositories/:repository_id/preview", to: "repository_preview#create", constraints: { repository_id: /\d+/ }
         delete "repositories/:repository_id/preview", to: "repository_preview#destroy", constraints: { repository_id: /\d+/ }
-        get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
-        get "repositories/:repository_id/tests", to: "repository_tests#index"
-        get "repositories/:repository_id/tests/:id", to: "repository_tests#show", constraints: { id: /\d+/ }
         get "repositories/:repository_id/insight_suggestions", to: "insight_suggestions#index"
         patch "insight_suggestions/:id", to: "insight_suggestions#update"
         post "insight_suggestions/:id/discuss", to: "insight_suggestions#discuss"

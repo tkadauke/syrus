@@ -252,15 +252,6 @@ module Filters
         "created_at" => "Filters::Chips::CreatedAt",
         "updated_at" => "Filters::Chips::UpdatedAt"
       }
-    ),
-    test_case: Subject.new(
-      name: :test_case,
-      model: TestIdentity,
-      chips: {
-        "repository_id" => "Filters::Chips::RepositoryId",
-        "created_at" => "Filters::Chips::CreatedAt",
-        "updated_at" => "Filters::Chips::UpdatedAt"
-      }
     )
   }.freeze
 

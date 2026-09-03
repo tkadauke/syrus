@@ -8,7 +8,7 @@ module Syrus
       end
     end
 
-    ModelInfo = Data.define(:name, :table_name, :superclass_table_name, :abstract_class)
+    ModelInfo = Data.define(:name, :table_name, :superclass_table_name, :abstract_class, :separate_database)
 
     def initialize(root: Rails.root, model_classes: nil)
       @root = Pathname.new(root)
@@ -74,13 +74,21 @@ module Syrus
         name: model.name.to_s,
         table_name: model.table_name.to_s,
         superclass_table_name: superclass_table_name.to_s.presence,
-        abstract_class: model.respond_to?(:abstract_class?) && model.abstract_class?
+        abstract_class: model.respond_to?(:abstract_class?) && model.abstract_class?,
+        separate_database: model.respond_to?(:ancestors) && model.ancestors.any? { |ancestor| SEPARATE_DATABASE_BASES.include?(ancestor.name.to_s) }
       )
     end
+
+    SEPARATE_DATABASE_BASES = %w[SearchRecord].freeze
 
     def validate_model(model)
       return "#{model.name} must be namespaced under its plugin module" unless model.name.include?("::")
       return if model.abstract_class
+      # Models in a separate database (the FTS search database) are not part of
+      # the primary schema this rule protects, and their table names are
+      # already checked for collisions when plugins declare them through
+      # :search_source.
+      return if model.separate_database
       return if model.superclass_table_name.present? && model.superclass_table_name == model.table_name
 
       namespace = model.name.split("::").first.underscore

@@ -163,7 +163,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_preview_controller.rb
   - app/controllers/api/v1/app/job_ref_movement_actions_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
-  - app/controllers/api/v1/app/job_test_results_controller.rb
+  - plugins/test_insights/app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/memories_controller.rb
@@ -174,10 +174,10 @@ per-user/private:
   - app/controllers/api/v1/app/platform_identities_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
-  - app/controllers/api/v1/app/repository_flaky_tests_controller.rb
+  - plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/repository_preview_controller.rb
-  - app/controllers/api/v1/app/repository_tests_controller.rb
+  - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - app/controllers/api/v1/app/search_controller.rb
@@ -370,7 +370,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/teams_controller.rb` | team-tier | Team CRUD, scoped through `TeamPolicy`/`policy_scope(Team)`: visible to any team member or global admin, mutable by owner-tier `TeamMembership` or global admin. Any authenticated user may create a team. |
 | `app/controllers/api/v1/app/team_memberships_controller.rb` | team-tier | Lists, adds, changes the role of, and removes `TeamMembership` rows, gated by `TeamPolicy#write?` (owner-tier or global admin). Refuses to remove or demote the last `owner`-tier member of a team. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
-| `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
+| `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private | Job-less repository preview show/logs/create/destroy find the repository through `Current.user.repositories`, so only the repository owner can start, inspect, or stop it. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |

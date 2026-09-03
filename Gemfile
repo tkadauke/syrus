@@ -110,6 +110,7 @@ gem "worker_timeline", path: "plugins/worker_timeline"
 gem "throughput",    path: "plugins/throughput"
 gem "team_directory", path: "plugins/team_directory"
 gem "build_cache",   path: "plugins/build_cache"
+gem "test_insights", path: "plugins/test_insights"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

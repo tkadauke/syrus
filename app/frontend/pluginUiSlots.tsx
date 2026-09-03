@@ -9,6 +9,10 @@ export type UiSlotPanel = {
   component: string
   order: number
   props?: Record<string, unknown>
+  // Set only for `.tab` slots, where a panel is rendered as an extra tab.
+  key?: string
+  label?: string
+  label_key?: string
 }
 
 const panelModules = import.meta.glob<PluginModule>("../../plugins/*/app/frontend/ui_slots/*.tsx")

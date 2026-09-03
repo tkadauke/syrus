@@ -33,7 +33,7 @@ RSpec.describe "App API unified search", type: :request do
     get "/api/v1/app/search", params: { query: "deploy", types: [ "job", "note" ] }
 
     expect(response).to have_http_status(:bad_request)
-    expect(parse_body.dig("error", "message")).to include("job, epic, chat, or test_case")
+    expect(parse_body.dig("error", "message")).to include("job, epic, chat")
   end
 
   it "merges jobs, epics, and chat messages into normalized ranked results" do
@@ -195,7 +195,7 @@ RSpec.describe "App API unified search", type: :request do
   it "returns test results with path to the repository test history" do
     job = Factories.job_record(user: user, repository: repository)
     run = Run.create!(job: job, user: user, trigger_kind: "initial")
-    test_run = TestRun.create!(
+    test_run = TestInsights::TestRun.create!(
       run: run,
       repository: repository,
       grader_name: "rspec",
@@ -205,16 +205,16 @@ RSpec.describe "App API unified search", type: :request do
       skipped_count: 0,
       error_count: 0
     )
-    test_identity = TestIdentity.create!(
+    test_identity = TestInsights::TestIdentity.create!(
       repository: repository,
-      fingerprint: TestIdentity.fingerprint_for(suite_name: "AuthSpec", name: "LoginService validates credentials uniquely"),
+      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "AuthSpec", name: "LoginService validates credentials uniquely"),
       name: "LoginService validates credentials uniquely",
       suite_name: "AuthSpec",
       file_path: "spec/services/login_service_spec.rb",
       last_status: "failed",
       last_seen_at: Time.current
     )
-    test_case = TestCase.create!(
+    test_case = TestInsights::TestCase.create!(
       test_run: test_run,
       repository: repository,
       test_identity: test_identity,
@@ -223,7 +223,7 @@ RSpec.describe "App API unified search", type: :request do
       file_path: "spec/services/login_service_spec.rb",
       status: "failed"
     )
-    TestIdentitySearchIndex.upsert(test_identity)
+    TestInsights::SearchIndex.upsert(test_identity)
 
     get "/api/v1/app/search", params: { query: "LoginService", types: [ "test_case" ] }
 
@@ -236,7 +236,7 @@ RSpec.describe "App API unified search", type: :request do
       "suite_name" => "AuthSpec",
       "file_path" => "spec/services/login_service_spec.rb",
       "state" => "failed",
-      "path" => repository_path(repository, tab: "tests", test_id: test_identity.id),
+      "path" => "/repositories/#{repository.id}/plugin/tests?test_id=#{test_identity.id}",
       "repository_slug" => "acme/widgets"
     )
     expect(results.first.fetch("snippet")).to include("<mark>")

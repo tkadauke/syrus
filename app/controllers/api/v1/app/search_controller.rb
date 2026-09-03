@@ -2,12 +2,11 @@ module Api
   module V1
     module App
       class SearchController < BaseController
-        BUILT_IN_TYPES = %w[job epic chat test_case].freeze
+        BUILT_IN_TYPES = %w[job epic chat].freeze
         BUILT_IN_FILTER_SUBJECTS = {
-          "job"       => :job,
-          "epic"      => :epic,
-          "chat"      => :chat_message,
-          "test_case" => :test_case
+          "job"   => :job,
+          "epic"  => :epic,
+          "chat"  => :chat_message
         }.freeze
         COMMON_FILTER_FIELDS = %w[repository_id created_at updated_at].freeze
         DEFAULT_LIMIT = 30
@@ -23,7 +22,7 @@ module Api
 
           selected_types = search_types
           unless selected_types
-            render_error("bad_request", "types must include only job, epic, chat, or test_case.", status: :bad_request)
+            render_error("bad_request", "types must be one of: #{types.join(', ')}.", status: :bad_request)
             return
           end
 
@@ -115,15 +114,13 @@ module Api
         SEARCH_ROWS_DISPATCH = {
           "job"       => :job_search_rows,
           "epic"      => :epic_search_rows,
-          "chat"      => :chat_search_rows,
-          "test_case" => :test_case_search_rows
+          "chat"      => :chat_search_rows
         }.freeze
 
         RESULT_JSON_DISPATCH = {
           "job"       => :job_result_json,
           "epic"      => :epic_result_json,
-          "chat"      => :chat_result_json,
-          "test_case" => :test_case_result_json
+          "chat"      => :chat_result_json
         }.freeze
 
         def search_rows(type, query, limit)
@@ -160,14 +157,6 @@ module Api
           )
         end
 
-        def test_case_search_rows(query, limit)
-          apply_filter_to_rows(
-            "test_case",
-            TestIdentitySearchIndex.search(query, user_id: Current.user.id, limit: limit),
-            :test_identity_id
-          )
-        end
-
         def apply_filter_to_rows(type, rows, id_key)
           return rows if rows.empty? || active_filter_tree.blank?
 
@@ -192,13 +181,6 @@ module Api
               scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: Current.user.id }, id: ids),
               user: Current.user,
               subject: :chat_message
-            )
-          when "test_case"
-            ::Filters::Compiler.call(
-              ::Filters::Ast.parse(tree),
-              scope: TestIdentity.joins(:repository).where(repositories: { user_id: Current.user.id }, id: ids),
-              user: Current.user,
-              subject: :test_case
             )
           else
             provider = self.class.provider_for(type)
@@ -359,25 +341,6 @@ module Api
           payload
         end
 
-        def test_case_result_json(row)
-          test_identity = test_identities_by_id[row.fetch(:test_identity_id).to_i]
-          return unless test_identity
-
-          {
-            type: "test_case",
-            id: test_identity.id,
-            title: test_identity.name,
-            suite_name: test_identity.suite_name,
-            file_path: test_identity.file_path,
-            snippet: row.fetch(:snippet),
-            rank: row.fetch(:rank),
-            path: repository_path(test_identity.repository, tab: "tests", test_id: test_identity.id),
-            state: test_identity.last_status,
-            repository_slug: test_identity.repository.slug,
-            created_at: test_identity.last_seen_at&.iso8601
-          }
-        end
-
         def chat_grouped_match_json(row)
           message = chat_messages_by_id[row.fetch(:chat_message_id).to_i]
           return unless message
@@ -403,14 +366,6 @@ module Api
             .joins(chat_session: :chat_participants)
             .where(chat_participants: { user_id: Current.user.id }, id: result_ids(:chat_message_id))
             .includes(chat_session: :attached_repositories)
-            .index_by(&:id)
-        end
-
-        def test_identities_by_id
-          @test_identities_by_id ||= TestIdentity
-            .joins(:repository)
-            .where(repositories: { user_id: Current.user.id }, id: result_ids(:test_identity_id))
-            .includes(:repository)
             .index_by(&:id)
         end
 

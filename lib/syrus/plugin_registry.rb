@@ -30,6 +30,7 @@ module Syrus
       step_environment
       workflow_kinds
       search_source
+      test_evidence
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -62,7 +63,8 @@ module Syrus
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
-      search_source:           -> { Syrus::Plugin::SearchSource }
+      search_source:           -> { Syrus::Plugin::SearchSource },
+      test_evidence:           -> { Syrus::Plugin::TestEvidence }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

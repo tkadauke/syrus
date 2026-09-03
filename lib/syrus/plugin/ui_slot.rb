@@ -14,6 +14,9 @@ module Syrus
     #
     #   .ui_slots(slot:, context:) => [{ id:, component:, order: }]
     #
+    # Panels in a `.tab` slot are rendered as extra tabs rather than inline
+    # sections, so they also carry `label` (or `label_key`) and a `key`.
+    #
     # `slot` is a name from Syrus::Plugin::UiSlot::SLOTS. `context` carries
     # whatever the host page has resolved (e.g. { repository:, user: } or
     # { job:, user: }), so a provider can decide per record whether to render.
@@ -24,6 +27,7 @@ module Syrus
       SLOTS = %w[
         repository.detail
         job.detail
+        job.detail.tab
       ].freeze
 
       def self.valid_slot?(slot) = SLOTS.include?(slot.to_s)

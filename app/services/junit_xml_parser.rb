@@ -5,6 +5,12 @@ require "rexml/document"
 # Handles both <testsuites> wrapper and bare <testsuite> documents. Gracefully
 # skips malformed XML rather than raising so a broken results file never blocks
 # the grader step from being recorded.
+# Parses JUnit XML into a ParsedRun value object.
+#
+# Stays in core because ParsedRun is the contract of the :test_result_parser
+# extension point: a language plugin's framework-native parser returns one of
+# these, and whichever plugin stores test results consumes it. Neither side
+# should have to depend on the other.
 class JunitXmlParser
   ParseError = Class.new(StandardError)
 

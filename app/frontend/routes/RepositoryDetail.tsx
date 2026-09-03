@@ -4,7 +4,6 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { RepositoryIssues } from "./repositoryDetail/RepositoryIssues"
-import { RepositoryTestsRoute } from "./repositoryDetail/RepositoryTests"
 import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -32,8 +31,7 @@ export function RepositoryDetailRoute() {
   const id = params.id || ""
   const query = new URLSearchParams(location.search)
   const tabParam = query.get("tab")
-  const tab = tabParam === "github_issues" ? "github_issues" : tabParam === "tests" ? "tests" : "overview"
-  const selectedTestId = query.get("test_id")
+  const tab = tabParam === "github_issues" ? "github_issues" : "overview"
   const state = query.get("state") === "closed" ? "closed" : "open"
   const search = pageSearch(location.search)
   const prefix = routePrefix(location.pathname)
@@ -52,9 +50,7 @@ export function RepositoryDetailRoute() {
 
   return (
     <main aria-label={t('repository.aria_repository')} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {tab === "tests" ? (
-        <RepositoryTestsRoute repositoryId={id} prefix={prefix} selectedTestId={selectedTestId} />
-      ) : tab !== "github_issues" ? (
+      {tab !== "github_issues" ? (
         <>
           {detail.isPending ? (
             <PanelMessage>
@@ -83,7 +79,7 @@ function repositoryDetailQueryKey(id: string | number, search: string): Reposito
   return ["repositories", String(id), "detail", search] as const
 }
 
-function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "github_issues" | "tests"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "github_issues"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)

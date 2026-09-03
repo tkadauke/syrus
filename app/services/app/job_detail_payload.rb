@@ -54,7 +54,7 @@ module App
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
           ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
-          has_test_results: PerformanceLogging.phase("job_detail.has_test_results", job_id: @job.id) { has_test_results? },
+          ui_tabs: ::App::UiSlotsPayload.panels_for(slot: "job.detail.tab", context: { job: @job, user: Current.user }),
           feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
@@ -703,10 +703,6 @@ module App
       nil
     end
 
-    def has_test_results?
-      run_ids = Run.unscoped.where(job_id: @job.id).select(:id)
-      TestRun.where(run_id: run_ids).exists?
-    end
 
     def origin_chat_json
       source_chat = source_chat_payload
@@ -923,7 +919,6 @@ module App
         source_path: source_job_path(@job),
         app_detail_path: "/api/v1/app/jobs/#{@job.id}",
         app_source_path: "/api/v1/app/jobs/#{@job.id}/source",
-        app_test_results_path: "/api/v1/app/jobs/#{@job.id}/test_results",
         app_timeline_path: "/api/v1/app/jobs/#{@job.id}/timeline",
         app_start_path: "/api/v1/app/jobs/#{@job.id}/start",
         app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",

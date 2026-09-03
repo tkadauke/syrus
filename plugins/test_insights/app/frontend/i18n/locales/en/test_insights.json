@@ -1,0 +1,15 @@
+{
+  "tab_tests": "Tests",
+  "tests_load_error": "Unable to load test results.",
+  "tests_empty": "No test results available.",
+  "tests_all_passing": "All tests passing",
+  "tests_show_detail": "Details",
+  "tests_hide_detail": "Hide",
+  "tests_show_skipped": "Show skipped",
+  "tests_hide_skipped": "Hide skipped",
+  "tests_failure_message": "Failure message",
+  "tests_failure_backtrace": "Backtrace",
+  "tests_output": "Output",
+  "tests_flaky_label": "Flaky",
+  "tests_flaky_tooltip": "{{failed}} of {{total}} recent runs failed"
+}

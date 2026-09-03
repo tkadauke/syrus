@@ -134,6 +134,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/test_insights
+  specs:
+    test_insights (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/theming_tools
   specs:
     theming_tools (0.1.0)
@@ -750,6 +756,7 @@ DEPENDENCIES
   tailscale!
   tailwindcss-rails
   team_directory!
+  test_insights!
   theming_tools!
   throughput!
   thruster
@@ -976,6 +983,7 @@ CHECKSUMS
   tailwindcss-ruby (4.3.3-x86_64-linux-gnu) sha256=2337017ff8b02698480eae1e9637cf01faa0e4824db89d067a13c5a5ee38c9b2
   tailwindcss-ruby (4.3.3-x86_64-linux-musl) sha256=27d478c417bcf73828e5b544744c5bdfd5b5cb54f1a266fc4f185281c32efe6c
   team_directory (0.1.0)
+  test_insights (0.1.0)
   theming_tools (0.1.0)
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   throughput (0.1.0)

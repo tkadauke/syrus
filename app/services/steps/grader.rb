@@ -106,7 +106,7 @@ module Steps
 
       run_grader_augmentors!(name: name, command: command) unless passed
 
-      ingest_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
+      announce_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
 
       raise StepFailed, "grader #{name} failed (exit #{exit_code})" unless passed
     end
@@ -227,50 +227,29 @@ module Steps
       output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
     end
 
-    def ingest_test_output!(grader_name, output_path_str)
+    # Announces that a grader produced test output. Core does not parse or
+    # store it: which parser applies and what a test case even is belong to
+    # whichever plugin owns test results.
+    #
+    # Inline delivery, because the path is inside the workflow workspace and
+    # that is torn down when the workflow reaches a terminal state.
+    def announce_test_output!(grader_name, output_path_str)
       absolute_path = workspace.path.join(output_path_str)
       unless absolute_path.exist?
-        log("[grader:#{grader_name}] junit_output #{output_path_str.inspect} not found — skipping ingestion")
+        log("[grader:#{grader_name}] junit_output #{output_path_str.inspect} not found - skipping ingestion")
         return
       end
 
-      parser_name, parsed = try_plugin_parsers(absolute_path)
-      parser_name, parsed = [ "JunitXmlParser", JunitXmlParser.parse(absolute_path.read) ] if parsed.nil?
-      TestRunIngester.new(run: run, grader_name: grader_name, parsed_run: parsed).ingest!
-      log("[grader:#{grader_name}] ingested #{parsed.total_count} test case(s) from #{output_path_str}")
-
-      # Inline: a subscriber that wants to parse the output file has to do it
-      # before the workflow workspace is torn down.
       Syrus::Events.publish(
         "step.grader.completed",
         run_id: run.id,
         workflow_id: run.step&.workflow_id,
         repository_id: run.job&.repository_id,
         grader_name: grader_name,
-        parser: parser_name || "JunitXmlParser",
-        output_path: absolute_path.to_s,
-        workspace_path: workspace.path.to_s,
-        total_count: parsed.total_count
+        junit_output_path: absolute_path.to_s,
+        format_hint: output_path_str.to_s.split(".").last,
+        workspace_path: workspace.path.to_s
       )
-    rescue JunitXmlParser::ParseError => e
-      log("[grader:#{grader_name}] warning: JunitXmlParser: JUnit XML parse error: #{e.message}")
-    rescue StandardError => e
-      log("[grader:#{grader_name}] warning: test output ingestion failed via #{parser_name || "JunitXmlParser"}: #{e.class}: #{e.message}")
-    end
-
-    def try_plugin_parsers(absolute_path)
-      Syrus::PluginRegistry.providers_for(:test_result_parser).each do |provider|
-        can_parse = PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :can_parse) do
-          provider.can_parse?(output_path: absolute_path)
-        end
-        next unless can_parse
-
-        parsed = PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :call) do
-          provider.call(output_path: absolute_path)
-        end
-        return [ provider.to_s, parsed ]
-      end
-      [ nil, nil ]
     end
 
     def env

@@ -5,7 +5,7 @@ import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
-import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobTestResultsPayload, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
@@ -2282,7 +2282,6 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     coverage: null,
     summary: null,
     test_plan: null,
-    has_test_results: false,
     feedback_history: [],
     pending_feedback: [],
     landing_queue_entry: null,
@@ -2338,8 +2337,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       source_path: "/jobs/1/source",
       app_detail_path: "/api/v1/app/jobs/1",
       app_source_path: "/api/v1/app/jobs/1/source",
-      app_test_results_path: "/api/v1/app/jobs/1/test_results",
-      app_timeline_path: "/api/v1/app/jobs/1/timeline",
+        app_timeline_path: "/api/v1/app/jobs/1/timeline",
       app_start_path: "/api/v1/app/jobs/1/start",
       app_release_from_backlog_path: "/api/v1/app/jobs/1/release_from_backlog",
       app_run_again_path: "/api/v1/app/jobs/1/run_again",
@@ -2585,197 +2583,4 @@ function run(overrides: Partial<JobRun>): JobRun {
   }
 }
 
-function testResultsPayload(overrides: Partial<JobTestResultsPayload> = {}): JobTestResultsPayload {
-  return {
-    job_id: 1,
-    workflow_id: 10,
-    test_runs: [],
-    ...overrides
-  }
-}
 
-describe("TestsTab", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("does not show the Tests tab when has_test_results is false", () => {
-    renderJobDetail(jobPayload({ has_test_results: false }))
-
-    expect(screen.queryByRole("button", { name: "Tests" })).not.toBeInTheDocument()
-  })
-
-  it("shows the Tests tab when has_test_results is true", () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload()))
-    renderJobDetail(jobPayload({ has_test_results: true }))
-
-    expect(screen.getByRole("button", { name: "Tests" })).toBeInTheDocument()
-  })
-
-  it("fetches and renders test run data when Tests tab is active", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload({
-      test_runs: [
-        {
-          id: 1,
-          grader_name: "rspec",
-          run_id: 22,
-          total_count: 3,
-          passed_count: 2,
-          failed_count: 1,
-          skipped_count: 0,
-          error_count: 0,
-          duration_ms: 5000,
-          suites: [
-            {
-              suite_name: "UserSpec",
-              total_count: 3,
-              passed_count: 2,
-              failed_count: 1,
-              skipped_count: 0,
-              error_count: 0,
-              test_cases: [
-                { id: 1, name: "creates a user", suite_name: "UserSpec", file_path: null, status: "passed", duration_ms: 50, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
-                { id: 2, name: "fails validation", suite_name: "UserSpec", file_path: null, status: "failed", duration_ms: 30, failure_message: "expected true", failure_backtrace: "spec/user_spec.rb:10", output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
-                { id: 3, name: "skips pending", suite_name: "UserSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
-              ]
-            }
-          ]
-        }
-      ]
-    })))
-
-    renderJobDetail(jobPayload({ has_test_results: true }), { activeTab: "tests" })
-
-    expect(await screen.findByText("rspec")).toBeInTheDocument()
-    expect(screen.getAllByText("2 passed").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("1 failed").length).toBeGreaterThan(0)
-    expect(screen.getByText("5.00s")).toBeInTheDocument()
-  })
-
-  it("shows 'All tests passing' when no failures or errors", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload({
-      test_runs: [
-        {
-          id: 1,
-          grader_name: "jest",
-          run_id: 30,
-          total_count: 2,
-          passed_count: 2,
-          failed_count: 0,
-          skipped_count: 0,
-          error_count: 0,
-          duration_ms: null,
-          suites: [
-            {
-              suite_name: "Button",
-              total_count: 2,
-              passed_count: 2,
-              failed_count: 0,
-              skipped_count: 0,
-              error_count: 0,
-              test_cases: [
-                { id: 4, name: "renders", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
-                { id: 5, name: "is accessible", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
-              ]
-            }
-          ]
-        }
-      ]
-    })))
-
-    renderJobDetail(jobPayload({ has_test_results: true }), { activeTab: "tests" })
-
-    expect(await screen.findByText("All tests passing")).toBeInTheDocument()
-  })
-
-  it("expands failure detail when Details button is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload({
-      test_runs: [
-        {
-          id: 1,
-          grader_name: "rspec",
-          run_id: 22,
-          total_count: 1,
-          passed_count: 0,
-          failed_count: 1,
-          skipped_count: 0,
-          error_count: 0,
-          duration_ms: null,
-          suites: [
-            {
-              suite_name: "FooSpec",
-              total_count: 1,
-              passed_count: 0,
-              failed_count: 1,
-              skipped_count: 0,
-              error_count: 0,
-              test_cases: [
-                { id: 6, name: "breaks", suite_name: "FooSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "expected 1 got 2", failure_backtrace: "spec/foo_spec.rb:5", output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
-              ]
-            }
-          ]
-        }
-      ]
-    })))
-
-    renderJobDetail(jobPayload({ has_test_results: true }), { activeTab: "tests" })
-
-    expect(await screen.findByText("breaks")).toBeInTheDocument()
-    expect(screen.queryByText("expected 1 got 2")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
-
-    expect(screen.getByText("expected 1 got 2")).toBeInTheDocument()
-    expect(screen.getByText("spec/foo_spec.rb:5")).toBeInTheDocument()
-  })
-
-  it("shows skipped tests only when 'Show skipped' is clicked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload({
-      test_runs: [
-        {
-          id: 1,
-          grader_name: "rspec",
-          run_id: 22,
-          total_count: 2,
-          passed_count: 1,
-          failed_count: 1,
-          skipped_count: 1,
-          error_count: 0,
-          duration_ms: null,
-          suites: [
-            {
-              suite_name: "BarSpec",
-              total_count: 3,
-              passed_count: 1,
-              failed_count: 1,
-              skipped_count: 1,
-              error_count: 0,
-              test_cases: [
-                { id: 7, name: "passes", suite_name: "BarSpec", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
-                { id: 8, name: "pending test", suite_name: "BarSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
-                { id: 9, name: "broken test", suite_name: "BarSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "oops", failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
-              ]
-            }
-          ]
-        }
-      ]
-    })))
-
-    renderJobDetail(jobPayload({ has_test_results: true }), { activeTab: "tests" })
-
-    expect(await screen.findByText("passes")).toBeInTheDocument()
-    expect(screen.queryByText("pending test")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole("button", { name: /Show skipped/ }))
-
-    expect(screen.getByText("pending test")).toBeInTheDocument()
-  })
-
-  it("fetches from app_test_results_path", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(testResultsPayload()))
-
-    renderJobDetail(jobPayload({ has_test_results: true }), { activeTab: "tests" })
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/test_results", expect.anything())
-    })
-  })
-})

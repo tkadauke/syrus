@@ -188,8 +188,8 @@ RSpec.describe Steps::GraderCollect do
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
     base_step = Step.create!(workflow: base_workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec", "failures" => "allow_inherited" })
     base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
-    base_test_run = TestRun.create!(run: base_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
-    TestCase.create!(test_run: base_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Widget fails", status: "failed")
+    base_test_run = TestInsights::TestRun.create!(run: base_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
+    TestInsights::TestCase.create!(test_run: base_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Widget fails", status: "failed")
     GraderConclusion.create!(
       repository: job.repository,
       job: job,
@@ -211,8 +211,8 @@ RSpec.describe Steps::GraderCollect do
     )
     grader_step = workflow.steps.find_by!(kind: "grader")
     candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
-    candidate_test_run = TestRun.create!(run: candidate_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
-    TestCase.create!(test_run: candidate_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Widget fails", status: "failed")
+    candidate_test_run = TestInsights::TestRun.create!(run: candidate_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
+    TestInsights::TestCase.create!(test_run: candidate_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Widget fails", status: "failed")
     grader_step.update!(
       state: "failed",
       details: { "name" => "rspec", "required" => true, "failures" => "allow_inherited", "junit_output" => "tmp/rspec.xml", "exit_code" => 1 }
@@ -234,8 +234,8 @@ RSpec.describe Steps::GraderCollect do
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")
     base_step = Step.create!(workflow: base_workflow, kind: "grader", position: 1, state: "failed", details: { "name" => "rspec", "failures" => "allow_inherited" })
     base_run = base_step.runs.create!(job: job, trigger_kind: "main_grader", state: "failed")
-    base_test_run = TestRun.create!(run: base_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
-    TestCase.create!(test_run: base_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Old failure", status: "failed")
+    base_test_run = TestInsights::TestRun.create!(run: base_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
+    TestInsights::TestCase.create!(test_run: base_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "Old failure", status: "failed")
     GraderConclusion.create!(
       repository: job.repository,
       job: job,
@@ -257,8 +257,8 @@ RSpec.describe Steps::GraderCollect do
     )
     grader_step = workflow.steps.find_by!(kind: "grader")
     candidate_run = grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
-    candidate_test_run = TestRun.create!(run: candidate_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
-    TestCase.create!(test_run: candidate_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "New failure", status: "failed")
+    candidate_test_run = TestInsights::TestRun.create!(run: candidate_run, repository: job.repository, grader_name: "rspec", total_count: 1, passed_count: 0, failed_count: 1)
+    TestInsights::TestCase.create!(test_run: candidate_test_run, repository: job.repository, suite_name: "spec/models/widget_spec.rb", name: "New failure", status: "failed")
     grader_step.update!(
       state: "failed",
       details: { "name" => "rspec", "required" => true, "failures" => "allow_inherited", "junit_output" => "tmp/rspec.xml", "exit_code" => 1 }

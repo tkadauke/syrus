@@ -1,11 +1,11 @@
 # Test Insights (Flaky Tests)
 
 Syrus can ingest structured per-test results from a grader run and turn them
-into durable `TestRun`/`TestCase` history, grouped under one durable
-`TestIdentity` per `(repository, suite_name, name)` test. `TestIdentity` is
-the searchable/navigable object; `TestCase` is an individual execution row.
+into durable `TestInsights::TestRun`/`TestInsights::TestCase` history, grouped under one durable
+`TestInsights::TestIdentity` per `(repository, suite_name, name)` test. `TestInsights::TestIdentity` is
+the searchable/navigable object; `TestInsights::TestCase` is an individual execution row.
 Together they power per-test pass/fail timelines, duration history, and flaky
-test reporting. This is a core feature (not a plugin) —
+test reporting. This was a core feature until it became the `test_insights` plugin; that sentence used to read "not a plugin" —
 `test_result_parser` is a plugin *extension point* that lets a repository's
 test runner supply its own parsing logic, but storage, flakiness scoring, and
 the UI are built into core.
@@ -24,8 +24,8 @@ grade:
 
 After the grader command runs (pass or fail), `Steps::Grader#ingest_test_output!`
 (`app/services/steps/grader.rb:99,156-186`) reads the file at that path and
-writes one `TestRun`, one `TestCase` row per parsed case, and links each case
-to its stable `TestIdentity`, tagged with the grader's name.
+writes one `TestInsights::TestRun`, one `TestInsights::TestCase` row per parsed case, and links each case
+to its stable `TestInsights::TestIdentity`, tagged with the grader's name.
 A missing file is not an error — it logs
 `"junit_output ... not found — skipping ingestion"` and moves on, so a
 `junit_output` path that's only produced by one variant of a grader (see
@@ -123,7 +123,7 @@ results without an N+1.
   oldest; the duration graph independently plots up to the most recent
   `TestIdentity::HISTORY_LIMIT` (100) runs regardless of the history page.
 - **Job test results** — `GET /api/v1/app/jobs/:job_id/test_results`
-  (`Api::V1::App::JobTestResultsController`) returns every `TestRun`/`TestCase`
+  (`Api::V1::App::JobTestResultsController`) returns every `TestInsights::TestRun`/`TestInsights::TestCase`
   ingested for a Job's most recent Workflow that has test data, grouped by
   grader and suite, each case annotated with its current flakiness score via
   `TestCase.batch_flakiness`.
@@ -235,3 +235,27 @@ database (`config/queue.compute.yml`). Writing `test_identity_fts` inline from
 `TestRunIngester` was the one path that broke that rule; the failure was
 swallowed as an enrichment warning, so search results simply went missing
 rather than anything erroring loudly.
+
+## Plugin ownership
+
+Test Insights is the `test_insights` plugin. It owns the four primary tables
+(`test_insight_runs`, `test_insight_cases`, `test_insight_identities`,
+`test_insight_runtime_summaries` -- renamed from their unprefixed originals),
+the `test_identity_fts` search index, the query and comparison services, the
+five MCP tools, the repository Tests tab, and the Job detail Tests tab.
+
+Core keeps three things:
+
+- **`JunitXmlParser`**, because `ParsedRun` is the contract of the
+  `:test_result_parser` extension point. A language plugin's framework-native
+  parser returns one, and whichever plugin stores results consumes it; neither
+  should have to depend on the other.
+- **`Steps::Grader`**, which no longer parses or stores anything. It publishes
+  `step.grader.completed` with the output path, inline, because that path is
+  inside a workflow workspace that is torn down at terminal state.
+- **`MainBranchFailureClassifier`**, which asks `:test_evidence` providers
+  which tests failed rather than reading a model. With the plugin disabled the
+  counts are zero and it falls back to its coarser pass/fail comparison --
+  exactly what a repository with no test data already got.
+
+Disabling the plugin stops ingestion and hides the UI; recorded history stays.

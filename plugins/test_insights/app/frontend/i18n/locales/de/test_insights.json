@@ -1,0 +1,15 @@
+{
+  "tab_tests": "Tests",
+  "tests_load_error": "Testergebnisse konnten nicht geladen werden.",
+  "tests_empty": "Keine Testergebnisse verfügbar.",
+  "tests_all_passing": "Alle Tests erfolgreich",
+  "tests_show_detail": "Details",
+  "tests_hide_detail": "Ausblenden",
+  "tests_show_skipped": "Übersprungene anzeigen",
+  "tests_hide_skipped": "Übersprungene ausblenden",
+  "tests_failure_message": "Fehlermeldung",
+  "tests_failure_backtrace": "Stapelrückverfolgung",
+  "tests_output": "Ausgabe",
+  "tests_flaky_label": "Flatterhaft",
+  "tests_flaky_tooltip": "{{failed}} von {{total}} aktuellen Läufen fehlgeschlagen"
+}

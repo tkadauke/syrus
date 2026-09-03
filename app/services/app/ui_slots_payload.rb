@@ -31,7 +31,10 @@ module App
         id: panel.fetch(:id).to_s,
         component: panel.fetch(:component).to_s,
         order: panel[:order].to_i,
-        props: panel[:props].presence&.as_json
+        props: panel[:props].presence&.as_json,
+        key: panel[:key].presence&.to_s,
+        label: panel[:label].presence&.to_s,
+        label_key: panel[:label_key].presence&.to_s
       }.compact
     end
 

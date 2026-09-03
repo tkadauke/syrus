@@ -731,50 +731,9 @@ export type JobRetryAction = {
   step_label?: string
 }
 
-export type JobTestCase = {
-  id: number
-  name: string
-  suite_name: string
-  file_path: string | null
-  status: "passed" | "failed" | "skipped" | "error"
-  duration_ms: number | null
-  failure_message: string | null
-  failure_backtrace: string | null
-  output: string | null
-  flakiness_score: number | null
-  flakiness_failed_count: number | null
-  flakiness_total_count: number | null
-  flakiness_run_statuses: Array<"passed" | "failed" | "skipped" | "error"> | null
-}
 
-export type JobTestSuite = {
-  suite_name: string
-  total_count: number
-  passed_count: number
-  failed_count: number
-  skipped_count: number
-  error_count: number
-  test_cases: JobTestCase[]
-}
 
-export type JobTestRun = {
-  id: number
-  grader_name: string
-  run_id: number
-  total_count: number
-  passed_count: number
-  failed_count: number
-  skipped_count: number
-  error_count: number
-  duration_ms: number | null
-  suites: JobTestSuite[]
-}
 
-export type JobTestResultsPayload = {
-  job_id: number
-  workflow_id: number | null
-  test_runs: JobTestRun[]
-}
 
 export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
 
@@ -797,7 +756,6 @@ export type JobPaths = {
   source_path: string
   app_detail_path: string
   app_source_path: string
-  app_test_results_path: string
   app_timeline_path: string
   app_start_path: string
   app_release_from_backlog_path: string
@@ -889,7 +847,8 @@ export type DeployActionPayload = {
 }
 
 export type JobDetailPayload = {
-  ui_panels?: Array<{ id: string; component: string; order: number }>
+  ui_panels?: Array<{ id: string; component: string; order: number; props?: Record<string, unknown> }>
+  ui_tabs?: Array<{ id: string; component: string; order: number; key?: string; label?: string; label_key?: string; props?: Record<string, unknown> }>
   message?: string | null
   job: JobRecord
   repository: JobRepository
@@ -910,7 +869,6 @@ export type JobDetailPayload = {
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   summary: JobSummary | null
   test_plan: JobTestPlan | null
-  has_test_results: boolean
   feedback_history: JobFeedbackHistoryEntry[]
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
@@ -1048,9 +1006,6 @@ export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
 
-export function fetchJobTestResults(path: string) {
-  return getJson<JobTestResultsPayload>(path)
-}
 
 export function fetchJobRunArtifacts(path: string) {
   return getJson<JobRunArtifactsPayload>(path)

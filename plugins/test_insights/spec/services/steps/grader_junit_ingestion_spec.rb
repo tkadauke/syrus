@@ -1,0 +1,314 @@
+require "rails_helper"
+require "tmpdir"
+
+RSpec.describe "Steps::Grader JUnit XML ingestion" do
+  let(:job) { Factories.job }
+  let(:workflow) { job.workflows.last }
+
+  before do
+    prepare_search_tables
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE test_identity_fts
+      USING fts5(
+        name,
+        suite_name,
+        file_path,
+        test_identity_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        last_status UNINDEXED,
+        last_seen_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+  end
+
+  def make_step(junit_output: nil)
+    Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 99,
+      details: {
+        "name" => "tests",
+        "command" => "true",
+        "required" => true,
+        "timeout_minutes" => 1,
+        "junit_output" => junit_output
+      }.compact
+    )
+  end
+
+  around do |example|
+    Dir.mktmpdir("syrus-grader-junit") do |dir|
+      @ws_path = Pathname.new(dir)
+      example.run
+    end
+  end
+
+  def handler_for(step)
+    run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: step.iteration)
+    h = Steps::Grader.new(run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(h).to receive(:workspace).and_return(fake_ws)
+    [ h, run ]
+  end
+
+  let(:passing_xml) do
+    <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuite name="MySpec" tests="2" time="0.3">
+        <testcase classname="MySpec" name="passes" time="0.2"/>
+        <testcase classname="MySpec" name="is skipped" time="0.1">
+          <skipped/>
+        </testcase>
+      </testsuite>
+    XML
+  end
+
+  let(:failing_xml) do
+    <<~XML
+      <testsuite name="MySpec" tests="2" time="0.5">
+        <testcase classname="MySpec" name="passes" time="0.2"/>
+        <testcase classname="MySpec" name="fails" time="0.3">
+          <failure message="assertion failed">line 10 in spec/my_spec.rb</failure>
+        </testcase>
+      </testsuite>
+    XML
+  end
+
+  let(:nested_failing_rspec_xml) do
+    <<~XML
+      <testsuites tests="2" failures="1" errors="0" skipped="0" time="0.5">
+        <testsuite name="outer" tests="2" failures="1" errors="0" skipped="0" time="0.5">
+          <testsuite name="spec/models/widget_spec.rb" tests="2" failures="1" errors="0" skipped="0" time="0.5">
+            <testcase classname="spec/models/widget_spec.rb" name="passes" time="0.2"/>
+            <testcase classname="spec/models/widget_spec.rb" name="fails" time="0.3">
+              <failure message="expected true">line 10 in spec/models/widget_spec.rb</failure>
+            </testcase>
+          </testsuite>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
+  let(:passing_vitest_xml) do
+    <<~XML
+      <testsuites name="vitest tests" tests="2" failures="0" errors="0" skipped="0" time="0.4">
+        <testsuite name="app/frontend/routes/Dashboard.test.tsx" tests="2" failures="0" errors="0" skipped="0" time="0.4">
+          <testcase classname="app/frontend/routes/Dashboard.test.tsx" name="Dashboard renders totals" time="0.1"/>
+          <testcase classname="app/frontend/routes/Dashboard.test.tsx" name="Dashboard filters repositories" time="0.3"/>
+        </testsuite>
+      </testsuites>
+    XML
+  end
+
+  context "when junit_output is configured and file exists" do
+    it "creates a TestInsights::TestRun and TestInsights::TestCase records" do
+      step = make_step(junit_output: "tmp/results.xml")
+      @ws_path.join("tmp").mkpath
+      @ws_path.join("tmp/results.xml").write(passing_xml)
+
+      handler, run = handler_for(step)
+      expect { handler.call }.to change(TestInsights::TestRun, :count).by(1)
+                              .and change(TestInsights::TestCase, :count).by(2)
+
+      tr = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      expect(tr).to have_attributes(
+        total_count: 2,
+        passed_count: 1,
+        skipped_count: 1,
+        failed_count: 0,
+        error_count: 0,
+        duration_ms: 300
+      )
+      expect(tr.repository).to eq(job.repository)
+    end
+
+    it "stores test case details correctly" do
+      step = make_step(junit_output: "tmp/results.xml")
+      @ws_path.join("tmp").mkpath
+      @ws_path.join("tmp/results.xml").write(failing_xml)
+
+      handler, run = handler_for(step)
+      handler.call rescue nil
+
+      tr = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      failing_case = tr.test_cases.find_by!(name: "fails")
+      expect(failing_case).to have_attributes(
+        suite_name: "MySpec",
+        status: "failed",
+        failure_message: "assertion failed",
+        failure_backtrace: "line 10 in spec/my_spec.rb",
+        duration_ms: 300
+      )
+    end
+
+    it "is idempotent: re-ingesting the same run+grader_name replaces the existing TestInsights::TestRun" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(passing_xml)
+      handler, run = handler_for(step)
+      handler.call
+
+      first_tr_id = TestInsights::TestRun.find_by!(run: run, grader_name: "tests").id
+
+      # Simulate re-ingestion (e.g. partial DB write on a previous attempt)
+      # by calling the ingester directly a second time for the same run.
+      second_parsed = JunitXmlParser.parse(failing_xml)
+      TestInsights::Ingester.new(run: run, grader_name: "tests", parsed_run: second_parsed).ingest!
+
+      trs = TestInsights::TestRun.where(run: run, grader_name: "tests")
+      expect(trs.count).to eq(1)
+      expect(trs.sole.id).not_to eq(first_tr_id)
+      expect(trs.sole.failed_count).to eq(1)
+    end
+
+    it "creates independent TestInsights::TestRun records for different runs" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(passing_xml)
+
+      handler, run = handler_for(step)
+      handler.call
+
+      step2 = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(failing_xml)
+      run2 = step2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      h2 = Steps::Grader.new(run2)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(h2).to receive(:workspace).and_return(fake_ws)
+
+      expect { h2.call rescue nil }
+        .to change { TestInsights::TestRun.where(run: run2, grader_name: "tests").count }.from(0).to(1)
+
+      expect(TestInsights::TestRun.where(run: run, grader_name: "tests").count).to eq(1)
+    end
+
+    it "ingests failing nested RSpec JUnit output" do
+      step = make_step(junit_output: "tmp/rspec.xml")
+      @ws_path.join("tmp").mkpath
+      @ws_path.join("tmp/rspec.xml").write(nested_failing_rspec_xml)
+
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(2)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      expect(test_run).to have_attributes(total_count: 2, passed_count: 1, failed_count: 1)
+      expect(test_run.test_cases.failed.sole).to have_attributes(
+        suite_name: "spec/models/widget_spec.rb",
+        name: "fails",
+        failure_message: "expected true"
+      )
+    end
+
+    it "ingests passing frontend JUnit output on adapters without conflict-target support" do
+      step = make_step(junit_output: "tmp/react-tests-focused-junit.xml")
+      @ws_path.join("tmp").mkpath
+      @ws_path.join("tmp/react-tests-focused-junit.xml").write(passing_vitest_xml)
+      allow(TestInsights::RuntimeSummary.connection).to receive(:supports_insert_conflict_target?).and_return(false)
+
+      handler, run = handler_for(step)
+
+      expect { handler.call }
+        .to change(TestInsights::TestRun, :count).by(1)
+        .and change(TestInsights::TestCase, :count).by(2)
+
+      test_run = TestInsights::TestRun.find_by!(run: run, grader_name: "tests")
+      expect(test_run).to have_attributes(total_count: 2, passed_count: 2, failed_count: 0)
+      expect(TestInsights::RuntimeSummary.where(repository: job.repository).count).to eq(4)
+    end
+  end
+
+  context "when junit_output is not configured" do
+    it "does not create any TestInsights::TestRun records" do
+      step = make_step
+      handler, = handler_for(step)
+      expect { handler.call }.not_to change(TestInsights::TestRun, :count)
+    end
+  end
+
+  context "when junit_output file does not exist" do
+    it "logs a warning and does not fail the step" do
+      step = make_step(junit_output: "missing/results.xml")
+      handler, run = handler_for(step)
+
+      expect { handler.call }.not_to raise_error
+      expect(TestInsights::TestRun.where(run: run).count).to eq(0)
+
+      log_output = run.reload.job_logs.pluck(:chunk).join
+      expect(log_output).to include("not found")
+    end
+  end
+
+  context "when the JUnit XML file is malformed" do
+    it "logs a warning and does not fail the step" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write("<not valid xml")
+      handler, run = handler_for(step)
+
+      expect { handler.call }.not_to raise_error
+      expect(TestInsights::TestRun.where(run: run).count).to eq(0)
+
+      log_output = run.reload.job_logs.pluck(:chunk).join
+      expect(log_output).to include("JUnit XML parse error")
+    end
+  end
+
+  # Reproduces the shape of a real dogfooding setup: two separate grader
+  # Runs (e.g. two Syrus Jobs, or a retry) ingest JUnit output for the same
+  # suite where one example passes in one Run and fails in the next. This is
+  # the end-to-end path that was silently broken before TestInsights::Ingester
+  # received a properly duck-typed ParsedRun (see
+  # Ruby::RspecParser) and before this repo's own .syrus.yml set
+  # junit_output on its rspec grader — confirms TestInsights::TestCase.top_flaky_tests
+  # surfaces real ingested rows once both are wired up.
+  context "flaky test detection via TestInsights::TestCase.top_flaky_tests" do
+    let(:flaky_passing_xml) do
+      <<~XML
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuite name="MySpec" tests="1" time="0.1">
+          <testcase classname="MySpec" name="is flaky" time="0.1"/>
+        </testsuite>
+      XML
+    end
+
+    let(:flaky_failing_xml) do
+      <<~XML
+        <testsuite name="MySpec" tests="1" time="0.2">
+          <testcase classname="MySpec" name="is flaky" time="0.2">
+            <failure message="flaked">boom</failure>
+          </testcase>
+        </testsuite>
+      XML
+    end
+
+    it "surfaces a test that both passed and failed across grader Runs" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(flaky_passing_xml)
+      handler, run = handler_for(step)
+      handler.call
+
+      step2 = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(flaky_failing_xml)
+      run2 = step2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      handler2 = Steps::Grader.new(run2)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(handler2).to receive(:workspace).and_return(fake_ws)
+      handler2.call rescue nil
+
+      expect(TestInsights::TestCase.where(name: "is flaky", suite_name: "MySpec").pluck(:status))
+        .to contain_exactly("passed", "failed")
+
+      flaky = TestInsights::TestCase.top_flaky_tests(repository: job.repository)
+      entry = flaky.find { |t| t[:suite_name] == "MySpec" && t[:name] == "is flaky" }
+
+      expect(entry).not_to be_nil
+      expect(entry).to include(failed_count: 1, total_count: 2)
+    end
+  end
+end
