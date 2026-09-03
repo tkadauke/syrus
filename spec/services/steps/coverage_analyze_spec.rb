@@ -13,6 +13,12 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
   end
   let(:handler) { described_class.new(run) }
 
+  # These examples exercise Steps::CoverageAnalyze's built-in parsing. The
+  # bundled `ruby` plugin also provides a :coverage_analyzer and is consulted
+  # first, so disable it here; the extension-point context below covers the
+  # plugin path explicitly.
+  before { PluginRecord.find_or_create_by!(name: "ruby").update!(enabled: false, disableable: true) }
+
   around do |example|
     Dir.mktmpdir("syrus-coverage-analyze") do |dir|
       @ws_path = Pathname.new(dir)

@@ -54,25 +54,6 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
-  describe "sccache stats capture" do
-    it "records a workflow artifact entry named after the grader when sccache reports stats" do
-      allow(SccacheStatsCapture).to receive(:capture).and_return({ "compile_requests" => 5 })
-
-      handler.call
-
-      entries = workflow.reload.artifact("sccache_stats")
-      expect(entries.size).to eq(1)
-      expect(entries.first).to include("step_kind" => "grader", "label" => "tests", "stats" => { "compile_requests" => 5 })
-    end
-
-    it "does not record an artifact when sccache isn't installed" do
-      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
-
-      handler.call
-
-      expect(workflow.reload.artifact("sccache_stats")).to be_nil
-    end
-  end
 
   it "streams grader output through the shared buffered log sink" do
     fake_result = ProcessRunner::Result.new(
@@ -203,17 +184,17 @@ RSpec.describe Steps::Grader, :ci_only do
   it "calls registered grader augmentors when the grader fails" do
     step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
 
-    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
 
     augmentor = double("augmentor")
     allow(augmentor).to receive(:augment_grader_failure)
       .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
       .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
 
-    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:domain_subscriber).and_call_original
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
@@ -223,14 +204,14 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   it "does not call augmentors when the grader passes" do
-    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
-    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:step_environment).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:domain_subscriber).and_call_original
 
     handler.call
   end
