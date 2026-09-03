@@ -162,8 +162,15 @@ class WorkerHealthRunCorrelation
       run_spans.each do |span|
         next if span.hostname.blank? || span.started_at.blank?
 
+        process = run_processes.find { |candidate| candidate.id == span.spawned_process_id }
+        span_window = SpanWindow.new(
+          span: span,
+          now: now,
+          run_finished_at: run.finished_at,
+          spawned_process_finished_at: process&.finished_at
+        )
         starts << [ span.started_at, retained_since ].max
-        finishes << (span.finished_at || now)
+        finishes << span_window.finished_at if span_window.finished_at
       end
     end
 
@@ -281,7 +288,13 @@ class WorkerHealthRunCorrelation
 
   def command_span_payloads
     command_spans.map do |span|
-      SpanCorrelation.new(span: span, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json
+      SpanCorrelation.new(
+        span: span,
+        sample_limit: 0,
+        now: now,
+        samples_by_hostname: samples_by_hostname,
+        span_window: span_window_for(span)
+      ).as_json
     end
   end
 
@@ -345,6 +358,21 @@ class WorkerHealthRunCorrelation
     end
   end
 
+  def span_window_for(span)
+    process = processes_by_id[span.spawned_process_id]
+    SpanWindow.new(
+      span: span,
+      now: now,
+      run_finished_at: run.finished_at,
+      spawned_process_finished_at: process&.finished_at,
+      spawned_process_outcome: process&.outcome
+    )
+  end
+
+  def processes_by_id
+    @processes_by_id ||= processes.index_by(&:id)
+  end
+
   def range_start
     @range_start ||= run.started_at || run.created_at
   end
@@ -368,12 +396,13 @@ class WorkerHealthRunCorrelation
   end
 
   class SpanCorrelation
-    def initialize(span:, sample_limit:, now:, samples: nil, samples_by_hostname: nil)
+    def initialize(span:, sample_limit:, now:, samples: nil, samples_by_hostname: nil, span_window: nil)
       @span = span
       @sample_limit = sample_limit.to_i.clamp(0, 100)
       @now = now
       @samples_override = samples
       @samples_by_hostname = samples_by_hostname
+      @span_window = span_window
     end
 
     def as_json
@@ -395,6 +424,11 @@ class WorkerHealthRunCorrelation
         outcome: span.outcome,
         hostname: span.hostname,
         metadata: CommandRedactor.redact_value(span.metadata),
+        effective_finished_at: range_finish&.iso8601,
+        effective_duration_s: effective_duration_s,
+        truncated: span_window.truncated?,
+        truncated_by: span_window.truncated_by,
+        orphaned: span_window.orphaned?,
         sample_count: samples.size,
         samples_missing: samples.empty?,
         retention_limited: retention_limited?,
@@ -477,7 +511,17 @@ class WorkerHealthRunCorrelation
     end
 
     def range_finish
-      span.finished_at || now
+      span_window.finished_at
+    end
+
+    def effective_duration_s
+      return nil if span.started_at.blank? || range_finish.blank?
+
+      (range_finish - span.started_at).to_f.round(3)
+    end
+
+    def span_window
+      @span_window ||= SpanWindow.new(span: span, now: now)
     end
 
     def effective_since
@@ -492,6 +536,95 @@ class WorkerHealthRunCorrelation
 
     def retention_limited?
       span.started_at.present? && span.started_at < retained_since
+    end
+  end
+
+  class SpanWindow
+    UNSET = Object.new.freeze
+    Candidate = Struct.new(:source, :time, keyword_init: true)
+
+    attr_reader :span, :now
+
+    def initialize(span:, now:, run_finished_at: UNSET, spawned_process_finished_at: UNSET, spawned_process_outcome: UNSET)
+      @span = span
+      @now = now
+      @provided_run_finished_at = run_finished_at
+      @provided_spawned_process_finished_at = spawned_process_finished_at
+      @provided_spawned_process_outcome = spawned_process_outcome
+    end
+
+    def finished_at
+      @finished_at ||= finish_candidates.min_by(&:time)&.time
+    end
+
+    def truncated?
+      finished_at.present? && span.finished_at != finished_at
+    end
+
+    def truncated_by
+      return nil unless truncated?
+
+      finish_candidates.select { |candidate| candidate.time == finished_at }.map(&:source)
+    end
+
+    def orphaned?
+      spawned_process_outcome == "orphaned"
+    end
+
+    private
+
+    def finish_candidates
+      @finish_candidates ||= [
+        Candidate.new(source: "command_span", time: span.finished_at),
+        Candidate.new(source: "spawned_process", time: spawned_process_finished_at),
+        Candidate.new(source: "run", time: run_finished_at),
+        Candidate.new(source: "query", time: now)
+      ].select(&:time)
+    end
+
+    def spawned_process_finished_at
+      return @provided_spawned_process_finished_at unless @provided_spawned_process_finished_at.equal?(UNSET)
+      return nil if span.spawned_process_id.blank?
+
+      return @spawned_process_finished_at if defined?(@spawned_process_finished_at)
+
+      @spawned_process_finished_at = begin
+        if span.association(:spawned_process).loaded?
+          span.spawned_process&.finished_at
+        else
+          SpawnedProcess.where(id: span.spawned_process_id).pick(:finished_at)
+        end
+      end
+    end
+
+    def spawned_process_outcome
+      return @provided_spawned_process_outcome unless @provided_spawned_process_outcome.equal?(UNSET)
+      return nil if span.spawned_process_id.blank?
+
+      return @spawned_process_outcome if defined?(@spawned_process_outcome)
+
+      @spawned_process_outcome = begin
+        if span.association(:spawned_process).loaded?
+          span.spawned_process&.outcome
+        else
+          SpawnedProcess.where(id: span.spawned_process_id).pick(:outcome)
+        end
+      end
+    end
+
+    def run_finished_at
+      return @provided_run_finished_at unless @provided_run_finished_at.equal?(UNSET)
+      return nil if span.run_id.blank?
+
+      return @run_finished_at if defined?(@run_finished_at)
+
+      @run_finished_at = begin
+        if span.association(:run).loaded?
+          span.run&.finished_at
+        else
+          Run.where(id: span.run_id).pick(:finished_at)
+        end
+      end
     end
   end
 end
