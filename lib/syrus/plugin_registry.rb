@@ -138,7 +138,9 @@ module Syrus
               long_description: long_description,
               homepage: homepage,
               icon_url: icon_url,
-              category: category
+              category: category,
+              author: metadata[:author],
+              extension_points: provides.keys.map(&:to_s).sort
             }.compact
           )
         rescue ActiveRecord::ActiveRecordError
@@ -381,7 +383,14 @@ module Syrus
         record.display_name = metadata[:display_name] if record.has_attribute?(:display_name)
         record.description = metadata[:description] if record.has_attribute?(:description)
         record.category = metadata[:category] if record.has_attribute?(:category)
+        record.author = metadata[:author] if record.has_attribute?(:author)
+        record.extension_points = extension_points_token_list(metadata[:extension_points]) if record.has_attribute?(:extension_points)
         record.save!
+      end
+
+      def extension_points_token_list(points)
+        tokens = Array(points).map(&:to_s).reject(&:blank?).sort
+        tokens.any? ? "\n#{tokens.join("\n")}\n" : nil
       end
 
       def plugin_enabled?(manifest, record)
@@ -405,7 +414,9 @@ module Syrus
               description: manifest.description,
               homepage: manifest.homepage,
               icon_url: manifest.icon_url,
-              category: manifest.category
+              category: manifest.category,
+              author: manifest.metadata[:author],
+              extension_points: manifest.provides.keys.map(&:to_s).sort
             ).compact
           )
         end
