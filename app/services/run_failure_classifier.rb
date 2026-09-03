@@ -257,9 +257,9 @@ class RunFailureClassifier
   end
 
   def provider_transient?
+    return true if diagnostic&.error_class.to_s.match?(OCTOKIT_TRANSIENT_ERROR_CLASS)
     return false if run.agent_provider.blank?
     return true if run.agent_outcome.to_s == "server_error"
-    return true if diagnostic&.error_class.to_s.match?(OCTOKIT_TRANSIENT_ERROR_CLASS)
 
     text_match?(%r{
       overloaded|

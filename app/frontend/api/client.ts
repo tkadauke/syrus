@@ -4,18 +4,21 @@ export type ApiErrorPayload = {
   error?: {
     code?: string
     message?: string
+    retry_after?: number
   }
 }
 
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
+  readonly retryAfter?: number
 
-  constructor(message: string, options: { status: number; code?: string }) {
+  constructor(message: string, options: { status: number; code?: string; retryAfter?: number }) {
     super(message)
     this.name = "ApiError"
     this.status = options.status
     this.code = options.code
+    this.retryAfter = options.retryAfter
   }
 }
 
@@ -54,7 +57,8 @@ export async function getJson<T>(path: string, options: { signal?: AbortSignal }
     const payload = await readErrorPayload(response)
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
-      code: payload.error?.code
+      code: payload.error?.code,
+      retryAfter: payload.error?.retry_after
     })
   }
 
@@ -91,7 +95,8 @@ export async function getJsonWithMeta<T>(path: string, options: { signal?: Abort
     const payload = await readErrorPayload(response)
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
-      code: payload.error?.code
+      code: payload.error?.code,
+      retryAfter: payload.error?.retry_after
     })
   }
 
@@ -140,7 +145,8 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
     const payload = await readErrorPayload(response)
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
-      code: payload.error?.code
+      code: payload.error?.code,
+      retryAfter: payload.error?.retry_after
     })
   }
 
@@ -180,7 +186,8 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
     const payload = await readErrorPayload(response)
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
-      code: payload.error?.code
+      code: payload.error?.code,
+      retryAfter: payload.error?.retry_after
     })
   }
 

@@ -163,6 +163,30 @@ RSpec.describe OperationalLogging do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "downgrades expected action controller failures from error to info" do
+    request = double("request", request_id: "req-relay", env: {
+      "syrus.expected_action_controller_failure" => "coding_relay_unavailable"
+    })
+
+    event = described_class.ingest_request(
+      {
+        request: request,
+        method: "GET",
+        path: "/api/v1/app/chats/1/coding_files",
+        controller: "Api::V1::App::ChatsController",
+        action: "coding_files",
+        status: 503
+      },
+      12.34
+    )
+
+    expect(event["level"]).to eq("info")
+    expect(event["context"]).to include(
+      "status" => "503",
+      "expected_failure" => "coding_relay_unavailable"
+    )
+  end
+
   it "keeps notification subscription installation idempotent across repeated boot paths" do
     prepare_search_tables
     path = "/api/v1/app/jobs/operational-log-idempotency-spec"
@@ -179,7 +203,7 @@ RSpec.describe OperationalLogging do
         controller: "Api::V1::App::JobsController",
         action: "show",
         status: 200
-      ) {}
+      ) { }
       Observability::EventSink.flush!(kinds: [ :operational ])
       perform_enqueued_jobs(only: IndexOperationalLogEventsJob)
 

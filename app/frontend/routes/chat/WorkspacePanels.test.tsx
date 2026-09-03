@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
 import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
+import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
 
 vi.mock("../../api/chats", async (importOriginal) => {
@@ -251,7 +252,23 @@ describe("ChatWorkspacePanel context attachments", () => {
 describe("ChatWorkspacePanel coding files", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [] })
     vi.mocked(fetchCodingCommits).mockResolvedValue({ commits: [] })
+  })
+
+  it("pauses busy polling after the coding relay reports unavailable", async () => {
+    vi.mocked(fetchCodingFileTree).mockRejectedValue(new ApiError("Coding checkout relay is unavailable; refresh is queued.", {
+      status: 503,
+      code: "relay_unavailable",
+      retryAfter: 30
+    }))
+
+    renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
+
+    await waitFor(() => expect(fetchCodingFileTree).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => window.setTimeout(resolve, 3_200))
+
+    expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
   })
 
   it("renders file content with highlighted spans and line numbers", async () => {

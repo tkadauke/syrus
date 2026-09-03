@@ -146,6 +146,20 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies pr_open GitHub bad-gateway diagnostics as retryable provider transients" do
+    run.step.update!(kind: "pr_open")
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Octokit::BadGateway",
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: Server Error"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("provider_transient")
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies bare colon-prefixed GitHub API 5xx response text as retryable provider transients" do
     run.update!(state: "failed", agent_provider: "codex")
     diagnostic(

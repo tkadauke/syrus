@@ -1305,34 +1305,57 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const fileContentBasePath = payload.paths.app_coding_file_path
   const diffPath = payload.paths.app_coding_diff_path
   const agentBusy = payload.agent_busy
-  const refetchInterval = agentBusy ? 3000 : 15000
+  const [relayBackoffUntil, setRelayBackoffUntil] = useState(0)
+  const relayBackoffActive = relayBackoffUntil > Date.now()
+  const refetchInterval = relayBackoffActive ? false : agentBusy ? 3000 : 15000
+  const recordRelayUnavailable = useCallback((error: unknown) => {
+    if (isCodingRelayUnavailable(error)) {
+      const retryAfterMs = Math.max(5, error.retryAfter ?? 30) * 1000
+      setRelayBackoffUntil((current) => Math.max(current, Date.now() + retryAfterMs))
+    }
+    throw error
+  }, [])
+  const codingQueryRetry = useCallback((failureCount: number, error: Error) => {
+    return !isCodingRelayUnavailable(error) && failureCount < 3
+  }, [])
+
+  useEffect(() => {
+    if (!relayBackoffActive) return
+
+    const timeout = window.setTimeout(() => setRelayBackoffUntil(0), Math.max(0, relayBackoffUntil - Date.now()))
+    return () => window.clearTimeout(timeout)
+  }, [relayBackoffActive, relayBackoffUntil])
 
   const fileTree = useQuery({
     queryKey: ["coding_files", filesPath, selectedRef],
-    queryFn: () => fetchCodingFileTree(filesPath!, selectedRef || null),
-    enabled: !!filesPath,
-    refetchInterval
+    queryFn: () => fetchCodingFileTree(filesPath!, selectedRef || null).catch(recordRelayUnavailable),
+    enabled: !!filesPath && !relayBackoffActive,
+    refetchInterval,
+    retry: codingQueryRetry
   })
 
   const commits = useQuery({
     queryKey: ["coding_commits", commitsPath],
-    queryFn: () => fetchCodingCommits(commitsPath!),
-    enabled: !!commitsPath,
-    refetchInterval
+    queryFn: () => fetchCodingCommits(commitsPath!).catch(recordRelayUnavailable),
+    enabled: !!commitsPath && !relayBackoffActive,
+    refetchInterval,
+    retry: codingQueryRetry
   })
 
   const fileContent = useQuery({
     queryKey: ["coding_file_content", fileContentBasePath, selectedFile, selectedRef],
-    queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!, selectedRef || null),
-    enabled: !!fileContentBasePath && !!selectedFile && view === "files",
-    refetchInterval
+    queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!, selectedRef || null).catch(recordRelayUnavailable),
+    enabled: !!fileContentBasePath && !!selectedFile && view === "files" && !relayBackoffActive,
+    refetchInterval,
+    retry: codingQueryRetry
   })
 
   const diffResult = useQuery({
     queryKey: ["coding_diff", diffPath, diffMode, selectedRef],
-    queryFn: () => fetchCodingDiff(diffPath!, diffMode, selectedRef || null),
-    enabled: !!diffPath && view === "diff",
-    refetchInterval
+    queryFn: () => fetchCodingDiff(diffPath!, diffMode, selectedRef || null).catch(recordRelayUnavailable),
+    enabled: !!diffPath && view === "diff" && !relayBackoffActive,
+    refetchInterval,
+    retry: codingQueryRetry
   })
 
   function toggleDir(path: string) {
@@ -1513,6 +1536,10 @@ type CodingDiffFile = {
 
 function truncateCommitMessage(message: string) {
   return message.length > 72 ? `${message.slice(0, 69)}...` : message
+}
+
+function isCodingRelayUnavailable(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "relay_unavailable"
 }
 
 function CodingSourceViewer({ content, path }: { content: string; path: string }) {

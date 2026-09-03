@@ -400,6 +400,22 @@ RSpec.describe CodexInvocation do
       end
     end
 
+    it "surfaces primitive JSONL Codex output without crashing" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home,
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        _, result = capture_popen(invocation, lines: [ "true" ], exitstatus: 1)
+
+        expect(result).not_to be_success
+        expect(result.is_error).to be true
+        expect(result.outcome).to eq("error")
+        expect(result.final_text).to eq("true")
+        expect(events).to include([ "true", {} ])
+      end
+    end
+
     it "redacts large Codex model metadata bodies from startup failures" do
       Dir.mktmpdir do |home|
         events = []

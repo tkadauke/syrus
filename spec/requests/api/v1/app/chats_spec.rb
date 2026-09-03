@@ -2221,6 +2221,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:service_unavailable)
       expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+      expect(parse_body.dig("error", "retry_after")).to eq(30)
+      expect(response.headers["Retry-After"]).to eq("30")
     end
 
     it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
@@ -2239,6 +2241,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:service_unavailable)
       expect(chat.reload.coding_relay_address).to be_nil
       expect(chat.coding_relay_token).to be_nil
+    end
+
+    it "throttles duplicate relay refresh jobs during the client backoff window" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      allow(Rails).to receive(:cache).and_return(cache_store)
+
+      expect {
+        2.times { get "/api/v1/app/chats/#{chat.id}/coding_files" }
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).once
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "retry_after")).to eq(30)
     end
   end
 
@@ -2307,6 +2324,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:service_unavailable)
       expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+      expect(parse_body.dig("error", "retry_after")).to eq(30)
+      expect(response.headers["Retry-After"]).to eq("30")
     end
 
     it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
@@ -2536,6 +2555,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body.dig("commits", 0, "sha")).to eq(sha)
       expect(parse_body.dig("commits", 0, "message")).to eq("Add widgets")
     end
+
+    it "returns 503 and queues a relay refresh when relay address is blank" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_commits"
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+      expect(parse_body.dig("error", "retry_after")).to eq(30)
+      expect(response.headers["Retry-After"]).to eq("30")
+    end
   end
 
   describe "GET /api/v1/app/chats/:id/coding_diff" do
@@ -2610,18 +2644,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["checkout_branch"]).to be_nil
     end
 
-    it "returns empty diff when relay address is blank" do
+    it "returns 503 and queues a relay refresh when relay address is blank" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
-      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_diff"
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
 
-      expect(response).to have_http_status(:ok)
-      expect(parse_body["diff"]).to eq("")
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+      expect(parse_body.dig("error", "retry_after")).to eq(30)
+      expect(response.headers["Retry-After"]).to eq("30")
     end
 
-    it "returns empty diff when the relay connection is refused" do
+    it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
@@ -2632,8 +2670,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       get "/api/v1/app/chats/#{chat.id}/coding_diff"
 
-      expect(response).to have_http_status(:ok)
-      expect(parse_body["diff"]).to eq("")
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+      expect(chat.reload.coding_relay_address).to be_nil
+      expect(chat.coding_relay_token).to be_nil
     end
 
     it "404s when the coding_mode feature flag is off" do
