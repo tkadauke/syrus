@@ -4,6 +4,7 @@ import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
+import { fetchBootstrap } from "../../api/bootstrap"
 import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -38,6 +39,8 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
+  const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  const currentUserId = bootstrap.data?.current_user?.id
 
   function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
     const resolved = resolveWorkspaceFileLink(href, payload)
@@ -66,7 +69,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.text.trim().length > 0 ? (
-            <PlainText className="whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand" text={item.text} />
+            <PlainText className={humanMessageBubbleClass(item, payload, currentUserId)} text={item.text} />
           ) : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
@@ -108,6 +111,17 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 
   return <StructuredTool tool={item.tool} fallback={item.text} />
 })
+
+export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload, currentUserId: number | undefined) {
+  const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"
+  const isOtherGroupParticipant = payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
+
+  if (isOtherGroupParticipant) {
+    return `${base} border border-gray-200 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100`
+  }
+
+  return `${base} bg-brand text-on-brand`
+}
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))

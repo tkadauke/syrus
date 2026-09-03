@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ChatMessage, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
+import { ChatMessage, humanMessageBubbleClass, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
+import { fetchBootstrap } from "../../api/bootstrap"
+
+vi.mock("../../api/bootstrap", () => ({
+  fetchBootstrap: vi.fn()
+}))
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -168,6 +173,7 @@ beforeEach(() => {
   vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
   vi.mocked(createChatMessagePin).mockReset()
   vi.mocked(deleteChatMessagePin).mockReset()
+  vi.mocked(fetchBootstrap).mockReset().mockResolvedValue({ current_user: { id: 1 } } as Awaited<ReturnType<typeof fetchBootstrap>>)
 })
 
 describe("sender attribution", () => {
@@ -197,6 +203,27 @@ describe("sender attribution", () => {
 
     expect(screen.getByText("Ave.")).toBeInTheDocument()
     expect(screen.queryByText("Marcus Cato")).not.toBeInTheDocument()
+  })
+
+  it("uses the default bubble color for the current user's group messages", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    const className = humanMessageBubbleClass(userMessage("Ave.", { sender_user: { id: 1, name: "Julia Kadauke" } }), payload, 1)
+
+    expect(className).toContain("bg-brand")
+    expect(className).toContain("text-on-brand")
+  })
+
+  it("uses one alternate bubble color for other group participants", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    const className = humanMessageBubbleClass(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload, 1)
+
+    expect(className).toContain("bg-gray-100")
+    expect(className).toContain("dark:bg-gray-800")
+    expect(className).not.toContain("bg-brand")
   })
 })
 
