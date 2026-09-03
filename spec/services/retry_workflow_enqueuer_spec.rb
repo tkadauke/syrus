@@ -377,6 +377,33 @@ RSpec.describe RetryWorkflowEnqueuer do
     }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
 
+  it "creates a retry workflow for admission failover when an automatic retry provider circuit is open" do
+    finish_current_run!(state: "failed")
+    decision = ProviderCircuitBreaker::Decision.new(
+      provider: job.workflow_agent_provider,
+      open: true,
+      reason: "provider transient failures",
+      retry_after: 10.minutes.from_now,
+      failure_count: 5,
+      job_count: 3,
+      signature: "timeout"
+    )
+    allow(ProviderCircuitBreaker).to receive(:call)
+      .with(job.workflow_agent_provider, include_logs: false)
+      .and_return(decision)
+    allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
+      .with(cause: "provider_transient")
+      .and_return([ "codex" ])
+    allow(WorkUnits::Launcher).to receive(:start!)
+
+    expect {
+      result = described_class.call(job: job, automatic: true)
+      expect(result).to be_success
+    }.to change { job.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    expect(WorkUnits::Launcher).to have_received(:start!).with(job.workflows.where(trigger_kind: "retry").last)
+  end
+
   context "runaway protection" do
     before do
       finish_current_run!(state: "failed")

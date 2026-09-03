@@ -1,8 +1,9 @@
 class ProviderAvailabilityPause
   RECHECK_INTERVAL = 10.minutes
 
-  Decision = Data.define(:pause, :reason, :provider, :threshold_percent, :remaining_percent, :retry_at, :availability) do
+  Decision = Data.define(:pause, :reason, :provider, :threshold_percent, :remaining_percent, :retry_at, :availability, :failover) do
     def pause? = pause
+    def failover? = failover&.failover? == true
 
     def details
       usage = availability&.dig(:usage) || {}
@@ -14,9 +15,11 @@ class ProviderAvailabilityPause
         "remaining_percent" => remaining_percent,
         "retry_at" => retry_at&.iso8601,
         "message" => availability&.dig(:message),
+        "availability_state" => availability&.dig(:state) || availability&.dig("state"),
         "usage_status" => usage[:status] || usage["status"],
         "observed_at" => usage[:observed_at] || usage["observed_at"],
-        "reset_at" => reset_at
+        "reset_at" => reset_at,
+        "provider_failover_decision" => failover&.artifact
       }.compact
     end
 
@@ -39,13 +42,16 @@ class ProviderAvailabilityPause
 
   def call
     return admit unless provider.present?
-    return admit unless user.provider_availability_pause_enabled?(provider)
+    return admit unless provider_availability_controls_enabled?
 
     refresh_stale_usage
     availability = App::ProviderAvailability.for_user(user, provider, now: now)
     return admit if overridden?(availability)
-    return pause("provider_usage_exhausted", availability) if usage_exhausted?(availability)
-    return pause("provider_usage_low", availability) if low_usage?(availability)
+    return decide_unavailable("provider_usage_exhausted", availability) if usage_exhausted?(availability)
+    return decide_unavailable("provider_usage_low", availability) if low_usage?(availability)
+    return decide_unavailable("provider_rate_limited", availability) if rate_limited?(availability)
+    return decide_unavailable("provider_auth_error", availability) if auth_error?(availability)
+    return decide_unavailable("provider_unavailable", availability) if open?(availability)
 
     admit
   end
@@ -65,11 +71,12 @@ class ProviderAvailabilityPause
       threshold_percent: threshold,
       remaining_percent: nil,
       retry_at: nil,
-      availability: nil
+      availability: nil,
+      failover: nil
     )
   end
 
-  def pause(reason, availability)
+  def pause(reason, availability, failover: nil)
     Decision.new(
       pause: true,
       reason: reason,
@@ -77,8 +84,25 @@ class ProviderAvailabilityPause
       threshold_percent: threshold,
       remaining_percent: remaining_percent(availability),
       retry_at: retry_at(availability),
-      availability: availability
+      availability: availability,
+      failover: failover
     )
+  end
+
+  def decide_unavailable(reason, availability)
+    failover = ProviderFailoverSelector.call(workflow: workflow, reason: reason, availability: availability, now: now)
+    return Decision.new(
+      pause: false,
+      reason: reason,
+      provider: provider,
+      threshold_percent: threshold,
+      remaining_percent: remaining_percent(availability),
+      retry_at: nil,
+      availability: availability,
+      failover: failover
+    ) if failover.failover?
+
+    pause(reason, availability, failover: failover)
   end
 
   def threshold
@@ -91,13 +115,32 @@ class ProviderAvailabilityPause
     nil
   end
 
+  def provider_availability_controls_enabled?
+    user.provider_availability_pause_enabled?(provider) || user.agent_provider_failover_enabled?
+  end
+
   def usage_exhausted?(availability)
     availability&.dig(:usage_exhausted) == true || availability&.dig(:state).to_s == "exhausted"
   end
 
   def low_usage?(availability)
+    return false unless user.provider_availability_pause_enabled?(provider)
+
     remaining = remaining_percent(availability)
     remaining.present? && remaining < threshold
+  end
+
+  def rate_limited?(availability)
+    availability&.dig(:state).to_s == "rate_limited" || availability&.dig("state").to_s == "rate_limited"
+  end
+
+  def auth_error?(availability)
+    availability&.dig(:state).to_s == "auth_error" || availability&.dig("state").to_s == "auth_error"
+  end
+
+  def open?(availability)
+    availability&.dig(:open) == true || availability&.dig("open") == true ||
+      availability&.dig(:state).to_s == "open" || availability&.dig("state").to_s == "open"
   end
 
   def remaining_percent(availability)
