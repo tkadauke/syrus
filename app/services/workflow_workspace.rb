@@ -132,6 +132,11 @@ class WorkflowWorkspace
       return
     end
 
+    if workflow.cleanup_blocked_by_active_descendants?
+      Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: active steps, runs, or spawned processes remain")
+      return false
+    end
+
     p = path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
     Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")

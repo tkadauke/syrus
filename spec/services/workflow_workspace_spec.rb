@@ -752,6 +752,28 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(workflow.reload.cleaned_up_at).to be_nil
     end
 
+    it "cleanup_for does not remove a workspace while a spawned process is still running" do
+      step = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded",
+                                    started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "succeeded",
+                              started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-a",
+        started_at: 2.minutes.ago,
+        run: run,
+        workflow: workflow
+      )
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(described_class.cleanup_for(workflow)).to eq(false)
+
+      expect(ws.path).to exist
+      expect(workflow.reload.cleaned_up_at).to be_nil
+    end
+
     it "doesn't blow up the state transition if cleanup raises" do
       ws = described_class.new(workflow)
       ws.setup

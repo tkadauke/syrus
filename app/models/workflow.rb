@@ -21,6 +21,7 @@ class Workflow < ApplicationRecord
   has_many :workflow_warnings, dependent: :destroy
   has_one :work_unit, dependent: nil, inverse_of: :workflow
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :spawned_processes, dependent: :nullify
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
@@ -164,7 +165,7 @@ class Workflow < ApplicationRecord
   # cleanup.
   def cleanup_workspace!
     if cleanup_blocked_by_active_descendants?
-      log_workspace_event("[workspace] cleanup deferred — workflow still has active steps or runs")
+      log_workspace_event("[workspace] cleanup deferred — workflow still has active steps, runs, or spawned processes")
       return false
     end
 
@@ -183,11 +184,16 @@ class Workflow < ApplicationRecord
   end
 
   def live_descendants?
-    runs.active.exists? || projected_running_steps.any?
+    runs.active.exists? || projected_running_steps.any? || active_spawned_processes?
   end
 
   def cleanup_blocked_by_active_descendants?
     live_descendants?
+  end
+
+  def active_spawned_processes?
+    SpawnedProcess.running.where(workflow_id: id).exists? ||
+      SpawnedProcess.running.where(run_id: runs.select(:id)).exists?
   end
 
   def step_state_projections

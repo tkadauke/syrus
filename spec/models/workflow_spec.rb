@@ -391,6 +391,32 @@ RSpec.describe Workflow, :ci_only do
       expect(wf.reload.cleaned_up_at).to be_nil
     end
 
+    it "defers cleanup while a spawned process from a terminal run is still active" do
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      run = step.runs.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "codex exec",
+        hostname: "worker-a",
+        started_at: 2.minutes.ago,
+        run: run,
+        workflow: wf
+      )
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      expect(wf.cleanup_workspace!).to eq(false)
+
+      expect(WorkflowWorkspace).not_to have_received(:cleanup_for)
+      expect(wf.reload.cleaned_up_at).to be_nil
+    end
+
     it "allows cleanup of a terminal workflow with only queued retry-tail Steps" do
       wf = described_class.create!(job: job, trigger_kind: "initial", state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
       Step.create!(workflow: wf, kind: "summarize", position: 0)
