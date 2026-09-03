@@ -520,6 +520,8 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
 
     context "when no plugins are registered (unregistered format fallback)" do
       it "works via built-in lcov fallback without any registered plugins" do
+        allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+        allow(Syrus::PluginRegistry).to receive(:providers_for).with(:coverage_analyzer).and_return([])
         expect(Syrus::PluginRegistry.providers_for(:coverage_analyzer)).to be_empty
         handler.call
         artifact = workflow.reload.artifact("coverage")

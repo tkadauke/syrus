@@ -13,6 +13,9 @@ module TestInsights
         TestInsights::ChatToolSet.include(Syrus::Plugin::ChatMcpToolSet)
       end
 
+      Object.const_set(:TestRun, TestInsights::TestRun) unless Object.const_defined?(:TestRun)
+      Object.const_set(:TestCase, TestInsights::TestCase) unless Object.const_defined?(:TestCase)
+
       TestInsights.register!
     end
   end

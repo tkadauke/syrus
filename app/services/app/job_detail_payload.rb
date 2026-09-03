@@ -51,6 +51,8 @@ module App
           pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
+          sccache: PerformanceLogging.phase("job_detail.sccache", job_id: @job.id) { sccache_json },
+          has_test_results: PerformanceLogging.phase("job_detail.has_test_results", job_id: @job.id) { has_test_results? },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
           ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
@@ -621,6 +623,78 @@ module App
         workflow_id: workflow.id,
         coverage: coverage_artifact_json(coverage)
       }
+    end
+
+    def sccache_json
+      entry = artifact_workflows_matching("sccache_stats").filter_map do |workflow|
+        latest = Array(workflow.artifact("sccache_stats")).last
+        next unless latest.is_a?(Hash)
+
+        [ workflow, latest ]
+      end.max_by do |workflow, latest|
+        [ Time.zone.parse(latest["captured_at"].to_s) || Time.zone.at(0), workflow.id ]
+      rescue ArgumentError
+        [ Time.zone.at(0), workflow.id ]
+      end
+      return unless entry
+
+      workflow, latest = entry
+      {
+        workflow_id: workflow.id,
+        run_id: latest["run_id"],
+        step_kind: latest["step_kind"],
+        label: latest["label"],
+        iteration: latest["iteration"],
+        captured_at: latest["captured_at"],
+        summary: sccache_summary(latest["stats"])
+      }
+    end
+
+    def sccache_summary(stats)
+      return blank_sccache_summary unless stats.is_a?(Hash)
+
+      hits = sccache_count(stats, "cache_hits")
+      misses = sccache_count(stats, "cache_misses")
+      total = hits.to_i + misses.to_i if hits.is_a?(Integer) && misses.is_a?(Integer)
+
+      {
+        hits: hits,
+        misses: misses,
+        hit_rate: total.to_i.positive? ? (hits.to_f / total * 100).round(1) : nil,
+        cache_size: sccache_scalar(stats, "cache_size"),
+        max_cache_size: sccache_scalar(stats, "max_cache_size"),
+        cache_location: sccache_scalar(stats, "cache_location")
+      }
+    end
+
+    def blank_sccache_summary
+      { hits: nil, misses: nil, hit_rate: nil, cache_size: nil, max_cache_size: nil, cache_location: nil }
+    end
+
+    def sccache_count(stats, key)
+      value = sccache_scalar(stats, key)
+      case value
+      when Integer then value
+      when Hash
+        counts = value["counts"]
+        counts.is_a?(Hash) ? counts.values.select { |count| count.is_a?(Numeric) }.sum : nil
+      end
+    end
+
+    def sccache_scalar(stats, key)
+      stats[key] || stats.dig("stats", key)
+    end
+
+    def has_test_results?
+      run_ids = @job.runs.reorder(nil).reselect(:id)
+      ActiveRecord::Base.connection.select_value(
+        ActiveRecord::Base.sanitize_sql_array([
+          "SELECT 1 FROM test_insight_runs WHERE run_id IN (?) LIMIT 1",
+          run_ids
+        ])
+      ).present?
+    rescue ActiveRecord::StatementInvalid
+      false
     end
 
     def summary_json

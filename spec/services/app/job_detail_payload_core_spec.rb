@@ -1035,7 +1035,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
 
       queries = capture_sql { payload_for(job) }
-      test_run_queries = queries.grep(/FROM ["`]?test_runs["`]?/i)
+      test_run_queries = queries.grep(/FROM ["`]?test_insight_runs["`]?/i)
 
       expect(test_run_queries).not_to be_empty
       expect(test_run_queries).to all(satisfy { |sql| !sql.match?(/ORDER BY/i) })
