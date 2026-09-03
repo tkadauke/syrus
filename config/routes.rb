@@ -28,7 +28,11 @@ Rails.application.routes.draw do
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"
         get "themes", to: "themes#index"
+        post "themes", to: "themes#create"
+        patch "themes/reorder", to: "themes#reorder"
         get "themes/:id", to: "themes#show", constraints: { id: /\d+/ }
+        patch "themes/:id", to: "themes#update", constraints: { id: /\d+/ }
+        delete "themes/:id", to: "themes#destroy", constraints: { id: /\d+/ }
         get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
@@ -597,6 +601,7 @@ Rails.application.routes.draw do
   get "profile", to: "spa#show", as: :account_profile
   get "settings/agent", to: "spa#show", as: :agent_settings
   get "settings/preferences", to: "spa#show", as: :account_preferences
+  get "settings/themes", to: "spa#show", as: :account_themes
   get "settings/connected_platforms", to: "spa#show", as: :connected_platforms
   get "jobs/new", to: "spa#show", as: :new_job
   get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /[a-zA-Z0-9_-]+/ }

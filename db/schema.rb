@@ -2474,10 +2474,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_094103) do
     t.datetime "created_at", null: false
     t.string "name", null: false
     t.integer "owner_user_id"
+    t.integer "position"
     t.text "prompt"
     t.string "slug", null: false
     t.json "tokens"
     t.datetime "updated_at", null: false
+    t.index ["owner_user_id", "position"], name: "index_themes_on_owner_user_id_and_position"
     t.index ["owner_user_id"], name: "index_themes_on_owner_user_id"
     t.index ["slug"], name: "index_themes_on_slug", unique: true
   end

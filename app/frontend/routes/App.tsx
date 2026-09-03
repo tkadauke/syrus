@@ -64,6 +64,7 @@ import { SearchRoute } from "./Search"
 import { Tags } from "./Tags"
 import { TerminalRoute } from "./Terminal"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
+import { ThemesSettingsRoute } from "./ThemesSettings"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute } from "../pluginSidebarPages"
@@ -129,6 +130,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/settings/agent", element: <SettingsSectionRoute><AgentSettingsRoute /></SettingsSectionRoute> },
   { path: "/settings/preferences", element: <SettingsSectionRoute><PreferencesRoute /></SettingsSectionRoute> },
   { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
+  { path: "/settings/themes", element: <SettingsSectionRoute><ThemesSettingsRoute /></SettingsSectionRoute> },
   { path: "/settings/connected_platforms", element: <SettingsSectionRoute><ConnectedPlatformsRoute /></SettingsSectionRoute> },
   { path: "/profiles", element: <PluginSidebarPageRoute /> },
   { path: "/profiles/:id", element: <PluginSidebarPageRoute /> },
@@ -602,6 +604,7 @@ function settingsNavigationItems(
     { key: "agent_settings", label: t("nav.agent_settings"), path: "/settings/agent", active: (path) => path === "/settings/agent" },
     { key: "preferences", label: t("nav.preferences"), path: "/settings/preferences", active: (path) => path === "/settings/preferences" },
     { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
+    { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes" },
     { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
     { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
