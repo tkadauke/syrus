@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_span_duration: 30.seconds, command_process_finished_offset: nil, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
     run_finished_at = finished_at || now
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
@@ -41,17 +41,28 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       finished_at: run_finished_at
     )
     if command_span
+      process = if command_process_finished_offset
+        run.spawned_processes.create!(
+          workflow: workflow,
+          kind: "grader",
+          hostname: "worker-a",
+          command: "bin/rspec",
+          started_at: finished_at - 45.seconds,
+          finished_at: finished_at - 45.seconds + command_process_finished_offset
+        )
+      end
       span = run.command_spans.create!(
         job: job,
         workflow: workflow,
         step: step,
+        spawned_process: process,
         sequence: 1,
         name: "rspec",
         command_excerpt: "bin/rspec",
         hostname: "worker-a",
         started_at: finished_at - 45.seconds,
-        finished_at: finished_at - 15.seconds,
-        duration_ms: 30_000,
+        finished_at: finished_at - 45.seconds + command_span_duration,
+        duration_ms: (command_span_duration * 1000).to_i,
         outcome: "succeeded",
         exit_status: 0
       )
@@ -297,6 +308,25 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       fallback_reason: nil
     )
     expect(sample_queries.size).to eq(1)
+  end
+
+  it "uses effective command-span duration when span timing is truncated by its process" do
+    10.times do |index|
+      resource_summary(
+        repository: repository,
+        duration: 900 + index,
+        finished_at: now - index.minutes,
+        command_span: true,
+        command_span_duration: 4.hours,
+        command_process_finished_offset: 30.seconds
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.attributed_sample_count).to eq(10)
+    expect(profile.p90_attributed_duration_seconds).to eq(30.0)
   end
 
   it "preloads command-span worker samples through narrow merged windows" do

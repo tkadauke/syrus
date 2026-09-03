@@ -301,7 +301,7 @@ module WorkflowStepResourceProfiles
       return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
 
       {
-        duration_seconds: span.duration_s,
+        duration_seconds: correlation.fetch(:effective_duration_s),
         cpu_pressure: correlation.dig(:summary, :cpu_pressure_some, :max),
         io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
         memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
