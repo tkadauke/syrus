@@ -255,6 +255,8 @@ module Api
             :run_id,
             :workflow_id,
             :chat_message_id,
+            :design_doc_agent_run_id,
+            :triggering_comment_id,
             :autosave
           )
         end
