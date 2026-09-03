@@ -58,7 +58,7 @@ export function ThemesSettingsRoute() {
 
 function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
-  const { colorTheme, setColorTheme } = useTheme()
+  const { colorTheme, previewColorTheme, setColorTheme } = useTheme()
   const themesQuery = useQuery({ queryKey: themesQueryKey, queryFn: fetchThemes })
   const allThemes = themesQuery.data?.themes ?? emptyThemes
   const builtInThemes = useMemo(() => allThemes.filter((theme) => theme.built_in), [allThemes])
@@ -164,7 +164,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     }
     setDraft(nextDraft)
     setContrastIssues((issues) => issues.filter((issue) => !issueMatchesField(issue, mode, key)))
-    if (hexPattern.test(value)) void setColorTheme(nextDraft)
+    if (hexPattern.test(value)) previewColorTheme(nextDraft)
   }
 
   function startDrag(index: number, event: DragEvent<HTMLElement>) {
