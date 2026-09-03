@@ -66,7 +66,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.text.trim().length > 0 ? (
-            <PlainText className="whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand" text={item.text} />
+            <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
           ) : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
@@ -108,6 +108,18 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 
   return <StructuredTool tool={item.tool} fallback={item.text} />
 })
+
+export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
+  const base = "whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal"
+  const currentUserId = payload.chat.current_user_id
+  const isOtherGroupParticipant = payload.chat.conversation_kind === "group" && item.sender_user && currentUserId !== undefined && item.sender_user.id !== currentUserId
+
+  if (isOtherGroupParticipant) {
+    return `${base} border border-gray-200 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100`
+  }
+
+  return `${base} bg-brand text-on-brand`
+}
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))
