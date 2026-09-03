@@ -29,6 +29,7 @@ function oceanColorTheme(): ColorTheme {
     slug: "ocean",
     name: "Ocean",
     built_in: true,
+    position: null,
     tokens: {
       light: { brand: "#1d6fa5" },
       dark: { brand: "#4db3e8" }
@@ -42,6 +43,7 @@ function customColorTheme(): ColorTheme {
     slug: "my-custom",
     name: "My Custom",
     built_in: false,
+    position: null,
     tokens: {
       light: { brand: "#abcdef" },
       dark: { brand: "#123456" }

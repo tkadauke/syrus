@@ -101,6 +101,7 @@ RSpec.describe Theme do
         slug: t.slug,
         name: t.name,
         built_in: true,
+        position: nil,
         tokens: t.tokens
       )
     end
