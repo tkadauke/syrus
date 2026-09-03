@@ -33,6 +33,10 @@ RSpec.describe Steps::Summarize, :ci_only do
     sh(git_env, "git -c init.defaultBranch=main init -q #{@ws_path}")
     sh(git_env, "git -C #{@ws_path} config user.name 'Ada Lovelace'")
     sh(git_env, "git -C #{@ws_path} config user.email 'ada@example.com'")
+    File.write(@ws_path.join("README.md"), "base\n")
+    sh(git_env, "git -C #{@ws_path} add README.md")
+    sh(git_env, "git -C #{@ws_path} commit -q -m 'Base commit'")
+    sh(git_env, "git -C #{@ws_path} checkout -q -b syrus/issue-42-#{job.id}")
     File.write(@ws_path.join("feature.rb"), "def greet = 'hello'\n")
     sh(git_env, "git -C #{@ws_path} add feature.rb")
     sh(git_env, "git -C #{@ws_path} commit -q -m 'Implement: JOB-42: Add greeting helper'")
@@ -249,6 +253,34 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to start_with("Add greeting helper")
     end
 
+    it "reattaches the workflow branch when workspace HEAD moved to newer main before metadata" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      Run.create!(
+        job: job,
+        step: implement_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        head_sha: implement_sha
+      )
+
+      sh("git -C #{@ws_path} checkout -q main")
+      File.write(@ws_path.join("main_only.rb"), "class MainOnly; end\n")
+      sh("git -C #{@ws_path} add main_only.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Recover stale branches during PR open'")
+      main_sha = head_sha
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      handler.call
+
+      expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
+      expect(commit_message).to start_with("Add greeting helper")
+      expect(sh("git -C #{@ws_path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-42-#{job.id}")
+      expect(@ws_path.join("feature.rb")).to exist
+      expect(@ws_path.join("main_only.rb")).not_to exist
+      expect(head_sha).not_to eq(main_sha)
+    end
+
     it "refuses to rewrite when the workspace no longer contains the successful implement run" do
       implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
       implement_sha = head_sha
@@ -265,6 +297,7 @@ RSpec.describe Steps::Summarize, :ci_only do
       File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
       sh("git -C #{@ws_path} add wrong_head.rb")
       sh("git -C #{@ws_path} commit -q -m 'Different workspace HEAD'")
+      sh("git -C #{@ws_path} branch -f syrus/issue-42-#{job.id} HEAD")
       stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
 
       expect {
