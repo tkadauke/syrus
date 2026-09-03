@@ -7,6 +7,7 @@ import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { NoticeToast } from "@app/components/NoticeToast"
 import { useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
@@ -177,7 +178,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           </Button>
         </header>
       ) : null}
-      {notice ? <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{notice}</div> : null}
+      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {isDesktop ? filterBar : showIndexControls ? (
         <div className="px-0">
           <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -260,8 +261,8 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
   )
 }
 
-function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, title: string, markdown: string) {
-  return `${docId}:${mode}:${title}:${markdown}`
+function persistedDraftFingerprint(docId: string | number, title: string, markdown: string) {
+  return `${docId}:${title}:${markdown}`
 }
 
 function emptySelection(): SelectionRange {
@@ -298,7 +299,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
-  const persistedDraftRef = useRef(`${doc.id}:${canWriteCanonical ? "edit" : "suggest"}:${doc.title}:${doc.rendered_markdown || doc.markdown}`)
+  const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
@@ -324,7 +325,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         change_summary: summary
       }),
     onSuccess: (payload) => {
-      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
       onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
@@ -348,7 +349,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         autosave: true
       }),
     onSuccess: (payload) => {
-      persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+      persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       onDocChange(payload.design_doc)
     }
   })
@@ -481,11 +482,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
-    persistedDraftRef.current = persistedDraftFingerprint(doc.id, canWriteCanonical ? "edit" : "suggest", doc.title, doc.rendered_markdown || doc.markdown)
+    persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
-    const fingerprint = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
+    const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
     if (fingerprint === persistedDraftRef.current) return
     if (autosaveMutation.isPending) return
 
