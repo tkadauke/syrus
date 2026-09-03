@@ -5,6 +5,7 @@ export type ApiErrorPayload = {
     code?: string
     message?: string
     retry_after?: number
+    issues?: unknown
   }
 }
 
@@ -12,13 +13,15 @@ export class ApiError extends Error {
   readonly status: number
   readonly code?: string
   readonly retryAfter?: number
+  readonly issues?: unknown
 
-  constructor(message: string, options: { status: number; code?: string; retryAfter?: number }) {
+  constructor(message: string, options: { status: number; code?: string; retryAfter?: number; issues?: unknown }) {
     super(message)
     this.name = "ApiError"
     this.status = options.status
     this.code = options.code
     this.retryAfter = options.retryAfter
+    this.issues = options.issues
   }
 }
 
@@ -58,7 +61,8 @@ export async function getJson<T>(path: string, options: { signal?: AbortSignal }
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
       code: payload.error?.code,
-      retryAfter: payload.error?.retry_after
+      retryAfter: payload.error?.retry_after,
+      issues: payload.error?.issues
     })
   }
 
@@ -96,7 +100,8 @@ export async function getJsonWithMeta<T>(path: string, options: { signal?: Abort
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
       code: payload.error?.code,
-      retryAfter: payload.error?.retry_after
+      retryAfter: payload.error?.retry_after,
+      issues: payload.error?.issues
     })
   }
 
@@ -146,7 +151,8 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
       code: payload.error?.code,
-      retryAfter: payload.error?.retry_after
+      retryAfter: payload.error?.retry_after,
+      issues: payload.error?.issues
     })
   }
 
@@ -187,7 +193,8 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
     throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, {
       status: response.status,
       code: payload.error?.code,
-      retryAfter: payload.error?.retry_after
+      retryAfter: payload.error?.retry_after,
+      issues: payload.error?.issues
     })
   }
 
