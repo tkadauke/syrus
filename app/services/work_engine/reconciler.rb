@@ -1367,7 +1367,7 @@ module WorkEngine
       @active_runtime_workflows_for_job[job.id] ||= begin
         WorkUnits::TerminalWorkflowSync.for_job(job)
         active_work_units_for_job(job)
-          .select { |unit| first_class_work_unit?(unit) }
+          .select { |unit| runtime_work_unit?(unit) }
           .filter_map(&:workflow)
           .uniq(&:id)
           .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
@@ -1395,8 +1395,8 @@ module WorkEngine
       end.sort_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id || 0 ] }.reverse
     end
 
-    def first_class_work_unit?(unit)
-      WorkDefinitions.for(unit.kind).first_class?
+    def runtime_work_unit?(unit)
+      !WorkDefinitions.for(unit.kind).legacy?
     rescue WorkDefinitions::UnknownKind
       false
     end
