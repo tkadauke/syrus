@@ -58,6 +58,7 @@ module DesignDocs
           suggested_markdown: suggestion.suggested_markdown,
           proposed_markdown: suggestion.proposed_markdown_value,
           change_type: suggestion.change_type,
+          render_mode: suggestion.render_mode,
           change_summary: suggestion.change_summary,
           base_version_id: suggestion.base_version_id,
           provenance: suggestion.provenance || {},

@@ -869,6 +869,90 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
   end
 
+  it "classifies block-level heading suggestions and accepts them once into canonical markdown" do
+    doc = create_design_doc(markdown: "# Old Title\n\n## Problem\n\nBody")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: "# Old Title".length,
+        original_markdown: "# Old Title",
+        proposed_markdown: "# New Title\n\n## Context\n\nAdded",
+        change_type: "replace",
+        change_summary: "Replace title and add context"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.last
+    expect(parse_body.dig("suggestion", "render_mode")).to eq("block")
+    expect(suggestion).to have_attributes(render_mode: "block")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("# Old Title\n\n## Problem\n\nBody")
+
+    sign_in_as(owner)
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.to change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("suggestion", "state")).to eq("accepted")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("# New Title\n\n## Context\n\nAdded\n\n## Problem\n\nBody")
+  end
+
+  it "rejects suggestions that select only part of Markdown heading syntax" do
+    doc = create_design_doc(markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Problem\n\nBody")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    partial_end = doc.markdown.index("## Problem") + "## P".length
+    original_markdown = doc.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 0,
+          end_offset: partial_end,
+          original_markdown: doc.markdown[0...partial_end],
+          proposed_markdown: "# Replacement\n\n## Problem\n\nBody",
+          change_type: "replace"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("cannot select only part of Markdown block syntax")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
+  it "rejects overlapping pending suggestions instead of rendering nested active ranges" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    existing = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    original_markdown = doc.reload.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 8,
+          end_offset: 16,
+          original_markdown: "ta gamma",
+          proposed_markdown: "overlap",
+          change_type: "replace"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("overlaps pending suggestion ##{existing.id}")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
   it "prevents admin non-owners from accepting suggestions into canonical markdown" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)

@@ -90,6 +90,7 @@ const docDetail = {
     suggested_markdown: "delta",
     proposed_markdown: "delta",
     change_type: "replace",
+    render_mode: "inline",
     change_summary: "Use newer name",
     base_version_id: 1,
     provenance: {},
@@ -626,6 +627,68 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
   })
 
+  it("renders block-level suggestions as anchored document marks and structured thread diffs", async () => {
+    const blockSuggestion = {
+      ...docDetail.suggestions[0],
+      id: 51,
+      original_markdown: "# Old Title",
+      suggested_markdown: "# New Title\n\n## Context\n\nAdded",
+      proposed_markdown: "# New Title\n\n## Context\n\nAdded",
+      render_mode: "block" as const,
+      change_summary: "Replace title and add context",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        start_offset: 0,
+        end_offset: "# Old Title".length,
+        last_known_start_offset: 0,
+        last_known_end_offset: "# Old Title".length,
+        selected_markdown: "# Old Title",
+        selected_text: "# Old Title"
+      },
+      thread: {
+        ...docDetail.suggestions[0].thread!,
+        id: 51,
+        comments: [],
+        anchor: {
+          ...docDetail.suggestions[0].thread!.anchor,
+          start_offset: 0,
+          end_offset: "# Old Title".length,
+          last_known_start_offset: 0,
+          last_known_end_offset: "# Old Title".length,
+          selected_markdown: "# Old Title",
+          selected_text: "# Old Title"
+        }
+      }
+    }
+    const blockDoc = {
+      ...docDetail,
+      markdown: "# Old Title\n\n## Problem\n\nBody",
+      rendered_markdown: "# Old Title\n\n## Problem\n\nBody",
+      threads: [blockSuggestion.thread],
+      suggestions: [blockSuggestion]
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: blockDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+
+    expect(editor).toHaveTextContent("Old Title")
+    expect(within(editor).queryByText("# New Title")).not.toBeInTheDocument()
+    expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
+    expect(screen.getByText("Current")).toBeInTheDocument()
+    expect(screen.getByText("Proposed")).toBeInTheDocument()
+    expect(screen.getByText(/## Context/)).toBeInTheDocument()
+  })
+
   it("groups replies beneath their parent comment thread", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
@@ -1147,6 +1210,7 @@ describe("DesignDocsSurface", () => {
             original_markdown: payload.suggestion.original_markdown,
             proposed_markdown: payload.suggestion.proposed_markdown,
             suggested_markdown: payload.suggestion.proposed_markdown,
+            render_mode: "block",
             provenance: { autosave: true }
           }],
           pending_suggestions_count: 1
