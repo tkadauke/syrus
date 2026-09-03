@@ -7,7 +7,7 @@ import type { BootstrapPayload } from "../api/bootstrap"
 import type { ColorTheme } from "../api/themes"
 
 function Probe() {
-  const { theme, resolvedTheme, setTheme, colorTheme, setColorTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme, colorTheme, previewColorTheme, setColorTheme } = useTheme()
 
   return (
     <div>
@@ -17,6 +17,7 @@ function Probe() {
       <button onClick={() => setTheme("light")} type="button">light</button>
       <button onClick={() => setTheme("dark")} type="button">dark</button>
       <button onClick={() => setTheme("system")} type="button">system</button>
+      <button onClick={() => previewColorTheme(customColorTheme())} type="button">preview custom</button>
       <button onClick={() => setColorTheme(oceanColorTheme())} type="button">ocean</button>
       <button onClick={() => setColorTheme(customColorTheme())} type="button">custom</button>
     </div>
@@ -216,6 +217,17 @@ describe("ThemeContext", () => {
     await waitFor(() => {
       expect(queryClient.getQueryData<BootstrapPayload>(["bootstrap"])?.current_user?.color_theme?.slug).toBe("my-custom")
     })
+  })
+
+  it("previews a color theme without changing the shared bootstrap cache", () => {
+    const queryClient = renderProbe("light", oceanColorTheme())
+    queryClient.setQueryData(["bootstrap"], { current_user: { theme: "light", color_theme: oceanColorTheme() } } as unknown as BootstrapPayload)
+
+    screen.getByRole("button", { name: "preview custom" }).click()
+
+    expect(document.documentElement.hasAttribute("data-theme")).toBe(false)
+    expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
+    expect(queryClient.getQueryData<BootstrapPayload>(["bootstrap"])?.current_user?.color_theme?.slug).toBe("ocean")
   })
 
   it("rolls back the optimistic color theme update when the request fails", async () => {
