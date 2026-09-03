@@ -17,7 +17,8 @@ import {
   fetchAdminProcesses,
   killAdminProcess,
   type SpawnedProcessOwner,
-  type SpawnedProcessPayload
+  type SpawnedProcessPayload,
+  type SpawnedProcessUser
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
 
@@ -90,7 +91,7 @@ export function AdminProcessesIndex() {
   )
 }
 
-const adminProcessLegacyFilterKeys = ["state", "kind", "hostname", "run_id", "workflow_id", "since"]
+const adminProcessLegacyFilterKeys = ["state", "kind", "hostname", "user_id", "run_id", "workflow_id", "since"]
 
 export function AdminProcessDetail() {
   const { t } = useT("admin")
@@ -132,6 +133,7 @@ function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedPro
           <tr>
             <th className="px-3 py-2">{t("processes.col_kind")}</th>
             <th className="px-3 py-2">{t("processes.col_command")}</th>
+            <th className="px-3 py-2">{t("processes.col_user")}</th>
             <th className="px-3 py-2">{t("processes.col_owner")}</th>
             <th className="px-3 py-2">{t("processes.col_host_pid")}</th>
             <th className="px-3 py-2">{t("processes.col_started")}</th>
@@ -148,6 +150,9 @@ function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedPro
                 <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
               </td>
               <td className="max-w-md truncate px-3 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200" title={process.command}>{process.command}</td>
+              <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
+                <UserLabel user={process.user} prefix={prefix} />
+              </td>
               <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 <OwnerLabel owner={process.owner} prefix={prefix} />
               </td>
@@ -190,6 +195,12 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
       </div>
 
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+        {process.user ? (
+          <>
+            <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_user")}</dt>
+            <dd><UserLabel user={process.user} prefix={prefix} /></dd>
+          </>
+        ) : null}
         {process.owner ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_owner")}</dt>
@@ -297,6 +308,17 @@ function OwnerLabel({ owner, prefix }: { owner: SpawnedProcessOwner | null; pref
   return (
     <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(owner.path, prefix)}>
       {owner.label}
+    </Link>
+  )
+}
+
+function UserLabel({ user, prefix }: { user: SpawnedProcessUser | null; prefix: string }) {
+  const { t } = useT("admin")
+  if (!user) return <span className="text-gray-400 dark:text-gray-500">{t("processes.user_unknown")}</span>
+
+  return (
+    <Link className="text-brand underline hover:no-underline" title={user.email_address} to={withRoutePrefix(user.path, prefix)}>
+      {user.display_name}
     </Link>
   )
 }

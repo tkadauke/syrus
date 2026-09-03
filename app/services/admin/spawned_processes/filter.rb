@@ -3,7 +3,7 @@ module Admin
     class Filter
       include Filters::BaseFilter
 
-      LEGACY_URL_KEYS = %w[ state kind hostname run_id workflow_id since ].freeze
+      LEGACY_URL_KEYS = %w[ state kind hostname user_id run_id workflow_id since ].freeze
 
       def self.from_params(params, smart_folder: nil, user: nil)
         q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
@@ -47,6 +47,7 @@ module Admin
         chips << chip("state", "is", params["state"]) if %w[ running finished ].include?(params["state"])
         chips << chip("kind", "is", params["kind"]) if SpawnedProcess::KINDS.include?(params["kind"])
         chips << chip("hostname", "is", params["hostname"]) if params["hostname"].present?
+        chips << chip("user_id", "is", params["user_id"]) if params["user_id"].present?
         chips << chip("run_id", "is", params["run_id"]) if params["run_id"].present?
         chips << chip("workflow_id", "is", params["workflow_id"]) if params["workflow_id"].present?
         chips << chip("started_at", "after", params["since"]) if params["since"].present?

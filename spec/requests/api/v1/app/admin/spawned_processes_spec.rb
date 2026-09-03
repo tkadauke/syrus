@@ -51,10 +51,12 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(body["filter"]).to eq(running_folder.filter)
     expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["running_total"]).to eq(SpawnedProcess.running.count)
-    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "hostname")
+    expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "hostname", "user_id")
     hostname_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "hostname" }
     expect(hostname_field).to include("typeahead" => true)
     expect(hostname_field).not_to have_key("values")
+    user_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "user_id" }
+    expect(user_field).to include("label" => "User", "bucket" => "fk", "typeahead" => true)
     expect(body["smart_folders"].find { |folder| folder["name"] == "Running" }).to include(
       "count" => 1,
       "active" => true,
@@ -238,6 +240,42 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     )
   end
 
+  it "returns the user who owns a workflow-run process" do
+    sign_in_as(admin)
+    owner = Factories.user
+    job = Factories.job(user: admin, owner_user: owner)
+    process = fixture(workflow: job.latest_workflow)
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["user"]).to eq(
+      "id" => owner.id,
+      "display_name" => owner.display_name,
+      "email_address" => owner.email_address,
+      "path" => "/admin/users/#{owner.id}"
+    )
+  end
+
+  it "filters process inventory by owning user" do
+    sign_in_as(admin)
+    owner = Factories.user
+    matching_job = Factories.job(user: admin, owner_user: owner)
+    matching = fixture(workflow: matching_job.latest_workflow)
+    fixture(workflow: Factories.job(user: admin).latest_workflow)
+
+    get "/api/v1/app/admin/processes", params: { user_id: owner.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["processes"].map { |process| process["id"] }).to eq([ matching.id ])
+    expect(body["filter"]).to eq(
+      "and" => [
+        { "field" => "user_id", "op" => "is", "value" => owner.id.to_s }
+      ]
+    )
+  end
+
   it "attributes a chat-invocation process to its chat session as the owner" do
     sign_in_as(admin)
     chat_session = ChatSession.create!(user: admin, title: "Investigating flaky specs")
@@ -265,6 +303,22 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
       "type" => "preview",
       "label" => "Preview · JOB-#{job.id}",
       "path" => "/jobs/#{job.id}"
+    )
+  end
+
+  it "returns the user who owns a preview process through its attributed Job" do
+    sign_in_as(admin)
+    owner = Factories.user
+    job = Factories.job(user: admin, owner_user: owner)
+    process = fixture(kind: "preview", resource_attribution: { "job_id" => job.id, "port" => 3001 })
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["user"]).to include(
+      "id" => owner.id,
+      "display_name" => owner.display_name,
+      "path" => "/admin/users/#{owner.id}"
     )
   end
 

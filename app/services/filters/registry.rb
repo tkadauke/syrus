@@ -225,6 +225,7 @@ module Filters
         "outcome"     => "Filters::Chips::SpawnedProcesses::Outcome",
         "kind"        => "Filters::Chips::SpawnedProcesses::Kind",
         "hostname"    => "Filters::Chips::SpawnedProcesses::Hostname",
+        "user_id"     => "Filters::Chips::SpawnedProcesses::UserId",
         "run_id"      => "Filters::Chips::SpawnedProcesses::RunId",
         "workflow_id" => "Filters::Chips::SpawnedProcesses::WorkflowId",
         "stale"       => "Filters::Chips::SpawnedProcesses::Stale",

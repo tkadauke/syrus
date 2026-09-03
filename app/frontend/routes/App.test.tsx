@@ -6788,7 +6788,8 @@ describe("App", () => {
                 ]
               },
               { field: "kind", label: "Kind", bucket: "enum", operators: ["is"], values: [ { value: "agent", label: "Agent" } ] },
-              { field: "hostname", label: "Hostname", bucket: "enum", operators: ["is"], values: [ { value: "worker-a", label: "worker-a" } ] }
+              { field: "hostname", label: "Hostname", bucket: "enum", operators: ["is"], values: [ { value: "worker-a", label: "worker-a" } ] },
+              { field: "user_id", label: "User", bucket: "fk", operators: ["is", "is_not"], typeahead: true }
             ]
           },
           active_smart_folder_id: 3,
@@ -6827,6 +6828,7 @@ describe("App", () => {
               stale: false,
               kill_requested_at: null,
               kill_requested_by_user_id: null,
+              user: { id: 5, display_name: "Operator", email_address: "operator@example.test", path: "/admin/users/5" },
               owner: { type: "workflow", label: "JOB-9 · Fix flaky spec", path: "/jobs/9?tab=workflows#workflow-2" }
             }
           ]
@@ -6854,7 +6856,9 @@ describe("App", () => {
       expect(screen.getByText("worker-a")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /State is Running/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      expect(screen.getByRole("button", { name: "User reference" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Hostname list" })).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/admin/users/5")
       expect(screen.getByRole("link", { name: "Running 1" })).toHaveAttribute("href", "/app-shell/admin/processes?smart_folder_id=3")
       expect(screen.getByRole("link", { name: "Detail" })).toHaveAttribute("href", "/app-shell/admin/processes/8")
       expect(screen.getByRole("button", { name: "Kill" })).toBeInTheDocument()
@@ -6987,6 +6991,7 @@ describe("App", () => {
           stale: false,
           kill_requested_at: null,
           kill_requested_by_user_id: null,
+          user: { id: 5, display_name: "Operator", email_address: "operator@example.test", path: "/admin/users/5" },
           owner: { type: "workflow", label: "JOB-42 · Fix flaky spec", path: "/jobs/42?tab=workflows#workflow-2" },
           host_metrics: null
         }),
@@ -7008,6 +7013,7 @@ describe("App", () => {
     expect(within(processDetail).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
     expect(within(processDetail).getByRole("link", { name: "#4" })).toHaveAttribute("href", "/app-shell/admin/runs/4/transcript")
     expect(within(processDetail).getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-2")
+    expect(within(processDetail).getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/admin/users/5")
     expect(within(processDetail).getByRole("link", { name: "JOB-42 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-2")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/admin/processes/8",

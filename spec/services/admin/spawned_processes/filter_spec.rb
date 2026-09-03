@@ -98,6 +98,37 @@ RSpec.describe Admin::SpawnedProcesses::Filter do
     end
   end
 
+  describe "user_id" do
+    it "filters workflow processes by the effective Job owner" do
+      creator = Factories.user
+      owner = Factories.user
+      job = Factories.job(user: creator, owner_user: owner)
+      workflow_process = process(workflow: job.latest_workflow)
+      process
+
+      result = apply("field" => "user_id", "op" => "is", "value" => owner.id.to_s)
+
+      expect(result).to contain_exactly(workflow_process)
+    end
+
+    it "filters chat and preview processes by their owning users" do
+      chat_user = Factories.user
+      preview_user = Factories.user
+      other_user = Factories.user
+      chat = ChatSession.create!(user: chat_user, title: "Investigate queue")
+      preview_job = Factories.job(user: preview_user)
+      chat_process = process(kind: "chat_prepare", chat_session: chat)
+      preview_process = process(kind: "preview", resource_attribution: { "job_id" => preview_job.id })
+      process(kind: "chat_prepare", chat_session: ChatSession.create!(user: other_user, title: "Other"))
+
+      chat_result = apply("field" => "user_id", "op" => "is", "value" => chat_user.id.to_s)
+      preview_result = apply("field" => "user_id", "op" => "is", "value" => preview_user.id.to_s)
+
+      expect(chat_result).to contain_exactly(chat_process)
+      expect(preview_result).to contain_exactly(preview_process)
+    end
+  end
+
   # This builtin filtered `state is failed`, which the state chip does not
   # support, so it compiled to `1=0` and could never match. Its :when_present
   # visibility then hid it on every render — invisible rather than broken.

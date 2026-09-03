@@ -16,9 +16,10 @@ module Admin
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
-          scope = filter.apply(base_scope).includes(workflow: :job, chat_session: :user).order(started_at: :desc).limit(@per_page)
+          scope = filter.apply(base_scope).includes(workflow: [ { job: :owner_user }, :user ], chat_session: :user).order(started_at: :desc).limit(@per_page)
 
           processes = PerformanceLogging.phase("admin_processes.load_processes") { scope.to_a }
+          PerformanceLogging.phase("admin_processes.preload_preview_jobs") { preload_preview_jobs(processes) }
 
           {
             filter: filter.to_h,
@@ -158,6 +159,7 @@ module Admin
           stale: process.stale?,
           kill_requested_at: process.kill_requested_at&.iso8601,
           kill_requested_by_user_id: process.kill_requested_by_user_id,
+          user: user_payload(process),
           owner: owner_payload(process)
         }
         payload[:host_metrics] = process.host_metrics if include_host_metrics
@@ -190,11 +192,54 @@ module Admin
         preview_owner_payload(process)
       end
 
+      def user_payload(process)
+        user = owning_user(process)
+        return nil unless user
+
+        {
+          id: user.id,
+          display_name: user.display_name,
+          email_address: user.email_address,
+          path: "/admin/users/#{user.id}"
+        }
+      end
+
+      def owning_user(process)
+        if process.workflow
+          return process.workflow.job&.owner_user || process.workflow.user
+        end
+
+        return process.chat_session.user if process.chat_session
+
+        preview_job_for(process)&.owner_user || preview_job_for(process)&.user
+      end
+
+      def preload_preview_jobs(processes)
+        ids = processes.filter_map { |process| preview_job_id(process) }.uniq
+        @preview_jobs_by_id = ids.empty? ? {} : Job.includes(:owner_user, :user).where(id: ids).index_by(&:id)
+      end
+
+      def preview_job_for(process)
+        id = preview_job_id(process)
+        return nil unless id
+
+        if defined?(@preview_jobs_by_id)
+          @preview_jobs_by_id[id]
+        else
+          Job.includes(:owner_user, :user).find_by(id: id)
+        end
+      end
+
+      def preview_job_id(process)
+        return nil unless process.kind == "preview"
+
+        Integer((process.resource_attribution || {})["job_id"], exception: false)
+      end
+
       def preview_owner_payload(process)
         return nil unless process.kind == "preview"
 
-        attribution = process.resource_attribution || {}
-        job_id = attribution["job_id"]
+        job_id = preview_job_id(process)
         {
           type: "preview",
           label: job_id ? "Preview · #{App::Presentation.job_slug(job_id)}" : "Preview",
