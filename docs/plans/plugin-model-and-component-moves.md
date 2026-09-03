@@ -31,8 +31,16 @@ uninstall/purge lifecycle (G10), the `step_environment` extension point, and
 `test_insights` extracted with its tables. `syrus_dev` storage remains and is
 carried into Phase 4.
 
-**Next: Phase 4** — `agent_memory` as a swappable provider, then `coverage`,
-`video_walkthroughs`, `github_issues`, and `terminal`.
+**Phase 4 in progress.** `github_issues` extracted. Two of the five turned out
+to be blocked, both for reasons the inventory missed:
+
+- **`agent_memory`** cannot move before `agent_insights` — see its entry.
+- **`coverage`** inserts conditional steps into core workflow chains
+  (`Workflows::Base.coverage_analyze_for`, `Initial`, the feedback chains),
+  which is exactly the Tier 3 blocker `visual_review` has. Moved to Tier 3; it
+  needs the workflow-composition extension point, not more plumbing.
+
+Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
 
 ## Principles
 
@@ -653,9 +661,12 @@ references `ChatMemory` — see the DAG note below.
 Dead surface to drop rather than port: `embedding`, `visibility`, `expires_at`,
 and `last_verified_at` are written by nothing.
 
-**`github_issues` (into `github_source`)** — the repository issues tab, its five
-routes and controller actions, `RepositoryIssues.tsx`, the issue i18n block, and
-`list_open_issues` / `delegate_issue`. The repo-tab wildcard already works.
+**`github_issues` (into `github_source`)** — **done.** The controller, the API
+client, the component, and the issue i18n moved; the tab is contributed through
+`repo_page_tab`, so its simple-mode hiding is the plugin's decision rather than
+a branch in core's tab serializer. `repository_detail_json` and its helpers
+became the `RepositorySummarySerialization` core concern so the plugin could
+render the same repository header without duplicating it.
 
 This is explicitly *not* "extract GitHub." `github_source` is ~350 LOC against
 `GithubClient` alone at 1,221 lines, ~90 core files referencing it, twelve
@@ -672,10 +683,13 @@ by its own spec. Either wire it or delete it.
 (Action Cable channel registration). Per Principle 4, the existing `terminal`
 feature flag is replaced by the plugin's own enabled state.
 
-**`coverage`** — `coverage_snapshots`, the hit-map TTL prune job, the coverage
-PR comment steps, and the `get_coverage_report` tool. The `coverage_analyzer`
-extension point already exists and stays; the plugin takes storage and UI.
-Needs G1 (`run.finished` or the grader event) and G2 (prune job).
+**`coverage`** — **moved to Tier 3.** `coverage_snapshots`, the hit-map TTL
+prune job, the coverage PR comment steps, and the `get_coverage_report` tool.
+G1 and G2 cover the events and the prune job, but `coverage_analyze` and
+`coverage_pr_comment` are conditional steps that `Workflows::Base` inserts into
+the `initial`, `retry`, and feedback chains. That is the same problem
+`visual_review` has, and it wants the same answer: a workflow-composition
+extension point, not more plumbing.
 
 **`video_walkthroughs`** — `ChatVideoWalkthrough`, the Gemini client and
 transcoder, `VideoWalkthroughAnalysisJob`, `VideoWalkthroughPruneJob`, three
@@ -729,6 +743,14 @@ is disabled, `agent_insights` goes `degraded` and its providers are withheld —
 it does not crash, and it does not silently half-work.
 
 ### Tier 3 — needs design first
+
+Both entries here share one blocker: a plugin cannot insert a conditional step
+into a core workflow chain. `Workflows::Base` builds those chains, and both
+features are materialized by core based on `.syrus.yml` and a feature flag.
+The extension point they want lets plugins declare optional loops or steps that
+named chains will admit, with core keeping ordering and retry semantics. That
+is a real design problem and should not be smuggled in as part of a code move.
+
 
 **`visual_review`** — the step, prompt, artifacts, and review-loop membership
 would move to `browser`. The hard part is not the code, it is that a plugin must
