@@ -422,6 +422,36 @@ RSpec.describe AutoRetryJob do
     expect(job.workflows.count).to eq(1)
   end
 
+  it "lets retry-as-new-workflow attempts reach workflow admission when failover is configured" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    open_circuit = ProviderCircuitBreaker::Decision.new(
+      provider: "claude",
+      open: true,
+      reason: "provider transient failures",
+      retry_after: 10.minutes.from_now,
+      failure_count: 5,
+      job_count: 3,
+      signature: nil
+    )
+    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
+    allow(ProviderCircuitBreaker).to receive(:call).and_return(open_circuit)
+    allow_any_instance_of(Job).to receive(:agent_provider_failover_candidates)
+      .with(cause: "provider_transient")
+      .and_return([ "codex" ])
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+      job: job,
+      agent_provider: "claude",
+      artifacts: { "auto_retry_attempt_id" => attempt.id },
+      provider_validation: :none,
+      automatic: true
+    )
+    expect(attempt.reload.performed_at).to be_present
+  end
+
   it "reschedules the same attempt when RetryWorkflowEnqueuer returns a circuit-open result" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     retry_after = 10.minutes.from_now
