@@ -223,3 +223,15 @@ Safe query boundaries:
 3. Set `junit_output: <path>` on every `.syrus.yml` grader entry that should
    ingest results. If the landing and CI phases use separate graders, both
    entries need their own `junit_output`.
+
+## Search indexing runs on the home node
+
+Test identities are indexed through `IndexTestIdentitiesJob` on the `indexing`
+queue, like every other search-index write.
+
+Ingestion itself runs inside a grader step on the `runs` queue. On a split
+deployment that is a compute node, which by design has no access to the search
+database (`config/queue.compute.yml`). Writing `test_identity_fts` inline from
+`TestRunIngester` was the one path that broke that rule; the failure was
+swallowed as an enrichment warning, so search results simply went missing
+rather than anything erroring loudly.

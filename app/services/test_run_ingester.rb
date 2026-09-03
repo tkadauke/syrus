@@ -58,8 +58,13 @@ class TestRunIngester
     log_enrichment_failure("runtime summary refresh", e)
   end
 
+  # Enqueued rather than written here: ingestion runs inside a grader step on
+  # the `runs` queue, which on a split deployment is a compute node with no
+  # access to the search database.
   def refresh_search_index(test_identity_ids)
-    TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: test_identity_ids))
+    return if test_identity_ids.empty?
+
+    IndexTestIdentitiesJob.perform_later(test_identity_ids)
   rescue StandardError => e
     log_enrichment_failure("search indexing", e)
   end

@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe TestRunIngester do
+  include ActiveJob::TestHelper
+
   let(:job)  { Factories.job }
   let(:run)  { job.initial_run }
   let(:repo) { job.repository }
@@ -82,9 +84,15 @@ RSpec.describe TestRunIngester do
   end
 
   it "indexes durable test identities instead of individual test cases" do
-    ingester.ingest!
+    # Indexing is enqueued rather than written inline: ingestion runs on the
+    # compute tier, which has no access to the search database.
+    perform_enqueued_jobs(only: IndexTestIdentitiesJob) { ingester.ingest! }
 
     expect(TestIdentitySearchIndex.search("fail_0", user_id: repo.user_id).map { |row| row[:test_identity_id] }).to eq([ TestIdentity.find_by!(name: "fail_0").id ])
+  end
+
+  it "enqueues search indexing onto the indexing queue rather than writing inline" do
+    expect { ingester.ingest! }.to have_enqueued_job(IndexTestIdentitiesJob).on_queue("indexing")
   end
 
   it "refreshes bounded runtime summaries for each identity and grader" do
@@ -195,14 +203,12 @@ RSpec.describe TestRunIngester do
 
   it "preserves primary test result rows when search indexing fails" do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
-    allow(Rails.logger).to receive(:warn)
 
-    expect { ingester.ingest! }
+    expect { perform_enqueued_jobs(only: IndexTestIdentitiesJob) { ingester.ingest! } }
       .to change(TestRun, :count).by(1)
       .and change(TestCase, :count).by(3)
 
     expect(TestRun.find_by!(run: run, grader_name: "rspec")).to have_attributes(total_count: 3, failed_count: 1)
-    expect(Rails.logger).to have_received(:warn).with(include("search indexing failed"))
   end
 
   it "preserves primary test result rows when runtime summary refresh fails" do

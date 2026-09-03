@@ -74,7 +74,7 @@ class TestIdentity < ApplicationRecord
     end
 
     refresh_many!(identities.values.map(&:id))
-    TestIdentitySearchIndex.upsert_many(where(id: identities.values.map(&:id)).includes(:repository)) if index_search
+    IndexTestIdentitiesJob.perform_later(identities.values.map(&:id)) if index_search
   end
 
   def self.ensure_for_repository_later(repository)
