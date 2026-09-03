@@ -17,6 +17,7 @@ type ThemeContextValue = {
   // The user's selected color theme (built-in or their own custom theme); null
   // falls back to the unscoped default (Terracotta) CSS values.
   colorTheme: ColorTheme | null
+  previewColorTheme: (colorTheme: ColorTheme) => void
   setColorTheme: (colorTheme: ColorTheme) => void
 }
 
@@ -135,7 +136,12 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
     }
   }
 
-  return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, setColorTheme }}>{children}</ThemeContext.Provider>
+  function previewColorTheme(nextColorTheme: ColorTheme) {
+    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
+    queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, nextColorTheme))
+  }
+
+  return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, previewColorTheme, setColorTheme }}>{children}</ThemeContext.Provider>
 }
 
 export function useTheme() {
