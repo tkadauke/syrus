@@ -9,6 +9,7 @@ module DesignDocs
     belongs_to :opened_by_user, class_name: "User", optional: true
     belongs_to :resolved_by_user, class_name: "User", optional: true
 
+    has_many :agent_runs, class_name: "DesignDocs::DesignDocAgentRun", dependent: :destroy
     has_many :comments, class_name: "DesignDocs::DesignDocComment", dependent: :destroy
     has_many :suggestions, class_name: "DesignDocs::DesignDocSuggestion", dependent: :nullify
 

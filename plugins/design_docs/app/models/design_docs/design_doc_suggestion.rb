@@ -12,6 +12,7 @@ module DesignDocs
     belongs_to :suggested_by_user, class_name: "User", optional: true
     belongs_to :reviewed_by_user, class_name: "User", optional: true
     belongs_to :base_version, class_name: "DesignDocs::DesignDocVersion", optional: true
+    belongs_to :agent_run, class_name: "DesignDocs::DesignDocAgentRun", foreign_key: :design_doc_agent_run_id, optional: true
 
     before_validation :normalize_markdown_fields
 
@@ -23,6 +24,7 @@ module DesignDocs
     validate :anchor_belongs_to_doc
     validate :thread_belongs_to_doc
     validate :base_version_belongs_to_doc
+    validate :agent_run_belongs_to_doc
     validate :review_metadata_matches_state
 
     def user_suggester?
@@ -61,6 +63,13 @@ module DesignDocs
       return if base_version.design_doc_id == design_doc_id
 
       errors.add(:base_version, "must belong to the same design doc")
+    end
+
+    def agent_run_belongs_to_doc
+      return if agent_run.nil? || design_doc.nil?
+      return if agent_run.design_doc_id == design_doc_id
+
+      errors.add(:agent_run, "must belong to the same design doc")
     end
 
     def review_metadata_matches_state
