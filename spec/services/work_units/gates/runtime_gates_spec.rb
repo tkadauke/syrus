@@ -39,7 +39,8 @@ RSpec.describe "WorkUnit runtime gates" do
         threshold_percent: 10,
         remaining_percent: 7.5,
         retry_at: retry_at,
-        availability: { usage: { status: "warning" }, message: "Codex usage is low" }
+        availability: { usage: { status: "warning" }, message: "Codex usage is low" },
+        failover: nil
       )
       allow(ProviderAvailabilityPause).to receive(:call).with(workflow: workflow).and_return(decision)
 
@@ -64,11 +65,74 @@ RSpec.describe "WorkUnit runtime gates" do
         threshold_percent: 10,
         remaining_percent: nil,
         retry_at: nil,
-        availability: nil
+        availability: nil,
+        failover: nil
       )
       allow(ProviderAvailabilityPause).to receive(:call).with(workflow: workflow).and_return(decision)
 
       expect(described_class.call(unit)).to be_pass
+    end
+
+    it "repins an unstarted workflow when provider availability chooses failover" do
+      failover = ProviderFailoverSelector::Decision.new(
+        selected_provider: "codex",
+        original_provider: "claude",
+        reason: "provider_unavailable",
+        availability: { state: "open", evidence: { current: { observed_at: 1.minute.ago.iso8601 } } },
+        candidate_availability: nil,
+        decided_at: Time.current,
+        manual_override: false
+      )
+      decision = ProviderAvailabilityPause::Decision.new(
+        pause: false,
+        reason: "provider_unavailable",
+        provider: "claude",
+        threshold_percent: 10,
+        remaining_percent: nil,
+        retry_at: nil,
+        availability: { state: "open" },
+        failover: failover
+      )
+      workflow.update!(agent_provider: "claude")
+      allow(ProviderAvailabilityPause).to receive(:call).with(workflow: workflow).and_return(decision)
+
+      result = described_class.call(unit)
+
+      expect(result).to be_pass
+      expect(workflow.reload.agent_provider).to eq("codex")
+      expect(workflow.artifact("provider_failover_decision")).to include(
+        "original_provider" => "claude",
+        "selected_provider" => "codex",
+        "automatic_failover" => true
+      )
+    end
+
+    it "does not repin a workflow that already has a run" do
+      failover = ProviderFailoverSelector::Decision.new(
+        selected_provider: "codex",
+        original_provider: "claude",
+        reason: "provider_unavailable",
+        availability: { state: "open" },
+        candidate_availability: nil,
+        decided_at: Time.current,
+        manual_override: false
+      )
+      decision = ProviderAvailabilityPause::Decision.new(
+        pause: false,
+        reason: "provider_unavailable",
+        provider: "claude",
+        threshold_percent: 10,
+        remaining_percent: nil,
+        retry_at: nil,
+        availability: { state: "open" },
+        failover: failover
+      )
+      workflow.update!(agent_provider: "claude")
+      workflow.first_step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, agent_provider: "claude")
+      allow(ProviderAvailabilityPause).to receive(:call).with(workflow: workflow).and_return(decision)
+
+      expect(described_class.call(unit)).to be_pass
+      expect(workflow.reload.agent_provider).to eq("claude")
     end
   end
 
