@@ -68,7 +68,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   repositoryId?: string | number
 }) {
   const params = useParams()
-  const { t } = useT("nav")
+  const { t } = useT(["design_docs", "nav"])
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
@@ -123,13 +123,13 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   const smartFolders = showIndexControls ? (
     <AdminSmartFolderNav
       activeFolderId={activeSmartFolderId}
-      allLabel="All design docs"
+      allLabel={t("design_docs:folders.all_design_docs")}
       allPath={mode === "repository" ? location.pathname : "/design_docs"}
       allowSaveWithoutActiveFolder
-      ariaLabel="Design Docs smart folders"
+      ariaLabel={t("design_docs:folders.aria_label")}
       currentFilter={currentFilter}
       folders={indexQuery.data?.smart_folders ?? []}
-      heading="Folders"
+      heading={t("design_docs:folders.heading")}
       onMutationSuccess={() => {
         void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
       }}
@@ -147,8 +147,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
 
   const createMutation = useMutation({
     mutationFn: () => createDesignDoc({
-      title: "Untitled design doc",
-      markdown: "# Untitled design doc\n\n",
+      title: t("design_docs:page.untitled_doc"),
+      markdown: `# ${t("design_docs:page.untitled_doc")}\n\n`,
       visibility: "private",
       state: "draft",
       origin_chat_session_id: chatId,
@@ -156,24 +156,24 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
     }),
     onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
-      setNotice("Design doc created.")
+      setNotice(t("design_docs:page.created_notice"))
       if (mode === "chat") setSelectedId(payload.design_doc.id)
       else navigate(docPath(payload.design_doc.id))
     }
   })
 
   return (
-    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
+    <main aria-label={t("design_docs:page.aria_label")} className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
       {showPageHeader ? (
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            {compact ? <SectionHeading>Design Docs</SectionHeading> : <PageHeading>Design Docs</PageHeading>}
+            {compact ? <SectionHeading>{t("design_docs:page.heading")}</SectionHeading> : <PageHeading>{t("design_docs:page.heading")}</PageHeading>}
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              {mode === "repository" ? "Docs associated with this repository." : "Collaborative Markdown design documents."}
+              {mode === "repository" ? t("design_docs:page.subtitle_repository") : t("design_docs:page.subtitle_default")}
             </p>
           </div>
           <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()} size="sm">
-            New doc
+            {t("design_docs:page.new_doc")}
           </Button>
         </header>
       ) : null}
@@ -182,9 +182,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
         <div className="px-0">
           <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-              <span>{t("filters_layout.folders_and_filters")}</span>
-              <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("filters_layout.show")}</span>
-              <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("filters_layout.hide")}</span>
+              <span>{t("nav:filters_layout.folders_and_filters")}</span>
+              <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("nav:filters_layout.show")}</span>
+              <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("nav:filters_layout.hide")}</span>
             </summary>
             <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
               {filterBar}
@@ -202,9 +202,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           onSelect={(docId) => navigate(docPath(docId))}
         /> : null}
         <section className="min-w-0">
-          {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
-          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
-          {detailQuery.isPending && effectiveId ? <Panel>Loading design doc...</Panel> : null}
+          {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, t("design_docs:detail.load_error"))}</Panel> : null}
+          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? t("design_docs:detail.empty_chat") : t("design_docs:detail.empty_default")}</Panel> : null}
+          {detailQuery.isPending && effectiveId ? <Panel>{t("design_docs:detail.loading")}</Panel> : null}
           {selectedDoc ? (
             <DesignDocEditor
               doc={selectedDoc}
@@ -232,11 +232,12 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
   selectedId: string | number | null
   onSelect: (id: number) => void
 }) {
+  const { t } = useT("design_docs")
   return (
     <aside className="min-w-0 space-y-3">
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">Loading design docs...</div> : null}
-        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
+        {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">{t("list.loading")}</div> : null}
+        {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">{t("list.empty")}</div> : null}
         {docs.map((doc) => (
           <button
             className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
@@ -251,8 +252,8 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
               </div>
               <StatusLabel value={doc.state} />
             </div>
-            <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{doc.repositories.map((repository) => repository.slug).join(", ") || "No repositories"}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Updated <RelativeTimestamp value={doc.updated_at} /></p>
+            <p className="mt-2 truncate text-xs text-gray-500 dark:text-gray-400">{doc.repositories.map((repository) => repository.slug).join(", ") || t("list.no_repositories")}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("list.updated")} <RelativeTimestamp value={doc.updated_at} /></p>
           </button>
         ))}
       </div>
@@ -269,6 +270,7 @@ function emptySelection(): SelectionRange {
 }
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
+  const { t } = useT("design_docs")
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
@@ -290,7 +292,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const canSuggest = doc.permissions.can_suggest
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
-  const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
+  const saveLabel = effectiveChangeMode === "edit" ? t("editor.save") : t("editor.suggest_changes")
   const saveDisabled = effectiveChangeMode === "suggest" && !canSuggest
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
@@ -327,7 +329,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, effectiveChangeMode, title, draft)
       setSummary("")
       setSummaryVisible(false)
-      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
+      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? t("editor.saved_as_suggestion") : t("editor.saved"))
     }
   })
   const autosaveMutation = useMutation({
@@ -354,30 +356,30 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   })
   const metadataMutation = useMutation({
     mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
-    onSuccess: (payload) => onDocChange(payload.design_doc, "Design doc controls updated.")
+    onSuccess: (payload) => onDocChange(payload.design_doc, t("editor.controls_updated"))
   })
   const commentMutation = useMutation({
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
       setSelection(emptySelection())
-      onDocChange(payload.design_doc, "Comment added.")
+      onDocChange(payload.design_doc, t("editor.comment_added"))
     }
   })
   const replyMutation = useMutation({
     mutationFn: ({ threadId, body }: { threadId: number; body: string }) => createDesignDocComment(doc.id, { thread_id: threadId, body }),
     onSuccess: (payload, variables) => {
       setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
-      onDocChange(payload.design_doc, "Reply added.")
+      onDocChange(payload.design_doc, t("editor.reply_added"))
     }
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onSuccess: (payload) => onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+    onSuccess: (payload) => onDocChange(payload.design_doc, payload.message || t("editor.suggestion_reviewed"))
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
-    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, "Thread resolved.")
+    onSuccess: (_payload, threadId) => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.id === threadId ? { ...thread, state: "resolved" } : thread) }, t("editor.thread_resolved"))
   })
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
   const activeHighlights = useMemo(
@@ -440,7 +442,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
   function applyFormattingCommand(command: DesignDocFormattingCommand) {
     const activeSelection = selection.end >= selection.start ? selection : { start: 0, end: 0, text: "", selectedText: "", rect: null }
-    const options = command === "link" ? { href: window.prompt("Link URL", "https://example.com") || "" } : {}
+    const options = command === "link" ? { href: window.prompt(t("editor.link_url_prompt"), "https://example.com") || "" } : {}
     const result = applyDesignDocFormattingCommand(draft, activeSelection, command, options)
     if (!result.applied) return
 
@@ -613,7 +615,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
+            {summaryVisible ? <Input aria-label={t("editor.change_summary_label")} className="min-w-[12rem] flex-1" placeholder={t("editor.change_summary_placeholder")} value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
           </div>
           ) : null}
           <DesignDocFormattingToolbar
@@ -629,10 +631,10 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
-              <span className="sr-only">Markdown editor</span>
+              <span className="sr-only">{t("editor.markdown_editor_label")}</span>
               <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} scrollTop={markdownScrollTop} />
               <textarea
-                aria-label="Markdown editor"
+                aria-label={t("editor.markdown_editor_label")}
                 className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
                 onBlur={() => updateSelection()}
                 onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
@@ -646,7 +648,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             </label>
           ) : (
             <div
-              aria-label="Rich Text editor"
+              aria-label={t("editor.rich_text_editor_label")}
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable
               onBlur={() => {
@@ -744,6 +746,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const { t } = useT("design_docs")
   const titleBarRef = useRef<HTMLElement | null>(null)
   const shareButtonRef = useRef<HTMLButtonElement | null>(null)
   const [shareMenuAlignment, setShareMenuAlignment] = useState<"left" | "right">("left")
@@ -770,27 +773,27 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   }
 
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
+    <section aria-label={t("editor.title_bar_label")} className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
-          <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input aria-label={t("editor.title_label")} disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium text-gray-700 dark:text-gray-300">{doc.display_id}</span>
-            <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
+            <span> / {t("editor.saved_prefix")} <RelativeTimestamp value={doc.updated_at} /></span>
           </p>
         </div>
         <StatusLabel value={doc.visibility} />
         <StatusLabel value={doc.state} />
         <div className="relative min-w-0">
           <div className="flex max-w-full flex-wrap items-center gap-1.5">
-            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No repositories</span> : null}
+            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("editor.no_repositories")}</span> : null}
             {selectedRepositories.map((repository) => (
               <span className="max-w-[11rem] truncate rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300" key={repository.id}>
                 {repository.slug}
               </span>
             ))}
             {canManageMetadata ? (
-            <Button aria-expanded={repositoryPickerOpen} aria-label="Add repository" className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
+            <Button aria-expanded={repositoryPickerOpen} aria-label={t("editor.add_repository")} className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
               <span aria-hidden="true" className="text-base leading-none">+</span>
             </Button>
             ) : null}
@@ -798,9 +801,9 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           {repositoryPickerOpen && canManageMetadata ? (
             <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Repositories
+                {t("editor.repositories_label")}
                 <select
-                  aria-label="Repository associations"
+                  aria-label={t("editor.repository_associations_label")}
                   className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   multiple
                   value={repoIds}
@@ -810,39 +813,39 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
                 </select>
               </label>
               <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save repositories</Button>
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("editor.save_repositories")}</Button>
               </div>
             </div>
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">{t("editor.share")}</Button> : <StatusLabel value={t("editor.review_only")} />}
           {shareOpen && canManageMetadata ? (
             <div
               className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
               data-testid="design-doc-share-menu"
             >
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Visibility
-                <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
-                  <option value="private">Private</option>
-                  <option value="public">Public</option>
+                {t("editor.visibility_label")}
+                <Select aria-label={t("editor.share_visibility_label")} className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
+                  <option value="private">{t("editor.visibility_private")}</option>
+                  <option value="public">{t("editor.visibility_public")}</option>
                 </Select>
               </label>
               <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Explicit collaborators
-                <Input aria-label="Collaborator user IDs" className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
+                {t("editor.collaborators_label")}
+                <Input aria-label={t("editor.collaborator_ids_label")} className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
               </label>
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</p>
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("editor.owner_label", { owner: doc.owner?.name || doc.owner?.email_address || t("editor.owner_unknown") })}</p>
               <div className="mt-3 flex justify-end">
-                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save sharing</Button>
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">{t("editor.save_sharing")}</Button>
               </div>
             </div>
           ) : null}
         </div>
         <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button>
         <Select
-          aria-label="Version selection"
+          aria-label={t("editor.version_selection_label")}
           className="ml-auto max-w-[12rem]"
           fullWidth={false}
           onFocus={onVersionsOpen}
@@ -850,8 +853,8 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           value={selectedVersionId}
           onChange={(event) => onVersionChange(event.target.value)}
         >
-          <option value="current">Current v{doc.current_version_number ?? "?"}</option>
-          {versionsOpen && versionsLoading ? <option value="loading">Loading...</option> : null}
+          <option value="current">{t("editor.current_version", { version: doc.current_version_number ?? "?" })}</option>
+          {versionsOpen && versionsLoading ? <option value="loading">{t("editor.loading_ellipsis")}</option> : null}
           {versions.map((version) => (
             <option key={version.id} value={version.id}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
           ))}
@@ -911,34 +914,35 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   setEditorMode: (mode: EditorMode) => void
   onCommand: (command: DesignDocFormattingCommand) => void
 }) {
+  const { t } = useT("design_docs")
   const wideToolbar = useMediaQuery("(min-width: 768px)", true)
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
   const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
-    { command: "paragraph", label: "Paragraph" },
+    { command: "paragraph", label: t("toolbar.block_paragraph") },
     { command: "heading_1", label: "H1" },
     { command: "heading_2", label: "H2" },
     { command: "heading_3", label: "H3" },
     { command: "heading_4", label: "H4" },
-    { command: "blockquote", label: "Quote" },
-    { command: "fenced_code", label: "Code block" }
+    { command: "blockquote", label: t("toolbar.block_quote") },
+    { command: "fenced_code", label: t("toolbar.block_code") }
   ]
   const inlineItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string; className?: string }> = [
-    { command: "bold", icon: "B", label: "Bold", className: "font-black" },
-    { command: "italic", icon: "I", label: "Italic", className: "font-serif italic" },
-    { command: "inline_code", icon: "`", label: "Inline code", className: "font-mono" },
-    { command: "link", icon: "[]", label: "Link" },
-    { command: "strikethrough", icon: "S", label: "Strikethrough", className: "line-through" }
+    { command: "bold", icon: "B", label: t("toolbar.inline_bold"), className: "font-black" },
+    { command: "italic", icon: "I", label: t("toolbar.inline_italic"), className: "font-serif italic" },
+    { command: "inline_code", icon: "`", label: t("toolbar.inline_code"), className: "font-mono" },
+    { command: "link", icon: "[]", label: t("toolbar.inline_link") },
+    { command: "strikethrough", icon: "S", label: t("toolbar.inline_strikethrough"), className: "line-through" }
   ]
   const listItems: Array<{ command: DesignDocFormattingCommand; icon: string; label: string }> = [
-    { command: "unordered_list", icon: "-.", label: "Bulleted list" },
-    { command: "ordered_list", icon: "1.", label: "Numbered list" }
+    { command: "unordered_list", icon: "-.", label: t("toolbar.list_unordered") },
+    { command: "ordered_list", icon: "1.", label: t("toolbar.list_ordered") }
   ]
   const moreItems: Array<{ command: DesignDocFormattingCommand; label: string }> = [
-    { command: "table", label: "Table" },
-    { command: "horizontal_rule", label: "Divider" },
-    { command: "nested_list", label: "Indent list item" }
+    { command: "table", label: t("toolbar.more_table") },
+    { command: "horizontal_rule", label: t("toolbar.more_divider") },
+    { command: "nested_list", label: t("toolbar.more_nested_list") }
   ]
   const selectedBlock = currentBlockCommand(draft, range)
 
@@ -954,13 +958,13 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 
   return (
     <div
-      aria-label="Formatting toolbar"
+      aria-label={t("toolbar.formatting_toolbar_label")}
       className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" data-testid="design-doc-formatting-toolbar-scroll">
-        <div aria-label="Editor mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+        <div aria-label={t("toolbar.editor_mode_label")} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
           {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
             <button
               aria-selected={editorMode === candidate}
@@ -970,12 +974,12 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
               role="tab"
               type="button"
             >
-              {candidate === "markdown" ? "Markdown" : "Rich Text"}
+              {candidate === "markdown" ? t("toolbar.markdown_tab") : t("toolbar.rich_text_tab")}
             </button>
           ))}
         </div>
 
-        <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+        <div aria-label={t("toolbar.change_mode_label")} className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
           {canWriteCanonical ? (
             (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
               <button
@@ -985,16 +989,16 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
                 onClick={() => setChangeMode(candidate)}
                 type="button"
               >
-                {candidate === "edit" ? "Edit" : "Suggest"}
+                {candidate === "edit" ? t("toolbar.edit_mode") : t("toolbar.suggest_mode")}
               </button>
             ))
           ) : (
-            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">{t("toolbar.suggest_mode")}</span>
           )}
         </div>
 
         <Select
-          aria-label="Block type"
+          aria-label={t("toolbar.block_type_label")}
           className="h-8 min-w-[8.5rem] shrink-0 py-1 text-xs"
           fullWidth={false}
           value={selectedBlock}
@@ -1005,14 +1009,14 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
           ))}
         </Select>
 
-        <ToolbarButtonGroup label="Inline formatting">
+        <ToolbarButtonGroup label={t("toolbar.inline_formatting_label")}>
           {inlineItems.map((item) => (
             <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} iconClassName={item.className} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
           ))}
         </ToolbarButtonGroup>
 
         {wideToolbar ? (
-          <ToolbarButtonGroup label="List formatting">
+          <ToolbarButtonGroup label={t("toolbar.list_formatting_label")}>
             {listItems.map((item) => (
               <ToolbarIconButton disabled={commandDisabled(item.command)} icon={item.icon} key={item.command} label={item.label} onClick={() => runCommand(item.command)} />
             ))}
@@ -1021,7 +1025,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
       </div>
 
       <div className="relative shrink-0" ref={moreMenuRef}>
-        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label={t("toolbar.more_formatting_label")} onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
             {!wideToolbar ? listItems.map((item) => (
@@ -1048,8 +1052,8 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
                 {item.label}
               </button>
             ))}
-            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table row actions</button>
-            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">Table column actions</button>
+            <button className="block w-full border-t border-border px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">{t("toolbar.table_row_actions")}</button>
+            <button className="block w-full px-3 py-2 text-left text-sm text-text-secondary disabled:cursor-not-allowed disabled:opacity-50" disabled role="menuitem" type="button">{t("toolbar.table_column_actions")}</button>
           </div>
         ) : null}
       </div>
@@ -1106,6 +1110,7 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   selection: SelectionRange
   onOpenComposer: () => void
 }) {
+  const { t } = useT("design_docs")
   if (disabled) return null
 
   return (
@@ -1117,12 +1122,12 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
       }}
     >
       <Button
-        aria-label="Comment on selection"
+        aria-label={t("toolbar.comment_on_selection")}
         className="h-9 w-9 rounded-full shadow-lg"
         onClick={onOpenComposer}
         onMouseDown={(event) => event.preventDefault()}
         size="icon"
-        title="Comment on selection"
+        title={t("toolbar.comment_on_selection")}
         variant="secondary"
       >
         <CommentIcon />
@@ -1151,6 +1156,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   onResolve: (threadId: number) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
+  const { t } = useT("design_docs")
   const hasSelection = selection.end > selection.start
   const activeSuggestions = doc.suggestions.filter((suggestion) => suggestion.state === "pending")
   const suggestionThreadIds = new Set(doc.suggestions.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
@@ -1159,19 +1165,19 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
 
   return (
     <Panel className="relative min-h-[36rem]">
-      <SectionHeading as="h3">Threads</SectionHeading>
+      <SectionHeading as="h3">{t("threads.heading")}</SectionHeading>
       <div className="relative mt-3 space-y-3">
         {hasSelection ? (
           <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
-            <p className="text-xs font-medium text-text-secondary">New comment on selection</p>
+            <p className="text-xs font-medium text-text-secondary">{t("threads.new_comment_heading")}</p>
             <p className="mt-2 line-clamp-3 rounded bg-surface p-2 text-xs text-text-secondary ring-1 ring-border">
               {selection.selectedText || selection.text}
             </p>
             <div className="mt-3 flex gap-2">
               <Input
-                aria-label="New thread comment"
+                aria-label={t("threads.new_thread_comment_label")}
                 onChange={(event) => onCommentChange(event.target.value)}
-                placeholder="Comment"
+                placeholder={t("threads.comment_placeholder")}
                 ref={composerRef}
                 value={commentBody}
               />
@@ -1181,12 +1187,12 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
                 size="sm"
                 variant="secondary"
               >
-                Comment
+                {t("threads.comment_button")}
               </Button>
             </div>
           </div>
         ) : null}
-        {activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No active threads.</p> : null}
+        {activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("threads.empty")}</p> : null}
         {activeCommentThreads.map((thread) => (
           <CommentThreadCard
             focused={focusedThreadId === thread.id}
@@ -1229,6 +1235,7 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
 }) {
+  const { t } = useT("design_docs")
   return (
     <div
       className={`rounded border p-3 transition ${focused ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
@@ -1246,13 +1253,13 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
           size="sm"
           variant="secondary"
         >
-          Resolve
+          {t("threads.resolve")}
         </Button>
       )} />
-      <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
+      <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || t("threads.selection_fallback")}</p>
       <ThreadComments comments={thread.comments} />
       <ThreadReplyForm
-        label={`Reply to thread ${thread.id}`}
+        label={t("threads.reply_to_thread", { id: thread.id })}
         replyBody={replyBody}
         threadId={thread.id}
         onReply={onReply}
@@ -1273,6 +1280,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
   onReplyChange: (threadId: number, body: string) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
+  const { t } = useT("design_docs")
   const thread = suggestion.thread
 
   return (
@@ -1292,7 +1300,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
       {thread ? <ThreadComments comments={thread.comments} /> : null}
       {thread ? (
         <ThreadReplyForm
-          label={`Reply to suggestion ${suggestion.id}`}
+          label={t("threads.reply_to_suggestion", { id: suggestion.id })}
           replyBody={replyBody}
           threadId={thread.id}
           onReply={onReply}
@@ -1309,7 +1317,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
             size="sm"
             variant="success"
           >
-            Accept
+            {t("threads.accept")}
           </Button>
           <Button
             onClick={(event) => {
@@ -1319,10 +1327,10 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
             size="sm"
             variant="secondary"
           >
-            Reject
+            {t("threads.reject")}
           </Button>
         </div>
-      ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p>}
+      ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("threads.pending_owner_review")}</p>}
     </div>
   )
 }
@@ -1358,13 +1366,14 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
 }) {
+  const { t } = useT("design_docs")
   return (
     <div className="mt-3 flex gap-2">
       <Input
         aria-label={label}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onReplyChange(threadId, event.target.value)}
-        placeholder="Reply"
+        placeholder={t("threads.reply_placeholder")}
         value={replyBody}
       />
       <Button
@@ -1376,7 +1385,7 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
         size="sm"
         variant="secondary"
       >
-        Reply
+        {t("threads.reply_button")}
       </Button>
     </div>
   )
