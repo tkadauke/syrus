@@ -133,18 +133,12 @@ RSpec.describe TestInsights::Query do
   end
 
   it "filters by text query, last_failed, and last_seen summary columns" do
-    matching = create_identity!(
-      name: "needle failure",
-      attrs: { last_status: "failed", last_failed_at: 1.hour.ago, last_seen_at: 30.minutes.ago }
-    )
-    create_identity!(
-      name: "needle stale",
-      attrs: { last_status: "failed", last_failed_at: 3.days.ago, last_seen_at: 30.minutes.ago }
-    )
-    create_identity!(
-      name: "other failure",
-      attrs: { last_status: "failed", last_failed_at: 1.hour.ago, last_seen_at: 3.days.ago }
-    )
+    matching = create_identity!(name: "needle failure")
+    create_case!(identity: matching, status: "failed", created_at: 30.minutes.ago)
+
+    create_case!(identity: create_identity!(name: "needle stale"), status: "failed", created_at: 3.days.ago)
+
+    create_case!(identity: create_identity!(name: "other failure"), status: "failed", created_at: 30.minutes.ago)
 
     result = described_class.call(
       user: user,
