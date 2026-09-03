@@ -110,6 +110,14 @@ comment resolved. Mutations use the same Job write policy as approve, retry,
 and feedback actions: the job owner, an admin, or a write-tier repository
 member.
 
+`POST /api/v1/app/jobs/:job_id/diff_review_comments/submit` accepts
+`comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
+comments. The workflow receives both a readable feedback body and structured
+`diff_comments` artifacts containing the comment body, path, side, old/new line
+coordinates, base/head refs, hunk snapshot, and context. Accepted comments are
+marked `submitted` and linked to the created workflow; duplicate active
+`chat_feedback` submissions for the same Job return a validation error.
+
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/jobs/123/diff_review_comments \
   -H "Authorization: Bearer $SYRUS_API_TOKEN" \
