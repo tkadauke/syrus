@@ -17,6 +17,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
+import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence } from "./branchDivergence"
@@ -1050,7 +1051,7 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
         </div>
       </div>
       {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, t("run_artifacts_error"))}</p> : null}
-      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
+      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
       {artifactView === "summary" && stepSummaryArtifact ? (
         <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
       ) : null}
@@ -1071,14 +1072,32 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
   )
 }
 
-function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
+function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canReviewDiff: boolean; payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
+  const surface = view === "step_diff" ? "run_step_agent_diff" : "run_agent_diff"
+  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id)
+  const feedback = useDiffReviewFeedback({
+    baseRef: payload.base_ref,
+    buildContext: (selection) => ({
+      diff_kind: view,
+      source_surface: "run_artifact",
+      file_status: selection.file.status || null
+    }),
+    enabled: feedbackEnabled,
+    headRef: payload.head_ref,
+    jobId: payload.job_id,
+    runId: payload.run_id,
+    surface,
+    workflowId: payload.workflow_id
+  })
+
   if (view === "diff") {
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
+        {feedback.panel}
         {payload.agent_diff ? (
-          <AgentDiff diff={payload.agent_diff} />
+          <AgentDiff comments={feedback.diffThreads} diff={payload.agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )
@@ -1088,8 +1107,9 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
     return (
       <section className={artifactPanelClass()}>
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
+        {feedback.panel}
         {payload.step_agent_diff ? (
-          <AgentDiff diff={payload.step_agent_diff} />
+          <AgentDiff comments={feedback.diffThreads} diff={payload.step_agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )

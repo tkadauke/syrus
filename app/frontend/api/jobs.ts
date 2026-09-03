@@ -1019,7 +1019,10 @@ export type JobGradeLogPayload = {
 
 export type JobRunArtifactsPayload = {
   job_id: number
+  workflow_id: number | null
   run_id: number
+  base_ref: string | null
+  head_ref: string | null
   agent_diff: string | null
   agent_diff_bytes: number
   step_agent_diff: string | null

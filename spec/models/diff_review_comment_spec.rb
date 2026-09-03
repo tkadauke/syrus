@@ -68,6 +68,17 @@ RSpec.describe DiffReviewComment do
     expect(comment.errors[:run]).to include("must belong to the same job")
   end
 
+  it "requires optional run links to belong to the selected workflow" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude")
+    other_workflow = Workflow.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "claude")
+    other_step = Step.create!(workflow: other_workflow, kind: "implement", position: 1)
+    run = Run.create!(job: job, step: other_step, trigger_kind: "retry", agent_provider: "claude")
+    comment = build_comment(workflow: workflow, run: run)
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:run]).to include("must belong to the same workflow")
+  end
+
   it "stamps lifecycle timestamps when state changes" do
     comment = build_comment.tap(&:save!)
 

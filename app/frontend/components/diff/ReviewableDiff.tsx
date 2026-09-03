@@ -36,6 +36,10 @@ export type ReviewableDiffProps = {
   unavailableState?: ReactNode
 }
 
+export type ReviewableUnifiedDiffProps = Omit<ReviewableDiffProps, "files"> & {
+  diff: string
+}
+
 export function ReviewableDiff({
   annotations,
   comments,
@@ -73,8 +77,8 @@ export function ReviewableDiff({
   )
 }
 
-export function AgentDiff({ annotations, diff }: { diff: string; annotations?: Record<string, LineAnnotation> }) {
-  return <ReviewableDiff annotations={annotations} files={[{ path: "diff", patch: diff }]} mode="single-file" />
+export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiffProps & { annotations?: Record<string, LineAnnotation> }) {
+  return <ReviewableDiff annotations={annotations} files={filesFromUnifiedDiff(diff)} mode="continuous" {...props} />
 }
 
 export function UnifiedDiffTable({
@@ -195,6 +199,43 @@ function filesForMode(files: ReviewableDiffFile[], mode: "single-file" | "contin
   if (!selectedPath) return files.slice(0, 1)
   const selected = files.find((file) => file.path === selectedPath)
   return selected ? [selected] : []
+}
+
+export function filesFromUnifiedDiff(diff: string): ReviewableDiffFile[] {
+  const normalized = diff.replace(/\r\n/g, "\n").trimEnd()
+  if (!normalized) return []
+
+  const rawFiles = normalized.split(/\n(?=diff --git )/)
+  const files = rawFiles.map((patch, index) => {
+    const path = pathFromPatch(patch) || (rawFiles.length === 1 ? "diff" : `diff-${index + 1}`)
+    return {
+      path,
+      patch,
+      additions: patch.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++")).length,
+      deletions: patch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")).length,
+      status: statusFromPatch(patch)
+    }
+  })
+
+  return files.length > 0 ? files : [{ path: "diff", patch: normalized }]
+}
+
+function pathFromPatch(patch: string) {
+  const header = patch.match(/^diff --git a\/(.+?) b\/(.+)$/m)
+  if (header) return header[2]
+
+  const newPath = patch.match(/^\+\+\+ b\/(.+)$/m)
+  if (newPath) return newPath[1]
+
+  const oldPath = patch.match(/^--- a\/(.+)$/m)
+  return oldPath?.[1] || null
+}
+
+function statusFromPatch(patch: string) {
+  if (/^new file mode /m.test(patch)) return "added"
+  if (/^deleted file mode /m.test(patch)) return "removed"
+  if (/^rename from /m.test(patch) || /^rename to /m.test(patch)) return "renamed"
+  return "modified"
 }
 
 function annotationsForFile(
