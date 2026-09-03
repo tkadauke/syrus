@@ -22,10 +22,12 @@ auto-discovery (G9).
 **Phase 1 complete.** `spending_insights` finished, `throughput` and
 `team_directory` extracted, and the `ui_slot` extension point built.
 
-**Phase 2 in progress.** Landed: domain events (G1), a working
-`tick_interval` (G2), the plugin settings read path (G4), the
-`step_environment` extension point, and `build_cache` extracted. Remaining:
-kind registries (G3) and the uninstall/purge lifecycle (G10).
+**Phase 2 complete.** Domain events (G1), a working `tick_interval` (G2),
+extensible kind registries (G3), the plugin settings read path (G4), the
+uninstall/purge lifecycle (G10), the `step_environment` extension point, and
+`build_cache` extracted.
+
+**Next: Phase 3** — the search host (G6) and then `test_insights`.
 
 ## Principles
 
@@ -215,7 +217,20 @@ Make `tick_interval` real, and allow a manifest to contribute recurring entries
 with an explicit queue and schedule. Ticks must be skipped when the plugin is
 disabled, and must not fire on workers that do not consume the target queue.
 
-### G3. Kind and action registries
+### G3. Kind and action registries — partly done
+
+`Workflow::TriggerKind` and `Step::Kind` now merge `:workflow_kinds`
+contributions through `Syrus::KindRegistry`, keyed on
+`PluginRegistry.generation` so enable/disable invalidates exactly. A plugin
+cannot shadow a built-in kind.
+
+Still core-only, and deliberately so until a mover needs them: `Job::KINDS`,
+closure reasons, `WorkDefinitions`, `Notification` kinds, `AdminAction` actions,
+and `PendingActions`. Building those before something uses them would be
+speculative. Note that Job Origin removes the main reason `Job::KINDS` looked
+like it needed extending.
+
+Original problem, for the record:
 
 `Workflow::TriggerKind::ENTRIES`, `Step::Kind::ENTRIES`, `Job::KINDS`, closure
 reasons, `WorkDefinitions::BuiltIns`, `Notification` kinds, `AdminAction`
@@ -314,7 +329,14 @@ for in-repo plugins if it unblocks the scheduled-tasks move sooner.
 plugin is invisible in every spec until that host file is edited. Auto-discover
 instead.
 
-### G10. Lifecycle and data retention
+### G10. Lifecycle and data retention — done
+
+Disable / uninstall / purge are now three distinct operations.
+`Syrus::PluginPurge` plus `plugin:data` and `plugin:purge` drop a plugin's
+tables, deriving ownership from the namespace rule rather than guessing at
+table names, and refusing while the plugin is still registered.
+
+Original problem, for the record:
 
 There is no `plugin:purge` task and no documented uninstall path. Given
 Principle 5, define:
