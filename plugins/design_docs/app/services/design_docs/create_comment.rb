@@ -16,7 +16,7 @@ module DesignDocs
     def call
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
-      DesignDoc.transaction do
+      result = DesignDoc.transaction do
         if attributes[:thread_id].present?
           thread = design_doc.threads.find(attributes[:thread_id])
           comment = thread.comments.create!(
@@ -25,24 +25,27 @@ module DesignDocs
             body: attributes[:body]
           )
 
-          return Result.new(design_doc: design_doc.reload, anchor: thread.anchor, thread: thread, comment: comment, version: nil)
+          Result.new(design_doc: design_doc.reload, anchor: thread.anchor, thread: thread, comment: comment, version: nil)
+        else
+          anchor_result = CreateAnchor.call(
+            design_doc: design_doc,
+            user: user,
+            attributes: anchor_attributes,
+            actor_kind: actor_kind
+          )
+          thread = design_doc.threads.create!(anchor: anchor_result.anchor, opened_by_user: user)
+          comment = thread.comments.create!(
+            author_kind: actor_kind,
+            author_user: actor_kind == "user" ? user : nil,
+            body: attributes[:body]
+          )
+
+          Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, thread: thread, comment: comment, version: anchor_result.version)
         end
-
-        anchor_result = CreateAnchor.call(
-          design_doc: design_doc,
-          user: user,
-          attributes: anchor_attributes,
-          actor_kind: actor_kind
-        )
-        thread = design_doc.threads.create!(anchor: anchor_result.anchor, opened_by_user: user)
-        comment = thread.comments.create!(
-          author_kind: actor_kind,
-          author_user: actor_kind == "user" ? user : nil,
-          body: attributes[:body]
-        )
-
-        Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, thread: thread, comment: comment, version: anchor_result.version)
       end
+
+      CommentBroadcaster.call(design_doc: result.design_doc, changed: [ "comments" ])
+      result
     end
 
     private
