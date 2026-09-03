@@ -5,6 +5,7 @@ class RunCompletionReconciler
 
   PR_OPENED_PATTERN = /pr_open: opened PR #(?<number>\d+)/.freeze
   EXISTING_PR_PUSHED_PATTERN = /pr_open: branch pushed for existing PR #(?<number>\d+)/.freeze
+  PR_OPEN_RECOVERY_LOG_LIMIT = 200
   TERMINAL_RECOVERY_STEP_KINDS = %w[
     auto_merge
     external_pr_merge
@@ -99,7 +100,7 @@ class RunCompletionReconciler
   end
 
   def pr_open_completion_event
-    run.job_logs.reorder(sequence: :desc).pluck(:chunk).each do |chunk|
+    run.job_logs.reorder(sequence: :desc).limit(PR_OPEN_RECOVERY_LOG_LIMIT).pluck(:chunk).each do |chunk|
       text = chunk.to_s
 
       if (match = text.match(PR_OPENED_PATTERN))
