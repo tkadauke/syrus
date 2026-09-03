@@ -786,6 +786,69 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+    it "skips an unconfigured review_plan before host admission under critical worker pressure" do
+      job = job_with_single_run(step_kind: "review_plan")
+      wf = job.workflows.last
+      step = wf.first_step
+      run = step.runs.first
+      initialize_workspace_repo(wf)
+      record_critical_worker_pressure!
+      expect(RunHostAdmission).not_to receive(:call)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.not_to have_enqueued_job(RunJob)
+
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(step.details).to include(
+        "skipped" => true,
+        "skip_reason" => "review_plan_not_configured"
+      )
+      expect(wf.reload.artifact("run_host_admission")).to be_nil
+      expect(JobLog.where(run: run).pluck(:chunk).grep(/compute host admission deferred/)).to be_empty
+    end
+
+    it "skips a no-match visual_review prefilter before host admission under critical worker pressure" do
+      job = job_with_single_run(step_kind: "visual_review")
+      wf = job.workflows.last
+      step = wf.first_step
+      run = step.runs.first
+      syrus_yml = <<~YAML
+        visual_review:
+          enabled: true
+          when_files_changed:
+            - "app/frontend/**"
+      YAML
+      initialize_workspace_repo(
+        wf,
+        ".syrus.yml" => syrus_yml,
+        "lib/backend.rb" => "class Backend; end\n"
+      )
+      record_critical_worker_pressure!
+      expect(RunHostAdmission).not_to receive(:call)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.not_to have_enqueued_job(RunJob)
+
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(step.details).to include(
+        "skipped" => true,
+        "skip_reason" => "visual_review_when_files_changed_no_match"
+      )
+      expect(wf.reload.artifact("visual_review_iterations")).to eq([
+        {
+          "iteration" => 1,
+          "critique" => "No changed files matched the configured visual_review.when_files_changed patterns.",
+          "verdict" => "skipped"
+        }
+      ])
+      expect(wf.artifact("run_host_admission")).to be_nil
+      expect(JobLog.where(run: run).pluck(:chunk).grep(/compute host admission deferred/)).to be_empty
+    end
+
     it "abandons a Run as cancelled when its Workflow is already terminal" do
       job
       wf = job.workflows.last
@@ -901,6 +964,54 @@ RSpec.describe RunJob, :ci_only do
       sh("git -C #{seed} commit -q -m 'seed #{branch}'")
       sh("git -C #{seed} push -q origin #{branch}")
     end
+  end
+
+  def job_with_single_run(step_kind:)
+    Factories.job_with_run(
+      user: user,
+      repository: repository,
+      state: "queued",
+      workflow_attrs: { trigger_kind: "manual" },
+      step_attrs: { kind: step_kind },
+      run_attrs: { trigger_kind: "manual" }
+    )
+  end
+
+  def initialize_workspace_repo(workflow, files = {})
+    path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(path)
+    sh("git init -q -b main #{path}")
+    sh("git -C #{path} config user.email test@example.com")
+    sh("git -C #{path} config user.name Test")
+    File.write(path.join("README.md"), "seed\n")
+    sh("git -C #{path} add README.md")
+    sh("git -C #{path} commit -q -m initial")
+    sh("git -C #{path} remote add origin #{path}")
+    sh("git -C #{path} fetch -q origin main:refs/remotes/origin/main")
+    sh("git -C #{path} checkout -q -b #{workflow.job.branch_name || "syrus/direct-#{workflow.job.id}"}")
+    files.each do |relative_path, content|
+      full_path = path.join(relative_path)
+      FileUtils.mkdir_p(full_path.dirname)
+      File.write(full_path, content)
+      sh("git -C #{path} add #{relative_path}")
+    end
+    sh("git -C #{path} commit -q -m 'feature changes'") if files.any?
+    path
+  end
+
+  def record_critical_worker_pressure!
+    WorkerHostHealthSample.create!(
+      hostname: SyrusVersion.hostname,
+      role: "worker",
+      version: "test",
+      observed_at: Time.current,
+      raw_metrics: {},
+      cpu_pressure_some: 95.0,
+      cpu_pressure_full: 80.0,
+      io_pressure_some: 10.0,
+      io_pressure_full: 5.0,
+      memory_used_percent: 98.0
+    )
   end
 
   def implemented_job_with_branch
