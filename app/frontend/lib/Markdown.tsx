@@ -1,9 +1,11 @@
 import { Fragment, type MouseEvent, type ReactNode } from "react"
+import katex from "katex"
+import "katex/dist/katex.min.css"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler }
+type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
@@ -278,7 +280,7 @@ function splitTableRow(line: string) {
 function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
   const shouldLinkifySlugs = options.linkifySlugs !== false
   const tokens: InlineToken[] = []
-  const pattern = /(`[^`]+`|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\))/g
+  const pattern = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*|\\\((?!\s)(?:\\.|[^\\\n])*?[^\\\s]\\\)|\$(?![\s$])(?:\\.|[^$\\\n])*?\$)/g
   let cursor = 0
   let key = 0
   let match: RegExpExecArray | null
@@ -314,6 +316,9 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
   if (token.startsWith("`")) {
     return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0)}</code>
   }
+  if ((token.startsWith("$") || token.startsWith("\\(")) && options.renderMath !== false) {
+    return renderInlineMath(token, key)
+  }
   if (token.startsWith("**")) {
     return <strong key={key}>{renderInline(token.slice(2, -2), options)}</strong>
   }
@@ -330,13 +335,35 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     if (href) {
       return (
         <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
-          {renderInline(link[1], { ...options, linkifySlugs: false })}
+          {renderInline(link[1], { ...options, linkifySlugs: false, renderMath: false })}
         </a>
       )
     }
   }
 
   return token
+}
+
+function renderInlineMath(token: string, key: number) {
+  const expression = token.startsWith("$") ? token.slice(1, -1) : token.slice(2, -2)
+  if (!validInlineMathExpression(expression)) return token
+
+  const html = katex.renderToString(expression, {
+    displayMode: false,
+    output: "htmlAndMathml",
+    strict: false,
+    throwOnError: false,
+    trust: false
+  })
+
+  return <span className="syrus-inline-math" dangerouslySetInnerHTML={{ __html: html }} key={key} />
+}
+
+function validInlineMathExpression(expression: string) {
+  if (expression.trim() !== expression || expression.length === 0) return false
+  if (/^\d/.test(expression)) return /[\\^_{}=<>+\-*/]/.test(expression) || /^\d+(?:[A-Za-z]|\\)/.test(expression)
+
+  return /[A-Za-z\\^_{}=<>+\-*/]/.test(expression)
 }
 
 function safeHref(href: string) {
