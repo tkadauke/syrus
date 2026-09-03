@@ -18,6 +18,7 @@ module Api
         #   ?state           one of queued|running|succeeded|failed|cancelled
         #   ?trigger_kind    one of Workflow::TriggerKind.values
         #   ?job_id          numeric Job id (narrows to one Job's runs)
+        #   ?run_id          numeric Run id (single-run compact lookup)
         #   ?since           ISO8601; bound on Run.finished_at OR
         #                    started_at if not finished. Strict gte.
         #
@@ -25,11 +26,12 @@ module Api
         #   ?page (1-indexed), ?per (default 50, max 100)
         def index
           scope = Run.includes(:run_diagnostic, :run_failure_classification, step: :workflow)
-                     .order(Arel.sql("COALESCE(finished_at, started_at, created_at) DESC"))
+                     .order(id: :desc)
           scope = scope.where(state: params[:state])               if params[:state].present?
           scope = scope.where(trigger_kind: params[:trigger_kind]) if params[:trigger_kind].present?
           scope = scope.where(job_id: params[:job_id])             if params[:job_id].present?
-          scope = scope.where("COALESCE(finished_at, started_at, created_at) >= ?", parse_since) if params[:since].present?
+          scope = scope.where(id: params[:run_id])                 if params[:run_id].present?
+          scope = scope.where(recent_time_predicate, since: parse_since) if params[:since].present?
 
           per   = (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
           page  = [ params[:page].to_i, 1 ].max
@@ -85,6 +87,14 @@ module Api
           # Garbage-in: ignore the filter rather than 400. Mirrors
           # how the other admin filters tolerate bad values.
           1.year.ago
+        end
+
+        def recent_time_predicate
+          <<~SQL.squish
+            finished_at >= :since
+            OR (finished_at IS NULL AND started_at >= :since)
+            OR (finished_at IS NULL AND started_at IS NULL AND created_at >= :since)
+          SQL
         end
 
         # Compact row. Keep it lean — callers drill into

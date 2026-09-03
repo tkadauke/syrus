@@ -30,7 +30,7 @@ class Workflow < ApplicationRecord
   # Resolved per validation, not captured at class load: plugin-contributed
   # trigger kinds appear (and disappear) with the plugin, and a frozen array
   # would only ever hold the built-ins.
-  validates :trigger_kind, presence: true, inclusion: { in: -> (_) { Workflow::TriggerKind.values } }
+  validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validate :user_matches_job
@@ -325,6 +325,7 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_orphan_active_runs!
+    request_live_process_kill!
     Run.where(step_id: steps.select(:id)).active.find_each do |run|
       run.update_columns(state: "cancelled", finished_at: Time.current)
       RunResourceSummary.refresh_for(run.reload)
@@ -332,6 +333,7 @@ class Workflow < ApplicationRecord
   end
 
   def cancel_active_descendants!
+    request_live_process_kill!
     Step.suppress_cancel_cascade do
       active_steps = projected_active_steps
 
@@ -353,6 +355,16 @@ class Workflow < ApplicationRecord
 
   def terminal?
     succeeded? || failed? || cancelled?
+  end
+
+  def request_live_process_kill!
+    run_ids = runs.select(:id)
+    SpawnedProcess
+      .running
+      .where("workflow_id = :workflow_id OR run_id IN (:run_ids)", workflow_id: id, run_ids: run_ids)
+      .find_each { |process| process.request_kill! }
+  rescue StandardError => e
+    Rails.logger.warn("[Workflow##{id}] failed to request spawned process kills: #{e.class}: #{e.message}")
   end
 
   def runs

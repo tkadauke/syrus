@@ -16,6 +16,7 @@ module Runs
     # Workflow so the whole burst goes terminal and the Workflow cleanup path
     # runs.
     def cancelled!
+      request_live_process_kill!
       return unless step
 
       if step.may_cancel?
@@ -64,6 +65,14 @@ module Runs
     delegate :step, :job, :user, :user_id, :agent_provider, :agent_outcome,
              :run_failure_classification, :run_diagnostic, :finished_at,
              :workflow_id, :job_id, to: :run
+
+    def request_live_process_kill!
+      run.spawned_processes.running.find_each do |process|
+        process.request_kill!
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[Run##{run.id}] failed to request spawned process kill after cancellation: #{e.class}: #{e.message}")
+    end
 
     def cascade_failure_to_step!
       return unless step

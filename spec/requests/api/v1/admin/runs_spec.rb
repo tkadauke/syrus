@@ -92,6 +92,13 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       expect(ids).not_to include(foreign_run.id)
     end
 
+    it "filters by run_id without scanning the global run list" do
+      get "/api/v1/admin/runs", params: { run_id: run_b.id }, headers: auth
+
+      expect(parse_body["total"]).to eq(1)
+      expect(parse_body["runs"].map { |r| r["id"] }).to eq([ run_b.id ])
+    end
+
     it "filters by ?since (gte against finished_at COALESCE started_at)" do
       get "/api/v1/admin/runs", params: { since: 45.minutes.ago.iso8601 }, headers: auth
       ids = parse_body["runs"].map { |r| r["id"] }

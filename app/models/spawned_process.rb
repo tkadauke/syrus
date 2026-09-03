@@ -72,7 +72,7 @@ class SpawnedProcess < ApplicationRecord
   # loop terminates the process group. We do NOT send signals from
   # here — the web pod and worker pod can be different hosts, and pid
   # numbers are per-host. The DB flag is the cross-pod signal.
-  def request_kill!(user:)
+  def request_kill!(user: nil)
     update!(kill_requested_at: Time.current, kill_requested_by_user: user)
   end
 

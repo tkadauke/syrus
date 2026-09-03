@@ -491,6 +491,26 @@ RSpec.describe Run, :ci_only do
       expect(workflow.reload).to be_running
     end
 
+    it "requests termination for live spawned processes owned by the cancelled Run" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      process = SpawnedProcess.create!(
+        run: run,
+        workflow: workflow,
+        kind: "grader",
+        command: "bin/rspec-ci",
+        hostname: "worker-1",
+        started_at: 1.minute.ago
+      )
+
+      run.cancel!
+      run.save!
+
+      expect(process.reload.kill_requested_at).to be_present
+      expect(process.kill_requested_by_user).to be_nil
+    end
+
     it "does not cancel a workflow when a Run is skipped" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
       step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 0, state: "queued")

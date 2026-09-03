@@ -363,6 +363,25 @@ RSpec.describe Workflow, :ci_only do
       expect(done_run.reload.state).to  eq("succeeded")
     end
 
+    it "requests termination for live spawned processes before cancelling active descendants" do
+      step = Step.create!(workflow: wf, kind: "grader", position: 0, state: "running")
+      run = Run.create!(job: job, step: step, trigger_kind: "ci_failure", state: "running")
+      process = SpawnedProcess.create!(
+        run: run,
+        workflow: wf,
+        kind: "grader",
+        command: "bin/rspec-ci",
+        hostname: "worker-1",
+        started_at: 1.minute.ago
+      )
+
+      wf.start!
+      wf.cancel!
+      wf.save!
+
+      expect(process.reload.kill_requested_at).to be_present
+    end
+
     it "is idempotent — cancelling again does not crash on already-cancelled descendants" do
       step = Step.create!(workflow: wf, kind: "summarize_amend", position: 0, state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
       wf.start!
@@ -936,6 +955,14 @@ RSpec.describe Workflow, :ci_only do
       done_run    = Run.create!(job: job, step: done_step,   trigger_kind: "initial", state: "succeeded")
       failed_run  = Run.create!(job: job, step: failed_step, trigger_kind: "initial", state: "failed")
       orphan_run  = Run.create!(job: job, step: queued_step, trigger_kind: "initial")  # queued — speculatively created
+      orphan_process = SpawnedProcess.create!(
+        run: orphan_run,
+        workflow: wf,
+        kind: "grader",
+        command: "bin/rspec-ci",
+        hostname: "worker-1",
+        started_at: 1.minute.ago
+      )
 
       wf.start!
       wf.fail!
@@ -951,6 +978,7 @@ RSpec.describe Workflow, :ci_only do
         host_pressure_level: "unknown",
         host_sample_confidence: "unknown"
       )
+      expect(orphan_process.reload.kill_requested_at).to be_present
 
       # Queued tail Steps stay queued so Retry-from-failed-step can
       # reopen the failed Step and the dispatcher can advance through
