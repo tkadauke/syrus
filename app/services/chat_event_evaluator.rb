@@ -421,60 +421,27 @@ class ChatEventEvaluator
     def call(provider:, chat_session:, event:, prompt:, session_id:, transcript_jsonl:, timeout:, max_turns:)
       Dir.mktmpdir("syrus-chat-event-evaluator") do |workspace_path|
         with_evaluator_mcp_config(chat_session, event: event, session_id: session_id) do |mcp_config|
-          case provider
-          when "claude"
-            run_claude(chat_session, workspace_path, prompt, session_id, transcript_jsonl, mcp_config, timeout, max_turns)
-          when "codex"
-            run_codex(chat_session, workspace_path, prompt, session_id, transcript_jsonl, mcp_config, timeout)
-          else
-            raise ChatProviders::ConfigurationError, "Unknown chat provider: #{provider.inspect}"
+          provider_class = ChatProviders.for(provider)
+          unless provider_class.respond_to?(:invoke_event_evaluator)
+            raise ChatProviders::ConfigurationError, "#{provider.inspect} does not support scoped event evaluation"
           end
+
+          provider_class.invoke_event_evaluator(
+            chat_session: chat_session,
+            workspace_path: workspace_path,
+            prompt: prompt,
+            session_id: session_id,
+            transcript_jsonl: transcript_jsonl,
+            mcp_config: mcp_config,
+            timeout: timeout,
+            max_turns: max_turns,
+            runner: ChatTurnJob.agent_runner
+          )
         end
       end
     end
 
     private
-
-    def run_claude(chat_session, workspace_path, prompt, session_id, transcript_jsonl, mcp_config, timeout, max_turns)
-      write_claude_transcript(workspace_path, session_id, transcript_jsonl)
-      ClaudeInvocation.new(
-        workspace_path,
-        prompt: prompt,
-        oauth_token: chat_session.user.claude_oauth_token,
-        log_sink: ->(*) { },
-        runner: ChatTurnJob.agent_runner,
-        timeout: timeout,
-        max_turns: max_turns,
-        mcp_config: mcp_config,
-        resume_session_id: session_id,
-        disallowed_tools: ChatProviders::Claude::PLANNING_DISALLOWED_TOOLS,
-        model: chat_session.chat_model.presence,
-        effort_level: chat_session.chat_effort
-      ).run
-    ensure
-      remove_claude_transcript(workspace_path, session_id)
-    end
-
-    def run_codex(chat_session, workspace_path, prompt, session_id, transcript_jsonl, mcp_config, timeout)
-      codex_home = ChatWorkspace.agent_home_for(chat_session, "codex")
-      codex_auth = CodexAuth.new(user: chat_session.user, codex_home: codex_home)
-      auth = CodexAuth.with_refresh_lock(user: chat_session.user) { codex_auth.prepare! }
-      CodexInvocation.new(
-        workspace_path,
-        prompt: prompt,
-        api_key: auth.api_key,
-        log_sink: ->(*) { },
-        runner: ChatTurnJob.agent_runner,
-        timeout: timeout,
-        codex_home: codex_home,
-        mcp_servers: mcp_servers_for(mcp_config),
-        resume_session_id: session_id,
-        resume_transcript_jsonl: transcript_jsonl
-      ).run
-    ensure
-      codex_auth&.persist_updated_auth_json
-      CodexUsageProbe.refresh_for(user: chat_session.user) if chat_session.user.codex_auth_mode == "chatgpt_login"
-    end
 
     def with_evaluator_mcp_config(chat_session, event:, session_id:)
       Tempfile.create([ "syrus-chat-evaluator-mcp-#{chat_session.id}-", ".json" ]) do |file|
@@ -507,29 +474,6 @@ class ChatEventEvaluator
         "SYRUS_CHAT_MCP_TOOL_TIER" => "evaluator",
         "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-evaluator-sidecar"
       )
-    end
-
-    def mcp_servers_for(path)
-      raw = JSON.parse(File.read(path))
-      raw.fetch("mcpServers").transform_values do |server|
-        {
-          command: server.fetch("command"),
-          args: Array(server["args"]),
-          env: server.fetch("env", {}),
-          required: server["alwaysLoad"] != false
-        }
-      end
-    end
-
-    def write_claude_transcript(workspace_path, session_id, transcript_jsonl)
-      path = ProviderSession.canonical_path_for(home: ENV.fetch("HOME"), cwd: workspace_path, session_id: session_id)
-      FileUtils.mkdir_p(File.dirname(path))
-      File.write(path, transcript_jsonl)
-    end
-
-    def remove_claude_transcript(workspace_path, session_id)
-      path = ProviderSession.canonical_path_for(home: ENV.fetch("HOME"), cwd: workspace_path, session_id: session_id)
-      FileUtils.rm_f(path)
     end
   end
 end

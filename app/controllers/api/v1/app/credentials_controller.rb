@@ -85,7 +85,8 @@ module Api
         # opens. Uses the provider-hosted paste callback (the only redirect the
         # client whitelists), so the authorize page shows a code to copy back.
         def claude_oauth_start
-          flow = ClaudeOauth.begin(redirect_uri: ClaudeOauth::PASTE_REDIRECT_URI)
+          oauth = claude_oauth!
+          flow = oauth.begin(redirect_uri: oauth.const_get(:PASTE_REDIRECT_URI))
           session[:claude_oauth] = {
             "verifier" => flow.verifier,
             "state" => flow.state,
@@ -103,8 +104,9 @@ module Api
         # an OAuth exchange and the session PKCE stash is cleared regardless.
         def claude_oauth_exchange
           pasted = params[:code].to_s
+          oauth = claude_oauth!
 
-          if ClaudeOauth.looks_like_token?(pasted)
+          if oauth.looks_like_token?(pasted)
             Current.user.update!(claude_oauth_token: pasted.strip)
             session.delete(:claude_oauth)
             probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
@@ -117,7 +119,7 @@ module Api
             return
           end
 
-          token = ClaudeOauth.exchange(
+          token = oauth.exchange(
             code: pasted,
             verifier: stash["verifier"],
             state: stash["state"],
@@ -128,29 +130,33 @@ module Api
 
           probe = CredentialProbe.call(user: Current.user, credential: "claude_oauth_token")
           render json: { credential_test: probe.as_json, message: probe.message }
-        rescue ClaudeOauth::Error => e
+        rescue StandardError => e
+          raise unless oauth_exchange_error?(e)
+
           render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
         end
 
         def codex_oauth_start
-          flow = CodexOauth.begin(redirect_uri: CodexOauth::PASTE_REDIRECT_URI)
+          oauth = codex_oauth!
+          flow = oauth.begin(redirect_uri: oauth.const_get(:PASTE_REDIRECT_URI))
           session[:codex_oauth] = {
             "verifier" => flow.verifier,
             "state" => flow.state,
             "redirect_uri" => flow.redirect_uri
           }
-          listener_started = CodexOauth.start_callback_listener(user: Current.user)
+          listener_started = oauth.start_callback_listener(user: Current.user)
           render json: { authorize_url: flow.authorize_url, listener_started: listener_started }
         end
 
         def codex_oauth_exchange
+          oauth = codex_oauth!
           stash = session[:codex_oauth].to_h
           if stash["verifier"].blank?
             render_error("oauth_not_started", "Start the ChatGPT authorization first.", status: :unprocessable_content)
             return
           end
 
-          auth_json = CodexOauth.exchange(
+          auth_json = oauth.exchange(
             code: params[:code].to_s,
             verifier: stash["verifier"],
             state: stash["state"],
@@ -161,7 +167,9 @@ module Api
 
           probe = CredentialProbe.call(user: Current.user, credential: "codex_auth_json")
           render json: { credential_test: probe.as_json, message: probe.message }
-        rescue CodexOauth::Error => e
+        rescue StandardError => e
+          raise unless oauth_exchange_error?(e)
+
           render_error("oauth_exchange_failed", e.message, status: :unprocessable_content)
         end
 
@@ -318,6 +326,21 @@ module Api
 
         def testable_credentials
           %w[ github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key ]
+        end
+
+        def claude_oauth!
+          "ClaudeOauth".safe_constantize ||
+            raise(ChatProviders::ConfigurationError, "Claude provider plugin is not installed")
+        end
+
+        def codex_oauth!
+          "CodexOauth".safe_constantize ||
+            raise(ChatProviders::ConfigurationError, "Codex provider plugin is not installed")
+        end
+
+        def oauth_exchange_error?(error)
+          error.is_a?(ChatProviders::ConfigurationError) ||
+            error.class.name.in?([ "ClaudeOauth::Error", "CodexOauth::Error" ])
         end
 
         def credentials_params

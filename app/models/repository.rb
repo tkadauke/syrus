@@ -390,8 +390,10 @@ class Repository < ApplicationRecord
 
   def create_github_input_source
     return if user_id.nil?
+    github_source = "InputSources::Github".safe_constantize
+    return unless github_source
 
-    InputSources::Github.create!(
+    github_source.create!(
       repository: self,
       user_id: user_id,
       polling_enabled: read_attribute(:polling_enabled),
