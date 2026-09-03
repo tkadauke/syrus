@@ -128,13 +128,9 @@ RSpec.describe PreviewWorkspace do
     def stub_repository!(repository, source_path)
       allow_any_instance_of(Repository).to receive(:authenticated_url).and_return(source_path)
       allow_any_instance_of(Repository).to receive(:remote_url).and_return("https://github.example/acme/app.git")
-      # WorkflowWorkspace reaches the remote through GithubAuthenticatedGit
-      # rather than Repository#authenticated_url. Without this the example only
-      # passed when a clone happened to be left over in the developer's real
-      # ~/.syrus; with an isolated data root it tried a real authenticated
-      # fetch and failed on the missing token.
-      allow_any_instance_of(GithubAuthenticatedGit).to receive(:default_url).and_return(source_path)
-      allow_any_instance_of(GithubAuthenticatedGit).to receive(:pat_url).and_return(source_path)
+      allow(GithubAuthenticatedGit).to receive(:run) do |**_kwargs, &block|
+        block.call(source_path)
+      end
     end
 
     it "defaults to checking out the Job's feature branch" do
