@@ -134,11 +134,6 @@ class McpToolPolicy
   def workflow_tools
     base = [
       Mcp::Tools::ReadLiveStateTool,
-      Mcp::Tools::ReadMemoryTool,
-      Mcp::Tools::WriteMemoryTool,
-      Mcp::Tools::DeleteMemoryTool,
-      Mcp::Tools::SearchMemoriesTool,
-      Mcp::Tools::ListMemoriesTool,
       Mcp::Tools::GetCoverageReportTool,
       Mcp::Tools::ReadRunWorkerHealthTool,
       Mcp::Tools::StartPreviewTool,
@@ -194,9 +189,6 @@ class McpToolPolicy
       Mcp::Tools::ReadScheduledTaskTool,
       Mcp::Tools::ReadQueueTool,
       Mcp::Tools::SearchSyrusDocsTool,
-      Mcp::Tools::ReadMemoryTool,
-      Mcp::Tools::SearchMemoriesTool,
-      Mcp::Tools::ListMemoriesTool,
       Mcp::Tools::SubmitScopedEventDecisionTool
     ]
     tools = apply_admin_filter(tools)
@@ -264,12 +256,7 @@ class McpToolPolicy
   def insight_tools
     [
       Mcp::Tools::ReadLiveStateTool,
-      Mcp::Tools::ReadRunWorkerHealthTool,
-      Mcp::Tools::ReadMemoryTool,
-      Mcp::Tools::WriteMemoryTool,
-      Mcp::Tools::SearchMemoriesTool,
-      Mcp::Tools::ListMemoriesTool
+      Mcp::Tools::ReadRunWorkerHealthTool
     ]
   end
-
 end

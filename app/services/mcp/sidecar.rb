@@ -100,12 +100,20 @@ module Mcp
             tool_set.available_for?(chat_session, tier: tier)
           end
         end
-        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier) }
+        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session) }
     end
 
-    def self.mcp_tools_for(tool_set_class, tier:)
+    def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil)
       definitions = PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: :tool_definitions) do
-        tool_set_class.tool_definitions(tier: tier)
+        # Optional `chat_session:` keyword, mirroring the workflow side's
+        # optional `context:`: a tool set whose advertised set depends on who
+        # is asking (an admin-only audit tool, say) cannot decide from the
+        # tier alone.
+        if tool_set_class.method(:tool_definitions).parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :chat_session }
+          tool_set_class.tool_definitions(tier: tier, chat_session: chat_session)
+        else
+          tool_set_class.tool_definitions(tier: tier)
+        end
       end
 
       definitions.map do |defn|

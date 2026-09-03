@@ -92,8 +92,6 @@ RSpec.describe Mcp::Sidecar do
         close_job_successfully
         retry_job
         set_job_priority
-        write_memory
-        read_memory
         repo_info
         submit_chat_feedback
         rename_chat
@@ -105,6 +103,8 @@ RSpec.describe Mcp::Sidecar do
         edit_preview_file
         show_preview
         close_preview
+        write_memory
+        read_memory
       ])
       expect(tool_names.size).to eq(30)
       expect(tool_names).not_to include("complete_implement_step")
@@ -206,7 +206,7 @@ RSpec.describe Mcp::Sidecar do
         "list_repo_documents",
         "read_repo_document"
       )
-      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "write_memory", "read_memory", "rename_chat", "ask_user_question")
+      expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "rename_chat", "ask_user_question")
     end
 
     it "does not advertise attachment or work-creation tools to supervisor chats" do
@@ -290,7 +290,6 @@ RSpec.describe Mcp::Sidecar do
 
       calls = {
         "list_chats" => {},
-        "list_memories" => {},
         "read_chat_messages" => { chat_session_id: admin_session.id },
         "add_epic_dependency" => { epic_id: dependent.id, depends_on_epic_id: prerequisite.id },
         "get_spending" => {}
@@ -383,7 +382,12 @@ RSpec.describe Mcp::Sidecar do
         "admin_refresh_installations",
         "force_fail_job"
       )
-      admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name == "force_fail_job" }
+      # Plugin-provided admin tools (agent_memory's audit history) are advertised
+      # per session rather than through the registry, so the sessionless list
+      # covers only the core ones.
+      plugin_tool_names = described_class.plugin_tools_for(admin_session, tier: :essential)
+                                         .map { |tool| McpToolRegistry.tool_name_for(tool) }
+      admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name == "force_fail_job" } - plugin_tool_names
       expect(described_class.chat_tool_names(tier: :essential)).to include(*admin_tool_names)
       expect(described_class.chat_tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end

@@ -85,7 +85,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("complete_implement_step", "submit_coding_changes")
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
     it "keeps the local mode chat tool set gated by role and feature flag" do
@@ -94,7 +94,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("read_file", "write_file", "run_command", "git_status", "complete_implement_step")
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
     it "keeps the workflow implementation tool set unchanged" do
@@ -104,7 +104,7 @@ RSpec.describe McpToolRegistry do
       expect(described_class.tools_for_context(context)).to eq(McpToolPolicy.for(context))
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
-          read_live_state read_memory write_memory delete_memory search_memories list_memories
+          read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_summary submit_test_plan submit_review_plan
           submit_artifact submit_visual_artifact
@@ -119,7 +119,7 @@ RSpec.describe McpToolRegistry do
 
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
-          read_live_state read_memory write_memory delete_memory search_memories list_memories
+          read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_adversarial_review
         ]
@@ -133,7 +133,7 @@ RSpec.describe McpToolRegistry do
 
       expect(tool_names_for(context)).to contain_exactly(
         *%w[
-          read_live_state read_memory write_memory delete_memory search_memories list_memories
+          read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_visual_review submit_visual_artifact
         ]

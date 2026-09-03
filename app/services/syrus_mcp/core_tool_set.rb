@@ -13,11 +13,6 @@ module SyrusMcp
     # list is the full unfiltered menu.
     MCP_TOOL_CLASSES = [
       ::Mcp::Tools::ReadLiveStateTool,
-      ::Mcp::Tools::ReadMemoryTool,
-      ::Mcp::Tools::WriteMemoryTool,
-      ::Mcp::Tools::DeleteMemoryTool,
-      ::Mcp::Tools::SearchMemoriesTool,
-      ::Mcp::Tools::ListMemoriesTool,
       ::Mcp::Tools::GetCoverageReportTool,
       ::Mcp::Tools::ReadRunWorkerHealthTool,
       ::Mcp::Tools::StartPreviewTool,

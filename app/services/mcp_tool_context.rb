@@ -49,7 +49,9 @@ class McpToolContext
       user:                   chat_session.user,
       repository:             chat_session.repository,
       chat_session:           chat_session,
-      allowed_memory_scopes:  ChatMemory::TOOL_SCOPES,
+      # What this surface permits, not what the memory store defines: a chat
+      # may write cross-repository facts, a workflow run may not.
+      allowed_memory_scopes:  %w[ global repository ],
       allowed_repository_ids: chat_session.attached_repositories.ids
     )
   end

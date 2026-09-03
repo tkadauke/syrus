@@ -24,7 +24,6 @@ class User < ApplicationRecord
   has_many :chat_sessions
   has_many :chat_participants, dependent: :destroy
   has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
-  has_many :chat_memories, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
   has_many :cron_templates, dependent: :destroy

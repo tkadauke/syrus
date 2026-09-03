@@ -24,7 +24,6 @@ RSpec.describe SyrusMcp::CoreToolSet do
       names = definitions.map { |d| d[:name] }
       expect(names).to contain_exactly(
         "read_live_state",
-        "read_memory", "write_memory", "delete_memory", "search_memories", "list_memories",
         "get_coverage_report", "read_run_worker_health",
         "start_preview", "stop_preview", "read_preview_log",
         "report_main_concern",

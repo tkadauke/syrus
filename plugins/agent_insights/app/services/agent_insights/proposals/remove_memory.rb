@@ -39,7 +39,7 @@ module AgentInsights
       end
 
       def deletable_memory_for(actor)
-        scope = ChatMemory.active.where(id: suggestion.target_memory_id)
+        scope = ::AgentMemory::Entry.active.where(id: suggestion.target_memory_id)
         return scope.first if actor.admin?
 
         scope.find_by(

@@ -74,15 +74,19 @@ export function buildSidebarNavItems(
       order: item.order,
     }))
 
-  const pluginItems: MergedNavItem[] = pluginPages.map((page) => ({
-    id: page.id,
-    label: page.label_key ? translate(page.label_key, { defaultValue: page.label }) : page.label,
-    to: page.path,
-    icon: resolvePluginIcon(page.icon),
-    order: page.order,
-    smartFolderApiPath: page.smart_folder_api_path,
-    smartFolderSubject: page.smart_folder_subject,
-  }))
+  // Pages that declare section "settings" belong to the settings side nav,
+  // not the primary sidebar.
+  const pluginItems: MergedNavItem[] = pluginPages
+    .filter((page) => (page.section ?? "primary") === "primary")
+    .map((page) => ({
+      id: page.id,
+      label: page.label_key ? translate(page.label_key, { defaultValue: page.label }) : page.label,
+      to: page.path,
+      icon: resolvePluginIcon(page.icon),
+      order: page.order,
+      smartFolderApiPath: page.smart_folder_api_path,
+      smartFolderSubject: page.smart_folder_subject,
+    }))
 
   return [...coreItems, ...pluginItems]
 }

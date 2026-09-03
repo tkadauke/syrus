@@ -29,6 +29,7 @@ module Syrus
       domain_subscriber
       step_environment
       workflow_kinds
+      memory_store
       search_source
       test_evidence
     ].freeze
@@ -64,7 +65,8 @@ module Syrus
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
       search_source:           -> { Syrus::Plugin::SearchSource },
-      test_evidence:           -> { Syrus::Plugin::TestEvidence }
+      test_evidence:           -> { Syrus::Plugin::TestEvidence },
+      memory_store:            -> { Syrus::Plugin::MemoryStore }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

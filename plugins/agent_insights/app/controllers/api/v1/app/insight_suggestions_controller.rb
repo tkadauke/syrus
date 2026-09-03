@@ -242,7 +242,7 @@ module Api
             return
           end
 
-          memory = Current.user.chat_memories.create!(
+          memory = Current.user.agent_memories.create!(
             kind: "project_fact",
             scope: "repository",
             scope_id: repository.id,

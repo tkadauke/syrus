@@ -145,9 +145,6 @@ class McpToolRegistry
         chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
         chat(Mcp::Tools::RetryJobTool, mutation: true),
         chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
-        chat(Mcp::Tools::WriteMemoryTool, mutation: true),
-        chat(Mcp::Tools::ReadMemoryTool),
-        chat(Mcp::Tools::AdminReadMemoryAuditHistoryTool, admin_only: true),
         chat(Mcp::Tools::RepoInfoTool),
         chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),
         chat(Mcp::Tools::RenameChatTool, mutation: true),
@@ -252,11 +249,6 @@ class McpToolRegistry
         chat(Mcp::Tools::RemoveEpicDependencyTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::AddJobDependencyTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::RemoveJobDependencyTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::SearchMemoriesTool, tier: :deferred),
-        chat(Mcp::Tools::ListMemoriesTool, tier: :deferred),
-        chat(Mcp::Tools::DeleteMemoryTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::PublishMemoryTool, tier: :deferred, mutation: true),
-        chat(Mcp::Tools::UnpublishMemoryTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ListRepoDocumentsTool, tier: :deferred),
         chat(Mcp::Tools::ReadRepoDocumentTool, tier: :deferred),
         chat(Mcp::Tools::CreateRepoDocumentTool, tier: :deferred, mutation: true),
@@ -317,11 +309,6 @@ class McpToolRegistry
 
       [
         workflow(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::ReadMemoryTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::WriteMemoryTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::DeleteMemoryTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::SearchMemoriesTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::ListMemoriesTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
@@ -348,11 +335,7 @@ class McpToolRegistry
     def agent_insight_entries
       [
         entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight),
-        entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight),
-        entry(Mcp::Tools::ReadMemoryTool, surface: :agent_insight),
-        entry(Mcp::Tools::WriteMemoryTool, surface: :agent_insight, mutation: true),
-        entry(Mcp::Tools::SearchMemoriesTool, surface: :agent_insight),
-        entry(Mcp::Tools::ListMemoriesTool, surface: :agent_insight)
+        entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight)
       ]
     end
 

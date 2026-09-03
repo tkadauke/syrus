@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_094103) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -103,7 +103,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.index ["created_job_id"], name: "index_agent_insight_suggestions_on_created_job_id"
     t.index ["job_id"], name: "index_agent_insight_suggestions_on_job_id"
     t.index ["proposal_type"], name: "index_agent_insight_suggestions_on_proposal_type"
-    t.index ["repository_id", "created_at"], name: "index_agent_insight_suggestions_on_repository_id_and_created_at"
+    t.index ["repository_id", "created_at"], name: "idx_on_repository_id_created_at_8e19aa0e5e"
     t.index ["repository_id", "state"], name: "idx_insight_suggestions_repo_state"
     t.index ["repository_id"], name: "index_agent_insight_suggestions_on_repository_id"
     t.index ["state"], name: "index_agent_insight_suggestions_on_state"
@@ -111,6 +111,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.index ["superseded_by_job_id"], name: "index_agent_insight_suggestions_on_superseded_by_job_id"
     t.index ["target_insight_id"], name: "index_agent_insight_suggestions_on_target_insight_id"
     t.index ["target_memory_id"], name: "index_agent_insight_suggestions_on_target_memory_id"
+  end
+
+  create_table "agent_memory_audit_events", force: :cascade do |t|
+    t.string "actor_kind", null: false
+    t.integer "actor_run_id"
+    t.integer "actor_user_id"
+    t.datetime "created_at", null: false
+    t.integer "entry_id", null: false
+    t.string "event_type", null: false
+    t.float "new_confidence"
+    t.text "new_content"
+    t.string "new_kind"
+    t.float "previous_confidence"
+    t.text "previous_content"
+    t.string "previous_kind"
+    t.index ["actor_run_id"], name: "index_agent_memory_audit_events_on_actor_run_id"
+    t.index ["actor_user_id"], name: "index_agent_memory_audit_events_on_actor_user_id"
+    t.index ["entry_id"], name: "index_agent_memory_audit_events_on_entry_id"
+  end
+
+  create_table "agent_memory_entries", force: :cascade do |t|
+    t.string "author"
+    t.float "confidence"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
+    t.datetime "expires_at"
+    t.string "kind", null: false
+    t.datetime "last_verified_at"
+    t.boolean "published", default: false, null: false
+    t.string "scope", null: false
+    t.bigint "scope_id"
+    t.bigint "source_id"
+    t.string "source_type"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.string "visibility"
+    t.index ["deleted_at"], name: "index_agent_memory_entries_on_deleted_at"
+    t.index ["deleted_by_user_id"], name: "index_agent_memory_entries_on_deleted_by_user_id"
+    t.index ["scope_id", "published", "scope"], name: "index_agent_memory_entries_on_scope_id_and_published_and_scope"
+    t.index ["user_id", "scope", "scope_id"], name: "index_agent_memory_entries_on_user_id_and_scope_and_scope_id"
   end
 
   create_table "app_settings", force: :cascade do |t|
@@ -345,7 +387,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.string "approval_policy", default: "manual", null: false
     t.boolean "auto_file_proposals", default: false, null: false
     t.boolean "auto_submit_jobs", default: false, null: false
-    t.bigint "chat_session_id", null: false
+    t.integer "chat_session_id", null: false
     t.text "completion_condition"
     t.integer "consecutive_blocked_events", default: 0, null: false
     t.integer "consecutive_no_op_iterations", default: 0, null: false
@@ -355,62 +397,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.string "last_iteration_signature"
     t.json "mode_snapshot", null: false
     t.text "prompt", null: false
-    t.bigint "repository_id"
+    t.integer "repository_id"
     t.string "status", default: "active", null: false
     t.datetime "terminal_at"
     t.json "terminal_details"
     t.string "terminal_reason"
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.integer "user_id", null: false
     t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
     t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
     t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
     t.index ["repository_id"], name: "index_chat_goals_on_repository_id"
     t.index ["user_id", "status"], name: "index_chat_goals_on_user_id_and_status"
     t.index ["user_id"], name: "index_chat_goals_on_user_id"
-  end
-
-  create_table "chat_memories", force: :cascade do |t|
-    t.string "author"
-    t.float "confidence"
-    t.text "content", null: false
-    t.datetime "created_at", null: false
-    t.datetime "deleted_at"
-    t.integer "deleted_by_user_id"
-    t.binary "embedding"
-    t.datetime "expires_at"
-    t.string "kind", null: false
-    t.datetime "last_verified_at"
-    t.boolean "published", default: false, null: false
-    t.string "scope", null: false
-    t.bigint "scope_id"
-    t.bigint "source_id"
-    t.string "source_type"
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.string "visibility"
-    t.index ["deleted_at"], name: "index_chat_memories_on_deleted_at"
-    t.index ["deleted_by_user_id"], name: "index_chat_memories_on_deleted_by_user_id"
-    t.index ["scope_id", "published", "scope"], name: "index_chat_memories_on_scope_id_and_published_and_scope"
-    t.index ["user_id", "scope", "scope_id"], name: "index_chat_memories_on_user_id_and_scope_and_scope_id"
-  end
-
-  create_table "chat_memory_audit_events", force: :cascade do |t|
-    t.string "actor_kind", null: false
-    t.integer "actor_run_id"
-    t.integer "actor_user_id"
-    t.integer "chat_memory_id", null: false
-    t.datetime "created_at", null: false
-    t.string "event_type", null: false
-    t.float "new_confidence"
-    t.text "new_content"
-    t.string "new_kind"
-    t.float "previous_confidence"
-    t.text "previous_content"
-    t.string "previous_kind"
-    t.index ["actor_run_id"], name: "index_chat_memory_audit_events_on_actor_run_id"
-    t.index ["actor_user_id"], name: "index_chat_memory_audit_events_on_actor_user_id"
-    t.index ["chat_memory_id"], name: "index_chat_memory_audit_events_on_chat_memory_id"
   end
 
   create_table "chat_message_pins", force: :cascade do |t|
@@ -517,7 +516,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -968,7 +967,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
@@ -977,7 +976,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.string "github_issue_url"
     t.json "goal_prompt_snapshot"
     t.integer "number", null: false
-    t.bigint "owner_id"
+    t.integer "owner_id"
     t.integer "owner_user_id"
     t.json "pending_epic_dependency_refs", null: false
     t.integer "repository_id", null: false
@@ -1245,14 +1244,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", null: false
+    t.json "approval_evidence", default: {}, null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.bigint "chat_goal_id"
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
@@ -1302,7 +1301,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
     t.datetime "last_seen_fork_review_comment_at"
-    t.bigint "linked_chat_id"
+    t.integer "linked_chat_id"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
@@ -1684,7 +1683,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.integer "slow_sql_count"
     t.integer "sql_count"
     t.float "sql_duration_ms"
-    t.string "sql_fingerprint", limit: 700
+    t.string "sql_fingerprint", limit: 1000
     t.string "trace_id", limit: 100
     t.datetime "updated_at", null: false
     t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
@@ -2142,7 +2141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.integer "step_id"
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.integer "user_id", null: false
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"
@@ -2233,7 +2232,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", null: false
+    t.json "filter", default: {}, null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -2324,6 +2323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
+    t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end
 
@@ -2376,8 +2376,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.string "relay_address"
     t.datetime "started_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
-    t.bigint "workflow_id"
+    t.integer "user_id", null: false
+    t.integer "workflow_id"
     t.string "working_directory", null: false
     t.index ["finished_at"], name: "index_terminal_sessions_on_finished_at"
     t.index ["user_id"], name: "index_terminal_sessions_on_user_id"
@@ -2552,7 +2552,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
@@ -2860,7 +2860,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
     t.string "state", default: "queued", null: false
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.integer "user_id", null: false
     t.string "worker_hostname"
     t.string "worker_storage_key"
     t.datetime "workflow_admission_override_at"

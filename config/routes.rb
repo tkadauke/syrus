@@ -57,13 +57,6 @@ Rails.application.routes.draw do
             post :linking_token
           end
         end
-        resources :memories, only: %i[ index create update destroy ] do
-          member do
-            post :publish
-            delete :publish, action: :unpublish
-            get :audit_events
-          end
-        end
         resources :smart_folders, only: %i[ create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ] do
           collection do
@@ -552,7 +545,6 @@ Rails.application.routes.draw do
 
   get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "documents", to: "spa#show", as: :documents
-  get "memories", to: "spa#show", as: :memories
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
   get "search", to: "spa#show", as: :search
@@ -569,6 +561,7 @@ Rails.application.routes.draw do
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
+  get "memories", to: "spa#show", as: :memories
   get "design_docs", to: "spa#show", as: :design_docs
   get "design_docs/:id", to: "spa#show", as: :design_doc, constraints: { id: /\d+/ }
   get "db_browser", to: "spa#show", as: :db_browser

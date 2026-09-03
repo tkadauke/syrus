@@ -53,7 +53,7 @@ RSpec.describe AgentInsights::Suggestion do
     end
 
     it "accepts remove_memory proposals with a target memory and explanation" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",

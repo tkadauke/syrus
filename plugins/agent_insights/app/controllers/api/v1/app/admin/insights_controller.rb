@@ -52,7 +52,7 @@ module Api
               return
             end
 
-            memory = suggestion.job.user.chat_memories.create!(
+            memory = suggestion.job.user.agent_memories.create!(
               kind: "project_fact",
               scope: "instance",
               scope_id: nil,

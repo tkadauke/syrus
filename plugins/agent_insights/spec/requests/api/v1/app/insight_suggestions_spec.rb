@@ -205,7 +205,7 @@ RSpec.describe "App API insight suggestions", type: :request do
     end
 
     it "auto-accepts stale remove_memory suggestions whose target memory was already deleted" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",
@@ -424,7 +424,7 @@ RSpec.describe "App API insight suggestions", type: :request do
     end
 
     it "soft-deletes the target memory when accepting a remove_memory suggestion" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",
@@ -441,7 +441,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect {
         patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
               params: { action_type: "accept" }, as: :json
-      }.to change(ChatMemoryAuditEvent.where(chat_memory: memory, event_type: "deleted"), :count).by(1)
+      }.to change(::AgentMemory::AuditEvent.where(entry: memory, event_type: "deleted"), :count).by(1)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to include("Memory removed")
@@ -452,7 +452,7 @@ RSpec.describe "App API insight suggestions", type: :request do
     end
 
     it "accepts a remove_memory suggestion when the target memory was already deleted" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",
@@ -470,7 +470,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect {
         patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
               params: { action_type: "accept" }, as: :json
-      }.not_to change(ChatMemoryAuditEvent.where(chat_memory: memory, event_type: "deleted"), :count)
+      }.not_to change(::AgentMemory::AuditEvent.where(entry: memory, event_type: "deleted"), :count)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to include("already removed")
@@ -481,7 +481,7 @@ RSpec.describe "App API insight suggestions", type: :request do
 
     it "rejects remove_memory acceptance for a memory the user cannot delete" do
       other_user = Factories.user
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: other_user,
         kind: "project_fact",
         scope: "repository",
@@ -510,18 +510,18 @@ RSpec.describe "App API insight suggestions", type: :request do
       sign_in_as(user)
     end
 
-    it "creates a repository-scoped ChatMemory from the memory_suggestion" do
+    it "creates a repository-scoped memory from the memory_suggestion" do
       suggestion = create_suggestion(memory_suggestion: "Always check the logs first")
 
       expect {
         patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
               params: { action_type: "save_memory" }, as: :json
-      }.to change(ChatMemory, :count).by(1)
+      }.to change(::AgentMemory::Entry, :count).by(1)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to include("saved")
 
-      memory = ChatMemory.last
+      memory = ::AgentMemory::Entry.last
       expect(memory.kind).to eq("project_fact")
       expect(memory.scope).to eq("repository")
       expect(memory.scope_id).to eq(repository.id)
@@ -539,7 +539,7 @@ RSpec.describe "App API insight suggestions", type: :request do
             params: { action_type: "save_memory" }, as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(ChatMemory.last.content).to eq(
+      expect(::AgentMemory::Entry.last.content).to eq(
         "Avoid copying https://x-access-token:[REDACTED]@github.com/acme/widgets.git"
       )
     end
@@ -625,7 +625,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect {
         patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
               params: { action_type: "save_memory" }, as: :json
-      }.to change(ChatMemory, :count).by(1)
+      }.to change(::AgentMemory::Entry, :count).by(1)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to include("saved")

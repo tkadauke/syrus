@@ -9,6 +9,8 @@ export type SidebarPluginPage = {
   order: number
   component?: string | null
   icon?: string | null
+  /** "primary" (main sidebar nav) or "settings" (settings section side nav). */
+  section?: string | null
   smart_folder_api_path?: string | null
   smart_folder_subject?: string | null
 }

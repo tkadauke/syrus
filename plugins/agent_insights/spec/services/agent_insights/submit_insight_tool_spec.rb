@@ -351,7 +351,7 @@ RSpec.describe AgentInsights::Tools::SubmitInsightTool do
     end
 
     it "stores remove_memory proposals without deleting the target memory" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",
@@ -381,7 +381,7 @@ RSpec.describe AgentInsights::Tools::SubmitInsightTool do
     it "rejects remove_memory proposals for inaccessible memories" do
       user.update!(global_role: "user")
       other_repo = Factories.repository(user: user)
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
         scope: "repository",

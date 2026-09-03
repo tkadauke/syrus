@@ -295,7 +295,7 @@ module AgentInsights
           id = Integer(memory_id, exception: false)
           return unless id
 
-          ChatMemory.active.find_by(
+          ::AgentMemory::Entry.active.find_by(
             id: id,
             user_id: run.job.user_id,
             scope: "repository",

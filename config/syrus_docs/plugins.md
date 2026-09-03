@@ -900,6 +900,50 @@ any `PluginRecord` commit -- so enable and disable take effect on the next read
 with no staleness window, and hot paths like label rendering and step dispatch
 do not re-merge on every call.
 
+## `memory_store`
+
+The durable facts an agent carries between runs. This was `ChatMemory` plus
+nine MCP tools plus seven prompt injection sites, all core, which made
+"remember things" a fixed part of what Syrus is rather than a choice.
+
+The point of the extension point is that memory is **swappable, not merely
+optional**: core prompts ask whoever is registered, and render nothing when
+nobody is, so a different implementation — a vector store, a hosted memory
+service — can take over by registering here.
+
+```ruby
+# app/services/my_plugin/store.rb
+module MyPlugin
+  class Store
+    include Syrus::Plugin::MemoryStore
+
+    # Memory context appended to an implementing agent's prompt.
+    def self.prompt_context(user:, repository_ids:) = "..."
+
+    # Pinned-context lines for a chat's system prompt, within the caller's
+    # remaining byte budget.
+    def self.chat_context_lines(user:, repository_ids:, byte_budget:) = [ "  - ..." ]
+
+    # The "how to use memory" section of the chat system prompt. The tool
+    # names belong to whoever provides the tools, so the copy does too.
+    def self.chat_instructions = "## Memory\n..."
+  end
+end
+```
+
+Every method is optional. Core never names a provider constant: it goes
+through `Syrus::Memory`, which returns empty context and empty instructions
+when no provider is registered, and logs-and-degrades when one raises. A
+broken memory store weakens a prompt; it does not fail a run.
+
+The bundled `agent_memory` plugin is the default provider. The tools
+(`write_memory`, `read_memory`, `search_memories`, `list_memories`,
+`delete_memory`, `publish_memory`, `unpublish_memory`,
+`admin_read_memory_audit_history`) come from its own `mcp_tool_set` and
+`chat_mcp_tool_set`, not from core's registry — so disabling the plugin
+removes them from the advertised set rather than leaving tools that fail when
+called.
+
 ## `domain_subscriber`
 
 Every other extension point lets a plugin contribute behavior when core asks
@@ -1533,7 +1577,7 @@ bottom of the sidebar below the named sections. Omit `group_id` (or set it to
 Sidebar-page plugins should declare:
 
 - `sidebar_page` provider metadata with `id`, fallback `label`, `label_key`,
-  `path`, `paths`, `component`, `icon`, and `order`.
+  `path`, `paths`, `component`, `icon`, `order`, and an optional `section`.
 - install-time `frontend.routes` metadata mapping component keys to plugin
   frontend files, the same way `admin_page` does.
 - install-time `frontend.i18n` metadata listing plugin locale files.
@@ -1548,6 +1592,15 @@ sidebar entries) for rendering in the primary sidebar nav; a freshly
 registered plugin with `default_enabled: true` and no prior `PluginRecord`
 row is treated as enabled without an operator opt-in step, same as any other
 extension point.
+
+`section` picks which nav the page joins. The default, `"primary"`, is the
+main sidebar. `"settings"` puts it in the settings section's own side nav
+instead, which is where a per-user, preferences-shaped page belongs — that is
+how `agent_memory` owns `/memories`. Either way the page still needs an
+explicit `get "<path>", to: "spa#show"` line in `config/routes.rb`: plugin
+route dispatch covers `api/v1/app/` and `api/v1/admin/`, and the SPA
+wildcards cover `/admin/*` and `/repositories/:id/plugin/*`, but a top-level
+sidebar path has neither.
 
 The `team_directory` plugin owns the operator directory at `/profiles` and the
 per-person profile pages beneath it. Note the naming: it has nothing to do with

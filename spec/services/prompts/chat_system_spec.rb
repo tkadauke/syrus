@@ -178,12 +178,6 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("/syrus-home/.syrus/chat-workspaces/*/repositories/")
     expect(out).to match(/must NEVER use\s+Write, Edit, or Bash to create, modify, delete, rename,\s+move, format, or generate files/)
     expect(out).to match(/propose a Syrus Job or Epic and wait\s+for the operator to confirm it\./)
-    expect(out).to include("## Memory")
-    expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
-    expect(out).to include("Do NOT write to the filesystem for memory")
-    expect(out).to include("write_memory(kind, scope, content)")
-    expect(out).to include("list_memories")
-    expect(out).to include("search_memories(query)")
     expect(out).to include("Recommend; don't decide.")
     expect(out).to include("use the `ask_user_question` MCP tool")
     expect(out).to include("the built-in `AskUserQuestion` tool")
@@ -208,20 +202,12 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Never write "Job #142",\s+"job 142", or "J142" — use JOB-142\./)
   end
 
-  it "renders own global memories near the top" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "user_pref",
-      scope: "global",
-      content: "Prefers concise planning notes."
-    )
+  it "asks the registered memory store for its instructions, and renders nothing without one" do
+    allow(Syrus::Memory).to receive(:chat_instructions).and_return("## Memory\n\nRemember things.")
+    expect(described_class.new(repository: repo).to_s).to include("## Memory", "Remember things.")
 
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out).to include("Pinned context:")
-    expect(out).to include("- [user_pref] Prefers concise planning notes.")
-    expect(out.index("Pinned context:")).to be < out.index("Your environment:")
+    allow(Syrus::Memory).to receive(:chat_instructions).and_return("")
+    expect(described_class.new(repository: repo).to_s).not_to include("## Memory")
   end
 
   it "renders chat-session pinned context" do
@@ -234,87 +220,6 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo, chat_session: chat).to_s
 
     expect(out).to include("Pinned context:\n  - Keep the migration compatible with MySQL.")
-  end
-
-  it "explains when to use MCP memory tools" do
-    out = described_class.new(repository: repo).to_s
-
-    expect(out).to include("## Memory")
-    expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
-    expect(out).to include("Do NOT write to the filesystem for memory")
-    expect(out).to include("When to save:")
-    expect(out).to include("write_memory(kind, scope, content)")
-    expect(out).to include("publish_memory(memory_id)")
-    expect(out).to include("`user_pref`, `feedback`, `project_fact`, `reference`, `decision`")
-  end
-
-  it "uses kind names that match ChatMemory::KIND" do
-    out = described_class.new(repository: repo).to_s
-
-    expect(out).to include("`user_pref`")
-    expect(out).to include("`project_fact`")
-    expect(out).not_to match(/\*\*Kinds:\*\*.*\buser\b(?!_pref)/)
-    expect(out).not_to match(/\*\*Kinds:\*\*.*\bproject\b(?!_fact)/)
-  end
-
-  it "renders own repository memories for attached repositories" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    attached_repo = Factories.repository(user: repo.user, owner: "Acme", name: "Forum")
-    unattached_repo = Factories.repository(user: repo.user, owner: "Acme", name: "Backlog")
-    chat.chat_attachments.create!(attachable: attached_repo)
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "project_fact",
-      scope: "repository",
-      scope_id: attached_repo.id,
-      content: "Forum deploys from trunk."
-    )
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "project_fact",
-      scope: "repository",
-      scope_id: unattached_repo.id,
-      content: "Backlog has a private deploy rule."
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out).to include("- [project_fact/#{attached_repo.id}] Forum deploys from trunk.")
-    expect(out).not_to include("Backlog has a private deploy rule.")
-  end
-
-  it "renders published repository memories from other users" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    other_user = Factories.user
-    ChatMemory.create!(
-      user: other_user,
-      kind: "reference",
-      scope: "repository",
-      scope_id: repo.id,
-      content: "Shared staging runbook is in the team drive.",
-      published: true
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out).to include("- [reference/#{repo.id}/shared] Shared staging runbook is in the team drive.")
-  end
-
-  it "omits unpublished repository memories from other users" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    other_user = Factories.user
-    ChatMemory.create!(
-      user: other_user,
-      kind: "decision",
-      scope: "repository",
-      scope_id: repo.id,
-      content: "Private unreconciled rollout note."
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out).to include("Pinned context:\n  - (none)")
-    expect(out).not_to include("Private unreconciled rollout note.")
   end
 
   it "includes a compact environment snapshot with chat tool availability" do
@@ -517,104 +422,6 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Documents:")
     expect(out).to include("[#{document.id}] Drainage notes (Google Doc; use `read_repo_document`)")
     expect(out.index("Attached context:")).to be < out.index("What Syrus is")
-  end
-
-  it "ranks high-confidence memories before low-confidence ones" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "Low confidence fact.", confidence: 0.3)
-    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "High confidence fact.", confidence: 0.9)
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out.index("High confidence fact.")).to be < out.index("Low confidence fact.")
-  end
-
-  it "ranks repository-scoped memories above global ones when a repository is attached" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    attached_repo = Factories.repository(user: repo.user)
-    chat.chat_attachments.create!(attachable: attached_repo)
-    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "Global fact.")
-    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "repository", scope_id: attached_repo.id, content: "Repository-scoped fact.")
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(out.index("Repository-scoped fact.")).to be < out.index("Global fact.")
-  end
-
-  it "caps rendered memory text by byte budget" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "project_fact",
-      scope: "repository",
-      scope_id: repo.id,
-      content: "é" * 2_000
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    pinned = pinned_context_body(out)
-    clipped = pinned.delete_prefix("  - ").delete_suffix("...")
-    expect(clipped.bytesize).to be <= 2.kilobytes
-    expect(pinned).to end_with("...")
-  end
-
-  it "reports how many visible memories were omitted after the byte budget is exhausted" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    4.times do |index|
-      ChatMemory.create!(
-        user: repo.user,
-        kind: "project_fact",
-        scope: "global",
-        content: "Memory #{index} #{"A" * 1_890}"
-      )
-    end
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(pinned_context_body(out)).to include("  - (2 more not shown — call list_memories to retrieve them)")
-  end
-
-  it "does not append an omitted-memory notice when all memories fit" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "user_pref",
-      scope: "global",
-      content: "Prefers short answers."
-    )
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "decision",
-      scope: "global",
-      content: "Use the current planning template."
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-
-    expect(pinned_context_body(out)).not_to include("more not shown")
-  end
-
-  it "does not append an omitted-memory notice when the final rendered memory is clipped" do
-    chat = ChatSession.create!(user: repo.user, repository: repo)
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "project_fact",
-      scope: "global",
-      content: "A" * 1_900
-    )
-    ChatMemory.create!(
-      user: repo.user,
-      kind: "project_fact",
-      scope: "global",
-      content: "B" * 500
-    )
-
-    out = described_class.new(repository: repo, chat_session: chat).to_s
-    pinned = pinned_context_body(out)
-
-    expect(pinned).to end_with("...")
-    expect(pinned).not_to include("more not shown")
   end
 
   it "captures the workspace expectations that should not regress" do

@@ -63,7 +63,7 @@ module AgentInsights
           },
           target_memory_id: {
             type: "integer",
-            description: "Required for remove_memory proposals. The ChatMemory id that should be removed if an operator accepts."
+            description: "Required for remove_memory proposals. The memory id that should be removed if an operator accepts."
           },
           stale_memory_text: {
             type: "string",
@@ -262,7 +262,7 @@ module AgentInsights
           id = Integer(memory_id, exception: false)
           return unless id
 
-          scope = ChatMemory.active.where(id: id)
+          scope = ::AgentMemory::Entry.active.where(id: id)
           return scope.first if run.job.user.admin?
 
           scope.find_by(user_id: run.job.user_id, scope: "repository", scope_id: run.job.repository_id)

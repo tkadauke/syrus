@@ -841,7 +841,11 @@ in the sidebar, chat header, and provider settings until usage resets or the
 operator switches the chat to another configured provider.
 
 Agents can persist structured memories such as user preferences, project
-facts, feedback, references, and decisions. Memories are private to their
+facts, feedback, references, and decisions. Agent memory ships as a plugin,
+enabled by default, and is the store the memory tools and the memory section
+of agent prompts read from — disable it from Admin → Plugins and prompts
+simply carry no memory, or replace it with a different store entirely.
+Memories are private to their
 owner by default; repository-scoped memories can be published to make them
 visible to other operators attached to that repository. The **Memories**
 settings panel lists, filters, edits, publishes, unpublishes, and deletes

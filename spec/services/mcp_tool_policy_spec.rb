@@ -32,11 +32,6 @@ RSpec.describe McpToolPolicy do
 
       expect(tools).to include(
         Mcp::Tools::ReadLiveStateTool,
-        Mcp::Tools::ReadMemoryTool,
-        Mcp::Tools::WriteMemoryTool,
-        Mcp::Tools::DeleteMemoryTool,
-        Mcp::Tools::SearchMemoriesTool,
-        Mcp::Tools::ListMemoriesTool,
         Mcp::Tools::GetCoverageReportTool,
         Mcp::Tools::ReadRunWorkerHealthTool,
         Mcp::Tools::StartPreviewTool,
@@ -50,7 +45,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::ReportMainConcernTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool, Mcp::Tools::SubmitJobMetadataTool)
-      expect(tools.size).to eq(17)
+      expect(tools.size).to eq(12)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -63,7 +58,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
-      expect(tools.size).to eq(12)
+      expect(tools.size).to eq(7)
     end
 
     it "excludes report_main_concern from the adversarial_reviewer role" do
@@ -90,7 +85,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitArtifactTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools.size).to eq(13)
+      expect(tools.size).to eq(8)
     end
 
     it "excludes report_main_concern from the visual_reviewer role" do
@@ -260,32 +255,13 @@ RSpec.describe McpToolPolicy do
 
       expect(described_class.for(context)).to include(
         Mcp::Tools::ReadLiveStateTool,
-        Mcp::Tools::ReadRunWorkerHealthTool,
-        Mcp::Tools::ReadMemoryTool
+        Mcp::Tools::ReadRunWorkerHealthTool
       )
       expect(described_class.for(context)).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
     end
   end
 
   describe "chat planner role" do
-    it "includes essential memory tools" do
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools).to include(Mcp::Tools::WriteMemoryTool, Mcp::Tools::ReadMemoryTool)
-    end
-
-    it "includes deferred memory tools" do
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools).to include(
-        Mcp::Tools::SearchMemoriesTool,
-        Mcp::Tools::ListMemoriesTool,
-        Mcp::Tools::DeleteMemoryTool
-      )
-    end
-
     it "excludes admin tools for non-admin users" do
       context = context_for(chat_session)
       tools = described_class.for(context)

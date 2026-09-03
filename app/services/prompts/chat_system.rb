@@ -28,30 +28,7 @@ module Prompts
         Pinned context:
         #{pinned_context}
 
-        ## Memory
-
-        Use the Syrus memory MCP tools to persist facts across conversations.
-        Do NOT write to the filesystem for memory -- not to MEMORY.md, not to
-        any chat workspace directory.
-
-        **When to save:** user profile details (role, expertise), corrections
-        and confirmed approaches, project decisions, external references,
-        architectural choices.
-
-        **Tools:**
-        - `write_memory(kind, scope, content)` -- create a memory.
-          `scope: global` for cross-repo facts; `scope: repository` +
-          `scope_id` (repository id) for repo-specific ones.
-        - `list_memories` / `search_memories(query)` -- retrieve. Call when
-          prior context seems relevant.
-        - `read_memory(memory_id)` -- read the full content of a specific
-          memory.
-        - `delete_memory(memory_id)` -- remove stale or wrong memories when
-          asked.
-        - `publish_memory(memory_id)` -- share with all users in that scope.
-        - `unpublish_memory(memory_id)` -- make it private again.
-
-        **Kinds:** `user_pref`, `feedback`, `project_fact`, `reference`, `decision`.
+        #{memory_instructions}
 
         #{environment_snapshot}
 
@@ -748,31 +725,21 @@ module Prompts
       lines.presence&.join("\n") || "  - (none)"
     end
 
+    # Memory lines and the "how to use memory" section both come from the
+    # registered memory store: the tool names in that copy belong to whoever
+    # provides the tools, so a chat with no store advertises neither.
     def chat_memory_context_lines
       return [] unless @chat_session
 
-      memories = ChatMemory.visible_to(@chat_session.user, attached_repositories)
-                           .order(Arel.sql("CASE WHEN scope = 'repository' THEN 0 ELSE 1 END, confidence IS NULL ASC, confidence DESC, last_verified_at IS NULL ASC, last_verified_at DESC, created_at DESC"))
-      remaining = 2.kilobytes
-      rendered = 0
-      total = memories.size
+      Syrus::Memory.chat_context_lines(
+        user: @chat_session.user,
+        repository_ids: attached_repositories,
+        byte_budget: 2.kilobytes
+      )
+    end
 
-      lines = memories.map do |memory|
-        next if remaining <= 0
-
-        label = "[#{memory.kind}#{memory.scope == "repository" ? "/#{memory.scope_id}" : ""}#{memory.published? ? "/shared" : ""}]"
-        line = "#{label} #{memory.content.squish}"
-        clipped = line.safe_byteslice(0, remaining)
-        remaining -= clipped.bytesize
-        rendered += 1
-        suffix = clipped.bytesize < line.bytesize ? "..." : ""
-        "  - #{clipped}#{suffix}"
-      end.compact
-
-      omitted = total - rendered
-      lines << "  - (#{omitted} more not shown — call list_memories to retrieve them)" if omitted > 0
-
-      lines
+    def memory_instructions
+      Syrus::Memory.chat_instructions
     end
 
     def environment_snapshot

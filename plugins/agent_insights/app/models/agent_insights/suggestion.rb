@@ -9,7 +9,7 @@ module AgentInsights
     belongs_to :job
     belongs_to :repository
     belongs_to :created_job, class_name: "Job", optional: true
-    belongs_to :target_memory, class_name: "ChatMemory", optional: true
+    belongs_to :target_memory, class_name: "AgentMemory::Entry", optional: true
     belongs_to :target_insight, class_name: "AgentInsights::Suggestion", optional: true
     belongs_to :superseded_by_insight, class_name: "AgentInsights::Suggestion", optional: true
     belongs_to :superseded_by_job, class_name: "Job", optional: true
@@ -22,7 +22,7 @@ module AgentInsights
                            numericality: { greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0 }
     validates :state,      presence: true, inclusion: { in: STATES }
     validates :proposal_type, presence: true, inclusion: { in: PROPOSAL_TYPES }
-    validates :stale_memory_text, length: { maximum: ChatMemory::CONTENT_MAX_LENGTH }, allow_blank: true
+    validates :stale_memory_text, length: { maximum: ::AgentMemory::Entry::CONTENT_MAX_LENGTH }, allow_blank: true
     validates :stale_memory_evidence, presence: true, if: :remove_memory?
     validates :retired_reason, presence: true, if: :retired?
     validate :remove_memory_targets_memory
@@ -41,7 +41,7 @@ module AgentInsights
       relation
         .pending_remove_memory
         .left_joins(:target_memory)
-        .where("chat_memories.id IS NULL OR chat_memories.deleted_at IS NOT NULL")
+        .where("agent_memory_entries.id IS NULL OR agent_memory_entries.deleted_at IS NOT NULL")
         .find_each(&:accept_obsolete_remove_memory!)
     end
 

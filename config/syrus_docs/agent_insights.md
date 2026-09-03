@@ -122,7 +122,7 @@ The insight agent receives:
   creating a row, the tool checks recent active memories for the same user,
   scope, scope id, and kind. If normalized text has a matching first ~80
   characters or high trigram/Jaccard overlap, the write is rejected with an
-  error that names the existing `ChatMemory` id so the agent can read, update,
+  error that names the existing `AgentMemory::Entry` id so the agent can read, update,
   or delete the existing memory instead of creating a duplicate. During rebase
   retry storms, workflow agents may not write prescriptive memories that tell
   future agents to skip diagnosis or abort a conflict based on an unverified
@@ -156,7 +156,7 @@ agent files a `remove_memory` insight with `target_memory_id`,
 `stale_memory_text`, and `stale_memory_evidence`; it must not call
 `delete_memory` directly during analysis. Operators accept removal proposals
 through the application, which soft-deletes the memory via
-`ChatMemory#soft_delete_by!` and records the normal audit event.
+`AgentMemory::Entry#soft_delete_by!` and records the normal audit event.
 
 ### Regular chat agents
 

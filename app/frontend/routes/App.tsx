@@ -47,7 +47,6 @@ import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
 import { HiddenChatsRoute } from "./HiddenChats"
 import { JobDetailRoute } from "./JobDetail"
-import { MemoriesRoute } from "./Memories"
 import { NotificationsSettingsRoute } from "./NotificationsSettings"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
@@ -68,6 +67,7 @@ import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 import { PluginSidebarPageRoute } from "../pluginSidebarPages"
+import { fetchSidebarPluginPages } from "../api/sidebarPages"
 
 type AppRouteDefinition = {
   path: string
@@ -133,7 +133,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/profiles", element: <PluginSidebarPageRoute /> },
   { path: "/profiles/:id", element: <PluginSidebarPageRoute /> },
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
-  { path: "/memories", element: <SettingsSectionRoute><MemoriesRoute /></SettingsSectionRoute> },
+  { path: "/memories", element: <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },
@@ -545,6 +545,7 @@ function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayl
 function SettingsSectionRoute({ children }: { children: ReactNode }) {
   const { t: tCommon } = useT("common")
   const { t } = useT("settings")
+  const { t: tNav } = useT("nav")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
@@ -554,12 +555,27 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
     staleTime: Number.POSITIVE_INFINITY
   })
   const simpleMode = bootstrap.data?.app?.mode === "simple"
+  // Plugins can own a settings page (agent memory, say); they declare
+  // section "settings" on their sidebar_page metadata.
+  const pluginPages = useQuery({
+    queryKey: ["sidebar", "plugin_pages"],
+    queryFn: fetchSidebarPluginPages,
+    staleTime: 30_000
+  })
+  const pluginSettingsItems = (pluginPages.data?.pages ?? [])
+    .filter((page) => page.section === "settings")
+    .map((page) => ({
+      key: page.id,
+      label: page.label_key ? tNav(page.label_key, { defaultValue: page.label }) : page.label,
+      path: page.path,
+      active: (path: string) => page.paths.some((candidate) => path === candidate)
+    }))
 
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
         <nav aria-label={tCommon("shell.settings_nav_aria")} className="flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4">
-          {settingsNavigationItems(t, simpleMode).map((item) => (
+          {settingsNavigationItems(t, simpleMode, pluginSettingsItems).map((item) => (
             <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
               {item.label}
             </Link>
@@ -575,7 +591,11 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
 
 type SettingsNavigationItem = { key: string; label: string; path: string; active: (path: string) => boolean }
 
-function settingsNavigationItems(t: (key: string) => string, simpleMode = false): SettingsNavigationItem[] {
+function settingsNavigationItems(
+  t: (key: string) => string,
+  simpleMode = false,
+  pluginItems: SettingsNavigationItem[] = []
+): SettingsNavigationItem[] {
   const items: SettingsNavigationItem[] = [
     { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
     { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
@@ -584,13 +604,13 @@ function settingsNavigationItems(t: (key: string) => string, simpleMode = false)
     { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
     { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
-    { key: "memories", label: t("nav.memories"), path: "/memories", active: (path) => path === "/memories" },
     { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
     { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
   ]
 
-  return simpleMode ? items.filter((item) => item.key !== "templates") : items
+  const withPlugins = [ ...items, ...pluginItems ]
+  return simpleMode ? withPlugins.filter((item) => item.key !== "templates") : withPlugins
 }
 
 function normalizedAppPath(pathname: string) {

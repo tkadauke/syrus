@@ -29,7 +29,7 @@ policy value today, but the string enum leaves room for future policies.
 
 `DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of
 destroying it: `deleted_at`/`deleted_by_user_id` are set (mirroring the
-`ChatMemory`/`ChatMessage` soft-delete pattern), and dependent rows —
+`AgentMemory::Entry`/`ChatMessage` soft-delete pattern), and dependent rows —
 messages, bookmarks, queued messages, attachments, proposals, pending
 actions, the whiteboard, and any captured agent session — are left
 untouched in the DB for audit. The chat workspace directory, per-chat agent

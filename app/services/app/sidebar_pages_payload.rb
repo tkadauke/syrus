@@ -26,6 +26,10 @@ module App
         path: page.fetch(:path).to_s,
         paths: Array(page[:paths].presence || page[:path]).map(&:to_s),
         component: page[:component].presence&.to_s,
+        # "primary" (the default) puts the page in the main sidebar nav;
+        # "settings" puts it in the settings section's side nav, which is
+        # where a per-user preferences-shaped page belongs.
+        section: page[:section].presence&.to_s || "primary",
         icon: page[:icon].presence&.to_s,
         smart_folder_api_path: page[:smart_folder_api_path].presence&.to_s,
         smart_folder_subject: page[:smart_folder_subject].presence&.to_s,

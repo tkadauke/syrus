@@ -56,16 +56,14 @@ RSpec.describe Prompts::DirectJob do
       expect(guard_pos).to be < safety_pos
     end
 
-    it "includes memory context before the git safety block when memories exist" do
+    it "includes memory context before the git safety block when the store has some" do
       user = Factories.user
       repository = Factories.repository(user: user)
-      memory = ChatMemory.create!(
-        user: user,
-        kind: "feedback",
-        scope: "repository",
-        scope_id: repository.id,
-        content: "Always include regression coverage."
-      )
+      # What the store renders is the store's business; the composition order
+      # is core's.
+      allow(Syrus::Memory).to receive(:prompt_context)
+        .with(user: user, repository_ids: [ repository.id ])
+        .and_return("# Memory: feedback (7)\nAlways include regression coverage.")
 
       out = described_class.new(
         prompt: "Implement the requested change.",
@@ -73,10 +71,8 @@ RSpec.describe Prompts::DirectJob do
         repository_ids: [ repository.id ]
       ).to_s
 
-      memory_pos = out.index("# Memory: feedback (#{memory.id})")
-      safety_pos = out.index(Prompts::GitSafety::TEXT)
       expect(out).to include("Always include regression coverage.")
-      expect(memory_pos).to be < safety_pos
+      expect(out.index("# Memory: feedback (7)")).to be < out.index(Prompts::GitSafety::TEXT)
     end
 
     context "when the prompt is a skill invocation" do

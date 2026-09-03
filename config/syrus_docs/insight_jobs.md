@@ -95,7 +95,7 @@ Click **Accept** to open a confirmation form. The form pre-fills with the sugges
 The `accepted_at` timestamp is recorded, and `created_job_id` links back to the created Job.
 
 For `remove_memory` suggestions, **Remove memory** accepts the suggestion and
-soft-deletes the target `ChatMemory` through `ChatMemory#soft_delete_by!`.
+soft-deletes the target `AgentMemory::Entry` through `AgentMemory::Entry#soft_delete_by!`.
 Non-admin operators can only remove memories they are allowed to delete; admins
 can accept stale-memory removals from the admin insight view. The insight agent
 never deletes memories directly.
@@ -106,7 +106,7 @@ Click **Dismiss** to confirm and mark the suggestion dismissed. The `dismissed_a
 
 ### Save as Memory
 
-When `memory_suggestion` is present, a **Save as memory** button appears on pending and accepted suggestions. Clicking it creates a `ChatMemory` record with:
+When `memory_suggestion` is present, a **Save as memory** button appears on pending and accepted suggestions. Clicking it creates a `AgentMemory::Entry` record with:
 - `kind: "project_fact"`
 - `scope: "repository"` (scoped to this repository)
 - `source_type: "insight"`, `source_id: <suggestion_id>`
@@ -121,7 +121,7 @@ The memory becomes available to future agents working on the same repository.
 
 Admins can expand rows to see the full suggested prompt, memory suggestion, and
 stale-memory removal evidence. They can **Promote to instance memory** for
-memory suggestions — this creates a `ChatMemory` with `scope: "instance"` rather
+memory suggestions — this creates a `AgentMemory::Entry` with `scope: "instance"` rather
 than `scope: "repository"`, making it visible to all agents across all
 repositories. For `remove_memory` suggestions, admins can accept the removal
 from the table.

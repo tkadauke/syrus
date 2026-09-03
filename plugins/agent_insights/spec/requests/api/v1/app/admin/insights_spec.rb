@@ -145,7 +145,7 @@ RSpec.describe "Admin API insight suggestions", type: :request do
     end
 
     it "auto-accepts stale remove_memory suggestions before listing admin insights" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: other_user,
         kind: "project_fact",
         scope: "repository",
@@ -241,7 +241,7 @@ RSpec.describe "Admin API insight suggestions", type: :request do
     end
 
     it "soft-deletes remove_memory targets across repositories" do
-      memory = ChatMemory.create!(
+      memory = ::AgentMemory::Entry.create!(
         user: other_user,
         kind: "project_fact",
         scope: "repository",
@@ -271,17 +271,17 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       sign_in_as(admin)
     end
 
-    it "creates an instance-scoped ChatMemory from the memory_suggestion" do
+    it "creates an instance-scoped ::AgentMemory::Entry from the memory_suggestion" do
       suggestion = create_suggestion(memory_suggestion: "Always check the logs first")
 
       expect {
         post "/api/v1/app/admin/insights/#{suggestion.id}/promote_memory"
-      }.to change(ChatMemory, :count).by(1)
+      }.to change(::AgentMemory::Entry, :count).by(1)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to include("promoted")
 
-      memory = ChatMemory.last
+      memory = ::AgentMemory::Entry.last
       expect(memory.kind).to eq("project_fact")
       expect(memory.scope).to eq("instance")
       expect(memory.scope_id).to be_nil
@@ -299,7 +299,7 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       post "/api/v1/app/admin/insights/#{suggestion.id}/promote_memory"
 
       expect(response).to have_http_status(:ok)
-      expect(ChatMemory.last.content).to eq(
+      expect(::AgentMemory::Entry.last.content).to eq(
         "Avoid copying https://x-access-token:[REDACTED]@github.com/acme/widgets.git"
       )
     end

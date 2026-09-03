@@ -10,6 +10,9 @@ module AgentInsights
       version:         AgentInsights::VERSION,
       default_enabled: false,
       disableable:     true,
+      # Insight suggestions can propose retiring a memory, and carry a foreign
+      # key to the entry they target -- so the store has to be there.
+      depends_on:      [ "agent_memory" ],
       category:        "observability",
       description:     "Periodic read-only agent surveys of a repository that propose follow-up work.",
       long_description: "Agent Insights runs an agent over a repository\'s recent workflow activity and has it propose concrete follow-ups: jobs worth filing, facts worth remembering, memories that have gone stale.\n\nRuns are read-only -- no commits, no pull request -- and every suggestion is reviewed by an operator before anything happens. Off by default, since it spends agent budget on its own schedule.",

@@ -1,0 +1,264 @@
+require "rails_helper"
+
+RSpec.describe AgentMemory::Tools::WriteMemoryTool do
+  let(:run)        { Factories.job.initial_run }
+  let(:repository) { run.job.repository }
+
+  def run_context = { run_id: run.id }
+  def chat_context(session) = { chat_session: session }
+
+  def failed_agent_rebase!(job:, finished_at: Time.current)
+    workflow = Workflows::Rebase.instantiate(job: job)
+    workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed", finished_at: finished_at)
+    workflow.update!(state: "failed", finished_at: finished_at)
+    workflow
+  end
+
+  describe "schema surface" do
+    it "has tool_name write_memory" do
+      expect(described_class.tool_name).to eq("write_memory")
+    end
+
+    it "requires content and kind; scope and scope_id are optional" do
+      schema = described_class.input_schema_value.to_h
+      expect(schema[:required]).to match_array(%w[content kind])
+      expect(schema.dig(:properties, :scope)).to be_present
+      expect(schema.dig(:properties, :scope_id)).to be_present
+    end
+
+    it "advertises the maximum content length to tool callers" do
+      schema = described_class.input_schema_value.to_h
+
+      expect(schema.dig(:properties, :content, :maxLength)).to eq(AgentMemory::Entry::CONTENT_MAX_LENGTH)
+    end
+  end
+
+  describe ".call from a workflow run context" do
+    it "creates a repository-scoped memory for the job's repository" do
+      response = described_class.call(content: "Use snake_case.", kind: "feedback", server_context: run_context)
+
+      expect(response).not_to be_error
+      payload = JSON.parse(response.content.first[:text], symbolize_names: true)
+      expect(payload.dig(:memory, :scope)).to eq("repository")
+      expect(payload.dig(:memory, :scope_id)).to eq(repository.id)
+    end
+
+    it "sets author, source_type, and source_id from the run context" do
+      described_class.call(content: "Deploy runs on Buildkite.", kind: "project_fact", server_context: run_context)
+
+      memory = AgentMemory::Entry.last
+      expect(memory).to have_attributes(author: "agent", source_type: "run", source_id: run.id)
+    end
+
+    it "persists to the job's repository when scope is omitted" do
+      described_class.call(content: "Some knowledge.", kind: "reference", server_context: run_context)
+
+      expect(AgentMemory::Entry.last.scope).to eq("repository")
+      expect(AgentMemory::Entry.last.scope_id).to eq(repository.id)
+    end
+
+    it "rejects near-duplicate memories in the same recent scope and kind" do
+      existing = AgentMemory::Entry.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks before matching blocked jobs.",
+        created_at: 7.hours.ago,
+        updated_at: 7.hours.ago
+      )
+
+      expect {
+        response = described_class.call(
+          content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks before matching blocked work.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).to be_error
+        expect(response.content.first[:text]).to include("memory ##{existing.id}")
+        expect(response.content.first[:text]).to include("read_memory")
+      }.not_to change(AgentMemory::Entry, :count)
+    end
+
+    it "creates distinct memories in the same scope and kind" do
+      AgentMemory::Entry.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks."
+      )
+
+      expect {
+        response = described_class.call(
+          content: "OperationalLogIndex reads recent deployment logs from the structured operational log store.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).not_to be_error
+      }.to change(AgentMemory::Entry, :count).by(1)
+    end
+
+    it "does not reject duplicates outside the recent lookup window" do
+      AgentMemory::Entry.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "OperationalLogIndex returns rows for read_syrus_logs after the deployment-lag fix.",
+        created_at: 15.days.ago,
+        updated_at: 15.days.ago
+      )
+
+      expect {
+        response = described_class.call(
+          content: "OperationalLogIndex returns rows for read_syrus_logs after the deployment-lag fix.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).not_to be_error
+      }.to change(AgentMemory::Entry, :count).by(1)
+    end
+
+    it "rejects global scope because it is not in allowed_memory_scopes for runs" do
+      response = described_class.call(content: "x", kind: "feedback", scope: "global", server_context: run_context)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("scope must be one of")
+    end
+
+    it "returns an error for empty content" do
+      response = described_class.call(content: "  ", kind: "feedback", server_context: run_context)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("content is required")
+    end
+
+    it "rejects oversized content before model validation" do
+      response = described_class.call(
+        content: "x" * (AgentMemory::Entry::CONTENT_MAX_LENGTH + 1),
+        kind: "feedback",
+        server_context: run_context
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("write_memory content must be #{AgentMemory::Entry::CONTENT_MAX_LENGTH} characters or fewer")
+      expect(response.content.first[:text]).to include("split independent facts into separate memories")
+    end
+
+    it "returns an error for an invalid kind" do
+      response = described_class.call(content: "x", kind: "not_a_kind", server_context: run_context)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("kind must be one of")
+    end
+
+    it "returns an error for an invalid run context" do
+      response = described_class.call(content: "x", kind: "feedback", server_context: { run_id: 0 })
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("ActiveRecord::RecordNotFound")
+    end
+
+    it "rejects prescriptive abort guidance from a rebase retry storm" do
+      rebase_job = Factories.job(user: run.job.user, repository: repository)
+      RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD.times do
+        failed_agent_rebase!(job: rebase_job, finished_at: 5.minutes.ago)
+      end
+      workflow = Workflows::Rebase.instantiate(job: rebase_job)
+      agent_step = workflow.steps.find_by!(kind: "agent_rebase")
+      rebase_run = agent_step.runs.create!(
+        job: rebase_job,
+        trigger_kind: "rebase",
+        agent_provider: rebase_job.agent_provider
+      )
+
+      response = described_class.call(
+        content: "Future agents should not re-diagnose this conflict; just abort.",
+        kind: "feedback",
+        server_context: { run_id: rebase_run.id }
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("rebase conflict abort guidance")
+    end
+
+    it "allows file-level rebase facts during a retry storm" do
+      rebase_job = Factories.job(user: run.job.user, repository: repository)
+      RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD.times do
+        failed_agent_rebase!(job: rebase_job, finished_at: 5.minutes.ago)
+      end
+      workflow = Workflows::Rebase.instantiate(job: rebase_job)
+      agent_step = workflow.steps.find_by!(kind: "agent_rebase")
+      rebase_run = agent_step.runs.create!(
+        job: rebase_job,
+        trigger_kind: "rebase",
+        agent_provider: rebase_job.agent_provider
+      )
+
+      response = described_class.call(
+        content: "The provider registry conflict involved app/services/agent_providers.",
+        kind: "project_fact",
+        server_context: { run_id: rebase_run.id }
+      )
+
+      expect(response).not_to be_error
+    end
+  end
+
+  describe ".call from a chat session context" do
+    let(:chat_user)    { Factories.user }
+    let(:chat_repo)    { Factories.repository(user: chat_user) }
+    let(:chat_session) { ChatSession.create!(user: chat_user, repository: chat_repo) }
+
+    it "creates a global memory when scope is global" do
+      response = described_class.call(content: "Prefer concise replies.", kind: "user_pref",
+                                      scope: "global", server_context: chat_context(chat_session))
+
+      expect(response).not_to be_error
+      memory = AgentMemory::Entry.find(JSON.parse(response.content.first[:text], symbolize_names: true)[:id])
+      expect(memory).to have_attributes(scope: "global", scope_id: nil, user: chat_user)
+    end
+
+    it "creates a repository-scoped memory for an owned repository" do
+      response = described_class.call(content: "CI uses Buildkite.", kind: "project_fact",
+                                      scope: "repository", scope_id: chat_repo.id,
+                                      server_context: chat_context(chat_session))
+
+      expect(response).not_to be_error
+      memory = AgentMemory::Entry.find(JSON.parse(response.content.first[:text], symbolize_names: true)[:id])
+      expect(memory.scope_id).to eq(chat_repo.id)
+    end
+
+    it "rejects a scope_id pointing to a repository the user doesn't own" do
+      other_repo = Factories.repository(user: Factories.user)
+
+      response = described_class.call(content: "x", kind: "reference", scope: "repository",
+                                      scope_id: other_repo.id, server_context: chat_context(chat_session))
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("scope_id must be a repository id owned by the current user")
+    end
+
+    it "rejects a scope_id when scope is global" do
+      response = described_class.call(content: "x", kind: "reference", scope: "global",
+                                      scope_id: chat_repo.id, server_context: chat_context(chat_session))
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("scope_id must be omitted")
+    end
+
+    it "does not set author or source fields (user-initiated)" do
+      described_class.call(content: "x", kind: "feedback", scope: "global",
+                           server_context: chat_context(chat_session))
+
+      memory = AgentMemory::Entry.last
+      expect(memory.author).to be_nil
+      expect(memory.source_type).to be_nil
+      expect(memory.source_id).to be_nil
+    end
+  end
+end

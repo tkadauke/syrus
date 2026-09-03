@@ -34,7 +34,8 @@ carried into Phase 4.
 **Phase 4 in progress.** `github_issues` extracted. Two of the five turned out
 to be blocked, both for reasons the inventory missed:
 
-- **`agent_memory`** cannot move before `agent_insights` — see its entry.
+- **`agent_memory`** could not move before `agent_insights` — now unblocked
+  and extracted, see its entry.
 - **`coverage`** inserts conditional steps into core workflow chains
   (`Workflows::Base.coverage_analyze_for`, `Initial`, the feedback chains),
   which is exactly the Tier 3 blocker `visual_review` has. Moved to Tier 3; it
@@ -42,7 +43,9 @@ to be blocked, both for reasons the inventory missed:
 
 Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
 
-**Phase 5 in progress.** `agent_insights` extracted, out of order: the plan put
+**Phase 5 in progress.** `agent_insights` and `agent_memory` extracted
+(insights first, which is what unblocked memory). `agent_insights` went out of
+order: the plan put
 `scheduled_tasks` first, but that one is gated on the G8 CLI decision and
 insights is not, and moving insights is what unblocks `agent_memory` back in
 Phase 4. Three platform gaps had to be closed to finish it, none of which the
@@ -663,38 +666,43 @@ consume the data through a registered provider interface rather than the model.
 Language plugins keep contributing parsers via `test_result_parser`; the
 `test_insights` plugin owns storage, query, UI, and tools.
 
-**`agent_memory`** — `ChatMemory`, `ChatMemoryAuditEvent`, nine MCP tools, the
-`/memories` page, the filter subject, and `Prompts::MemoryContext`.
+**`agent_memory`** — **done.** `AgentMemory::Entry`/`AuditEvent` (tables
+`agent_memory_entries`, `agent_memory_audit_events`), nine MCP tools, the
+`/memories` page, the filter subject, and the prompt-context renderer. It ships
+`default_enabled: true` and `agent_insights` declares
+`depends_on: ["agent_memory"]`, so the FK from a suggestion to the entry it
+proposes retiring is plugin-to-plugin, and disabling the store degrades
+`agent_insights` (providers withheld) rather than breaking it.
 
-**Ordering constraint, found while starting it:** this cannot move before
-`agent_insights`. `InsightSuggestion` declares
-`belongs_to :target_memory, class_name: "ChatMemory"` and does
-`left_joins(:target_memory)`, and `insight_suggestions.target_memory_id` carries
-a database foreign key to `chat_memories`. Moving memory first would leave a
-core model with a `belongs_to` and a SQL join into a plugin table — a boundary
-violation the grader would reject, and one no `defined?` guard can paper over
-because it is in the schema.
+The ordering constraint that blocked it held exactly as predicted:
+`insight_suggestions.target_memory_id` is a schema-level FK into
+`chat_memories`, which no `defined?` guard could have papered over. Insights
+moved first; memory followed.
 
-The two move together, or insights moves first. Since `agent_insights` also
-needs G1/G2/G3 (all now in place), the cheapest order is: `agent_insights`
-first, then `agent_memory` with `agent_insights` declaring
-`depends_on: ["agent_memory"]` — at which point the FK is plugin-to-plugin,
-which is legal.
+Framed as **swappable, not merely optional**, as intended. The `memory_store`
+extension point takes `prompt_context`, `chat_context_lines` and
+`chat_instructions`; core reaches it only through `Syrus::Memory`, which
+returns empty for a missing provider and logs-and-degrades for a raising one.
+`Prompts::MemoryContext` survives as core's seam, so the six prompts that
+compose it did not change at all.
 
-Frame this as **swappable, not merely optional**: define a `memory_store`
-extension point (read/write/delete/search/list plus prompt-context rendering),
-make the current implementation the default provider, and have core prompts call
-through a resolver that returns empty when no provider is enabled. That turns
-"you can turn memory off" into "you can replace memory," which is the more
-useful property.
+Two things the inventory missed:
 
-Constraints: seven core prompts inject memory context; the chat side has a
-second, separate injection path in `Prompts::ChatSystem`; the five workflow
-tools live in the explicitly non-disableable `CoreToolSet`. `InsightSuggestion`
-references `ChatMemory` — see the DAG note below.
+- **The chat system prompt's memory copy names the tools.** Leaving it in core
+  would advertise `write_memory`/`publish_memory` to an agent that has no such
+  tools, so `chat_instructions` moved to the provider with them.
+- **`/memories` is a settings page, not a primary sidebar page.** `sidebar_page`
+  fed only the main nav, so it gained an optional `section:` (`"primary"` by
+  default, `"settings"` for this), with the settings side nav merging pages that
+  declare it. Advertising the admin-only audit tool needed the chat tool-set
+  contract widened too: `tool_definitions` now takes an optional
+  `chat_session:`, mirroring the workflow side's optional `context:`, so an
+  admin tool is withheld rather than merely refused at call time.
 
-Dead surface to drop rather than port: `embedding`, `visibility`, `expires_at`,
-and `last_verified_at` are written by nothing.
+Dead surface: `embedding` was dropped in the move (nothing reads or writes it).
+`visibility`, `expires_at`, and `last_verified_at` are written by nothing but
+*are* read — the first two in tool payloads, the last in the context ordering —
+so removing them is a behavior change and stays a separate piece of work.
 
 **`github_issues` (into `github_source`)** — **done.** The controller, the API
 client, the component, and the issue i18n moved; the tab is contributed through
@@ -778,11 +786,11 @@ injection is sanctioned, behavioral injection is not.
 See the Phase 5 status note for the three platform gaps this move exposed
 (`job_kinds`, plugin-owned `WorkDefinition`s, `Step::Kind#agent_role`).
 
-Dependency note: this plugin writes `ChatMemory` (`source_type: "insight"`) and
-`InsightSuggestion` has an FK to it. Once memory is a plugin, `agent_insights`
-declares a hard `depends_on: ["agent_memory"]`, with G11's semantics: if memory
-is disabled, `agent_insights` goes `degraded` and its providers are withheld —
-it does not crash, and it does not silently half-work.
+Dependency note: this plugin writes memory entries (`source_type: "insight"`)
+and `AgentInsights::Suggestion` has an FK to one. It declares a hard
+`depends_on: ["agent_memory"]` with G11's semantics: if memory is disabled,
+`agent_insights` goes `degraded` and its providers are withheld — it does not
+crash, and it does not silently half-work.
 
 ### Tier 3 — needs design first
 
@@ -857,7 +865,7 @@ The moves above form a DAG with no cycles:
 
 ```
 core
- ├── agent_memory ◄── agent_insights
+ ├── agent_memory      (extracted) ◄── agent_insights (extracted)
  ├── test_insights
  ├── build_cache
  ├── throughput          (extracted)
@@ -870,8 +878,9 @@ core
  └── github_source ◄── github_issues (same gem)
 ```
 
-Two edges need enforcement work. `agent_insights → agent_memory` needs G11's
-hard-dependency semantics. And `test_insights` is consumed by core's
+One edge still needs enforcement work. `agent_insights → agent_memory` is
+live and uses G11's hard-dependency semantics: disabling the store puts
+`agent_insights` in `degraded` and withholds its providers. And `test_insights` is consumed by core's
 `MainBranchFailureClassifier` — core must degrade around it rather than depend
 on it, since G11's health states govern plugins, not core.
 
@@ -932,9 +941,9 @@ Consequences worth stating:
 - `test_insights` and `syrus_dev` storage.
 
 ### Phase 4 — Agent-facing plugins
-- `agent_memory` as a swappable provider, then `coverage`,
-  `video_walkthroughs`, `github_issues`.
-- `terminal` once G7 lands.
+- `agent_memory` as a swappable provider (done, after `agent_insights`),
+  `github_issues` (done); `coverage` moved to Tier 3.
+- Remaining: `video_walkthroughs`, and `terminal` once G7 lands.
 
 ### Phase 5 — Scheduling and insights
 - `agent_insights` (done, taken first — it is unblocked and it unblocks
