@@ -35,6 +35,7 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
+    expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
     expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
     expect(queryKeysFor(event("admin_overview", null))).toEqual([["admin", "overview"], ["admin", "stuck"]])
