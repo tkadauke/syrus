@@ -1,13 +1,17 @@
 import { Fragment, type MouseEvent, type ReactNode } from "react"
+import katex from "katex"
+import "katex/dist/katex.min.css"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
-type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler }
+type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler; renderMath?: boolean }
+type InlineMatch = { index: number; token: string }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
+const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\)|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*)/g
 
 export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
   const preview = safeMarkdownPreview(text)
@@ -278,19 +282,87 @@ function splitTableRow(line: string) {
 function renderInline(text: string, options: RenderInlineOptions = {}): InlineToken[] {
   const shouldLinkifySlugs = options.linkifySlugs !== false
   const tokens: InlineToken[] = []
-  const pattern = /(`[^`]+`|~~[^~\n]+~~|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^) \n]+(?:\s+"[^"\n]+")?\))/g
   let cursor = 0
   let key = 0
-  let match: RegExpExecArray | null
 
-  while ((match = pattern.exec(text)) !== null) {
+  while (cursor < text.length) {
+    const match = nextInlineToken(text, cursor, options)
+    if (!match) break
+
     if (match.index > cursor) tokens.push(renderInlineText(text.slice(cursor, match.index), shouldLinkifySlugs, key++))
-    tokens.push(renderInlineToken(match[0], key++, options))
-    cursor = match.index + match[0].length
+    tokens.push(renderInlineToken(match.token, key++, options))
+    cursor = match.index + match.token.length
   }
 
   if (cursor < text.length) tokens.push(renderInlineText(text.slice(cursor), shouldLinkifySlugs, key++))
   return tokens
+}
+
+function nextInlineToken(text: string, cursor: number, options: RenderInlineOptions): InlineMatch | null {
+  INLINE_MARKDOWN_PATTERN.lastIndex = cursor
+  const markdownMatch = INLINE_MARKDOWN_PATTERN.exec(text)
+  const markdown = markdownMatch ? { index: markdownMatch.index, token: markdownMatch[0] } : null
+  const math = options.renderMath === false ? null : findInlineMath(text, cursor)
+
+  if (!markdown) return math
+  if (!math) return markdown
+  return markdown.index <= math.index ? markdown : math
+}
+
+function findInlineMath(text: string, cursor: number): InlineMatch | null {
+  for (let index = cursor; index < text.length; index += 1) {
+    if (text[index] === "$" && !escapedAt(text, index)) {
+      const match = findDollarMath(text, index)
+      if (match) return match
+      continue
+    }
+
+    if (text[index] === "\\" && text[index + 1] === "(" && !escapedAt(text, index)) {
+      const match = findParenthesizedMath(text, index)
+      if (match) return match
+    }
+  }
+
+  return null
+}
+
+function findDollarMath(text: string, start: number): InlineMatch | null {
+  if (!text[start + 1] || /\s|\$/.test(text[start + 1])) return null
+
+  for (let end = start + 1; end < text.length; end += 1) {
+    if (text[end] === "\n") return null
+    if (text[end] !== "$" || escapedAt(text, end)) continue
+
+    const expression = text.slice(start + 1, end)
+    if (validInlineMathExpression(expression)) return { index: start, token: text.slice(start, end + 1) }
+    return null
+  }
+
+  return null
+}
+
+function findParenthesizedMath(text: string, start: number): InlineMatch | null {
+  if (!text[start + 2] || /\s/.test(text[start + 2])) return null
+
+  for (let end = start + 2; end < text.length - 1; end += 1) {
+    if (text[end] === "\n") return null
+    if (text[end] !== "\\" || text[end + 1] !== ")" || escapedAt(text, end)) continue
+
+    const expression = text.slice(start + 2, end)
+    if (validInlineMathExpression(expression)) return { index: start, token: text.slice(start, end + 2) }
+    return null
+  }
+
+  return null
+}
+
+function escapedAt(text: string, index: number) {
+  let slashes = 0
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    slashes += 1
+  }
+
+  return slashes % 2 === 1
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -314,6 +386,9 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
   if (token.startsWith("`")) {
     return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0)}</code>
   }
+  if ((token.startsWith("$") || token.startsWith("\\(")) && options.renderMath !== false) {
+    return renderInlineMath(token, key)
+  }
   if (token.startsWith("**")) {
     return <strong key={key}>{renderInline(token.slice(2, -2), options)}</strong>
   }
@@ -330,13 +405,35 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     if (href) {
       return (
         <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
-          {renderInline(link[1], { ...options, linkifySlugs: false })}
+          {renderInline(link[1], { ...options, linkifySlugs: false, renderMath: false })}
         </a>
       )
     }
   }
 
   return token
+}
+
+function renderInlineMath(token: string, key: number) {
+  const expression = token.startsWith("$") ? token.slice(1, -1) : token.slice(2, -2)
+  if (!validInlineMathExpression(expression)) return token
+
+  const html = katex.renderToString(expression, {
+    displayMode: false,
+    output: "htmlAndMathml",
+    strict: false,
+    throwOnError: false,
+    trust: false
+  })
+
+  return <span className="syrus-inline-math" dangerouslySetInnerHTML={{ __html: html }} key={key} />
+}
+
+function validInlineMathExpression(expression: string) {
+  if (expression.trim() !== expression || expression.length === 0) return false
+  if (/^\d/.test(expression)) return /[\\^_{}=<>+\-*/]/.test(expression) || /^\d+(?:[A-Za-z]|\\)/.test(expression)
+
+  return /[A-Za-z\\^_{}=<>+\-*/]/.test(expression)
 }
 
 function safeHref(href: string) {
