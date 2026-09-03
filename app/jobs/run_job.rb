@@ -223,6 +223,29 @@ class RunJob < ApplicationJob
     Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
   end
 
+  def complete_pre_admission_skip?
+    result = RunPreAdmissionSkip.call(run: @run)
+    return false unless result.skip?
+
+    return false unless acquire_run_execution!
+
+    log(result.message, kind: "system") if result.message.present?
+    result.artifacts.each { |key, value| @workflow.set_artifact!(key, value) }
+    @step.update!(details: @step.details.to_h.merge("skipped" => true, "skip_reason" => result.reason))
+
+    @run.reload
+    @step.reload
+    @workflow.reload
+    return true if @run.terminal? || @step.terminal? || @workflow.terminal?
+
+    @run.succeed!
+    @run.save!
+    @step.succeed!
+    @step.save!
+    log("step #{@step.kind} done (#{@workflow.slug})")
+    true
+  end
+
   def perform_step
     if @workflow.nil? || @step.nil?
       raise "Run ##{@run.id} has no Step / Workflow — backfill must run before legacy Runs can execute"
@@ -260,6 +283,8 @@ class RunJob < ApplicationJob
       succeed_workflow_for_merged_pull_request!(merged_pr)
       return
     end
+
+    return if complete_pre_admission_skip?
 
     return if defer_for_host_admission?
 
