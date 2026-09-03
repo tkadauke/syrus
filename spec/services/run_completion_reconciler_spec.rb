@@ -99,6 +99,21 @@ RSpec.describe RunCompletionReconciler do
         expect(advance_called).to be true
       end
 
+      it "bounds pr_open log recovery to recent transcript chunks" do
+        run = make_pr_open_run
+        job.update!(pr_number: nil)
+        JobLog.append!(run: run, chunk: "pr_open: opened PR #7")
+        described_class::PR_OPEN_RECOVERY_LOG_LIMIT.times do |index|
+          JobLog.append!(run: run, chunk: "later chunk #{index}")
+        end
+
+        result = described_class.call(run)
+
+        expect(result).not_to be_reconciled
+        expect(run.reload.state).to eq("running")
+        expect(job.reload.pr_number).to be_nil
+      end
+
       it "force-recovers terminal pr_open records when the log proves the PR opened" do
         run = make_pr_open_run
         job.update!(pr_number: nil)
