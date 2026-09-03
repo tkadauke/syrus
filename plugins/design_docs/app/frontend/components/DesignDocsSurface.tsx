@@ -263,13 +263,17 @@ function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, tit
   return `${docId}:${mode}:${title}:${markdown}`
 }
 
+function emptySelection(): SelectionRange {
+  return { start: 0, end: 0, text: "", selectedText: "", rect: null }
+}
+
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
   const [summaryVisible, setSummaryVisible] = useState(false)
-  const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
+  const [selection, setSelection] = useState<SelectionRange>(emptySelection)
   const [commentBody, setCommentBody] = useState("")
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
   const [focusedSuggestionId, setFocusedSuggestionId] = useState<number | null>(null)
@@ -355,7 +359,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
-      setSelection({ start: 0, end: 0, text: "", selectedText: "", rect: null })
+      setSelection(emptySelection())
       onDocChange(payload.design_doc, "Comment added.")
     }
   })
@@ -385,6 +389,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (!target) return
     const start = target.selectionStart
     const end = target.selectionEnd
+    if (start === end) {
+      setSelection({ start, end, text: "", selectedText: "", rect: null })
+      return
+    }
+
     const text = target.value.slice(start, end)
     setSelection({ start, end, text, selectedText: text, rect: textareaSelectionRect(target, start, end) })
   }
@@ -393,17 +402,32 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (!wysiwygRef.current) return
 
     const range = document.getSelection()
-    if (!range || range.rangeCount === 0 || range.isCollapsed) return
+    if (!range || range.rangeCount === 0) {
+      setSelection(emptySelection())
+      return
+    }
+
     const selectedRange = range.getRangeAt(0)
-    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) return
+    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) {
+      setSelection(emptySelection())
+      return
+    }
 
     const selectedText = selectedRange.toString()
     const sourceStart = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.startContainer, selectedRange.startOffset, "start")
     const sourceEnd = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.endContainer, selectedRange.endOffset, "end")
-    if (sourceStart == null || sourceEnd == null) return
+    if (sourceStart == null || sourceEnd == null) {
+      setSelection(emptySelection())
+      return
+    }
 
     const start = Math.max(0, Math.min(draft.length, sourceStart))
     const end = Math.max(start, Math.min(draft.length, sourceEnd))
+    if (range.isCollapsed || start === end) {
+      setSelection({ start, end, text: "", selectedText: "", rect: null })
+      return
+    }
+
     setSelection({
       start,
       end,
