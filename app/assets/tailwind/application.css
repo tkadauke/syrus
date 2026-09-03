@@ -190,6 +190,19 @@
   padding: 0.1em 0.3em;
   border-radius: 0.25rem;
 }
+.chat-prose .syrus-inline-math {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: -0.12em;
+}
+.chat-prose .syrus-inline-math .katex {
+  color: inherit;
+  font-size: 1.04em;
+  line-height: 1;
+  white-space: nowrap;
+}
 .chat-prose pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
