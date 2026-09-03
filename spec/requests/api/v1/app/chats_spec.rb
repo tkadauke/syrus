@@ -1376,6 +1376,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "current_user_id")).to eq(user.id)
     expect(parse_body.dig("chat", "conversation_kind")).to eq("group")
     expect(parse_body.dig("chat", "participants")).to contain_exactly(
       hash_including("id" => user.id, "name" => user.display_name, "role" => "owner"),
