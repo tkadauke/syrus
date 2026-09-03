@@ -967,6 +967,24 @@ is worse than a logged error, because the next install stacks on the remains.
 Returning something that is neither callable nor `nil` raises: a silently
 missing teardown is invisible until a disable fails to take effect.
 
+### Two lifetimes, one mechanism
+
+`Syrus::Plugin::EffectRegistry` shares the same `EffectScope` underneath but is
+deliberately *not* the same lifetime, and the two should not be merged:
+
+| | disposed when |
+|---|---|
+| installs (`Syrus::Installer`) | the active plugin set moves — what is installed must match what is enabled |
+| lifecycle (`Callbacks#effect`) | that plugin's own `on_disable`/`on_shutdown`, or a failed `on_boot`/`on_enable` |
+
+A lifecycle effect is registered while the plugin *runs* — `tailscale` does
+`effect { HostAllowlist.clear }` after syncing an allowlist. Folding those into
+the installer's scope would tear down a running daemon every time some
+unrelated plugin was enabled, since that bumps the generation the installer
+keys on. `Callbacks#effect` also takes a bare cleanup rather than returning one
+from an install, because at those call sites the thing has already happened;
+`EffectScope#add_teardown` is that shape.
+
 `Syrus::Installer.sync!` keeps what is installed matching what is enabled. It
 is a plain integer compare on `PluginRegistry.generation` — safe to call on
 hot read paths. Same-process enable/disable bumps the generation directly; a

@@ -44,6 +44,21 @@ module Syrus
       teardown
     end
 
+    # The bare-cleanup shape, for call sites where the thing has already
+    # happened and there is nothing to pair with -- a daemon spawned inside a
+    # plugin's on_boot, say. `effect` is preferable where the install and its
+    # teardown can be written as one expression, because that is what makes
+    # the cleanup hard to forget.
+    def add_teardown(label = nil, &cleanup)
+      raise DisposedScope, "cannot add a teardown to disposed scope #{@label.inspect}" if @disposed
+      raise ArgumentError, "cleanup block required" unless cleanup
+
+      @entries << [ label, cleanup ]
+      cleanup
+    end
+
+    def empty? = @entries.empty? && @children.all?(&:empty?)
+
     def child(label:)
       raise DisposedScope, "cannot nest under disposed scope #{@label.inspect}" if @disposed
 

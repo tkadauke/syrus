@@ -15,6 +15,11 @@ module Syrus
   # click served by another. So each process syncs against the current plugin
   # state and re-applies when it moves -- useEffect-with-deps rather than a
   # fiber mount.
+  # Lifetimes, so this does not get merged with Syrus::Plugin::EffectRegistry:
+  # installs here are disposed and re-applied whenever the active plugin set
+  # moves, while an EffectRegistry cleanup lives until its own plugin's
+  # lifecycle events. Both are EffectScopes underneath; only the trigger
+  # differs.
   module Installer
     Registration = Struct.new(:label, :plugin, :install, keyword_init: true)
 

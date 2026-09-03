@@ -58,6 +58,22 @@ RSpec.describe Syrus::EffectScope do
     expect(log).to eq([ :ok ])
   end
 
+  # The bare-cleanup shape used by lifecycle effects, where the install has
+  # already happened elsewhere.
+  it "records a bare teardown alongside paired effects, still in reverse" do
+    log = []
+    scope.effect("paired") { -> { log << :paired } }
+    scope.add_teardown("bare") { log << :bare }
+
+    scope.dispose
+
+    expect(log).to eq([ :bare, :paired ])
+  end
+
+  it "requires a block for a bare teardown" do
+    expect { scope.add_teardown("bare") }.to raise_error(ArgumentError, /cleanup block required/)
+  end
+
   it "is idempotent" do
     log = []
     scope.effect("once") { -> { log << :disposed } }
