@@ -1398,12 +1398,39 @@ every affected file to find its own spec. It declines when the diff touches
 no `.rb` files or when the repo's `app`/`lib` tree is too large to walk with
 confidence on every `grader_fanout` call.
 
-## Plugin install and uninstall
+## Plugin lifecycle: disable, uninstall, purge
 
-Plugin install and uninstall remain manual operations: edit the Gemfile, run
-Bundler, run migrations if the plugin ships any, rebuild frontend assets when
-the plugin ships JS/i18n, and restart the Rails processes so plugin engine
-initializers register with the in-memory registry.
+Three distinct operations, deliberately:
+
+| | Effect | Data |
+|---|---|---|
+| **Disable** | Providers withheld, UI hidden, jobs and ticks skipped, routes answer `plugin_disabled` | Retained |
+| **Uninstall** | Gem removed from the Gemfile; the plugin no longer registers at boot | Retained |
+| **Purge** | The plugin's tables are dropped | **Destroyed** |
+
+Disable never mutates schema, so an operator can turn a plugin off and back on
+without losing anything. That is why uninstalling does not drop tables either:
+removing a gem to try something is not a statement about the data.
+
+Purge is the explicit third step:
+
+```sh
+bin/rails 'plugin:data[build_cache]'    # what a purge would remove
+bin/rails 'plugin:purge[build_cache]'   # drops it; asks for the plugin name to confirm
+```
+
+`Syrus::PluginPurge` derives ownership from the same rule the namespace grader
+enforces -- a plugin owns the tables its own models and migrations declare, and
+those names must carry its prefix. Nothing is inferred from table names alone,
+and a name that fails the prefix check is skipped, so purging a plugin can
+never drop a core table. It refuses to run while the plugin is still
+registered: uninstall the gem and restart first, so the code that owns the data
+is not about to come back.
+
+Install and uninstall remain manual: edit the Gemfile, run Bundler, run
+migrations if the plugin ships any, rebuild frontend assets when the plugin
+ships JS/i18n, and restart the Rails processes so plugin engine initializers
+register with the in-memory registry.
 Non-disableable plugins are forced enabled. Avoid them unless there is a strong
 compatibility reason: core runtime pieces should generally live in the core app,
 not in the plugin registry.
