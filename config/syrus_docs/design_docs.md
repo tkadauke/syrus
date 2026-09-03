@@ -33,6 +33,11 @@ and `ChatSession`.
   selected text, prefix/suffix context, last known offsets, provenance, state,
   and permissions. Suggestions are v1 range replacements (`change_type:
   replace`) reviewed explicitly by the design doc owner.
+- `design_doc_agent_runs` records lightweight `@syrus` thread turns. Each run
+  belongs to a doc, thread, triggering comment, requesting user, and base
+  version; stores provider/status/timestamps, a prompt context snapshot, output
+  payload, result summary, and error message; and links generated
+  comments/suggestions back to the run for provenance.
 
 `DesignDocs::DesignDoc.visible_to(user)` implements the v1 visibility rule:
 owners can see their docs, explicit collaborators can see private docs, and
@@ -75,6 +80,30 @@ review controls. Non-owners with access are forced into `Suggest` mode: the
 toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
+
+## Thread Mentions
+
+Users who can comment/suggest on a Design Doc can invoke a lightweight Design
+Docs agent turn by mentioning `@syrus` in a newly created comment/reply or in an
+edit that newly introduces the mention. Matching is case-insensitive and ignores
+mentions in quoted text, inline code, and fenced code blocks to avoid triggering
+from pasted historical content or examples.
+
+Mention turns are scoped to the thread instead of materializing normal Syrus
+Jobs. The queued run captures `DOC-<id>`, the current version and Markdown, the
+thread anchor, the full thread discussion, pending thread suggestions, doc
+visibility/repository/collaborator metadata, and a small origin-chat excerpt
+when one is available. The agent may create a pending suggestion on that thread
+or post an agent-authored reply such as a clarifying question or an explanation
+that no safe suggestion can be made. It must not directly mutate canonical
+Markdown. Requests for repository implementation or file work should be
+answered with a redirect to the chat Job/Epic proposal flow.
+
+The Design Docs surface shows thread-level status for the latest agent run:
+queued/running displays `Syrus is drafting...`, success shows the run summary,
+failure shows the failure reason, and cancellation shows a canceled state.
+Duplicate saves of the same triggering comment reuse the existing run, and only
+one queued/running agent run is active for a given thread at a time.
 
 ## Chat Workspace Tabs
 

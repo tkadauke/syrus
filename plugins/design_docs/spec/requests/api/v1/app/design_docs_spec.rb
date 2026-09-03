@@ -1,11 +1,17 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/design_docs", type: :request do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user(email_address: "owner@example.com") }
   let(:collaborator) { Factories.user(email_address: "collaborator@example.com") }
   let(:outsider) { Factories.user(email_address: "outsider@example.com") }
   let(:admin) { Factories.user(email_address: "admin@example.com", admin: true) }
   let(:repository) { Factories.repository(user: owner, owner: "acme", name: "widgets") }
+
+  before do
+    DesignDocs.register! unless PluginRecord.exists?(name: "design_docs")
+  end
 
   def parse_body
     JSON.parse(response.body)
@@ -648,6 +654,34 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(AppEvents).to have_received(:broadcast).with(user: owner, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
     expect(AppEvents).to have_received(:broadcast).with(user: collaborator, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
     expect(AppEvents).not_to have_received(:broadcast).with(user: outsider, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
+  end
+
+  it "returns queued @syrus agent run state when a new comment mentions the agent" do
+    owner.update!(agent_provider: "codex", codex_api_key: "sk-test")
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "@Syrus suggest clearer wording",
+          start_offset: 6,
+          end_offset: 10,
+          selected_markdown: "beta"
+        }
+      }
+    }.to change(DesignDocs::DesignDocAgentRun, :count).by(1)
+      .and have_enqueued_job(DesignDocs::AgentRunJob)
+
+    expect(response).to have_http_status(:created)
+    run = DesignDocs::DesignDocAgentRun.last
+    expect(parse_body.dig("thread", "agent_run")).to include(
+      "id" => run.id,
+      "status" => "queued",
+      "triggering_comment_id" => run.triggering_comment_id
+    )
+    expect(parse_body.dig("comment", "design_doc_agent_run_id")).to be_nil
   end
 
   it "returns anchored active comment and suggestion threads from the document detail API" do

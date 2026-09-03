@@ -53,7 +53,21 @@ const docDetail = {
     opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
     resolved_by: null,
     resolved_at: null,
-    comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
+    agent_run: {
+      id: 4,
+      status: "running",
+      triggering_comment_id: 8,
+      requested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      agent_provider: "codex",
+      base_version_id: 1,
+      result_summary: null,
+      error_message: null,
+      started_at: "2026-08-29T12:02:00Z",
+      finished_at: null,
+      created_at: "2026-08-29T12:02:00Z",
+      updated_at: "2026-08-29T12:02:00Z"
+    },
+    comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
     created_at: "2026-08-29T12:01:00Z",
     updated_at: "2026-08-29T12:01:00Z"
   }, {
@@ -77,7 +91,8 @@ const docDetail = {
     opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
     resolved_by: null,
     resolved_at: null,
-    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+    agent_run: null,
+    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
     created_at: "2026-08-29T12:02:00Z",
     updated_at: "2026-08-29T12:02:30Z"
   }],
@@ -92,6 +107,7 @@ const docDetail = {
     change_type: "replace",
     change_summary: "Use newer name",
     base_version_id: 1,
+    design_doc_agent_run_id: null,
     provenance: {},
     conflict_reason: null,
     anchor: {
@@ -130,7 +146,8 @@ const docDetail = {
       opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
       resolved_by: null,
       resolved_at: null,
-      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+      agent_run: null,
+      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
       created_at: "2026-08-29T12:02:00Z",
       updated_at: "2026-08-29T12:02:30Z"
     },
@@ -291,7 +308,7 @@ function mockFetch() {
       if (payload.comment?.thread_id === 7) {
         const commentThread = {
           ...docDetail.threads[0],
-          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
         }
         return jsonResponse({
           design_doc: {
@@ -304,7 +321,7 @@ function mockFetch() {
       if (payload.comment?.thread_id === 17) {
         const suggestionThread = {
           ...docDetail.threads[1],
-          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
+          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
         }
         const suggestion = { ...docDetail.suggestions[0], thread: suggestionThread }
         return jsonResponse({
@@ -632,6 +649,7 @@ describe("DesignDocsSurface", () => {
     renderSurface("/design_docs/1")
 
     await screen.findByText("Needs evidence")
+    expect(screen.getByText("Syrus is drafting...")).toBeInTheDocument()
     fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
 
