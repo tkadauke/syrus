@@ -114,8 +114,9 @@ function userMessage(text: string, overrides: Partial<Extract<ChatRenderItem, { 
   }
 }
 
-function renderMessage(text: string, payload = makePayload(), options: { pinnable?: boolean } = {}) {
+function renderMessage(text: string, payload = makePayload(), options: { pinnable?: boolean; currentUserId?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  seedBootstrap(client, options.currentUserId)
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -132,8 +133,10 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   )
 }
 
-function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload(), extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}) {
+function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload(), extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void; currentUserId?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  seedBootstrap(client, extra.currentUserId)
+  const { currentUserId: _currentUserId, ...messageProps } = extra
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -144,11 +147,15 @@ function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }
           prefix=""
           queryKey={["chats", "122", ""] as const}
           onNotice={() => {}}
-          {...extra}
+          {...messageProps}
         />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function seedBootstrap(client: QueryClient, currentUserId = 1) {
+  client.setQueryData(["bootstrap"], { current_user: { id: currentUserId } })
 }
 
 function systemMessageItem(system: ChatSystemMessage, overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}): Extract<ChatRenderItem, { type: "message" }> {
@@ -175,9 +182,28 @@ describe("sender attribution", () => {
     const payload = makePayload()
     payload.chat.conversation_kind = "group"
 
-    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload)
+    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload, { currentUserId: 3 })
 
     expect(screen.getByText("Marcus Cato")).toBeInTheDocument()
+  })
+
+  it("keeps the default user bubble color for the current participant in a group chat", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload, { currentUserId: 3 })
+
+    expect(screen.getByText("Ave.")).toHaveClass("bg-brand", "text-on-brand")
+  })
+
+  it("uses a shared alternate bubble color for other participants in a group chat", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload, { currentUserId: 1 })
+
+    expect(screen.getByText("Ave.")).toHaveClass("bg-gray-100", "text-gray-900")
+    expect(screen.getByText("Ave.")).not.toHaveClass("bg-brand", "text-on-brand")
   })
 
   it("does not render a sender name in a direct chat even if sender_user is present", () => {

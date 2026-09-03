@@ -3,6 +3,7 @@ import { memo, useState } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
+import { fetchBootstrap } from "../../api/bootstrap"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -35,6 +36,7 @@ import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 
 export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void }) {
   const { t } = useT("chat")
+  const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
@@ -51,6 +53,11 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
   }
 
   if (item.role === "user") {
+    const ownMessage = ownHumanMessage(item, payload, bootstrap.data?.current_user?.id)
+    const bubbleClass = ownMessage
+      ? "bg-brand text-on-brand"
+      : "border border-gray-200 bg-gray-100 text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+
     return (
       <article className={`group/message relative flex justify-end pt-6${entranceClass}`} id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
@@ -66,7 +73,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.text.trim().length > 0 ? (
-            <PlainText className="whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand" text={item.text} />
+            <PlainText className={`whitespace-pre-wrap break-words rounded px-4 py-2 text-sm leading-normal ${bubbleClass}`} text={item.text} />
           ) : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
@@ -108,6 +115,12 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
 
   return <StructuredTool tool={item.tool} fallback={item.text} />
 })
+
+function ownHumanMessage(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload, currentUserId: number | undefined) {
+  if (payload.chat.conversation_kind !== "group") return true
+  if (!item.sender_user || currentUserId === undefined) return true
+  return item.sender_user.id === currentUserId
+}
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))
