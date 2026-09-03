@@ -662,6 +662,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(run.reload).to be_cancelled
   end
 
+  it "cancels child workflows on closed jobs" do
+    ensure_solid_queue_test_tables!
+    visual_diff = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: "visual_diff",
+      agent_provider: job.agent_provider,
+      state: "running",
+      started_at: 45.minutes.ago
+    )
+    visual_step = Step.create!(workflow: visual_diff, kind: "visual_diff", position: 0, state: "running", started_at: 45.minutes.ago)
+    visual_run = Run.create!(
+      job: job,
+      step: visual_step,
+      trigger_kind: "visual_diff",
+      agent_provider: job.agent_provider,
+      state: "running",
+      started_at: 45.minutes.ago,
+      last_heartbeat_at: 40.minutes.ago
+    )
+    attach_work_unit(visual_diff, kind: "visual_diff", state: "running")
+    job.update_columns(state: "closed", finished_at: 30.minutes.ago, closure_reason: "operator_cancelled")
+    solid_queue_run_job(visual_run, claimed: true, created_at: 45.minutes.ago)
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :closed_job_active_runtime_work)).to have_attributes(
+      recommended_repair_action: "cancel_workflow_for_closed_job"
+    )
+    expect(result.repair_plans.map { |repair_plan| [ repair_plan.action, repair_plan.target_type, repair_plan.target_id ] }).to include(
+      [ "cancel_workflow_for_closed_job", "Workflow", visual_diff.id ]
+    )
+    expect(visual_diff.reload).to be_cancelled
+    expect(visual_step.reload).to be_cancelled
+    expect(visual_run.reload).to be_cancelled
+  end
+
   it "ignores ordinary legacy active workflows on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
