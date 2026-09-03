@@ -21,7 +21,11 @@ auto-discovery (G9).
 
 **Phase 1 complete.** `spending_insights` finished, `throughput` and
 `team_directory` extracted, and the `ui_slot` extension point built.
-`build_cache` moved to Phase 2 — see its entry for why.
+
+**Phase 2 in progress.** Landed: domain events (G1), a working
+`tick_interval` (G2), the plugin settings read path (G4), the
+`step_environment` extension point, and `build_cache` extracted. Remaining:
+kind registries (G3) and the uninstall/purge lifecycle (G10).
 
 ## Principles
 
@@ -145,7 +149,16 @@ phases:
 This is the enabling program. Almost every remaining move is blocked on one or
 more of these, and several are cheap.
 
-### G1. Domain events
+### G1. Domain events — done
+
+`Syrus::Events` + the `domain_subscriber` extension point. Names are declared in
+`Syrus::Events::EVENTS`; async delivery goes through `DomainEventJob` on the
+subscriber's `home_queue`, inline delivery runs in the publish for subscribers
+that need a workspace before teardown. Publishers wired so far: Job
+created/closed/approved/state_changed, `step.grader.completed`, and
+`step.command.completed`.
+
+Original problem, for the record:
 
 The single most important gap. Today a subsystem that must react to a Job
 closing has to live in core, because the only mechanism is an
@@ -180,7 +193,14 @@ Initial catalog, driven by the moves below:
 `step.grader.completed` must be `:inline` — the subscriber parses a file inside
 the workflow workspace, which is torn down on workflow terminal transition.
 
-### G2. Recurring jobs
+### G2. Recurring jobs — done
+
+`PluginTickSchedulerJob` runs every minute and enqueues `PluginTickJob` for
+each enabled, healthy plugin whose `tick_interval` has elapsed, on that
+plugin's `home_queue`, claiming the tick with a conditional UPDATE on
+`plugin_records.last_ticked_at`.
+
+Original problem, for the record:
 
 `tick_interval` is stored on the manifest and read by nothing;
 `PluginTickJob` exists but is never enqueued; `home_queue` only affects
@@ -211,7 +231,14 @@ enable/disable gating and no unregistration. Route new registries through
 Design note: prefer *not* extending `Job::KINDS` where a plugin-owned link table
 would do. See the scheduled-tasks entry below.
 
-### G4. Plugin settings
+### G4. Plugin settings — done
+
+`Syrus::PluginSettings` resolves a plugin's settings through its declared
+schema: `:secret_env` from `ENV` only, everything else the saved value then the
+schema default, and an undeclared key returns nil rather than reading a raw
+column. `tailscale` was switched off its private reader.
+
+Original problem, for the record:
 
 `config_schema` renders an admin form and writes `PluginRecord#config["settings"]`
 — which nothing ever reads back. Plugins that need configuration currently read
@@ -486,7 +513,15 @@ reference is the panel mount in `RepositoryDetail.tsx`. Needs G5's
 repository-detail slot, or ships as a repo page tab (wildcard already works) in
 the interim. The cleanest extraction available.
 
-**`build_cache`** — sccache. **Moved to Tier 2 after attempting it.** The
+**`build_cache`** — **done.** Owns the S3 client, stats capture/summary, the
+`build_cache_clear_requests` table (renamed from `admin_build_cache_clear_requests`,
+migration shipped in the plugin), the admin page, and the Job-detail card.
+Reaches step subprocesses through `:step_environment` and captures through the
+inline `step.command.completed` event. Its first cut left core computing the
+card's payload, which the boundary grader rejected — so `ui_slot` panels can now
+carry their own props.
+
+Original assessment, for the record: the
 inventory was right — one table (`admin_build_cache_clear_requests` →
 `build_cache_clear_requests`), four services, two controllers, an admin page
 (wildcard already works), a job-detail card — but "no new platform" was wrong.
