@@ -6789,6 +6789,7 @@ describe("App", () => {
                 ]
               },
               { field: "kind", label: "Kind", bucket: "enum", operators: ["is"], values: [ { value: "agent", label: "Agent" } ] },
+              { field: "user_id", label: "User", bucket: "fk", operators: ["is", "is_not", "is_set", "is_unset"], typeahead: true },
               { field: "hostname", label: "Hostname", bucket: "enum", operators: ["is"], values: [ { value: "worker-a", label: "worker-a" } ] }
             ]
           },
@@ -6828,6 +6829,7 @@ describe("App", () => {
               stale: false,
               kill_requested_at: null,
               kill_requested_by_user_id: null,
+              user: { id: 1, label: "Operator", email_address: "operator@example.com", path: "/admin/users/1" },
               owner: { type: "workflow", label: "JOB-9 · Fix flaky spec", path: "/jobs/9?tab=workflows#workflow-2" }
             }
           ]
@@ -6847,6 +6849,7 @@ describe("App", () => {
 
       expect(screen.getByRole("main", { name: "Admin processes" })).toBeInTheDocument()
       expect(await screen.findByText("claude --print")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Operator (operator@example.com)" })).toHaveAttribute("href", "/app-shell/admin/users/1")
       expect(screen.getByRole("link", { name: "JOB-9 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-2")
       const disclosure = screen.getByText("Folders and filters").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
@@ -6855,6 +6858,7 @@ describe("App", () => {
       expect(screen.getByText("worker-a")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /State is Running/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      expect(screen.getByRole("button", { name: "User reference" })).toBeInTheDocument()
       expect(screen.getByRole("button", { name: "Hostname list" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Running 1" })).toHaveAttribute("href", "/app-shell/admin/processes?smart_folder_id=3")
       expect(screen.getByRole("link", { name: "Detail" })).toHaveAttribute("href", "/app-shell/admin/processes/8")
@@ -6988,6 +6992,7 @@ describe("App", () => {
           stale: false,
           kill_requested_at: null,
           kill_requested_by_user_id: null,
+          user: { id: 1, label: "Operator", email_address: "operator@example.com", path: "/admin/users/1" },
           owner: { type: "workflow", label: "JOB-42 · Fix flaky spec", path: "/jobs/42?tab=workflows#workflow-2" },
           host_metrics: null
         }),

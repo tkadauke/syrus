@@ -33,6 +33,23 @@ RSpec.describe Admin::SpawnedProcesses::Filter do
     expect(result).to contain_exactly(grader)
   end
 
+  it "filters by user through workflow, chat, and preview attribution" do
+    owner = Factories.user
+    other = Factories.user
+    workflow = Factories.job_with_run(user: owner).latest_workflow
+    chat_session = ChatSession.create!(user: owner, title: "Operator chat")
+    preview_job = Factories.job_record(user: owner)
+    preview_environment = PreviewEnvironment.create!(job: preview_job)
+    workflow_process = process(workflow: workflow)
+    chat_process = process(kind: "chat_prepare", chat_session: chat_session)
+    preview_process = process(kind: "preview", resource_attribution: { "preview_environment_id" => preview_environment.id })
+    process(workflow: Factories.job_with_run(user: other).latest_workflow)
+
+    result = apply("field" => "user_id", "op" => "is", "value" => owner.id.to_s)
+
+    expect(result).to contain_exactly(workflow_process, chat_process, preview_process)
+  end
+
   it "filters by stale rows using the SpawnedProcess stale scope" do
     fresh = process(last_chunk_at: 1.minute.ago)
     stale = process(last_chunk_at: 10.minutes.ago)
