@@ -351,14 +351,23 @@ Workflow override -> Job provider -> Repository override -> User default
 ```
 
 Agent-provider failover is configured separately from provider selection and
-does not change in-flight workflow execution by itself. The policy stores an
-ordered provider list, but Syrus only considers providers the user has actually
-configured credentials for. Auth errors are represented as a cause for
+applies only when Syrus is about to admit unstarted workflow work. The policy
+stores an ordered provider list, but Syrus only considers providers the user has
+actually configured credentials for. Auth errors are represented as a cause for
 visibility, but they are not enabled in the default automatic failover cause
 list. Explicit Job provider pins are respected unless the separate
-`override_explicit_pins` policy setting is enabled. Chat provider failover is
-out of scope: this policy does not rewrite `ChatSession#chat_provider` or
-enqueue chat-provider switch jobs.
+`override_explicit_pins` policy setting is enabled.
+
+When automatic failover selects another provider, dashboard rows, Job detail,
+and Workflow cards show the original unavailable provider and the selected
+provider, for example "Claude Code unavailable; running this workflow with
+Codex." App payloads expose this as `provider_failover` with `mode`,
+`automatic`, original/selected provider labels, decision time, reason, and an
+`unavailable` summary containing state, retry/reset timing, evidence source,
+and observed time when available. Operator-selected alternate retry providers
+use `mode: operator` copy instead of automatic-unavailability copy. Chat
+provider failover is out of scope: this policy does not rewrite
+`ChatSession#chat_provider` or enqueue chat-provider switch jobs.
 
 Budget thresholds are on the
 [roadmap](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#claude-usage-budgets-and-thresholds).

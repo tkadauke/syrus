@@ -231,6 +231,7 @@ module App
             path: workflow_navigation_path(workflow, page: navigation_page),
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
+            provider_failover: App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: @job.workflow_agent_provider),
             state: workflow.state,
             failure_count: workflow.failure_count,
             artifacts: enrich_artifacts(workflow.artifacts),
