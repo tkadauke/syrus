@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff, type DiffLine, type LineAnnotation } from "./diffRendering"
 
 export type ReviewableDiffFile = {
@@ -15,8 +15,17 @@ export type DiffLineSelection = {
   side: "old" | "new"
 }
 
+export type DiffReviewThread = {
+  id: number
+  body: string
+  state: string
+  author?: string | null
+  workflowState?: string | null
+}
+
 export type ReviewableDiffProps = {
   annotations?: Record<string, Record<string, LineAnnotation>> | Record<string, LineAnnotation> | null
+  comments?: Record<string, Record<string, DiffReviewThread[]>> | null
   emptyState?: ReactNode
   files?: ReviewableDiffFile[]
   mode?: "single-file" | "continuous"
@@ -29,6 +38,7 @@ export type ReviewableDiffProps = {
 
 export function ReviewableDiff({
   annotations,
+  comments,
   emptyState = null,
   files = [],
   mode = "single-file",
@@ -50,6 +60,7 @@ export function ReviewableDiff({
           {file.patch !== null ? (
             <UnifiedDiffTable
               annotations={annotationsForFile(annotations, file.path)}
+              comments={comments?.[file.path]}
               file={file}
               onCommentLine={onCommentLine}
             />
@@ -68,11 +79,13 @@ export function AgentDiff({ annotations, diff }: { diff: string; annotations?: R
 
 export function UnifiedDiffTable({
   annotations,
+  comments,
   file,
   onCommentLine,
   testId
 }: {
   annotations?: Record<string, LineAnnotation>
+  comments?: Record<string, DiffReviewThread[]>
   file: ReviewableDiffFile
   onCommentLine?: (selection: DiffLineSelection) => void
   testId?: string
@@ -86,12 +99,13 @@ export function UnifiedDiffTable({
           const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
           const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
           const canComment = Boolean(onCommentLine && commentSide)
+          const threads = commentSide ? comments?.[anchorKeyForLine(line, commentSide)] || [] : []
           return (
+            <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
             <tr
               className={diffLineClass(line.kind)}
               data-coverage={annotation}
               data-diff-kind={line.kind}
-              key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}
             >
               <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
               <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
@@ -114,11 +128,37 @@ export function UnifiedDiffTable({
                   : null}
               </td>
             </tr>
+            {threads.length > 0 ? (
+              <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+                <td className="border-r border-amber-200 dark:border-amber-900" colSpan={2} />
+                <td className="text-amber-700 dark:text-amber-300">*</td>
+                <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
+                  <div className="space-y-2">
+                    {threads.map((thread) => (
+                      <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
+                        <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          {thread.author ? <span>{thread.author}</span> : null}
+                          <span>{thread.state}</span>
+                          {thread.workflowState ? <span>{thread.workflowState}</span> : null}
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ) : null}
+            </Fragment>
           )
         })}
       </tbody>
     </table>
   )
+}
+
+function anchorKeyForLine(line: DiffLine, side: "old" | "new") {
+  if (side === "old") return `left:${line.oldLine ?? ""}:${line.newLine ?? ""}`
+  return `right:${line.oldLine ?? ""}:${line.newLine ?? ""}`
 }
 
 function DiffFileHeader({

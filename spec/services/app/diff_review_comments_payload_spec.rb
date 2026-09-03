@@ -7,6 +7,7 @@ RSpec.describe App::DiffReviewCommentsPayload do
   it "returns comments as a flat list and grouped by file and line anchor" do
     first = job.diff_review_comments.create!(
       user: user,
+      workflow: Workflow.create!(job: job, user: user, trigger_kind: "chat_feedback", state: "running"),
       surface: "job_source_diff",
       base_ref: "base",
       head_ref: "head",
@@ -36,6 +37,7 @@ RSpec.describe App::DiffReviewCommentsPayload do
       new_line: 12,
       anchor_key: "right::12",
       user: include(id: user.id, display_name: user.display_name),
+      workflow: include(id: first.workflow_id, trigger_kind: "chat_feedback", state: "running"),
       context: { "severity" => "medium" }
     )
     expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)

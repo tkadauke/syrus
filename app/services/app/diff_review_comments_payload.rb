@@ -34,6 +34,7 @@ module App
         user_id: comment.user_id,
         user: user_json(comment.user),
         workflow_id: comment.workflow_id,
+        workflow: workflow_json(comment.workflow),
         run_id: comment.run_id,
         surface: comment.surface,
         base_ref: comment.base_ref,
@@ -63,6 +64,16 @@ module App
         display_name: user.display_name,
         email_address: user.email_address,
         avatar_url: user.avatar_url
+      }
+    end
+
+    def workflow_json(workflow)
+      return nil unless workflow
+
+      {
+        id: workflow.id,
+        trigger_kind: workflow.trigger_kind,
+        state: workflow.state
       }
     end
   end

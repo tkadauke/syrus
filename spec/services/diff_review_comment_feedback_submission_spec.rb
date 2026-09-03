@@ -81,8 +81,30 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     result = described_class.call(job: job, comment_ids: [ comment.id ], actor: user)
 
     expect(result).not_to be_success
-    expect(result.error).to include("No unresolved diff comments")
+    expect(result.error).to include("No pending or retryable diff comments")
     expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
+  end
+
+  it "rejects submitted comments whose feedback workflow already succeeded" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "chat_feedback", state: "succeeded")
+    comment = create_comment(state: "submitted", workflow: workflow, submitted_at: 1.hour.ago)
+
+    result = described_class.call(job: job, comment_ids: [ comment.id ], actor: user)
+
+    expect(result).not_to be_success
+    expect(result.error).to include("No pending or retryable diff comments")
+    expect(job.workflows.where(trigger_kind: "chat_feedback").count).to eq(1)
+  end
+
+  it "allows submitted comments to be retried after their feedback workflow fails" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "chat_feedback", state: "failed")
+    comment = create_comment(state: "submitted", workflow: workflow, submitted_at: 1.hour.ago)
+
+    result = described_class.call(job: job, comment_ids: [ comment.id ], actor: user)
+
+    expect(result).to be_success
+    expect(result.workflow).not_to eq(workflow)
+    expect(comment.reload.workflow).to eq(result.workflow)
   end
 
   it "rejects duplicate active chat feedback workflows through the shared guard" do
