@@ -64,7 +64,7 @@ class RetryWorkflowEnqueuer
     reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
     return failure("That agent is not available for retry.") unless agent_provider_allowed?
-    return circuit_failure if automatic? && provider_circuit.open?
+    return circuit_failure if automatic? && provider_circuit.open? && !provider_failover_candidate?
 
     job.sync_skip_prepare_from_source!
 
@@ -112,6 +112,18 @@ class RetryWorkflowEnqueuer
 
   def provider_circuit
     @provider_circuit ||= ProviderCircuitBreaker.call(effective_agent_provider, include_logs: false)
+  end
+
+  def provider_failover_candidate?
+    job.agent_provider_failover_candidates(cause: retry_failover_cause).any?
+  end
+
+  def retry_failover_cause
+    attempt = AutoRetryAttempt.find_by(id: artifacts.to_h["auto_retry_attempt_id"])
+    return "rate_limited" if attempt&.failure_classification == "rate_limited"
+    return "usage_exhausted" if attempt&.failure_classification == ProviderUsageLimit::CLASSIFICATION
+
+    "provider_transient"
   end
 
   def circuit_failure
