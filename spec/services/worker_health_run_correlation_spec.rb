@@ -190,6 +190,62 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload.dig(:command_spans, 0, :summary, :cpu_used_percent)).to eq(avg: 99.0, max: 99.0)
   end
 
+  it "bounds unfinished orphaned command spans by terminal process and Run windows" do
+    wf = workflow
+    step = step_for(wf)
+    run_finished_at = Time.zone.parse("2026-07-31T13:03:00Z")
+    process_finished_at = Time.zone.parse("2026-07-31T13:06:00Z")
+    run = run_for(
+      step,
+      state: "failed",
+      started_at: Time.zone.parse("2026-07-31T13:00:00Z"),
+      finished_at: run_finished_at
+    )
+    process = SpawnedProcess.create!(
+      run: run,
+      workflow: wf,
+      kind: "grader",
+      command: "bin/rspec",
+      hostname: "worker-a",
+      started_at: Time.zone.parse("2026-07-31T13:00:05Z"),
+      finished_at: process_finished_at,
+      outcome: "orphaned"
+    )
+    CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      spawned_process: process,
+      sequence: 1,
+      name: "rspec",
+      command_excerpt: "bin/rspec",
+      hostname: "worker-a",
+      started_at: Time.zone.parse("2026-07-31T13:00:10Z"),
+      finished_at: nil,
+      duration_ms: nil,
+      outcome: "incomplete",
+      exit_status: nil
+    )
+    sample(observed_at: Time.zone.parse("2026-07-31T13:02:00Z"), cpu_used_percent: 91.0)
+    sample(observed_at: Time.zone.parse("2026-07-31T15:30:00Z"), cpu_used_percent: 99.0, cpu_pressure_some: 80.0)
+
+    payload = described_class.for_run(run, now: Time.zone.parse("2026-07-31T16:00:00Z"))
+    span_payload = payload.fetch(:command_spans).first
+
+    expect(span_payload).to include(
+      finished_at: nil,
+      effective_finished_at: run_finished_at.iso8601,
+      effective_duration_s: 170.0,
+      truncated: true,
+      truncated_by: [ "run" ],
+      orphaned: true,
+      sample_count: 1
+    )
+    expect(span_payload.dig(:summary, :cpu_used_percent)).to eq(avg: 91.0, max: 91.0)
+    expect(span_payload.dig(:summary, :cpu_pressure_some)).to be_nil
+  end
+
   it "uses now as the end of the window for a still-running Run" do
     wf = workflow
     step = step_for(wf, kind: "implement", details: {})

@@ -357,7 +357,7 @@ module WorkflowStepResourceProfiles
           next if span.hostname.blank? || span.started_at.blank?
 
           started_at = [ span.started_at, retained_since ].max
-          finished_at = span.finished_at || now
+          finished_at = WorkerHealthRunCorrelation::SpanWindow.new(span: span, now: now).finished_at
           next if started_at > finished_at
 
           intervals_by_hostname[span.hostname] << [ started_at, finished_at ]

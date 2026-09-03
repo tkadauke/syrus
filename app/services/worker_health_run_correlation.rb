@@ -162,8 +162,9 @@ class WorkerHealthRunCorrelation
       run_spans.each do |span|
         next if span.hostname.blank? || span.started_at.blank?
 
+        span_window = SpanWindow.new(span: span, now: now)
         starts << [ span.started_at, retained_since ].max
-        finishes << (span.finished_at || now)
+        finishes << span_window.finished_at if span_window.finished_at
       end
     end
 
@@ -395,6 +396,11 @@ class WorkerHealthRunCorrelation
         outcome: span.outcome,
         hostname: span.hostname,
         metadata: CommandRedactor.redact_value(span.metadata),
+        effective_finished_at: range_finish&.iso8601,
+        effective_duration_s: effective_duration_s,
+        truncated: span_window.truncated?,
+        truncated_by: span_window.truncated_by,
+        orphaned: span_window.orphaned?,
         sample_count: samples.size,
         samples_missing: samples.empty?,
         retention_limited: retention_limited?,
@@ -477,7 +483,17 @@ class WorkerHealthRunCorrelation
     end
 
     def range_finish
-      span.finished_at || now
+      span_window.finished_at
+    end
+
+    def effective_duration_s
+      return nil if span.started_at.blank? || range_finish.blank?
+
+      (range_finish - span.started_at).to_f.round(3)
+    end
+
+    def span_window
+      @span_window ||= SpanWindow.new(span: span, now: now)
     end
 
     def effective_since
@@ -492,6 +508,88 @@ class WorkerHealthRunCorrelation
 
     def retention_limited?
       span.started_at.present? && span.started_at < retained_since
+    end
+  end
+
+  class SpanWindow
+    Candidate = Struct.new(:source, :time, keyword_init: true)
+
+    attr_reader :span, :now
+
+    def initialize(span:, now:)
+      @span = span
+      @now = now
+    end
+
+    def finished_at
+      @finished_at ||= finish_candidates.min_by(&:time)&.time
+    end
+
+    def truncated?
+      finished_at.present? && span.finished_at != finished_at
+    end
+
+    def truncated_by
+      return nil unless truncated?
+
+      finish_candidates.select { |candidate| candidate.time == finished_at }.map(&:source)
+    end
+
+    def orphaned?
+      spawned_process_outcome == "orphaned"
+    end
+
+    private
+
+    def finish_candidates
+      @finish_candidates ||= [
+        Candidate.new(source: "command_span", time: span.finished_at),
+        Candidate.new(source: "spawned_process", time: spawned_process_finished_at),
+        Candidate.new(source: "run", time: run_finished_at),
+        Candidate.new(source: "query", time: now)
+      ].select(&:time)
+    end
+
+    def spawned_process_finished_at
+      return nil if span.spawned_process_id.blank?
+
+      return @spawned_process_finished_at if defined?(@spawned_process_finished_at)
+
+      @spawned_process_finished_at = begin
+        if span.association(:spawned_process).loaded?
+          span.spawned_process&.finished_at
+        else
+          SpawnedProcess.where(id: span.spawned_process_id).pick(:finished_at)
+        end
+      end
+    end
+
+    def spawned_process_outcome
+      return nil if span.spawned_process_id.blank?
+
+      return @spawned_process_outcome if defined?(@spawned_process_outcome)
+
+      @spawned_process_outcome = begin
+        if span.association(:spawned_process).loaded?
+          span.spawned_process&.outcome
+        else
+          SpawnedProcess.where(id: span.spawned_process_id).pick(:outcome)
+        end
+      end
+    end
+
+    def run_finished_at
+      return nil if span.run_id.blank?
+
+      return @run_finished_at if defined?(@run_finished_at)
+
+      @run_finished_at = begin
+        if span.association(:run).loaded?
+          span.run&.finished_at
+        else
+          Run.where(id: span.run_id).pick(:finished_at)
+        end
+      end
     end
   end
 end
