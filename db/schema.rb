@@ -2944,11 +2944,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_120000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "design_doc_agent_runs", "design_doc_comments", column: "triggering_comment_id"
-  add_foreign_key "design_doc_agent_runs", "design_doc_threads"
-  add_foreign_key "design_doc_agent_runs", "design_doc_versions", column: "base_version_id"
-  add_foreign_key "design_doc_agent_runs", "design_docs"
-  add_foreign_key "design_doc_agent_runs", "users", column: "requested_by_user_id"
-  add_foreign_key "design_doc_comments", "design_doc_agent_runs"
-  add_foreign_key "design_doc_suggestions", "design_doc_agent_runs"
 end
