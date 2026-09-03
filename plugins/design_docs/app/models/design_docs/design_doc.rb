@@ -14,6 +14,7 @@ module DesignDocs
     has_many :collaborators, class_name: "DesignDocs::DesignDocCollaborator", dependent: :destroy
     has_many :collaborator_users, through: :collaborators, source: :user
     has_many :versions, class_name: "DesignDocs::DesignDocVersion", dependent: :destroy
+    has_many :agent_runs, class_name: "DesignDocs::DesignDocAgentRun", dependent: :destroy
     has_many :anchors, class_name: "DesignDocs::DesignDocAnchor", dependent: :destroy
     has_many :threads, class_name: "DesignDocs::DesignDocThread", dependent: :destroy
     has_many :suggestions, class_name: "DesignDocs::DesignDocSuggestion", dependent: :destroy

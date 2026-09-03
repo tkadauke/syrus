@@ -1264,6 +1264,7 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
           Resolve
         </Button>
       )} />
+      <ThreadAgentRunStatus run={thread.agent_run} />
       <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
       <ThreadComments comments={thread.comments} />
       <ThreadReplyForm
@@ -1299,6 +1300,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
       style={{ marginTop: railOffset(suggestion) }}
     >
       <ThreadCardHeader labels={<><StatusLabel value="suggestion" /><StatusLabel value={suggestion.render_mode === "block" ? "block" : "inline"} />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
+      {thread ? <ThreadAgentRunStatus run={thread.agent_run} /> : null}
       {suggestion.render_mode === "block" ? <BlockSuggestionDiff suggestion={suggestion} /> : <InlineSuggestionDiff suggestion={suggestion} />}
       {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
       {thread ? <ThreadComments comments={thread.comments} /> : null}
@@ -1376,11 +1378,30 @@ function ThreadComments({ comments }: { comments: DesignDocThread["comments"] })
       {comments.map((comment) => (
         <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
           <p>{comment.body}</p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || comment.author_kind}</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || (comment.author_kind === "agent" ? "Syrus" : comment.author_kind)}</p>
         </div>
       ))}
     </div>
   )
+}
+
+function ThreadAgentRunStatus({ run }: { run: DesignDocThread["agent_run"] }) {
+  if (!run) return null
+
+  const message = run.status === "queued" || run.status === "running"
+    ? "Syrus is drafting..."
+    : run.status === "failed"
+      ? `Syrus failed${run.error_message ? `: ${run.error_message}` : "."}`
+      : run.status === "canceled"
+        ? "Syrus canceled."
+        : run.result_summary || "Syrus finished."
+  const tone = run.status === "failed"
+    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+    : run.status === "queued" || run.status === "running"
+      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+      : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200"
+
+  return <p className={`mt-2 rounded border px-2 py-1 text-xs break-words ${tone}`}>{message}</p>
 }
 
 function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }: {

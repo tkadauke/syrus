@@ -28,10 +28,13 @@ module DesignDocs
               suggested_markdown: proposed_markdown,
               proposed_markdown: proposed_markdown,
               change_summary: attributes[:change_summary].presence,
+              agent_run: agent_run,
               provenance: draft.provenance.merge(
                 "autosave" => autosave?,
-                "autosaved_at" => Time.current.iso8601
-              ),
+                "autosaved_at" => Time.current.iso8601,
+                "design_doc_agent_run_id" => attributes[:design_doc_agent_run_id].presence,
+                "triggering_comment_id" => attributes[:triggering_comment_id].presence
+              ).compact,
               render_mode: render_mode(visible[start_offset...end_offset].to_s, proposed_markdown)
             )
 
@@ -61,6 +64,7 @@ module DesignDocs
           change_type: attributes[:change_type].presence || "replace",
           render_mode: render_mode(original_markdown(anchor_result.anchor), proposed_markdown),
           change_summary: attributes[:change_summary].presence,
+          agent_run: agent_run,
           provenance: provenance(base_version)
         )
 
@@ -91,6 +95,7 @@ module DesignDocs
         change_type: attributes[:change_type].presence || "replace",
         render_mode: render_mode(original_markdown(anchor), proposed_markdown),
         change_summary: attributes[:change_summary].presence,
+        agent_run: agent_run,
         provenance: provenance(base_version)
       )
 
@@ -159,8 +164,16 @@ module DesignDocs
         "base_version_id" => base_version&.id,
         "run_id" => attributes[:run_id].presence,
         "workflow_id" => attributes[:workflow_id].presence,
-        "chat_message_id" => attributes[:chat_message_id].presence
+        "chat_message_id" => attributes[:chat_message_id].presence,
+        "design_doc_agent_run_id" => attributes[:design_doc_agent_run_id].presence,
+        "triggering_comment_id" => attributes[:triggering_comment_id].presence
       }.compact
+    end
+
+    def agent_run
+      return nil if attributes[:design_doc_agent_run_id].blank?
+
+      @agent_run ||= DesignDocs::DesignDocAgentRun.find(attributes[:design_doc_agent_run_id])
     end
 
     def autosave?

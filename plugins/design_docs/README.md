@@ -21,6 +21,10 @@ The plugin owns these tables through `plugins/design_docs/db/migrate`:
 - `design_doc_anchors`: authoritative inline range/point anchors.
 - `design_doc_threads` and `design_doc_comments`: inline discussion state.
 - `design_doc_suggestions`: one pending suggestion per anchored range in v1.
+- `design_doc_agent_runs`: lightweight, comment-scoped `@syrus` agent turns
+  requested from a design doc thread. Each run records the triggering comment,
+  requesting user, doc/thread/version scope, provider, status, context snapshot,
+  result summary, and output payload.
 
 Hidden Syrus HTML comments are inserted into Markdown to keep anchors stable
 across edits. The database records remain authoritative for provenance, state,
@@ -61,6 +65,15 @@ pending suggestions. Agent edits are always suggestion-only, enforced by the
 backend from authenticated server context rather than trusting request params.
 Only owners can resolve threads and accept/reject suggestions.
 
+Users who can suggest/comment on a Design Doc can mention `@syrus` in a newly
+created or newly edited thread comment to request a lightweight agent turn. The
+mention detector matches case-insensitively and ignores mentions in quoted text,
+inline code, and fenced code blocks. The agent turn is scoped to the design doc
+thread, includes the full thread discussion plus pending thread suggestions,
+and never creates a normal Syrus Job or directly mutates canonical Markdown.
+Generated output is either an agent-authored reply or a pending suggestion on
+the same thread; both link back to the durable run and triggering comment.
+
 The detail API serializes explicit permission booleans for the editor:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. The UI uses
 those values to keep owner-only metadata and accept/reject controls out of
@@ -96,6 +109,12 @@ anchor comments and proposed replacement previews are not written into
 canonical Markdown until the owner accepts the suggestion. New pending
 suggestions cannot overlap an existing pending suggestion, and selections that
 cut through partial Markdown block syntax are rejected with a validation error.
+
+Thread cards also surface lightweight agent-run state. While a run is queued or
+running, the thread shows `Syrus is drafting...`; terminal states show a success
+summary, failure reason, or cancellation notice. Duplicate saves of the same
+triggering comment reuse the existing run, and a thread has at most one queued
+or running mention turn at a time.
 
 ### Markdown Command Set
 
