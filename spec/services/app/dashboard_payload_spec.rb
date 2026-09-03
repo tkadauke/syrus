@@ -76,6 +76,59 @@ RSpec.describe App::DashboardPayload, :ci_only do
         usage_exhausted: false
       )
     end
+
+    it "exposes automatic provider failover details on job rows" do
+      job = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "running",
+        agent_provider: "codex",
+        artifacts: {
+          "provider_failover_decision" => {
+            "original_provider" => "claude",
+            "selected_provider" => "codex",
+            "reason" => "provider_unavailable",
+            "decided_at" => "2026-08-01T12:01:00Z",
+            "automatic_failover" => true,
+            "unavailable" => {
+              "provider" => "claude",
+              "label" => "Claude Code",
+              "state" => "open",
+              "reason" => "Provider appears temporarily unavailable.",
+              "retry_after" => "2026-08-01T12:10:00Z",
+              "evidence" => {
+                "status" => "failed",
+                "source" => "provider_circuit",
+                "observed_at" => "2026-08-01T12:00:00Z"
+              }
+            }
+          }
+        }
+      )
+      Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:provider_failover]).to include(
+        mode: "automatic",
+        automatic: true,
+        original_provider: "claude",
+        original_provider_label: "Claude Code",
+        selected_provider: "codex",
+        selected_provider_label: "Codex",
+        reason: "provider_unavailable",
+        decided_at: "2026-08-01T12:01:00Z"
+      )
+      expect(item.dig(:provider_failover, :unavailable)).to include(
+        provider: "claude",
+        state: "open",
+        retry_after: "2026-08-01T12:10:00Z",
+        evidence_source: "provider_circuit",
+        observed_at: "2026-08-01T12:00:00Z"
+      )
+    end
   end
 
   describe "delivery status" do

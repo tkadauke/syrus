@@ -1,7 +1,7 @@
-import type { ProviderAvailability } from "../api/providerAvailability"
+import type { ProviderAvailability, ProviderFailover } from "../api/providerAvailability"
 
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
-  if (!availability?.usage_exhausted && availability?.state !== "rate_limited" && availability?.state !== "auth_error") return null
+  if (!availability?.usage_exhausted && availability?.state !== "rate_limited" && availability?.state !== "auth_error" && availability?.state !== "open") return null
 
   const label = warningLabel(availability)
   const tone = availability.usage_exhausted || availability.state === "auth_error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
@@ -17,10 +17,30 @@ export function ProviderAvailabilityWarning({ availability, className = "" }: { 
   )
 }
 
+export function ProviderFailoverNotice({ failover, className = "" }: { failover?: ProviderFailover | null; className?: string }) {
+  if (!failover) return null
+
+  const copy = failover.automatic
+    ? `${failover.original_provider_label} unavailable; running this workflow with ${failover.selected_provider_label}.`
+    : `Operator selected ${failover.selected_provider_label} for this workflow instead of ${failover.original_provider_label}.`
+  const label = failoverLabel(failover, copy)
+
+  return (
+    <span className={`inline-flex max-w-full items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`} title={label}>
+      {copy}
+    </span>
+  )
+}
+
 function warningLabel(availability: NonNullable<ProviderAvailability>): string {
   const base = availability.message || `${availability.label || availability.provider} usage limit reached. This item uses ${availability.label || availability.provider} until usage resets.`
   const evidence = availability.evidence?.current || availability.usage?.evidence
-  if (!evidence) return base
+  const timing = [
+    availability.retry_after ? `retry after ${formatTimestamp(availability.retry_after)}` : null,
+    availability.usage?.windows?.five_hour?.reset_at ? `5h reset ${formatTimestamp(availability.usage.windows.five_hour.reset_at)}` : null,
+    availability.usage?.windows?.weekly?.reset_at ? `weekly reset ${formatTimestamp(availability.usage.windows.weekly.reset_at)}` : null,
+  ].filter(Boolean)
+  if (!evidence) return [base, ...timing].join(". ")
 
   const parts = [
     base,
@@ -28,9 +48,26 @@ function warningLabel(availability: NonNullable<ProviderAvailability>): string {
     evidence.observed_at ? `observed ${formatTimestamp(evidence.observed_at)}` : null,
     scopeLabel(evidence),
     evidence.http_status ? `HTTP ${evidence.http_status}` : null,
+    ...timing,
   ].filter(Boolean)
 
   return parts.join(". ")
+}
+
+function failoverLabel(failover: NonNullable<ProviderFailover>, base: string): string {
+  const unavailable = failover.unavailable
+  if (!unavailable) return base
+
+  return [
+    base,
+    unavailable.state ? `${unavailable.label || failover.original_provider_label} state: ${unavailable.state}` : null,
+    unavailable.reason ? `Reason: ${unavailable.reason}` : null,
+    unavailable.retry_after ? `Retry after ${formatTimestamp(unavailable.retry_after)}` : null,
+    unavailable.reset_at ? `Reset ${formatTimestamp(unavailable.reset_at)}` : null,
+    unavailable.evidence_source || unavailable.evidence_status ? `Evidence: ${[unavailable.evidence_status, unavailable.evidence_source].filter(Boolean).join(" from ")}` : null,
+    unavailable.observed_at ? `Observed ${formatTimestamp(unavailable.observed_at)}` : null,
+    failover.decided_at ? `Decided ${formatTimestamp(failover.decided_at)}` : null,
+  ].filter(Boolean).join(". ")
 }
 
 function scopeLabel(evidence: NonNullable<NonNullable<ProviderAvailability>["evidence"]>["current"]): string | null {

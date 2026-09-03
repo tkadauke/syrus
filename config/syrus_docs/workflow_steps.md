@@ -71,7 +71,7 @@ required. When those checks pass, the Run records `agent_diff`, `step_agent_diff
 downstream graders validate the committed result. Dirty worktrees, no-op commits,
 or broken branch history still fail as normal.
 
-**Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using the exhausted agent provider show a red triangle warning until the usage-limit window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits remain separate and use the existing non-red treatment.
+**Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using an unavailable agent provider show a warning with provider label, state, reason, retry/reset timing, evidence source, and observed time where available until the window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits use the non-red provider-unavailability treatment.
 
 **Provider availability pause:** Before the first Run and between Steps,
 `StepDispatcher` checks the Workflow's pinned `agent_provider` against the
@@ -88,15 +88,21 @@ per-user/per-provider and only suppresses pauses until newer provider evidence
 arrives.
 
 **Provider failover policy:** Agent Settings persists a disabled-by-default
-agent-provider failover policy for future admission/retry selection. The policy
-stores an ordered provider list and a cause list covering usage exhausted,
-usage low, rate limited, provider transient/circuit open, and auth error. Only
-providers returned by `User#configured_agent_providers` are selectable at use
-time, so the policy never chooses an unconfigured provider. Auth errors are
-modeled for visibility but excluded from the default automatic-failover causes,
-and explicit Job provider pins are respected unless the separate
-`override_explicit_pins` setting is enabled. This policy does not switch chat
-providers or enqueue `SwitchChatProviderJob`.
+agent-provider failover policy for admission/retry selection before a Workflow
+has started. The policy stores an ordered provider list and a cause list
+covering usage exhausted, usage low, rate limited, provider transient/circuit
+open, and auth error. Only providers returned by
+`User#configured_agent_providers` are selectable at use time, so the policy
+never chooses an unconfigured provider. Auth errors are modeled for visibility
+but excluded from the default automatic-failover causes, and explicit Job
+provider pins are respected unless the separate `override_explicit_pins` setting
+is enabled. Automatic failover records `provider_failover_decision` on the
+Workflow artifacts and app payloads project that as `provider_failover` on Job
+detail, dashboard rows, repository Job rows, compact Job payloads, and Workflow
+cards. The payload includes original and selected provider labels, automatic vs
+operator mode, reason, decision time, and an unavailable-provider evidence
+summary when available. This policy does not switch chat providers or enqueue
+`SwitchChatProviderJob`.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
