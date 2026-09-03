@@ -235,6 +235,50 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(status).to include(blocked_reason: "waiting_for_health_signals", can_request: true, can_spawn: false)
       end
 
+      it "waits when the repository still says CI is broken but the captured CI row for the SHA is healthy" do
+        repository.update!(
+          last_health_checked_sha: "wait123def456",
+          last_ci_evaluated_sha: "wait123def456",
+          ci_health: "broken",
+          grader_health: "unknown"
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: "wait123def456",
+          ci_health: "healthy",
+          ci_failed_checks: []
+        )
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.jobs.where(kind: "direct").count }
+
+        status = MainHealthChangedService.new(repository.reload).repair_status
+        expect(status).to include(blocked_reason: "waiting_for_health_signals", can_request: true, can_spawn: false)
+      end
+
+      it "waits when the repository still says graders are broken but the captured grader workflow for the SHA is healthy" do
+        repository.update!(
+          last_health_checked_sha: "wait123def456",
+          last_ci_evaluated_sha: "wait123def456",
+          ci_health: "healthy",
+          grader_health: "broken"
+        )
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          sha: "wait123def456",
+          grader_health: "healthy",
+          grader_failed_names: []
+        )
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.jobs.where(kind: "direct").count }
+
+        status = MainHealthChangedService.new(repository.reload).repair_status
+        expect(status).to include(blocked_reason: "waiting_for_health_signals", can_request: true, can_spawn: false)
+      end
+
       it "allows a manual fix Job while waiting for settled health signals" do
         repository.update!(
           last_health_checked_sha: "wait123def456",
