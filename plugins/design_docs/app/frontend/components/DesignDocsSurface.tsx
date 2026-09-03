@@ -12,6 +12,7 @@ import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
+import { useDismissiblePopup } from "@app/lib/useDismissiblePopup"
 import { useT } from "@app/hooks/useT"
 import {
   acceptDesignDocSuggestion,
@@ -263,13 +264,17 @@ function persistedDraftFingerprint(docId: string | number, mode: ChangeMode, tit
   return `${docId}:${mode}:${title}:${markdown}`
 }
 
+function emptySelection(): SelectionRange {
+  return { start: 0, end: 0, text: "", selectedText: "", rect: null }
+}
+
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message?: string) => void }) {
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
   const [summaryVisible, setSummaryVisible] = useState(false)
-  const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
+  const [selection, setSelection] = useState<SelectionRange>(emptySelection)
   const [commentBody, setCommentBody] = useState("")
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
   const [focusedSuggestionId, setFocusedSuggestionId] = useState<number | null>(null)
@@ -355,7 +360,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
-      setSelection({ start: 0, end: 0, text: "", selectedText: "", rect: null })
+      setSelection(emptySelection())
       onDocChange(payload.design_doc, "Comment added.")
     }
   })
@@ -385,6 +390,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (!target) return
     const start = target.selectionStart
     const end = target.selectionEnd
+    if (start === end) {
+      setSelection({ start, end, text: "", selectedText: "", rect: null })
+      return
+    }
+
     const text = target.value.slice(start, end)
     setSelection({ start, end, text, selectedText: text, rect: textareaSelectionRect(target, start, end) })
   }
@@ -393,17 +403,32 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (!wysiwygRef.current) return
 
     const range = document.getSelection()
-    if (!range || range.rangeCount === 0 || range.isCollapsed) return
+    if (!range || range.rangeCount === 0) {
+      setSelection(emptySelection())
+      return
+    }
+
     const selectedRange = range.getRangeAt(0)
-    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) return
+    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) {
+      setSelection(emptySelection())
+      return
+    }
 
     const selectedText = selectedRange.toString()
     const sourceStart = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.startContainer, selectedRange.startOffset, "start")
     const sourceEnd = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.endContainer, selectedRange.endOffset, "end")
-    if (sourceStart == null || sourceEnd == null) return
+    if (sourceStart == null || sourceEnd == null) {
+      setSelection(emptySelection())
+      return
+    }
 
     const start = Math.max(0, Math.min(draft.length, sourceStart))
     const end = Math.max(start, Math.min(draft.length, sourceEnd))
+    if (range.isCollapsed || start === end) {
+      setSelection({ start, end, text: "", selectedText: "", rect: null })
+      return
+    }
+
     setSelection({
       start,
       end,
@@ -624,7 +649,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
               aria-label="Rich Text editor"
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable
-              onBlur={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onBlur={() => {
+                setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
+                window.setTimeout(() => {
+                  if (document.activeElement === newThreadComposerRef.current) return
+                  updateWysiwygSelection()
+                }, 0)
+              }}
               onClick={(event) => {
                 const target = event.target as HTMLElement
                 const suggestionMarker = target.closest("[data-suggestion-id]") as HTMLElement | null
@@ -882,6 +913,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
 }) {
   const wideToolbar = useMediaQuery("(min-width: 768px)", true)
   const [moreOpen, setMoreOpen] = useState(false)
+  const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const range = selection.end >= selection.start ? selection : { start: 0, end: 0 }
   const blockOptions: Array<{ command: ToolbarBlockCommand; label: string }> = [
     { command: "paragraph", label: "Paragraph" },
@@ -909,17 +941,6 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
     { command: "nested_list", label: "Indent list item" }
   ]
   const selectedBlock = currentBlockCommand(draft, range)
-
-  useEffect(() => {
-    if (!moreOpen) return
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMoreOpen(false)
-    }
-
-    document.addEventListener("keydown", closeOnEscape)
-    return () => document.removeEventListener("keydown", closeOnEscape)
-  }, [moreOpen])
 
   function commandDisabled(command: DesignDocFormattingCommand) {
     return !canApplyDesignDocFormattingCommand(draft, range, command)
@@ -999,7 +1020,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
         ) : null}
       </div>
 
-      <div className="relative shrink-0">
+      <div className="relative shrink-0" ref={moreMenuRef}>
         <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
