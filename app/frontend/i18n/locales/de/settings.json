@@ -188,26 +188,6 @@
     "pref_main_inconclusive": "Benachrichtige mich, wenn die Main-Branch-Gesundheit überprüft werden muss",
     "updated": "Benachrichtigungseinstellungen aktualisiert."
   },
-  "profiles": {
-    "team_directory": "Teamverzeichnis",
-    "loading": "Profile werden geladen...",
-    "single_user": "Auf dieser Syrus-Instanz existiert nur ein Benutzer.",
-    "loading_profile": "Profil wird geladen...",
-    "aria_directory": "Team-Verzeichnis",
-    "aria_profile": "Team-Profil",
-    "owned_epics": "Eigene Epics",
-    "empty_epics": "Keine aktiven Epics.",
-    "owned_jobs": "Eigene Jobs",
-    "empty_jobs": "Keine Jobs.",
-    "repositories": "Repositories",
-    "empty_repositories": "Keine aktiven Repositories.",
-    "recent_activity": "Letzte Aktivität",
-    "empty_activity": "Noch keine Aktivität.",
-    "count_repos": "Repos",
-    "count_epics": "Epics",
-    "count_jobs": "Jobs",
-    "count_open": "Offen"
-  },
   "design_system": {
     "heading": "Design-System",
     "description": "Eine lebendige Galerie der gemeinsam genutzten UI-Komponenten von Syrus, gerendert aus den echten Design-System-Primitiven und mit der aktiven Farb-Token-Ebene gestaltet.",

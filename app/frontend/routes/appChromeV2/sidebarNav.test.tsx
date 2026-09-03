@@ -12,8 +12,7 @@ describe("CORE_NAV_ITEMS", () => {
       "dashboard",
       "repositories",
       "schedules",
-      "terminal",
-      "team"
+      "terminal"
     ])
   })
 })
@@ -22,7 +21,7 @@ describe("buildSidebarNavItems", () => {
   it("includes all core items in order when every visibility condition is met", () => {
     const items = buildSidebarNavItems(baseContext, [], translate)
 
-    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules", "terminal", "team"])
+    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules", "terminal"])
   })
 
   it("routes dashboard to the jobs board in simple mode", () => {
@@ -49,12 +48,6 @@ describe("buildSidebarNavItems", () => {
     expect(items.map((item) => item.id)).not.toContain("terminal")
   })
 
-  it("hides team when there is only one team member", () => {
-    const items = buildSidebarNavItems({ ...baseContext, teamUserCount: 1 }, [], translate)
-
-    expect(items.map((item) => item.id)).not.toContain("team")
-  })
-
   it("appends enabled plugin-provided pages after the core items, preserving their given order", () => {
     const pluginPages: SidebarPluginPage[] = [
       { id: "spending.dashboard", label: "Spending", label_key: "spending:nav_spending", path: "/insights/spending", paths: ["/insights/spending"], order: 60, icon: "spending" },
@@ -68,7 +61,6 @@ describe("buildSidebarNavItems", () => {
       "repositories",
       "schedules",
       "terminal",
-      "team",
       "spending.dashboard",
       "extra.page"
     ])

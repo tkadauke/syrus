@@ -1,0 +1,23 @@
+{
+  "nav_team": "Collegium",
+  "profiles": {
+    "team_directory": "Directorium Manipuli",
+    "loading": "Imagines onerantur...",
+    "single_user": "In hac instantia Syri unus solus utens exstat.",
+    "loading_profile": "Imago onerans...",
+    "aria_directory": "Index gregis",
+    "aria_profile": "Persona gregis",
+    "owned_epics": "Epica propria",
+    "empty_epics": "Nulla epica activa.",
+    "owned_jobs": "Opera propria",
+    "empty_jobs": "Nulla opera.",
+    "repositories": "Repositoria",
+    "empty_repositories": "Nulla repositoria activa.",
+    "recent_activity": "Actio recens",
+    "empty_activity": "Nulla actio adhuc.",
+    "count_repos": "Repos",
+    "count_epics": "Epica",
+    "count_jobs": "Opera",
+    "count_open": "Aperta"
+  }
+}

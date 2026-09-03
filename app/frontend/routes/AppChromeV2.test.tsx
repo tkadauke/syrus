@@ -987,17 +987,16 @@ describe("AppChromeV2 primary nav reordering", () => {
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
     const labels = within(primaryNav).getAllByRole("link").map((link) => link.textContent)
 
-    // "repositories" and "dashboard" follow the saved order; "schedules" and
-    // "team" are absent from it, so they're appended at the end in their
-    // original relative order.
-    expect(labels).toEqual(["Repositories", "Dashboard", "Schedules", "Team"])
+    // "repositories" and "dashboard" follow the saved order; "schedules" is
+    // absent from it, so it's appended at the end.
+    expect(labels).toEqual(["Repositories", "Dashboard", "Schedules"])
   })
 
   it("persists a new order after dragging a nav item and refetches bootstrap", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
-        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["team", "dashboard", "repositories", "schedules"] }))
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories"] }))
       }
       if (path === "/api/v1/app/bootstrap") {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
@@ -1011,19 +1010,19 @@ describe("AppChromeV2 primary nav reordering", () => {
     })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
-    const teamRow = within(primaryNav).getByRole("link", { name: "Team" }).parentElement!
+    const scheduleRow = within(primaryNav).getByRole("link", { name: "Schedules" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
     const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
 
-    fireEvent.dragStart(teamRow, { dataTransfer })
+    fireEvent.dragStart(scheduleRow, { dataTransfer })
     fireEvent.dragOver(dashboardRow, { dataTransfer })
     fireEvent.drop(dashboardRow)
-    fireEvent.dragEnd(teamRow)
+    fireEvent.dragEnd(scheduleRow)
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ order: ["team", "dashboard", "repositories", "schedules"] })
+        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories"] })
       }))
     })
   })
@@ -1033,7 +1032,7 @@ describe("AppChromeV2 primary nav reordering", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
-        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["team", "dashboard", "repositories", "schedules", "terminal"] }))
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories", "terminal"] }))
       }
       if (path === "/api/v1/app/bootstrap") {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2, feature_flags: { terminal: true } })))
@@ -1058,11 +1057,11 @@ describe("AppChromeV2 primary nav reordering", () => {
       expect(queryClient.getQueryState(["terminal_sessions"])?.status).toBe("success")
     })
 
-    const teamRow = within(primaryNav).getByRole("link", { name: "Team" }).parentElement!
+    const scheduleRow = within(primaryNav).getByRole("link", { name: "Schedules" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
     const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
 
-    fireEvent.dragStart(teamRow, { dataTransfer })
+    fireEvent.dragStart(scheduleRow, { dataTransfer })
     fireEvent.dragOver(dashboardRow, { dataTransfer })
 
     // Directly deliver a fresh terminal-session poll result mid-drag, the
@@ -1083,12 +1082,12 @@ describe("AppChromeV2 primary nav reordering", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
 
     fireEvent.drop(dashboardRow)
-    fireEvent.dragEnd(teamRow)
+    fireEvent.dragEnd(scheduleRow)
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ order: ["team", "dashboard", "repositories", "schedules", "terminal"] })
+        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories", "terminal"] })
       }))
     })
   })

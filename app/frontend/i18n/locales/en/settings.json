@@ -188,26 +188,6 @@
     "pref_main_inconclusive": "Notify me when main branch health needs review",
     "updated": "Notification preferences updated."
   },
-  "profiles": {
-    "team_directory": "Team directory",
-    "loading": "Loading profiles...",
-    "single_user": "Only one user exists on this Syrus instance.",
-    "loading_profile": "Loading profile...",
-    "aria_directory": "Team directory",
-    "aria_profile": "Team profile",
-    "owned_epics": "Owned epics",
-    "empty_epics": "No active epics.",
-    "owned_jobs": "Owned jobs",
-    "empty_jobs": "No jobs.",
-    "repositories": "Repositories",
-    "empty_repositories": "No active repositories.",
-    "recent_activity": "Recent activity",
-    "empty_activity": "No activity yet.",
-    "count_repos": "Repos",
-    "count_epics": "Epics",
-    "count_jobs": "Jobs",
-    "count_open": "Open"
-  },
   "design_system": {
     "heading": "Design System",
     "description": "A living gallery of Syrus's shared UI components, rendered from the real design-system primitives and styled from the active color token layer.",

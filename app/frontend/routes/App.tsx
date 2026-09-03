@@ -52,7 +52,7 @@ import { MemoriesRoute } from "./Memories"
 import { NotificationsSettingsRoute } from "./NotificationsSettings"
 import { OnboardingRoute } from "./Onboarding"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
-import { AccountProfileRoute, ProfileRoute } from "./Profile"
+import { AccountProfileRoute } from "./Profile"
 import { PreferencesRoute } from "./Preferences"
 import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
@@ -67,7 +67,6 @@ import { RepositoryInsightsRoute } from "./RepositoryInsights"
 import { AdminInsightsRoute } from "./AdminInsights"
 import { Tags } from "./Tags"
 import { TerminalRoute } from "./Terminal"
-import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
@@ -136,11 +135,10 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/settings/preferences", element: <SettingsSectionRoute><PreferencesRoute /></SettingsSectionRoute> },
   { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
   { path: "/settings/connected_platforms", element: <SettingsSectionRoute><ConnectedPlatformsRoute /></SettingsSectionRoute> },
-  { path: "/profiles", element: <TeamDirectoryRoute /> },
-  { path: "/profiles/:id", element: <TeamProfileRoute /> },
+  { path: "/profiles", element: <PluginSidebarPageRoute /> },
+  { path: "/profiles/:id", element: <PluginSidebarPageRoute /> },
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
   { path: "/memories", element: <SettingsSectionRoute><MemoriesRoute /></SettingsSectionRoute> },
-  { path: "/profiles/:id", element: <ProfileRoute /> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },

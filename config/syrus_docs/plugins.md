@@ -1316,6 +1316,12 @@ registered plugin with `default_enabled: true` and no prior `PluginRecord`
 row is treated as enabled without an operator opt-in step, same as any other
 extension point.
 
+The `team_directory` plugin owns the operator directory at `/profiles` and the
+per-person profile pages beneath it. Note the naming: it has nothing to do with
+`Team`/`TeamMembership` authorization, which is core and unaffected by whether
+this plugin is enabled. The plugin's sidebar entry hides itself on a
+single-operator instance, the same condition the core nav item used.
+
 Built-in workflow MCP tools are core app functionality, not a plugin. Optional
 or installation-specific MCP tools should be contributed through plugin
 `mcp_tool_set` providers.

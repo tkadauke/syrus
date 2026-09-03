@@ -64,7 +64,6 @@ Rails.application.routes.draw do
             get :audit_events
           end
         end
-        resources :profiles, only: %i[ index show ]
         resources :smart_folders, only: %i[ create update destroy ]
         resources :cron_templates, only: %i[ index show create update destroy ] do
           collection do

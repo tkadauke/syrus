@@ -152,7 +152,6 @@ per-user/private:
   - app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - app/controllers/api/v1/app/insight_suggestions_controller.rb
   - app/controllers/api/v1/app/input_sources_controller.rb
-  - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
   - app/controllers/api/v1/app/job_claims_controller.rb
   - app/controllers/api/v1/app/job_coding_mode_controller.rb
@@ -206,7 +205,7 @@ per-user/private:
   - plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb
   - plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
 team-visible:
-  - app/controllers/api/v1/app/profiles_controller.rb
+  - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
 team-tier:
   - app/controllers/api/v1/app/teams_controller.rb
   - app/controllers/api/v1/app/team_memberships_controller.rb
@@ -235,7 +234,7 @@ admin-only:
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
-  - app/controllers/api/v1/app/profiles_controller.rb
+  - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb
@@ -343,7 +342,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update paths use `Current.user.epics`; repository choices come from the same user. Index/find/dependency-target lookups go through `EpicPolicy` (`policy_scope(Epic)`, exactly `Epic.accessible_to(Current.user)` — see [Policy layer](#policy-layer-repositoryjobepic)); unclaim, reassign, and state-advancement checks are `EpicPolicy` predicates. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
 | `app/controllers/api/v1/app/job_coding_mode_controller.rb` | per-user/private | Opens or reuses a coding-mode ChatSession linked to a Job found through `Current.user.jobs`, and initialises the Job branch checkout inside that user's chat workspace. |
@@ -353,7 +352,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_ref_movement_actions_controller.rb` | per-user/private and repository-write affordance | `send_job_upstream` resolves the target job through `policy_scope(Job)` and `authorize_job_mutation!` (`JobPolicy#write?`), then dispatches via `RefMovementAction.dispatch!` with `Current.user` as actor and broadcasts the change back to that user. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission are scoped through `JobPolicy` (`policy_scope(Job)`, exactly `Current.user.jobs` — see [Policy layer](#policy-layer-repositoryjobepic)); timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Creates and manages local daemon sessions through `Current.user.chat_sessions`; daemon session creation sets `user: Current.user`. |
 | `app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
@@ -362,8 +361,8 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |
 | `app/controllers/api/v1/app/passkeys_controller.rb` | per-user/private | Passkey registration options and credential verification use `Current.user` to scope the challenge and passkey rows to the authenticated user. |
 | `app/controllers/api/v1/app/platform_identities_controller.rb` | per-user/private | Platform identity listing, unlinking, and linking-token generation are scoped to `Current.user.platform_identities`. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/input_sources_controller.rb` | per-user/private | Registry-backed input source CRUD finds the parent repository through `Current.user.repositories` and resolves source types only from `PluginRegistry.providers_for(:input_source)`, so only the repository owner can read or update source credentials. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | admin-tier and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, admin-tier `RepositoryMembership` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to global admins. |
 | `app/controllers/api/v1/app/repository_memberships_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `RepositoryMembership` rows, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repositories_controller.rb`. Refuses to remove or demote the last `admin`-tier member of a repository. |
@@ -388,7 +387,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
 | `app/controllers/api/v1/app/workflow_warnings_controller.rb` | per-user/private | Warnings are found through jobs scoped to `Current.user.jobs`; filing a fix Job creates it as `Current.user`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |
 
 ## Team-visible
@@ -437,7 +436,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/users_controller.rb` | admin-only | Lists user records through an admin payload with the current admin as actor. |
 | `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Public auth status includes current-user context when a signed-in admin hits auth routes. |
 | `app/controllers/api/v1/app/credentials_controller.rb` | per-user/private and admin-only | Normal credential reads/writes mutate only the current user's credentials. API token rotation and revocation are admin-only because API bearer access exposes admin endpoints. |
-| `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with self-aware badges | Team profiles are deliberately visible across users, while ownership labels compare profile rows to the signed-in user. |
+| `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | team-visible with self-aware badges | Team profiles are deliberately visible across users, while ownership labels compare profile rows to the signed-in user. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the current operator's credentials, repositories, and first job progress. |
 | `plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb` | per-user/private | Design doc reads and writes resolve visibility through the signed-in user. |
 | `plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb` | per-user/private | Commit history is read for repositories the current user can access. |

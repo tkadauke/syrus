@@ -1,18 +1,18 @@
-import { withRoutePrefix } from "../lib/routing"
-import { PageHeading, SectionHeading } from "../components/Heading"
-import { Avatar } from "../components/Avatar"
-import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { withRoutePrefix } from "@app/lib/routing"
+import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { Avatar } from "@app/components/Avatar"
+import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
-import { ApiError } from "../api/client"
+import { ApiError } from "@app/api/client"
 import { fetchProfile, fetchProfiles, type TeamProfileActivity, type TeamProfileCounts, type TeamProfileDetail, type TeamProfileEpic, type TeamProfileJob, type TeamProfileRepository, type TeamProfileSummary } from "../api/profiles"
-import { StatusPill } from "../components/StatusPill"
-import { useT } from "../hooks/useT"
-import { PanelMessage } from "../components/PanelMessage"
+import { StatusPill } from "@app/components/StatusPill"
+import { useT } from "@app/hooks/useT"
+import { PanelMessage } from "@app/components/PanelMessage"
 
 export function TeamDirectoryRoute() {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const profiles = useQuery({
@@ -39,7 +39,7 @@ export function TeamDirectoryRoute() {
 }
 
 export function TeamProfileRoute() {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   const { id } = useParams()
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
@@ -63,7 +63,7 @@ export function TeamProfileRoute() {
 }
 
 function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <article className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start gap-3">
@@ -83,7 +83,7 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
 }
 
 function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <>
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
@@ -111,7 +111,7 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
 }
 
 function Counts({ counts }: { counts: TeamProfileCounts }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <dl className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
       <Count label={t("profiles.count_repos")} value={counts.repositories} />
@@ -123,7 +123,7 @@ function Counts({ counts }: { counts: TeamProfileCounts }) {
 }
 
 function Count({ label, value }: { label: string; value: number }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <div className="rounded border border-gray-200 dark:border-gray-700 px-2 py-2">
       <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
@@ -133,7 +133,7 @@ function Count({ label, value }: { label: string; value: number }) {
 }
 
 function SummaryList<T>({ title, empty, items, renderItem }: { title: string; empty: string; items: T[]; prefix: string; renderItem: (item: T) => ReactNode }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <SectionHeading className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">{title}</SectionHeading>
@@ -147,7 +147,7 @@ function SummaryList<T>({ title, empty, items, renderItem }: { title: string; em
 }
 
 function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -160,7 +160,7 @@ function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
 }
 
 function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -176,7 +176,7 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
 }
 
 function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-brand hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
@@ -185,12 +185,12 @@ function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob
 }
 
 function RepositoryRow({ repository, prefix }: { repository: TeamProfileRepository; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return <Link className="font-mono text-sm text-brand hover:underline" to={withRoutePrefix(repository.path, prefix)}>{repository.slug}</Link>
 }
 
 function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; prefix: string }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -203,8 +203,17 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
 }
 
 function ProfilesError({ error }: { error: Error }) {
-  const { t } = useT("settings")
+  const { t } = useT("team_directory")
   const message = error instanceof ApiError ? error.message : "Unable to load profiles."
   return <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">{message}</div>
 }
 
+
+// Single entry point for the plugin sidebar page. PluginSidebarPageRoute
+// matches `/profiles` and anything beneath it with one component, so the
+// index/detail split is decided here from the route params.
+export default function TeamDirectory() {
+  const { id } = useParams()
+
+  return id ? <TeamProfileRoute /> : <TeamDirectoryRoute />
+}

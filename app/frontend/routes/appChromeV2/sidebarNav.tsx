@@ -35,7 +35,6 @@ export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
   { id: "schedules", labelKey: "nav:schedules", to: () => "/scheduled_tasks", icon: <ScheduleIcon />, order: 30, visible: (ctx) => !ctx.simpleMode },
   { id: "terminal", labelKey: "nav:terminal", to: () => "/terminal", icon: <TerminalIcon />, order: 40, visible: (ctx) => Boolean(ctx.featureFlags.terminal) },
-  { id: "team", labelKey: "nav:team", to: () => "/profiles", icon: <TeamIcon />, order: 50, visible: (ctx) => ctx.teamUserCount > 1 },
 ]
 
 // Known icon references a sidebar_page plugin may declare. Anything else

@@ -1,11 +1,10 @@
-import { jsonResponse } from "../testSupport"
+import { jsonResponse } from "@app/testSupport"
 import { render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { ProfileRoute } from "./Profile"
-import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
+import { TeamDirectoryRoute, TeamProfileRoute } from "./TeamDirectory"
 
 describe("profile routes", () => {
   it("renders the team directory without leaking private profile data", async () => {
@@ -95,30 +94,32 @@ describe("profile routes", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/profiles/7", expect.objectContaining({ credentials: "same-origin" }))
   })
 
-  it("renders the single-user profile page details and empty states", async () => {
+  it("renders a team profile with empty work sections", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(teamProfilePayload({
       profile_bio: null,
       profile_company: null,
       profile_location: null,
       profile_website: null,
       counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
-      jobs: []
+      epics: [],
+      jobs: [],
+      repositories: [],
+      recent_activity: []
     })))
 
     renderRoute(
       <Routes>
-        <Route element={<ProfileRoute />} path="/app-shell/profiles/:id" />
+        <Route element={<TeamProfileRoute />} path="/app-shell/profiles/:id" />
       </Routes>,
       "/app-shell/profiles/7"
     )
 
-    expect(await screen.findByRole("main", { name: "User profile" })).toBeInTheDocument()
+    expect(await screen.findByRole("main", { name: "Team profile" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.getByText("No bio listed.")).toBeInTheDocument()
-    expect(screen.getByText("No company listed")).toBeInTheDocument()
-    expect(screen.getByText("No location listed")).toBeInTheDocument()
-    expect(screen.getByText("No website listed")).toBeInTheDocument()
-    expect(screen.getByText("No owned work yet. Jobs, epics, and repository activity will appear here once this user starts delegating work.")).toBeInTheDocument()
+    expect(screen.getByText("No active epics.")).toBeInTheDocument()
+    expect(screen.getByText("No jobs.")).toBeInTheDocument()
+    expect(screen.getByText("No active repositories.")).toBeInTheDocument()
+    expect(screen.getByText("No activity yet.")).toBeInTheDocument()
   })
 })
 

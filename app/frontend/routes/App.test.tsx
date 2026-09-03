@@ -1039,7 +1039,6 @@ describe("App", () => {
       expect(await within(primaryNav).findByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
-      expect(within(primaryNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/profiles")
       screen.getAllByRole("button", { name: "Report a bug" }).forEach((button) => {
         expect(button).not.toHaveClass("fixed")
       })
@@ -2119,45 +2118,6 @@ describe("App", () => {
       fetchSpy.mockRestore()
       script.remove()
     }
-  })
-
-  it("renders the team directory route", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          team_user_count: 2,
-          profiles: [
-            {
-              id: 7,
-              display_name: "Ada Lovelace",
-              first_name: "Ada",
-              last_name: "Lovelace",
-              github_handle: "ada",
-              role_label: "Operator",
-              avatar_url: null,
-              bio_excerpt: "Keeps the machines honest.",
-              counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
-              profile_path: "/profiles/7"
-            }
-          ]
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
-    )
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/profiles"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("main", { name: "Team directory" })).toBeInTheDocument()
-    expect(await screen.findByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/7")
-    expect(screen.getByText("Operator")).toBeInTheDocument()
-    expect(screen.getByText("@ada")).toBeInTheDocument()
-    expect(screen.getByText("Keeps the machines honest.")).toBeInTheDocument()
   })
 
   it("sends first-run users from the app root to onboarding", async () => {
@@ -8630,68 +8590,6 @@ describe("App", () => {
       expect(screen.getByText("Preferences saved.")).toBeInTheDocument()
       expect(screen.queryByText("Credentials updated.")).not.toBeInTheDocument()
     })
-  })
-
-  it("renders a teammate profile from the profile API without credential details", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(profilePayload()), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/profiles/2"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.getByRole("main", { name: "Team profile" })).toBeInTheDocument()
-    expect(screen.getByText("@ada-lovelace")).toBeInTheDocument()
-    expect(screen.getByText("Mathematician and operator.")).toBeInTheDocument()
-    expect(screen.getByText("Add profile page")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Add profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
-    expect(screen.getByRole("link", { name: "@ada-lovelace" })).toHaveAttribute("href", "https://github.com/ada-lovelace")
-    expect(within(screen.getByRole("heading", { name: "Ada Lovelace" })).getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
-    expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
-    expect(screen.queryByText("GitHub token")).not.toBeInTheDocument()
-    expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument()
-    expect(screen.queryByText("sk-profile-secret")).not.toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/profiles/2", expect.objectContaining({ credentials: "same-origin" }))
-  })
-
-  it("renders useful empty states for profiles with no public details or work", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(profilePayload({
-        github_handle: null,
-        profile_bio: null,
-        profile_company: null,
-        profile_location: null,
-        profile_website: null,
-        counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
-        repositories: [],
-        epics: [],
-        jobs: [],
-        recent_activity: []
-      })), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/profiles/3"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.queryByText("@ada-lovelace")).not.toBeInTheDocument()
-    expect(screen.queryByText("Mathematician and operator.")).not.toBeInTheDocument()
-    expect(screen.getByText("No active epics.")).toBeInTheDocument()
-    expect(screen.getByText("No jobs.")).toBeInTheDocument()
-    expect(screen.getByText("No active repositories.")).toBeInTheDocument()
-    expect(screen.getByText("No activity yet.")).toBeInTheDocument()
   })
 
   it("rotates an admin API token from the credentials route", async () => {

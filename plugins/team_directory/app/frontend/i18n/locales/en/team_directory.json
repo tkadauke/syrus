@@ -1,0 +1,23 @@
+{
+  "nav_team": "Team",
+  "profiles": {
+    "team_directory": "Team directory",
+    "loading": "Loading profiles...",
+    "single_user": "Only one user exists on this Syrus instance.",
+    "loading_profile": "Loading profile...",
+    "aria_directory": "Team directory",
+    "aria_profile": "Team profile",
+    "owned_epics": "Owned epics",
+    "empty_epics": "No active epics.",
+    "owned_jobs": "Owned jobs",
+    "empty_jobs": "No jobs.",
+    "repositories": "Repositories",
+    "empty_repositories": "No active repositories.",
+    "recent_activity": "Recent activity",
+    "empty_activity": "No activity yet.",
+    "count_repos": "Repos",
+    "count_epics": "Epics",
+    "count_jobs": "Jobs",
+    "count_open": "Open"
+  }
+}
