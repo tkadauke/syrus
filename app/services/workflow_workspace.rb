@@ -374,13 +374,11 @@ class WorkflowWorkspace
   end
 
   def remote_branch_exists?(branch)
-    refs = authenticated_git("git_workflow_ls_remote_branch") do |url|
-      @git.run(
-        "ls-remote", "--heads", url,
-        "refs/heads/#{branch}",
-        chdir: path.dirname.to_s, env: @env
-      )
-    end
+    refs = @git.run(
+      "ls-remote", "--heads", authenticated_url,
+      "refs/heads/#{branch}",
+      chdir: path.dirname.to_s, env: @env
+    )
     refs.strip.present?
   end
 
@@ -464,9 +462,7 @@ class WorkflowWorkspace
   # misconfigured `default_branch`, auth failure, network error, etc.),
   # which must keep failing loudly rather than being silently papered over.
   def remote_repo_empty?
-    refs = authenticated_git("git_workflow_check_empty_remote") do |url|
-      @git.run("ls-remote", "--heads", url, chdir: path.dirname.to_s, env: @env)
-    end
+    refs = @git.run("ls-remote", "--heads", authenticated_url, chdir: path.dirname.to_s, env: @env)
     refs.strip.empty?
   rescue GitRunner::GitError
     false
