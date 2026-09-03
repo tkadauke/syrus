@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_094103) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1704,6 +1704,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_094103) do
   end
 
   create_table "plugin_records", force: :cascade do |t|
+    t.string "author"
     t.string "category"
     t.json "config", null: false
     t.datetime "created_at", null: false
@@ -1712,6 +1713,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_094103) do
     t.boolean "disableable", default: true, null: false
     t.string "display_name"
     t.boolean "enabled", default: true, null: false
+    t.text "extension_points"
     t.datetime "last_ticked_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false

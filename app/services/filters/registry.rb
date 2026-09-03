@@ -213,8 +213,11 @@ module Filters
       name: :admin_plugins,
       model: PluginRecord,
       chips: {
-        "category" => "Filters::Chips::AdminPlugins::Category",
-        "search"   => "Filters::Chips::AdminPlugins::Search"
+        "enabled"         => "Filters::Chips::AdminPlugins::Enabled",
+        "author"          => "Filters::Chips::AdminPlugins::Author",
+        "extension_point" => "Filters::Chips::AdminPlugins::ExtensionPoint",
+        "category"        => "Filters::Chips::AdminPlugins::Category",
+        "search"          => "Filters::Chips::AdminPlugins::Search"
       }
     ),
     spawned_process: Subject.new(
