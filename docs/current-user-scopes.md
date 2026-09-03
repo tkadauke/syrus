@@ -171,6 +171,7 @@ per-user/private:
   - app/controllers/api/v1/app/platform_identities_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
+  - app/controllers/api/v1/app/repository_recommendations_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/repository_preview_controller.rb
@@ -366,6 +367,7 @@ instead of broader model scopes.
 | `plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/input_sources_controller.rb` | per-user/private | Registry-backed input source CRUD finds the parent repository through `Current.user.repositories` and resolves source types only from `PluginRegistry.providers_for(:input_source)`, so only the repository owner can read or update source credentials. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | admin-tier and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, admin-tier `RepositoryMembership` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to global admins. |
+| `app/controllers/api/v1/app/repository_recommendations_controller.rb` | per-user/private and repository-write affordance | Recommendation actions resolve active repositories through `Repository.accessible_to(Current.user)`, create direct setup Jobs as `Current.user` after a repository write check, and apply low-risk toggles only through the repository update policy. |
 | `app/controllers/api/v1/app/repository_memberships_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `RepositoryMembership` rows, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repositories_controller.rb`. Refuses to remove or demote the last `admin`-tier member of a repository. |
 | `app/controllers/api/v1/app/repository_team_grants_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `TeamRepository` grants for a repository, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repository_memberships_controller.rb` — see [Teams](#teams). |
 | `app/controllers/api/v1/app/teams_controller.rb` | team-tier | Team CRUD, scoped through `TeamPolicy`/`policy_scope(Team)`: visible to any team member or global admin, mutable by owner-tier `TeamMembership` or global admin. Any authenticated user may create a team. |
