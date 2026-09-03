@@ -291,11 +291,17 @@ module WorkflowStepResourceProfiles
     end
 
     def attributed_span_metrics(span)
-      correlation = WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, now: now, samples_by_hostname: span_samples_by_hostname)
+      correlation = WorkerHealthRunCorrelation::SpanCorrelation.new(
+        span: span,
+        sample_limit: 0,
+        now: now,
+        samples_by_hostname: span_samples_by_hostname,
+        span_window: span_window_for(span)
+      ).as_json
       return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
 
       {
-        duration_seconds: span.duration_s,
+        duration_seconds: correlation.fetch(:effective_duration_s),
         cpu_pressure: correlation.dig(:summary, :cpu_pressure_some, :max),
         io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
         memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
@@ -312,6 +318,7 @@ module WorkflowStepResourceProfiles
       previous_summary_run_ids = @summary_run_ids
       previous_summary_step_ids = @summary_step_ids
       previous_span_samples = @span_samples_by_hostname
+      previous_spawned_process_metadata = @spawned_process_metadata_by_id
 
       @summaries_for_metadata = summaries
       @job_kinds_by_id = nil
@@ -321,6 +328,7 @@ module WorkflowStepResourceProfiles
       @summary_job_ids = nil
       @summary_run_ids = nil
       @summary_step_ids = nil
+      @spawned_process_metadata_by_id = nil
       @span_samples_by_hostname = preload_span_samples_by_hostname(summaries)
       yield
     ensure
@@ -333,6 +341,7 @@ module WorkflowStepResourceProfiles
       @summary_run_ids = previous_summary_run_ids
       @summary_step_ids = previous_summary_step_ids
       @span_samples_by_hostname = previous_span_samples
+      @spawned_process_metadata_by_id = previous_spawned_process_metadata
     end
 
     def span_samples_by_hostname
@@ -357,7 +366,7 @@ module WorkflowStepResourceProfiles
           next if span.hostname.blank? || span.started_at.blank?
 
           started_at = [ span.started_at, retained_since ].max
-          finished_at = span.finished_at || now
+          finished_at = span_window_for(span).finished_at
           next if started_at > finished_at
 
           intervals_by_hostname[span.hostname] << [ started_at, finished_at ]
@@ -445,8 +454,8 @@ module WorkflowStepResourceProfiles
         if ids.empty?
           {}
         else
-          Run.where(id: ids).pluck(:id, :state, :agent_outcome).to_h do |id, state, agent_outcome|
-            [ id, { state: state, agent_outcome: agent_outcome } ]
+          Run.where(id: ids).pluck(:id, :state, :agent_outcome, :finished_at).to_h do |id, state, agent_outcome, finished_at|
+            [ id, { state: state, agent_outcome: agent_outcome, finished_at: finished_at } ]
           end
         end
       end
@@ -468,6 +477,30 @@ module WorkflowStepResourceProfiles
           CommandSpan.where(run_id: ids)
             .order(:run_id, :sequence, :id)
             .group_by(&:run_id)
+        end
+      end
+    end
+
+    def span_window_for(span)
+      process_metadata = spawned_process_metadata_by_id[span.spawned_process_id] || {}
+      WorkerHealthRunCorrelation::SpanWindow.new(
+        span: span,
+        now: now,
+        run_finished_at: run_metadata_by_id.dig(span.run_id, :finished_at),
+        spawned_process_finished_at: process_metadata[:finished_at],
+        spawned_process_outcome: process_metadata[:outcome]
+      )
+    end
+
+    def spawned_process_metadata_by_id
+      @spawned_process_metadata_by_id ||= begin
+        ids = command_spans_by_run_id.values.flatten.filter_map(&:spawned_process_id).uniq
+        if ids.empty?
+          {}
+        else
+          SpawnedProcess.where(id: ids).pluck(:id, :finished_at, :outcome).to_h do |id, finished_at, outcome|
+            [ id, { finished_at: finished_at, outcome: outcome } ]
+          end
         end
       end
     end
