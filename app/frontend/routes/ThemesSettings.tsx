@@ -200,7 +200,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
   if (themesQuery.isError) return <PanelMessage tone="error">{errorMessage(themesQuery.error, "Unable to load themes.")}</PanelMessage>
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <div className="space-y-6">
       <section aria-label="Custom themes" className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <SectionHeading>Custom Themes</SectionHeading>
@@ -209,7 +209,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
         {createMutation.isError ? <PanelMessage tone="error">{errorMessage(createMutation.error, "Unable to create theme.")}</PanelMessage> : null}
         {reorderMutation.isError ? <PanelMessage tone="error">{errorMessage(reorderMutation.error, "Unable to save theme order.")}</PanelMessage> : null}
         {orderedThemes.length > 0 ? (
-          <nav aria-label="Custom theme order" className="space-y-1">
+          <nav aria-label="Custom theme order" className="max-h-[27.5rem] space-y-1 overflow-y-auto pr-1">
             {orderedThemes.map((theme, index) => (
               <button
                 aria-current={theme.id === selectedId ? "true" : undefined}
