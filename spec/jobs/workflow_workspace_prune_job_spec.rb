@@ -109,6 +109,31 @@ RSpec.describe WorkflowWorkspacePruneJob do
     described_class.perform_now
   end
 
+  it "db_sweep defers a terminal workflow while a spawned process is still active" do
+    workflow = make_workflow(
+      state: "succeeded",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.minute).ago
+    )
+    step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded",
+                        started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    run = step.runs.create!(job: workflow.job, trigger_kind: "initial", state: "succeeded",
+                            started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-a",
+      started_at: 2.minutes.ago,
+      run: run,
+      workflow: workflow
+    )
+
+    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(workflow)
+
+    described_class.perform_now
+
+    expect(workflow.reload.cleaned_up_at).to be_nil
+  end
+
   # ---- db_sweep: failed non-latest pruned immediately ----
 
   it "db_sweep cleans a non-latest failed workflow immediately (regardless of finished_at)" do

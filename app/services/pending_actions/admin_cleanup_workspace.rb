@@ -5,7 +5,7 @@ module PendingActions
     def execute
       workflow = Workflow.find(payload.fetch("workflow_id"))
       progress!("Cleaning workspace for #{workflow.slug}...")
-      raise ArgumentError, "Workflow workspace is still in use by active steps or runs." unless workflow.cleanup_workspace!
+      raise ArgumentError, "Workflow workspace is still in use by active steps, runs, or spawned processes." unless workflow.cleanup_workspace!
 
       nil
     end
