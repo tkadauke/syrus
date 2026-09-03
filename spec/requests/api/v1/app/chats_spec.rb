@@ -2247,6 +2247,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
+      cache_store = ActiveSupport::Cache::MemoryStore.new
+      allow(Rails).to receive(:cache).and_return(cache_store)
 
       expect {
         2.times { get "/api/v1/app/chats/#{chat.id}/coding_files" }
