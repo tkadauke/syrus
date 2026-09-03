@@ -37,18 +37,22 @@ module SpendingInsights
     # The spending FilterBar subject lives with the plugin that serves it.
     # Registered here rather than in core's Filters::Registry so disabling the
     # plugin also retires its filter vocabulary.
-    Filters.register_subject(
-      name: :spending_report,
-      model: Run,
-      chips: {
-        "repository_id"  => "Filters::Chips::SpendingReport::RepositoryId",
-        "user_id"        => "Filters::Chips::SpendingReport::UserId",
-        "created_at"     => "Filters::Chips::SpendingReport::CreatedAt",
-        "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
-        "trigger_kind"   => "Filters::Chips::SpendingReport::TriggerKind",
-        "epic_id"        => "Filters::Chips::SpendingReport::EpicId"
-      }
-    )
+    Syrus::Installer.define("spending_insights:filters", plugin: "spending_insights") do |scope|
+      scope.effect("filter subjects") do
+        Filters.register_subject(
+          name: :spending_report,
+          model: Run,
+          chips: {
+            "repository_id"  => "Filters::Chips::SpendingReport::RepositoryId",
+            "user_id"        => "Filters::Chips::SpendingReport::UserId",
+            "created_at"     => "Filters::Chips::SpendingReport::CreatedAt",
+            "agent_provider" => "Filters::Chips::SpendingReport::AgentProvider",
+            "trigger_kind"   => "Filters::Chips::SpendingReport::TriggerKind",
+            "epic_id"        => "Filters::Chips::SpendingReport::EpicId"
+          }
+        )
+      end
+    end
   end
 
   def self.enabled?

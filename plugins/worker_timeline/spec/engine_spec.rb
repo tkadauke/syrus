@@ -21,12 +21,23 @@ RSpec.describe WorkerTimeline::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(WorkerTimeline::SidebarPages)
   end
 
-  it "registers the Worker Timeline filter subject from the plugin" do
+  it "registers the Worker Timeline filter subject while the plugin is enabled" do
+    PluginRecord.find_by!(name: "worker_timeline").update!(enabled: true)
+
     subject = Filters.subject(:worker_timeline)
 
     expect(subject.model).to eq(Workflow)
     expect(subject.chips).to eq(WorkerTimeline::FILTER_CHIPS)
     expect(subject.chip_class("repository_id")).to eq(Filters::Chips::WorkerTimeline::RepositoryId)
+  end
+
+  it "retires the filter subject when the plugin is disabled" do
+    PluginRecord.find_by!(name: "worker_timeline").update!(enabled: true)
+    expect(Filters.subjects).to have_key(:worker_timeline)
+
+    PluginRecord.find_by!(name: "worker_timeline").update!(enabled: false)
+
+    expect(Filters.subjects).not_to have_key(:worker_timeline)
   end
 
   describe ".enabled?" do

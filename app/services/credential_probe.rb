@@ -75,15 +75,26 @@ class CredentialProbe
   @registered_probe_handlers = {}
   @registered_secret_extractors = []
 
+  # Both return the teardown that removes exactly this registration again, so
+  # a disabled plugin stops contributing probes rather than leaving a handler
+  # pointing at code that may no longer be loaded (see Syrus::Installer).
   def self.register_probe(credential, handler)
-    @registered_probe_handlers[credential.to_s] = handler
+    key = credential.to_s
+    previous = @registered_probe_handlers[key]
+    @registered_probe_handlers[key] = handler
+
+    -> { previous ? @registered_probe_handlers[key] = previous : @registered_probe_handlers.delete(key) }
   end
 
   def self.register_secret_extractor(extractor)
-    @registered_secret_extractors << extractor unless @registered_secret_extractors.include?(extractor)
+    return -> {} if @registered_secret_extractors.include?(extractor)
+
+    @registered_secret_extractors << extractor
+    -> { @registered_secret_extractors.delete(extractor) }
   end
 
   def self.probe_handler_for(credential)
+    Syrus::Installer.sync!
     CREDENTIAL_PROBE_METHODS[credential.to_s] || @registered_probe_handlers[credential.to_s]
   end
 
@@ -249,6 +260,7 @@ class CredentialProbe
   end
 
   def registered_secrets
+    Syrus::Installer.sync!
     self.class.instance_variable_get(:@registered_secret_extractors).flat_map { |extractor| Array(extractor.call(user)) }
   end
 end

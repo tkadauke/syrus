@@ -50,7 +50,11 @@ module WorkerTimeline
   end
 
   def self.register_filter_subject!
-    Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)
+    Syrus::Installer.define("worker_timeline:filters", plugin: "worker_timeline") do |scope|
+      scope.effect("worker_timeline filter subject") do
+        Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)
+      end
+    end
   end
 
   def self.enabled?

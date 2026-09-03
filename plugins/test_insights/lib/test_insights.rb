@@ -38,15 +38,19 @@ module TestInsights
       }
     )
 
-    Filters.register_subject(
-      name: :test_case,
-      model: TestInsights::TestIdentity,
-      chips: {
-        "repository_id" => "Filters::Chips::RepositoryId",
-        "created_at"    => "Filters::Chips::CreatedAt",
-        "updated_at"    => "Filters::Chips::UpdatedAt"
-      }
-    )
+    Syrus::Installer.define("test_insights:filters", plugin: "test_insights") do |scope|
+      scope.effect("filter subjects") do
+        Filters.register_subject(
+          name: :test_case,
+          model: TestInsights::TestIdentity,
+          chips: {
+            "repository_id" => "Filters::Chips::RepositoryId",
+            "created_at"    => "Filters::Chips::CreatedAt",
+            "updated_at"    => "Filters::Chips::UpdatedAt"
+          }
+        )
+      end
+    end
   end
 
   def self.enabled?

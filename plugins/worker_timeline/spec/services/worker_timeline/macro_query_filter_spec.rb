@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe WorkerTimeline::MacroQueryFilter do
+  # The subject is contributed by the plugin, so it exists only while the
+  # plugin is enabled.
+  before { PluginRecord.find_or_create_by!(name: "worker_timeline").update!(enabled: true, disableable: true) }
+
   def encode(tree) = Filters::QueryParam.encode(tree)
 
   describe ".schema" do

@@ -146,15 +146,24 @@ class SmartFolder < ApplicationRecord
 
   @registered_subjects = {}
 
+  # Returns the teardown that deregisters this subject again. Deregistering
+  # only removes the *definition*; any rows already materialised by
+  # ensure_builtins! stay, because disabling a plugin must not delete data
+  # (Principle 6 — purge is the separate, explicit step).
   def self.register_subject!(subject, builtins: [], path: nil, label: nil)
-    @registered_subjects[subject.to_s] = {
+    key = subject.to_s
+    previous = @registered_subjects[key]
+    @registered_subjects[key] = {
       builtins: Array(builtins).freeze,
       path: path,
       label: label
     }.freeze
+
+    -> { previous ? @registered_subjects[key] = previous : @registered_subjects.delete(key) }
   end
 
   def self.registered_subjects
+    Syrus::Installer.sync!
     @registered_subjects
   end
 

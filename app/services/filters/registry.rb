@@ -244,21 +244,32 @@ module Filters
 
   @registered_subjects = {}
 
+  # Returns the teardown that removes exactly this registration again, so a
+  # plugin's subject goes away with the plugin instead of lingering in the
+  # registry (see Syrus::Installer).
   def self.register_subject(name:, model:, chips:)
-    @registered_subjects[name.to_sym] = Subject.new(name: name, model: model, chips: chips)
+    key = name.to_sym
+    previous = @registered_subjects[key]
+    @registered_subjects[key] = Subject.new(name: name, model: model, chips: chips)
+
+    -> { previous ? @registered_subjects[key] = previous : @registered_subjects.delete(key) }
   end
 
   def self.register_chips(subject:, chips:)
     subject_name = subject.to_sym
-    existing = @registered_subjects[subject_name] || SUBJECTS.fetch(subject_name)
+    previous = @registered_subjects[subject_name]
+    existing = previous || SUBJECTS.fetch(subject_name)
     @registered_subjects[subject_name] = Subject.new(
       name: existing.name,
       model: existing.model,
       chips: existing.chips.merge(chips)
     )
+
+    -> { previous ? @registered_subjects[subject_name] = previous : @registered_subjects.delete(subject_name) }
   end
 
   def self.subjects
+    Syrus::Installer.sync!
     SUBJECTS.merge(@registered_subjects)
   end
 

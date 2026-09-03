@@ -26,14 +26,18 @@ module SyrusCodexAgent
       )
     end
 
-    CredentialProbe.register_probe("codex_api_key", CodexCredentialProbe)
-    CredentialProbe.register_probe("codex_auth_json", CodexCredentialProbe)
-    CredentialProbe.register_secret_extractor(CodexCredentialProbe::SECRET_EXTRACTOR)
-    ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex)
-    Filters.register_chips(
-      subject: :admin_user,
-      chips: { "has_codex_token" => "Filters::Chips::AdminUsers::HasCodexToken" }
-    )
+    Syrus::Installer.define("codex_agent:core_registries", plugin: "codex_agent") do |scope|
+      scope.effect("api key probe") { CredentialProbe.register_probe("codex_api_key", CodexCredentialProbe) }
+      scope.effect("auth json probe") { CredentialProbe.register_probe("codex_auth_json", CodexCredentialProbe) }
+      scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(CodexCredentialProbe::SECRET_EXTRACTOR) }
+      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("codex", ChatSessionRehydrator::Codex) }
+      scope.effect("admin user chips") do
+        Filters.register_chips(
+          subject: :admin_user,
+          chips: { "has_codex_token" => "Filters::Chips::AdminUsers::HasCodexToken" }
+        )
+      end
+    end
   end
 end
 

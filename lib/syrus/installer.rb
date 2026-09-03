@@ -16,7 +16,7 @@ module Syrus
   # state and re-applies when it moves -- useEffect-with-deps rather than a
   # fiber mount.
   module Installer
-    Registration = Struct.new(:label, :install, keyword_init: true)
+    Registration = Struct.new(:label, :plugin, :install, keyword_init: true)
 
     @mutex = Mutex.new
     @registrations = {}
@@ -26,9 +26,14 @@ module Syrus
     class << self
       # Label-keyed so a Zeitwerk reload replaces an installer rather than
       # stacking a second copy of it.
-      def define(label, &install)
+      #
+      # `plugin:` scopes the install to that plugin being enabled, which is the
+      # common case — it saves every plugin writing the same guard, and means
+      # disabling the plugin disposes its installs without the plugin having to
+      # notice.
+      def define(label, plugin: nil, &install)
         @mutex.synchronize do
-          @registrations[label.to_s] = Registration.new(label: label.to_s, install: install)
+          @registrations[label.to_s] = Registration.new(label: label.to_s, plugin: plugin&.to_s, install: install)
           @applied_fingerprint = nil
         end
       end
@@ -39,12 +44,22 @@ module Syrus
       # moved. Callers may treat this as "make sure what is installed matches
       # what is enabled".
       def sync!
+        # An install that reads a registry which itself syncs on read would
+        # otherwise deadlock on a non-reentrant mutex. Nested calls are a
+        # no-op: the outer apply! is already installing.
+        return false if Thread.current[:syrus_installer_applying]
+
         current = fingerprint
 
         @mutex.synchronize do
           return false if @applied_fingerprint == current
 
-          apply!(current)
+          Thread.current[:syrus_installer_applying] = true
+          begin
+            apply!(current)
+          ensure
+            Thread.current[:syrus_installer_applying] = nil
+          end
           true
         end
       end
@@ -59,13 +74,22 @@ module Syrus
         end
       end
 
-      def clear_registrations!
+      # Registrations are made once, where the registering code loads, so
+      # clearing them permanently is not recoverable inside a running process.
+      # Specs that need an empty installer take a snapshot and put it back.
+      def snapshot = @mutex.synchronize { @registrations.dup }
+
+      def restore(snapshot)
         @mutex.synchronize do
           @scope&.dispose
           @scope = nil
           @applied_fingerprint = nil
-          @registrations = {}
+          @registrations = snapshot.dup
         end
+      end
+
+      def clear_registrations!
+        restore({})
       end
 
       private
@@ -81,12 +105,25 @@ module Syrus
         Syrus::PluginRegistry.generation
       end
 
+      # nil means "cannot tell yet" (no plugin_records table during early boot
+      # or on a fresh database); installs run rather than being suppressed,
+      # matching how providers_for degrades.
+      def enabled_plugin_names
+        Syrus::PluginRegistry.all_plugins.select(&:enabled?).map(&:name).to_set
+      rescue StandardError
+        nil
+      end
+
       def apply!(current)
         @scope&.dispose
         @scope = EffectScope.new(label: "installer")
         @applied_fingerprint = current
 
+        active = enabled_plugin_names
+
         @registrations.each_value do |registration|
+          next if registration.plugin && active && !active.include?(registration.plugin)
+
           child = @scope.child(label: registration.label)
           begin
             registration.install.call(child)

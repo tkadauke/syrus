@@ -22,13 +22,17 @@ module SyrusClaudeAgent
       )
     end
 
-    CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe)
-    CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR)
-    ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude)
-    Filters.register_chips(
-      subject: :admin_user,
-      chips: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" }
-    )
+    Syrus::Installer.define("claude_agent:core_registries", plugin: "claude_agent") do |scope|
+      scope.effect("credential probe") { CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe) }
+      scope.effect("secret extractor") { CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR) }
+      scope.effect("chat session rehydrator") { ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude) }
+      scope.effect("admin user chips") do
+        Filters.register_chips(
+          subject: :admin_user,
+          chips: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" }
+        )
+      end
+    end
   end
 end
 

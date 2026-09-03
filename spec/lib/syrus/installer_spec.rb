@@ -1,11 +1,16 @@
 require "rails_helper"
 
 RSpec.describe Syrus::Installer, :reset_plugin_registry do
+  # Installers are defined once, where their code loads. Clearing them without
+  # putting them back would leave the rest of the process with no installers at
+  # all — every plugin contribution silently absent from that point on.
   around do |example|
+    installers = described_class.snapshot
     Syrus::PluginRegistry.reset!
+    described_class.clear_registrations!
     example.run
   ensure
-    described_class.clear_registrations!
+    described_class.restore(installers)
     Syrus::PluginRegistry.restore(Syrus::PluginRegistry.boot_snapshot) if Syrus::PluginRegistry.boot_snapshot
   end
 

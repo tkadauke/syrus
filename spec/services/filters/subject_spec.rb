@@ -21,12 +21,14 @@ RSpec.describe Filters::Subject do
       expect(subject).to be_a(described_class)
       expect(subject.name).to eq(:admin_user)
       expect(subject.model).to eq(User)
-      expect(Filters::Registry.fields(subject: :admin_user)).to contain_exactly(*%w[
+      # has_claude_token / has_codex_token are contributed by the agent
+      # provider plugins and asserted in their own specs; naming them here
+      # would make those plugins undeletable and this example order-dependent
+      # on whether something disabled them first.
+      expect(Filters::Registry.fields(subject: :admin_user)).to include(*%w[
         email
         admin
         has_github_token
-        has_claude_token
-        has_codex_token
         gh_rate
       ])
     end

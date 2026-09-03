@@ -775,13 +775,36 @@ hot read paths. (A database-backed fingerprint there would have been a
 per-read query in test, where the TTL is zero — the same trap that once made
 the suite 30% slower.)
 
-**Still to convert**, in rough order of payoff: the six push-style
-registrations that have no teardown today (`Filters.register_subject`,
-`SmartFolder.register_subject!`, `HostAssociations.apply!`), then the
-`providers_for` call sites whose results are static installs — nav and admin
-pages, repo tabs, domain subscribers, search sources, routes. Per-call
-evaluation over an installed set (`available_for?`, `enabled_for?`) stays where
-it is.
+**Step 2 landed: the core push registries.** `Filters.register_subject` /
+`register_chips`, `SmartFolder.register_subject!`,
+`CredentialProbe.register_probe` / `register_secret_extractor` and
+`ChatSessionRehydrator.register` all return the teardown that removes exactly
+that registration again, and the eight plugin call sites moved into
+`Syrus::Installer.define(label, plugin:)` — which only installs while that
+plugin is enabled, so no plugin writes the guard itself. Disabling a plugin now
+retires its filter vocabulary, which `spending_insights` already claimed in a
+comment and nothing implemented.
+
+Two things this shook out, both worth keeping in mind for the remaining
+conversions:
+
+- Installing only while enabled is *stricter* than what came before, because
+  the old registrations ran unconditionally at boot. `worker_timeline` is
+  `default_enabled: false`, so its filter subject used to exist for a disabled
+  plugin; its specs now enable it. A core spec pinning `has_claude_token` on
+  the admin-user subject became order-dependent for the same reason and now
+  asserts only core's own chips.
+- Teardown makes registration state *stateful*, so anything that clears it
+  without restoring is unrecoverable mid-process. Installers are defined once,
+  where their code loads; `Installer.snapshot`/`restore` exist so a spec can
+  borrow an empty installer and put the real one back.
+
+**Still to convert**: `HostAssociations.apply!` (needs association removal,
+which has no public Rails API — the riskiest of the set, and the reason its
+`reflect_on_association` guard exists), then the `providers_for` call sites
+whose results are static installs — nav and admin pages, repo tabs, domain
+subscribers, search sources, routes. Per-call evaluation over an installed set
+(`available_for?`, `enabled_for?`) stays where it is.
 
 ## Job Origin
 

@@ -14,7 +14,11 @@ module AgentMemory
   }.freeze
 
   def self.register!
-    Filters.register_subject(name: :memory, model: AgentMemory::Entry, chips: FILTER_CHIPS)
+    Syrus::Installer.define("agent_memory:filters", plugin: "agent_memory") do |scope|
+      scope.effect("memory filter subject") do
+        Filters.register_subject(name: :memory, model: AgentMemory::Entry, chips: FILTER_CHIPS)
+      end
+    end
 
     Syrus::PluginRegistry.register(
       name:            "agent_memory",
