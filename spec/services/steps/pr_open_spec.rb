@@ -410,6 +410,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(git).to receive(:run)
       .with("merge-base", "--is-ancestor", "validated-sha", "HEAD", chdir: path.to_s)
       .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    allow(git).to receive(:run).with("rev-parse", "validated-sha^{tree}", chdir: path.to_s).and_return("validated-tree\n")
+    allow(git).to receive(:run).with("rev-parse", "publication-sha^{tree}", chdir: path.to_s).and_return("publication-tree\n")
     expect(PullRequestOpener).not_to receive(:new)
 
     expect {
@@ -420,6 +422,61 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     expect(workflow.reload.artifact("no_pr_reason")).to be_nil
     expect(job.reload).not_to be_closed
+  end
+
+  it "allows an empty publication branch when summarize only amended the implement commit message" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
+    Run.create!(
+      job: job,
+      step: implement_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      head_sha: "validated-sha"
+    )
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/direct-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    fetch_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with(
+      "fetch",
+      fetch_url,
+      "+refs/heads/main:refs/remotes/origin/main",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("amended-sha\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "refs/remotes/origin/main...HEAD", chdir: path.to_s).and_return("\n")
+    allow(git).to receive(:run)
+      .with("merge-base", "--is-ancestor", "validated-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor after amend"))
+    allow(git).to receive(:run).with("rev-parse", "validated-sha^{tree}", chdir: path.to_s).and_return("same-tree\n")
+    allow(git).to receive(:run).with("rev-parse", "amended-sha^{tree}", chdir: path.to_s).and_return("same-tree\n")
+    expect(PullRequestOpener).not_to receive(:new)
+
+    handler.call
+
+    expect(job.reload).to be_closed
+    expect(job.closure_reason).to eq("no_changes")
+    expect(workflow.reload.artifact("no_pr_reason")).to include(
+      "base_branch" => "main",
+      "branch" => branch,
+      "publication_head" => "amended-sha",
+      "validated_head" => "validated-sha"
+    )
   end
 
   it "passes the Job to PullRequestOpener so dependent PRs use their effective base" do

@@ -302,7 +302,7 @@ module Steps
       diff = git.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s).strip
       return false if diff.present?
 
-      if expected_head.present? && publication_head != expected_head && !ancestor?(git, expected_head, "HEAD")
+      if expected_head.present? && !publication_contains_expected_head?(git, expected_head, publication_head)
         raise StepFailed,
           "pr_open: publication branch #{workspace.branch_name} has no changes against #{base_branch}, " \
           "but workspace HEAD does not contain the validated implementation head; " \
@@ -363,6 +363,20 @@ module Steps
 
     def expected_publication_head_sha
       latest_succeeded_run_for(%w[implement run_skill])&.head_sha.to_s.presence
+    end
+
+    def publication_contains_expected_head?(git, expected_head, publication_head)
+      return true if publication_head == expected_head
+      return true if ancestor?(git, expected_head, "HEAD")
+
+      same_tree?(git, expected_head, publication_head)
+    end
+
+    def same_tree?(git, left, right)
+      git.run("rev-parse", "#{left}^{tree}", chdir: workspace.path.to_s).strip ==
+        git.run("rev-parse", "#{right}^{tree}", chdir: workspace.path.to_s).strip
+    rescue GitRunner::GitError
+      false
     end
 
     def verify_existing_pr_branch_not_diverged!(git, push_url)
