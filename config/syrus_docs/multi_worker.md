@@ -143,10 +143,11 @@ are marked running. This closes the multi-worker gap where a generally valid
 Run could still land on the one compute host already saturated by unrelated
 CPU-heavy work.
 
-The pickup guard applies to Runs whose workflow template uses the `:runs`
-compute queue. It uses the current worker hostname (`SyrusVersion.hostname`),
-fresh `worker_host_health_samples`, `workflows.worker_hostname` on already
-running workflows, and `workflow_step_resource_profiles` where available.
+The pickup guard applies to Runs whose workflow template uses the `:runs` or
+`:merges` compute queues, including sticky `resume-<worker-storage-key>` retry
+queues. It uses the current worker hostname (`SyrusVersion.hostname`), fresh
+`worker_host_health_samples`, `workflows.worker_hostname` on already running
+workflows, and `workflow_step_resource_profiles` where available.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
   Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
@@ -165,9 +166,20 @@ This is intentionally a pickup-time deferral, not a failure. The Run remains
 iteration is spent, and the re-enqueued job preserves the current Solid Queue
 queue and priority. On deferral, the Workflow artifact
 `run_host_admission` records the action, reason, hostname, sampled health,
-guard count/limit, step kind, Run id, `deferred_at`, and `retry_at`. The Run
-also receives a system `JobLog` line:
+guard count/limit, step kind, Run id, queue name, whether the queue was sticky
+resume, `deferred_at`, and `retry_at`. The Run also receives a system `JobLog`
+line:
 `compute host admission deferred before <step_kind>: <reason>`.
+
+Worker-died auto-retries add a pre-dispatch guard before they create a
+replacement Run. If the failed Run's `workflows.worker_hostname` still has a
+fresh critical health sample, `AutoRetryJob` leaves the retry attempt pending,
+records `failed_worker_hostname`, the failed worker's health level/reasons,
+sample timestamp, deferral timestamp, and a `failed_worker_retry_context`
+payload with reason `failed_worker_host_still_critical`, then re-enqueues the
+same `AutoRetryAttempt`. This prevents repeated landing-fix or grader
+replacements from being immediately admitted back onto a host that is still
+critically pressured.
 
 ## Retry-from-failed-step storage affinity
 

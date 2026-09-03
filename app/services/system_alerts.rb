@@ -246,7 +246,10 @@ module SystemAlerts
 
   def self.codex_usage_reset_at(snapshot, status:)
     candidates = [ snapshot["primary"], snapshot["secondary"] ].compact
-    candidates = candidates.select { |window| window["remaining_percent"].present? && window["remaining_percent"].to_f <= CodexUsageProbe::WARNING_REMAINING_PERCENT } if status == "warning"
+    if status == "warning"
+      warning_percent = "CodexUsageProbe".safe_constantize&.const_get(:WARNING_REMAINING_PERCENT) || 20
+      candidates = candidates.select { |window| window["remaining_percent"].present? && window["remaining_percent"].to_f <= warning_percent }
+    end
     candidates = [ snapshot["primary"], snapshot["secondary"] ].compact if candidates.blank?
     reset_values = candidates.filter_map { |window| parse_time(window["reset_at"]) }
     reset_values.min

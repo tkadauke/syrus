@@ -193,6 +193,30 @@ RSpec.describe TestRunIngester do
     expect(TestRun.where(run: run, grader_name: "react-tests").sole.passed_count).to eq(5)
   end
 
+  it "preserves primary test result rows when search indexing fails" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
+    allow(Rails.logger).to receive(:warn)
+
+    expect { ingester.ingest! }
+      .to change(TestRun, :count).by(1)
+      .and change(TestCase, :count).by(3)
+
+    expect(TestRun.find_by!(run: run, grader_name: "rspec")).to have_attributes(total_count: 3, failed_count: 1)
+    expect(Rails.logger).to have_received(:warn).with(include("search indexing failed"))
+  end
+
+  it "preserves primary test result rows when runtime summary refresh fails" do
+    allow(TestIdentityRuntimeSummary).to receive(:refresh_many!).and_raise(ArgumentError, "adapter does not support :unique_by")
+    allow(Rails.logger).to receive(:warn)
+
+    expect { ingester.ingest! }
+      .to change(TestRun, :count).by(1)
+      .and change(TestCase, :count).by(3)
+
+    expect(TestRun.find_by!(run: run, grader_name: "rspec")).to have_attributes(total_count: 3, failed_count: 1)
+    expect(Rails.logger).to have_received(:warn).with(include("runtime summary refresh failed"))
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)

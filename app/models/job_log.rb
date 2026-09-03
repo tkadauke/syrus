@@ -28,13 +28,13 @@ class JobLog < ApplicationRecord
       forget_next_sequence!(run.id)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      raise
+      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind)
     rescue ActiveRecord::RecordInvalid => e
       raise unless e.record.errors.of_kind?(:sequence, :taken)
       forget_next_sequence!(run.id)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      raise
+      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind)
     end
   end
 
@@ -59,6 +59,21 @@ class JobLog < ApplicationRecord
     next_sequence_cache.delete(run_id.to_i)
   end
   private_class_method :forget_next_sequence!
+
+  def self.append_with_run_lock!(run_id:, chunk:, kind:)
+    Run.transaction do
+      Run.where(id: run_id).lock(true).pick(:id)
+      log = create!(
+        run_id: run_id,
+        chunk: chunk,
+        sequence: (where(run_id: run_id).maximum(:sequence) || -1) + 1,
+        kind: kind
+      )
+      remember_next_sequence!(run_id, log.sequence + 1)
+      log
+    end
+  end
+  private_class_method :append_with_run_lock!
 
   def self.next_sequence_cache
     Thread.current[NEXT_SEQUENCE_CACHE_KEY] ||= {}

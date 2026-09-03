@@ -33,14 +33,10 @@ Detection is handled by `SyrusRails::PreviewProvider#detect?`.
 
 ## Loading the plugin
 
-Call `SyrusRails.register!` at Syrus boot time (e.g. in a Rails initializer or at the top of the worker entry point):
-
-```ruby
-require "syrus_rails"
-SyrusRails.register!
-```
-
-After registration, `Syrus::PluginRegistry.providers_for(:preview_provider)` includes a `SyrusRails::PreviewProvider` instance. `Syrus::PreviewProviderResolver.for(repo_path)` returns that instance for any Rails repository and `nil` otherwise.
+The Rails engine registers the plugin manifest at boot. After registration,
+`Syrus::PluginRegistry.providers_for(:preview_provider)` includes
+`SyrusRails::PreviewProvider`. `Syrus::PreviewProviderResolver.for(repo_path)`
+returns that provider for any Rails repository and `nil` otherwise.
 
 ## Preview hosting with SQLite
 
@@ -85,5 +81,5 @@ bin/rspec spec/plugins/rails/ spec/syrus/plugin_registry_spec.rb
 Each new extension point follows the same pattern:
 
 1. Add a class to `plugins/rails/lib/syrus_rails/<name>.rb` that includes the matching `Syrus::Plugin::<Interface>` module.
-2. Add a `PluginRegistry.register(:<extension_point>, <ClassName>.new)` call inside `SyrusRails.register!`.
+2. Add the provider to the `provides:` manifest in `plugins/rails/lib/syrus_rails/engine.rb`.
 3. Add a spec under `spec/plugins/rails/`.

@@ -134,4 +134,42 @@ RSpec.describe "bin/rspec-fast", :ci_only do
       expect(bundle_lines).to all(match(/RUN_CI_ONLY_SPECS=false\z/))
     end
   end
+
+  it "reuses an outer rspec-fast lock when one is already held by the caller" do
+    Dir.mktmpdir do |dir|
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      FileUtils.cp(script, File.join(bin_dir, "rspec-fast"))
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+      log_path = File.join(dir, "calls.log")
+
+      write_stub(File.join(bin_dir, "rails"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rails args=%s\\n' "$*" >> calls.log
+      BASH
+
+      write_stub(File.join(bin_dir, "bundle"), <<~BASH)
+        #!/usr/bin/env bash
+        shift
+        printf 'bundle-exec command=%s args=%s\\n' "$1" "$*" >> calls.log
+      BASH
+
+      lock = File.open(File.join(dir, ".syrus/rspec-fast.lock"), "w")
+      expect(lock.flock(File::LOCK_EX | File::LOCK_NB)).to be_truthy
+
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"), "RSPEC_FAST_LOCK_HELD" => "1" },
+        "bash",
+        File.join(bin_dir, "rspec-fast"),
+        "spec/models/job_spec.rb",
+        chdir: dir,
+        unsetenv_others: true
+      )
+
+      expect(status).to be_success, stderr
+      expect(File.read(log_path)).to include("rails args=db:test:prepare")
+    ensure
+      lock&.close
+    end
+  end
 end

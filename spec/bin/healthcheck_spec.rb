@@ -1,5 +1,6 @@
 require "rails_helper"
 require "open3"
+require "rbconfig"
 
 # The healthcheck script runs as a fresh process from K8s liveness, not
 # inside the Rails worker. Bundler isn't pre-activated there, so the
@@ -40,7 +41,7 @@ RSpec.describe "bin/healthcheck", :ci_only do
 
     Bundler.with_unbundled_env do
       env = ENV.to_h.merge(bundler_install_env).merge(env_overrides)
-      Open3.capture3(env, "ruby", script, unsetenv_others: true)
+      Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true)
     end
   end
 

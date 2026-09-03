@@ -14,7 +14,7 @@ RSpec.describe "bin/rspec-ci" do
     File.chmod(0o755, path)
   end
 
-  it "prepares the base test database before running the parallel suite and ci_only specs" do
+  it "takes the shared rspec-fast lock before preparing test databases" do
     Dir.mktmpdir do |dir|
       bin_dir = File.join(dir, "bin")
       FileUtils.mkdir_p(bin_dir)
@@ -23,12 +23,16 @@ RSpec.describe "bin/rspec-ci" do
 
       write_stub(File.join(bin_dir, "rails"), <<~BASH)
         #!/usr/bin/env bash
+        if [ "$RSPEC_FAST_LOCK_HELD" != "1" ]; then
+          printf 'rails-before-lock\\n' >> calls.log
+          exit 9
+        fi
         printf 'rails RAILS_ENV=%s args=%s\\n' "$RAILS_ENV" "$*" >> calls.log
       BASH
 
       write_stub(File.join(bin_dir, "rspec-fast"), <<~BASH)
         #!/usr/bin/env bash
-        printf 'rspec-fast RAILS_ENV=%s COVERAGE=%s args=%s\\n' "$RAILS_ENV" "$COVERAGE" "$*" >> calls.log
+        printf 'rspec-fast RAILS_ENV=%s COVERAGE=%s RSPEC_FAST_LOCK_HELD=%s args=%s\\n' "$RAILS_ENV" "$COVERAGE" "$RSPEC_FAST_LOCK_HELD" "$*" >> calls.log
       BASH
 
       write_stub(File.join(bin_dir, "rspec"), <<~BASH)
@@ -48,9 +52,46 @@ RSpec.describe "bin/rspec-ci" do
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
         "rails RAILS_ENV=test args=db:test:prepare",
-        "rspec-fast RAILS_ENV=test COVERAGE=false args=spec/models/job_spec.rb",
+        "rspec-fast RAILS_ENV=test COVERAGE=false RSPEC_FAST_LOCK_HELD=1 args=spec/models/job_spec.rb",
         "rspec RUN_CI_ONLY_SPECS=true RSPEC_JSON_DIR=.syrus/rspec-json args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only.xml spec/models/job_spec.rb"
       ])
+    end
+  end
+
+  it "refuses to prepare databases while another rspec-fast run holds the lock" do
+    Dir.mktmpdir do |dir|
+      bin_dir = File.join(dir, "bin")
+      FileUtils.mkdir_p(bin_dir)
+      FileUtils.cp(script, File.join(bin_dir, "rspec-ci"))
+      FileUtils.mkdir_p(File.join(dir, ".syrus"))
+      log_path = File.join(dir, "calls.log")
+
+      write_stub(File.join(bin_dir, "rails"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rails should not run\\n' >> calls.log
+      BASH
+
+      write_stub(File.join(bin_dir, "rspec-fast"), <<~BASH)
+        #!/usr/bin/env bash
+        printf 'rspec-fast should not run\\n' >> calls.log
+      BASH
+
+      lock = File.open(File.join(dir, ".syrus/rspec-fast.lock"), "w")
+      expect(lock.flock(File::LOCK_EX | File::LOCK_NB)).to be_truthy
+
+      _stdout, stderr, status = Open3.capture3(
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        "bash",
+        File.join(bin_dir, "rspec-ci"),
+        chdir: dir,
+        unsetenv_others: true
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include("Another bin/rspec-fast run is already active")
+      expect(File.exist?(log_path)).to be(false)
+    ensure
+      lock&.close
     end
   end
 

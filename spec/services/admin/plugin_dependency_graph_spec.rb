@@ -87,4 +87,26 @@ RSpec.describe Admin::PluginDependencyGraph do
       expect { graph.dependents_for("a") }.not_to raise_error
     end
   end
+
+  describe "#cycles" do
+    it "returns no cycles for an acyclic graph" do
+      register("a")
+      register("b", depends_on: [ "a" ])
+      register("c", depends_on: [ "b" ])
+
+      graph = described_class.new(Syrus::PluginRegistry.all_plugins)
+      expect(graph.cycles).to eq([])
+      expect(graph).to be_acyclic
+    end
+
+    it "reports useful cycle paths" do
+      register("a", depends_on: [ "b" ])
+      register("b", depends_on: [ "c" ])
+      register("c", depends_on: [ "a" ])
+
+      graph = described_class.new(Syrus::PluginRegistry.all_plugins)
+      expect(graph.cycles).to contain_exactly([ "a", "b", "c", "a" ])
+      expect(graph).not_to be_acyclic
+    end
+  end
 end

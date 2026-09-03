@@ -48,7 +48,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       chat_message: chat_message,
       provider: "codex",
       account_id: account_id,
-      model: model.presence || CodexInvocation.configured_model,
+      model: model.presence || codex_configured_model,
       status: "available",
       source: source,
       observed_at: observed_at,
@@ -58,6 +58,13 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     clear_override_if_codex_recovered!(user, details)
     App::ProviderAvailability.clear_cache!(user: user, provider: "codex")
     evidence
+  end
+
+  def self.codex_configured_model
+    provider = ChatProviders.for("codex")
+    provider.configured_model if provider.respond_to?(:configured_model)
+  rescue ChatProviders::ConfigurationError
+    nil
   end
 
   def self.record_codex_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)

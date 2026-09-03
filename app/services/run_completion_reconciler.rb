@@ -10,9 +10,14 @@ class RunCompletionReconciler
     external_pr_merge
     merge_train_land
     merge_train_land_after_rebase
+    pr_open
   ].freeze
 
   def self.call(...) = new(...).call
+
+  def self.terminal_recovery_step_kind?(kind)
+    TERMINAL_RECOVERY_STEP_KINDS.include?(kind.to_s)
+  end
 
   def initialize(run, allow_terminal_recovery: false)
     @run = run
@@ -23,13 +28,13 @@ class RunCompletionReconciler
   end
 
   def call
+    return unreconciled unless terminal_recovery_allowed?
     return unreconciled unless recoverable_state?(run, :run)
     return unreconciled unless recoverable_state?(step, :step)
     return unreconciled unless recoverable_state?(workflow, :workflow)
 
     strategy = Step::Kind.fetch(step.kind).reconcile_strategy
     return unreconciled unless strategy
-    return unreconciled unless terminal_recovery_allowed?
 
     send(:"reconcile_#{strategy}")
   rescue ArgumentError
@@ -53,10 +58,10 @@ class RunCompletionReconciler
     return false unless allow_terminal_recovery
     return false unless record
 
-    if record.cancelled?
+    if record.cancelled? || record.failed?
       true
     elsif record.terminal?
-      @unreconciled_reason = "#{label} is #{record.state}, not running or cancelled"
+      @unreconciled_reason = "#{label} is #{record.state}, not running, failed, or cancelled"
       false
     else
       @unreconciled_reason = "#{label} is #{record.state}, not running"
@@ -78,13 +83,17 @@ class RunCompletionReconciler
 
     return unreconciled unless job.reload.pr_number.to_i == pr_number
 
-    mark_run_succeeded!
-    sync_step_from_run!
+    if terminal_recovery_required?
+      recover_success!(event.fetch(:reason))
+    else
+      mark_run_succeeded!
+      sync_step_from_run!
 
-    # after_commit normally advances the workflow. Keep an explicit
-    # backstop for reaper paths and tests where the callback may be delayed.
-    StepDispatcher.advance_from(step.reload) if workflow.reload.running?
-    finish_workflow_if_terminal!
+      # after_commit normally advances the workflow. Keep an explicit
+      # backstop for reaper paths and tests where the callback may be delayed.
+      StepDispatcher.advance_from(step.reload) if workflow.reload.running?
+      finish_workflow_if_terminal!
+    end
 
     Result.new(reconciled: true, reason: event.fetch(:reason))
   end
@@ -206,6 +215,10 @@ class RunCompletionReconciler
 
     workflow.succeed!
     workflow.save!
+  end
+
+  def terminal_recovery_required?
+    allow_terminal_recovery && [ run, step, workflow ].any? { |record| record&.terminal? && !record.succeeded? }
   end
 
   def force_success_after_terminal_race!(reason)

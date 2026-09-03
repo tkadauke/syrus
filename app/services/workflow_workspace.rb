@@ -132,6 +132,11 @@ class WorkflowWorkspace
       return
     end
 
+    if workflow.cleanup_blocked_by_active_descendants?
+      Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: active steps, runs, or spawned processes remain")
+      return false
+    end
+
     p = path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
     Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")
@@ -275,6 +280,8 @@ class WorkflowWorkspace
       return
     end
 
+    validate_clone_checkout_branch!
+
     begin
       @git.run(
         "clone",
@@ -341,6 +348,8 @@ class WorkflowWorkspace
       end
     end
 
+    recover_unpublished_direct_branch_if_missing!(remote_ref)
+
     if remote_ref.strip.present?
       authenticated_git("git_workflow_fetch_branch") do |url|
         @git.run(
@@ -358,6 +367,85 @@ class WorkflowWorkspace
     end
 
     checkout_main_sha!
+  end
+
+  def validate_clone_checkout_branch!
+    branch = clone_checkout_branch
+    return if remote_branch_exists?(branch)
+    return if remote_repo_empty?
+    return recover_missing_direct_base_branch!(branch) if recoverable_missing_direct_base_branch?(branch)
+
+    raise_missing_remote_branch!(branch)
+  end
+
+  def remote_branch_exists?(branch)
+    refs = authenticated_git("git_workflow_ls_remote_branch") do |url|
+      @git.run(
+        "ls-remote", "--heads", url,
+        "refs/heads/#{branch}",
+        chdir: path.dirname.to_s, env: @env
+      )
+    end
+    refs.strip.present?
+  end
+
+  def recoverable_missing_direct_base_branch?(branch)
+    direct_retry_workspace? &&
+      unpublished_direct_job? &&
+      branch.present? &&
+      branch.start_with?("syrus/") &&
+      branch != @job.base_default_branch
+  end
+
+  def recover_missing_direct_base_branch!(branch)
+    fallback = @job.base_default_branch
+    @base_branch = fallback
+    @workflow.set_artifact!(RebaseTarget::BASE_BRANCH_ARTIFACT, fallback)
+    record_missing_branch_recovery!(
+      kind: "missing_base_branch",
+      missing_branch: branch,
+      fallback_branch: fallback
+    )
+    notify("missing base branch #{branch.inspect} for unpublished #{@job.slug}; retrying from #{fallback.inspect}")
+  end
+
+  def recover_unpublished_direct_branch_if_missing!(remote_ref)
+    return if remote_ref.strip.present?
+    return unless direct_retry_workspace?
+    return unless unpublished_direct_job?
+    return if @branch_name == initial_branch_name
+
+    stale_branch = @branch_name
+    @branch_name = initial_branch_name
+    @workflow.set_artifact!(RebaseTarget::BRANCH_ARTIFACT, @branch_name)
+    record_missing_branch_recovery!(
+      kind: "missing_work_branch",
+      missing_branch: stale_branch,
+      fallback_branch: @branch_name
+    )
+    notify("missing unpublished direct branch #{stale_branch.inspect} for #{@job.slug}; using #{@branch_name.inspect}")
+  end
+
+  def direct_retry_workspace?
+    @job.direct? && @workflow.trigger_kind.in?(%w[initial retry])
+  end
+
+  def unpublished_direct_job?
+    @job.pr_number.blank? && @job.fork_review_pr_number.blank?
+  end
+
+  def record_missing_branch_recovery!(kind:, missing_branch:, fallback_branch:)
+    @workflow.set_artifact!("missing_branch_recovery", {
+      "kind" => kind,
+      "missing_branch" => missing_branch,
+      "fallback_branch" => fallback_branch,
+      "recovered_at" => Time.current.iso8601
+    })
+  end
+
+  def raise_missing_remote_branch!(branch)
+    message = "remote branch #{branch} does not exist for #{@repository.slug}; non-retryable workspace setup failure"
+    raise GitRunner::GitError.new([ "ls-remote", "--heads", "origin", "refs/heads/#{branch}" ], 2, message)
   end
 
   def authenticated_git(operation_type, &block)

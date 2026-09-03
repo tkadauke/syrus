@@ -162,9 +162,7 @@ class RunFailureClassifier
   def provider_auth_expired?
     return false if run.agent_provider.blank?
 
-    text_match?(
-      /token_expired|access token could not be refreshed|authentication token (?:is )?expired|sign in again|logged out or signed in to another account|signed out or signed in to another account/i
-    )
+    ProviderAuthFailure.detect?(searchable_text)
   end
 
   def process_died?
@@ -199,7 +197,7 @@ class RunFailureClassifier
   end
 
   def agent_resume_unavailable?
-    text_match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found/i)
+    text_match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found|does not have a canonical rollout filename/i)
   end
 
   def merge_train_rebuild_required?

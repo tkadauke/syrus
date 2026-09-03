@@ -1,4 +1,5 @@
 require "json"
+require "set"
 
 # Parses a captured agent-session transcript_jsonl into a flat,
 # UI-renderable list of events. The on-disk JSONL originated as claude-code's
@@ -12,8 +13,12 @@ require "json"
 #
 # Used by the admin transcript APIs to render the transcript viewer.
 class ClaudeTranscript
-  include ClaudeAgent::TranscriptEvents
-  include CodexAgent::TranscriptEvents
+  if (events = "ClaudeAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
+  if (events = "CodexAgent::TranscriptEvents".safe_constantize)
+    include events
+  end
 
   Event = Data.define(:kind, :timestamp, :data)
   # `kind` is one of:
@@ -81,6 +86,8 @@ class ClaudeTranscript
   def compute_summary
     init = nil
     tool_calls = []
+    tool_call_ids = Set.new
+    result_only_tool_calls = []
     cost_usd = nil
     turns = nil
     exit_reason = nil
@@ -97,11 +104,23 @@ class ClaudeTranscript
         cwd        ||= ev.data[:cwd]
       when :tool_use
         tool_calls << ev.data[:name]
+        tool_call_ids << ev.data[:id].to_s if ev.data[:id].present?
+      when :tool_result
+        result_tool_name = ev.data[:name].presence
+        result_tool_use_id = ev.data[:tool_use_id].to_s
+        next if result_tool_name.blank?
+
+        result_only_tool_calls << [ result_tool_use_id.presence, result_tool_name ]
       when :result
         turns = ev.data[:turns]
         cost_usd = ev.data[:cost_usd]
         exit_reason = ev.data[:subtype]
       end
+    end
+    result_only_tool_calls.each do |tool_use_id, tool_name|
+      next if tool_use_id.present? && tool_call_ids.include?(tool_use_id)
+
+      tool_calls << tool_name
     end
 
     Summary.new(

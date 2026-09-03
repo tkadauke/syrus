@@ -1304,11 +1304,14 @@ insights drop out of the default active review but stay inspectable through
 a "Retired" filter alongside Pending/Accepted/Dismissed/All.
 
 When the `agent_insights` feature is enabled, regular chat agents can discover
-and call `list_insights` and `read_insight` to inspect suggestions for the
-chat's attached repositories. Admin chat agents can inspect all repositories and
-can narrow broad reads with repository, state, page, and limit filters.
-Suggestion creation remains limited to insight workflow agents through
-`submit_insight`, so chat access is read-only.
+and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
+in the chat's attached repositories. Admin chat agents can inspect all
+repositories and can narrow broad reads with repository, state, page, and limit
+filters. `retire_insight` is an audited user action for clearing stale,
+duplicated, or superseded suggestions, can cite a superseding Job, and keeps the
+accepted-insight guard: accepted rows require an explicit
+`retire_accepted: true`. Suggestion creation and revision remain limited to
+insight workflow agents through `submit_insight` and `update_insight`.
 
 ## Repository Throughput Metrics
 

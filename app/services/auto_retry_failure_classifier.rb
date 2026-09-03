@@ -13,6 +13,7 @@ class AutoRetryFailureClassifier
   }.freeze
 
   NON_RETRYABLE_AGENT_OUTCOMES = {
+    ProviderAuthFailure::OUTCOME => "provider authentication token expired",
     ProviderUsageLimit::OUTCOME => "provider usage limit or model quota exhausted",
     "error_max_turns" => "agent exhausted max turns",
     "git_state_corrupt" => "agent corrupted git state",
@@ -41,6 +42,7 @@ class AutoRetryFailureClassifier
     /agent didn't call submit_summary/i,
     /agent's branch has no common ancestor/i,
     /git_state_corrupt/i,
+    /non-retryable workspace setup failure/i,
     /prepare command failed/i,
     /PR branch changed before Syrus could push/i,
     /branch diverged/i,
@@ -90,6 +92,12 @@ class AutoRetryFailureClassifier
     if run.run_failure_classification&.classification == "agent_resume_unavailable"
       return retryable("agent_resume_unavailable", run.run_failure_classification.reason)
     end
+    if run.run_failure_classification&.classification == ProviderAuthFailure::CLASSIFICATION
+      return non_retryable(ProviderAuthFailure::CLASSIFICATION, run.run_failure_classification.reason.presence || "provider authentication token expired")
+    end
+    if provider_auth_failure?(run)
+      return non_retryable(ProviderAuthFailure::CLASSIFICATION, "provider authentication token expired")
+    end
 
     outcome = run.agent_outcome.to_s.presence
     return non_retryable(outcome, NON_RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if NON_RETRYABLE_AGENT_OUTCOMES.key?(outcome)
@@ -117,6 +125,27 @@ class AutoRetryFailureClassifier
   def retryable_error_class?(error_class)
     RETRYABLE_ERROR_CLASSES.include?(error_class.to_s) ||
       error_class.to_s.end_with?("TimeoutError", "Timeout")
+  end
+
+  def provider_auth_failure?(run)
+    return false if run.agent_provider.blank?
+
+    diagnostic = run.run_diagnostic
+    text = [
+      run.agent_outcome,
+      run.agent_summary,
+      run.agent_pr_title,
+      run.agent_pr_body,
+      diagnostic&.error_class,
+      diagnostic&.error_message,
+      diagnostic&.error_backtrace,
+      recent_log_chunks(run)
+    ].flatten.compact.join("\n")
+    ProviderAuthFailure.detect?(text)
+  end
+
+  def recent_log_chunks(run)
+    run.job_logs.order(sequence: :desc).limit(RunFailureClassifier::RECENT_LOG_LIMIT).pluck(:chunk)
   end
 
   def retryable(classification, reason)

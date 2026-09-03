@@ -114,6 +114,17 @@ RSpec.describe AutoRetryJob do
     expect(resumed_run.workflow_id).to eq(workflow.id)
   end
 
+  it "does not provider-resume a resume-failed-step attempt when provider resume is unavailable" do
+    attempt, agent_step, _agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+    attempt.update!(failure_classification: "agent_resume_unavailable")
+
+    described_class.perform_now(attempt.id)
+
+    retry_run = agent_step.runs.order(:created_at).last
+    expect(retry_run.parent_session_id).to eq(Steps::Base::DISABLE_AGENT_RESUME)
+    expect(retry_run.prompt).to eq(attempt.run.prompt)
+  end
+
   it "falls back to a retry workflow when a failed-step retry lost its workspace" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     workflow.update!(cleaned_up_at: Time.current)
@@ -208,6 +219,42 @@ RSpec.describe AutoRetryJob do
     expect(attempt.scheduled_at).to be > Time.current
     expect(workflow.reload).to be_failed
     expect(owner_workflow.work_unit.reload).to be_queued
+  end
+
+  it "defers worker-died retries while the failed host still has critical pressure" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    workflow.update!(worker_hostname: "worker-critical")
+    WorkerHostHealthSample.create!(
+      hostname: "worker-critical",
+      role: "worker",
+      version: "test",
+      observed_at: Time.current,
+      memory_used_percent: 97.0,
+      raw_metrics: {}
+    )
+    allow(RetryWorkflowEnqueuer).to receive(:call)
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to have_enqueued_job(described_class).with(attempt.id)
+
+    attempt.reload
+    expect(attempt.performed_at).to be_nil
+    expect(attempt.skipped_reason).to be_nil
+    expect(attempt.failed_worker_hostname).to eq("worker-critical")
+    expect(attempt.failed_worker_health_level).to eq("critical")
+    expect(attempt.failed_worker_health_reasons).to include("memory 97.0% >= 95%")
+    expect(attempt.failed_worker_sample_observed_at).to be_present
+    expect(attempt.failed_worker_retry_deferred_until.to_i).to eq(attempt.scheduled_at.to_i)
+    expect(attempt.failed_worker_retry_context).to include(
+      "reason" => "failed_worker_host_still_critical",
+      "failed_worker_hostname" => "worker-critical",
+      "retry_kind" => "retry_workflow",
+      "workflow_id" => workflow.id,
+      "run_id" => run.id
+    )
+    expect(job.workflows.count).to eq(1)
+    expect(RetryWorkflowEnqueuer).not_to have_received(:call)
   end
 
   it "skips stale attempts after a newer workflow has already succeeded" do
@@ -309,6 +356,30 @@ RSpec.describe AutoRetryJob do
     expect(attempt.reload.skipped_reason).to eq("failure classification changed from rate_limited to git_state_corrupt before retry")
     expect(attempt.performed_at).to be_nil
     expect(run.run_failure_classification.reload.classification).to eq("git_state_corrupt")
+  end
+
+  it "skips stale turn_failed attempts when fresh classification shows expired provider auth" do
+    attempt, agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+    attempt.update!(failure_classification: "turn_failed")
+    agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
+    RunDiagnostic.create!(
+      run: agent_run,
+      error_class: "CodexInvocation::Error",
+      error_message: "Failed to refresh token: auth error code: token_expired"
+    )
+    allow(WorkEngine::Reconciler).to receive(:request)
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.not_to change { agent_step.runs.count }
+
+    expect(attempt.reload.skipped_reason).to eq("failure classification changed from turn_failed to provider_auth_expired; provider_auth_expired is not retryable")
+    expect(attempt.performed_at).to be_nil
+    expect(agent_run.run_failure_classification.reload).to have_attributes(
+      classification: "provider_auth_expired",
+      retryable: false
+    )
+    expect(WorkEngine::Reconciler).to have_received(:request).with(source: "AutoRetryJob", job: job)
   end
 
   it "skips stale usage-limit attempts when a default-provider job now resolves to another provider" do

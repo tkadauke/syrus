@@ -22,10 +22,16 @@ class TestIdentityRuntimeSummary < ApplicationRecord
       refreshed_grader_names = summary_grader_names(identities.keys, grader_names: grader_names)
       delete_stale_summaries!(identities.keys, refreshed_grader_names)
       rows = summary_rows(identities, refreshed_grader_names)
-      upsert_all(rows, unique_by: "idx_test_runtime_summary_identity_grader_window") if rows.any?
+      upsert_all(rows, **summary_upsert_options) if rows.any?
     end
 
     private
+
+    def summary_upsert_options
+      return {} unless connection.supports_insert_conflict_target?
+
+      { unique_by: "idx_test_runtime_summary_identity_grader_window" }
+    end
 
     def summary_grader_names(identity_ids, grader_names:)
       names = Array(grader_names).compact_blank.uniq

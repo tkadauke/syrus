@@ -71,8 +71,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", sc_cutoff)
             .find_each do |wf|
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if cleanup_workflow(wf)
     end
 
     # Failed infrastructure workflows: same short backstop as succeeded/cancelled.
@@ -86,8 +85,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", infra_cutoff)
             .find_each do |wf|
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if cleanup_workflow(wf)
     end
 
     # Failed non-infrastructure: two tiers based on whether this is the
@@ -113,12 +111,10 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       is_latest = job.workflows.maximum(:id) == wf.id
 
       if !is_latest
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        n += 1 if cleanup_workflow(wf)
       elsif job.closed?
         next unless wf.finished_at < RETAIN_AFTER_SUCCESS_OR_CANCEL.ago
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        n += 1 if cleanup_workflow(wf)
         if job.branch_name.present? && job.branch_deleted_at.nil?
           begin
             deleted = GithubClient.for(repository: job.repository, user: job.user)
@@ -130,8 +126,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
         end
       else
         next unless wf.finished_at < RETAIN_AFTER_FAILURE.ago
-        WorkflowWorkspace.cleanup_for(wf)
-        n += 1
+        n += 1 if cleanup_workflow(wf)
       end
     end
 
@@ -181,8 +176,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       end
       next unless wf.finished_at < retention.ago
 
-      WorkflowWorkspace.cleanup_for(wf)
-      n += 1
+      n += 1 if cleanup_workflow(wf)
     rescue StandardError => e
       Rails.logger.warn("[WorkflowWorkspacePrune] filesystem_sweep error on #{child}: #{e.class}: #{e.message}")
     end
@@ -209,5 +203,9 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     # era when agent homes were never cleaned at all).
     orphans = ChatWorkspace.sweep_orphans!
     Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{orphans} orphaned chat directories") if orphans > 0
+  end
+
+  def cleanup_workflow(workflow)
+    workflow.cleanup_workspace!
   end
 end

@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "open3"
+require "rbconfig"
 require "spec_helper"
 require "tmpdir"
 
@@ -16,7 +17,7 @@ RSpec.describe "bin/check-migration-collisions", :ci_only do
   end
 
   def run_check(dir, *args)
-    Open3.capture3("ruby", script, *args, chdir: dir)
+    Open3.capture3(RbConfig.ruby, script, *args, chdir: dir)
   end
 
   def git!(dir, *args)
