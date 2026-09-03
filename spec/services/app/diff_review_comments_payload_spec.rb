@@ -1,0 +1,43 @@
+require "rails_helper"
+
+RSpec.describe App::DiffReviewCommentsPayload do
+  let(:user) { Factories.user }
+  let(:job) { Factories.job_record(user: user) }
+
+  it "returns comments as a flat list and grouped by file and line anchor" do
+    first = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_source_diff",
+      base_ref: "base",
+      head_ref: "head",
+      path: "app/models/widget.rb",
+      side: "right",
+      new_line: 12,
+      body: "Add a spec.",
+      context: { "severity" => "medium" }
+    )
+    second = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_source_diff",
+      path: "app/models/widget.rb",
+      side: "left",
+      old_line: 8,
+      body: "This deletion looks stale."
+    )
+
+    payload = described_class.build(job: job, comments: [ first, second ])
+
+    expect(payload[:job_id]).to eq(job.id)
+    expect(payload[:comments].map { |comment| comment[:id] }).to eq([ first.id, second.id ])
+    expect(payload.dig(:by_path, "app/models/widget.rb", "right::12").first).to include(
+      id: first.id,
+      path: "app/models/widget.rb",
+      side: "right",
+      new_line: 12,
+      anchor_key: "right::12",
+      user: include(id: user.id, display_name: user.display_name),
+      context: { "severity" => "medium" }
+    )
+    expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)
+  end
+end
