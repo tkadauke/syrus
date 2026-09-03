@@ -629,6 +629,118 @@ RSpec.describe User do
     end
   end
 
+  describe "#agent_provider_failover_policy" do
+    it "defaults to disabled automatic failover without auth errors" do
+      user = User.create!(attrs)
+
+      expect(user.agent_provider_failover_policy).to eq(
+        "enabled" => false,
+        "providers" => [],
+        "causes" => %w[usage_exhausted usage_low rate_limited provider_transient],
+        "override_explicit_pins" => false
+      )
+      expect(user.agent_provider_failover_candidates(cause: "usage_exhausted")).to be_empty
+    end
+
+    it "persists an ordered provider list and distinct failover causes" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider_failover_policy: {
+            enabled: true,
+            providers: %w[codex claude],
+            causes: %w[rate_limited auth_error],
+            override_explicit_pins: true
+          }
+        )
+      )
+
+      expect(user.reload.agent_provider_failover_policy).to eq(
+        "enabled" => true,
+        "providers" => %w[codex claude],
+        "causes" => %w[rate_limited auth_error],
+        "override_explicit_pins" => true
+      )
+      expect(user.agent_provider_failover_cause_enabled?("rate_limited")).to be true
+      expect(user.agent_provider_failover_cause_enabled?("usage_low")).to be false
+      expect(user.agent_provider_failover_overrides_explicit_pins?).to be true
+    end
+
+    it "filters failover candidates to configured providers in policy order" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "claude",
+          claude_oauth_token: "oat-test",
+          agent_provider_failover_policy: {
+            enabled: true,
+            providers: %w[codex claude],
+            causes: %w[usage_exhausted]
+          }
+        )
+      )
+
+      expect(user.agent_provider_failover_candidates(cause: "usage_exhausted")).to be_empty
+
+      user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+
+      expect(user.agent_provider_failover_candidates(cause: "usage_exhausted")).to eq([ "codex" ])
+    end
+
+    it "does not select auth-error failover by default" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "claude",
+          claude_oauth_token: "oat-test",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test",
+          agent_provider_failover_policy: {
+            enabled: true,
+            providers: %w[codex]
+          }
+        )
+      )
+
+      expect(user.agent_provider_failover_candidates(cause: "auth_error")).to be_empty
+    end
+
+    it "respects explicit provider pins unless override_explicit_pins is enabled" do
+      user = User.create!(
+        attrs.merge(
+          agent_provider: "claude",
+          claude_oauth_token: "oat-test",
+          codex_auth_mode: "api_key",
+          codex_api_key: "sk-test",
+          agent_provider_failover_policy: {
+            enabled: true,
+            providers: %w[codex],
+            causes: %w[usage_exhausted]
+          }
+        )
+      )
+
+      expect(user.agent_provider_failover_candidates(cause: "usage_exhausted", explicit_pin: true)).to be_empty
+
+      user.update!(agent_provider_failover_policy: user.agent_provider_failover_policy.merge("override_explicit_pins" => true))
+
+      expect(user.agent_provider_failover_candidates(cause: "usage_exhausted", explicit_pin: true)).to eq([ "codex" ])
+    end
+
+    it "validates provider and cause names" do
+      user = User.new(
+        attrs.merge(
+          agent_provider_failover_policy: {
+            enabled: true,
+            providers: %w[oracle],
+            causes: %w[solar_flare]
+          }
+        )
+      )
+
+      expect(user).not_to be_valid
+      expect(user.errors[:agent_provider_failover_policy]).to include("contains unknown provider oracle")
+      expect(user.errors[:agent_provider_failover_policy]).to include("contains unknown cause solar_flare")
+    end
+  end
+
   describe "#agent_provider_configured?" do
     it "returns true for claude when a Claude token is present" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))

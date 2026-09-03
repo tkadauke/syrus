@@ -270,6 +270,17 @@ class Repository < ApplicationRecord
     agent_provider.presence || (user || self.user)&.agent_provider
   end
 
+  def effective_agent_provider_failover_candidates(user: nil, cause: nil)
+    effective_user = user || self.user
+    return [] unless effective_user
+
+    effective_user.agent_provider_failover_candidates(
+      current_provider: effective_agent_provider(user: user),
+      cause: cause,
+      explicit_pin: explicit_agent_provider_for?(effective_user)
+    )
+  end
+
   def membership_for(user)
     return nil unless user
     repository_memberships.find_by(user_id: user.id)
@@ -342,6 +353,13 @@ class Repository < ApplicationRecord
   end
 
   private
+
+  def explicit_agent_provider_for?(effective_user)
+    return true if agent_provider.present?
+
+    membership = membership_for(effective_user)
+    membership&.at_least?("write") && membership.agent_provider.present?
+  end
 
   def best_team_role_for(user)
     team_ids = user.team_memberships.select(:team_id)
