@@ -10235,6 +10235,12 @@ describe("App", () => {
     fireEvent.click(screen.getByText("public/logo.png"))
     expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: "Continuous" }))
+    expect(screen.getByTitle("app/models/user.rb")).toHaveClass("sticky")
+    expect(screen.getByText("old")).toBeInTheDocument()
+    expect(screen.getByText("new")).toBeInTheDocument()
+    expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
+
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "deadbeef12345678" } })
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(

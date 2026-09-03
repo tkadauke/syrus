@@ -20,7 +20,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
-import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { chatDisplayTitle, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
@@ -32,7 +32,8 @@ import { buildFileTree } from "./fileTree"
 import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
 import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
-import { diffGutterClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
+import { parseUnifiedDiff } from "../../components/diff/diffRendering"
+import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
 import { Markdown } from "../../lib/Markdown"
 
 
@@ -1566,22 +1567,7 @@ function CodingSourceViewer({ content, path }: { content: string; path: string }
 }
 
 function UnifiedDiffViewer({ diff, testId }: { diff: string; testId?: string }) {
-  const lines = parseUnifiedDiff(diff)
-
-  return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
-      <tbody>
-        {lines.map((line, index) => (
-          <tr className={diffLineClass(line.kind)} data-diff-kind={line.kind} key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-            <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
-            <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
-            <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-            <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code || " "}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
+  return <UnifiedDiffTable file={{ path: "diff", patch: diff }} testId={testId} />
 }
 
 function CodingDiffStatusBadge({ status }: { status: CodingDiffFile["status"] }) {
