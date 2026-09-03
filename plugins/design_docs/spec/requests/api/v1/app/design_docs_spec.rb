@@ -625,6 +625,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     )
     marked_markdown = doc.reload.markdown
     sign_in_as(owner)
+    allow(AppEvents).to receive(:broadcast)
 
     expect {
       post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
@@ -644,6 +645,9 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("version")).to be_nil
     expect(doc.reload.markdown).to eq(marked_markdown)
     expect(result.thread.comments.order(:created_at, :id).pluck(:body)).to eq([ "Needs evidence", "Added context" ])
+    expect(AppEvents).to have_received(:broadcast).with(user: owner, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
+    expect(AppEvents).to have_received(:broadcast).with(user: collaborator, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
+    expect(AppEvents).not_to have_received(:broadcast).with(user: outsider, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
   end
 
   it "returns anchored active comment and suggestion threads from the document detail API" do
