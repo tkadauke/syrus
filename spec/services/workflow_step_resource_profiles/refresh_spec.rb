@@ -299,6 +299,33 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(sample_queries.size).to eq(1)
   end
 
+  it "uses bounded effective command-span durations for unfinished terminal spans" do
+    10.times do |index|
+      summary = resource_summary(
+        repository: repository,
+        duration: 900 + index,
+        finished_at: now - index.minutes,
+        command_span: true,
+        command_cpu: 10.0 + index
+      )
+      summary.run.command_spans.first.update!(
+        finished_at: nil,
+        duration_ms: nil,
+        outcome: "incomplete"
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.attributed_sample_count).to eq(10)
+    expect(profile.p90_attributed_duration_seconds).to eq(45.0)
+    expect(profile.conservative_prediction).to include(
+      duration_seconds: 45.0,
+      prediction_source: "command_attributed"
+    )
+  end
+
   it "preloads command-span worker samples through narrow merged windows" do
     resource_summary(
       repository: repository,
