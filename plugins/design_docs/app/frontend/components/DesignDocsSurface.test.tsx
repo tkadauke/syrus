@@ -536,6 +536,29 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("dismisses the Rich Text selection comment affordance when selection is cleared", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const textNode = editor.querySelector("[data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 5)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(editor)
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "New thread comment" })).toBeInTheDocument()
+
+    window.getSelection()?.removeAllRanges()
+    fireEvent.blur(editor)
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Comment on selection" })).not.toBeInTheDocument())
+    expect(screen.queryByRole("textbox", { name: "New thread comment" })).not.toBeInTheDocument()
+  })
+
   it("creates Rich Text comments from source offsets in long formatted list docs", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
