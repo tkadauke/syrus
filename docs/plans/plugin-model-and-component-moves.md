@@ -27,7 +27,12 @@ extensible kind registries (G3), the plugin settings read path (G4), the
 uninstall/purge lifecycle (G10), the `step_environment` extension point, and
 `build_cache` extracted.
 
-**Next: Phase 3** — the search host (G6) and then `test_insights`.
+**Phase 3 complete.** The search host (G6), the compute-tier indexing fix, and
+`test_insights` extracted with its tables. `syrus_dev` storage remains and is
+carried into Phase 4.
+
+**Next: Phase 4** — `agent_memory` as a swappable provider, then `coverage`,
+`video_walkthroughs`, `github_issues`, and `terminal`.
 
 ## Principles
 
@@ -286,7 +291,16 @@ Still outstanding:
   `@plugins/rails/...` directly. Convert to the same `import.meta.glob` pattern
   the other four plugin frontend surfaces use.
 
-### G6. Search host
+### G6. Search host — done
+
+`:search_source` lets a plugin register FTS tables (created by
+`syrus:prepare_search` alongside the built-ins, with an optional
+drift-rebuild hook) and a global-search result type. `test_insights` owns
+`test_identity_fts` and the `test_case` type through it. The compute-tier
+indexing defect below is fixed: identities index through
+`IndexTestIdentitiesJob` on `indexing`.
+
+Original problem, for the record:
 
 Make the search subsystem a plugin host:
 
@@ -574,8 +588,16 @@ it backs `Job.accessible_to` / `Epic.accessible_to`). Note the codebase uses
 
 ### Tier 2 — movable after the platform work
 
-**`test_insights`** — with G1's inline `step.grader.completed` event, all five
-tables move: `test_runs`, `test_cases`, `test_identities`,
+**`test_insights`** — **done.** All five tables moved, plus the query layer,
+five MCP tools, the repository Tests tab, and the Job detail Tests tab. Core
+keeps `JunitXmlParser` (its `ParsedRun` is the `:test_result_parser` contract),
+a `Steps::Grader` that only publishes the event, and a
+`MainBranchFailureClassifier` that asks `:test_evidence` providers instead of
+reading a model. Two extensions fell out: `ui_slot` gained a `job.detail.tab`
+slot, and the namespace grader now skips separate-database models.
+
+Original assessment, for the record: with G1's inline `step.grader.completed`
+event, all five tables move: `test_runs`, `test_cases`, `test_identities`,
 `test_identity_runtime_summaries`, and the `test_identity_fts` index. This
 reverses the previous plan's position, which kept them core.
 
