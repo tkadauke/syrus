@@ -56,6 +56,7 @@ type AnchorHighlight = {
   suggestionId?: number
   originalMarkdown?: string
   proposedMarkdown?: string
+  renderMode?: "inline" | "block"
   suggestionState?: string
   status: string
   start: number
@@ -878,6 +879,19 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
 
         const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
         if (segment.highlight.kind === "suggestion") {
+          if (segment.highlight.renderMode === "block") {
+            return (
+              <mark
+                className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-amber-100 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"}`}
+                data-anchor-status={segment.highlight.status}
+                data-block-suggestion-state={segment.highlight.suggestionState}
+                key={index}
+              >
+                {segment.text}
+              </mark>
+            )
+          }
+
           const diff = inlineSuggestionDiff(segment.highlight.originalMarkdown ?? segment.text, segment.highlight.proposedMarkdown || "")
           return (
             <span
@@ -1296,11 +1310,8 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
       ref={(element) => { suggestionRefs.current[suggestion.id] = element }}
       style={{ marginTop: railOffset(suggestion) }}
     >
-      <ThreadCardHeader labels={<><StatusLabel value="suggestion" />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
-      <div className="mt-2 grid gap-2 text-xs">
-        <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
-        <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
-      </div>
+      <ThreadCardHeader labels={<><StatusLabel value="suggestion" /><StatusLabel value={suggestion.render_mode === "block" ? "block" : "inline"} />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
+      {suggestion.render_mode === "block" ? <BlockSuggestionDiff suggestion={suggestion} /> : <InlineSuggestionDiff suggestion={suggestion} />}
       {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
       {thread ? <ThreadComments comments={thread.comments} /> : null}
       {thread ? (
@@ -1336,6 +1347,26 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
           </Button>
         </div>
       ) : <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Pending owner review.</p>}
+    </div>
+  )
+}
+
+function InlineSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion }) {
+  return (
+    <div className="mt-2 grid gap-2 text-xs">
+      <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
+      <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
+    </div>
+  )
+}
+
+function BlockSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion }) {
+  return (
+    <div className="mt-2 overflow-hidden rounded border border-border text-xs">
+      <div className="border-b border-border bg-warning/10 px-2 py-1 font-medium text-warning">Current</div>
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-secondary">{suggestion.original_markdown}</pre>
+      <div className="border-y border-border bg-success/10 px-2 py-1 font-medium text-success">Proposed</div>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-primary">{suggestion.proposed_markdown}</pre>
     </div>
   )
 }
@@ -1909,6 +1940,7 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
         suggestionId: suggestion.id,
         originalMarkdown: suggestion.original_markdown,
         proposedMarkdown: suggestion.proposed_markdown,
+        renderMode: suggestion.render_mode,
         suggestionState: suggestion.state,
         status: suggestion.anchor.status,
         start: start ?? 0,
@@ -2077,6 +2109,13 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         context.renderedSuggestionIds.add(suggestionKey)
 
         const suggestionAttrs = segment.highlight.suggestionId ? ` data-suggestion-id="${segment.highlight.suggestionId}"` : ""
+        if (segment.highlight.renderMode === "block") {
+          const className = focused
+            ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
+            : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
+          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceText}</mark>`
+        }
+
         const className = focused
           ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
           : "rounded-sm bg-surface-raised px-0.5"

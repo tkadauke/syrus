@@ -875,6 +875,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.text "original_markdown", null: false
     t.text "proposed_markdown", null: false
     t.json "provenance"
+    t.string "render_mode", default: "inline", null: false
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.string "state", default: "pending", null: false
