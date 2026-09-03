@@ -1,7 +1,7 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
-import type { ProviderAvailability } from "./providerAvailability"
+import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
 
 export type RepositoryEpicDependencyPolicy = "linear" | "nonlinear"
 
@@ -436,6 +436,7 @@ export type RepositoryDetailJob = {
   issue_title: string
   agent_provider: string | null
   provider_availability?: ProviderAvailability
+  provider_failover?: ProviderFailover
   job_path: string
   source: {
     label: string

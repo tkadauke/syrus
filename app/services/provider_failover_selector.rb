@@ -20,7 +20,8 @@ class ProviderFailoverSelector
         "candidate_evidence_observed_at" => evidence_observed_at(candidate_availability)&.iso8601,
         "decided_at" => decided_at.iso8601,
         "automatic_failover" => true,
-        "manual_override" => manual_override
+        "manual_override" => manual_override,
+        "unavailable" => unavailable_summary(availability)
       }.compact
     end
 
@@ -39,6 +40,37 @@ class ProviderFailoverSelector
       Time.zone.parse(value.to_s)
     rescue ArgumentError, TypeError
       nil
+    end
+
+    def unavailable_summary(payload)
+      return nil unless payload
+
+      evidence = payload.dig(:evidence, :current) || payload.dig("evidence", "current") || payload.dig(:usage, :evidence) || payload.dig("usage", "evidence") || {}
+      usage = payload[:usage] || payload["usage"] || {}
+      {
+        "provider" => payload[:provider] || payload["provider"] || original_provider,
+        "label" => payload[:label] || payload["label"],
+        "state" => payload[:state] || payload["state"],
+        "reason" => payload[:reason] || payload["reason"],
+        "retry_after" => payload[:retry_after] || payload["retry_after"],
+        "reset_at" => reset_at(usage),
+        "observed_at" => evidence_observed_at(payload)&.iso8601,
+        "evidence" => {
+          "status" => evidence[:status] || evidence["status"],
+          "source" => evidence[:source] || evidence["source"],
+          "observed_at" => evidence[:observed_at] || evidence["observed_at"]
+        }.compact
+      }.compact
+    end
+
+    def reset_at(usage)
+      windows = usage[:windows] || usage["windows"] || {}
+      [
+        windows.dig(:five_hour, :reset_at),
+        windows.dig("five_hour", "reset_at"),
+        windows.dig(:weekly, :reset_at),
+        windows.dig("weekly", "reset_at")
+      ].compact.min
     end
   end
 

@@ -62,14 +62,18 @@ whether to resume. The usage banner and Agent Settings both expose "Recheck" and
 provider-availability pauses until newer provider evidence arrives.
 
 Agent Settings also stores the user-level agent-provider failover policy for
-future workflow admission paths. The policy is disabled by default, contains an
-ordered list of candidate agent providers, and only selects from
-`User#configured_agent_providers`. Its cause list distinguishes usage
-exhausted, low usage, rate limits, transient provider/circuit-open failures,
-and auth errors; auth errors are represented but are not in the default
-automatic-failover cause set. Explicit Job provider settings are respected by
-default unless the separately named explicit-pin override is enabled. Chat
-provider switching remains explicit and is not driven by this policy.
+workflow admission paths. The policy is disabled by default, contains an ordered
+list of candidate agent providers, and only selects from
+`User#configured_agent_providers`. Its cause list distinguishes usage exhausted,
+low usage, rate limits, transient provider/circuit-open failures, and auth
+errors; auth errors are represented but are not in the default automatic-failover
+cause set. Explicit Job provider settings are respected by default unless the
+separately named explicit-pin override is enabled. When an unstarted workflow
+automatically fails over, dashboard rows, Job detail, repository Job rows, and
+Workflow cards show the original unavailable provider and the provider selected
+for the workflow. Operator-selected alternate retry providers render distinct
+operator copy. Chat provider switching remains explicit and is not driven by
+this policy.
 
 ## dependencies
 

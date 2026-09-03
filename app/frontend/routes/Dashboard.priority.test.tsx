@@ -201,7 +201,36 @@ describe("urgent row highlight", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
-  it("does not show the red usage warning for transient provider circuits", () => {
+  it("shows automatic provider failover on job rows", () => {
+    const payload = buildPayload([
+      {
+        ...kanbanJobItem(1, "medium"),
+        kind: "direct",
+        state: "running",
+        tags: [],
+        workflows_count: 1,
+        total_cost_usd: null,
+        provider_failover: {
+          mode: "automatic",
+          automatic: true,
+          original_provider: "claude",
+          original_provider_label: "Claude Code",
+          selected_provider: "codex",
+          selected_provider_label: "Codex",
+          reason: "provider_unavailable",
+          decided_at: "2026-08-01T12:01:00Z"
+        }
+      } as DashboardJobItem
+    ])
+    payload.preferences.visible_columns = ["title"]
+    payload.controls.columns.required = [{ key: "title", title: "Title" }]
+
+    renderPayload(payload)
+
+    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+
+  it("shows an availability warning for transient provider circuits", () => {
     const payload = buildPayload([
       {
         ...kanbanJobItem(1, "medium"),
@@ -228,7 +257,7 @@ describe("urgent row highlight", () => {
 
     renderPayload(payload)
 
-    expect(screen.queryByRole("img", { name: /temporarily unavailable/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("img", { name: /temporarily unavailable/ })).toBeInTheDocument()
   })
 
   it("applies a red background to the desktop table row for urgent jobs", () => {

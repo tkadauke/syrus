@@ -17,6 +17,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
+import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence } from "./branchDivergence"
@@ -348,6 +349,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
             <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
+          <ProviderFailoverNotice className="mt-1" failover={workflow.provider_failover} />
           {detectedPlugins.length > 0 ? (
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
               <span>{t("workflow_detected_plugins_label")}</span>
