@@ -50,30 +50,6 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(body["accepted_file_content_types"]).to include("application/pdf")
   end
 
-  it "includes the insights tab when agent insights is enabled" do
-    Feature.find_or_create_by!(slug: "agent_insights") { |f|
-      f.category = "Labs"; f.name = "Agent Insights"
-    }.update!(enabled: true)
-    sign_in_as(user)
-
-    get "/api/v1/app/repositories/#{repository.id}/documents"
-
-    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
-    expect(tab_keys).to include("insights")
-  end
-
-  it "excludes the insights tab when agent insights is disabled" do
-    Feature.find_or_create_by!(slug: "agent_insights") { |f|
-      f.category = "Labs"; f.name = "Agent Insights"
-    }.update!(enabled: false)
-    sign_in_as(user)
-
-    get "/api/v1/app/repositories/#{repository.id}/documents"
-
-    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
-    expect(tab_keys).not_to include("insights")
-  end
-
   it "creates a file document" do
     sign_in_as(user)
 

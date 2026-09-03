@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_091136) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -48,6 +48,69 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_060000) do
     t.integer "user_id", null: false
     t.index ["performed_at"], name: "index_admin_actions_on_performed_at"
     t.index ["user_id"], name: "index_admin_actions_on_user_id"
+  end
+
+  create_table "agent_insight_audit_events", force: :cascade do |t|
+    t.string "actor_kind", null: false
+    t.integer "actor_run_id"
+    t.integer "actor_user_id"
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.integer "insight_suggestion_id", null: false
+    t.json "new_values"
+    t.json "previous_values"
+    t.text "reason"
+    t.index ["actor_run_id"], name: "index_agent_insight_audit_events_on_actor_run_id"
+    t.index ["actor_user_id"], name: "index_agent_insight_audit_events_on_actor_user_id"
+    t.index ["insight_suggestion_id"], name: "index_agent_insight_audit_events_on_insight_suggestion_id"
+  end
+
+  create_table "agent_insight_schedule_configs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "max_jobs_since_last_run", default: 10, null: false
+    t.integer "min_jobs_since_last_run", default: 5, null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_agent_insight_schedule_configs_on_repository_id", unique: true
+  end
+
+  create_table "agent_insight_suggestions", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.string "category", null: false
+    t.float "confidence", default: 0.5, null: false
+    t.datetime "created_at", null: false
+    t.integer "created_job_id"
+    t.datetime "dismissed_at"
+    t.json "evidence"
+    t.integer "job_id", null: false
+    t.text "memory_suggestion"
+    t.string "proposal_type", default: "informational", null: false
+    t.integer "repository_id", null: false
+    t.datetime "retired_at"
+    t.text "retired_reason"
+    t.string "severity", default: "medium", null: false
+    t.text "stale_memory_evidence"
+    t.text "stale_memory_text"
+    t.string "state", default: "pending", null: false
+    t.text "suggested_prompt"
+    t.integer "superseded_by_insight_id"
+    t.integer "superseded_by_job_id"
+    t.integer "target_insight_id"
+    t.integer "target_memory_id"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_job_id"], name: "index_agent_insight_suggestions_on_created_job_id"
+    t.index ["job_id"], name: "index_agent_insight_suggestions_on_job_id"
+    t.index ["proposal_type"], name: "index_agent_insight_suggestions_on_proposal_type"
+    t.index ["repository_id", "created_at"], name: "index_agent_insight_suggestions_on_repository_id_and_created_at"
+    t.index ["repository_id", "state"], name: "idx_insight_suggestions_repo_state"
+    t.index ["repository_id"], name: "index_agent_insight_suggestions_on_repository_id"
+    t.index ["state"], name: "index_agent_insight_suggestions_on_state"
+    t.index ["superseded_by_insight_id"], name: "index_agent_insight_suggestions_on_superseded_by_insight_id"
+    t.index ["superseded_by_job_id"], name: "index_agent_insight_suggestions_on_superseded_by_job_id"
+    t.index ["target_insight_id"], name: "index_agent_insight_suggestions_on_target_insight_id"
+    t.index ["target_memory_id"], name: "index_agent_insight_suggestions_on_target_memory_id"
   end
 
   create_table "app_settings", force: :cascade do |t|
@@ -1033,69 +1096,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_060000) do
     t.index ["repository_id", "type"], name: "index_input_sources_on_repository_and_type", unique: true
     t.index ["repository_id"], name: "index_input_sources_on_repository_id"
     t.index ["user_id"], name: "index_input_sources_on_user_id"
-  end
-
-  create_table "insight_schedule_configs", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "enabled", default: false, null: false
-    t.integer "max_jobs_since_last_run", default: 10, null: false
-    t.integer "min_jobs_since_last_run", default: 5, null: false
-    t.integer "repository_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["repository_id"], name: "index_insight_schedule_configs_on_repository_id", unique: true
-  end
-
-  create_table "insight_suggestion_audit_events", force: :cascade do |t|
-    t.string "actor_kind", null: false
-    t.integer "actor_run_id"
-    t.integer "actor_user_id"
-    t.datetime "created_at", null: false
-    t.string "event_type", null: false
-    t.integer "insight_suggestion_id", null: false
-    t.json "new_values"
-    t.json "previous_values"
-    t.text "reason"
-    t.index ["actor_run_id"], name: "index_insight_suggestion_audit_events_on_actor_run_id"
-    t.index ["actor_user_id"], name: "index_insight_suggestion_audit_events_on_actor_user_id"
-    t.index ["insight_suggestion_id"], name: "index_insight_suggestion_audit_events_on_insight_suggestion_id"
-  end
-
-  create_table "insight_suggestions", force: :cascade do |t|
-    t.datetime "accepted_at"
-    t.string "category", null: false
-    t.float "confidence", default: 0.5, null: false
-    t.datetime "created_at", null: false
-    t.integer "created_job_id"
-    t.datetime "dismissed_at"
-    t.json "evidence"
-    t.integer "job_id", null: false
-    t.text "memory_suggestion"
-    t.string "proposal_type", default: "informational", null: false
-    t.integer "repository_id", null: false
-    t.datetime "retired_at"
-    t.text "retired_reason"
-    t.string "severity", default: "medium", null: false
-    t.text "stale_memory_evidence"
-    t.text "stale_memory_text"
-    t.string "state", default: "pending", null: false
-    t.text "suggested_prompt"
-    t.integer "superseded_by_insight_id"
-    t.integer "superseded_by_job_id"
-    t.integer "target_insight_id"
-    t.integer "target_memory_id"
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_job_id"], name: "index_insight_suggestions_on_created_job_id"
-    t.index ["job_id"], name: "index_insight_suggestions_on_job_id"
-    t.index ["proposal_type"], name: "index_insight_suggestions_on_proposal_type"
-    t.index ["repository_id", "created_at"], name: "index_insight_suggestions_on_repository_id_and_created_at"
-    t.index ["repository_id", "state"], name: "idx_insight_suggestions_repo_state"
-    t.index ["repository_id"], name: "index_insight_suggestions_on_repository_id"
-    t.index ["state"], name: "index_insight_suggestions_on_state"
-    t.index ["superseded_by_insight_id"], name: "index_insight_suggestions_on_superseded_by_insight_id"
-    t.index ["superseded_by_job_id"], name: "index_insight_suggestions_on_superseded_by_job_id"
-    t.index ["target_insight_id"], name: "index_insight_suggestions_on_target_insight_id"
-    t.index ["target_memory_id"], name: "index_insight_suggestions_on_target_memory_id"
   end
 
   create_table "installations", force: :cascade do |t|

@@ -194,15 +194,12 @@ class McpToolPolicy
       Mcp::Tools::ReadScheduledTaskTool,
       Mcp::Tools::ReadQueueTool,
       Mcp::Tools::SearchSyrusDocsTool,
-      Mcp::Tools::ListInsightsTool,
-      Mcp::Tools::ReadInsightTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
       Mcp::Tools::SubmitScopedEventDecisionTool
     ]
     tools = apply_admin_filter(tools)
-    tools = apply_agent_insights_filter(tools)
     tools = apply_walkthrough_filter(tools)
     tools
   end
@@ -218,11 +215,6 @@ class McpToolPolicy
     tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
   end
 
-  def apply_agent_insights_filter(tools)
-    return tools if Feature.agent_insights_enabled?
-
-    tools.reject { |tool| insight_read_tools.include?(tool) }
-  end
 
   def apply_walkthrough_filter(tools)
     return tools if Feature.video_walkthroughs_enabled?
@@ -265,11 +257,12 @@ class McpToolPolicy
     tools.reject { |tool| SUPERVISOR_EXCLUDED_TOOLS.include?(tool) }
   end
 
-  # Insight agents: read-live-state + memory tools + submit_insight (when
-  # the feature flag is on). No submit_summary / submit_test_plan /
+  # Insight agents: read-live-state + worker health + memory tools. Whoever
+  # owns the insight workflow contributes its submit/read tools through its
+  # own MCP tool set. No submit_summary / submit_test_plan /
   # submit_adversarial_review — insight jobs never open PRs.
   def insight_tools
-    tools = [
+    [
       Mcp::Tools::ReadLiveStateTool,
       Mcp::Tools::ReadRunWorkerHealthTool,
       Mcp::Tools::ReadMemoryTool,
@@ -277,24 +270,6 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool
     ]
-    if Feature.agent_insights_enabled?
-      tools << Mcp::Tools::SubmitInsightTool
-      tools << Mcp::Tools::UpdateInsightTool
-      tools << Mcp::Tools::RetireInsightTool
-      tools << Mcp::Tools::ListInsightsTool
-      tools << Mcp::Tools::ReadInsightTool
-      tools << Mcp::Tools::ListRecentWorkflowsTool
-      tools << Mcp::Tools::ReadInsightRunTranscriptTool
-    end
-    tools
   end
 
-  def insight_read_tools
-    [
-      Mcp::Tools::ListInsightsTool,
-      Mcp::Tools::ReadInsightTool,
-      Mcp::Tools::UpdateInsightTool,
-      Mcp::Tools::RetireInsightTool
-    ]
-  end
 end

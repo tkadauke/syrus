@@ -21,8 +21,8 @@ module Filters
 
         def job_kinds
           {
-            "system" => Filters::Chips::Jobs::JobType::SYSTEM_KINDS,
-            "user" => Filters::Chips::Jobs::JobType::USER_KINDS
+            "system" => Filters::Chips::Jobs::JobType.system_kinds,
+            "user" => Filters::Chips::Jobs::JobType.user_kinds
           }.values_at(*Array(value)).flatten.uniq
         end
       end

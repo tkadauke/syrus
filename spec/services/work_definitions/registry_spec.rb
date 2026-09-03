@@ -295,7 +295,6 @@ RSpec.describe WorkDefinitions do
     )
     expect(described_class.lifecycle_managed_workflow_kinds).to contain_exactly(
       "main_grader",
-      "agent_insight",
       "main_branch_repair",
       "landing_validation",
       "merge_train_validation",
@@ -430,7 +429,6 @@ RSpec.describe WorkDefinitions do
 
   it "marks infrastructure workflows explicitly" do
     expect(described_class.for("main_grader")).to be_infrastructure
-    expect(described_class.for("agent_insight")).to be_infrastructure
   end
 
   it "declares workflow definitions that own their Job lifecycle" do
@@ -441,7 +439,6 @@ RSpec.describe WorkDefinitions do
 
     expect(lifecycle_owner_kinds).to contain_exactly(
       "main_grader",
-      "agent_insight",
       "main_branch_repair",
       "landing_validation",
       "merge_train_validation",

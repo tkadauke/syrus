@@ -1620,8 +1620,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       static_step_kinds.merge(serialized_template_step_kinds(workflow.chain_template))
     end
 
+    # Step kinds no core workflow template materializes statically: legacy
+    # compatibility kinds, kinds only a fanout creates at runtime, and
+    # auto_close, which only plugin-owned chains (e.g. an insight sweep) use.
     missing_from_templates = Step::Kind.values - static_step_kinds.to_a
-    expect(missing_from_templates).to contain_exactly("apply_suggestions", "grade", "grader", "preflight_grader")
+    expect(missing_from_templates).to contain_exactly("apply_suggestions", "auto_close", "grade", "grader", "preflight_grader")
 
     job = Factories.job_record(user: user, repository: repository, issue_number: 21_000, state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "manual", agent_provider: job.agent_provider)

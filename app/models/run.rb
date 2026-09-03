@@ -43,7 +43,9 @@ class Run < ApplicationRecord
     "RUN-#{id || 'new'}"
   end
 
-  validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
+  # See Workflow#trigger_kind: resolved per validation so a plugin-contributed
+  # trigger kind is honoured while its plugin is enabled.
+  validates :trigger_kind, presence: true, inclusion: { in: -> (_) { Workflow::TriggerKind.values } }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create

@@ -238,38 +238,36 @@ RSpec.describe McpToolPolicy do
       Current.reset
     end
 
+    # Whoever owns an insight workflow declares AgentRole::AGENT_INSIGHT on its
+    # step kind; core only has to grant the right tools for that role.
     def agent_insight_context(repo = repository)
-      job = Job.create!(user: user, repository: repo, kind: "agent_insight", priority: "low")
+      job = Job.create!(user: user, repository: repo, kind: "direct", priority: "low")
       workflow = Workflow.create!(
         job: job,
-        trigger_kind: "agent_insight",
+        trigger_kind: "manual",
         agent_provider: user.agent_provider,
         chain_template: []
       )
-      step = Step.create!(workflow: workflow, kind: "agent_insight_run", position: 0)
-      run = step.runs.create!(job: job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
-      McpToolContext.from_run(run)
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+      run = step.runs.create!(job: job, trigger_kind: "manual", agent_provider: user.agent_provider)
+      context = McpToolContext.from_run(run)
+      allow(context).to receive(:role).and_return(AgentRole::AGENT_INSIGHT)
+      context
     end
 
-    it "includes repository-scoped workflow evidence tools" do
+    it "grants read-only live state and memory tools, and no PR-authoring tools" do
       context = agent_insight_context
 
       expect(described_class.for(context)).to include(
-        Mcp::Tools::ListRecentWorkflowsTool,
-        Mcp::Tools::ReadInsightRunTranscriptTool,
-        Mcp::Tools::SubmitInsightTool
+        Mcp::Tools::ReadLiveStateTool,
+        Mcp::Tools::ReadRunWorkerHealthTool,
+        Mcp::Tools::ReadMemoryTool
       )
       expect(described_class.for(context)).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
     end
   end
 
   describe "chat planner role" do
-    before do
-      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
-             .update!(enabled: false)
-      Feature.clear_enabled_cache!("agent_insights")
-    end
-
     it "includes essential memory tools" do
       context = context_for(chat_session)
       tools = described_class.for(context)
@@ -304,29 +302,6 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
     end
 
-    it "includes insight read and retire tools when agent_insights is enabled" do
-      Feature.find_by!(slug: "agent_insights").update!(enabled: true)
-      Feature.clear_enabled_cache!("agent_insights")
-
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools).to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool, Mcp::Tools::RetireInsightTool)
-      expect(tools).not_to include(Mcp::Tools::SubmitInsightTool, Mcp::Tools::UpdateInsightTool)
-    end
-
-    it "excludes insight tools when agent_insights is disabled" do
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools).not_to include(
-        Mcp::Tools::ListInsightsTool,
-        Mcp::Tools::ReadInsightTool,
-        Mcp::Tools::RetireInsightTool,
-        Mcp::Tools::SubmitInsightTool,
-        Mcp::Tools::UpdateInsightTool
-      )
-    end
 
     it "excludes coding tools" do
       context = context_for(chat_session)

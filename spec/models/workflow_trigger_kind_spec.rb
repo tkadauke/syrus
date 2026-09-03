@@ -46,7 +46,7 @@ RSpec.describe Workflow::TriggerKind do
       "deploy"
     )
     expect(described_class.runtime_role_values("child")).to contain_exactly("landing_validation", "merge_train_validation", "visual_diff")
-    expect(described_class.runtime_role_values("infrastructure")).to contain_exactly("main_grader", "agent_insight")
+    expect(described_class.runtime_role_values("infrastructure")).to contain_exactly("main_grader")
     expect(described_class.runtime_role_values("legacy")).to contain_exactly("replay")
   end
 

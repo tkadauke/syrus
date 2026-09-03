@@ -16,7 +16,9 @@ class Step < ApplicationRecord
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
 
-  validates :kind, presence: true, inclusion: { in: KINDS }
+  # See Workflow#trigger_kind: resolved per validation so plugin-contributed
+  # step kinds are honoured.
+  validates :kind, presence: true, inclusion: { in: -> (_) { Step::Kind.values } }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   ACTIVE_STATES = %w[ queued running ].freeze

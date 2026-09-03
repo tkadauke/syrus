@@ -6,7 +6,11 @@ module Filters
         label "Kind"
         bucket :enum
         operators :is, :is_not, :is_one_of, :is_none_of
-        values(*Job::KINDS)
+        # Resolved per call: plugins contribute Job kinds, so the chip's
+        # value list is only correct once the registry has been consulted.
+        def self.values(*list)
+          list.any? ? super : Job::Kind.values
+        end
 
         def apply
           case op

@@ -1,7 +1,10 @@
 module Steps
-  # Non-agentic terminal step that closes the anchor Job. Used by the
-  # AgentInsight workflow chain so the Job closes as part of normal step
-  # progression rather than only in after_success / after_fail hooks.
+  # Non-agentic terminal step that closes the anchor Job with its own kind
+  # as the closure reason -- the same convention Job#mark_infrastructure_job_closed
+  # uses. Workflows whose Job has no PR and no operator review (an insight
+  # sweep, a grader pass) end with this step so the Job closes as part of
+  # normal step progression rather than only in after_success / after_fail
+  # hooks.
   #
   # `job.may_close?` is a check-then-act read outside a lock; without
   # the row lock + post-condition check below, a concurrent write between
@@ -17,7 +20,7 @@ module Steps
         next if job.closed?
 
         StateTransition.with_source("system") do
-          job.close_with_reason!("agent_insight") if job.may_close?
+          job.close_with_reason!(job.kind) if job.may_close?
         end
       end
 

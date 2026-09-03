@@ -143,7 +143,7 @@ module App
 
       def fast_job_builtin_scope
         jobs_base_scope
-          .where(kind: Filters::Chips::Jobs::JobType::USER_KINDS)
+          .where(kind: Filters::Chips::Jobs::JobType.user_kinds)
           .merge(Job.effectively_owned_by(user))
       end
 

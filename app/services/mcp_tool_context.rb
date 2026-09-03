@@ -86,10 +86,9 @@ class McpToolContext
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
     when "visual_review"
       AgentRole::WORKFLOW_VISUAL_REVIEWER
-    when "agent_insight_run"
-      AgentRole::AGENT_INSIGHT
     else
-      AgentRole::WORKFLOW_IMPLEMENT
+      # Plugin-owned agentic steps declare their role on the Step::Kind entry.
+      Step::Kind.by_kind[run.step&.kind]&.agent_role || AgentRole::WORKFLOW_IMPLEMENT
     end
   end
 

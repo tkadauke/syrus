@@ -22,10 +22,15 @@ class Step
     #   step succeeds, before the default linear successor is enqueued.
     #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
+    #
+    # agent_role: AgentRole constant this step's agent runs as, for steps whose
+    #   role is not the default implementer. Core's own roles are resolved by
+    #   McpToolContext; a plugin that owns an agentic step declares its role
+    #   here rather than core naming the plugin's step kind.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :fail_policy, :reconcile_strategy,
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
-                        :advance_handler,
+                        :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_default_overrides, :waits_for_terminal_step_kind) do
       def initialize(kind:, handler:, label:, style:, agentic:,
@@ -36,6 +41,7 @@ class Step
                      triggers_auto_approval: false,
                      repair_semantics: nil,
                      advance_handler: nil,
+                     agent_role: nil,
                      resource_profile_step_kinds: nil,
                      resource_profile_grader_name_key: nil,
                      resource_profile_default_overrides: nil,
@@ -45,8 +51,10 @@ class Step
         super
       end
 
+      # Same rule as Workflow::TriggerKind#template_class: a handler containing
+      # "::" belongs to whichever plugin owns the step and is already qualified.
       def handler_class
-        "Steps::#{handler}".constantize
+        handler.to_s.include?("::") ? handler.to_s.constantize : "Steps::#{handler}".constantize
       end
 
       def advance_handler_class
@@ -217,7 +225,6 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "dependency_audit_pr_comment", handler: "DependencyAuditPrComment", label: "Post dependency audit comment", style: "bg-orange-100 text-orange-700", agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "agent_insight_run",  handler: "AgentInsightRun",   label: "Agent insight analysis",    style: "bg-amber-100 text-amber-700",   agentic: true),
       Entry.new(kind: "auto_close",         handler: "AutoClose",          label: "Auto-close",                style: "bg-gray-100 text-gray-500",     agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "preflight_grader",         handler: "PreflightGrader",         label: "Preflight grader",         style: "bg-gray-100 text-gray-500",     agentic: false,

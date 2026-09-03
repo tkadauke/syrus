@@ -2,19 +2,34 @@
 
 Agent insight jobs are infrastructure-flavored analysis runs that inspect a repository's recent workflow history and surface improvement suggestions to the operator. They are read-only: no code changes are committed and no pull request is opened.
 
-## Feature flag
+## Enabling
 
-Agent insights are controlled by the `agent_insights` feature flag (default: off). Enable it from the Features page in the admin UI. When the flag is off:
+Agent insights ship as the `agent_insights` plugin, disabled by default. The
+plugin is its own feature flag: enable or disable it from Admin → Plugins (or
+`PluginRecord.find_by(name: "agent_insights").update!(enabled: true)`). While
+it is disabled:
 
-- `agent_insight` jobs cannot be created (validation rejects them with a clear error).
-- The `submit_insight` MCP tool is not registered in the sidecar.
+- The `agent_insight` Job kind, `agent_insight` trigger kind, `agent_insight_run`
+  step kind, and the `agent_insight` WorkDefinition are all absent from their
+  registries, so an insight Job cannot be created or dispatched at all.
+- The plugin's MCP tools (`submit_insight`, `update_insight`, `retire_insight`,
+  `list_insights`, `read_insight`, `list_recent_workflows`) are not advertised
+  to workflow or chat sidecars.
+- The repository Insights tab, the `/admin/insights` page, and the plugin's API
+  endpoints are not mounted.
+
+Existing suggestion rows are left untouched by disabling; `bin/rails
+plugin:purge[agent_insights]` is the separate, explicit step that removes them.
 
 ## Job kind
 
-`agent_insight` is a separate `Job#kind` alongside `issue`, `cron`, `direct`, and `main_grader`. It shares the same state machine and operator-facing affordances, but is subject to additional constraints:
+`agent_insight` is a Job kind the plugin contributes through `:workflow_kinds`,
+alongside core's `issue`, `cron`, `direct`, `main_grader`, `external_pr`, and
+`deploy`. It shares the same state machine and operator-facing affordances, but
+is declared `issueless` and `infrastructure`, which means:
 
 - `issue_number` must be blank.
-- The `agent_insights` feature flag must be enabled at creation time.
+- Insight Jobs are filtered out of the operator's user-facing Job lists.
 - The job auto-closes on both workflow success and failure.
 
 ## Workflow chain
@@ -27,15 +42,15 @@ prepare → agent_insight_run → auto_close
 
 **`agent_insight_run`** — agentic step. Invokes the insight prompt against the workspace (read-only). The agent discovers recent completed Workflows with `list_recent_workflows`, reads paginated Run JobLog transcripts with `read_run_transcript`, inspects host pressure with `read_run_worker_health` when relevant, searches operational logs with `read_syrus_logs` when that tool is available, checks memory/insight context, then calls `submit_insight` for each finding.
 
-**`auto_close`** — non-agentic step. Closes the anchor Job with reason `agent_insight` so it does not accumulate in the operator dashboard.
+**`auto_close`** — non-agentic core step. Closes the anchor Job with the Job's own kind as the closure reason (`agent_insight`), so it does not accumulate in the operator dashboard.
 
 ## Queue
 
 Insight workflows run on the `runs` queue because their agentic steps are still `RunJob` executions. Create insight jobs with `priority: "low"` so implementation work stays ahead of periodic analysis.
 
-## InsightSuggestion records
+## Suggestion records
 
-Each `submit_insight` call creates one `InsightSuggestion` row:
+Each `submit_insight` call creates one `AgentInsights::Suggestion` row (table `agent_insight_suggestions`):
 
 | Field             | Type    | Description                                                        |
 |-------------------|---------|--------------------------------------------------------------------|
@@ -70,7 +85,7 @@ are operator history, so the normal path is filing a new standalone insight
 that supersedes the accepted one — unless the caller explicitly passes
 `retire_accepted: true`, a distinct override reserved for accepted insights
 that are themselves confirmed obsolete. Every retirement records a
-`retired` `InsightSuggestionAuditEvent` with the previous/new state and
+`retired` `AgentInsights::AuditEvent` with the previous/new state and
 retirement fields, the actor (run/user/system), and the reason.
 
 Repository and admin insight list views default to the `pending` tab, so
@@ -87,9 +102,9 @@ bin/rails syrus:retire_stale_insight_backlog        # retire
 DRY_RUN=true bin/rails syrus:retire_stale_insight_backlog  # preview only
 ```
 
-This runs `InsightSuggestions::StaleBacklogRetirement`, which retires each
-matching row through the normal `InsightSuggestion#retire!` audit path with a
-`system` actor.
+This runs `AgentInsights::StaleBacklogRetirement`, which retires each
+matching row through the normal `AgentInsights::Suggestion#retire!` audit path
+with a `system` actor.
 
 ## MCP tools
 
@@ -113,7 +128,7 @@ The insight agent receives:
   future agents to skip diagnosis or abort a conflict based on an unverified
   run-level conclusion; keep abort rationale in the run summary and store only
   verified file-level facts.
-- `submit_insight` — record a new finding (only present when `agent_insights` flag is on), including structured memory-removal proposals.
+- `submit_insight` — record a new finding, including structured memory-removal proposals.
 - `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
 - `retire_insight` — retire a pending or dismissed insight that is stale, duplicated, or superseded, with a required `reason` and optional `superseded_by_insight_id`/`superseded_by_job_id`. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; the row stays inspectable, never deleted.
 
@@ -145,7 +160,7 @@ through the application, which soft-deletes the memory via
 
 ### Regular chat agents
 
-When `agent_insights` is enabled, regular chat agents can discover and call
+While the plugin is enabled, regular chat agents can discover and call
 `list_insights`, `read_insight`, and `retire_insight` from the deferred chat
 sidecar. Non-admin chat agents are limited to the current chat's attached
 repositories. Admin chat agents can list/read suggestions across repositories,

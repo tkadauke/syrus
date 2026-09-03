@@ -13,23 +13,26 @@ module Filters
         bucket :enum
         operators :is, :is_not
 
-        SYSTEM_KINDS = Job::INFRASTRUCTURE_KINDS
-        USER_KINDS = Job::USER_FACING_KINDS
-
         values "user", "system"
+
+        # Resolved per call rather than frozen at load: plugins contribute Job
+        # kinds, and an infrastructure kind must not leak into the operator's
+        # user-facing lists just because its plugin registered after this class.
+        def self.system_kinds = Job::Kind.infrastructure_values
+        def self.user_kinds = Job::Kind.user_facing_values
 
         def apply
           case op
           when :is
             case value.to_s
-            when "user"   then scope.where(kind: USER_KINDS)
-            when "system" then scope.where(kind: SYSTEM_KINDS)
+            when "user"   then scope.where(kind: Job::Kind.user_facing_values)
+            when "system" then scope.where(kind: Job::Kind.infrastructure_values)
             else scope
             end
           when :is_not
             case value.to_s
-            when "user"   then scope.where(kind: SYSTEM_KINDS)
-            when "system" then scope.where(kind: USER_KINDS)
+            when "user"   then scope.where(kind: Job::Kind.infrastructure_values)
+            when "system" then scope.where(kind: Job::Kind.user_facing_values)
             else scope
             end
           else

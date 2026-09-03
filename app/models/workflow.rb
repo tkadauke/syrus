@@ -28,7 +28,10 @@ class Workflow < ApplicationRecord
   has_one_attached :coverage_hit_map
   has_many_attached :visual_artifacts
 
-  validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
+  # Resolved per validation, not captured at class load: plugin-contributed
+  # trigger kinds appear (and disappear) with the plugin, and a frozen array
+  # would only ever hold the built-ins.
+  validates :trigger_kind, presence: true, inclusion: { in: -> (_) { Workflow::TriggerKind.values } }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validate :user_matches_job

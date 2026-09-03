@@ -99,8 +99,8 @@ RSpec.describe MaybeDeployJob do
       configure_continuous_deploy!
       described_class.perform_now(repository.id)
 
-      expect(Filters::Chips::Jobs::JobType::SYSTEM_KINDS).to include(Job.last.kind)
-      expect(Filters::Chips::Jobs::JobType::USER_KINDS).not_to include(Job.last.kind)
+      expect(Filters::Chips::Jobs::JobType.system_kinds).to include(Job.last.kind)
+      expect(Filters::Chips::Jobs::JobType.user_kinds).not_to include(Job.last.kind)
     end
 
     it "does nothing when the default-branch HEAD sha cannot be resolved" do

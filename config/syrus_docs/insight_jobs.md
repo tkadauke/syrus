@@ -2,27 +2,29 @@
 
 ## Overview
 
-Agent insight jobs (`kind: "agent_insight"`) are analysis runs that inspect a repository's recent workflow history and surface improvement suggestions as `InsightSuggestion` records. They are designed for periodic health checks — an agent reviews recent jobs, identifies patterns (repeated failures, inefficiencies, gaps in agent memory, recurring tasks that could be automated), and records structured suggestions for the operator to review, accept, or dismiss.
+Agent insight jobs (`kind: "agent_insight"`) are analysis runs that inspect a repository's recent workflow history and surface improvement suggestions as `AgentInsights::Suggestion` records. They are designed for periodic health checks — an agent reviews recent jobs, identifies patterns (repeated failures, inefficiencies, gaps in agent memory, recurring tasks that could be automated), and records structured suggestions for the operator to review, accept, or dismiss.
 
 Insight jobs are read-only: they never commit to the repository, never open a pull request, and auto-close once the analysis completes (success or failure).
 
 ## Enabling Agent Insights
 
-The feature is gated by the `agent_insights` feature flag (Labs category, default off). Enable it from the Features admin page:
+Agent insights ship as the `agent_insights` plugin, disabled by default. The
+plugin is its own feature flag — there is no separate `agent_insights` Feature
+row. Enable it from the Plugins admin page:
 
 ```
-Admin → Features → Agent Insights → Enable
+Admin → Plugins → Agent Insights → Enable
 ```
 
 Or via Rails console:
 
 ```ruby
-Feature.find_by!(slug: "agent_insights").update!(enabled: true)
+PluginRecord.find_by!(name: "agent_insights").update!(enabled: true)
 ```
 
 Once enabled, the following become active:
 - "Run insight analysis" button on repository pages
-- `/repositories/:id/insights` — per-repository suggestions list
+- `/repositories/:id/plugin/insights` — per-repository suggestions list
 - `/admin/insights` — cross-repository admin view
 - `POST /api/v1/app/repositories/:id/run_insight_analysis` API endpoint
 - `GET /api/v1/app/repositories/:id/insight_suggestions` API endpoint
@@ -35,7 +37,7 @@ Once enabled, the following become active:
   retained worker host pressure and grader command-span pressure as evidence
   for Run, Step, and phase-level patterns
 
-All endpoints and routes return 404 when the feature flag is off.
+The plugin's routes are not mounted while the plugin is disabled, so all of these return 404. The `agent_insight` Job kind, trigger kind, step kind, and WorkDefinition are likewise absent from their registries, so an insight Job cannot even be created.
 
 ## Triggering an Insight Run
 
@@ -53,7 +55,7 @@ Returns the standard repository detail payload with a notice that the job was st
 
 The agent receives a read-only view of the repository's workspace and recent job history (last 14 days, up to 50 `issue`-kind jobs). It uses the `submit_insight` MCP tool to record new findings — one call per distinct pattern. It uses `update_insight` to revise pending or dismissed existing insights in place; accepted insights are preserved as operator history, so new realizations about them become new standalone insights. It can also call `read_run_worker_health(run_id:)` to inspect retained CPU, memory, disk, CPU pressure, and IO pressure samples for a specific Run window, including whether the Run's history was clipped by the worker-health retention window. Grader and preflight grader Runs may include `command_spans`, which let the agent attribute pressure or latency to phases like dependency checks, installs, database preparation, backend tests, or frontend builds instead of only the full Run window. Durable `run_resource_summaries` retain this Run-level view for 30 days and keep host-correlated pressure fields separate from process-attributed command metrics, with explicit low-confidence fallback markers when command attribution is unavailable.
 
-Each `InsightSuggestion` captures:
+Each `AgentInsights::Suggestion` captures:
 - **title** — concise description of the finding (≤ 200 chars)
 - **category** — e.g., `repeated_failure`, `inefficiency`, `configuration`, `memory_gap`, `recurring_task`
 - **severity** — `low`, `medium`, or `high`
@@ -67,7 +69,7 @@ Each `InsightSuggestion` captures:
 
 ## Reviewing Suggestions
 
-Navigate to `/repositories/:id/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
+Navigate to `/repositories/:id/plugin/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
 
 Regular chat agents can inspect the same suggestions with `list_insights` and
 `read_insight`. Non-admin chat agents can only list/read suggestions for the
@@ -115,7 +117,7 @@ The memory becomes available to future agents working on the same repository.
 
 ## Admin View
 
-`/admin/insights` shows a paginated, state-filterable cross-repository table of all suggestions (requires admin role + feature flag on). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
+`/admin/insights` shows a paginated, state-filterable cross-repository table of all suggestions (requires admin role and the plugin enabled). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
 
 Admins can expand rows to see the full suggested prompt, memory suggestion, and
 stale-memory removal evidence. They can **Promote to instance memory** for
@@ -134,7 +136,7 @@ In addition to on-demand runs, Syrus can automatically schedule insight jobs bas
 
 ### Settings UI
 
-When the `agent_insights` feature flag is on, an **Insight Scheduling** section appears at the bottom of each repository's edit page (`/repositories/:id/edit`). It has its own Save and Discard buttons separate from the main repository form:
+While the plugin is enabled, an **Insight Scheduling** section appears at the bottom of each repository's edit page (`/repositories/:id/edit`). It has its own Save and Discard buttons separate from the main repository form:
 
 - **Enable automatic insights** — toggle to enable or disable adaptive scheduling for this repository.
 - **Minimum jobs** — integer ≥ 1 (default 5). The periodic sweep threshold: `InsightSweepJob` runs every 6 hours and fires an insight job if the count of closed coding jobs since the last insight run is ≥ this value.
@@ -147,7 +149,7 @@ Validation requires `min < max`; the form enforces this client-side before submi
 - `GET /api/v1/app/repositories/:id/insight_schedule_config` — returns the current config (`enabled`, `min_jobs_since_last_run`, `max_jobs_since_last_run`). Returns defaults if no record exists yet.
 - `PATCH /api/v1/app/repositories/:id/insight_schedule_config` — updates `enabled`, `min_jobs_since_last_run`, and/or `max_jobs_since_last_run`. Returns 422 on validation failure.
 
-Both endpoints return 403 if the `agent_insights` feature flag is off.
+Both endpoints are unmounted (404) while the plugin is disabled.
 
 ### Status badge
 
@@ -175,13 +177,13 @@ config.update!(
 Two thresholds control when insight jobs fire automatically:
 
 - **`min_jobs_since_last_run`** (default: 5) — the periodic sweep threshold. `InsightSweepJob` runs every 6 hours and fires an insight job for any enabled repository whose count of closed coding jobs since the last insight run is ≥ `min`.
-- **`max_jobs_since_last_run`** (default: 10) — the immediate trigger threshold. Whenever any coding job closes, if the count of closed coding jobs since the last insight run reaches ≥ `max`, an insight job is enqueued immediately without waiting for the next sweep.
+- **`max_jobs_since_last_run`** (default: 10) — the immediate trigger threshold. `AgentInsights::Subscribers` listens for the `job.closed` domain event; when the count of closed coding jobs since the last insight run reaches ≥ `max`, an insight job is enqueued immediately without waiting for the next sweep.
 
 Both thresholds count closed jobs of any kind except `agent_insight`, measured from the `finished_at` of the most recently created `agent_insight` job (or from the beginning of time if none exists). Weekends and idle periods are skipped naturally: the count only crosses `min` if real work has occurred.
 
 ### Deduplication
 
-Both the sweep and the immediate trigger call `InsightScheduler.enqueue_if_idle!`, which first checks whether a non-closed `agent_insight` job already exists for the repository. If one is queued or running, no new job is created.
+Both the sweep and the immediate trigger call `AgentInsights::Scheduler.enqueue_if_idle!`, which first checks whether a non-closed `agent_insight` job already exists for the repository. If one is queued or running, no new job is created.
 
 ### Validation
 

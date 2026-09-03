@@ -55,13 +55,6 @@ features:
     description: "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
     description_i18n_key: "features.slugs.local_mode.description"
     default: false
-  - slug: agent_insights
-    category: "Labs"
-    name: "Agent Insights"
-    name_i18n_key: "features.slugs.agent_insights.name"
-    description: "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
-    description_i18n_key: "features.slugs.agent_insights.description"
-    default: false
   - slug: admin_supervisor_chat
     category: "Operations"
     name: "Admin supervisor chat"

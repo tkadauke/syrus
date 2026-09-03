@@ -30,13 +30,6 @@ module SyrusMcp
       SubmitVisualArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
       ::Mcp::Tools::SubmitAdversarialReviewTool,
-      ::Mcp::Tools::SubmitInsightTool,
-      ::Mcp::Tools::UpdateInsightTool,
-      ::Mcp::Tools::RetireInsightTool,
-      ::Mcp::Tools::ListInsightsTool,
-      ::Mcp::Tools::ReadInsightTool,
-      ::Mcp::Tools::ListRecentWorkflowsTool,
-      ::Mcp::Tools::ReadInsightRunTranscriptTool
     ].freeze
 
     # The set of tool names managed by McpToolPolicy role filtering.

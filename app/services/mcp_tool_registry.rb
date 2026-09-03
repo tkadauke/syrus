@@ -281,9 +281,6 @@ class McpToolRegistry
         chat(Mcp::Tools::GetWalkthroughAnalysisTool, tier: :deferred, feature_flag: :video_walkthroughs),
         chat(Mcp::Tools::AnalyzeWalkthroughSegmentTool, tier: :deferred, feature_flag: :video_walkthroughs),
         chat(Mcp::Tools::ReadWalkthroughFrameTool, tier: :deferred, feature_flag: :video_walkthroughs),
-        chat(Mcp::Tools::ListInsightsTool, tier: :deferred, feature_flag: :agent_insights),
-        chat(Mcp::Tools::ReadInsightTool, tier: :deferred, feature_flag: :agent_insights),
-        chat(Mcp::Tools::RetireInsightTool, tier: :deferred, feature_flag: :agent_insights, mutation: true),
         chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
         chat(Mcp::Tools::ResolveDeliveryPolicyTool, tier: :deferred),
         chat(Mcp::Tools::SelectJobDeliveryTrackTool, tier: :deferred, mutation: true),
@@ -355,14 +352,7 @@ class McpToolRegistry
         entry(Mcp::Tools::ReadMemoryTool, surface: :agent_insight),
         entry(Mcp::Tools::WriteMemoryTool, surface: :agent_insight, mutation: true),
         entry(Mcp::Tools::SearchMemoriesTool, surface: :agent_insight),
-        entry(Mcp::Tools::ListMemoriesTool, surface: :agent_insight),
-        entry(Mcp::Tools::SubmitInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
-        entry(Mcp::Tools::UpdateInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
-        entry(Mcp::Tools::RetireInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
-        entry(Mcp::Tools::ListInsightsTool, surface: :agent_insight, feature_flag: :agent_insights),
-        entry(Mcp::Tools::ReadInsightTool, surface: :agent_insight, feature_flag: :agent_insights),
-        entry(Mcp::Tools::ListRecentWorkflowsTool, surface: :agent_insight, feature_flag: :agent_insights),
-        entry(Mcp::Tools::ReadInsightRunTranscriptTool, surface: :agent_insight, feature_flag: :agent_insights)
+        entry(Mcp::Tools::ListMemoriesTool, surface: :agent_insight)
       ]
     end
 

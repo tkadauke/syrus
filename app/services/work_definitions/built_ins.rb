@@ -472,13 +472,6 @@ module WorkDefinitions
     self.scope = "job"
   end
 
-  class AgentInsight < Base
-    self.kind = "agent_insight"
-    self.workflow_trigger_kind = "agent_insight"
-    self.runtime_role = "infrastructure"
-    self.scope = "repository"
-  end
-
   class ExternalPrIngest < Base
     include ResumesFailedSteps
     include CheckpointPreemptable

@@ -97,7 +97,7 @@ module Jobs
         chips << chip("repository_id", "is", repository_id)
       end
 
-      if (kind = params["kind"]).present? && Job::KINDS.include?(kind)
+      if (kind = params["kind"]).present? && Job::Kind.values.include?(kind)
         chips << chip("kind", "is", kind)
       end
 

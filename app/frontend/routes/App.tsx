@@ -62,8 +62,6 @@ import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { SearchRoute } from "./Search"
-import { RepositoryInsightsRoute } from "./RepositoryInsights"
-import { AdminInsightsRoute } from "./AdminInsights"
 import { Tags } from "./Tags"
 import { TerminalRoute } from "./Terminal"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
@@ -120,7 +118,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/admin/features", element: <AdminFeatures /> },
-  { path: "/admin/insights", element: <AdminInsightsRoute /> },
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
@@ -155,7 +152,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:repositoryId/plugin/*", element: <PluginRepoPageTabRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
-  { path: "/repositories/:id/insights", element: <RepositoryInsightsRoute /> },
   { path: "/repositories/:id", element: <RepositoryDetailRoute /> },
   { path: "/repositories", element: <RepositoriesIndex /> },
   { path: "/jobs", element: <DashboardRoute /> },

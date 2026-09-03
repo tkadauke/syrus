@@ -71,7 +71,7 @@ module Filters
           case value.to_s
           when "open"   then Job.open_threads
           when "closed" then Job.closed_threads
-          when "backlog" then Job.where(state: "backlog", kind: Filters::Chips::Jobs::JobType::USER_KINDS)
+          when "backlog" then Job.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
           else Job.where(state: value)
           end
         end

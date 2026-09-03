@@ -1,8 +1,10 @@
 class Workflow
   module TriggerKind
     Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role) do
+      # A plugin that owns a workflow keeps its template in its own namespace,
+      # so a template containing "::" is taken as already fully qualified.
       def template_class
-        "Workflows::#{template}".constantize
+        template.to_s.include?("::") ? template.to_s.constantize : "Workflows::#{template}".constantize
       end
     end
 
@@ -34,7 +36,6 @@ class Workflow
       Entry.new(kind: "main_grader",          template: "MainGrader",        label: "Main branch grader",    style: "bg-gray-100 text-gray-500",       retry_label: nil,                  feedback_kind: nil, runtime_role: "infrastructure"),
       Entry.new(kind: "main_branch_repair",  template: "MainBranchRepair",  label: "Main branch repair",    style: "bg-red-100 text-red-800",         retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "manual_agentic_run",  template: "ManualAgenticRun",  label: "Manual agentic run",    style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
-      Entry.new(kind: "agent_insight",       template: "AgentInsight",      label: "Agent insight",         style: "bg-amber-100 text-amber-700",     retry_label: nil,                  feedback_kind: nil, runtime_role: "infrastructure"),
       Entry.new(kind: "external_pr_ingest",  template: "ExternalPrIngest",  label: "External PR graders",   style: "bg-orange-100 text-orange-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class"),
       Entry.new(kind: "external_pr_feedback", template: "ExternalPrFeedback", label: "External PR feedback", style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class"),
       Entry.new(kind: "skill",               template: "Skill",             label: "Skill run",             style: "bg-lime-100 text-lime-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),

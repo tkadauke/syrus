@@ -5433,24 +5433,19 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
-  it "closes a stranded agent_insight job whose latest workflow already succeeded" do
-    Feature.find_or_create_by!(slug: "agent_insights") do |f|
-      f.category = "Labs"
-      f.name     = "Agent Insights"
-    end.update!(enabled: true)
-
-    # Reproduces JOB-3302: an agent_insight Job stuck at :implemented (or
+  it "closes a stranded infrastructure job whose latest workflow already succeeded" do
+    # Reproduces JOB-3302: an infrastructure Job stuck at :implemented (or
     # any other open state) despite its infrastructure Workflow having
     # already finished. Nothing else in the normal chain revisits a Job
     # once it's out of :queued/:running, so this is the safety net.
     insight_job = Factories.job_record(
       user: job.user,
       repository: job.repository,
-      kind: "agent_insight",
+      kind: "main_grader",
       issue_number: nil,
       state: "implemented"
     )
-    Workflow.create!(job: insight_job, trigger_kind: "agent_insight", state: "succeeded", finished_at: Time.current)
+    Workflow.create!(job: insight_job, trigger_kind: "main_grader", state: "succeeded", finished_at: Time.current)
 
     result = reconcile_and_execute
 
@@ -5464,9 +5459,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "Job",
       target_id: insight_job.id
     )
-    expect(result.repair_executions.map(&:message)).to include("closed completed agent_insight #{insight_job.slug}")
+    expect(result.repair_executions.map(&:message)).to include("closed completed main_grader #{insight_job.slug}")
     expect(insight_job.reload).to be_closed
-    expect(insight_job.closure_reason).to eq("agent_insight")
+    expect(insight_job.closure_reason).to eq("main_grader")
   end
 
   it "closes a stranded main branch repair job whose preflight already passed" do

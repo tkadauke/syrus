@@ -1,0 +1,261 @@
+require "rails_helper"
+
+RSpec.describe AgentInsights::Tools::ListInsightsTool do
+  let!(:bootstrap_admin) { Factories.user(admin: true) }
+  let(:user)       { Factories.user }
+  let(:repository) { Factories.repository(user: user) }
+  let(:run)        { insight_run(user: user, repository: repository) }
+
+  before do
+    PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: true, disableable: true)
+  end
+
+  def insight_run(user:, repository:)
+    job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "agent_insight",
+      agent_provider: user.agent_provider,
+      chain_template: []
+    )
+    step = Step.create!(workflow: workflow, kind: "agent_insight_run", position: 0)
+    step.runs.create!(job: job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
+  end
+
+  def create_insight(**attrs)
+    AgentInsights::Suggestion.create!({
+      job:        run.job,
+      repository: repository,
+      title:      "Default finding",
+      category:   "repeated_failure",
+      severity:   "medium",
+      confidence: 0.8
+    }.merge(attrs))
+  end
+
+  def call(**params)
+    described_class.call(**params, server_context: { run: run })
+  end
+
+  def parsed_response(response)
+    JSON.parse(response.content.first[:text], symbolize_names: true)
+  end
+
+  describe "basic listing" do
+    it "returns an empty insights array when there are no records" do
+      response = call
+      expect(response).not_to be_error
+      expect(parsed_response(response)[:insights]).to eq([])
+    end
+
+    it "returns all insights for the repository" do
+      create_insight(title: "Finding A")
+      create_insight(title: "Finding B")
+
+      response = call
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to contain_exactly("Finding A", "Finding B")
+    end
+
+    it "returns the expected list payload fields" do
+      create_insight(title: "Scoped finding", severity: "high", confidence: 0.9)
+
+      result = parsed_response(call)[:insights].first
+      expect(result.keys).to match_array(%i[id title state proposal_type severity confidence created_at])
+    end
+
+    it "orders results newest-first" do
+      older = create_insight(title: "Older finding")
+      newer = create_insight(title: "Newer finding")
+
+      ids = parsed_response(call)[:insights].map { |i| i[:id] }
+      expect(ids).to eq([ newer.id, older.id ])
+    end
+  end
+
+  describe "state filtering" do
+    before do
+      create_insight(title: "Pending one")
+      dismissed = create_insight(title: "Dismissed one")
+      dismissed.dismiss!
+    end
+
+    it "returns only pending insights when state=pending" do
+      response = call(state: "pending")
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq(["Pending one"])
+    end
+
+    it "returns only dismissed insights when state=dismissed" do
+      response = call(state: "dismissed")
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq(["Dismissed one"])
+    end
+
+    it "returns all insights when state=all" do
+      response = call(state: "all")
+      expect(parsed_response(response)[:insights].size).to eq(2)
+    end
+
+    it "returns only retired insights when state=retired" do
+      retired = create_insight(title: "Retired one")
+      retired.retire!(reason: "Stale.", actor: nil)
+
+      response = call(state: "retired")
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq(["Retired one"])
+    end
+
+    it "defaults to all when state is omitted" do
+      response = call
+      expect(parsed_response(response)[:insights].size).to eq(2)
+    end
+
+    it "returns an error for an invalid state" do
+      response = call(state: "unknown")
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("state must be one of")
+    end
+  end
+
+  describe "pagination" do
+    before do
+      5.times { |i| create_insight(title: "Finding #{i}") }
+    end
+
+    it "respects the limit parameter" do
+      response = call(limit: 2)
+      expect(parsed_response(response)[:insights].size).to eq(2)
+    end
+
+    it "returns a different page with the page parameter" do
+      all_ids  = parsed_response(call(limit: 5))[:insights].map { |i| i[:id] }
+      page1    = parsed_response(call(limit: 3, page: 1))[:insights].map { |i| i[:id] }
+      page2    = parsed_response(call(limit: 3, page: 2))[:insights].map { |i| i[:id] }
+
+      expect(page1 + page2).to match_array(all_ids)
+    end
+
+    it "clamps limit to the maximum of 50" do
+      response = call(limit: 999)
+      expect(response).not_to be_error
+    end
+
+    it "defaults to page 1 when page is omitted" do
+      first_page  = parsed_response(call(limit: 3, page: 1))[:insights].map { |i| i[:id] }
+      default_page = parsed_response(call(limit: 3))[:insights].map { |i| i[:id] }
+      expect(default_page).to eq(first_page)
+    end
+  end
+
+  describe "repository scope enforcement" do
+    let(:other_user)       { Factories.user }
+    let(:other_repository) { Factories.repository(user: other_user) }
+
+    it "does not expose insights from a different repository" do
+      own_insight = create_insight(title: "Own repo finding")
+
+      other_job = Job.create!(user: other_user, repository: other_repository, kind: "agent_insight", priority: "low")
+      AgentInsights::Suggestion.create!(
+        job: other_job, repository: other_repository,
+        title: "Other repo finding", category: "config",
+        severity: "low", confidence: 0.5
+      )
+
+      response = call
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq([ own_insight.title ])
+    end
+  end
+
+  describe "chat context authorization" do
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def chat_call(session: chat_session, **params)
+      described_class.call(**params, server_context: { chat_session: session })
+    end
+
+    it "lists insights for a non-admin chat user's attached repository" do
+      create_insight(title: "Visible finding")
+
+      response = chat_call(repository_id: repository.id)
+
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq([ "Visible finding" ])
+    end
+
+    it "does not list insights from repositories outside a non-admin chat scope" do
+      create_insight(title: "Visible finding")
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Job.create!(user: other_user, repository: other_repo, kind: "agent_insight", priority: "low")
+      AgentInsights::Suggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Hidden finding",
+        category: "config",
+        severity: "low",
+        confidence: 0.5
+      )
+
+      unfiltered = parsed_response(chat_call)[:insights].map { |i| i[:title] }
+      forbidden = chat_call(repository_id: other_repo.id)
+
+      expect(unfiltered).to eq([ "Visible finding" ])
+      expect(forbidden).to be_error
+      expect(forbidden.content.first[:text]).to include("repository not found or not accessible")
+      expect(forbidden.content.first[:text]).not_to include("Hidden finding")
+    end
+
+    it "lets admin chat users list insights across repositories and filter by repository" do
+      admin = Factories.user(admin: true)
+      admin_repo = Factories.repository(user: admin)
+      admin_session = ChatSession.create!(user: admin, repository: admin_repo)
+      create_insight(title: "First finding")
+
+      other_repo = Factories.repository(user: Factories.user)
+      other_job = Job.create!(user: other_repo.user, repository: other_repo, kind: "agent_insight", priority: "low")
+      AgentInsights::Suggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Second finding",
+        category: "config",
+        severity: "high",
+        confidence: 0.7
+      )
+
+      all_titles = parsed_response(chat_call(session: admin_session))[:insights].map { |i| i[:title] }
+      filtered_titles = parsed_response(chat_call(session: admin_session, repository_id: other_repo.id))[:insights].map { |i| i[:title] }
+
+      expect(all_titles).to include("First finding", "Second finding")
+      expect(filtered_titles).to eq([ "Second finding" ])
+    end
+  end
+
+  describe "feature flag gating" do
+    it "is advertised by the plugin tool set while the plugin is enabled" do
+      expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(AgentInsights::McpToolSet)
+      expect(AgentInsights::McpToolSet::TOOL_CLASSES).to include(described_class)
+    end
+
+    it "is withdrawn when the plugin is disabled" do
+      # Materialize the run while the flag is still on, then disable it.
+      eager_run = run
+      PluginRecord.find_or_create_by!(name: "agent_insights").update!(enabled: false, disableable: true)
+
+      expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(AgentInsights::McpToolSet)
+    end
+  end
+
+  describe "tool schema" do
+    it "exposes the expected tool name" do
+      expect(described_class.tool_name).to eq("list_insights")
+    end
+
+    it "declares state, limit, and page as optional parameters" do
+      schema = described_class.input_schema_value.to_h
+      expect(schema[:required]).to be_nil.or(be_empty)
+      expect(schema[:properties].keys.map(&:to_s)).to include("state", "limit", "page")
+    end
+  end
+end

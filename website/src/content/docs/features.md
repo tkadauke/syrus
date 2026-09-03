@@ -1289,7 +1289,8 @@ global totals across the instance.
 
 ## Agent Insights
 
-Agent insight runs inspect recent repository automation history and create
+Agent Insights is a plugin, disabled by default; enable it from Admin →
+Plugins. Agent insight runs inspect recent repository automation history and create
 structured suggestions the operator can accept, dismiss, or promote into
 follow-up work. Repository pages show per-repository suggestions, while admins
 can use the admin insights view to inspect suggestions across the instance.
@@ -1303,7 +1304,7 @@ of piling up meta-insights that only say another insight is stale; retired
 insights drop out of the default active review but stay inspectable through
 a "Retired" filter alongside Pending/Accepted/Dismissed/All.
 
-When the `agent_insights` feature is enabled, regular chat agents can discover
+While the plugin is enabled, regular chat agents can discover
 and call `list_insights`, `read_insight`, and `retire_insight` for suggestions
 in the chat's attached repositories. Admin chat agents can inspect all
 repositories and can narrow broad reads with repository, state, page, and limit

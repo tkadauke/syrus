@@ -118,15 +118,15 @@ RSpec.describe SyrusDev::ReadSyrusLogsTool do
   end
 
   it "allows agent insight runs to search Syrus logs" do
-    insight_job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
-    insight_workflow = Workflow.create!(
-      job: insight_job,
-      trigger_kind: "agent_insight",
-      agent_provider: user.agent_provider,
-      chain_template: []
-    )
-    insight_step = Step.create!(workflow: insight_workflow, kind: "agent_insight_run", position: 0)
-    insight_run = insight_step.runs.create!(job: insight_job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
+    # syrus_dev gates on the core agent role, not on any particular plugin's
+    # insight workflow -- whoever owns that workflow declares the role on its
+    # own step kind, so this spec stands the role up directly.
+    insight_run = run
+    allow(McpToolContext).to receive(:from_run).and_wrap_original do |original, *args|
+      context = original.call(*args)
+      allow(context).to receive(:role).and_return(AgentRole::AGENT_INSIGHT)
+      context
+    end
     event = OperationalLogEvent.create!(
       occurred_at: 1.minute.ago,
       level: "warn",

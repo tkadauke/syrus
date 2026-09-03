@@ -5,10 +5,10 @@ into durable `TestInsights::TestRun`/`TestInsights::TestCase` history, grouped u
 `TestInsights::TestIdentity` per `(repository, suite_name, name)` test. `TestInsights::TestIdentity` is
 the searchable/navigable object; `TestInsights::TestCase` is an individual execution row.
 Together they power per-test pass/fail timelines, duration history, and flaky
-test reporting. This was a core feature until it became the `test_insights` plugin; that sentence used to read "not a plugin" —
-`test_result_parser` is a plugin *extension point* that lets a repository's
-test runner supply its own parsing logic, but storage, flakiness scoring, and
-the UI are built into core.
+test reporting. This ships as the `test_insights` plugin, which owns the
+storage, flakiness scoring, and UI. `test_result_parser` is a separate plugin
+*extension point* that lets a repository's test runner supply its own parsing
+logic.
 
 ## Enabling ingestion: `junit_output`
 

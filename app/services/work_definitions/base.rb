@@ -39,6 +39,12 @@ module WorkDefinitions
     class_attribute :parent_kind, instance_accessor: false
     class_attribute :review_publication_step_kinds, instance_accessor: false
     class_attribute :display_label, instance_accessor: false
+    # Name of the plugin that owns this definition, for definitions declared
+    # by a plugin engine. Nil for core definitions. A definition whose owning
+    # plugin is not currently providing it is left out of the registry, so a
+    # disabled plugin's work kind disappears together with its trigger kind
+    # instead of dangling as a definition pointing at an unknown trigger.
+    class_attribute :plugin, instance_accessor: false
 
     self.parent_kind = nil
     self.review_publication_step_kinds = []

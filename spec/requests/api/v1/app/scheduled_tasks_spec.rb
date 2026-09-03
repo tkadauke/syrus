@@ -227,30 +227,6 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response.body).not_to include("Other repo")
   end
 
-  it "includes the insights tab when agent insights is enabled" do
-    Feature.find_or_create_by!(slug: "agent_insights") { |f|
-      f.category = "Labs"; f.name = "Agent Insights"
-    }.update!(enabled: true)
-    sign_in_as(user)
-
-    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
-
-    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
-    expect(tab_keys).to include("insights")
-  end
-
-  it "excludes the insights tab when agent insights is disabled" do
-    Feature.find_or_create_by!(slug: "agent_insights") { |f|
-      f.category = "Labs"; f.name = "Agent Insights"
-    }.update!(enabled: false)
-    sign_in_as(user)
-
-    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
-
-    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
-    expect(tab_keys).not_to include("insights")
-  end
-
   it "allows a RepositoryMembership collaborator to view repository-scoped scheduled tasks" do
     collaborator = Factories.user(email_address: "collaborator@example.com")
     repository.repository_memberships.create!(user: collaborator, role: "read")

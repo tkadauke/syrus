@@ -10,7 +10,6 @@ RSpec.describe FeatureRegistry do
       "coding_mode",
       "video_walkthroughs",
       "local_mode",
-      "agent_insights",
       "landing_validation_prefetch",
       "visual_review"
     )
@@ -25,7 +24,6 @@ RSpec.describe FeatureRegistry do
       "coding_mode" => false,
       "performance_logging" => false,
       "local_mode" => false,
-      "agent_insights" => false,
       "landing_validation_prefetch" => false,
       "visual_review" => false
     )

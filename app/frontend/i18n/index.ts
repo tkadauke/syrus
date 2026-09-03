@@ -12,7 +12,6 @@ import enSettings from "./locales/en/settings.json"
 import enAdmin from "./locales/en/admin.json"
 import enAuth from "./locales/en/auth.json"
 import enLanding from "./locales/en/landing.json"
-import enInsights from "./locales/en/insights.json"
 import enTours from "./locales/en/tours.json"
 
 import deCommon from "./locales/de/common.json"
@@ -25,7 +24,6 @@ import deSettings from "./locales/de/settings.json"
 import deAdmin from "./locales/de/admin.json"
 import deAuth from "./locales/de/auth.json"
 import deLanding from "./locales/de/landing.json"
-import deInsights from "./locales/de/insights.json"
 import deTours from "./locales/de/tours.json"
 
 import laCommon from "./locales/la/common.json"
@@ -38,7 +36,6 @@ import laSettings from "./locales/la/settings.json"
 import laAdmin from "./locales/la/admin.json"
 import laAuth from "./locales/la/auth.json"
 import laLanding from "./locales/la/landing.json"
-import laInsights from "./locales/la/insights.json"
 import laTours from "./locales/la/tours.json"
 
 import { readInitialBootstrap } from "../api/bootstrap"
@@ -65,7 +62,6 @@ const resources: Resource = {
     admin: enAdmin,
     auth: enAuth,
     landing: enLanding,
-    insights: enInsights,
     tours: enTours
   },
   de: {
@@ -79,7 +75,6 @@ const resources: Resource = {
     admin: deAdmin,
     auth: deAuth,
     landing: deLanding,
-    insights: deInsights,
     tours: deTours
   },
   la: {
@@ -93,7 +88,6 @@ const resources: Resource = {
     admin: laAdmin,
     auth: laAuth,
     landing: laLanding,
-    insights: laInsights,
     tours: laTours
   }
 }
@@ -116,7 +110,7 @@ i18n.use(initReactI18next).init({
   lng: detectedLocale,
   fallbackLng: "en",
   defaultNS: "common",
-  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "insights", "tours", ...pluginNamespaces],
+  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "tours", ...pluginNamespaces],
   resources,
   interpolation: {
     escapeValue: false

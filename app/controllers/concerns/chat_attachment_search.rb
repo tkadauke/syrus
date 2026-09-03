@@ -47,11 +47,10 @@ module ChatAttachmentSearch
     Current.user.repositories.active.order(:owner, :name, :id)
   end
 
-  INFRA_JOB_KINDS = %w[main_grader agent_insight deploy].freeze
 
   def job_attachment_search_scope
     Current.user.jobs
-      .where.not(kind: INFRA_JOB_KINDS)
+      .where.not(kind: Job::Kind.infrastructure_values)
       .includes(:repository)
       .order(created_at: :desc, id: :desc)
   end

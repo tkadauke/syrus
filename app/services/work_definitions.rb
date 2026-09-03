@@ -142,12 +142,36 @@ module WorkDefinitions
 
   def registry
     load_definitions
-    @registry ||= WorkDefinitions::Base.descendants.index_by(&:kind).freeze
+    generation = Syrus::PluginRegistry.generation
+    return @registry if defined?(@registry) && @registry && @registry_generation == generation
+
+    provided = plugin_definitions.to_set
+    reset_registry!
+    @registry_generation = generation
+    @registry = WorkDefinitions::Base.descendants
+      .select { |definition| definition.plugin.nil? || provided.include?(definition) }
+      .index_by(&:kind)
+      .freeze
+  end
+
+  # Plugin-owned definitions, resolved through the registry so a disabled
+  # plugin contributes none. Referencing the classes here is also what
+  # autoloads them, which is what puts them in Base.descendants at all.
+  def plugin_definitions
+    Syrus::PluginRegistry.providers_for(:workflow_kinds).flat_map do |provider|
+      next [] unless provider.respond_to?(:work_definitions)
+
+      Array(provider.work_definitions)
+    rescue StandardError => e
+      Rails.logger.error("[WorkDefinitions] #{provider}.work_definitions failed: #{e.class}: #{e.message}")
+      []
+    end
   end
 
   def reset_registry!
     %i[
       @registry
+      @registry_generation
       @landing_lock_kinds
       @first_class_work_unit_kinds
       @landing_workflow_kinds

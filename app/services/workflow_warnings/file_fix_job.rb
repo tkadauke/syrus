@@ -1,9 +1,9 @@
 module WorkflowWarnings
   # Creates the `direct` Job behind a WorkflowWarning's "File a fix Job"
   # button, from the (possibly operator-edited) suggested_prompt. Mirrors
-  # InsightSuggestions::Proposals::CreateJob's shape — the closest existing
+  # AgentInsights::Proposals::CreateJob's shape — the closest existing
   # analog — but this is a separate, single-purpose flow, not a modification
-  # of the InsightSuggestion accept action.
+  # of the agent_insights accept action.
   class FileFixJob
     Result = Struct.new(:ok?, :message, :warning, :job, keyword_init: true) do
       def self.ok(warning:, job:)

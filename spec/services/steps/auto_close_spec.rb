@@ -3,29 +3,26 @@ require "rails_helper"
 RSpec.describe Steps::AutoClose do
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:job) do
-    Feature.find_or_create_by!(slug: "agent_insights") do |f|
-      f.category = "Labs"
-      f.name     = "Agent Insights"
-    end.update!(enabled: true)
-
-    Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+  # Any infrastructure Job kind exercises this step: it closes the anchor Job
+  # with the Job's own kind as the closure reason, whoever owns that kind.
+  let(:job) { Job.create!(user: user, repository: repository, kind: "main_grader", priority: "low") }
+  let(:workflow) do
+    Workflow.create!(job: job, user: user, trigger_kind: "main_grader", chain_template: [ "auto_close" ])
   end
-  let(:workflow) { Workflows::AgentInsight.instantiate(job: job) }
-  let(:step)     { workflow.steps.find_by!(kind: "auto_close") }
-  let(:run)      { step.runs.first || step.runs.create!(job: job, trigger_kind: workflow.trigger_kind) }
-  let(:handler)  { described_class.new(run) }
+  let(:step)    { Step.create!(workflow: workflow, kind: "auto_close", position: 0) }
+  let(:run)     { Run.create!(job: job, user: user, step: step, trigger_kind: workflow.trigger_kind) }
+  let(:handler) { described_class.new(run) }
 
-  it "closes the anchor Job with reason agent_insight" do
+  it "closes the anchor Job with the Job's kind as the closure reason" do
     handler.call
 
     expect(job.reload.state).to eq("closed")
-    expect(job.closure_reason).to eq("agent_insight")
+    expect(job.closure_reason).to eq("main_grader")
   end
 
   it "is idempotent when the job is already closed" do
     run # materialize the workflow/step/run before the job closes
-    job.close_with_reason!("agent_insight")
+    job.close_with_reason!("main_grader")
 
     expect { handler.call }.not_to raise_error
     expect(job.reload.state).to eq("closed")

@@ -92,10 +92,6 @@ class Feature < ApplicationRecord
     enabled?(:local_mode)
   end
 
-  def self.agent_insights_enabled?
-    enabled?(:agent_insights)
-  end
-
   def self.operational_log_indexing_enabled?
     enabled?(:operational_log_indexing)
   end

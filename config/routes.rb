@@ -307,7 +307,6 @@ Rails.application.routes.draw do
             post :sync_fork
             post :check_ci_now
             get :coverage_trend
-            post :run_insight_analysis
           end
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
@@ -320,11 +319,6 @@ Rails.application.routes.draw do
         get "repositories/:repository_id/preview/logs", to: "repository_preview#logs", constraints: { repository_id: /\d+/ }
         post "repositories/:repository_id/preview", to: "repository_preview#create", constraints: { repository_id: /\d+/ }
         delete "repositories/:repository_id/preview", to: "repository_preview#destroy", constraints: { repository_id: /\d+/ }
-        get "repositories/:repository_id/insight_suggestions", to: "insight_suggestions#index"
-        patch "insight_suggestions/:id", to: "insight_suggestions#update"
-        post "insight_suggestions/:id/discuss", to: "insight_suggestions#discuss"
-        get "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#show", constraints: { id: /\d+/ }
-        patch "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#update", constraints: { id: /\d+/ }
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
         get "workflows/:workflow_id/visual_artifact", to: "workflows#visual_artifact", constraints: { workflow_id: /\d+/ }
         get "repositories/:repository_id/input_sources/:type", to: "input_sources#show"
@@ -353,8 +347,6 @@ Rails.application.routes.draw do
         end
 
         namespace :admin do
-          get "insights", to: "insights#index"
-          post "insights/:id/promote_memory", to: "insights#promote_memory"
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
           get "plugins", to: "plugins#index"
@@ -536,7 +528,6 @@ Rails.application.routes.draw do
   get "repositories", to: "spa#show", as: :repositories
   get "repositories/new", to: "spa#show", as: :new_repository
   get "repositories/:id/edit", to: "spa#show", as: :edit_repository, constraints: { id: /\d+/ }
-  get "repositories/:id/insights", to: "spa#show", as: :repository_insights, constraints: { id: /\d+/ }
   get "repositories/:id", to: "spa#show", as: :repository, constraints: { id: /\d+/ }
   resources :repositories, only: [] do
     # Repository-scoped chat routes were retired — the chat surface is
@@ -638,7 +629,6 @@ Rails.application.routes.draw do
   get "admin/teams/:id", to: "spa#show", as: :admin_team, constraints: { id: /\d+/ }
   get "admin/features", to: "spa#show", as: :admin_features
   get "admin/plugins", to: "spa#show", as: :admin_plugins
-  get "admin/insights", to: "spa#show", as: :admin_insights
   get "admin/performance", to: "spa#show", as: :admin_performance
   get "admin/tailscale", to: "spa#show", as: :admin_tailscale
   get "admin/console", to: "spa#show", as: :admin_console

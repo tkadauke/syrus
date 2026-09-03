@@ -839,10 +839,10 @@ they disappear when the plugin is disabled.
 
 ## `workflow_kinds`
 
-`Workflow::TriggerKind::ENTRIES` and `Step::Kind::ENTRIES` were frozen array
-literals, so a plugin could not describe its own workflow at all: a subsystem
-with its own trigger kind and step handlers had to be core by construction,
-whatever else it was.
+`Workflow::TriggerKind::ENTRIES`, `Step::Kind::ENTRIES` and `Job::KINDS` were
+frozen array literals, so a plugin could not describe its own workflow at all:
+a subsystem with its own trigger kind, step handlers, and Job kind had to be
+core by construction, whatever else it was.
 
 ```ruby
 # app/services/my_plugin/workflow_kinds.rb
@@ -858,15 +858,35 @@ module MyPlugin
 
     def self.step_kinds
       [ { kind: "my_plugin_run", handler: "MyPluginRun", label: "Plugin run",
-          style: "bg-amber-100 text-amber-700", agentic: true } ]
+          style: "bg-amber-100 text-amber-700", agentic: true,
+          agent_role: AgentRole::AGENT_INSIGHT } ]
+    end
+
+    # Optional: a Job kind of the plugin's own. `infrastructure` keeps it out
+    # of the operator's user-facing Job lists; `issueless` says the Job never
+    # carries a GitHub issue number.
+    def self.job_kinds
+      [ { kind: "my_plugin_sweep", infrastructure: true, issueless: true } ]
+    end
+
+    # Optional: the WorkDefinition (retry/lock/landing policy) for the kind.
+    def self.work_definitions
+      [ MyPlugin::WorkDefinition ]
     end
   end
 end
 ```
 
+A plugin-owned `WorkDefinition` subclasses `WorkDefinitions::Base` and sets
+`self.plugin` to the plugin name. Naming it here is both what autoloads it into
+`WorkDefinitions.registry` and what takes it back out when the plugin is
+disabled -- so the registry never holds a definition pointing at a trigger kind
+that no longer exists.
+
 Attribute hashes take the same shape as the built-in literals, so the entry
-`Data` classes stay the single description of what a kind is. Both methods are
-optional -- contribute only trigger kinds, or only step kinds.
+`Data` classes stay the single description of what a kind is. Every method is
+optional -- contribute only trigger kinds, or only step kinds, or only a Job
+kind.
 
 **A plugin may not redefine a built-in kind.** Core keeps its own and the
 collision is logged, because workflow behavior that depends on plugin load

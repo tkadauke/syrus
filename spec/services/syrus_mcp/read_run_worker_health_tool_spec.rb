@@ -126,16 +126,11 @@ RSpec.describe Mcp::Tools::ReadRunWorkerHealthTool do
   it "is advertised to workflow and insight agents" do
     expect(McpToolPolicy.for(McpToolContext.from_run(run))).to include(described_class)
 
-    Feature.find_or_create_by!(slug: "agent_insights") do |feature|
-      feature.category = "Labs"
-      feature.name = "Agent Insights"
-    end.update!(enabled: true)
-    Feature.clear_enabled_cache!("agent_insights")
-    insight_job = Factories.job_record(user: run.user, repository: run.job.repository, kind: "agent_insight", issue_number: nil)
-    insight_workflow = Workflows::AgentInsight.instantiate(job: insight_job)
-    insight_step = insight_workflow.steps.find_by!(kind: "agent_insight_run")
-    insight_run = Run.create!(job: insight_job, user: run.user, step: insight_step, trigger_kind: "agent_insight")
+    # Whichever plugin owns an insight workflow declares AgentRole::AGENT_INSIGHT
+    # on its step kind; core only grants tools for the role.
+    insight_context = McpToolContext.from_run(run)
+    allow(insight_context).to receive(:role).and_return(AgentRole::AGENT_INSIGHT)
 
-    expect(McpToolPolicy.for(McpToolContext.from_run(insight_run))).to include(described_class)
+    expect(McpToolPolicy.for(insight_context)).to include(described_class)
   end
 end

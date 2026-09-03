@@ -167,8 +167,8 @@ module Timeline
 
     def job_type_kinds
       {
-        "system" => Job::INFRASTRUCTURE_KINDS,
-        "user" => Job::USER_FACING_KINDS
+        "system" => Job::Kind.infrastructure_values,
+        "user" => Job::Kind.user_facing_values
       }.values_at(*job_type_filter).flatten.uniq
     end
 

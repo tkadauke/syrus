@@ -140,18 +140,6 @@ RSpec.describe McpToolRegistry do
       )
     end
 
-    it "keeps agent insight tools gated by feature flag" do
-      run = Factories.job.initial_run
-      run.step.update_columns(kind: "agent_insight_run")
-
-      disabled_context = McpToolContext.from_run(run.reload)
-      expect(tool_names_for(disabled_context)).not_to include("submit_insight", "list_insights", "read_insight")
-
-      enable_feature(:agent_insights)
-
-      enabled_context = McpToolContext.from_run(run.reload)
-      expect(tool_names_for(enabled_context)).to include("submit_insight", "list_insights", "read_insight")
-    end
   end
 
   it "has one metadata entry for every chat MCP tool file" do

@@ -42,6 +42,41 @@ to be blocked, both for reasons the inventory missed:
 
 Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
 
+**Phase 5 in progress.** `agent_insights` extracted, out of order: the plan put
+`scheduled_tasks` first, but that one is gated on the G8 CLI decision and
+insights is not, and moving insights is what unblocks `agent_memory` back in
+Phase 4. Three platform gaps had to be closed to finish it, none of which the
+inventory predicted:
+
+- **Job kinds were a frozen array on `Job`.** A plugin that runs its own kind
+  of work could not create a Job at all. `Job::KINDS` /
+  `INFRASTRUCTURE_KINDS` / `USER_FACING_KINDS` are now a `Syrus::KindRegistry`
+  (`Job::Kind`) fed by a `job_kinds` method on the same `:workflow_kinds`
+  provider, with `infrastructure` and `issueless` flags. The six per-kind
+  `issue_number_blank_for_*` validations collapsed into one registry-driven
+  check.
+- **WorkDefinitions were core-only.** `WorkDefinitions::AgentInsight` lived in
+  `built_ins.rb`, so `RegistryValidator` failed the moment the trigger kind
+  moved. Definitions now carry `self.plugin`, and the same provider names them
+  through `work_definitions` — which both autoloads them and drops them when
+  the plugin is disabled, so a definition can never outlive its trigger kind.
+- **`McpToolContext` named a plugin step kind** to resolve the insight agent
+  role. `Step::Kind::Entry` gained `agent_role`, so a plugin declares the role
+  on its own step and core's `case` keeps only core's steps.
+
+Two smaller inversions came out of it: `Steps::AutoClose` now closes with
+`job.kind` instead of the literal `"agent_insight"` (matching what
+`Job#mark_infrastructure_job_closed` already did), and
+`Mcp::Tools::ListRecentWorkflowsTool` moved into the plugin — it filtered on
+`kind: "agent_insight"` and defaulted its cutoff to the previous insight Job,
+so it was never a core tool.
+
+What did *not* move, and stays as documented residue: `AgentRole::AGENT_INSIGHT`
+and `McpToolPolicy#insight_tools`. Those name a *role* an agentic step can run
+as, not a plugin — core grants live-state, worker-health, and memory tools for
+it, and any plugin can attach a step to that role. Splitting roles out is its
+own extension point and is not worth doing for one consumer.
+
 ## Principles
 
 These are rules, not preferences. A move that cannot satisfy them is not ready.
@@ -724,17 +759,24 @@ the AASM callback (→ `job.closed` subscriber), the `replaced_by_scheduled_task
 closure reason (→ G3), and `AutoApprovalRule`'s candidate chain (needs an
 auto-approval-source contribution point).
 
-**`agent_insights`** — `InsightSuggestion`, `InsightScheduleConfig`,
-`InsightSuggestionAuditEvent`, `InsightSweepJob`, `Workflows::AgentInsight`,
-two step handlers, eight MCP tools, two controllers, two React routes.
+**`agent_insights`** — extracted. `AgentInsights::Suggestion`/`ScheduleConfig`/
+`AuditEvent` (tables `agent_insight_suggestions`,
+`agent_insight_schedule_configs`, `agent_insight_audit_events`),
+`InsightSweepJob`, `AgentInsights::Workflow`, its run step, its `WorkDefinition`,
+its Job/trigger/step kinds, seven MCP tools, three controllers, two React
+routes. Per Principle 4 the `agent_insights` feature flag and
+`Feature.agent_insights_enabled?` are gone — the plugin is the flag, and it
+ships `default_enabled: false` to match the flag's old default.
 
-Needs G1, G2, G3, G4. Per Principle 4 the `agent_insights` feature flag and
-`Feature.agent_insights_enabled?` are removed — the plugin is the flag.
+The specific thing the user called out — `Job#after_update_commit
+:trigger_insight_if_max_threshold_reached` — is now `AgentInsights::Subscribers`
+on `job.closed`, carrying the whole gate (skip the plugin's own kind, config
+enabled, count past `max_jobs_since_last_run`) rather than leaving it in core.
+No plugin monkey-patches an Active Record callback onto `Job`; association
+injection is sanctioned, behavioral injection is not.
 
-The specific thing the user called out: `Job#after_update_commit
-:trigger_insight_if_max_threshold_reached` must become a `job.closed`
-subscriber. No plugin should monkey-patch an Active Record callback onto `Job`;
-association injection is sanctioned, behavioral injection is not.
+See the Phase 5 status note for the three platform gaps this move exposed
+(`job_kinds`, plugin-owned `WorkDefinition`s, `Step::Kind#agent_role`).
 
 Dependency note: this plugin writes `ChatMemory` (`source_type: "insight"`) and
 `InsightSuggestion` has an FK to it. Once memory is a plugin, `agent_insights`
@@ -895,7 +937,8 @@ Consequences worth stating:
 - `terminal` once G7 lands.
 
 ### Phase 5 — Scheduling and insights
-- CLI extensibility (G8), then `scheduled_tasks`, then `agent_insights`.
+- `agent_insights` (done, taken first — it is unblocked and it unblocks
+  `agent_memory`), then CLI extensibility (G8), then `scheduled_tasks`.
 - Job Origin step 3: move readers onto origin predicates and drop
   `scheduled_task_id`, `external_ref`, and `input_source_id`.
 

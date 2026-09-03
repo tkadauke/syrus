@@ -1,0 +1,246 @@
+module AgentInsights
+  # Prompt for an agent_insight Job. Instructs the agent to inspect recent
+  # workflow runs for the repository and surface improvement suggestions via
+  # the `submit_insight` MCP tool.
+  class Prompt
+    def initialize(repository:, recent_jobs: [], analysis_window_start: nil, known_insights: [], user: nil)
+      @repository            = repository
+      @recent_jobs           = recent_jobs
+      @analysis_window_start = analysis_window_start
+      @known_insights        = known_insights
+      @user                  = user
+    end
+
+    def to_s
+      [
+        header,
+        analysis_window_section,
+        recent_jobs_section,
+        known_insights_section,
+        instructions,
+        memory_context
+      ].compact_blank.join("\n\n")
+    end
+
+    private
+
+    def header
+      <<~TEXT
+        You are an insight agent for the **#{@repository.slug}** repository.
+        Your task is to inspect recent automated workflow runs and surface actionable
+        improvement suggestions to the operator.
+
+        You have read-only access to the repository source code via the workspace.
+        Do NOT make any code changes or commits.
+      TEXT
+    end
+
+    def analysis_window_section
+      return unless @analysis_window_start
+
+      <<~TEXT
+        ## Analysis Window
+
+        Only analyze jobs and run transcripts that completed after #{@analysis_window_start.iso8601}.
+        Do not re-examine transcripts from earlier runs.
+      TEXT
+    end
+
+    def recent_jobs_section
+      return if @recent_jobs.empty?
+
+      lines = @recent_jobs.map do |job|
+        title = job.issue_title.to_s.truncate(80)
+        "- #{job.slug} (#{job.kind}, #{job.state}; #{workflow_summary(job)}; #{run_summary(job)}): #{title}"
+      end
+
+      "## Recent Completed Jobs\n\n#{lines.join("\n")}"
+    end
+
+    def workflow_summary(job)
+      workflow = job.latest_workflow
+      return "workflow: none" unless workflow
+
+      finished_at = workflow.finished_at&.iso8601 || "unfinished"
+      "workflow: WF-#{workflow.id} #{workflow.trigger_kind}/#{workflow.state} finished_at=#{finished_at}"
+    end
+
+    def run_summary(job)
+      workflow = job.latest_workflow
+      runs = workflow&.steps&.flat_map(&:runs).to_a.last(6)
+      return "runs: none" if runs.blank?
+
+      "runs: #{runs.map { |run| run_lineage(run) }.join(", ")}"
+    end
+
+    def run_lineage(run)
+      step_kind = run.step&.kind || "unknown_step"
+      "RUN-#{run.id} #{step_kind}/#{run.state}"
+    end
+
+    def known_insights_section
+      return if @known_insights.empty?
+
+      lines = @known_insights.map do |i|
+        "- [#{i.id}] #{i.title} (#{i.state}, #{i.effective_proposal_type})"
+      end
+
+      <<~TEXT
+        ## Known Insights
+
+        The following pending, accepted, and dismissed insights have already been filed
+        for this repository. Review them for freshness before filing anything new. Do
+        not refile these unless you have evidence the underlying issue was reintroduced
+        after a fix.
+        Do not refile known insights unless you have new evidence.
+        Call `read_insight(id:)` to get the full details of any entry. Call `list_insights`
+        to page through more insights beyond those listed here (pass `state: "retired"` or
+        `state: "all"` to review previously retired insights too). If an existing insight is
+        stale, duplicated, or superseded, use state-aware handling:
+
+        - If a pending or dismissed insight's details need correcting but the finding is
+          still active and worth tracking, call `update_insight(target_insight_id:, reason:, ...)`
+          to revise it in place.
+        - If a pending or dismissed insight is stale, a duplicate, folded into another
+          insight, or no longer worth any operator review at all, call
+          `retire_insight(target_insight_id:, reason:, ...)` to remove it from active
+          review with an audit trail. Pass `superseded_by_insight_id` or
+          `superseded_by_job_id` when a specific insight or Job explains why it is no
+          longer current. Do NOT submit a new `informational` insight titled something
+          like "Superseded by #N" just to signal that another insight is stale — retire
+          the stale one directly instead.
+        - If the existing insight is accepted, do not update or retire it by default;
+          submit a new standalone insight and cite the accepted insight in evidence or
+          context if useful. Only call `retire_insight(..., retire_accepted: true)` when
+          the accepted insight itself is confirmed obsolete (not merely superseded by
+          newer work).
+
+        #{lines.join("\n")}
+      TEXT
+    end
+
+    def instructions
+      <<~TEXT
+        ## Your Task
+
+        Inspect the repository's recent workflow runs and agent transcripts using the
+        tools available to you (`read_live_state`, `list_recent_workflows`,
+        `read_run_transcript`, `read_run_worker_health`, `read_syrus_logs`, memory tools,
+        `list_insights`, `read_insight`). Look for:
+
+        - Repeated failures or struggle patterns across multiple Jobs
+        - Operational log patterns from `read_syrus_logs`: repeated exceptions,
+          recurring warnings, slow or inefficient behavior, retry storms,
+          queue/worker anomalies, failed background jobs, and noisy code paths
+        - Inefficient agent behaviors (excessive tool calls, wrong approaches)
+        - Missed opportunities for memory or knowledge capture
+        - Existing pending or accepted insights that are stale, duplicated, or superseded
+          by current repository state
+        - Existing repository memories that are stale, wrong, or describe bugs already fixed
+        - Configuration issues that cause unnecessary failures
+        - Worker host pressure that repeatedly coincides with a step kind or grader
+          (for example, rspec Runs lining up with CPU starvation)
+        - Patterns that suggest a recurring task would be valuable
+
+        For each concrete new finding, call `submit_insight` with:
+        - A concise `title` summarizing the issue
+        - A `category` (e.g. "repeated_failure", "inefficiency", "configuration", "memory_gap", "recurring_task")
+        - A `severity` ("low", "medium", or "high")
+        - Your `confidence` (0.0–1.0) that this is a real pattern, not a one-off
+        - `evidence` — an array of `{job_id, run_id, kind}` objects that support the finding.
+          Use `read_run_worker_health` when host pressure, CPU starvation, memory,
+          disk, or IO pressure may explain a Run or repeated step behavior.
+          Use `read_syrus_logs` to find recent operational log evidence when it
+          is available, and corroborate log hits with workflow evidence, run
+          transcripts, worker health, code inspection, or multiple occurrences
+          before filing a finding. Do not submit insights from one-off benign log
+          lines or isolated noise without supporting context.
+        - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
+        - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
+        - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`, or
+          `informational`). Use the explicit field for new suggestions.
+        - For `remove_memory`: include `target_memory_id`, the stale or wrong
+          `stale_memory_text`, and `stale_memory_evidence` explaining why the memory no
+          longer matches current code, docs, recent jobs, or accepted implementation state.
+        - Do not submit `revise_existing_insight`; that legacy proposal type is not
+          an operator action. Use `update_insight` for unaccepted insight revisions,
+          or `retire_insight` to remove a stale unaccepted insight from active review.
+
+        ## When to use each suggestion type
+
+        **File a job suggestion (`proposal_type: "create_job"` with `suggested_prompt`)**
+        when the finding is a code defect, missing behavior, misconfiguration, or
+        architectural gap that requires a code change to resolve. Set `suggested_prompt`
+        to a prompt that a future Job could act on.
+
+        **File a memory suggestion (`proposal_type: "save_memory"` with
+        `memory_suggestion`)** when the finding is a behavioral pattern, constraint, or
+        workaround that future coding agents running against this repository should be
+        aware of — but where no code change is needed or possible right now. The text
+        should be durable advice agents can act on.
+
+        **File a stale-memory removal (`proposal_type: "remove_memory"`)** when an
+        existing memory is stale, wrong, or describes a bug that has since been fixed.
+        You must call `list_memories` and `read_memory` first, verify against current
+        repository reality, then submit the removal proposal with `target_memory_id`,
+        `stale_memory_text`, and `stale_memory_evidence`. Do NOT call `delete_memory`
+        during an insight run; operators accept removals through audited application code.
+
+        **Update an existing unaccepted insight (`update_insight`)** when a pending or
+        dismissed insight's details are incomplete or out of date but the finding itself
+        is still active and worth operator review. Include `target_insight_id`, the
+        revised fields, and a concise `reason` for the audit trail. This updates the
+        target row in place instead of creating a new review card.
+
+        **Retire an existing unaccepted insight (`retire_insight`)** when a pending or
+        dismissed insight is stale, a duplicate, folded into another insight, or no
+        longer current for any reason and does not need further operator review at all.
+        Include `target_insight_id` and a concise `reason`; pass `superseded_by_insight_id`
+        or `superseded_by_job_id` when a specific insight or Job explains the retirement.
+        This is an audited state transition, not a delete — retired insights stay
+        inspectable via `list_insights(state: "retired")` and `read_insight`. Never file a
+        new `informational` insight titled something like "Superseded by #N" just to say
+        another insight is stale; retire the stale one directly instead. Accepted insights
+        are refused by `retire_insight` unless you
+        pass `retire_accepted: true`, which should only be used when the accepted insight
+        itself is confirmed obsolete — prefer filing a new standalone insight for anything
+        merely superseded by newer work.
+
+        **File a new standalone insight for accepted prior insights** when a novel
+        realization changes an already accepted insight. Accepted insights are operator
+        history and should not be edited in place. Call `submit_insight` for the new
+        realization and cite the accepted prior insight in the title, evidence kind, or
+        text fields if it helps the operator understand the lineage.
+
+        **File both** when there is a code fix that should be filed as a Job AND there is
+        interim context agents need to carry while that fix has not yet landed (e.g.,
+        "this bug exists until the fix lands; work around it by..."). Use `suggested_prompt`
+        for the fix and `memory_suggestion` for the interim workaround.
+
+        **Do NOT file a memory suggestion** for a finding that is purely a code bug with a
+        clear fix. A memory that documents a bug which is about to be corrected misleads
+        future agents after the fix lands. If the right action is to open a Job, set
+        `suggested_prompt` and leave `memory_suggestion` blank.
+
+        For durable facts you discover (e.g. recurring configuration issues, stable
+        patterns), call `write_memory` to store them so future agents benefit only after
+        checking existing memories. Before suggesting or writing a new memory, call
+        `list_memories` and `read_memory` for repository-relevant memories to check
+        whether a similar memory already exists for this repository and whether existing
+        memories still match current code and recent accepted work. Only suggest a new memory if no sufficiently
+        similar one is present. If a memory needs replacement, propose removal of the stale
+        memory and a separate non-conflicting memory suggestion for the replacement.
+
+        Call `submit_insight` once per distinct finding. Do not call it for speculative
+        or single-instance observations below your confidence threshold. Aim for signal
+        over volume.
+
+        When you have finished your analysis and submitted all findings, stop.
+      TEXT
+    end
+
+    def memory_context
+      Prompts::MemoryContext.new(user: @user, repository_ids: [ @repository.id ]).to_s.presence
+    end
+  end
+end

@@ -11,9 +11,6 @@ class Job < ApplicationRecord
   include JobLifecycle
   include EnqueuesSearchIndex
 
-  KINDS = %w[ issue cron direct main_grader agent_insight external_pr deploy ].freeze
-  INFRASTRUCTURE_KINDS = %w[ main_grader agent_insight deploy ].freeze
-  USER_FACING_KINDS = (KINDS - INFRASTRUCTURE_KINDS).freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
   SCHEDULED_TASK_OUTCOMES = {
@@ -117,7 +114,7 @@ class Job < ApplicationRecord
   has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
   has_many :preview_environments, dependent: :destroy
 
-  validates :kind, presence: true, inclusion: { in: KINDS }
+  validates :kind, presence: true, inclusion: { in: -> (_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
@@ -135,13 +132,7 @@ class Job < ApplicationRecord
             numericality: { only_integer: true, greater_than: 0 },
             if: -> { issue? && (input_source.nil? || input_source.type == "InputSources::Github") }
   validates :scheduled_task_id, presence: true, if: :cron?
-  validate  :issue_number_blank_for_cron, if: :cron?
-  validate  :issue_number_blank_for_direct, if: :direct?
-  validate  :issue_number_blank_for_main_grader, if: :main_grader?
-  validate  :issue_number_blank_for_agent_insight, if: :agent_insight?
-  validate  :agent_insights_feature_enabled, if: :agent_insight?
-  validate  :issue_number_blank_for_external_pr, if: :external_pr?
-  validate  :issue_number_blank_for_deploy_job, if: :deploy_job?
+  validate  :issue_number_blank_for_issueless_kind
   validate  :external_pr_starts_implemented, if: :external_pr?, on: :create
   validates :external_pr_number, presence: true, if: :external_pr?
   validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
@@ -311,10 +302,6 @@ class Job < ApplicationRecord
     kind == "main_grader"
   end
 
-  def agent_insight?
-    kind == "agent_insight"
-  end
-
   # Synthetic anchor Job for a continuous-deploy auto-trigger (see
   # MaybeDeployJob) — no issue, no PR, no operator review. Distinct from
   # `deployable?`, which is about whether a *manual* deploy can target an
@@ -328,7 +315,7 @@ class Job < ApplicationRecord
   # then closing — no PR, no operator review/approval step. See the
   # mark_implemented event and mark_infrastructure_job_closed below.
   def infrastructure_job?
-    main_grader? || agent_insight? || deploy_job?
+    Job::Kind.infrastructure_values.include?(kind)
   end
 
   def external_pr?
@@ -483,7 +470,7 @@ class Job < ApplicationRecord
     # didn't open a new PR), Workflow#succeed's after-callback
     # transitions :running → :implemented since the PR already exists.
     #
-    # infrastructure_job? (main_grader, agent_insight) Jobs never open a
+    # infrastructure_job? Jobs never open a
     # PR and have no operator-review step, so this event routes them
     # straight to :closed instead of :implemented. Without this guard,
     # any generic caller of mark_implemented! (e.g. the reconciler's
@@ -699,7 +686,6 @@ class Job < ApplicationRecord
   after_update_commit :cancel_stale_work_intents_after_close, if: :saved_change_to_closed?
   after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :enqueue_close_external_pr, if: :saved_change_to_closed_external_pr_to_close?
-  after_update_commit :trigger_insight_if_max_threshold_reached, if: :saved_change_to_closed_coding_job?
   after_update_commit :ensure_main_branch_repair_after_close, if: :saved_change_to_closed_main_branch_repair?
   after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
   after_update_commit :start_dependent_jobs_after_successful_close, if: :saved_change_to_successful_closed_dependency?
@@ -1239,10 +1225,6 @@ class Job < ApplicationRecord
     saved_change_to_closed? && priority == "urgent"
   end
 
-  def saved_change_to_closed_coding_job?
-    saved_change_to_closed? && !agent_insight?
-  end
-
   def saved_change_to_closed_external_pr_to_close?
     saved_change_to_closed? && external_pr? && external_pr_number.present? &&
       !closure_reason.in?(%w[external_pr_merged external_pr_closed])
@@ -1270,19 +1252,6 @@ class Job < ApplicationRecord
 
   def enqueue_close_external_pr
     CloseExternalPrJob.perform_later(id)
-  end
-
-  def trigger_insight_if_max_threshold_reached
-    return unless Feature.agent_insights_enabled?
-
-    config = repository.insight_schedule_config
-    return unless config&.enabled?
-
-    last_insight_at = InsightScheduler.last_insight_created_at(repository)
-    count = InsightScheduler.coding_jobs_since(repository, last_insight_at)
-    return if count < config.max_jobs_since_last_run
-
-    InsightScheduler.enqueue_if_idle!(repository)
   end
 
   def cancel_queued_retry_workflows_after_approval
@@ -1339,10 +1308,9 @@ class Job < ApplicationRecord
     )
   end
 
-  # kind doubles as the closure_reason for infrastructure_job? Jobs
-  # ("main_grader", "agent_insight") — matches MAIN_GRADER_CLOSURE_REASON
-  # and the literal "agent_insight" reason Steps::AutoClose/
-  # Workflows::AgentInsight already use for their own close_with_reason! calls.
+  # kind doubles as the closure_reason for infrastructure_job? Jobs —
+  # matches MAIN_GRADER_CLOSURE_REASON and the reason Steps::AutoClose
+  # uses for its own close_with_reason! call.
   def mark_infrastructure_job_closed
     self.closure_reason = kind
     self.finished_at ||= Time.current
@@ -1790,40 +1758,21 @@ class Job < ApplicationRecord
     epic&.refresh_auto_state!
   end
 
-  def issue_number_blank_for_cron
-    errors.add(:issue_number, "must be blank for cron Jobs") if issue_number.present?
-  end
+  # Kinds declared issueless (cron fires, direct prompts, infrastructure
+  # Jobs, and plugin-contributed kinds) have no GitHub issue behind them.
+  def issue_number_blank_for_issueless_kind
+    return if issue_number.blank?
+    return unless Job::Kind.issueless?(kind)
 
-  def issue_number_blank_for_direct
-    errors.add(:issue_number, "must be blank for direct Jobs") if issue_number.present?
-  end
-
-  def issue_number_blank_for_main_grader
-    errors.add(:issue_number, "must be blank for main_grader Jobs") if issue_number.present?
-  end
-
-  def issue_number_blank_for_agent_insight
-    errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
-  end
-
-  def issue_number_blank_for_deploy_job
-    errors.add(:issue_number, "must be blank for deploy Jobs") if issue_number.present?
+    errors.add(:issue_number, "must be blank for #{kind} Jobs")
   end
 
   def skill_name_requires_direct_or_cron_kind
     errors.add(:skill_name, "requires kind=direct or kind=cron") unless direct? || cron?
   end
 
-  def issue_number_blank_for_external_pr
-    errors.add(:issue_number, "must be blank for external_pr Jobs") if issue_number.present?
-  end
-
   def external_pr_starts_implemented
     errors.add(:state, "must be implemented for external_pr Jobs") unless implemented?
-  end
-
-  def agent_insights_feature_enabled
-    errors.add(:kind, "agent_insights feature is disabled") unless Feature.agent_insights_enabled?
   end
 
   def saved_change_to_stack_parent_resolved_terminal?
