@@ -145,7 +145,7 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          run = job.runs.includes(:job_logs).find_by(id: params[:run_id])
+          run = job.runs.includes(:job_logs, :step).find_by(id: params[:run_id])
           unless run
             render_error("not_found", "Run not found.", status: :not_found)
             return
@@ -163,7 +163,10 @@ module Api
 
           render json: {
             job_id: job.id,
+            workflow_id: run.step&.workflow_id,
             run_id: run.id,
+            base_ref: run.base_sha,
+            head_ref: run.head_sha,
             agent_diff: run.agent_diff,
             agent_diff_bytes: run.agent_diff&.bytesize || 0,
             step_agent_diff: run.step_agent_diff,

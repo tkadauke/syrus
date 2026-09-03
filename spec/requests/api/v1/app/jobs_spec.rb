@@ -900,7 +900,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
   it "returns run transcript rows and agent diff as a separate artifact payload" do
     run = job.initial_run
-    run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n")
+    run.update!(agent_diff: "diff --git a/app.rb b/app.rb\n+puts 'forum'\n", base_sha: "base-sha", head_sha: "head-sha")
     run.job_logs.create!(sequence: 1, kind: "stderr", chunk: "second line")
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "first line")
 
@@ -910,7 +910,10 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     body = parse_body
     expect(body).to include(
       "job_id" => job.id,
+      "workflow_id" => run.step.workflow_id,
       "run_id" => run.id,
+      "base_ref" => "base-sha",
+      "head_ref" => "head-sha",
       "agent_diff" => "diff --git a/app.rb b/app.rb\n+puts 'forum'\n",
       "agent_diff_bytes" => run.agent_diff.bytesize,
       "step_agent_diff" => nil,

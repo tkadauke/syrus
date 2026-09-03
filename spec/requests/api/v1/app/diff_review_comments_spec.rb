@@ -49,6 +49,24 @@ RSpec.describe "App API diff review comments", type: :request do
       )
     end
 
+    it "can scope run artifact comments to a concrete workflow and run" do
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1)
+      run = Run.create!(job: job, step: step, user: user, trigger_kind: "initial", agent_provider: "claude")
+      other_run = Run.create!(job: job, step: step, user: user, trigger_kind: "initial", agent_provider: "claude")
+      matching = create_comment(surface: "run_agent_diff", workflow: workflow, run: run)
+      create_comment(surface: "run_agent_diff", workflow: workflow, run: other_run)
+
+      get comments_path, params: {
+        surface: "run_agent_diff",
+        workflow_id: workflow.id,
+        run_id: run.id
+      }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["comments"].map { |comment| comment["id"] }).to eq([ matching.id ])
+    end
+
     it "allows read-tier repository members to list comments" do
       reader = Factories.user
       RepositoryMembership.create!(repository: repo, user: reader, role: "read")

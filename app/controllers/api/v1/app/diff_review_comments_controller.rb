@@ -80,6 +80,8 @@ module Api
              .for_state(params[:state])
              .for_base_ref(params[:base_ref])
              .for_head_ref(params[:head_ref])
+             .for_workflow(params[:workflow_id])
+             .for_run(params[:run_id])
              .ordered
         end
 

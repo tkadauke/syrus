@@ -101,7 +101,11 @@ User-scoped app API clients can persist Syrus-owned diff review comments
 without coupling the review UI to GitHub PR comments. `GET
 /api/v1/app/jobs/:job_id/diff_review_comments` lists comments visible for a
 Job. It accepts optional `surface`, `base_ref`, `head_ref`, `path`, and
-`state` filters. Read access follows normal Job visibility.
+`state`, `workflow_id`, and `run_id` filters. Read access follows normal Job
+visibility. Source-browser diff comments use `surface=job_source_diff`; run
+artifact diffs use `surface=run_agent_diff` or
+`surface=run_step_agent_diff`, and should include `workflow_id` plus `run_id`
+when listing comments for a concrete artifact panel.
 
 `POST /api/v1/app/jobs/:job_id/diff_review_comments` creates a comment, and
 `PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id` updates one.
@@ -114,9 +118,10 @@ member.
 `comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
 comments. The workflow receives both a readable feedback body and structured
 `diff_comments` artifacts containing the comment body, path, side, old/new line
-coordinates, base/head refs, hunk snapshot, and context. Accepted comments are
-marked `submitted` and linked to the created workflow; duplicate active
-`chat_feedback` submissions for the same Job return a validation error.
+coordinates, base/head refs, hunk snapshot, optional Workflow/Run links, and
+context. Accepted comments are marked `submitted` and linked to the created
+workflow; duplicate active `chat_feedback` submissions for the same Job return
+a validation error.
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/jobs/123/diff_review_comments \

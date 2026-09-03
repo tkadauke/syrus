@@ -19,6 +19,7 @@ class DiffReviewComment < ApplicationRecord
   validate :side_line_anchor_present
   validate :workflow_belongs_to_job
   validate :run_belongs_to_job
+  validate :run_belongs_to_workflow
 
   before_validation :normalize_strings
   before_validation :default_context
@@ -30,6 +31,8 @@ class DiffReviewComment < ApplicationRecord
   scope :for_state, ->(state) { where(state: state) if state.present? }
   scope :for_base_ref, ->(base_ref) { where(base_ref: base_ref) if base_ref.present? }
   scope :for_head_ref, ->(head_ref) { where(head_ref: head_ref) if head_ref.present? }
+  scope :for_workflow, ->(workflow_id) { where(workflow_id: workflow_id) if workflow_id.present? }
+  scope :for_run, ->(run_id) { where(run_id: run_id) if run_id.present? }
 
   def anchor_key
     [
@@ -85,6 +88,12 @@ class DiffReviewComment < ApplicationRecord
     return unless run && job_id && run.job_id != job_id
 
     errors.add(:run, "must belong to the same job")
+  end
+
+  def run_belongs_to_workflow
+    return unless run && workflow && run.step&.workflow_id != workflow.id
+
+    errors.add(:run, "must belong to the same workflow")
   end
 
   def stamp_lifecycle_transition

@@ -1,0 +1,372 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
+import { Button } from "../../components/Button"
+import { errorMessage } from "../../lib/errorMessage"
+import { useT } from "../../hooks/useT"
+import {
+  createDiffReviewComment,
+  fetchDiffReviewComments,
+  resolveDiffReviewComment,
+  submitDiffReviewComments,
+  updateDiffReviewComment,
+  type DiffReviewComment,
+  type DiffReviewCommentInput
+} from "../../api/jobs"
+import type { DiffLineSelection, DiffReviewThread } from "../../components/diff/ReviewableDiff"
+
+type DiffReviewFeedbackOptions = {
+  baseRef?: string | null
+  buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  enabled: boolean
+  headRef?: string | null
+  jobId: number | string
+  runId?: number | null
+  surface: string
+  workflowId?: number | null
+}
+
+export function diffReviewFeedbackAllowed(jobState: string) {
+  return jobState === "implemented" || jobState === "approved" || jobState === "failed"
+}
+
+export function useDiffReviewFeedback({
+  baseRef,
+  buildContext,
+  enabled,
+  headRef,
+  jobId,
+  runId,
+  surface,
+  workflowId
+}: DiffReviewFeedbackOptions) {
+  const { t } = useT("jobs")
+  const queryClient = useQueryClient()
+  const [selection, setSelection] = useState<DiffLineSelection | null>(null)
+  const [body, setBody] = useState("")
+  const [editing, setEditing] = useState<DiffReviewComment | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const search = diffReviewCommentsSearch({ surface, baseRef, headRef, runId, workflowId })
+  const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
+  const comments = useQuery({
+    enabled,
+    queryKey: commentQueryKey,
+    queryFn: () => fetchDiffReviewComments(jobId, search)
+  })
+
+  const commentList = comments.data?.comments ?? []
+  const counts = useMemo(() => commentCountsByPath(commentList), [commentList])
+  const diffThreads = useMemo(() => diffThreadsByPath(commentList), [commentList])
+  const actionableComments = commentList.filter(isSubmittableDiffComment)
+  const submittedComments = commentList.filter((comment) => comment.state === "submitted")
+  const handledComments = commentList.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
+  const workflowActive = submittedComments.some((comment) => comment.workflow && !terminalWorkflowStates.has(comment.workflow.state))
+
+  const createComment = useMutation({
+    mutationFn: (input: DiffReviewCommentInput) => createDiffReviewComment(jobId, input),
+    onSuccess: () => {
+      setSelection(null)
+      setBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const updateComment = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<DiffReviewCommentInput> }) => updateDiffReviewComment(jobId, id, input),
+    onSuccess: () => {
+      setEditing(null)
+      setBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const resolveComment = useMutation({
+    mutationFn: (id: number) => resolveDiffReviewComment(jobId, id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+  })
+  const submitComments = useMutation({
+    mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids),
+    onSuccess: () => {
+      setSubmitError(null)
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    },
+    onError: (error) => setSubmitError(errorMessage(error, t("review_submit_error")))
+  })
+
+  function startComment(nextSelection: DiffLineSelection) {
+    if (!enabled) return
+    setSelection(nextSelection)
+    setEditing(null)
+    setBody("")
+  }
+
+  function saveComment() {
+    const trimmed = body.trim()
+    if (!trimmed) return
+    if (editing) {
+      updateComment.mutate({ id: editing.id, input: { body: trimmed } })
+      return
+    }
+    if (!selection) return
+    createComment.mutate(commentInputForSelection({
+      baseRef,
+      body: trimmed,
+      buildContext,
+      headRef,
+      runId,
+      selection,
+      surface,
+      workflowId
+    }))
+  }
+
+  function editComment(comment: DiffReviewComment) {
+    setSelection(null)
+    setEditing(comment)
+    setBody(comment.body)
+  }
+
+  const panel = enabled ? (
+    <DiffReviewFeedbackPanel
+      actionableComments={actionableComments}
+      body={body}
+      comments={commentList}
+      createError={createComment.error}
+      createPending={createComment.isPending}
+      editing={editing}
+      handledComments={handledComments}
+      onBodyChange={setBody}
+      onCancel={() => { setSelection(null); setEditing(null); setBody("") }}
+      onEdit={editComment}
+      onResolve={(comment) => resolveComment.mutate(comment.id)}
+      onSave={saveComment}
+      onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
+      resolvePending={resolveComment.isPending}
+      selection={selection}
+      submitError={submitError}
+      submitPending={submitComments.isPending}
+      updateError={updateComment.error}
+      updatePending={updateComment.isPending}
+      workflowActive={workflowActive}
+    />
+  ) : null
+
+  return {
+    commentCounts: counts,
+    commentsQuery: comments,
+    diffThreads,
+    onCommentLine: enabled ? startComment : undefined,
+    panel,
+    selectedCommentPath: selection?.file.path || editing?.path || null
+  }
+}
+
+function DiffReviewFeedbackPanel({
+  actionableComments,
+  body,
+  comments,
+  createError,
+  createPending,
+  editing,
+  handledComments,
+  onBodyChange,
+  onCancel,
+  onEdit,
+  onResolve,
+  onSave,
+  onSubmit,
+  resolvePending,
+  selection,
+  submitError,
+  submitPending,
+  updateError,
+  updatePending,
+  workflowActive
+}: {
+  actionableComments: DiffReviewComment[]
+  body: string
+  comments: DiffReviewComment[]
+  createError: Error | null
+  createPending: boolean
+  editing: DiffReviewComment | null
+  handledComments: DiffReviewComment[]
+  onBodyChange: (body: string) => void
+  onCancel: () => void
+  onEdit: (comment: DiffReviewComment) => void
+  onResolve: (comment: DiffReviewComment) => void
+  onSave: () => void
+  onSubmit: () => void
+  resolvePending: boolean
+  selection: DiffLineSelection | null
+  submitError: string | null
+  submitPending: boolean
+  updateError: Error | null
+  updatePending: boolean
+  workflowActive: boolean
+}) {
+  const { t } = useT("jobs")
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("review_feedback_title")}</h3>
+        <div className="flex flex-wrap gap-2">
+          <ReviewStatePill label={t("review_pending_state", { count: actionableComments.length })} tone="pending" />
+          <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
+        </div>
+      </div>
+      <div className="mt-3 space-y-3">
+        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => (
+          <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{comment.path}:{comment.side === "left" ? comment.old_line : comment.new_line}</span>
+              <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {comment.state === "draft" ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+              {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {selection || editing ? (
+        <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">
+            {editing ? `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}` : `${selection?.file.path}:${selection?.side === "old" ? selection.line.oldLine : selection?.line.newLine}`}
+          </p>
+          <textarea
+            aria-label={t("review_comment_body")}
+            className="mt-2 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            onChange={(event) => onBodyChange(event.target.value)}
+            value={body}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button disabled={!body.trim() || createPending || updatePending} onClick={onSave} size="sm">{editing ? t("review_save_comment") : t("review_create_comment")}</Button>
+            <Button onClick={onCancel} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+          </div>
+          {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
+          {updateError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(updateError, t("review_update_error"))}</p> : null}
+        </div>
+      ) : null}
+
+      <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+        <Button disabled={actionableComments.length === 0 || submitPending} onClick={onSubmit}>
+          {submitPending ? t("submitting") : t("review_submit_feedback")}
+        </Button>
+        {submitError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{submitError}</p> : null}
+      </div>
+    </section>
+  )
+}
+
+function commentInputForSelection({
+  baseRef,
+  body,
+  buildContext,
+  headRef,
+  runId,
+  selection,
+  surface,
+  workflowId
+}: {
+  baseRef?: string | null
+  body: string
+  buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  headRef?: string | null
+  runId?: number | null
+  selection: DiffLineSelection
+  surface: string
+  workflowId?: number | null
+}): DiffReviewCommentInput {
+  const left = selection.side === "old"
+  return {
+    surface,
+    base_ref: baseRef,
+    head_ref: headRef,
+    path: selection.file.path,
+    side: left ? "left" : "right",
+    old_line: selection.line.oldLine,
+    new_line: selection.line.newLine,
+    diff_hunk: hunkForLine(selection.file.patch, selection.line),
+    body,
+    context: {
+      line_kind: selection.line.kind,
+      line_text: selection.line.code,
+      ...(workflowId ? { workflow_id: workflowId } : {}),
+      ...(runId ? { run_id: runId } : {}),
+      ...(buildContext?.(selection) || {})
+    },
+    ...(workflowId ? { workflow_id: workflowId } : {}),
+    ...(runId ? { run_id: runId } : {})
+  }
+}
+
+function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
+  if (!patch) return null
+  const rows = patch.split("\n")
+  const marker = line.newLine != null ? `+${line.code}` : line.oldLine != null ? `-${line.code}` : ` ${line.code}`
+  const index = rows.findIndex((row) => row === marker)
+  if (index === -1) return rows.find((row) => row.startsWith("@@ ")) || null
+  return rows.slice(Math.max(0, index - 4), Math.min(rows.length, index + 5)).join("\n")
+}
+
+function commentCountsByPath(comments: DiffReviewComment[]) {
+  return comments.reduce<Record<string, number>>((counts, comment) => {
+    if (comment.state === "resolved" || comment.state === "superseded") return counts
+    counts[comment.path] = (counts[comment.path] || 0) + 1
+    return counts
+  }, {})
+}
+
+function diffThreadsByPath(comments: DiffReviewComment[]) {
+  return comments.reduce<Record<string, Record<string, DiffReviewThread[]>>>((paths, comment) => {
+    if (comment.state === "superseded") return paths
+    const pathThreads = paths[comment.path] || {}
+    const anchorThreads = pathThreads[comment.anchor_key] || []
+    pathThreads[comment.anchor_key] = [
+      ...anchorThreads,
+      {
+        id: comment.id,
+        author: comment.user?.display_name || comment.user?.email_address,
+        body: comment.body,
+        state: comment.state,
+        workflowState: comment.workflow?.state || null
+      }
+    ]
+    paths[comment.path] = pathThreads
+    return paths
+  }, {})
+}
+
+function diffReviewCommentsSearch({ baseRef, headRef, runId, surface, workflowId }: {
+  baseRef?: string | null
+  headRef?: string | null
+  runId?: number | null
+  surface: string
+  workflowId?: number | null
+}) {
+  const params = new URLSearchParams({ surface })
+  if (baseRef) params.set("base_ref", baseRef)
+  if (headRef) params.set("head_ref", headRef)
+  if (runId) params.set("run_id", String(runId))
+  if (workflowId) params.set("workflow_id", String(workflowId))
+  return `?${params.toString()}`
+}
+
+function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "submitted" | "handled" }) {
+  const className = {
+    handled: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
+    pending: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
+    submitted: "bg-info/10 text-info"
+  }[tone]
+  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+}
+
+const terminalWorkflowStates = new Set(["succeeded", "failed", "cancelled"])
+const retryableWorkflowStates = new Set(["failed", "cancelled"])
+
+function isSubmittableDiffComment(comment: DiffReviewComment) {
+  if (comment.state === "draft") return true
+  if (comment.state !== "submitted") return false
+
+  return retryableWorkflowStates.has(comment.workflow?.state || "")
+}
