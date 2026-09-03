@@ -18,6 +18,7 @@ type ThemeContextValue = {
   // falls back to the unscoped default (Terracotta) CSS values.
   colorTheme: ColorTheme | null
   setColorTheme: (colorTheme: ColorTheme) => void
+  previewColorTheme: (colorTheme: ColorTheme | null) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -135,7 +136,11 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
     }
   }
 
-  return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, setColorTheme }}>{children}</ThemeContext.Provider>
+  function previewColorTheme(nextColorTheme: ColorTheme | null) {
+    applyColorTheme(nextColorTheme, resolvedTheme, appliedCustomPropertyKeys.current)
+  }
+
+  return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, setColorTheme, previewColorTheme }}>{children}</ThemeContext.Provider>
 }
 
 export function useTheme() {
