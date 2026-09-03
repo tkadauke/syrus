@@ -86,6 +86,33 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
+  it("shows a provider warning when remaining usage is below the admission threshold", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        provider_availability: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "available",
+          open: false,
+          usage_exhausted: false,
+          retry_after: null,
+          reason: null,
+          message: "Codex is available.",
+          pause_enabled: true,
+          pause_threshold_percent: 10,
+          usage: {
+            remaining_percent: 7.5,
+            observed_at: "2026-08-01T12:00:00Z"
+          }
+        }
+      }
+    }))
+
+    expect(screen.getByRole("img", { name: /Codex usage is low \(8% remaining; threshold 10%\)/ })).toBeInTheDocument()
+  })
+
   it("shows automatic provider failover in the job detail header", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -2616,4 +2643,3 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
-

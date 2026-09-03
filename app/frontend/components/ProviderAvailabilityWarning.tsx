@@ -1,9 +1,12 @@
 import type { ProviderAvailability, ProviderFailover } from "../api/providerAvailability"
 
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
-  if (!availability?.usage_exhausted && availability?.state !== "rate_limited" && availability?.state !== "auth_error" && availability?.state !== "open") return null
+  if (!availability) return null
 
-  const label = warningLabel(availability)
+  const lowUsage = providerUsageLow(availability)
+  if (!availability.usage_exhausted && !lowUsage && availability.state !== "rate_limited" && availability.state !== "auth_error" && availability.state !== "open") return null
+
+  const label = warningLabel(availability, lowUsage)
   const tone = availability.usage_exhausted || availability.state === "auth_error" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
 
   return (
@@ -32,8 +35,17 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
   )
 }
 
-function warningLabel(availability: NonNullable<ProviderAvailability>): string {
-  const base = availability.message || `${availability.label || availability.provider} usage limit reached. This item uses ${availability.label || availability.provider} until usage resets.`
+function providerUsageLow(availability?: ProviderAvailability | null): boolean {
+  const remaining = availability?.usage?.remaining_percent
+  const threshold = availability?.pause_threshold_percent
+  return availability?.pause_enabled === true && remaining != null && threshold != null && remaining < threshold
+}
+
+function warningLabel(availability: NonNullable<ProviderAvailability>, lowUsage: boolean): string {
+  const providerLabel = availability.label || availability.provider
+  const base = lowUsage
+    ? `${providerLabel} usage is low (${Math.round(availability.usage?.remaining_percent ?? 0)}% remaining; threshold ${availability.pause_threshold_percent}%).`
+    : availability.message || `${providerLabel} usage limit reached. This item uses ${providerLabel} until usage resets.`
   const evidence = availability.evidence?.current || availability.usage?.evidence
   const timing = [
     availability.retry_after ? `retry after ${formatTimestamp(availability.retry_after)}` : null,
