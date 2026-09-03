@@ -4,7 +4,7 @@ module Api
       class RepositoryPluginTabsController < BaseController
         def index
           repository = find_repository
-          render json: Repositories::PluginRepoTabsPayload.new(repository: repository, user: Current.user).as_json
+          render json: ::Repositories::PluginRepoTabsPayload.new(repository: repository, user: Current.user).as_json
         end
 
         private

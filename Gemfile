@@ -107,6 +107,7 @@ gem "whiteboard_tools", path: "plugins/whiteboard_tools"
 gem "mysql_db_browser", path: "plugins/mysql_db_browser"
 gem "theming_tools", path: "plugins/theming_tools"
 gem "worker_timeline", path: "plugins/worker_timeline"
+gem "throughput",    path: "plugins/throughput"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

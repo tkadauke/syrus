@@ -128,6 +128,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/throughput
+  specs:
+    throughput (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/whiteboard_tools
   specs:
     whiteboard_tools (0.1.0)
@@ -731,6 +737,7 @@ DEPENDENCIES
   tailscale!
   tailwindcss-rails
   theming_tools!
+  throughput!
   thruster
   tzinfo-data
   vcr
@@ -955,6 +962,7 @@ CHECKSUMS
   tailwindcss-ruby (4.3.3-x86_64-linux-musl) sha256=27d478c417bcf73828e5b544744c5bdfd5b5cb54f1a266fc4f185281c32efe6c
   theming_tools (0.1.0)
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
+  throughput (0.1.0)
   thruster (0.1.26) sha256=6e45e807086b29d51404841bd1ad493b67cd95892fd65dc5afcdd32e82e94ce8
   thruster (0.1.26-aarch64-linux) sha256=2171cb34928c0250830008f535c4ab2ee57846cc3f5d3e96c3475f7b3de7a541
   thruster (0.1.26-arm64-darwin) sha256=40676164c433abf31313422305d9e9e9210cf941b1befad88e2428b3b8dcc36c

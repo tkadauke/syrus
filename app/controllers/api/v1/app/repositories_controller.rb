@@ -23,15 +23,6 @@ module Api
           render json: repository_issues_payload(repository, state: issue_state)
         end
 
-        def throughput_metrics
-          repository = find_repository
-
-          payload = PerformanceLogging.phase("repository_throughput_metrics", repository_id: repository.id) do
-            RepositoryThroughputMetricContract.new(repository: repository).call
-          end
-          render json: payload
-        end
-
         def new
           render json: form_payload(Repository.new(default_branch: "main", trigger_label: "syrus"))
         end

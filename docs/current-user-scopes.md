@@ -202,6 +202,7 @@ per-user/private:
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
   - plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb
+  - plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb
   - plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb
   - plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
 team-visible:
@@ -441,6 +442,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb` | per-user/private | Design doc reads and writes resolve visibility through the signed-in user. |
 | `plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb` | per-user/private | Commit history is read for repositories the current user can access. |
 | `plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
+| `plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb` | per-user/private | Throughput metrics resolve the repository through `Repository.accessible_to(Current.user)`. |
 | `plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
 | `plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |

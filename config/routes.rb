@@ -314,7 +314,6 @@ Rails.application.routes.draw do
             post :sync_fork
             post :check_ci_now
             get :coverage_trend
-            get :throughput_metrics
             post :run_insight_analysis
           end
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]

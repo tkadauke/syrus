@@ -30,7 +30,8 @@ Queries also select only the columns each metric reads. `runs` in particular
 carries several large text columns (`prompt`, `agent_pr_body`) that the output
 metrics never touch, and loading them dominates the response.
 
-The current contract is produced by `RepositoryThroughputMetricContract` and returns:
+The current contract is produced by `Throughput::MetricContract` (in the
+`throughput` plugin) and returns:
 
 ```ruby
 {
@@ -293,3 +294,14 @@ Do not add metric tables for this contract until a caller demonstrates one of:
 
 If persistence is added later, persisted rollups must keep the same versioned
 contract shape or introduce a new `version`.
+
+## Plugin ownership
+
+This feature lives in the `throughput` plugin, not core. The plugin owns
+`Throughput::MetricContract`, the `throughput_metrics` endpoint, and the panel
+component, and contributes the panel to the repository detail page through the
+`repository.detail` `ui_slot`. Disabling the plugin removes the panel and the
+endpoint; nothing else on the page changes.
+
+Simple mode still hides the panel, now decided by `Throughput::UiSlots` rather
+than by a `simple_mode` check inside the page component.

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RepositoryThroughputMetricContract do
+RSpec.describe Throughput::MetricContract do
   let(:now) { Time.zone.local(2026, 7, 31, 12, 0, 0) }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
