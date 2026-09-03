@@ -288,6 +288,7 @@ module Syrus
           @direct_providers = Hash.new { |h, k| h[k] = [] }
           @generation += 1
         end
+        Syrus::Installer.reset!
         clear_plugin_record_cache!
       end
 
@@ -421,10 +422,23 @@ module Syrus
             return @plugin_record_cache_by_name
           end
 
+          previous = @plugin_record_cache_by_name
           @plugin_record_cache_by_name = PluginRecord.all.index_by(&:name)
           @plugin_record_cache_expires_at = now + PLUGIN_RECORD_CACHE_TTL.to_f
+
+          # A disable performed in another process reaches this one only here,
+          # when the TTL expires and we re-read the table. Bumping the
+          # generation on an actual change is what lets everything downstream
+          # key on a plain integer instead of re-deriving enabled state on
+          # every read -- see Syrus::Installer.
+          bump_generation! if previous && enabled_signature(previous) != enabled_signature(@plugin_record_cache_by_name)
+
           @plugin_record_cache_by_name
         end
+      end
+
+      def enabled_signature(records)
+        records.map { |name, record| [ name, record.effective_enabled? ] }.sort
       end
 
       def manifest_with_record(manifest, record)

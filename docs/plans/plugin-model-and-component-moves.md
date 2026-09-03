@@ -764,6 +764,25 @@ registries — `Job::Kind`, `Workflow::TriggerKind`, `Step::Kind` — because th
 is where the staleness bugs actually happened. `bin/plugin-boundary-audit` is
 the proof that removal removes.
 
+**Step 1 landed.** `Syrus::EffectScope` records teardowns and disposes in
+reverse; `Syrus::Installer` re-applies when `PluginRegistry.generation` moves;
+`Syrus::KindRegistry` now installs plugin entries instead of merging them on
+every read, so disabling a plugin removes its kinds rather than relying on a
+downstream cache to notice. Cross-process propagation moved into the
+plugin-record cache: when the TTL expires and the enabled set turns out to have
+changed, it bumps the generation, which keeps `sync!` an integer compare on
+hot read paths. (A database-backed fingerprint there would have been a
+per-read query in test, where the TTL is zero — the same trap that once made
+the suite 30% slower.)
+
+**Still to convert**, in rough order of payoff: the six push-style
+registrations that have no teardown today (`Filters.register_subject`,
+`SmartFolder.register_subject!`, `HostAssociations.apply!`), then the
+`providers_for` call sites whose results are static installs — nav and admin
+pages, repo tabs, domain subscribers, search sources, routes. Per-call
+evaluation over an installed set (`available_for?`, `enabled_for?`) stays where
+it is.
+
 ## Job Origin
 
 `Job` currently records where it came from in at least five overlapping ways:

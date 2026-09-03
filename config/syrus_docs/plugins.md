@@ -943,6 +943,44 @@ any `PluginRecord` commit -- so enable and disable take effect on the next read
 with no staleness window, and hot paths like label rendering and step dispatch
 do not re-merge on every call.
 
+## Installation effects
+
+Plugin contributions are *installed*, not polled for. An installer performs the
+install and hands back the teardown; disabling or unloading the plugin runs
+those teardowns in reverse order, so a dependent unwinds before whatever it was
+built on.
+
+```ruby
+Syrus::Installer.define("kinds:trigger_kinds") do |scope|
+  scope.effect("trigger_kinds") do
+    entries = plugin_entries
+    installed.concat(entries)
+    -> { entries.each { |entry| installed.delete(entry) } }   # the teardown
+  end
+end
+```
+
+`Syrus::EffectScope` records the teardowns; `scope.child(label:)` nests, so a
+contribution to a plugin-hosted extension point dies with either side. A
+teardown that raises is logged and the rest still run — a half-disposed scope
+is worse than a logged error, because the next install stacks on the remains.
+Returning something that is neither callable nor `nil` raises: a silently
+missing teardown is invisible until a disable fails to take effect.
+
+`Syrus::Installer.sync!` keeps what is installed matching what is enabled. It
+is a plain integer compare on `PluginRegistry.generation` — safe to call on
+hot read paths. Same-process enable/disable bumps the generation directly; a
+disable performed in *another* process is picked up when the plugin-record
+cache expires and the enabled set turns out to have changed. That matters
+because Syrus runs web pods, worker pods, MCP sidecars and `rails runner` as
+separate processes, so an install performed in one cannot be disposed by an
+admin click served by another.
+
+Modelled on Cordis's `effect(execute) -> Disposable` (the kernel under DeepSeek
+Harness), with one deliberate difference: Cordis is a single long-lived process
+where a plugin mounts once, while ours re-applies per process when the plugin
+set moves — `useEffect` with a dependency rather than a fiber mount.
+
 ## `memory_store`
 
 The durable facts an agent carries between runs. This was `ChatMemory` plus
