@@ -238,7 +238,7 @@ module App
     end
 
     def scheduled_coverage
-      return if repository.scheduled_tasks.exists?
+      return if current_scheduled_tasks?
       return unless health_signals? || parsed_config&.coverage.present?
 
       template = user.cron_templates.find_by(name: "Increase test coverage")
@@ -439,6 +439,10 @@ module App
 
     def external_pr_signals?
       repository.jobs.where.not(external_pr_number: nil).exists?
+    end
+
+    def current_scheduled_tasks?
+      repository.scheduled_tasks.alive.where(state: %w[scheduled paused auto_paused]).exists?
     end
 
     def delivery_configured?

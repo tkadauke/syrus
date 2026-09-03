@@ -104,6 +104,34 @@ RSpec.describe App::RepositoryFeatureRecommendations do
     expect(recommendations.map { |entry| entry.fetch(:id) }).to eq(%w[visual_review preview_seed_data syrus_prepare])
   end
 
+  it "still recommends scheduled coverage when only historical tasks exist" do
+    repository.update!(ci_health: "healthy")
+    repository.scheduled_tasks.create!(
+      user: user,
+      name: "Archived coverage",
+      kind: "cron",
+      cron_expression: "0 9 * * 1",
+      pr_pileup_policy: "skip",
+      prompt: "Write missing tests.",
+      archived_at: 1.day.ago
+    )
+    fired = repository.scheduled_tasks.create!(
+      user: user,
+      name: "One-shot coverage",
+      kind: "one_shot",
+      cron_expression: nil,
+      fire_at: 1.hour.from_now,
+      pr_pileup_policy: "skip",
+      prompt: "Write missing tests."
+    )
+    fired.update!(state: "fired")
+    write_bare_clone(files: { "Gemfile" => "source 'https://rubygems.org'\n" }, syrus_yml: "grade:\n  rspec: bin/rspec\n")
+
+    ids = described_class.for(repository: repository, user: user).map { |entry| entry.fetch(:id) }
+
+    expect(ids).to include("scheduled_coverage")
+  end
+
   it "resolves prompt templates for job actions without client-provided prompt text" do
     action = described_class.job_action("github_actions_ci")
 
