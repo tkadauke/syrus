@@ -1,13 +1,3 @@
-require_relative "lib/claude_agent/version"
+require_relative "../../lib/syrus/plugin_gemspec"
 
-Gem::Specification.new do |spec|
-  spec.name    = "claude_agent"
-  spec.version = SyrusClaudeAgent::VERSION
-  spec.authors = ["Thomas Kadauke"]
-  spec.summary = "Syrus plugin: Claude agent provider"
-
-  spec.files         = Dir["lib/**/*", "app/**/*"]
-  spec.require_paths = ["lib"]
-
-  spec.add_dependency "rails", ">= 8.1"
-end
+Syrus.plugin_gemspec(__FILE__)

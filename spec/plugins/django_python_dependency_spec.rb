@@ -22,7 +22,7 @@ RSpec.describe "django depends_on python plugin cascade", type: :request, requir
     # Mirrors plugins/python/lib/python/engine.rb's after_initialize registration.
     Syrus::PluginRegistry.register(
       name:             "python",
-      version:          Python::VERSION,
+      version:          Syrus::PluginApi.default_version,
       description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
                          "pytest JSON-report grader detail, venv/uv prompt reminder",
       homepage:         "https://github.com/tkadauke/syrus",
@@ -37,7 +37,7 @@ RSpec.describe "django depends_on python plugin cascade", type: :request, requir
     # Mirrors plugins/django/lib/django/engine.rb's after_initialize registration.
     Syrus::PluginRegistry.register(
       name:        "django",
-      version:     Django::VERSION,
+      version:     Syrus::PluginApi.default_version,
       description: "Django framework intelligence: preview hosting via manage.py runserver, " \
                     "migrate + fixtures seeding",
       homepage:    "https://github.com/tkadauke/syrus",

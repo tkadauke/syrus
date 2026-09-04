@@ -15,7 +15,7 @@ RSpec.describe Ruby::Engine do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name:             "ruby",
-          version:          Ruby::VERSION,
+          version:          Syrus::PluginApi.default_version,
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
                              "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
@@ -46,7 +46,7 @@ RSpec.describe Ruby::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(Ruby::VERSION)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(10)
       expect(registration.category).to eq("language")
     end

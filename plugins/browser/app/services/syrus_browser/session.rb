@@ -69,7 +69,7 @@ module SyrusBrowser
     def connect!
       return if @connected
 
-      @client.connect(client_info: { name: "syrus-browser", version: SyrusBrowser::VERSION })
+      @client.connect(client_info: { name: "syrus-browser", version: Syrus::PluginApi.default_version })
       @connected = true
     end
   end

@@ -15,7 +15,7 @@ RSpec.describe Go::Engine do
       unless Syrus::PluginRegistry.registered_names.include?("go")
         Syrus::PluginRegistry.register(
           name:             "go",
-          version:          Go::VERSION,
+          version:          Syrus::PluginApi.default_version,
           description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           category:         "language",
@@ -39,7 +39,7 @@ RSpec.describe Go::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(Go::VERSION)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(40)
       expect(registration.category).to eq("language")
     end

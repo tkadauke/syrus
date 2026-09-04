@@ -31,7 +31,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     # manifest, so Gemfile-based specs below exercise production wiring.
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
-        name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+        name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
         provides: { prepare_detector: Ruby::PrepareDetector }
       )
     end
@@ -286,21 +286,21 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       before do
         unless Syrus::PluginRegistry.registered_names.include?("javascript")
           Syrus::PluginRegistry.register(
-            name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+            name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
             provides: { prepare_detector: JavaScript::PrepareDetector }
           )
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("python")
           Syrus::PluginRegistry.register(
-            name: "python", version: Python::VERSION, prepare_priority: 30,
+            name: "python", version: Syrus::PluginApi.default_version, prepare_priority: 30,
             provides: { prepare_detector: Python::PrepareDetector }
           )
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("go")
           Syrus::PluginRegistry.register(
-            name: "go", version: Go::VERSION, prepare_priority: 40,
+            name: "go", version: Syrus::PluginApi.default_version, prepare_priority: 40,
             provides: { prepare_detector: Go::PrepareDetector }
           )
         end

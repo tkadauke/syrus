@@ -11,7 +11,7 @@ RSpec.describe SyrusRails::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(SyrusRails::VERSION)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.description).to eq("Ruby on Rails framework intelligence.")
       expect(registration.category).to eq("language")
     end

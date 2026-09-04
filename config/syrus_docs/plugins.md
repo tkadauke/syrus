@@ -97,11 +97,10 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `tooling` | Tooling | `syrus_dev`, `design_docs`, `global_search` |
 
 ```ruby
-Syrus::PluginRegistry.register(
-  name: "my-plugin", version: "1.0.0",
-  category: "language",
-  provides: { prepare_detector: MyPlugin::PrepareDetector }
-)
+syrus_plugin "my-plugin" do
+  category "language"
+  provides prepare_detector: "MyPlugin::PrepareDetector"
+end
 ```
 
 `Syrus::Plugin::Category.values` lists every valid key; `.label_for(key)`
@@ -109,7 +108,7 @@ returns the human-readable label. `Admin::PluginsPayload` emits both the raw
 `category` key and a derived `category_label` in the Admin → Plugins JSON
 payload, so the frontend never has to humanize the machine key itself.
 `spec/plugins/plugin_categories_spec.rb` statically scans every bundled
-plugin's manifest registration and fails if a plugin ships with no category,
+plugin's `syrus_plugin` declaration and fails if a plugin ships with no category,
 or an unrecognized one — a newly added plugin can't merge without picking a
 category from this table.
 
@@ -118,11 +117,10 @@ category from this table.
 A manifest can set `icon_url:` to the path of a static SVG asset, e.g.:
 
 ```ruby
-Syrus::PluginRegistry.register(
-  name: "claude_agent", version: "1.0.0",
-  icon_url: "/plugin-icons/claude_agent.svg",
-  provides: { agent_provider: AgentProviders::Claude }
-)
+syrus_plugin "claude_agent" do
+  icon_url "/plugin-icons/claude_agent.svg"
+  provides agent_provider: "AgentProviders::Claude"
+end
 ```
 
 `Admin::PluginsPayload` always emits a non-null `icon_url` in the Admin →
@@ -1878,11 +1876,95 @@ endpoints) is available to both the repository owner and any
 
 ## Adding a plugin
 
-1. Create a gem directory under `plugins/<name>/`.
-2. Define your provider class, `include Syrus::Plugin::<InterfaceModule>`, and implement the interface methods.
-3. Implement a `register!` class method (or engine initializer) that calls `Syrus::PluginRegistry.register(...)`.
-4. Add a spec under `plugins/<name>/spec/` covering `detect?`, primary methods, and the registry integration. Plugin specs live with the plugin so removing the plugin removes its specs — a spec under core's `spec/` that names the plugin makes it undeletable.
-5. Load the plugin by calling `YourPlugin.register!` from a Rails initializer or at Syrus boot.
+A plugin is **two files**: a three-line gemspec, and one Ruby file that
+declares everything.
+
+```ruby
+# plugins/throughput/throughput.gemspec
+require_relative "../../lib/syrus/plugin_gemspec"
+
+Syrus.plugin_gemspec(__FILE__)
+```
+
+```ruby
+# plugins/throughput/lib/throughput.rb
+module Throughput
+  extend Syrus::PluginApi
+
+  syrus_plugin "throughput" do
+    display_name "Throughput"
+    category     "observability"
+    description  "Delivery throughput and landing waste."
+
+    provides ui_slot: "Throughput::UiSlots"
+
+    route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
+          to: "api/v1/app/repository_throughput#show"
+
+    frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" }
+  end
+end
+```
+
+Then add `gem "<name>", path: "plugins/<name>"` to the Gemfile, put your
+provider classes under `plugins/<name>/app/services/<name>/`, and put specs
+under `plugins/<name>/spec/`. Plugin specs live with the plugin, so removing
+the plugin removes its specs — a spec under core's `spec/` that names the
+plugin makes it undeletable.
+
+There is **no `engine.rb` and no `version.rb`**. `syrus_plugin` builds the
+Rails::Engine for you, which is what lets the framework rather than the plugin
+decide *when* things happen. Three things follow from that, and each of them
+was a bug someone had to find first:
+
+- **Registration runs on `to_prepare`, not `after_initialize`.** `lib/` is
+  autoloaded, so `Syrus::PluginRegistry` is itself replaced on every code
+  reload; a plugin that registered once per boot silently vanished on the
+  developer's first file save. Registration is idempotent by name.
+- **Contribution classes are named as strings** (`"Throughput::UiSlots"`),
+  resolved at registration. A captured constant goes stale across a reload,
+  and a string cannot be referenced before the plugin's autoload paths exist.
+- **The extension point's interface module is included for you.** Fourteen
+  plugins used to reopen their own classes at boot to
+  `include Syrus::Plugin::McpToolSet` and friends, and lost that include on
+  the next reload. Core already knows which interface each point requires.
+
+The version is uniform (`Syrus::PluginApi.default_version`) because bundled
+plugins ship with the app; a plugin that genuinely versions independently can
+still declare `version "2.1.0"`.
+
+`YourPlugin.enabled?` is defined for you, and means *enabled and healthy* —
+a plugin whose hard dependency is disabled has its contributions withheld, so
+anything else would be a lie its own tools then act on.
+
+### Effects, and the two lifetimes
+
+Anything beyond the manifest goes in one of two blocks, named for how long it
+should last:
+
+```ruby
+    # Torn down when the plugin is disabled, reinstalled when it is enabled.
+    while_enabled do |scope|
+      scope.effect("memory filter subject") do
+        Filters.register_subject(name: :memory, model: AgentMemory::Entry, chips: FILTER_CHIPS)
+      end
+    end
+
+    # Holds whether the plugin is enabled or not.
+    always do |scope|
+      AgentMemory::DataCleanup.install_into(scope)
+    end
+```
+
+`always` exists for data ownership: disabling a plugin stops it doing work, it
+does not delete the rows it already wrote, and those rows still have to go when
+their owner does. Getting this wrong used to mean forgetting a `plugin:`
+keyword argument on a hand-namespaced `Syrus::Installer.define` label.
+
+`on_boot` is the escape hatch for process-level work that is not a
+registration at all — `git_history` starts its bare-clone relay with it. It
+runs on every `to_prepare`, so the block must be safe to re-enter, and it has
+no teardown, which is exactly why it is not an effect.
 
 Bundled plugins:
 

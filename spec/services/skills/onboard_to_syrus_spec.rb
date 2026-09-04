@@ -101,7 +101,7 @@ RSpec.describe Skills::OnboardToSyrus do
     before do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
-          name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+          name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
           provides: { prepare_detector: Ruby::PrepareDetector }
         )
       end

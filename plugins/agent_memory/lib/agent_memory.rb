@@ -1,8 +1,8 @@
-require "agent_memory/version"
 require "agent_memory/data_cleanup"
-require "agent_memory/engine"
 
 module AgentMemory
+  extend Syrus::PluginApi
+
   FILTER_CHIPS = {
     "content"       => "Filters::Chips::AgentMemory::Content",
     "scope"         => "Filters::Chips::AgentMemory::Scope",
@@ -13,48 +13,40 @@ module AgentMemory
     "updated_at"    => "Filters::Chips::UpdatedAt"
   }.freeze
 
-  def self.register!
-    Syrus::Installer.define("agent_memory:filters", plugin: "agent_memory") do |scope|
+  syrus_plugin "agent_memory" do
+    display_name "Agent Memory"
+    description "Durable facts agents remember between runs, scoped per user and repository."
+    long_description "Agent Memory is the store behind `write_memory` and its siblings: short, durable facts an agent records in one run and reads back in the next -- a user's preferences, a project decision, a correction worth not repeating.\n\nIt registers as Syrus's `memory_store`, which means it is swappable rather than merely optional: disable it and prompts simply carry no memory section, or replace it with a different store entirely."
+    homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/spqr_eagle.svg"
+    author "Thomas Kadauke"
+    category "mcp_tool_set"
+    default_enabled true
+    disableable true
+    provides memory_store: "AgentMemory::Store",
+             mcp_tool_set: "AgentMemory::McpToolSet",
+             chat_mcp_tool_set: "AgentMemory::ChatToolSet",
+             sidebar_page: "AgentMemory::SidebarPages"
+    route :get, "/api/v1/app/memories", to: "api/v1/app/memories#index"
+    route :post, "/api/v1/app/memories", to: "api/v1/app/memories#create"
+    route :patch, "/api/v1/app/memories/:id", to: "api/v1/app/memories#update"
+    route :delete, "/api/v1/app/memories/:id", to: "api/v1/app/memories#destroy"
+    route :post, "/api/v1/app/memories/:id/publish", to: "api/v1/app/memories#publish"
+    route :delete, "/api/v1/app/memories/:id/publish", to: "api/v1/app/memories#unpublish"
+    route :get, "/api/v1/app/memories/:id/audit_events", to: "api/v1/app/memories#audit_events"
+    frontend routes: { "agent_memory/Memories" => "app/frontend/routes/Memories.tsx" },
+        i18n: [ "app/frontend/i18n/locales/*/agent_memory.json" ]
+
+    while_enabled do |scope|
       scope.effect("memory filter subject") do
         Filters.register_subject(name: :memory, model: AgentMemory::Entry, chips: FILTER_CHIPS)
       end
     end
 
-    Syrus::PluginRegistry.register(
-      name:            "agent_memory",
-      display_name:    "Agent Memory",
-      version:         AgentMemory::VERSION,
-      default_enabled: true,
-      disableable:     true,
-      category:        "mcp_tool_set",
-      description:     "Durable facts agents remember between runs, scoped per user and repository.",
-      long_description: "Agent Memory is the store behind `write_memory` and its siblings: short, durable facts an agent records in one run and reads back in the next -- a user's preferences, a project decision, a correction worth not repeating.\n\nIt registers as Syrus's `memory_store`, which means it is swappable rather than merely optional: disable it and prompts simply carry no memory section, or replace it with a different store entirely.",
-      homepage:        "https://github.com/tkadauke/syrus",
-      icon_url:        "/plugin-icons/spqr_eagle.svg",
-      author:          "Thomas Kadauke",
-      frontend: {
-        routes: { "agent_memory/Memories" => "app/frontend/routes/Memories.tsx" },
-        i18n: [ "app/frontend/i18n/locales/*/agent_memory.json" ]
-      },
-      routes: [
-        { verb: "GET",    path: "/api/v1/app/memories", controller: "api/v1/app/memories#index" },
-        { verb: "POST",   path: "/api/v1/app/memories", controller: "api/v1/app/memories#create" },
-        { verb: "PATCH",  path: "/api/v1/app/memories/:id", controller: "api/v1/app/memories#update" },
-        { verb: "DELETE", path: "/api/v1/app/memories/:id", controller: "api/v1/app/memories#destroy" },
-        { verb: "POST",   path: "/api/v1/app/memories/:id/publish", controller: "api/v1/app/memories#publish" },
-        { verb: "DELETE", path: "/api/v1/app/memories/:id/publish", controller: "api/v1/app/memories#unpublish" },
-        { verb: "GET",    path: "/api/v1/app/memories/:id/audit_events", controller: "api/v1/app/memories#audit_events" }
-      ],
-      provides: {
-        memory_store:      AgentMemory::Store,
-        mcp_tool_set:      AgentMemory::McpToolSet,
-        chat_mcp_tool_set: AgentMemory::ChatToolSet,
-        sidebar_page:      AgentMemory::SidebarPages
-      }
-    )
-  end
-
-  def self.enabled?
-    Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "agent_memory" && manifest.enabled? }
+    # Rows this plugin owns on core records outlive it being disabled, and
+    # still have to go when their owner does.
+    always do |scope|
+      AgentMemory::DataCleanup.install_into(scope)
+    end
   end
 end

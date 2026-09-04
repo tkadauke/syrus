@@ -57,7 +57,7 @@ PATH
   remote: plugins/django
   specs:
     django (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/git_history
@@ -82,13 +82,13 @@ PATH
   remote: plugins/go
   specs:
     go (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/javascript
   specs:
     javascript (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/linear_source
@@ -113,19 +113,19 @@ PATH
   remote: plugins/python
   specs:
     python (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/rails
   specs:
     syrus_rails (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/ruby
   specs:
     ruby (0.1.0)
-      railties
+      rails (>= 8.1)
 
 PATH
   remote: plugins/spending_insights

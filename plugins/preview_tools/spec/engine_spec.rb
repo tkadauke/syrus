@@ -17,7 +17,7 @@ RSpec.describe PreviewTools::Engine do
   it "registers a manifest named 'preview_tools'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "preview_tools" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(PreviewTools::VERSION)
+    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
 
   it "includes the ChatMcpToolSet plugin interface module" do

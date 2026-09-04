@@ -19,21 +19,21 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
   before do
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
-        name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+        name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
         provides: { prepare_detector: Ruby::PrepareDetector }
       )
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("javascript")
       Syrus::PluginRegistry.register(
-        name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+        name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
         provides: { prepare_detector: JavaScript::PrepareDetector }
       )
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("syrus-rails")
       Syrus::PluginRegistry.register(
-        name: "syrus-rails", version: SyrusRails::VERSION, depends_on: [ "ruby" ],
+        name: "syrus-rails", version: Syrus::PluginApi.default_version, depends_on: [ "ruby" ],
         provides: { preview_provider: SyrusRails::PreviewProvider }
       )
     end

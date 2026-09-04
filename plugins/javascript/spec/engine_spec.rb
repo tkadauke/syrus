@@ -17,7 +17,7 @@ RSpec.describe JavaScript::Engine do
       unless Syrus::PluginRegistry.registered_names.include?("javascript")
         Syrus::PluginRegistry.register(
           name:             "javascript",
-          version:          JavaScript::VERSION,
+          version:          Syrus::PluginApi.default_version,
           description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           category:         "language",
@@ -43,7 +43,7 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(JavaScript::VERSION)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(20)
       expect(registration.category).to eq("language")
     end
@@ -356,7 +356,7 @@ RSpec.describe JavaScript::Engine do
       Syrus::PluginRegistry.reset!
       Syrus::PluginRegistry.register(
         name:             "javascript",
-        version:          JavaScript::VERSION,
+        version:          Syrus::PluginApi.default_version,
         description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,

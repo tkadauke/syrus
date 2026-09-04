@@ -9,26 +9,34 @@ require "rails_helper"
 # all 30 bundled plugins -- no error, just an app with no agent providers, no
 # source control, and an empty sidebar.
 RSpec.describe "Plugin registration survives code reloading" do
-  engines = Rails.root.glob("plugins/*/lib/*/engine.rb")
+  plugin_files = Rails.root.glob("plugins/*/lib/*.rb")
 
-  it "finds the bundled plugin engines" do
-    expect(engines.size).to be >= 25
+  it "finds the bundled plugin declarations" do
+    expect(plugin_files.size).to be >= 25
   end
 
-  engines.each do |engine|
-    relative = engine.relative_path_from(Rails.root)
+  plugin_files.each do |file|
+    relative = file.relative_path_from(Rails.root)
 
-    it "registers from to_prepare, not after_initialize (#{relative})" do
-      source = engine.read
-      registers = source.include?("register!") || source.include?("PluginRegistry.register")
-      next unless registers
+    it "declares itself through Syrus::PluginApi (#{relative})" do
+      source = file.read
 
-      hook = source[/config\.(to_prepare|after_initialize) do/, 1]
-
-      expect(hook).to eq("to_prepare"),
-        "#{relative} registers in config.#{hook}, which runs once per boot. " \
-        "The registry is wiped on every reload, so the plugin would vanish in development."
+      expect(source).to include("extend Syrus::PluginApi"),
+        "#{relative} does not use the plugin API, so nothing guarantees when it registers."
+      expect(source).to match(/^  syrus_plugin "/),
+        "#{relative} extends the API but never calls syrus_plugin."
     end
+  end
+
+  it "hooks registration on to_prepare for every plugin at once" do
+    # The one place the timing decision lives, now that no plugin makes it.
+    expect(Rails.root.join("lib/syrus/plugin_api.rb").read).to include("config.to_prepare")
+  end
+
+  it "does not leave a hand-written engine or version file behind" do
+    leftovers = Rails.root.glob("plugins/*/lib/*/{engine,version}.rb")
+
+    expect(leftovers).to eq([])
   end
 
   it "keeps one manifest per name when the same plugin registers again" do

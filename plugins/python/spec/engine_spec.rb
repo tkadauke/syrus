@@ -15,7 +15,7 @@ RSpec.describe Python::Engine do
       unless Syrus::PluginRegistry.registered_names.include?("python")
         Syrus::PluginRegistry.register(
           name:             "python",
-          version:          Python::VERSION,
+          version:          Syrus::PluginApi.default_version,
           description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
                              "pytest JSON-report grader detail, venv/uv prompt reminder, " \
                              "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
@@ -43,7 +43,7 @@ RSpec.describe Python::Engine do
     end
 
     it "registers with the correct metadata" do
-      expect(registration.version).to eq(Python::VERSION)
+      expect(registration.version).to eq(Syrus::PluginApi.default_version)
       expect(registration.prepare_priority).to eq(30)
       expect(registration.category).to eq("language")
     end

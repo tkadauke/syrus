@@ -23,7 +23,7 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
     # config/initializers/plugin_registry.rb).
     Syrus::PluginRegistry.register(
       name:             "ruby",
-      version:          Ruby::VERSION,
+      version:          Syrus::PluginApi.default_version,
       description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
                          "SimpleCov analysis, Gemfile prepare detection",
       homepage:         "https://github.com/tkadauke/syrus",
@@ -39,7 +39,7 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
     # Mirrors plugins/rails/lib/syrus_rails/engine.rb's after_initialize registration.
     Syrus::PluginRegistry.register(
       name:        "syrus-rails",
-      version:     SyrusRails::VERSION,
+      version:     Syrus::PluginApi.default_version,
       description: "Ruby on Rails intelligence",
       homepage:    "https://github.com/tkadauke/syrus",
       depends_on:  [ "ruby" ],

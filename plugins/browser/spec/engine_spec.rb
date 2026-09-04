@@ -21,7 +21,7 @@ RSpec.describe SyrusBrowser::Engine do
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(SyrusBrowser::VERSION)
+    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
 
   it "includes the McpToolSet plugin interface module" do

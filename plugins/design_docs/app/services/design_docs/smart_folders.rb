@@ -26,19 +26,17 @@ module DesignDocs
 
     module_function
 
-    def register!
-      Syrus::Installer.define("design_docs:filters", plugin: "design_docs") do |scope|
-        scope.effect("design doc filter subject") do
-          Filters.register_subject(name: SUBJECT, model: DesignDocs::DesignDoc, chips: CHIPS)
-        end
-        scope.effect("design doc smart folders") do
-          ::SmartFolder.register_subject!(
-            SUBJECT,
-            builtins: BUILTINS,
-            label: "Design Docs",
-            path: ->(**query) { path(**query) }
-          )
-        end
+    def install_into(scope)
+      scope.effect("design doc filter subject") do
+        Filters.register_subject(name: SUBJECT, model: DesignDocs::DesignDoc, chips: CHIPS)
+      end
+      scope.effect("design doc smart folders") do
+        ::SmartFolder.register_subject!(
+          SUBJECT,
+          builtins: BUILTINS,
+          label: "Design Docs",
+          path: ->(**query) { path(**query) }
+        )
       end
     end
 

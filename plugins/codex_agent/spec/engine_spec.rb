@@ -26,6 +26,6 @@ RSpec.describe SyrusCodexAgent::Engine do
   it "registers a manifest named 'codex_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "codex_agent" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(SyrusCodexAgent::VERSION)
+    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
 end

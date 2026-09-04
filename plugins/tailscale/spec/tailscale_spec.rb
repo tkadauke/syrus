@@ -6,7 +6,7 @@ RSpec.describe "Tailscale plugin" do
     expect(plugin).not_to be_nil
     expect(plugin.display_name).to eq("Tailscale")
     expect(plugin.category).to eq("connectivity")
-    expect(plugin.version).to eq(Tailscale::VERSION)
+    expect(plugin.version).to eq(Syrus::PluginApi.default_version)
     expect(plugin.default_enabled).to eq(false)
     expect(plugin.disableable).to eq(true)
     expect(plugin.home_queue).to eq(:connectivity)

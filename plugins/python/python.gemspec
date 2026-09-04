@@ -1,19 +1,3 @@
-require_relative "lib/python/version"
+require_relative "../../lib/syrus/plugin_gemspec"
 
-Gem::Specification.new do |spec|
-  spec.name    = "python"
-  spec.version = Python::VERSION
-  spec.authors = ["Thomas Kadauke"]
-  spec.summary = "Python-generic intelligence plugin for Syrus"
-  spec.description = "Provides Python-generic capabilities to Syrus: uv/poetry/pip prepare " \
-    "detection, pytest JSON-report grader failure detail, and a light venv/uv activation " \
-    "prompt reminder."
-  spec.homepage = "https://github.com/tkadauke/syrus"
-
-  spec.files         = Dir["lib/**/*.rb"]
-  spec.require_paths = ["lib"]
-
-  spec.required_ruby_version = ">= 3.4"
-
-  spec.add_dependency "railties"
-end
+Syrus.plugin_gemspec(__FILE__)

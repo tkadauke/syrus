@@ -456,6 +456,37 @@ Still outstanding:
   `@plugins/rails/...` directly. Convert to the same `import.meta.glob` pattern
   the other four plugin frontend surfaces use.
 
+### G14. One plugin interface — done
+
+A plugin was four files: a gemspec, `lib/<name>/version.rb`, an
+`lib/<name>/engine.rb`, and the manifest. Three of those carried no
+information -- all thirty versions said `0.1.0`, and the gemspecs had drifted
+into three variants of `spec.files`, two of `require_paths`, and
+`rails` vs `railties`. `enabled?` was copy-pasted into fourteen plugins in two
+different spellings, and each engine chose its own registration hook.
+
+`Syrus::PluginApi` replaces all of it: one declaration per plugin, and the
+framework owns timing. See `config/syrus_docs/plugins.md` for the shape. The
+parts that matter beyond tidiness:
+
+- **Registration moved to `to_prepare`.** `lib/` is autoloaded, so
+  `Syrus::PluginRegistry` was itself replaced on every reload while every
+  plugin registered once per boot -- measured at 30 plugins before a reload
+  and 0 after. The first file save under `bin/dev` silently unloaded every
+  plugin.
+- **`while_enabled` vs `always`** replaces "did you remember `plugin:` on the
+  `Syrus::Installer.define` label?" with two verbs that say what they mean.
+- **Interface modules are derived** from the extension point rather than
+  hand-included at boot by fourteen engines -- includes that were lost on the
+  next reload anyway.
+- **Contributions are named as strings**, so they cannot pin a stale class.
+
+Two latent bugs fell out of it: two plugins defined `ChatToolSet` inside
+`mcp_tool_set.rb`, which raises `superclass mismatch` the first time a reload
+re-opens it, and `bin/plugin-boundary-audit` read `optionally_depends_on` as
+`depends_on`, so it had never once exercised the optional-dependency path it
+exists to protect.
+
 ### G6. Search host — done, then federated
 
 `:search_source` let a plugin register FTS tables (created by

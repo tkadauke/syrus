@@ -1,14 +1,5 @@
-require_relative "lib/discord/version"
+require_relative "../../lib/syrus/plugin_gemspec"
 
-Gem::Specification.new do |spec|
-  spec.name    = "discord"
-  spec.version = SyrusDiscord::VERSION
-  spec.authors = ["Thomas Kadauke"]
-  spec.summary = "Syrus plugin: Discord platform delivery"
-
-  spec.files         = Dir["lib/**/*", "app/**/*"]
-  spec.require_paths = ["lib"]
-
-  spec.add_dependency "rails", ">= 8.1"
+Syrus.plugin_gemspec(__FILE__) do |spec|
   spec.add_dependency "websocket-driver", ">= 0.7"
 end

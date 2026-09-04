@@ -2,6 +2,13 @@ require_relative "boot"
 
 require "rails/all"
 
+# Plugin gems call Syrus::PluginApi.syrus_plugin at *load* time, which is
+# before Rails initializes and therefore before Zeitwerk and $LOAD_PATH are
+# set up. It has to be on the load path and required by hand, and excluded
+# from autoloading below so Zeitwerk does not manage the same constant.
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+require "syrus/plugin_api"
+
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
@@ -14,7 +21,7 @@ module Syrus
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
-    config.autoload_lib(ignore: %w[assets tasks generators])
+    config.autoload_lib(ignore: %w[assets tasks generators syrus/plugin_api.rb syrus/plugin_gemspec.rb])
 
     config.generators do |g|
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false

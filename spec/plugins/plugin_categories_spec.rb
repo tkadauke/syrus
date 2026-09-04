@@ -1,8 +1,7 @@
 require "rails_helper"
 
 # Statically scans each bundled plugin's source under plugins/*/lib for its
-# Syrus::PluginRegistry.register(name: ...) manifest call, rather than
-# relying on the runtime registry: most bundled plugins (the language/
+# syrus_plugin declaration, rather than relying on the runtime registry: most bundled plugins (the language/
 # framework-intelligence ones especially) are deliberately NOT part of the
 # shared spec/support/bundled_plugins.rb registration set, so they'd never
 # show up in Syrus::PluginRegistry.all_plugins during a typical example.
@@ -19,13 +18,13 @@ RSpec.describe "Bundled plugin categories" do
   plugin_dirs.each do |dir|
     it "sets a category from Syrus::Plugin::Category on the #{dir.basename} plugin manifest" do
       manifest_file = Dir.glob(dir.join("lib/**/*.rb").to_s).find do |path|
-        File.read(path).match?(/Syrus::PluginRegistry\.register\(\s*name:/)
+        File.read(path).match?(/^\s*syrus_plugin\s+["']/)
       end
 
       expect(manifest_file).not_to be_nil,
-        "#{dir.basename} has no Syrus::PluginRegistry.register(name: ...) manifest call under lib/"
+        "#{dir.basename} has no syrus_plugin declaration under lib/"
 
-      category = File.read(manifest_file)[/category:\s*["']([^"']+)["']/, 1]
+      category = File.read(manifest_file)[/^\s*category\s+["']([^"']+)["']/, 1]
 
       expect(category).to be_present,
         "#{dir.basename} plugin manifest (#{manifest_file}) has no category: set"

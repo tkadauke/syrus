@@ -1,9 +1,34 @@
-require "tailscale/version"
-
 module Tailscale
-  def self.enabled?
-    Syrus::PluginRegistry.providers_for(:admin_page).include?(AdminPages)
+  extend Syrus::PluginApi
+
+  syrus_plugin "tailscale" do
+    display_name "Tailscale"
+    description "Exposes Syrus on your Tailscale network for access from laptops and mobile."
+    long_description "Tailscale registers a Syrus instance as a Tailscale node so operators can reach it over a private tailnet. It manages lifecycle callbacks, status reporting, and the admin page needed to inspect connectivity.\n\nEnable it when an installation should be reachable without exposing Syrus directly on the public internet. It is disabled by default because it requires a Tailscale auth key and network policy decisions outside Syrus."
+    homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/tailscale.svg"
+    author "Thomas Kadauke"
+    category "connectivity"
+    default_enabled false
+    disableable true
+    home_queue :connectivity
+    tick_interval 30.seconds
+    config_schema [
+        { key: "auth_key", label: "Auth Key", type: :secret_env, env_var: "TS_AUTHKEY",
+          required: true, description: "Auth key for headless device registration. Set in .env." },
+        { key: "hostname", label: "Device Hostname", type: :string, required: false,
+          description: "Override the device name on the tailnet." },
+        { key: "exit_node", label: "Advertise as exit node", type: :boolean,
+          required: false, default: false }
+      ]
+    provides callbacks: "Tailscale::Callbacks",
+             admin_page: "Tailscale::AdminPages"
+    route :get, "/api/v1/app/admin/tailscale/status", to: "api/v1/app/admin/tailscale#status"
+    route :get, "/api/v1/admin/tailscale/status", to: "api/v1/admin/tailscale#status"
+    route :get, "/admin/tailscale", to: "spa#show"
+    frontend routes: {
+          "tailscale/AdminTailscale" => "app/frontend/routes/AdminTailscale.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/tailscale.json" ]
   end
 end
-
-require "tailscale/engine"

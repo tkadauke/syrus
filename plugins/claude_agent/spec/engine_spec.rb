@@ -20,6 +20,6 @@ RSpec.describe SyrusClaudeAgent::Engine do
   it "registers a manifest named 'claude_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "claude_agent" }
     expect(manifest).not_to be_nil
-    expect(manifest.version).to eq(SyrusClaudeAgent::VERSION)
+    expect(manifest.version).to eq(Syrus::PluginApi.default_version)
   end
 end

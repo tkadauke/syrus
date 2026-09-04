@@ -1,111 +1,42 @@
-require "mysql_db_browser/version"
-require "mysql_db_browser/engine"
-
 module MysqlDbBrowser
-  def self.register!
-    MysqlDbBrowser::ChatToolSet.include(Syrus::Plugin::ChatMcpToolSet) unless MysqlDbBrowser::ChatToolSet < Syrus::Plugin::ChatMcpToolSet
+  extend Syrus::PluginApi
 
-    Syrus::PluginRegistry.register(
-      name:            "mysql_db_browser",
-      display_name:    "MySQL DB Browser",
-      version:         MysqlDbBrowser::VERSION,
-      default_enabled: false,
-      disableable:     true,
-      category:        "observability",
-      description:     "Register and manage connections to external MySQL databases with encrypted credential storage.",
-      long_description: "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Credentials are stored encrypted and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect.",
-      homepage:        "https://github.com/tkadauke/syrus",
-      icon_url:        "/plugin-icons/mysql_db_browser.svg",
-      author:          "Thomas Kadauke",
-      frontend: {
-        routes: {
-          "mysql_db_browser/MysqlConnections" => "app/frontend/routes/MysqlConnections.tsx"
-        },
-        i18n: [ "app/frontend/i18n/locales/*/mysql_db_browser.json" ]
-      },
-      routes: [
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections",
-          controller: "api/v1/app/admin/mysql_connections#index"
-        },
-        {
-          verb: "POST",
-          path: "/api/v1/app/admin/mysql_connections",
-          controller: "api/v1/app/admin/mysql_connections#create"
-        },
-        {
-          verb: "PATCH",
-          path: "/api/v1/app/admin/mysql_connections/:id",
-          controller: "api/v1/app/admin/mysql_connections#update"
-        },
-        {
-          verb: "DELETE",
-          path: "/api/v1/app/admin/mysql_connections/:id",
-          controller: "api/v1/app/admin/mysql_connections#destroy"
-        },
-        {
-          verb: "POST",
-          path: "/api/v1/app/admin/mysql_connections/test",
-          controller: "api/v1/app/admin/mysql_connections#test_connection"
-        },
-        {
-          verb: "POST",
-          path: "/api/v1/app/admin/mysql_connections/:id/test",
-          controller: "api/v1/app/admin/mysql_connections#test_connection"
-        },
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections/:id/schema",
-          controller: "api/v1/app/admin/mysql_schema#databases"
-        },
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables",
-          controller: "api/v1/app/admin/mysql_schema#tables"
-        },
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables/:table",
-          controller: "api/v1/app/admin/mysql_schema#show"
-        },
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables/:table/content",
-          controller: "api/v1/app/admin/mysql_query#content"
-        },
-        {
-          verb: "POST",
-          path: "/api/v1/app/admin/mysql_connections/:id/query",
-          controller: "api/v1/app/admin/mysql_query#execute"
-        },
-        {
-          verb: "GET",
-          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/query_builder",
-          controller: "api/v1/app/admin/mysql_query#query_builder"
-        }
-      ],
-      provides: {
-        sidebar_page:      MysqlDbBrowser::SidebarPages,
-        mcp_tool_set:      MysqlDbBrowser::WorkflowToolSet,
-        chat_mcp_tool_set: MysqlDbBrowser::ChatToolSet
-      }
-    )
-  end
-
-  def self.enabled?
-    Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "mysql_db_browser" && manifest.enabled? }
-  end
-
-  # The acting user to attribute an agent-issued query/tool call to, for
-  # MysqlQueryAudit and any future audit surface. server_context's shape
-  # differs by MCP surface: chat carries the ChatSession directly; workflow
-  # carries a run_id (or run) resolved through Mcp::Tools.run_from_context.
   def self.user_from_server_context(server_context)
     if server_context[:chat_session]
       server_context[:chat_session].user
     else
       Mcp::Tools.run_from_context(server_context).job.user
     end
+  end
+
+  syrus_plugin "mysql_db_browser" do
+    display_name "MySQL DB Browser"
+    description "Register and manage connections to external MySQL databases with encrypted credential storage."
+    long_description "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Credentials are stored encrypted and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect."
+    homepage "https://github.com/tkadauke/syrus"
+    icon_url "/plugin-icons/mysql_db_browser.svg"
+    author "Thomas Kadauke"
+    category "observability"
+    default_enabled false
+    disableable true
+    provides sidebar_page: "MysqlDbBrowser::SidebarPages",
+             mcp_tool_set: "MysqlDbBrowser::WorkflowToolSet",
+             chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet"
+    route :get, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#index"
+    route :post, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#create"
+    route :patch, "/api/v1/app/admin/mysql_connections/:id", to: "api/v1/app/admin/mysql_connections#update"
+    route :delete, "/api/v1/app/admin/mysql_connections/:id", to: "api/v1/app/admin/mysql_connections#destroy"
+    route :post, "/api/v1/app/admin/mysql_connections/test", to: "api/v1/app/admin/mysql_connections#test_connection"
+    route :post, "/api/v1/app/admin/mysql_connections/:id/test", to: "api/v1/app/admin/mysql_connections#test_connection"
+    route :get, "/api/v1/app/admin/mysql_connections/:id/schema", to: "api/v1/app/admin/mysql_schema#databases"
+    route :get, "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables", to: "api/v1/app/admin/mysql_schema#tables"
+    route :get, "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables/:table", to: "api/v1/app/admin/mysql_schema#show"
+    route :get, "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables/:table/content", to: "api/v1/app/admin/mysql_query#content"
+    route :post, "/api/v1/app/admin/mysql_connections/:id/query", to: "api/v1/app/admin/mysql_query#execute"
+    route :get, "/api/v1/app/admin/mysql_connections/:id/schema/:database/query_builder", to: "api/v1/app/admin/mysql_query#query_builder"
+    frontend routes: {
+          "mysql_db_browser/MysqlConnections" => "app/frontend/routes/MysqlConnections.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/mysql_db_browser.json" ]
   end
 end
