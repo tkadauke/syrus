@@ -87,12 +87,22 @@ module Workflows
         )
       end
 
+      # workflow-engine-v3 primitive D: record where this graph came from. A
+      # repo-local template that shadows a built-in and leaves no trace is a
+      # debugging trap; Syrus already learned that with skills, which is why
+      # this resolution copies Skills.for.
+      resolution = WorkflowTemplates.for(
+        key: trigger_kind.to_s,
+        built_in_graph: serialize_chain_template(effective_chain_template)
+      )
+      effective_artifacts = (effective_artifacts || {}).merge(resolution.provenance)
+
       Workflow.transaction do
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
           agent_provider: agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider,
-          chain_template: serialize_chain_template(effective_chain_template),
+          chain_template: resolution.graph,
           artifacts: effective_artifacts
         )
         steps = materialize_steps!(wf, effective_chain_template)

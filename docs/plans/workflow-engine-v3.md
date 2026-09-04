@@ -516,8 +516,21 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   `spec/architecture/reviewer_gate_spec.rb`. A third reviewer is now a
   registry entry. Still to do: moving Loop/RetryUntil/Try semantics themselves
   into node classes.
-- **A4 · Templates as data.** Persist compiled templates with provenance; add
-  repo-local override resolution modelled on `Skills.for`.
+- **A4 · Templates as data — provenance landed; override resolution built but
+  opt-in.** Every Workflow now records `template_key` and `template_source`, so
+  a shadowed template can never be a silent debugging trap.
+  `WorkflowTemplates.for` implements repo-local resolution on the `Skills.for`
+  model, with the plan's guardrails enforced: a repo-local template may add
+  checks but may neither drop a protected publication step nor introduce one
+  the built-in lacked, an unknown step kind or unparseable YAML is refused, and
+  an unreadable repository resolves to the built-in rather than to a guess.
+
+  Resolution is **opt-in** (`resolve_overrides:`) and `Workflows::Base` does
+  not opt in. Looking for `.syrus/workflows/<key>.yml` is a GitHub round-trip,
+  and workflow instantiation is a hot path that should not grow a synchronous
+  network call -- or a new failure mode -- for a file that almost never exists.
+  Wiring it on wants a cache keyed to the default-branch SHA, which belongs
+  with A7 where something actually writes those files.
 - **A5 · Graph edges and fan-in.** `Step#depends_on`, ready-set dispatch, retire
   `WAITING_FOR_BATCH` and the grader-kind filter.
 - **A6 · Unit-scoped nodes.** `for_each_member`/`barrier`; move the merge-train
