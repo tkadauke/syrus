@@ -137,6 +137,40 @@ RSpec.describe "Step problem emission" do
     end
   end
 
+  describe AutoRetryFailureClassifier do
+    let(:job) { Factories.job }
+    let(:run) { job.initial_run }
+
+    it "takes retryability from the declared problem" do
+      run.update!(state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed",
+                                 error_message: "merge_train_reconcile: working tree is not clean",
+                                 problem_code: "merge_train_rebase_conflict")
+
+      result = described_class.call(workflow: run.workflow)
+
+      expect(result.classification).to eq("merge_train_rebase_conflict")
+      expect(result.retryable?).to be(false)
+    end
+
+    it "declares retryable problems retryable" do
+      run.update!(state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::AgentGaveUpWaiting",
+                                 error_message: "gave up waiting",
+                                 problem_code: "agent_gave_up_waiting")
+
+      expect(described_class.call(workflow: run.workflow).retryable?).to be(true)
+    end
+
+    it "falls back to the message patterns when nothing was declared" do
+      run.update!(state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed",
+                                 error_message: "required graders failed: rubocop")
+
+      expect(described_class.call(workflow: run.workflow).retryable?).to be(false)
+    end
+  end
+
   # The strings above are fixtures; these call the shipping code. A step helper
   # that stops declaring its Problem fails here, which is the check the old
   # pattern list could never make of itself.

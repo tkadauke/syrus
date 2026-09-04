@@ -37,6 +37,11 @@ class AutoRetryFailureClassifier
     Steps::Base::AgentGaveUpWaiting
   ].freeze
 
+  # Fallback for failures with no declared Problem -- including every row
+  # written before steps carried one. Prefer declaring a Problem at the raise
+  # site over adding a pattern here; a pattern cannot be checked against the
+  # code it describes, which is how the merge-train entries below drifted out
+  # of sync with the messages those steps actually raise.
   NON_RETRYABLE_MESSAGE_PATTERNS = [
     /agent produced no changes/i,
     /agent didn't call submit_summary/i,
@@ -106,6 +111,15 @@ class AutoRetryFailureClassifier
 
     diagnostic = run.run_diagnostic
     if diagnostic
+      # A step that declared its Problem already answered this question:
+      # Problem::Kind carries `retryable` per code. Consulted ahead of the
+      # message patterns below, which are a fourth private copy of the same
+      # judgement and were missing most of the merge-train failures they name.
+      if (declared = declared_problem(diagnostic))
+        return declared.retryable? ? retryable(declared.code, "the step reported a retryable problem") \
+                                   : non_retryable(declared.code, "the step reported a non-retryable problem")
+      end
+
       message = [ diagnostic.error_message, diagnostic.error_class ].compact.join(" ")
       return non_retryable("non_retryable_failure", "known user/code/config failure") if self.class.non_retryable_message?(message)
       return retryable(diagnostic.error_class, "retryable exception class") if retryable_error_class?(diagnostic.error_class)
@@ -118,6 +132,15 @@ class AutoRetryFailureClassifier
   private
 
   attr_reader :workflow
+
+  # Resolved through the registry rather than trusted verbatim, so a code that
+  # no longer exists falls back to the patterns instead of raising.
+  def declared_problem(diagnostic)
+    code = diagnostic.problem_code
+    return nil if code.blank?
+
+    Problem.resolve(code)
+  end
 
   def latest_failed_run
     workflow.runs.where(state: "failed").includes(:run_diagnostic).order(created_at: :desc).first

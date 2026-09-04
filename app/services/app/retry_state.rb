@@ -173,8 +173,19 @@ module App
       "No failure"
     end
 
+    # The UI's "is this retryable" label. A step that declared its Problem
+    # already answered it; the text patterns are the fallback for failures
+    # that declared nothing.
     def non_retryable_failure_text?
-      @non_retryable_failure_text ||= AutoRetryFailureClassifier.non_retryable_message?(failure_text)
+      return @non_retryable_failure_text if defined?(@non_retryable_failure_text)
+
+      declared = Problem.resolve(latest_run_diagnostic&.problem_code)
+      @non_retryable_failure_text =
+        if declared
+          !declared.retryable?
+        else
+          AutoRetryFailureClassifier.non_retryable_message?(failure_text)
+        end
     end
 
     def failure_text
