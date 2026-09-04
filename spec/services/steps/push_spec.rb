@@ -168,7 +168,12 @@ RSpec.describe Steps::Push do
     allow(git).to receive(:run).with("rebase", "--abort", chdir: "/tmp/workspace")
 
     expect { handler.call }.to raise_error(Steps::Push::RemoteBranchAdvancedRebaseConflict, /automatic rebase failed/)
-    expect(step.reload.details).to include("failure_code" => "remote_branch_advanced_rebase_conflict")
+    # The Try branch still matches on failure_code; problem_code records the
+    # same event in the shared vocabulary beside it.
+    expect(step.reload.details).to include(
+      "failure_code" => "remote_branch_advanced_rebase_conflict",
+      "problem_code" => "branch_diverged"
+    )
     expect(workflow.reload.artifact("push_rebase_remote_ref")).to eq("refs/remotes/origin/syrus/issue-42")
   end
 

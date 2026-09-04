@@ -13,7 +13,8 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-01 this is a proposal. Nothing here is implemented. It is written
+As of 2026-09-04, **A1 is implemented** (`Problem` / `Problem::Kind`); the rest
+is still a proposal. It is written
 to be executed in three independent tracks (see
 [Incremental Plan](#incremental-plan)); the first two phases of Track A change
 no behavior and unblock everything else.
@@ -480,9 +481,15 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
 
 ### Track A — Engine
 
-- **A1 · Problem vocabulary.** Introduce `Problem::Kind`. `RunFailureClassifier`
-  emits it; `mark_failure_code!` and `Try` consume it; `Reconciler::Issue#kind`
-  maps onto it. Mechanical: renames plus a mapping table.
+- **A1 · Problem vocabulary — done.** `Problem::Kind` is a `Syrus::KindRegistry`
+  of 30 codes, each with a scope, a retryable flag, and the remediation B will
+  read. Every other plane's name for the same event is declared as an alias:
+  `RunFailureClassifier::Result#problem` resolves its classification through it,
+  `mark_failure_code!` stamps `problem_code` beside the `failure_code` a `Try`
+  branch still matches on, and reconciler issue kinds map through the same
+  index. Coverage is pinned statically (`spec/models/problem/kind_spec.rb`)
+  rather than enforced at runtime: the emitters run on the failure path, where
+  a new raise would turn a handled failure into a crash. No behavior changed.
 - **A2 · Remediation table.** One resolver seeded to reproduce today's behavior;
   `fail_policy`, retry policies and executor actions delegate into it.
   `spec/services/work_engine/resilience_matrix_spec.rb` (519 lines) is the

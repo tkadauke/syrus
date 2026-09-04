@@ -76,8 +76,20 @@ module Steps
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)
     end
 
+    # `failure_code` is the string a Workflows::Try branch matches on, and it
+    # stays exactly what it was. `problem_code` is the same event in the shared
+    # vocabulary (Problem::Kind), recorded beside it so the reconciler and the
+    # run classification can be checked against the branch that handled it.
+    #
+    # Deliberately not raising on an unmapped code: this runs on the failure
+    # path, where a new exception would turn a handled failure into a crash.
+    # spec/models/problem/kind_spec.rb pins the mapping statically instead.
     def mark_failure_code!(code)
-      step.update!(details: step.details.to_h.merge("failure_code" => code))
+      details = step.details.to_h.merge("failure_code" => code)
+      problem = Problem::Kind.resolve(code)
+      details["problem_code"] = problem.code if problem
+
+      step.update!(details: details)
     end
 
     def workspace_dependency_env

@@ -1,5 +1,14 @@
 class RunFailureClassifier
-  Result = Data.define(:classification, :confidence, :retryable, :reason, :diagnostic_summary, :classifier_inputs)
+  # The adapter from raw exceptions and log evidence into the shared failure
+  # vocabulary (Problem::Kind). `classification` is the string this classifier
+  # has always emitted and every consumer still reads; `#problem` is the same
+  # value resolved through the registry, which is what lets a Try branch, a
+  # reconciler issue and this classification be checked against each other.
+  Result = Data.define(:classification, :confidence, :retryable, :reason, :diagnostic_summary, :classifier_inputs) do
+    def problem(evidence: {})
+      Problem.resolve(classification, evidence: evidence)
+    end
+  end
 
   RECENT_LOG_LIMIT = 25
   OCTOKIT_TRANSIENT_ERROR_CLASS = /\AOctokit::(?:ServiceUnavailable|BadGateway|InternalServerError|TooManyRequests)\z/
