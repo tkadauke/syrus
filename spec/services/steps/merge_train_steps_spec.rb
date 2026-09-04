@@ -1113,11 +1113,33 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       handler.call
 
+      expect(git).to have_received(:run).with("checkout", "-B", train.integration_branch, "intsha111", chdir: "/tmp/ws")
       expect(git).to have_received(:run).with("fetch", "https://push.example/repo.git", "refs/heads/master", chdir: "/tmp/ws")
       expect(git).to have_received(:run).with("rebase", "FETCH_HEAD", chdir: "/tmp/ws")
       expect(handler.workflow.steps.find_by!(kind: "merge_train_agent_rebase")).to be_skipped
       expect(handler.workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
+    end
+
+    it "recreates and checks out the integration branch from integration_sha before rebasing" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_branch: "syrus/job-bundle-4705", integration_sha: "intsha111")
+
+      handler = rebase_step_handler(train)
+      allow(handler).to receive(:repository).and_return(repository)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "syrus/issue-1")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(git).to receive(:run)
+      expect(git).to receive(:run).with("checkout", "-B", "syrus/job-bundle-4705", "intsha111", chdir: "/tmp/ws").ordered
+      expect(git).to receive(:run).with("fetch", "https://push.example/repo.git", "refs/heads/master", chdir: "/tmp/ws").ordered
+      expect(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").ordered.and_return("newbase222\n")
+      expect(git).to receive(:run).with("rebase", "FETCH_HEAD", chdir: "/tmp/ws").ordered
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+
+      handler.call
     end
 
     it "carries forward a prior merge-train validation after a clean base-moved recovery rebase" do
@@ -1277,6 +1299,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-apply\n")
       allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return("")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: "/tmp/ws")
+        .and_return("newintsha999\n")
 
       handler.call
 
@@ -1287,6 +1311,69 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(workflow.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT)).to eq("newbase222")
       expect(train.reload.integration_sha).to eq("newintsha999")
       expect(run.head_sha).to eq("newintsha999")
+    end
+
+    it "fails before invoking the agent when the integration branch cannot be restored" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_branch: "syrus/job-bundle-4705", integration_sha: "missing123")
+      workflow = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          "merge_train_id" => train.id,
+          "merge_train_rebase_new_base_sha" => "newbase222"
+        }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_agent_rebase", position: 0)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "syrus/issue-1")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-merge\n")
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-apply\n")
+      allow(git).to receive(:run).with("checkout", "-B", "syrus/job-bundle-4705", "missing123", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "git", "checkout", "-B", "syrus/job-bundle-4705", "missing123" ], 128, "fatal: reference is not a tree: missing123"))
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /built integration branch syrus\/job-bundle-4705 at missing123 is unavailable; rebuild required/)
+      expect(handler).not_to have_received(:run_agent)
+    end
+
+    it "does not recreate a missing integration ref from a member branch after the agent returns" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_branch: "syrus/job-bundle-4705", integration_sha: "intsha111")
+      workflow = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          "merge_train_id" => train.id,
+          "merge_train_rebase_new_base_sha" => "newbase222"
+        }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_agent_rebase", position: 0)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "syrus/issue-1")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run)
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-merge", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-merge\n")
+      allow(git).to receive(:run).with("rev-parse", "--git-path", "rebase-apply", chdir: "/tmp/ws").and_return("/tmp/ws/.git/rebase-apply\n")
+      allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return("")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("memberhead999\n")
+      allow(git).to receive(:run).with("merge-base", "--is-ancestor", "newbase222", "HEAD", chdir: "/tmp/ws")
+      allow(git).to receive(:run).with("rev-parse", "--verify", "refs/heads/syrus/job-bundle-4705", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "git", "rev-parse", "--verify", "refs/heads/syrus/job-bundle-4705" ], 128, "fatal: Not a valid object name"))
+      allow(git).to receive(:run).with("rev-parse", "--abbrev-ref", "HEAD", chdir: "/tmp/ws").and_return("syrus/issue-1\n")
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /checkout is on syrus\/issue-1, not integration branch syrus\/job-bundle-4705; rebuild required/)
+      expect(git).not_to have_received(:run).with("checkout", "-B", "syrus/job-bundle-4705", "memberhead999", chdir: "/tmp/ws")
     end
 
     it "fails when the agent leaves the rebase in progress" do
