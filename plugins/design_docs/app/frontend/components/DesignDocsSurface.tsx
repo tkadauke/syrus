@@ -46,12 +46,15 @@ type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
+type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
+type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
 type ToolbarBlockCommand = "paragraph" | "heading_1" | "heading_2" | "heading_3" | "heading_4" | "blockquote" | "fenced_code"
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
   threadId?: number
   suggestionId?: number
+  originalMarkdown?: string
   proposedMarkdown?: string
   suggestionState?: string
   status: string
@@ -875,6 +878,7 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
 
         const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
         if (segment.highlight.kind === "suggestion") {
+          const diff = inlineSuggestionDiff(segment.highlight.originalMarkdown ?? segment.text, segment.highlight.proposedMarkdown || "")
           return (
             <span
               className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-surface-raised"}`}
@@ -882,8 +886,7 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
               data-inline-suggestion-state={segment.highlight.suggestionState}
               key={index}
             >
-              <del className="text-warning decoration-warning decoration-2">{segment.text}</del>
-              <ins className="ml-1 text-success no-underline">{segment.highlight.proposedMarkdown}</ins>
+              <MarkdownSuggestionDiff diff={diff} sourceText={segment.text} />
             </span>
           )
         }
@@ -1433,6 +1436,11 @@ function anchorPayload(selection: SelectionRange) {
 }
 
 function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] = [], focusedThreadId: number | null = null, focusedSuggestionId: number | null = null) {
+  const context: WysiwygRenderContext = { renderedSuggestionIds: new Set(), renderedWholeSuggestionIds: new Set() }
+  return markdownToWysiwygHtmlWithContext(markdown, highlights, focusedThreadId, focusedSuggestionId, context)
+}
+
+function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHighlight[] = [], focusedThreadId: number | null = null, focusedSuggestionId: number | null = null, context: WysiwygRenderContext) {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
   const blocks: string[] = []
   let index = 0
@@ -1443,6 +1451,16 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     if (line.trim() === "") {
       offset += line.length + 1
       index += 1
+      continue
+    }
+
+    const blockSuggestion = wholeMarkdownBlockSuggestionAt(highlights, offset, context)
+    if (blockSuggestion) {
+      blocks.push(renderWholeSuggestionBlockHtml(blockSuggestion, focusedThreadId, focusedSuggestionId, context))
+      while (index < lines.length && offset < blockSuggestion.end) {
+        offset += lines[index].length + 1
+        index += 1
+      }
       continue
     }
 
@@ -1476,7 +1494,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     if (heading) {
       const level = heading[1].length
       const headingOffset = offset + heading[1].length + 1
-      blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId, focusedSuggestionId)}</h${level}>`)
+      blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId, focusedSuggestionId, context)}</h${level}>`)
       offset += line.length + 1
       index += 1
       continue
@@ -1489,12 +1507,12 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
         offset += lines[index].length + 1
         index += 1
       }
-      blocks.push(`<blockquote>${markdownToWysiwygHtml(quoteLines.join("\n"), [], null, null)}</blockquote>`)
+      blocks.push(`<blockquote>${markdownToWysiwygHtmlWithContext(quoteLines.join("\n"), [], null, null, context)}</blockquote>`)
       continue
     }
 
     if (isWysiwygTableStart(lines, index)) {
-      const table = renderWysiwygTable(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      const table = renderWysiwygTable(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId, context)
       blocks.push(table.html)
       index = table.nextIndex
       offset = table.nextOffset
@@ -1502,7 +1520,7 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     }
 
     if (wysiwygListMarker(line)) {
-      const list = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      const list = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId, context)
       blocks.push(list.html)
       index = list.nextIndex
       offset = list.nextOffset
@@ -1513,20 +1531,55 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
     while (index < lines.length && lines[index].trim() !== "" && !startsWysiwygBlock(lines, index)) {
       const paragraphLine = lines[index]
       const leading = paragraphLine.length - paragraphLine.trimStart().length
-      paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId, focusedSuggestionId))
+      const lineStart = offset + leading
+      const lineEnd = offset + paragraphLine.length
+      if (!isFullyCoveredByRenderedWholeSuggestion(highlights, lineStart, lineEnd, context)) {
+        paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, lineStart, focusedThreadId, focusedSuggestionId, context))
+      }
       offset += paragraphLine.length + 1
       index += 1
     }
-    blocks.push(`<p>${paragraph.join("<br>")}</p>`)
+    if (paragraph.length > 0) blocks.push(`<p>${paragraph.join("<br>")}</p>`)
   }
 
   return blocks.join("")
 }
 
-function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null, focusedSuggestionId: number | null = null) {
+function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
+  return highlights.find((highlight) => {
+    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.start > offset || highlight.end <= offset) return false
+
+    const original = highlight.originalMarkdown ?? ""
+    const proposed = highlight.proposedMarkdown ?? ""
+    return (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
+  }) ?? null
+}
+
+function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThreadId: number | null, focusedSuggestionId: number | null, context: WysiwygRenderContext) {
+  context.renderedSuggestionIds.add(highlight.id)
+  context.renderedWholeSuggestionIds.add(highlight.id)
+
+  const focused = highlight.threadId === focusedThreadId || highlight.suggestionId === focusedSuggestionId
+  const suggestionAttrs = highlight.suggestionId ? ` data-suggestion-id="${highlight.suggestionId}"` : ""
+  const className = focused
+    ? "block rounded-sm bg-amber-300/70 px-1 py-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
+    : "block rounded-sm bg-surface-raised px-1 py-0.5"
+  const original = highlight.originalMarkdown ?? ""
+  const proposed = highlight.proposedMarkdown ?? ""
+
+  return [
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}"${suggestionAttrs}>`,
+    `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2">${sourceSpan(original, highlight.start)}</del>`,
+    `<ins class="block whitespace-pre-wrap text-success no-underline">${escapeHtml(proposed)}</ins>`,
+    "</div>"
+  ].join("")
+}
+
+function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null, focusedSuggestionId: number | null = null, context: WysiwygRenderContext = { renderedSuggestionIds: new Set(), renderedWholeSuggestionIds: new Set() }) {
   return inlineTokens(markdown, baseOffset)
     .map((token) => {
-      const content = renderHighlightedHtml(token.text, highlights, token.sourceStart, focusedThreadId, focusedSuggestionId)
+      const content = renderHighlightedHtml(token.text, highlights, token.sourceStart, focusedThreadId, focusedSuggestionId, context)
       if (token.kind === "code") return `<code>${content}</code>`
       if (token.kind === "strong") return `<strong>${content}</strong>`
       if (token.kind === "emphasis") return `<em>${content}</em>`
@@ -1695,7 +1748,7 @@ function splitWysiwygTableRowWithOffsets(line: string, rowOffset: number) {
   })
 }
 
-function renderWysiwygTable(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+function renderWysiwygTable(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null, context: WysiwygRenderContext) {
   const headers = splitWysiwygTableRowWithOffsets(lines[index], offset)
   offset += lines[index].length + 1
   offset += lines[index + 1].length + 1
@@ -1709,13 +1762,13 @@ function renderWysiwygTable(lines: string[], index: number, offset: number, high
   }
 
   const headerHtml = headers
-    .map((header) => `<th>${renderWysiwygInline(header.text, highlights, header.sourceStart, focusedThreadId, focusedSuggestionId)}</th>`)
+    .map((header) => `<th>${renderWysiwygInline(header.text, highlights, header.sourceStart, focusedThreadId, focusedSuggestionId, context)}</th>`)
     .join("")
   const bodyHtml = rows
     .map((row) => {
       const cells = headers.map((_header, cellIndex) => {
         const cell = row[cellIndex] || { text: "", sourceStart: offset }
-        return `<td>${renderWysiwygInline(cell.text, highlights, cell.sourceStart, focusedThreadId, focusedSuggestionId)}</td>`
+        return `<td>${renderWysiwygInline(cell.text, highlights, cell.sourceStart, focusedThreadId, focusedSuggestionId, context)}</td>`
       })
       return `<tr>${cells.join("")}</tr>`
     })
@@ -1741,7 +1794,7 @@ function wysiwygListMarker(line: string) {
   }
 }
 
-function renderWysiwygList(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+function renderWysiwygList(lines: string[], index: number, offset: number, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null, context: WysiwygRenderContext) {
   const firstMarker = wysiwygListMarker(lines[index])
   if (!firstMarker) return { html: "", nextIndex: index, nextOffset: offset }
 
@@ -1752,7 +1805,13 @@ function renderWysiwygList(lines: string[], index: number, offset: number, highl
     const marker = wysiwygListMarker(lines[index])
     if (!marker || marker.indent !== indent || marker.ordered !== ordered) break
 
-    let itemHtml = renderWysiwygInline(marker.content, highlights, offset + marker.prefixLength, focusedThreadId, focusedSuggestionId)
+    if (isFullyCoveredByRenderedWholeSuggestion(highlights, offset, offset + lines[index].length, context)) {
+      offset += lines[index].length + 1
+      index += 1
+      continue
+    }
+
+    let itemHtml = renderWysiwygInline(marker.content, highlights, offset + marker.prefixLength, focusedThreadId, focusedSuggestionId, context)
     offset += lines[index].length + 1
     index += 1
 
@@ -1760,7 +1819,7 @@ function renderWysiwygList(lines: string[], index: number, offset: number, highl
       const nestedMarker = wysiwygListMarker(lines[index])
       if (!nestedMarker || nestedMarker.indent <= indent) break
 
-      const nested = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId)
+      const nested = renderWysiwygList(lines, index, offset, highlights, focusedThreadId, focusedSuggestionId, context)
       itemHtml += nested.html
       index = nested.nextIndex
       offset = nested.nextOffset
@@ -1817,6 +1876,7 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
         id: `suggestion-${suggestion.id}`,
         kind: "suggestion" as const,
         suggestionId: suggestion.id,
+        originalMarkdown: suggestion.original_markdown,
         proposedMarkdown: suggestion.proposed_markdown,
         suggestionState: suggestion.state,
         status: suggestion.anchor.status,
@@ -1828,6 +1888,27 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
   return [...threadHighlights, ...suggestionHighlights]
     .filter((highlight) => highlight.status === "active" && highlight.end > highlight.start)
     .sort((a, b) => a.start - b.start || b.end - a.end)
+}
+
+function MarkdownSuggestionDiff({ diff, sourceText }: { diff: InlineSuggestionDiff; sourceText: string }) {
+  if (diff.mode === "whole") {
+    return (
+      <>
+        <del className="block whitespace-pre-wrap text-warning decoration-warning decoration-2">{sourceText}</del>
+        <ins className="block whitespace-pre-wrap text-success no-underline">{diff.proposed}</ins>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {diff.parts.map((part, index) => {
+        if (part.kind === "equal") return <span key={index}>{part.text}</span>
+        if (part.kind === "delete") return <del className="text-warning decoration-warning decoration-2" key={index}>{part.text}</del>
+        return <ins className="text-success no-underline" key={index}>{part.text}</ins>
+      })}
+    </>
+  )
 }
 
 function highlightTextSegments(text: string, highlights: AnchorHighlight[]) {
@@ -1949,26 +2030,31 @@ function sourceBoundsForNode(node: Node): { start: number; end: number } | null 
   return { start: Math.min(...starts), end: Math.max(...ends) }
 }
 
-function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null, focusedSuggestionId: number | null) {
+function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null, focusedSuggestionId: number | null, context: WysiwygRenderContext) {
   return highlightTextSegments(text, highlights.map((highlight) => ({
     ...highlight,
     start: highlight.start - baseOffset,
     end: highlight.end - baseOffset
   })).filter((highlight) => highlight.end > 0 && highlight.start < text.length))
     .map((segment) => {
-      const sourceText = sourceSpan(segment.text, baseOffset + segment.start)
-      if (!segment.highlight) return sourceText
+      if (!segment.highlight) return sourceSpan(segment.text, baseOffset + segment.start)
 
       const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
       if (segment.highlight.kind === "suggestion") {
+        const suggestionKey = segment.highlight.id
+        if (context.renderedSuggestionIds.has(suggestionKey)) return ""
+        context.renderedSuggestionIds.add(suggestionKey)
+
         const suggestionAttrs = segment.highlight.suggestionId ? ` data-suggestion-id="${segment.highlight.suggestionId}"` : ""
         const className = focused
           ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
           : "rounded-sm bg-surface-raised px-0.5"
+        const original = segment.highlight.originalMarkdown ?? segment.text
+        const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
+        if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
         return [
           `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>`,
-          `<del class="text-warning decoration-warning decoration-2">${sourceText}</del>`,
-          `<ins class="ml-1 text-success no-underline">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
+          renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
           "</mark>"
         ].join("")
       }
@@ -1977,9 +2063,144 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
         : "rounded-sm bg-yellow-200/80 px-0.5 dark:bg-yellow-500/30"
       const threadAttrs = segment.highlight.threadId ? ` data-thread-id="${segment.highlight.threadId}"` : ""
-      return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${sourceText}</mark>`
+      const highlightedText = sourceSpan(segment.text, baseOffset + segment.start)
+      return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${highlightedText}</mark>`
     })
     .join("")
+}
+
+function isFullyCoveredByRenderedWholeSuggestion(highlights: AnchorHighlight[], start: number, end: number, context: WysiwygRenderContext) {
+  return highlights.some((highlight) => (
+    highlight.kind === "suggestion" &&
+    context.renderedWholeSuggestionIds.has(highlight.id) &&
+    highlight.start <= start &&
+    highlight.end >= end
+  ))
+}
+
+type InlineSuggestionDiff =
+  | { mode: "fine"; parts: InlineSuggestionPart[] }
+  | { mode: "whole"; proposed: string }
+
+function inlineSuggestionDiff(original: string, proposed: string): InlineSuggestionDiff {
+  if (shouldRenderWholeSuggestion(original, proposed)) return { mode: "whole", proposed }
+
+  const diff = tokenDiff(original, proposed)
+  const alternatingRuns = diff.filter((part) => part.kind !== "equal").length
+  const commonText = diff.filter((part) => part.kind === "equal").map((part) => part.text).join("")
+  const commonCoverage = commonText.length / Math.max(original.length, proposed.length, 1)
+  const meaningfulCommonText = commonText.replace(/\s+/g, "")
+  const commonTokens = diff.filter((part) => part.kind === "equal").flatMap((part) => tokenizeInlineDiff(part.text)).filter((token) => token.trim().length > 0)
+  const mostlyWeakMatches = commonTokens.length > 0 && commonTokens.filter(isWeakDiffToken).length / commonTokens.length > 0.65
+  const longestCommonToken = commonTokens.reduce((longest, token) => Math.max(longest, token.trim().length), 0)
+
+  if (
+    alternatingRuns > 4 ||
+    commonCoverage < 0.34 ||
+    meaningfulCommonText.length < 4 ||
+    longestCommonToken < 4 ||
+    mostlyWeakMatches
+  ) {
+    return { mode: "whole", proposed }
+  }
+
+  return { mode: "fine", parts: diff }
+}
+
+function shouldRenderWholeSuggestion(original: string, proposed: string) {
+  return (
+    crossesMarkdownBlockBoundary(original) ||
+    crossesMarkdownBlockBoundary(proposed) ||
+    crossesSentenceBoundary(original) ||
+    crossesSentenceBoundary(proposed)
+  )
+}
+
+function crossesMarkdownBlockBoundary(value: string) {
+  return (
+    /\n\s*\n/.test(value) ||
+    value.split("\n").some((line) => /^\s*(?:[-*+]|\d+[.)]|#{1,6}\s|>\s?|```|\|)/.test(line))
+  )
+}
+
+function crossesSentenceBoundary(value: string) {
+  return (value.match(/[.!?](?:\s+|$)/g) ?? []).length > 1
+}
+
+function tokenDiff(original: string, proposed: string): InlineSuggestionPart[] {
+  const oldTokens = tokenizeInlineDiff(original)
+  const newTokens = tokenizeInlineDiff(proposed)
+  const lengths = Array.from({ length: oldTokens.length + 1 }, () => Array<number>(newTokens.length + 1).fill(0))
+
+  for (let oldIndex = oldTokens.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newTokens.length - 1; newIndex >= 0; newIndex -= 1) {
+      lengths[oldIndex][newIndex] = oldTokens[oldIndex] === newTokens[newIndex]
+        ? lengths[oldIndex + 1][newIndex + 1] + 1
+        : Math.max(lengths[oldIndex + 1][newIndex], lengths[oldIndex][newIndex + 1])
+    }
+  }
+
+  const parts: InlineSuggestionPart[] = []
+  let oldIndex = 0
+  let newIndex = 0
+  while (oldIndex < oldTokens.length && newIndex < newTokens.length) {
+    if (oldTokens[oldIndex] === newTokens[newIndex]) {
+      pushInlineSuggestionPart(parts, "equal", oldTokens[oldIndex])
+      oldIndex += 1
+      newIndex += 1
+    } else if (lengths[oldIndex + 1][newIndex] >= lengths[oldIndex][newIndex + 1]) {
+      pushInlineSuggestionPart(parts, "delete", oldTokens[oldIndex])
+      oldIndex += 1
+    } else {
+      pushInlineSuggestionPart(parts, "insert", newTokens[newIndex])
+      newIndex += 1
+    }
+  }
+
+  while (oldIndex < oldTokens.length) {
+    pushInlineSuggestionPart(parts, "delete", oldTokens[oldIndex])
+    oldIndex += 1
+  }
+  while (newIndex < newTokens.length) {
+    pushInlineSuggestionPart(parts, "insert", newTokens[newIndex])
+    newIndex += 1
+  }
+
+  return parts
+}
+
+function tokenizeInlineDiff(value: string) {
+  return value.match(/\s+|[\p{L}\p{N}_'-]+|[^\s\p{L}\p{N}_'-]+/gu) ?? []
+}
+
+function pushInlineSuggestionPart(parts: InlineSuggestionPart[], kind: InlineSuggestionPart["kind"], text: string) {
+  const previous = parts.at(-1)
+  if (previous?.kind === kind) previous.text += text
+  else parts.push({ kind, text })
+}
+
+function isWeakDiffToken(token: string) {
+  const normalized = token.trim().toLowerCase()
+  return normalized.length <= 2 || /^(?:the|a|an|and|or|but|to|of|in|on|for|with|by|is|are|was|were|be|as|it|this|that)$/.test(normalized) || /^[^\p{L}\p{N}]+$/u.test(normalized)
+}
+
+function renderInlineSuggestionDiffHtml(diff: InlineSuggestionDiff, original: string, originalStart: number) {
+  if (diff.mode === "whole") {
+    return [
+      `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2">${sourceSpan(original, originalStart)}</del>`,
+      `<ins class="block whitespace-pre-wrap text-success no-underline">${escapeHtml(diff.proposed)}</ins>`
+    ].join("")
+  }
+
+  let oldOffset = 0
+  return diff.parts.map((part) => {
+    if (part.kind === "insert") return `<ins class="text-success no-underline">${escapeHtml(part.text)}</ins>`
+
+    const sourceText = sourceSpan(part.text, originalStart + oldOffset)
+    oldOffset += part.text.length
+    if (part.kind === "equal") return sourceText
+    return `<del class="text-warning decoration-warning decoration-2">${sourceText}</del>`
+  }).join("")
 }
 
 function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end: number): SelectionRect {
