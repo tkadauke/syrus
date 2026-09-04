@@ -38,10 +38,18 @@ class Step < ApplicationRecord
   # A Step is ready when everything it waits for has finished, whatever the
   # outcome -- a failed dependency is still a settled one, and what happens
   # next is the remediation table's business, not the graph's.
-  def dependencies_settled?
-    return previous_step.nil? || previous_step.terminal? if depends_on_step_ids.empty?
+  def dependencies_settled?(settled_step: nil)
+    settled_step_id = settled_step&.id
 
-    depends_on_steps.all?(&:terminal?)
+    if depends_on_step_ids.empty?
+      predecessor = previous_step
+      return true if predecessor.nil?
+
+      return true if predecessor.terminal?
+      return predecessor.id == settled_step_id
+    end
+
+    depends_on_steps.all? { |dependency| dependency.terminal? || dependency.id == settled_step_id }
   end
 
   def seed_depends_on_ids
