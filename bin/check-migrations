@@ -200,6 +200,70 @@ rule "database_foreign_key" do |offenses, path, lines|
   end
 end
 
+# MySQL caps an index key at 3072 bytes; SQLite has no such limit, so an
+# oversized composite index passes dev and test and kills the production
+# deploy mid-migration. A utf8mb4 `t.string` with no `limit:` is 255 * 4 =
+# 1020 bytes, so three of them plus any id column is already over.
+#
+# Only string widths declared in this same file are counted, and only a
+# *lower bound* is reported -- an unrecognized column contributes nothing.
+# That means the rule cannot produce a false positive; it can only miss an
+# index whose columns are declared in an earlier migration.
+MYSQL_MAX_KEY_BYTES = 3072
+UTF8MB4 = 4
+
+rule "mysql_index_key_length" do |offenses, path, lines|
+  source = lines.join
+
+  # Column name => declared byte width, from create_table blocks in this file.
+  widths = {}
+  source.scan(/^\s*t\.(string|text)\s+:(\w+)(.*)$/) do |type, name, rest|
+    limit = rest[/limit:\s*(\d+)/, 1]&.to_i
+    widths[name] = ((limit || 255) * UTF8MB4)
+  end
+  source.scan(/^\s*t\.(?:references|belongs_to)\s+:(\w+)/) { |(name)| widths["#{name}_id"] = 8 }
+  %w[id created_at updated_at].each { |name| widths[name] ||= 8 }
+
+  # Column lists are often hoisted into a local first:
+  #   idx = [ :job_id, :surface, :path ]
+  #   add_index :t, idx, name: "..."
+  # Reading only the add_index line would miss exactly that shape.
+  arrays = {}
+  source.scan(/^\s*(\w+)\s*=\s*\[([^\]]*)\]/) { |name, list| arrays[name] = list }
+
+  lines.each_with_index do |line, i|
+    next unless line =~ /^\s*add_index\b/
+
+    # The call may wrap over several lines; stop before the next statement.
+    call = +line
+    lines[(i + 1)..].to_a.first(5).each do |following|
+      break if following =~ /^\s*(?:end\b|unless\b|if\b|add_index\b|\w+\s*=[^=])/
+      call << following
+    end
+
+    columns = call[/\[([^\]]*)\]/, 1] ||
+              arrays[call[/^\s*add_index\s+:\w+\s*,\s*(\w+)/, 1].to_s]
+    next if columns.nil?
+
+    prefixes = {}
+    call[/length:\s*\{([^}]*)\}/, 1]&.scan(/(\w+):\s*(\d+)/) { |name, len| prefixes[name] = len.to_i * UTF8MB4 }
+
+    names = columns.scan(/:(\w+)/).flatten
+    bytes = names.sum { |name| prefixes[name] || widths[name] || 0 }
+    next if bytes <= MYSQL_MAX_KEY_BYTES
+
+    offenses << Offense.new(
+      rule: "mysql_index_key_length",
+      path: path,
+      line: i + 1,
+      detail: "index key is at least #{bytes} bytes; MySQL refuses anything over #{MYSQL_MAX_KEY_BYTES} " \
+              "(SQLite does not, so this passes dev/test and fails the production migration)",
+      remediation: "add prefix lengths for the columns that do not need full width, " \
+                   "e.g. `length: { status: 32 }`, or give those columns a smaller `limit:`"
+    )
+  end
+end
+
 # Helper: did a recent line guard this operation? Looks backwards
 # up to LOOKBACK lines for a matching guard pattern; also matches
 # inline `... unless column_exists?(...)` on the same line.
