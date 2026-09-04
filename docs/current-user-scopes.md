@@ -146,6 +146,7 @@ per-user/private:
   - app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
+  - app/controllers/api/v1/app/diff_review_comments_controller.rb
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
   - app/controllers/api/v1/app/filters_controller.rb
@@ -341,6 +342,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
 | `app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |
+| `app/controllers/api/v1/app/diff_review_comments_controller.rb` | per-user/private and repository-write affordance | Diff review comments are attached to jobs resolved through `policy_scope(Job)`; creating, updating, resolving, and submitting comments require the normal job mutation authorization and stamp `Current.user` as the actor. |
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update paths use `Current.user.epics`; repository choices come from the same user. Index/find/dependency-target lookups go through `EpicPolicy` (`policy_scope(Epic)`, exactly `Epic.accessible_to(Current.user)` — see [Policy layer](#policy-layer-repositoryjobepic)); unclaim, reassign, and state-advancement checks are `EpicPolicy` predicates. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
