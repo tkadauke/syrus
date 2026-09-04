@@ -145,21 +145,13 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          run = job.runs.includes(:job_logs, :step).find_by(id: params[:run_id])
+          run = job.runs.includes(:step).find_by(id: params[:run_id])
           unless run
             render_error("not_found", "Run not found.", status: :not_found)
             return
           end
 
-          logs = run.job_logs.order(:sequence).map do |log|
-            {
-              id: log.id,
-              sequence: log.sequence,
-              kind: log.kind,
-              chunk: log.chunk,
-              created_at: log.created_at&.iso8601
-            }
-          end
+          logs = serialize_job_logs(run)
 
           render json: {
             job_id: job.id,
@@ -203,7 +195,7 @@ module Api
 
         def transcript
           job = find_job
-          run = job.runs.includes(:job_logs).order(created_at: :desc, id: :desc).first
+          run = job.runs.order(created_at: :desc, id: :desc).first
           unless run
             render json: { job_id: job.id, run_id: nil, state: job.state, complete: job.closed?, lines: [] }
             return
@@ -214,7 +206,7 @@ module Api
             run_id: run.id,
             state: run.state,
             complete: run.finished_at.present?,
-            lines: run.job_logs.order(:sequence).map { |log| log.chunk.to_s }
+            lines: run.job_logs.order(:sequence).pluck(:chunk).map(&:to_s)
           }
         end
 
@@ -262,6 +254,21 @@ module Api
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
           scope
+        end
+
+        def serialize_job_logs(run)
+          run.job_logs
+            .order(:sequence)
+            .pluck(:id, :sequence, :kind, :chunk, :created_at)
+            .map do |id, sequence, kind, chunk, created_at|
+              {
+                id: id,
+                sequence: sequence,
+                kind: kind,
+                chunk: chunk,
+                created_at: created_at&.iso8601
+              }
+            end
         end
 
         def graph_smart_folder(subject_type)
