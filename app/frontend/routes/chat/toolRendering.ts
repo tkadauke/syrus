@@ -6,6 +6,7 @@
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
+import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
 
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
@@ -52,7 +53,7 @@ export type ChatMediaImage = {
   file_path: string
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
 }
 
@@ -307,6 +308,13 @@ export function toolResultPresentation(name: string, body: string, error = false
 
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(body)
+
+  // A registered card's own summary is more accurate than the blind
+  // generic guess below (which can only pattern-match on the tool name and
+  // a handful of well-known array/count keys), so it takes priority.
+  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
+  if (pluginSummary) return { kind: "text", summary: pluginSummary }
+
   const mcpSummary = mcpResultSummary(normalizedName, parsed)
   if (mcpSummary) return mcpSummary
 
@@ -519,7 +527,7 @@ function typedArray<T>(value: unknown, mapper: (item: unknown) => T | null) {
   })
 }
 
-function parseJsonText(value: string): unknown {
+export function parseJsonText(value: string): unknown {
   const trimmed = value.trim()
   if (!trimmed) return null
 

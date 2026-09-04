@@ -86,6 +86,23 @@ describe("toolResultPresentation", () => {
       metadata: { count: 0, noun: "media item" }
     })
   })
+
+  it("falls back to a plugin-registered card's collapsed summary for a plugin-owned tool", () => {
+    // list_design_docs is registered entirely inside the design_docs plugin
+    // (plugins/design_docs/app/frontend/tool_cards/list_design_docs.tsx) —
+    // this proves the extension point without this file naming that plugin.
+    const result = toolResultPresentation("list_design_docs", JSON.stringify({
+      design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }, { id: 2, doc_ref: "DOC-2", title: "B" }]
+    }))
+
+    expect(result).toMatchObject({ kind: "text", summary: "2 design docs" })
+  })
+
+  it("keeps the generic text kind for an unknown tool with no core or plugin card", () => {
+    const result = toolResultPresentation("totally_unknown_tool", "plain text result")
+
+    expect(result).toMatchObject({ kind: "text", summary: "" })
+  })
 })
 
 describe("typedToolResult", () => {

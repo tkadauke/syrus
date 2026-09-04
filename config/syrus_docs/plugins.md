@@ -676,6 +676,48 @@ each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
 
+## `tool_card`
+
+Upgrades how one MCP tool call renders in a chat `ToolGroup` (and the admin
+transcript viewer, which shares the same rendering path) — a friendly
+expanded view and an accurate one-line collapsed summary, instead of the
+generic highlighted-JSON/text body. No Ruby manifest entry: the frontend
+already has the tool name from the transcript for every call, so dispatch is
+a pure client-side lookup by normalized tool name (`mcp__`/sidecar-server
+prefixes stripped — the same normalization `toolLabel`/`toolPresentation`
+apply).
+
+Frontend components are discovered purely by directory convention — drop a
+file under `plugins/<name>/app/frontend/tool_cards/<tool_name>.tsx` and it is
+picked up automatically (`app/frontend/pluginToolCards.tsx`'s
+`import.meta.glob("../../plugins/*/app/frontend/tool_cards/*.tsx", { eager:
+true })`); adding, changing, or removing a plugin's card never touches any
+core file or central list. Core-owned tools may register the same way, under
+`app/frontend/routes/chat/tool_cards/*.tsx`. Each file's default export is a
+`ToolCardRenderer`:
+
+```tsx
+// plugins/my_plugin/app/frontend/tool_cards/my_tool.tsx
+import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
+
+const myToolCard: ToolCardRenderer = {
+  toolName: "my_tool",
+  collapsedSummary: (context: ToolCardContext) => "...",   // optional; null/undefined keeps the generic guess
+  renderExpanded: (context: ToolCardContext) => null        // null falls back to the generic body (malformed payload, etc.)
+}
+
+export default myToolCard
+```
+
+`ToolCardContext` carries the normalized `toolName`, the raw `resultBody`,
+`resultError`, and a best-effort `parsedResult` (`JSON.parse`d, or `null`).
+Both callbacks are called inside a try/catch by the registry — a thrown
+error or a `null`/`undefined` return falls back to the generic renderer, so a
+malformed or unexpected payload shape degrades gracefully instead of
+blanking the row. A tool with no registered card, core or plugin, keeps using
+the generic renderer. The raw JSON "Raw details" disclosure and the
+collapsed-by-default row behavior apply regardless of which body renders.
+
 ## `adjudicator`
 
 Rung 0 of the attention ladder (see `docs/plans/workflow-engine-v3.md`): free,
