@@ -13,15 +13,23 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-04, **Track B is implemented and Track A's first three phases
-are partly done**: `Problem`/`Problem::Kind` (A1), `Remediation`/`Resolver`
-(A2), the reviewer `Gate` (A3), the attention ladder end to end --
-`Adjudication`/`Adjudicators` (B1), `Decision`/`Opener`/`Signature`/`Escalator`
-(B2, B3), `Judgment` (B4), `AgenticGraderReview` (B5) -- and
-`Metrics::EscalationsPerLanding`. A4-A7 and Track C are still proposals. It is written
-to be executed in three independent tracks (see
-[Incremental Plan](#incremental-plan)); the first two phases of Track A change
-no behavior and unblock everything else.
+As of 2026-09-04 every phase has landed at least its core primitive, and the
+plan's own success criteria are met or partly met:
+
+| Criterion | State |
+| --- | --- |
+| One failure code across classification, `Try` branch and reconciler issue | met -- `Problem::Kind` aliases all three |
+| `StepDispatcher` names no specific reviewer step kind | met, and it now names no step kind at all |
+| No `OneShotAgent` outside the Judgment primitive | met |
+| A project's risk posture readable from one value | met -- `Repository#risk_profile` |
+| A new capability without touching the dispatcher/reconciler/executor | partly -- reviewer gates and runtime-inserted kinds are registry entries now; adding a *work shape* still touches more |
+| Escalations per landing trending down | measurable -- `Metrics::EscalationsPerLanding` exists; no data yet |
+
+What is deliberately not done, with the reason in each phase below: the
+merge-train shape still lives in `Steps::MergeTrainBuild` (A6), repo-local
+template resolution is built but opt-in because it would put a GitHub
+round-trip on workflow instantiation (A4/A7), classification is not yet a Run
+inside a `triage` template (C2), and the decision queue has no UI surface (B2).
 
 ## Relationship To Other Plans
 
