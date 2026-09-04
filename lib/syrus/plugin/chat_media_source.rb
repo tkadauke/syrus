@@ -8,7 +8,7 @@ module Syrus
     # valid, does it belong to this chat, and how does it become a Job
     # attachment. Those used to be a `case kind` in each of ChatMediaAttacher,
     # ChatProposal, submit_chat_feedback, list_chat_media, and ChatMediaRef's
-    # own format regex -- with `snapshot` (whiteboard_tools) and
+    # own format regex -- with `snapshot` (whiteboard) and
     # `preview_panel_version` (preview_tools) hardcoded into core.
     #
     # Providers expose:
@@ -23,7 +23,7 @@ module Syrus
     # `list_chat_media` returns already-shaped entries for the list_chat_media
     # tool, each carrying at least `id` ("<kind>:<id>") and `kind`.
     # `chat_media_context` adds kind-specific context beside the entries --
-    # whiteboard_tools reports how many elements are currently on the canvas.
+    # whiteboard reports how many elements are currently on the canvas.
     # `chat_media_panel` is the same idea for the chat UI's media panel, whose
     # entries carry display fields the MCP listing has no use for.
     #

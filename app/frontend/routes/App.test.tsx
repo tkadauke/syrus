@@ -11123,7 +11123,7 @@ describe("App", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Whiteboard" }))
     })
-    // Fullscreen is owned entirely by the whiteboard_tools plugin's own tab
+    // Fullscreen is owned entirely by the whiteboard plugin's own tab
     // component (a fixed, full-viewport portal into document.body) rather
     // than a core Chat.tsx layout shift, so the chat column/tab bar stay
     // mounted underneath -- only the toggle/Escape behavior is asserted here.
@@ -16652,7 +16652,7 @@ function chatPayload(overrides: {
     attachment_results: [],
     preview_panels: [],
     workspace_tabs: [
-      { id: "whiteboard_tools.canvas", label: "Whiteboard", label_key: "whiteboard_tools:tab_whiteboard", component: "whiteboard_tools/WhiteboardTab", order: 0 }
+      { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
     ],
     whiteboard: {
       version: 2,

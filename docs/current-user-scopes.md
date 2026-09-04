@@ -114,7 +114,7 @@ in `JobPolicy#write?`) so a global admin always satisfies the tier check
 even with no `RepositoryMembership` row of their own.
 
 `spec/docs/current_user_scopes_spec.rb` only scans `app/controllers/**` and
-`app/views/**`, so plugin-owned controllers (e.g. `plugins/whiteboard_tools`'s
+`app/views/**`, so plugin-owned controllers (e.g. `plugins/whiteboard`'s
 `ChatWhiteboardsController`/`WhiteboardSnapshotsController`, both scoped
 through `Current.user.accessible_chat_sessions`, same as the rest of the
 chat surface) aren't covered by this audit or its spec. That's a pre-existing
@@ -203,8 +203,8 @@ per-user/private:
   - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
   - plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb
   - plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb
-  - plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb
-  - plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
+  - plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb
+  - plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
 team-visible:
   - plugins/team_directory/app/controllers/api/v1/app/profiles_controller.rb
 team-tier:
@@ -446,6 +446,6 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb` | per-user/private | Issue listing and triage actions resolve the repository through `Repository.accessible_to(Current.user)`. |
 | `plugins/spending_insights/app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
 | `plugins/throughput/app/controllers/api/v1/app/repository_throughput_controller.rb` | per-user/private | Throughput metrics resolve the repository through `Repository.accessible_to(Current.user)`. |
-| `plugins/whiteboard_tools/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
-| `plugins/whiteboard_tools/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
+| `plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
+| `plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |

@@ -192,7 +192,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
 
   describe "media" do
     def whiteboard_snapshot
-      WhiteboardTools::Snapshot.create!(
+      Whiteboard::Snapshot.create!(
         chat_session: chat_session,
         name: "My snapshot",
         scene_json: { "elements" => [ { "id" => "abc" } ], "appState" => {} },
@@ -240,7 +240,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     it "rejects a media ref that does not belong to this chat session" do
       job = Factories.job_record(repository: repository, state: "implemented")
       other_session = ChatSession.create!(user: Factories.user)
-      foreign_snapshot = WhiteboardTools::Snapshot.create!(
+      foreign_snapshot = Whiteboard::Snapshot.create!(
         chat_session: other_session,
         name: "Not mine",
         scene_json: { "elements" => [], "appState" => {} },

@@ -19,7 +19,7 @@ The `Theme` model and its 13-key token schema (`brand`, `brand-emphasis`,
 `success`, `warning`, `danger`, `info`, `neutral`, `on-brand`, each with a
 `light` and `dark` value) live in the main app (`app/models/theme.rb`), not
 in this plugin — same "models stay in core" precedent `WhiteboardSnapshot`
-sets for `whiteboard_tools`. This plugin only owns the tool surface and the
+sets for `whiteboard`. This plugin only owns the tool surface and the
 broadcast that opens the preview.
 
 ## Settings page

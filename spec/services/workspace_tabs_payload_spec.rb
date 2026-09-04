@@ -11,14 +11,14 @@ RSpec.describe WorkspaceTabsPayload do
   let(:repo) { Factories.repository }
   let(:chat_session) { ChatSession.create!(repository: repo, user: repo.user) }
 
-  # whiteboard_tools is a real bundled plugin (see spec/support/bundled_plugins.rb)
+  # whiteboard is a real bundled plugin (see spec/support/bundled_plugins.rb)
   # whose workspace_tab provider is unconditionally available, so its tab is
   # always present alongside whatever stub providers a given example
   # registers. Filter it out so these examples can assert on the generic
   # WorkspaceTabsPayload behavior (sorting, availability, disabled-exclusion)
   # in isolation.
   def other_tabs(chat_session)
-    described_class.new(chat_session).as_json.reject { |tab| tab[:id] == "whiteboard_tools.canvas" }
+    described_class.new(chat_session).as_json.reject { |tab| tab[:id] == "whiteboard.canvas" }
   end
 
   def make_provider(id:, label: id.to_s, order: 0, available: true, label_key: nil, data: nil, with_chat: false)

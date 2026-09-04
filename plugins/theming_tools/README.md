@@ -2,7 +2,7 @@
 
 Theming Tools gives the Syrus Chat agent a `preview_theme` tool: it can draft a candidate color theme and pop it open for the user against the real Style Guide page, so token choices are judged on actual `Button`/`Input`/`Card`/etc. components instead of a recreated mockup.
 
-The underlying `Theme` model stays in core (same precedent as `WhiteboardSnapshot` for `whiteboard_tools`) — this plugin only owns the `preview_theme` MCP tool and the broadcast wiring that opens the preview modal.
+The underlying `Theme` model stays in core (same precedent as `WhiteboardSnapshot` for `whiteboard`) — this plugin only owns the `preview_theme` MCP tool and the broadcast wiring that opens the preview modal.
 
 ## What It Adds
 

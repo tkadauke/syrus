@@ -3,8 +3,8 @@ import { pluginWorkspaceTabComponentFor, pluginWorkspaceTabComponentKeys } from 
 
 describe("plugin workspace tab registry", () => {
   it("discovers installed plugin workspace tab components by component key", () => {
-    expect(pluginWorkspaceTabComponentKeys()).toContain("whiteboard_tools/WhiteboardTab")
-    expect(pluginWorkspaceTabComponentFor("whiteboard_tools/WhiteboardTab")).toBeTruthy()
+    expect(pluginWorkspaceTabComponentKeys()).toContain("whiteboard/WhiteboardTab")
+    expect(pluginWorkspaceTabComponentFor("whiteboard/WhiteboardTab")).toBeTruthy()
     expect(pluginWorkspaceTabComponentFor("missing/Nope")).toBeNull()
   })
 

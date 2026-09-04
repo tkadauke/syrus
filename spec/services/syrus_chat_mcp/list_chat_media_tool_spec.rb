@@ -23,7 +23,7 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
   end
 
   def create_snapshot(chat_session:, name: "My snapshot", element_count: 3)
-    WhiteboardTools::Snapshot.create!(
+    Whiteboard::Snapshot.create!(
       chat_session: chat_session,
       name: name,
       scene_json: { "elements" => Array.new(element_count) { |i| { "id" => "el-#{i}" } }, "appState" => {} },
@@ -138,7 +138,7 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
   end
 
   it "returns the current whiteboard element count" do
-    WhiteboardTools::Board.create!(chat_session: chat_session,
+    Whiteboard::Board.create!(chat_session: chat_session,
       scene_json: { "elements" => [ { "id" => "a" }, { "id" => "b" }, { "id" => "c" } ], "appState" => {}, "files" => {} },
       version: 1
     )

@@ -2561,24 +2561,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_031753) do
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
   end
 
-  create_table "whiteboard_tools_boards", force: :cascade do |t|
+  create_table "whiteboard_boards", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
     t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
-    t.index ["chat_session_id"], name: "index_whiteboard_tools_boards_on_chat_session_id", unique: true
+    t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true
   end
 
-  create_table "whiteboard_tools_snapshots", force: :cascade do |t|
+  create_table "whiteboard_snapshots", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.integer "element_count", null: false
     t.string "name"
     t.json "scene_json", null: false
     t.string "snapshot_kind", null: false
-    t.index ["chat_session_id"], name: "index_whiteboard_tools_snapshots_on_chat_session_id"
+    t.index ["chat_session_id"], name: "index_whiteboard_snapshots_on_chat_session_id"
   end
 
   create_table "work_engine_reconciler_activity_events", force: :cascade do |t|

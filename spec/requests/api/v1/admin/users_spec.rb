@@ -104,7 +104,7 @@ RSpec.describe "API: /api/v1/admin/users", type: :request do
       target = Factories.user(email_address: "target@example.com")
       chat = ChatSession.create!(user: target, title: "Private planning chat")
       chat.messages.create!(role: "user", content: { "text" => "Private transcript text" })
-      WhiteboardTools::Board.create!(chat_session: chat,
+      Whiteboard::Board.create!(chat_session: chat,
         scene_json: { "elements" => [ { "id" => "private-whiteboard-box" } ], "appState" => {}, "files" => {} },
         version: 2
       )

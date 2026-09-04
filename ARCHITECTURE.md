@@ -59,7 +59,7 @@ domain concepts. File paths are repo-relative.
   bundled plugins (claude_agent, codex_agent, github_source, linear_source,
   rails, ruby, javascript, python, go, django, syrus_dev, browser,
   preview_tools, design_docs, spending_insights, worker_timeline,
-  admin_mysql, mysql_db_browser, git_history, whiteboard_tools,
+  admin_mysql, mysql_db_browser, git_history, whiteboard,
   theming_tools, discord, tailscale) ship in `plugins/`; third-party
   plugins are ordinary Rails Engine gems
 - **Playwright** (via the bundled `browser` plugin's `@playwright/mcp`
@@ -1425,7 +1425,7 @@ The registry defines twenty-four extension points:
 | `admin_mysql` | `plugins/admin_mysql` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
 | `mysql_db_browser` | `plugins/mysql_db_browser` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
 | `git_history` | `plugins/git_history` | `:repo_page_tab` | enabled |
-| `whiteboard_tools` | `plugins/whiteboard_tools` | `:chat_mcp_tool_set` | enabled |
+| `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set` | enabled |
 | `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | enabled |
 | `discord` | `plugins/discord` | `:platform_delivery` (Gateway websocket DM listener + outbound delivery) | disabled by default |
 | `tailscale` | `plugins/tailscale` | `:callbacks`, `:admin_page` (exposes Syrus on the operator's Tailscale network) | disabled by default |

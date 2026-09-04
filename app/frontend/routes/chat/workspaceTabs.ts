@@ -114,7 +114,7 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
 // intentional seam rather than the extension point routing "preferred
 // default tab" generically. No plugin-declared tab (or a chat with no
 // whiteboard content yet) falls back to "context" as before.
-const WHITEBOARD_TAB_COMPONENT = "whiteboard_tools/WhiteboardTab"
+const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
 
 export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab {
   const tabs = availableWorkspaceTabs(payload, simpleMode)
@@ -130,7 +130,7 @@ export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
     if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs") return value
-    // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard_tools.canvas")
+    // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard.canvas")
     // are dynamic, so they can't be listed above -- match the "plugin:"
     // namespace instead. Preserves the pre-migration behavior where the
     // (then-core) "whiteboard" tab survived a reload.

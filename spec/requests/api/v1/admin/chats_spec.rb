@@ -83,7 +83,7 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
 
   describe "GET /api/v1/admin/chats/:id" do
     it "returns raw paginated chat messages with tool calls, bookmarks, proposals, and attachments" do
-      chat = ChatSession.create!(user: admin, repository: repository, title: "WhiteboardTools::Board help")
+      chat = ChatSession.create!(user: admin, repository: repository, title: "Whiteboard::Board help")
       proposal = ChatProposal.create!(
         chat_session: chat,
         repository: repository,
@@ -93,7 +93,7 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
         body: "Make the whiteboard easier for agents."
       )
       first = chat.messages.create!(role: "user", content: { "text" => "Can you see the whiteboard?" })
-      bookmark = first.bookmarks.create!(label: "WhiteboardTools::Board check", kind: "topic")
+      bookmark = first.bookmarks.create!(label: "Whiteboard::Board check", kind: "topic")
       tool_use = chat.messages.create!(
         role: "tool_use",
         tool_name: "mcp__syrus-chat-sidecar__read_scene",
@@ -113,13 +113,13 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
       body = parse_body
       expect(body).to include(
         "id" => chat.id,
-        "title" => "WhiteboardTools::Board help"
+        "title" => "Whiteboard::Board help"
       )
       expect(body).not_to have_key("messages_count")
       expect(body["attachments"]).to contain_exactly(include("type" => "Repository", "label" => "tkadauke/syrus-test"))
       expect(body["bookmarks"]).to contain_exactly(include(
         "id" => bookmark.id,
-        "label" => "WhiteboardTools::Board check",
+        "label" => "Whiteboard::Board check",
         "message_id" => first.id,
         "anchor" => "message-#{first.id}"
       ))

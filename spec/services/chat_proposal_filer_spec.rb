@@ -476,7 +476,7 @@ RSpec.describe ChatProposalFiler do
 
     describe "media_ids" do
       def whiteboard_snapshot(chat_session:)
-        WhiteboardTools::Snapshot.create!(
+        Whiteboard::Snapshot.create!(
           chat_session: chat_session,
           name: "My snapshot",
           scene_json: { "elements" => [{ "id" => "abc" }], "appState" => {} },

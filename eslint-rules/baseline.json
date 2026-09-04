@@ -8,7 +8,7 @@
     "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx": 4,
     "plugins/syrus_dev/app/frontend/routes/AdminOperationalLogs.tsx": 1,
     "plugins/syrus_dev/app/frontend/routes/AdminPerformance.tsx": 3,
-    "plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx": 1
+    "plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx": 1
   },
   "no-raw-form-elements": {
     "plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx": 1,

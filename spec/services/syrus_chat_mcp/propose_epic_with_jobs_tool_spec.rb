@@ -758,7 +758,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
   end
 
   it "stores media_ids on child job proposals when media is provided" do
-    snapshot = WhiteboardTools::Snapshot.create!(
+    snapshot = Whiteboard::Snapshot.create!(
       chat_session: chat_session,
       name: "Board snapshot",
       scene_json: { "elements" => [], "appState" => {} },

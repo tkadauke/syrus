@@ -89,7 +89,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
 | `agent_provider` | Agent provider | `claude_agent`, `codex_agent` |
-| `agent_capability` | Agent capability | `browser`, `preview_tools`, `theming_tools`, `whiteboard_tools`, `agent_memory` |
+| `agent_capability` | Agent capability | `browser`, `preview_tools`, `theming_tools`, `whiteboard`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
@@ -683,7 +683,7 @@ or `submit_chat_feedback`. Three questions get asked about every ref -- is it
 valid, does it belong to this chat, and how does it become a Job attachment --
 and they used to be a `case kind` repeated in `ChatMediaAttacher`,
 `ChatProposal`, `submit_chat_feedback`, `list_chat_media`, and `ChatMediaRef`'s
-format regex, with `snapshot` (whiteboard_tools) and `preview_panel_version`
+format regex, with `snapshot` (whiteboard) and `preview_panel_version`
 (preview_tools) named in core.
 
 A provider answers:
@@ -701,7 +701,7 @@ providers, and `ChatMediaRef` derives the valid kinds from it -- so
 contributing a kind is no longer also an edit to core. `attach_chat_media`
 returns nil when the id does not resolve; the caller records a skipped ref
 rather than failing the whole attach. `chat_media_context` exists for
-kind-specific context that sits beside the list: whiteboard_tools reports how
+kind-specific context that sits beside the list: whiteboard reports how
 many elements are currently on the canvas.
 
 ## `chat_prompt_injector`
@@ -728,7 +728,7 @@ point that unblocks moving it out of core.
 
 The chat payload is one JSON document the chat page reads, and three of its
 top-level keys belonged to plugins rather than core: `whiteboard`
-(whiteboard_tools), `preview_panels` (preview_tools), and `video_walkthroughs`.
+(whiteboard), `preview_panels` (preview_tools), and `video_walkthroughs`.
 Core built all of them inline, so it knew those models and their
 serialization.
 
@@ -739,7 +739,7 @@ serialization.
 ```
 
 `context` carries what the host resolved for the request -- `:params`, so a
-contributor can honour a query flag it owns (whiteboard_tools only serializes
+contributor can honour a query flag it owns (whiteboard only serializes
 the full scene when `include_whiteboard` is present, because the scene is
 large), and `:ssl`, which preview_tools needs for panel URLs. It is a hash so
 new host context does not change every provider's signature.
@@ -844,9 +844,9 @@ the plugin's component via `pluginWorkspaceTabComponentFor`, passing the full
 chat `payload` as a prop (a workspace tab renders inside one specific chat,
 unlike a standalone admin route that derives its context from the URL).
 
-**First real consumer: `whiteboard_tools`.** The whiteboard migration (moving
+**First real consumer: `whiteboard`.** The whiteboard migration (moving
 the Excalidraw canvas tab, its 14 draw/move/delete/read/update/save/clear/load
-MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard_tools`,
+MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard`,
 confirming the design above end-to-end and surfacing a few things worth
 recording:
 
@@ -877,7 +877,7 @@ recording:
   as the initial tab whenever the chat already had drawn content. That heuristic
   reads `payload.whiteboard` directly, so preserving it after the tab became
   plugin-owned meant `workspaceTabs.ts` now looks up the plugin tab by
-  `component === "whiteboard_tools/WhiteboardTab"` — a literal string naming one
+  `component === "whiteboard/WhiteboardTab"` — a literal string naming one
   specific plugin's tab, called out with a comment at its definition. This is the
   one piece of real, acknowledged coupling the migration introduced; there's no
   generic "which tab should be the default" hook on `:workspace_tab` today.
@@ -2273,9 +2273,9 @@ Bundled plugins:
   the Action Cable channel guards itself, because Action Cable resolves a
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
-- `whiteboard_tools` — default-enabled, and owns the whiteboard end to end:
-  `WhiteboardTools::Board` (table `whiteboard_tools_boards`) and
-  `WhiteboardTools::Snapshot` (`whiteboard_tools_snapshots`) moved out of core
+- `whiteboard` — default-enabled, and owns the whiteboard end to end:
+  `Whiteboard::Board` (table `whiteboard_boards`) and
+  `Whiteboard::Snapshot` (`whiteboard_snapshots`) moved out of core
   once the three chat points below existed. `ChatSession` no longer carries
   `has_one :whiteboard` / `has_many :whiteboard_snapshots`; the queries live on
   the models as `.for(chat_session)` / `.for!(chat_session)` and the cleanup is
@@ -2288,17 +2288,17 @@ Bundled plugins:
   exist yet.
 
   Provides `:chat_media_source`
-  (`WhiteboardTools::MediaSource`, the `snapshot:` kind, including the media
+  (`Whiteboard::MediaSource`, the `snapshot:` kind, including the media
   panel's snapshot list and unsaved-canvas state),
-  `:chat_payload_contributor` (`WhiteboardTools::PayloadContributor`, the
+  `:chat_payload_contributor` (`Whiteboard::PayloadContributor`, the
   payload's `whiteboard` key, its path, and its snapshot count),
-  `:chat_prompt_injector` (`WhiteboardTools::PromptSection`),
+  `:chat_prompt_injector` (`Whiteboard::PromptSection`),
   `:workspace_tab`
-  (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
-  chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
+  (`Whiteboard::WorkspaceTabs`, unconditionally available) rendering the
+  chat sidebar's Whiteboard tab (`plugins/whiteboard/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
   a real Excalidraw canvas with its own fullscreen handling — see the
   `:workspace_tab` section above), and `:chat_mcp_tool_set`
-  (`WhiteboardTools::ChatToolSet`, tier `:deferred`): `read_scene`, `draw_shape`,
+  (`Whiteboard::ChatToolSet`, tier `:deferred`): `read_scene`, `draw_shape`,
   `draw_text`, `draw_line`, `draw_arrow`, `draw_freedraw`, `draw_frame`,
   `draw_embed`, `draw_image`, `move_element`, `delete_element`, `update_scene`,
   `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own

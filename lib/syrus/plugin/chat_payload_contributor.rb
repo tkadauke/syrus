@@ -4,7 +4,7 @@ module Syrus
     #
     # The chat payload is one big JSON document the chat page reads, and three
     # of its top-level keys belonged to plugins rather than to core:
-    # `whiteboard` (whiteboard_tools), `preview_panels` (preview_tools), and
+    # `whiteboard` (whiteboard), `preview_panels` (preview_tools), and
     # `video_walkthroughs`. Core built all of them inline, which meant it had
     # to know those models and their serialization.
     #
@@ -15,7 +15,7 @@ module Syrus
     #   .chat_payload_counts(chat_session:)   => { key => Integer }      (optional)
     #
     # `context` carries what the host resolved for this request: `:params`, so
-    # a contributor can honour a query flag it owns (whiteboard_tools only
+    # a contributor can honour a query flag it owns (whiteboard only
     # serializes the full scene when `include_whiteboard` is present, because
     # the scene is large), and `:ssl`, which preview_tools needs to build panel
     # URLs. It is a hash so new host-side context does not change every

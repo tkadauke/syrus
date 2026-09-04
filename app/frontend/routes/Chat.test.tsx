@@ -70,8 +70,8 @@ describe("storedWorkspaceTab", () => {
   })
 
   it("returns a stored plugin tab, e.g. the whiteboard, so it survives a reload", () => {
-    window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard_tools.canvas")
-    expect(storedWorkspaceTab()).toBe("plugin:whiteboard_tools.canvas")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard.canvas")
+    expect(storedWorkspaceTab()).toBe("plugin:whiteboard.canvas")
   })
 
   it("discards an unrecognized stored value", () => {
@@ -5623,7 +5623,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     attachment_results: overrides.attachment_results || [],
     preview_panels: [],
     workspace_tabs: [
-      { id: "whiteboard_tools.canvas", label: "Whiteboard", label_key: "whiteboard_tools:tab_whiteboard", component: "whiteboard_tools/WhiteboardTab", order: 0 }
+      { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", order: 0 }
     ],
     local_mode_enabled: false,
     speech_to_text: {

@@ -638,7 +638,7 @@ RSpec.describe App::ChatMessagePayload do
   end
 
   it "includes media_ids in proposal JSON" do
-    snapshot = WhiteboardTools::Snapshot.create!(
+    snapshot = Whiteboard::Snapshot.create!(
       chat_session: chat,
       name: "Board snapshot",
       scene_json: { "elements" => [], "appState" => {} },

@@ -43,8 +43,8 @@ import { Markdown } from "../../lib/Markdown"
 // Chat workspace panels extracted from Chat.tsx: the workspace tab shell
 // (ChatWorkspacePanel) and its panels — local diff, media gallery, settings
 // dialog, coding files — plus the shared PanelMessage primitive. The
-// whiteboard panel moved to plugins/whiteboard_tools (see
-// WhiteboardTools::WorkspaceTabs / config/syrus_docs/plugins.md).
+// whiteboard panel moved to plugins/whiteboard (see
+// Whiteboard::WorkspaceTabs / config/syrus_docs/plugins.md).
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
 export function ChatWorkspacePanel({
