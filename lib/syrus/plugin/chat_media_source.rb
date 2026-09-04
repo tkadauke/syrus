@@ -18,11 +18,14 @@ module Syrus
     #   .attach_chat_media(chat_session:, job:, ref:, id:) => Document, [Document, ...], or nil
     #   .list_chat_media(chat_session:)                    => [ { ... }, ... ]  (optional)
     #   .chat_media_context(chat_session:)                 => { key => value }  (optional)
+    #   .chat_media_panel(chat_session:)                   => { key => value }  (optional)
     #
     # `list_chat_media` returns already-shaped entries for the list_chat_media
     # tool, each carrying at least `id` ("<kind>:<id>") and `kind`.
     # `chat_media_context` adds kind-specific context beside the entries --
     # whiteboard_tools reports how many elements are currently on the canvas.
+    # `chat_media_panel` is the same idea for the chat UI's media panel, whose
+    # entries carry display fields the MCP listing has no use for.
     #
     # `attach_chat_media` returns nil when the id does not resolve; the caller
     # reports that as a skipped ref rather than failing the whole attach.
@@ -34,6 +37,7 @@ module Syrus
 
       def list_chat_media(chat_session:) = []
       def chat_media_context(chat_session:) = {}
+      def chat_media_panel(chat_session:) = {}
     end
   end
 end

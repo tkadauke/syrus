@@ -15,7 +15,8 @@ module WhiteboardTools
     disableable true
     provides chat_mcp_tool_set: "WhiteboardTools::ChatToolSet",
              workspace_tab: "WhiteboardTools::WorkspaceTabs",
-             chat_media_source: "WhiteboardTools::MediaSource"
+             chat_media_source: "WhiteboardTools::MediaSource",
+             chat_payload_contributor: "WhiteboardTools::PayloadContributor"
     route :get, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#show"
     route :patch, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#update"
     route :get, "/api/v1/app/chats/:chat_id/whiteboard_snapshots", to: "api/v1/app/whiteboard_snapshots#index"

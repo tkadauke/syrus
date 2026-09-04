@@ -1019,22 +1019,6 @@ module Api
         def media
           chat_session = find_chat_session
           ChatMediaLibrary.materialize_inline_images!(chat_session)
-          whiteboard = chat_session.whiteboard
-          whiteboard_elements = whiteboard ? Array(whiteboard.scene_json&.dig("elements")).reject { |el| el["isDeleted"] } : []
-          latest_manual_snapshot = chat_session.whiteboard_snapshots
-                                               .where(snapshot_kind: "manual")
-                                               .order(created_at: :desc)
-                                               .first
-
-          snapshots = chat_session.whiteboard_snapshots.order(created_at: :desc).map do |snap|
-            {
-              id: snap.id,
-              name: snap.name,
-              snapshot_kind: snap.snapshot_kind,
-              element_count: snap.element_count,
-              created_at: snap.created_at.iso8601
-            }
-          end
 
           chat_images = chat_session.attached_repository_documents
                                     .with_attached_file
@@ -1052,19 +1036,10 @@ module Api
             }
           end
 
-          whiteboard_last_edited = whiteboard&.last_edited_at || whiteboard&.created_at
-          whiteboard_has_unsaved_content = whiteboard_elements.any? &&
-            (latest_manual_snapshot.nil? ||
-              (whiteboard_last_edited && whiteboard_last_edited > latest_manual_snapshot.created_at))
-
-          typed_artifacts = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
-
           render json: {
-            snapshots: snapshots,
             chat_images: chat_images,
-            typed_artifacts: typed_artifacts,
-            whiteboard_has_unsaved_content: whiteboard_has_unsaved_content
-          }
+            typed_artifacts: TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+          }.merge(ChatMediaSources.panel(chat_session: chat_session))
         end
 
         def media_chat_image
@@ -1748,7 +1723,6 @@ module Api
             confirmed_proposal_count: counts.fetch(:confirmed_proposals),
             linked_direct_job_count: counts.fetch(:linked_direct_jobs),
             scratchpad_items_count: counts.fetch(:scratchpad_items),
-            whiteboard_snapshot_count: counts.fetch(:whiteboard_snapshots),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
@@ -1765,8 +1739,7 @@ module Api
               (SELECT COUNT(*) FROM chat_pending_actions WHERE chat_session_id = #{id} AND state = 'pending') AS pending_actions,
               (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'confirmed') AS confirmed_proposals,
               (SELECT COUNT(*) FROM jobs WHERE linked_chat_id = #{id} AND kind = 'direct') AS linked_direct_jobs,
-              (SELECT COUNT(*) FROM chat_scratchpad_items WHERE chat_session_id = #{id}) AS scratchpad_items,
-              (SELECT COUNT(*) FROM whiteboard_snapshots WHERE chat_session_id = #{id}) AS whiteboard_snapshots
+              (SELECT COUNT(*) FROM chat_scratchpad_items WHERE chat_session_id = #{id}) AS scratchpad_items
           SQL
 
           row = ActiveRecord::Base.connection.select_one(sql) || {}
@@ -1775,8 +1748,7 @@ module Api
             pending_actions: row.fetch("pending_actions", 0).to_i,
             confirmed_proposals: row.fetch("confirmed_proposals", 0).to_i,
             linked_direct_jobs: row.fetch("linked_direct_jobs", 0).to_i,
-            scratchpad_items: row.fetch("scratchpad_items", 0).to_i,
-            whiteboard_snapshots: row.fetch("whiteboard_snapshots", 0).to_i
+            scratchpad_items: row.fetch("scratchpad_items", 0).to_i
           }
         end
 

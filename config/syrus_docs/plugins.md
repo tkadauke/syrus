@@ -704,6 +704,33 @@ rather than failing the whole attach. `chat_media_context` exists for
 kind-specific context that sits beside the list: whiteboard_tools reports how
 many elements are currently on the canvas.
 
+## `chat_payload_contributor`
+
+The chat payload is one JSON document the chat page reads, and three of its
+top-level keys belonged to plugins rather than core: `whiteboard`
+(whiteboard_tools), `preview_panels` (preview_tools), and `video_walkthroughs`.
+Core built all of them inline, so it knew those models and their
+serialization.
+
+```ruby
+.chat_payload(chat_session:, context:) # => { key => value }
+.chat_payload_paths(chat_session:)     # => { key => "/api/..." }  (optional)
+.chat_payload_counts(chat_session:)    # => { key => Integer }     (optional)
+```
+
+`context` carries what the host resolved for the request -- `:params`, so a
+contributor can honour a query flag it owns (whiteboard_tools only serializes
+the full scene when `include_whiteboard` is present, because the scene is
+large), and `:ssl`, which preview_tools needs for panel URLs. It is a hash so
+new host context does not change every provider's signature.
+
+Paths merge into `paths`, counts merge into `chat` -- both where the page
+already reads them. Counts are returned as integers rather than merged into
+core's single counts query: one indexed COUNT per contributor beats letting
+plugins template SQL into a core statement. A contributor that would overwrite
+a key core already set raises `ChatPayloadContributions::KeyConflict` instead
+of silently winning.
+
 ## `workspace_tab`
 
 Lets a plugin add a tab to the chat sidebar's workspace panel, generalizing
@@ -2154,8 +2181,9 @@ Bundled plugins:
   `config/syrus_docs/typed_artifacts.md`) to persist it.
 - `preview_tools` — default-enabled. Provides `:chat_media_source`
   (`PreviewTools::MediaSource`, the `preview_panel_version:` kind, the one
-  source that attaches several Documents from one ref) and
-  `:chat_mcp_tool_set`
+  source that attaches several Documents from one ref),
+  `:chat_payload_contributor` (`PreviewTools::PayloadContributor`, the
+  payload's `preview_panels` key) and `:chat_mcp_tool_set`
   (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`
   (jailed to a `PreviewPanel`'s own scratch directory) plus
   `show_preview`/`close_preview`, letting a planning-mode chat agent build
@@ -2225,7 +2253,11 @@ Bundled plugins:
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
 - `whiteboard_tools` — default-enabled. Provides `:chat_media_source`
-  (`WhiteboardTools::MediaSource`, the `snapshot:` kind), `:workspace_tab`
+  (`WhiteboardTools::MediaSource`, the `snapshot:` kind, including the media
+  panel's snapshot list and unsaved-canvas state),
+  `:chat_payload_contributor` (`WhiteboardTools::PayloadContributor`, the
+  payload's `whiteboard` key, its path, and its snapshot count),
+  `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
   a real Excalidraw canvas with its own fullscreen handling — see the

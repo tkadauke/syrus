@@ -35,6 +35,30 @@ module WhiteboardTools
       end
     end
 
+    # The media panel's whiteboard section: every snapshot, plus whether the
+    # live canvas has edits no snapshot captured yet.
+    def self.chat_media_panel(chat_session:)
+      board = Whiteboard.find_by(chat_session_id: chat_session.id)
+      elements = board ? Array(board.scene_json&.dig("elements")).reject { |el| el["isDeleted"] } : []
+      snapshots = WhiteboardSnapshot.where(chat_session_id: chat_session.id).order(created_at: :desc)
+      latest_manual = snapshots.find { |snapshot| snapshot.snapshot_kind == "manual" }
+      last_edited = board&.last_edited_at || board&.created_at
+
+      {
+        snapshots: snapshots.map do |snapshot|
+          {
+            id: snapshot.id,
+            name: snapshot.name,
+            snapshot_kind: snapshot.snapshot_kind,
+            element_count: snapshot.element_count,
+            created_at: snapshot.created_at.iso8601
+          }
+        end,
+        whiteboard_has_unsaved_content: elements.any? &&
+          (latest_manual.nil? || (last_edited && last_edited > latest_manual.created_at))
+      }
+    end
+
     # How full the canvas is right now, reported beside the snapshot list so
     # the agent can tell an empty board from one worth saving.
     def self.chat_media_context(chat_session:)

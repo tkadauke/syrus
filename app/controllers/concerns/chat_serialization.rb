@@ -24,42 +24,6 @@ module ChatSerialization
     end
   end
 
-  def preview_panels_json(chat_session)
-    base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
-    scheme = request.ssl? ? "https" : "http"
-    chat_session.preview_panels.where(state: "open").includes(preview_panel_versions: { files_attachments: :blob }).order(:created_at, :id).map do |panel|
-      versions = panel.preview_panel_versions
-      current = versions.first
-      {
-        id: panel.id,
-        title: panel.title,
-        file_count: current&.files&.size || 0,
-        url: panel.preview_url(base_domain, scheme: scheme),
-        visibility: panel.visibility,
-        app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
-        app_visibility_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
-        app_export_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/export",
-        app_file_base_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/files",
-        app_token_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/token",
-        current_version_id: current&.id,
-        entry_path: current&.entry_file || PreviewPanel::DEFAULT_ENTRY_FILENAME,
-        entry_content_type: current&.entry_content_type || PreviewPanel::EntryMetadata.content_type(PreviewPanel::DEFAULT_ENTRY_FILENAME),
-        entry_viewer_kind: current&.entry_viewer_kind || "html",
-        versions: versions.map { |version| preview_panel_version_json(version) }
-      }
-    end
-  end
-
-  def preview_panel_version_json(version)
-    {
-      id: version.id,
-      created_at: version.created_at.iso8601,
-      entry_path: version.entry_file,
-      entry_content_type: version.entry_content_type,
-      entry_viewer_kind: version.entry_viewer_kind
-    }
-  end
-
   def workspace_tabs_json(chat_session)
     WorkspaceTabsPayload.new(chat_session).as_json
   end
@@ -70,7 +34,6 @@ module ChatSerialization
       messages, has_more_older = PerformanceLogging.phase("chat_payload.messages_page", chat_id: chat_session.id) { paginated_tail(chat_session) }
       repository = chat_session.repository
       attachment_groups = PerformanceLogging.phase("chat_payload.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }
-      whiteboard_scene = PerformanceLogging.phase("chat_payload.whiteboard", chat_id: chat_session.id) { whiteboard_state_for_payload(chat_session, include_scene: include_whiteboard_in_chat_payload?) }
       counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
         chat_session_payload_counts(chat_session.id)
       end
@@ -102,18 +65,10 @@ module ChatSerialization
         active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_chat_goal(chat_session)) },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         video_walkthroughs: PerformanceLogging.phase("chat_payload.video_walkthroughs", chat_id: chat_session.id) { video_walkthroughs_json(chat_session) },
-        preview_panels: PerformanceLogging.phase("chat_payload.preview_panels", chat_id: chat_session.id) { preview_panels_json(chat_session) },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
         attachment_results: PerformanceLogging.phase("chat_payload.attachment_results", chat_id: chat_session.id) { attachment_results_for_payload(chat_session).map { |record| attachable_result_json(record) } },
-        whiteboard: {
-          version: whiteboard_scene.fetch("version"),
-          elements: whiteboard_scene.fetch("elements"),
-          appState: whiteboard_scene.fetch("appState"),
-          files: whiteboard_scene.fetch("files"),
-          loaded: whiteboard_scene.fetch("loaded")
-        },
         paths: {
           credentials_path: "/credentials",
           repositories_path: repositories_path,
@@ -133,7 +88,6 @@ module ChatSerialization
           app_bookmarks_index_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
           app_context_path: "/api/v1/app/chats/#{chat_session.id}/context",
           app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
-          app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
           app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
           app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
@@ -155,8 +109,28 @@ module ChatSerialization
         coding_mode_enabled: Feature.coding_mode_enabled?,
         local_mode_enabled: Feature.local_mode_enabled?,
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)
-      }
+      }.then { |payload| merge_chat_payload_contributions(payload, chat_session) }
     end
+  end
+
+  # Plugin-owned slices of the payload -- `whiteboard` (whiteboard_tools) and
+  # `preview_panels` (preview_tools) were built inline here until core stopped
+  # needing to know those models.
+  def merge_chat_payload_contributions(payload, chat_session)
+    context = { params: params, ssl: request.ssl? }
+
+    contributed = PerformanceLogging.phase("chat_payload.plugin_contributions", chat_id: chat_session.id) do
+      ChatPayloadContributions.payload(chat_session: chat_session, context: context, existing_keys: payload.keys)
+    end
+    paths = ChatPayloadContributions.paths(chat_session: chat_session, existing_keys: payload.fetch(:paths).keys)
+    # Counts live inside `chat`, beside core's own, because that is where the
+    # page reads them from.
+    counts = ChatPayloadContributions.counts(chat_session: chat_session, existing_keys: payload.fetch(:chat).keys)
+
+    payload.merge(contributed).merge(
+      chat: payload.fetch(:chat).merge(counts),
+      paths: payload.fetch(:paths).merge(paths)
+    )
   end
 
   def preload_bookmarks_in_chat_payload?(chat_session)
@@ -226,10 +200,6 @@ module ChatSerialization
     params[:attachment_type].present? || params[:attachable_type].present? || params[:attachment_query].present?
   end
 
-  def include_whiteboard_in_chat_payload?
-    params[:include_whiteboard].present?
-  end
-
   def bookmarks_json(chat_session)
     message_rows = bookmark_message_rows(chat_session.id)
     return [] if message_rows.empty?
@@ -289,23 +259,6 @@ module ChatSerialization
       .order("chat_message_pins.created_at", "chat_message_pins.id")
       .includes(:chat_message)
       .map { |pin| pin_json(pin) }
-  end
-
-  def whiteboard_state_for_payload(chat_session, include_scene:)
-    return Whiteboard.default_state.merge("loaded" => false) unless include_scene
-
-    row = whiteboard_payload_scope(chat_session.id).pick(:scene_json, :version)
-    return Whiteboard.default_state.merge("loaded" => true) unless row
-
-    scene_json, version = row
-    Whiteboard.normalize_scene!(scene_json).merge("version" => version, "loaded" => true)
-  end
-
-  def whiteboard_payload_scope(chat_session_id)
-    scope = Whiteboard.where(chat_session_id: chat_session_id)
-    return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
-
-    scope.from(Arel.sql("#{Whiteboard.quoted_table_name} FORCE INDEX (index_whiteboards_on_chat_session_id)"))
   end
 
   def bookmark_anchor_resolver(chat_session_id, rows)

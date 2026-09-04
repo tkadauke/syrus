@@ -14,6 +14,7 @@ module Syrus
       sidebar_page
       chat_mcp_tool_set
       chat_media_source
+      chat_payload_contributor
       source_control_provider
       artifact_renderer
       grader_augmentor
@@ -48,6 +49,7 @@ module Syrus
       sidebar_page:            -> { Syrus::Plugin::SidebarPage },
       chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
       chat_media_source:       -> { Syrus::Plugin::ChatMediaSource },
+      chat_payload_contributor: -> { Syrus::Plugin::ChatPayloadContributor },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
       grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },

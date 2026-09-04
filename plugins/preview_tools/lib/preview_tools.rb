@@ -14,6 +14,7 @@ module PreviewTools
     default_enabled true
     disableable true
     provides chat_mcp_tool_set: "PreviewTools::ChatToolSet",
-             chat_media_source: "PreviewTools::MediaSource"
+             chat_media_source: "PreviewTools::MediaSource",
+             chat_payload_contributor: "PreviewTools::PayloadContributor"
   end
 end
