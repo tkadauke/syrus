@@ -1,4 +1,5 @@
 require "test_insights/version"
+require "test_insights/parser"
 require "test_insights/data_cleanup"
 require "test_insights/engine"
 
@@ -11,6 +12,9 @@ module TestInsights
       default_enabled: true,
       disableable:     true,
       category:        "observability",
+      # Hosted for other plugins: "test_insights:parser". Core has no business
+      # owning an extension point that exists solely for this ingestion path.
+      hosts:           [ :parser ],
       description:     "Flaky, failing, and slow test tracking built from grader JUnit output.",
       long_description: "Test Insights turns the JUnit output graders already produce into durable per-test history: which tests are flaky, which are newly failing, and which have got slower.\n\nIt gives agents structured test data to investigate instead of scraping transcripts, and gives operators a per-repository view of test health. Disabling it stops ingestion; the recorded history is left in place.",
       homepage:        "https://github.com/tkadauke/syrus",

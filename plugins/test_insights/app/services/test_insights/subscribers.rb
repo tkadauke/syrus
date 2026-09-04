@@ -48,15 +48,15 @@ module TestInsights
     end
 
     # Language plugins contribute framework-native parsers through
-    # :test_result_parser; JUnit XML is the fallback every language can emit.
+    # "test_insights:parser"; JUnit XML is the fallback every language can emit.
     def self.parse(path, format_hint)
-      Syrus::PluginRegistry.providers_for(:test_result_parser).each do |provider|
-        can_parse = PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :can_parse) do
+      Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
+        can_parse = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :can_parse) do
           provider.can_parse?(output_path: path, format_hint: format_hint)
         end
         next unless can_parse
 
-        parsed = PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :call) do
+        parsed = PerformanceLogging.plugin_call(extension_point: "test_insights:parser", provider: provider, operation: :call) do
           provider.call(output_path: path, format_hint: format_hint)
         end
         return [ provider.to_s, parsed ]

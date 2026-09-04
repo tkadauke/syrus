@@ -6,7 +6,6 @@ module Syrus
       mcp_tool_set
       input_source
       prompt_injector
-      test_result_parser
       coverage_analyzer
       ci_log_parser
       preview_provider
@@ -41,7 +40,6 @@ module Syrus
       mcp_tool_set:            -> { Syrus::Plugin::McpToolSet },
       input_source:            -> { Syrus::Plugin::InputSource },
       prompt_injector:         -> { Syrus::Plugin::PromptInjector },
-      test_result_parser:      -> { Syrus::Plugin::TestResultParser },
       coverage_analyzer:       -> { Syrus::Plugin::CoverageAnalyzer },
       ci_log_parser:           -> { Syrus::Plugin::CiLogParser },
       preview_provider:        -> { Syrus::Plugin::PreviewProvider },
@@ -87,7 +85,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, long_description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], prepare_priority: 100, hosts: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -122,7 +120,8 @@ module Syrus
             depends_on:      Array(depends_on).map(&:to_s),
             optionally_depends_on: Array(optionally_depends_on).map(&:to_s),
             conflicts_with:  Array(conflicts_with).map(&:to_s),
-            prepare_priority: prepare_priority
+            prepare_priority: prepare_priority,
+            hosts:           Array(hosts)
           )
         end
 
@@ -152,7 +151,46 @@ module Syrus
       # the given extension point that belong to currently-enabled plugins.
       # Falls back to all registered plugins when the plugin_records table
       # doesn't exist yet.
+      # Points a plugin hosts for other plugins, e.g. "test_insights:parser".
+      # Known while the host is *registered*; a disabled host yields no
+      # providers rather than making the name invalid, so a consumer asking
+      # about a disabled plugin's point gets [] instead of an exception.
+      # Providers for a plugin-hosted point. Withheld when the *host* is
+      # disabled as well as when the contributor is: a point only exists while
+      # whoever offers it does.
+      def hosted_providers_for(extension_point)
+        key = extension_point.to_s
+        host_name = key.split(":", 2).first
+        plugins = all_plugins
+
+        host = plugins.find { |manifest| manifest.name == host_name }
+        return [] if host.nil? || !host.enabled?
+
+        # The host must actually declare the point. Without this any
+        # "<plugin>:<anything>" would silently resolve, and the declared
+        # surface the boundary audit reasons about would stop meaning
+        # anything.
+        return [] unless host.hosted_extension_points.include?(key)
+
+        plugins.select(&:enabled?).flat_map do |manifest|
+          Array(manifest.provides[key] || manifest.provides[key.to_sym])
+        end.compact
+      end
+
+      def hosted_extension_points
+        @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
+      end
+
+      def extension_point?(name)
+        key = name.to_s
+        return true if EXTENSION_POINTS.include?(key.to_sym)
+
+        key.include?(":") && hosted_extension_points.include?(key)
+      end
+
       def providers_for(extension_point)
+        return hosted_providers_for(extension_point) if extension_point.to_s.include?(":")
+
         ep = extension_point.to_sym
         unless EXTENSION_POINTS.include?(ep)
           raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
@@ -490,6 +528,13 @@ module Syrus
 
       def validate_provides!(provides)
         provides.each do |key, klass|
+          # A qualified name belongs to whichever plugin hosts it. Its shape is
+          # that host's business, not core's, so there is no interface to check
+          # here -- and it is deliberately not an error to name a host that is
+          # not installed: the contribution is simply inert, the same way an
+          # optional dependency is.
+          next if key.to_s.include?(":")
+
           unless EXTENSION_POINTS.include?(key)
             raise RegistrationError,
               "Unknown extension point #{key.inspect}. Valid: #{EXTENSION_POINTS.inspect}"

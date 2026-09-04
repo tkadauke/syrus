@@ -992,6 +992,40 @@ still have to go when their parent does. Enablement gates behaviour;
 installation gates ownership, and cleanup is ownership. This is also why it is
 not a `:domain_subscriber` — those are enabled-filtered.
 
+## Hosting a point for other plugins
+
+Extension points are not a fixed list in core. A plugin declares the points it
+hosts, and contributions name them qualified with the host:
+
+```ruby
+# test_insights: I offer a parser point
+Syrus::PluginRegistry.register(name: "test_insights", hosts: [ :parser ], ...)
+Syrus::PluginRegistry.providers_for("test_insights:parser")
+
+# ruby: I contribute one
+provides: { "test_insights:parser" => Ruby::RspecParser }
+```
+
+Core's own points are simply the ones the kernel hosts, and stay unqualified.
+
+A qualified point resolves only while its host is **registered, enabled, and
+actually declares it** — otherwise `"<plugin>:<anything>"` would silently
+resolve and the declared surface would stop meaning anything. A disabled host
+yields `[]` rather than raising, so asking about a disabled plugin's point is
+not an error.
+
+**A contributor must not load the host's constants.** That is the difference
+between an optional hook and a hard dependency. `ruby` contributes a test
+parser but must work perfectly well with `test_insights` uninstalled, so it
+does not `include TestInsights::Parser` — the interface module documents the
+contract and contributors duck-type it. The qualified string is deliberately a
+*weak* reference: it names the host without depending on it. Declare
+`optionally_depends_on: [ "<host>" ]` to record the relationship in the
+dependency graph without making it required.
+
+Core does not enforce an interface on a plugin-hosted point; its shape is the
+host's business, and the host validates its own contributors at call time.
+
 ## Installation effects
 
 Plugin contributions are *installed*, not polled for. An installer performs the

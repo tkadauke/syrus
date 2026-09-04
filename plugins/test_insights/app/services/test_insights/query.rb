@@ -466,7 +466,14 @@ module TestInsights
       def time_filter(key)
         value = @filters[key]
         return nil if value.blank?
-        return value if value.respond_to?(:to_time)
+        # `respond_to?(:to_time)` is true for String in Rails, so the old guard
+        # passed ISO8601 strings straight into the query. SQLite then compared
+        # them as TEXT against stored datetimes: "2026-09-03 23:50:00" versus
+        # "2026-09-03T00:20:00Z". On the same calendar date the space (0x20)
+        # sorts before "T" (0x54), so same-day rows were silently dropped --
+        # a bug that only appeared when `n.days.ago` landed on the row's own
+        # date, i.e. shortly after midnight.
+        return value if value.acts_like?(:time)
 
         Time.zone.parse(value.to_s)
       rescue ArgumentError

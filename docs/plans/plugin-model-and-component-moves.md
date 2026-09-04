@@ -688,7 +688,7 @@ Build order: the anchors plus `judge`, with `visual_review` as the proof, then
 `adversarial_review` as a second judge is what shows the anchor is not shaped
 around one caller.
 
-### G13. Installation effects and federated extension points
+### G13. Installation effects and federated extension points — done
 
 The registry is a *pull* model today: 47 `providers_for(...)` call sites in
 core, each re-asking "which plugins are active and what do they contribute?"
@@ -832,6 +832,22 @@ Three things worth carrying into the remaining work:
 - Cleanup registrations carry no `plugin:` scope. They could not be
   `:domain_subscriber`s either, since `Events.subscribers_for` resolves through
   `providers_for`, which is enabled-filtered.
+
+**Step 4 landed: federated extension points.** A plugin declares `hosts:` in
+its manifest and contributions name the point qualified (`test_insights:parser`).
+Proven on a real case rather than a synthetic one: `test_result_parser` was a
+core-owned point consumed only by `test_insights` and provided only by `ruby`,
+so core owned an interface that existed solely for one plugin's ingestion path.
+`test_insights` hosts it now and core's frozen list is one shorter.
+
+The interesting constraint came from `ruby`: a language plugin contributes a
+parser but must work with `test_insights` uninstalled. `Ruby::RspecParser.include(TestInsights::Parser)`
+turned an optional hook into a hard load-time dependency, and the boundary
+grader caught it. Contributors duck-type the contract instead; the qualified
+string is a *weak* reference that names the host without depending on it, with
+`optionally_depends_on` recording the relationship in the graph. That also
+answers what "no core-declared interface" means for hosted points: the shape is
+the host's business, and the host validates its contributors at call time.
 
 **Still to convert**: the `providers_for` call sites
 whose results are static installs — nav and admin pages, repo tabs, domain

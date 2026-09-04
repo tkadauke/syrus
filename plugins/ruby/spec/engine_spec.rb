@@ -28,7 +28,7 @@ RSpec.describe Ruby::Engine do
             grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
             prepare_detector:         Ruby::PrepareDetector,
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
-            test_result_parser:       Ruby::RspecParser,
+            "test_insights:parser" => Ruby::RspecParser,
             autofix_command:          Ruby::RubocopAutofix,
             dependency_audit_command: Ruby::BundlerAuditCommand,
             affected_test_analyzer:   Ruby::AffectedTestAnalyzer
@@ -57,7 +57,7 @@ RSpec.describe Ruby::Engine do
         :grader_augmentor,
         :prepare_detector,
         :review_criteria_provider,
-        :test_result_parser,
+        "test_insights:parser",
         :autofix_command,
         :dependency_audit_command,
         :affected_test_analyzer
@@ -94,8 +94,11 @@ RSpec.describe Ruby::Engine do
       expect(registration.provides[:review_criteria_provider]).to eq(Ruby::ReviewCriteriaProvider)
     end
 
-    it "registers RspecParser as the :test_result_parser" do
-      expect(registration.provides[:test_result_parser]).to eq(Ruby::RspecParser)
+    # The parser point is hosted by test_insights, not core: the plugin that
+    # ingests results owns the interface for parsing them.
+    it "registers RspecParser into the test_insights parser point" do
+      expect(registration.provides["test_insights:parser"]).to eq(Ruby::RspecParser)
+      expect(Syrus::PluginRegistry.providers_for("test_insights:parser")).to include(Ruby::RspecParser)
     end
 
     it "surfaces both grader augmentors through providers_for" do

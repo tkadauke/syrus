@@ -1,7 +1,7 @@
 module Ruby
   # Parses RSpec's default progress or documentation formatter output into a
   # JunitXmlParser::ParsedRun-shaped value object (per the
-  # Syrus::Plugin::TestResultParser contract). Use this for projects that
+  # duck-typed to the TestInsights::Parser contract). Use this for projects that
   # haven't configured the JUnit formatter; projects that produce
   # --format RspecJunitFormatter output are already handled by core's JUnit
   # parser.

@@ -10,13 +10,16 @@ module Ruby
       Ruby::RubocopGraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
       Ruby::PrepareDetector.include(Syrus::Plugin::PrepareDetector)
       Ruby::ReviewCriteriaProvider.include(Syrus::Plugin::ReviewCriteriaProvider)
-      Ruby::RspecParser.include(Syrus::Plugin::TestResultParser)
       Ruby::RubocopAutofix.include(Syrus::Plugin::AutofixCommand)
       Ruby::BundlerAuditCommand.include(Syrus::Plugin::DependencyAuditCommand)
       Ruby::AffectedTestAnalyzer.include(Syrus::Plugin::AffectedTestAnalyzer)
 
       Syrus::PluginRegistry.register(
         name:             "ruby",
+        # test_insights hosts the parser point this plugin contributes to, but
+        # it is not required: with test_insights absent the contribution is
+        # simply never asked for, and nothing here references its constants.
+        optionally_depends_on: [ "test_insights" ],
         version:          Ruby::VERSION,
         description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                            "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
@@ -33,7 +36,7 @@ module Ruby
           grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
           prepare_detector:         Ruby::PrepareDetector,
           review_criteria_provider: Ruby::ReviewCriteriaProvider,
-          test_result_parser:       Ruby::RspecParser,
+          "test_insights:parser" => Ruby::RspecParser,
           autofix_command:          Ruby::RubocopAutofix,
           dependency_audit_command: Ruby::BundlerAuditCommand,
           affected_test_analyzer:   Ruby::AffectedTestAnalyzer

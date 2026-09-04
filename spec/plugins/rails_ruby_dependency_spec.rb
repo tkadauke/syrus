@@ -32,7 +32,7 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
         coverage_analyzer:  Ruby::SimpleCovAnalyzer,
         grader_augmentor:   Ruby::GraderAugmentor,
         prepare_detector:   Ruby::PrepareDetector,
-        test_result_parser: Ruby::RspecParser
+        "test_insights:parser" => Ruby::RspecParser
       }
     )
 

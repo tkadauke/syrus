@@ -26,7 +26,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   let(:test_result_parser_class) do
-    Class.new { include Syrus::Plugin::TestResultParser }
+    Class.new { include TestInsights::Parser }
   end
 
   let(:coverage_analyzer_class) do
@@ -293,13 +293,36 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:mcp_tool_set)).to eq([ mcp_tool_set_class ])
     end
 
-    it "returns test result parser providers" do
+    # A plugin-hosted point resolves only when its host is registered, enabled,
+    # and actually declares it — otherwise any "<plugin>:<anything>" would
+    # silently resolve and the declared surface would stop meaning anything.
+    it "returns providers for a point another plugin hosts" do
+      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
       described_class.register(
-        name: "test_parser_plugin", version: "1.0.0",
-        provides: { test_result_parser: test_result_parser_class }
+        name: "contributor_plugin", version: "1.0.0",
+        provides: { "host_plugin:thing" => test_result_parser_class }
       )
 
-      expect(described_class.providers_for(:test_result_parser)).to eq([ test_result_parser_class ])
+      expect(described_class.providers_for("host_plugin:thing")).to eq([ test_result_parser_class ])
+    end
+
+    it "returns nothing for a point no registered plugin hosts" do
+      described_class.register(
+        name: "contributor_plugin", version: "1.0.0",
+        provides: { "absent_host:thing" => test_result_parser_class }
+      )
+
+      expect(described_class.providers_for("absent_host:thing")).to eq([])
+    end
+
+    it "returns nothing for a point its host does not declare" do
+      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+      described_class.register(
+        name: "contributor_plugin", version: "1.0.0",
+        provides: { "host_plugin:undeclared" => test_result_parser_class }
+      )
+
+      expect(described_class.providers_for("host_plugin:undeclared")).to eq([])
     end
 
     it "returns coverage analyzer providers" do
@@ -522,7 +545,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             chat_provider:      chat_provider_class,
             mcp_tool_set:       mcp_tool_set_class,
             input_source:       input_source_class,
-            test_result_parser: test_result_parser_class,
+            "test_insights:parser" => test_result_parser_class,
             coverage_analyzer:  coverage_analyzer_class,
             ci_log_parser:      ci_log_parser_class,
             preview_provider:   preview_provider_class,
@@ -616,15 +639,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::InputSource/)
     end
 
-    it "raises RegistrationError when test_result_parser class lacks the interface module" do
+    # A plugin-hosted point has no core-declared interface: its shape is the
+    # host's business. Core still enforces interfaces on its own points.
+    it "does not impose a core interface on a plugin-hosted extension point" do
       plain_class = Class.new
 
       expect {
         described_class.register(
           name: "bad_plugin", version: "1.0.0",
-          provides: { test_result_parser: plain_class }
+          provides: { "test_insights:parser" => plain_class }
         )
-      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::TestResultParser/)
+      }.not_to raise_error
     end
 
     it "raises RegistrationError when coverage_analyzer class lacks the interface module" do
