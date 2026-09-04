@@ -18,7 +18,16 @@ class PollMainBranchHealthJob < ApplicationJob
     return if repository.archived?
     return unless repository.main_branch_health_enabled?
 
-    client = GithubClient.for(repository: repository, user: repository.user)
+    # Grading main is the instance's work, not the repository owner's; see
+    # InstanceIdentity. It still runs as the owner, but a repository with no
+    # owner is reported rather than failing silently.
+    identity = InstanceIdentity.for_repository(repository)
+    if identity.missing?
+      Rails.logger.warn("[PollMainBranchHealthJob] #{repository.slug} has no identity for instance work; skipping")
+      return
+    end
+
+    client = GithubClient.for(repository: repository, user: identity.user)
 
     sha = begin
       client.branch_head_sha(repository.slug, repository.default_branch)

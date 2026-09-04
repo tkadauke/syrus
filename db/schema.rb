@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_184130) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_185550) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1392,6 +1392,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_184130) do
     t.string "skill_name"
     t.boolean "skip_prepare", default: false, null: false
     t.string "slug"
+    t.string "source_ref"
     t.string "stack_base", default: "auto", null: false
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
@@ -1439,6 +1440,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_184130) do
     t.index ["repository_id"], name: "index_jobs_on_repository_id"
     t.index ["scheduled_task_id"], name: "index_jobs_on_scheduled_task_id"
     t.index ["slug"], name: "index_jobs_on_slug", unique: true
+    t.index ["source_ref"], name: "index_jobs_on_source_ref"
     t.index ["stack_base"], name: "index_jobs_on_stack_base"
     t.index ["state", "approved_at", "id"], name: "index_jobs_on_state_and_approved_at_and_id"
     t.index ["state", "landing_queue_entry_position", "id"], name: "index_jobs_on_state_and_landing_queue_entry_position_and_id"

@@ -678,8 +678,20 @@ Depends on A1 and A2 only.
   inside a `triage` template; delete `ReapClassifierPendingJob`.
 - **C3 · Triage queue.** Second queue on the decision mechanism, separately
   routed.
-- **C4 · Identity cleanup.** `source_ref` for cross-source dedup; instance
-  identity for infrastructure work.
+- **C4 · Identity cleanup — done.** `Job#source_ref` is the qualified,
+  cross-door identity (`"github:acme/widgets#42"`), derived on save so it
+  cannot drift from the issue it names. `external_ref` could not serve: it
+  holds the bare issue number and is only unambiguous when also scoped by
+  `input_source_id`, so "42" from two doors was two different things.
+
+  `InstanceIdentity` names the second half. Instance-owned work still runs as
+  the repository owner, but it now says so -- `Resolution#borrowed?` -- and a
+  repository with no owner is reported instead of silently not being graded
+  (`PollMainBranchHealthJob` skips loudly rather than resolving nil
+  credentials). `repositories_without_identity` is the number that says whether
+  a real instance principal is overdue. Deliberately not changing *who* the
+  work runs as: that is a credentials migration, and the instrumentation has to
+  exist first.
 
 ### Suggested order
 

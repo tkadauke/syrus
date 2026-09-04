@@ -676,6 +676,11 @@ class Job < ApplicationRecord
   # Domain events are published from an after_*_commit hook, not from inside
   # the AASM transition, so a subscriber never observes a state that a later
   # rollback undoes.
+  # workflow-engine-v3 C4: the request's identity, independent of the door it
+  # came through. Derived rather than assigned, so it cannot drift from the
+  # issue/PR/task it names, and recomputed when that identity changes.
+  before_save :assign_source_ref, if: -> { new_record? || will_save_change_to_issue_number? || will_save_change_to_external_pr_number? }
+
   after_create_commit :publish_job_created_event
   after_create_commit :publish_job_upserted_event
   after_update_commit :publish_job_closed_event, if: :saved_change_to_closed?
@@ -825,6 +830,19 @@ class Job < ApplicationRecord
   # the change would never reach anything listening for job.upserted.
   def publish_upserted!
     publish_job_upserted_event
+  end
+
+  # Every Job that entered through the same door with the same identity, across
+  # input sources. `external_ref` cannot answer this: it holds the bare issue
+  # number and is only unambiguous when scoped to one input source.
+  def self.for_source_ref(ref)
+    return none if ref.blank?
+
+    where(source_ref: ref)
+  end
+
+  def assign_source_ref
+    self.source_ref = SourceRef.for_job(self)
   end
 
   def publish_job_closed_event
