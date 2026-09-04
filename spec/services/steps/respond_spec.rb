@@ -90,6 +90,46 @@ RSpec.describe Steps::Respond, :ci_only do
     expect(chat_run.prompt).to include("Syrus Chat")
   end
 
+  it "renders structured diff comments in chat feedback prompts" do
+    chat_workflow = Workflows::ChatFeedback.instantiate(
+      job: job,
+      artifacts: {
+        "chat_feedback" => "Please address the selected inline comments.",
+        "diff_comments" => [
+          {
+            "path" => "app/models/widget.rb",
+            "side" => "right",
+            "new_line" => 12,
+            "base_ref" => "base-sha",
+            "head_ref" => "head-sha",
+            "diff_hunk" => "@@ -10,2 +10,3 @@\n def call\n+  true",
+            "body" => "This needs a regression spec."
+          }
+        ]
+      }
+    )
+    chat_step = chat_workflow.steps.find_by(kind: "respond")
+    chat_run = chat_step.runs.create!(job: job, trigger_kind: chat_workflow.trigger_kind, agent_provider: chat_workflow.agent_provider)
+    chat_handler = described_class.new(chat_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+    allow(chat_handler).to receive(:run_agent)
+    allow(chat_handler).to receive(:commit_agent_changes)
+    allow(chat_handler).to receive(:assert_branch_history_intact!)
+    allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:head_sha).and_return("abc789")
+
+    chat_handler.call
+
+    expect(chat_run.reload.prompt).to include("Anchored diff comments")
+    expect(chat_run.prompt).to include("[app/models/widget.rb:12 right]")
+    expect(chat_run.prompt).to include("Refs: base-sha...head-sha")
+    expect(chat_run.prompt).to include("@@ -10,2 +10,3 @@")
+    expect(chat_run.prompt).to include("This needs a regression spec.")
+    expect(chat_run.prompt).to include("Treat anchored diff comments as precise code-review feedback")
+  end
+
   it "includes Epic context in the feedback prompt" do
     epic = Factories.epic(
       user: user,

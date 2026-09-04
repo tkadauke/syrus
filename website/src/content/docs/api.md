@@ -95,6 +95,59 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
 
 Blank feedback or a non-actionable Job returns `422` with a JSON error.
 
+## Diff Review Comments
+
+User-scoped app API clients can persist Syrus-owned diff review comments
+without coupling the review UI to GitHub PR comments. `GET
+/api/v1/app/jobs/:job_id/diff_review_comments` lists comments visible for a
+Job. It accepts optional `surface`, `base_ref`, `head_ref`, `path`, and
+`state`, `workflow_id`, and `run_id` filters. Read access follows normal Job
+visibility. Source-browser diff comments use `surface=job_source_diff`; run
+artifact diffs use `surface=run_agent_diff` or
+`surface=run_step_agent_diff`, and should include `workflow_id` plus `run_id`
+when listing comments for a concrete artifact panel.
+
+`POST /api/v1/app/jobs/:job_id/diff_review_comments` creates a comment, and
+`PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id` updates one.
+`POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve` marks a
+comment resolved. Mutations use the same Job write policy as approve, retry,
+and feedback actions: the job owner, an admin, or a write-tier repository
+member.
+
+`POST /api/v1/app/jobs/:job_id/diff_review_comments/submit` accepts
+`comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
+comments. The workflow receives both a readable feedback body and structured
+`diff_comments` artifacts containing the comment body, path, side, old/new line
+coordinates, base/head refs, hunk snapshot, optional Workflow/Run links, and
+context. Accepted comments are marked `submitted` and linked to the created
+workflow; duplicate active `chat_feedback` submissions for the same Job return
+a validation error.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/app/jobs/123/diff_review_comments \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "diff_review_comment": {
+      "surface": "job_source_diff",
+      "base_ref": "base-sha",
+      "head_ref": "head-sha",
+      "path": "app/models/widget.rb",
+      "side": "right",
+      "new_line": 42,
+      "diff_hunk": "@@ -40,2 +40,3 @@",
+      "body": "Please add a regression spec.",
+      "context": { "symbol": "Widget#call" }
+    }
+  }'
+```
+
+Comment payloads include durable anchors (`path`, `side`, `old_line`,
+`new_line`, base/head refs, and hunk/context data), lifecycle state (`draft`,
+`submitted`, `resolved`, or `superseded`), timestamps, and author details.
+Responses include both a flat `comments` array and `by_path`, keyed by file
+path and an anchor key such as `right::42` or `left:38:`.
+
 ## File a Syrus Report Issue
 
 `POST /api/v1/app/report_issue` lets the authenticated user file a GitHub

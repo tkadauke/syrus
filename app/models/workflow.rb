@@ -24,6 +24,7 @@ class Workflow < ApplicationRecord
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
+  has_many :diff_review_comments, dependent: :nullify
   has_one_attached :coverage_hit_map
   has_many_attached :visual_artifacts
 

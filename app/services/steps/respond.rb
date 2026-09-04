@@ -47,6 +47,7 @@ module Steps
       Prompts::ChatFeedback.new(
         issue: issue_for_prompt,
         feedback: workflow.artifact("chat_feedback").to_s,
+        diff_comments: workflow.artifact("diff_comments") || [],
         prior_summaries: prior_feedback_summaries(Workflow::TriggerKind.feedback_values),
         recent_commits: recent_branch_commits,
         epic: job.epic,

@@ -1090,7 +1090,7 @@ describe("App", () => {
       }
     }))
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -1141,7 +1141,7 @@ describe("App", () => {
       }
     }))
     document.body.appendChild(script)
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -10193,10 +10193,16 @@ describe("App", () => {
   })
 
   it("switches the Job source browser into diff mode", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/source_diff") {
         return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/source_diff?")) {
         return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload({ baseRef: "deadbeef12345678", headRef: "aabbccdd1234567" })), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -10234,7 +10240,34 @@ describe("App", () => {
     expect(screen.getByText("old")).toBeInTheDocument()
     expect(screen.getByText("new")).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please cover the new path." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"surface\":\"job_source_diff\"")
+        })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"source_surface\":\"source_browser\"")
+        })
+      )
+    })
+
     fireEvent.click(screen.getByText("public/logo.png"))
+    expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuous" }))
+    expect(screen.getByTitle("app/models/user.rb")).toHaveClass("sticky")
+    expect(screen.getByText("old")).toBeInTheDocument()
+    expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.getByText("Diff not available (binary or very large file).")).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "deadbeef12345678" } })

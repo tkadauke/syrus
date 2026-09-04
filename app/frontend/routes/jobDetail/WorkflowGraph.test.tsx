@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload } from "../../api/jobs"
@@ -58,6 +59,71 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("renders run artifact diffs through reviewable comments when anchor context is available", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/runs/51/artifacts") {
+        return Promise.resolve(new Response(JSON.stringify({
+          job_id: 42,
+          workflow_id: 10,
+          run_id: 51,
+          base_ref: "base-sha",
+          head_ref: "head-sha",
+          agent_diff: [
+            "diff --git a/app/models/job.rb b/app/models/job.rb",
+            "--- a/app/models/job.rb",
+            "+++ b/app/models/job.rb",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new"
+          ].join("\n"),
+          agent_diff_bytes: 120,
+          step_agent_diff: null,
+          logs_count: 0,
+          logs: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42, summary_state: "implemented" } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/job.rb:new:1" }))
+    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please tighten this line." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"surface\":\"run_agent_diff\"")
+        })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"run_id\":51")
+        })
+      )
+    })
+  })
+
   it("shows desired work for a waiting intent even when no WorkUnit or Workflow exists yet", () => {
     render(
       <MemoryRouter>
@@ -536,3 +602,87 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Showing latest 0 of 5 runs for this step.")).toBeInTheDocument()
   })
 })
+
+function workflowWithDiffRun() {
+  return {
+    id: 10,
+    slug: "WF-10",
+    path: "/jobs/42?tab=workflows#workflow-10",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    state: "succeeded",
+    failure_count: 0,
+    artifacts: null,
+    cleaned_up_at: null,
+    retry_available: false,
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    app_retry_step_path: "/retry",
+    app_push_commits_path: "/push",
+    app_force_push_branch_path: "/force",
+    app_discard_branch_output_path: "/discard",
+    steps_total: 1,
+    steps_displayed: 1,
+    steps_truncated: false,
+    steps: [{
+      id: 20,
+      kind: "implement",
+      display_name: "Implement",
+      display_status: "succeeded",
+      position: 1,
+      iteration: null,
+      loop_id: null,
+      state: "succeeded",
+      started_at: null,
+      finished_at: null,
+      created_at: "2026-08-25T12:00:00Z",
+      updated_at: "2026-08-25T12:00:00Z",
+      details: null,
+      warnings: [],
+      latest: true,
+      runs: [{
+        id: 51,
+        state: "succeeded",
+        trigger_kind: "initial",
+        agent_provider: "codex",
+        agent_outcome: "success",
+        agent_turns: 1,
+        agent_pr_title: null,
+        agent_summary: null,
+        parent_session_id: null,
+        skill_source: null,
+        skill_resolved_path: null,
+        skill_resolved_class: null,
+        head_sha: "head-sha",
+        iteration: 1,
+        started_at: null,
+        last_heartbeat_at: null,
+        finished_at: null,
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:00:00Z",
+        cost_usd: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        agent_diff_present: true,
+        agent_diff_bytes: 120,
+        step_agent_diff_present: false,
+        step_agent_diff_bytes: 0,
+        job_log_count: 0,
+        rate_limited: false,
+        run_diagnostic: null,
+        health_snapshots: [],
+        agent_session: null,
+        can_stop: false,
+        can_diagnose: false,
+        can_resume: false,
+        app_artifacts_path: "/api/v1/app/jobs/42/runs/51/artifacts",
+        app_stop_path: "/stop",
+        app_diagnose_path: "/diagnose",
+        app_resume_path: "/resume",
+        app_grade_log_path: null
+      }]
+    }]
+  } as JobDetailPayload["workflows"][number]
+}
