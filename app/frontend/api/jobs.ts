@@ -991,6 +991,8 @@ export type DiffReviewCommentInput = {
   surface: string
   base_ref?: string | null
   head_ref?: string | null
+  workflow_id?: number | null
+  run_id?: number | null
   path: string
   side: "left" | "right"
   old_line?: number | null
