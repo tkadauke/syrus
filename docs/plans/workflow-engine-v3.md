@@ -539,13 +539,21 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   `spec/architecture/dispatcher_names_no_step_kinds_spec.rb` pins it against
   the source alongside A3's reviewer gates.
 
-  Worth correcting the plan's own framing: fan-in is *not* "exactly one case"
-  any more. `waits_for_terminal_step_kind` is already declarative and two step
-  kinds use it (`grader_collect` waits on `grader`, `preflight_graders` on
-  `preflight_grader`). What remains is `WAITING_FOR_BATCH` as an internal
-  sentinel, which is cosmetic until `Step#depends_on` replaces the
-  `next_step_id` linked list with a real ready-set query. That rewrite is the
-  substantial half of A5 and is still to do.
+  `Step#depends_on_ids` then landed, and `WAITING_FOR_BATCH` is retired.
+  Ordering still comes from `next_step_id` -- that is what says which step is
+  next -- but *readiness* is now a graph question: a Step runs when everything
+  it depends on has settled, failures included, since what happens next is the
+  remediation table's business rather than the graph's. `GraderFanout` writes
+  the fan-in as real edges (every grader depends on the fanout; the collect
+  step depends on every grader), so fan-in falls out of the ready-set instead
+  of needing a sentinel.
+
+  Edges are additive: empty means "just my predecessor", so a Step
+  materialized before this -- or by a path that has not learned to write edges
+  -- behaves exactly as it did, and `waits_for_terminal_step_kind` stays as the
+  belt-and-braces fallback. Worth correcting the plan's framing while here:
+  fan-in was never "exactly one case"; two step kinds already used that
+  declarative rule.
 - **A6 · Unit-scoped nodes.** `for_each_member`/`barrier`; move the merge-train
   shape into a template; attach preemption policy to nodes.
 - **A7 · Agent authoring.** MCP tools for runtime patches, and a

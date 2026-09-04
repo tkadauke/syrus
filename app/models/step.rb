@@ -16,9 +16,41 @@ class Step < ApplicationRecord
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
 
+  # workflow-engine-v3 A5: the graph edges. `next_step_id` still orders the
+  # chain; these say what a Step is *waiting for*, which is what turns "find
+  # next" into a ready-set query and lets fan-in be an edge rather than a
+  # sentinel plus a per-kind rule.
+  #
+  # Empty means "just my predecessor", so an existing Step with no edges
+  # behaves exactly as it did.
+  # MySQL 8 rejects defaults on JSON columns, so the empty list is seeded here
+  # rather than by the schema (see CLAUDE.md).
+  after_initialize :seed_depends_on_ids, if: :new_record?
+
+  def depends_on_step_ids = Array(depends_on_ids).map(&:to_i)
+
+  def depends_on_steps
+    return [] if depends_on_step_ids.empty?
+
+    workflow.steps.where(id: depends_on_step_ids).to_a
+  end
+
+  # A Step is ready when everything it waits for has finished, whatever the
+  # outcome -- a failed dependency is still a settled one, and what happens
+  # next is the remediation table's business, not the graph's.
+  def dependencies_settled?
+    return previous_step.nil? || previous_step.terminal? if depends_on_step_ids.empty?
+
+    depends_on_steps.all?(&:terminal?)
+  end
+
+  def seed_depends_on_ids
+    self.depends_on_ids = [] if depends_on_ids.nil?
+  end
+
   # See Workflow#trigger_kind: resolved per validation so plugin-contributed
   # step kinds are honoured.
-  validates :kind, presence: true, inclusion: { in: -> (_) { Step::Kind.values } }
+  validates :kind, presence: true, inclusion: { in: ->(_) { Step::Kind.values } }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   ACTIVE_STATES = %w[ queued running ].freeze

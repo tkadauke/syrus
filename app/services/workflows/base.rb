@@ -109,6 +109,10 @@ module Workflows
         # Wire next_step_id top-down so each step points to its
         # successor. Last step's next_step_id stays nil.
         steps.each_cons(2) { |s, nxt| s.update!(next_step_id: nxt.id) }
+        # workflow-engine-v3 A5: the same order as graph edges, so "find next"
+        # can be a ready-set query rather than a walk. Fan-in steps get their
+        # real predecessors later, when GraderFanout materializes them.
+        steps.each_cons(2) { |s, nxt| nxt.update!(depends_on_ids: [ s.id ]) }
         wf
       end
     end

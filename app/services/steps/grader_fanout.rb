@@ -269,6 +269,13 @@ module Steps
         # the original continuation (grader_collect).
         ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
         new_steps.last.update!(next_step_id: continuation&.id)
+
+        # workflow-engine-v3 A5: the graders all run from this fanout, and the
+        # continuation waits for every one of them. Stating the fan-in as edges
+        # is what lets "find next" be a ready-set query instead of a sentinel
+        # plus a per-kind waits_for_terminal_step_kind rule.
+        new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
+        continuation&.update!(depends_on_ids: new_steps.map(&:id))
       end
     end
 

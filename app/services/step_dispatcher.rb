@@ -219,7 +219,6 @@ class StepDispatcher
   MANUAL_PAUSE_REASON = "manual_pause"
   PHASE_ADMISSION_RECHECK_DELAY = 10.minutes
   START_BLOCKED_BACKOFF = 5.minutes
-  WAITING_FOR_BATCH = Object.new.freeze
 
   def self.manually_paused?(workflow)
     if workflow.work_unit
@@ -746,7 +745,6 @@ class StepDispatcher
     return if handle_successful_step_advance_handler
 
     next_step = find_next_runnable
-    return if next_step == WAITING_FOR_BATCH
 
     if next_step
       # Idempotency: failure propagation fires fail_from twice
@@ -914,7 +912,6 @@ class StepDispatcher
 
   def advance_to_next_runnable!
     next_step = find_next_runnable
-    return if next_step == WAITING_FOR_BATCH
 
     if next_step
       # Idempotency: failure propagation fires fail_from twice
@@ -1211,6 +1208,13 @@ class StepDispatcher
   # chain can have skipped gaps when an upstream step proves future work
   # unnecessary (e.g. Steps::AutoRebase on a clean rebase). v3's graph version walks
   # edges instead of next_step pointers.
+  # workflow-engine-v3 A5: a ready-set query rather than a walk.
+  #
+  # Ordering still comes from next_step_id -- that is what says which step is
+  # *next* -- but whether it can run is now a question the graph answers:
+  # every Step it depends on has settled. Fan-in falls out of that, which is
+  # why WAITING_FOR_BATCH is gone: grader_collect simply is not ready while a
+  # grader it depends on is still running.
   def find_next_runnable
     # If we're advancing FROM a step, look at its successor (which
     # may be nil — that's "end of chain"). If we're not advancing
@@ -1220,8 +1224,8 @@ class StepDispatcher
       if cursor.state == "queued"
         if skippable_queued_step?(cursor)
           skip_queued_step!(cursor)
-        elsif waiting_for_grader_batch?(cursor)
-          return WAITING_FOR_BATCH
+        elsif !ready?(cursor)
+          return nil
         else
           return cursor
         end
@@ -1229,6 +1233,19 @@ class StepDispatcher
       cursor = cursor.next_step
     end
     nil
+  end
+
+  # Empty edges mean "just my predecessor", so a Step materialized before A5 --
+  # or by a path that has not learned to write edges -- behaves exactly as it
+  # did. `waits_for_terminal_step_kind` remains as the fallback for a fan-in
+  # whose edges were never written.
+  def ready?(step)
+    return false if waiting_for_grader_batch?(step)
+
+    step.dependencies_settled?
+  rescue StandardError => e
+    Rails.logger.warn("[StepDispatcher] readiness check failed for Step ##{step.id}: #{e.class}: #{e.message}")
+    true
   end
 
   def skippable_queued_step?(step)
