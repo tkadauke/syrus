@@ -53,16 +53,19 @@ module Api
         # when a caller needs to explain a specific Run outcome without
         # dropping to kubectl/Rails runner.
         def artifacts
-          run = Run.includes(:job_logs, step: :workflow).find(params[:run_id])
-          logs = run.job_logs.order(:sequence).map do |log|
-            {
-              id: log.id,
-              sequence: log.sequence,
-              kind: log.kind,
-              chunk: log.chunk,
-              created_at: log.created_at&.iso8601
-            }
-          end
+          run = Run.includes(step: :workflow).find(params[:run_id])
+          logs = run.job_logs
+            .order(:sequence)
+            .pluck(:id, :sequence, :kind, :chunk, :created_at)
+            .map do |id, sequence, kind, chunk, created_at|
+              {
+                id: id,
+                sequence: sequence,
+                kind: kind,
+                chunk: chunk,
+                created_at: created_at&.iso8601
+              }
+            end
 
           render json: {
             job_id: run.job_id,
