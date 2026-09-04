@@ -505,8 +505,15 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   throughout, which is what makes this a refactor rather than a leap. Still to
   do: `Workflows::Try`/`RetryUntil` declaring their branches as template
   overrides, and the RepairExecutor actions resolving through the same table.
-- **A3 · Node objects.** Loop/RetryUntil/Try semantics move into node classes;
-  the two reviewer-loop copies collapse into one `Gate`.
+- **A3 · Node objects — reviewer Gate landed; node classes still to do.** The
+  two reviewer-loop copies are one gate: `Step::Kind#review_gate` declares the
+  artifact its verdicts land in, which verdicts exit, and the cancellation
+  reason, so `StepDispatcher` reads a declaration instead of carrying a
+  hardcoded copy per reviewer. The success criterion "StepDispatcher no longer
+  names any specific reviewer step kind" holds and is pinned by
+  `spec/architecture/reviewer_gate_spec.rb`. A third reviewer is now a
+  registry entry. Still to do: moving Loop/RetryUntil/Try semantics themselves
+  into node classes.
 - **A4 · Templates as data.** Persist compiled templates with provenance; add
   repo-local override resolution modelled on `Skills.for`.
 - **A5 · Graph edges and fan-in.** `Step#depends_on`, ready-set dispatch, retire

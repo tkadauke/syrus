@@ -742,8 +742,7 @@ class StepDispatcher
   end
 
   def advance!
-    return if handle_successful_adversarial_loop_iteration
-    return if handle_successful_visual_review_loop_iteration
+    return if handle_successful_review_loop_iteration
     return if handle_successful_step_advance_handler
 
     next_step = find_next_runnable
@@ -826,15 +825,6 @@ class StepDispatcher
 
   private
 
-  def handle_successful_adversarial_loop_iteration
-    handle_successful_review_loop_iteration(
-      kind: "adversarial_review",
-      artifact_key: "adversarial_review_iterations",
-      exit_verdicts: %w[approved],
-      cancellation_reason: "adversarial_review_approved"
-    )
-  end
-
   def handle_successful_step_advance_handler
     return false unless @from_step
 
@@ -847,30 +837,22 @@ class StepDispatcher
     false
   end
 
-  # Mirrors handle_successful_adversarial_loop_iteration: the visual_review
-  # step also has three verdicts (approved/needs_work/skipped) instead of two —
-  # "skipped" (not visually testable, or filtered out by when_files_changed)
-  # exits the loop the same way "approved" does, since there's nothing for
-  # another iteration to address.
-  def handle_successful_visual_review_loop_iteration
-    handle_successful_review_loop_iteration(
-      kind: "visual_review",
-      artifact_key: "visual_review_iterations",
-      exit_verdicts: %w[approved skipped],
-      cancellation_reason: "visual_review_approved"
-    )
-  end
+  # A reviewer step ends its loop by verdict. Which artifact the verdicts land
+  # in, which of them exit, and what to record when they do are declared by the
+  # step kind (Step::Kind#review_gate) rather than named here -- this method
+  # had one hardcoded copy per reviewer, so a third reviewer cost a third copy.
+  def handle_successful_review_loop_iteration
+    return false unless @from_step&.loop_id.present?
 
-  def handle_successful_review_loop_iteration(kind:, artifact_key:, exit_verdicts:, cancellation_reason:)
-    return false unless @from_step&.kind == kind
-    return false unless @from_step.loop_id.present?
+    gate = Step::Kind.review_gate_for(@from_step.kind)
+    return false unless gate
 
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
-    return false unless loop_step_kinds(loop_node).last == kind
+    return false unless loop_step_kinds(loop_node).last == @from_step.kind
 
-    if review_loop_exit?(artifact_key, exit_verdicts)
-      exit_review_loop!(loop_node, cancellation_reason: cancellation_reason)
+    if review_loop_exit?(gate.fetch(:artifact_key), gate.fetch(:exit_verdicts))
+      exit_review_loop!(loop_node, cancellation_reason: gate.fetch(:cancellation_reason))
       true
     elsif @from_step.iteration < loop_max_iterations(loop_node)
       enqueue_next_loop_iteration!(loop_node)

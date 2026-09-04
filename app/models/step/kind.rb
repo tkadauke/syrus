@@ -27,6 +27,12 @@ class Step
     #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     #
+    # review_gate: for a reviewer step that ends a loop by verdict. Declares the
+    #   artifact its verdicts land in, which verdicts exit the loop, and the
+    #   cancellation reason recorded when they do. StepDispatcher used to carry
+    #   one hardcoded copy of this per reviewer, so a third reviewer cost a
+    #   third copy; it now reads whatever the step kind declares.
+    #
     # agent_role: AgentRole constant this step's agent runs as, for steps whose
     #   role is not the default implementer. Core's own roles are resolved by
     #   McpToolContext; a plugin that owns an agentic step declares its role
@@ -36,7 +42,8 @@ class Step
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
-                        :resource_profile_default_overrides, :waits_for_terminal_step_kind) do
+                        :resource_profile_default_overrides, :waits_for_terminal_step_kind,
+                        :review_gate) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      fail_policy: :default,
@@ -49,7 +56,8 @@ class Step
                      resource_profile_step_kinds: nil,
                      resource_profile_grader_name_key: nil,
                      resource_profile_default_overrides: nil,
-                     waits_for_terminal_step_kind: nil)
+                     waits_for_terminal_step_kind: nil,
+                     review_gate: nil)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
         super
@@ -110,9 +118,23 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "run_skill",          handler: "RunSkill",           label: "Run skill",                  style: "bg-lime-100 text-lime-700",   agentic: true),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
-                required_mcp_tools: %w[submit_adversarial_review]),
+                required_mcp_tools: %w[submit_adversarial_review],
+                review_gate: {
+                  artifact_key: "adversarial_review_iterations",
+                  exit_verdicts: %w[approved],
+                  cancellation_reason: "adversarial_review_approved"
+                }),
+      # Three verdicts rather than two: "skipped" (not visually testable, or
+      # filtered out by when_files_changed) exits the loop the same way
+      # "approved" does, since there is nothing for another iteration to
+      # address.
       Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
-                required_mcp_tools: %w[submit_visual_review]),
+                required_mcp_tools: %w[submit_visual_review],
+                review_gate: {
+                  artifact_key: "visual_review_iterations",
+                  exit_verdicts: %w[approved skipped],
+                  cancellation_reason: "visual_review_approved"
+                }),
       Entry.new(kind: "visual_diff",        handler: "VisualDiff",        label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
                 required_mcp_tools: %w[submit_visual_artifact]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
@@ -295,6 +317,17 @@ class Step
     # primitive B). :default is not an action -- it means "no step-kind opinion",
     # so the resolver's later tiers decide.
     FAIL_POLICY_ACTIONS = { advance: :advance, loop_iteration: :retry_step }.freeze
+
+    # The reviewer step kinds that end their loop by verdict.
+    def review_gate_kinds
+      entries.select(&:review_gate).map(&:kind).freeze
+    end
+
+    def review_gate_for(kind)
+      fetch(kind).review_gate
+    rescue ArgumentError
+      nil
+    end
 
     def remediation_for(kind)
       action = FAIL_POLICY_ACTIONS[fetch(kind).fail_policy]
