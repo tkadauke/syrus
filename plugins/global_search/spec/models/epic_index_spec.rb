@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe EpicSearchIndex do
+RSpec.describe GlobalSearch::EpicIndex do
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }

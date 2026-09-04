@@ -17,6 +17,17 @@ RSpec.describe "Plugin source boundaries" do
     expect(missing).to eq([])
   end
 
+  it "does not treat an optional dependency as a removal-forcing one" do
+    # optionally_depends_on ends in "depends_on"; a naive scan folded the two
+    # together and dragged optional dependents out with their provider.
+    skip "test_insights is not installed" unless audit.bundled_manifest_names.include?("test_insights")
+
+    removed = audit.removed_plugin_names_for("global_search")
+
+    expect(removed).to include("global_search")
+    expect(removed).not_to include("test_insights")
+  end
+
   it "has an acyclic plugin dependency graph" do
     cycles = audit.graph.cycles.map { |cycle| cycle.join(" -> ") }
 

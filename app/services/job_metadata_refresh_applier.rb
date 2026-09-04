@@ -14,8 +14,10 @@ class JobMetadataRefreshApplier
 
     update_direct_job_title(metadata)
     update_pull_request(metadata)
-    IndexJobSearchJob.perform_later(@job.id)
     record_applied!(metadata, before)
+    # The artifact this just wrote feeds the Job's indexed body, and no Job row
+    # changed, so nothing else would announce it.
+    @job.publish_upserted!
     "applied refreshed Job metadata"
   end
 

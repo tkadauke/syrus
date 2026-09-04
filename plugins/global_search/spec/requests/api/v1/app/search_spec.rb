@@ -46,9 +46,9 @@ RSpec.describe "App API unified search", type: :request do
     weaker_job.update!(issue_body: "deploy transcript")
     stronger_job.update!(issue_body: "deploy deploy deploy transcript")
     epic.update!(description: "deploy planning")
-    JobSearchIndex.upsert(weaker_job)
-    JobSearchIndex.upsert(stronger_job)
-    EpicSearchIndex.upsert(epic)
+    GlobalSearch::JobIndex.upsert(weaker_job)
+    GlobalSearch::JobIndex.upsert(stronger_job)
+    GlobalSearch::EpicIndex.upsert(epic)
     ChatMessageSearchIndex.insert(chat_message)
 
     get "/api/v1/app/search", params: { query: "deploy" }
@@ -95,8 +95,8 @@ RSpec.describe "App API unified search", type: :request do
     epic = Factories.epic(user: user, repository: repository, title: "Deploy epic")
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Deploy chat")
     chat_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy chat" })
-    JobSearchIndex.upsert(job)
-    EpicSearchIndex.upsert(epic)
+    GlobalSearch::JobIndex.upsert(job)
+    GlobalSearch::EpicIndex.upsert(epic)
     ChatMessageSearchIndex.insert(chat_message)
 
     get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ], limit: 500 }
@@ -107,7 +107,7 @@ RSpec.describe "App API unified search", type: :request do
 
   it "uses query as the canonical full text search parameter" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Canonical deploy job")
-    JobSearchIndex.upsert(job)
+    GlobalSearch::JobIndex.upsert(job)
 
     get "/api/v1/app/search", params: { query: "deploy" }
 
@@ -118,7 +118,7 @@ RSpec.describe "App API unified search", type: :request do
 
   it "falls back to legacy plain-text q when query is absent" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Legacy deploy job")
-    JobSearchIndex.upsert(job)
+    GlobalSearch::JobIndex.upsert(job)
 
     get "/api/v1/app/search", params: { q: "deploy" }
 
@@ -196,7 +196,7 @@ RSpec.describe "App API unified search", type: :request do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
     other_job = Factories.job_record(user: other_user, repository: other_repo, issue_title: "Private deploy")
-    JobSearchIndex.upsert(other_job)
+    GlobalSearch::JobIndex.upsert(other_job)
 
     get "/api/v1/app/search", params: { query: "deploy" }
 
@@ -207,7 +207,7 @@ RSpec.describe "App API unified search", type: :request do
   it "uses q as an encoded filter AST when query is present" do
     queued_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy queued job", state: "queued")
     closed_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy closed job", state: "closed")
-    [ queued_job, closed_job ].each { |job| JobSearchIndex.upsert(job) }
+    [ queued_job, closed_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "closed" } ] }
 
     get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
@@ -220,7 +220,7 @@ RSpec.describe "App API unified search", type: :request do
   it "uses the job filter schema and narrows jobs by state" do
     queued_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy queued job", state: "queued")
     running_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy running job", state: "running")
-    [ queued_job, running_job ].each { |job| JobSearchIndex.upsert(job) }
+    [ queued_job, running_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
 
     get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
@@ -233,7 +233,7 @@ RSpec.describe "App API unified search", type: :request do
   it "uses the epic filter schema and narrows epics by state" do
     backlog_epic = Factories.epic(user: user, repository: repository, title: "Deploy backlog epic", state: "backlog")
     active_epic = Factories.epic(user: user, repository: repository, title: "Deploy active epic", state: "in_progress")
-    [ backlog_epic, active_epic ].each { |epic| EpicSearchIndex.upsert(epic) }
+    [ backlog_epic, active_epic ].each { |epic| GlobalSearch::EpicIndex.upsert(epic) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "in_progress" } ] }
 
     get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "epic" ] }
@@ -262,7 +262,7 @@ RSpec.describe "App API unified search", type: :request do
   it "applies common created_at filters to supported result types" do
     older_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy old job", created_at: 5.days.ago)
     newer_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy new job", created_at: 1.hour.ago)
-    [ older_job, newer_job ].each { |job| JobSearchIndex.upsert(job) }
+    [ older_job, newer_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "created_at", "op" => "after", "value" => 1.day.ago.iso8601 } ] }
 
     get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
@@ -278,7 +278,7 @@ RSpec.describe "App API unified search", type: :request do
     weaker_job.update!(issue_body: "deploy transcript")
     stronger_job.update!(issue_body: "deploy deploy deploy transcript")
     excluded_job.update!(issue_body: "deploy deploy deploy deploy transcript")
-    [ weaker_job, stronger_job, excluded_job ].each { |job| JobSearchIndex.upsert(job) }
+    [ weaker_job, stronger_job, excluded_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
 
     get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }

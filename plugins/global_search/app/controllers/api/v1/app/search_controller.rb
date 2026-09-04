@@ -72,7 +72,7 @@ module Api
         end
 
         def self.search_source_providers
-          Syrus::PluginRegistry.providers_for(:search_source).select do |provider|
+          Syrus::PluginRegistry.providers_for("global_search:source").select do |provider|
             provider.respond_to?(:search_type) && provider.respond_to?(:search_rows)
           end
         end
@@ -135,7 +135,7 @@ module Api
 
         def job_search_rows(query, limit)
           rows = merge_slug_rows(
-            JobSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            GlobalSearch::JobIndex.search(query, user_id: Current.user.id, limit: limit),
             job_slug_rows(query)
           )
           apply_filter_to_rows("job", rows, :job_id).first(limit)
@@ -143,7 +143,7 @@ module Api
 
         def epic_search_rows(query, limit)
           rows = merge_slug_rows(
-            EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            GlobalSearch::EpicIndex.search(query, user_id: Current.user.id, limit: limit),
             epic_slug_rows(query)
           )
           apply_filter_to_rows("epic", rows, :epic_id).first(limit)

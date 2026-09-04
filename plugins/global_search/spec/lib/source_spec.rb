@@ -6,7 +6,7 @@ RSpec.describe "search_source plugin tables" do
 
   def provider(tables, rebuild: nil)
     Class.new do
-      include Syrus::Plugin::SearchSource
+      include GlobalSearch::Source
 
       class_attribute :declared_tables, :rebuilt
       self.declared_tables = tables
@@ -18,7 +18,7 @@ RSpec.describe "search_source plugin tables" do
   end
 
   def register(klass)
-    Syrus::PluginRegistry.register(name: "search_table_plugin", version: "1.0.0", provides: { search_source: klass })
+    Syrus::PluginRegistry.register(name: "search_table_plugin", version: "1.0.0", provides: { "global_search:source" => klass })
   end
 
   it "merges plugin tables into the required set" do

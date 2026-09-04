@@ -1588,7 +1588,7 @@ describe("SidebarSearchForm", () => {
     fireEvent.submit(searchInput.closest("form")!)
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/search")
+      expect(screen.getByTestId("location")).toHaveTextContent("/search?query=Re")
     })
 
     restoreMatchMedia()
@@ -1971,7 +1971,7 @@ function renderAppChrome(
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}</div>
+  return <div data-testid="location">{location.pathname}{location.search}</div>
 }
 
 function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {

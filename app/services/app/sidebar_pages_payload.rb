@@ -28,7 +28,9 @@ module App
         component: page[:component].presence&.to_s,
         # "primary" (the default) puts the page in the main sidebar nav;
         # "settings" puts it in the settings section's side nav, which is
-        # where a per-user preferences-shaped page belongs.
+        # where a per-user preferences-shaped page belongs; "hidden" is for a
+        # page a plugin owns but that is reached some other way (search is
+        # reached from the chrome's search bar, not a nav entry).
         section: page[:section].presence&.to_s || "primary",
         icon: page[:icon].presence&.to_s,
         smart_folder_api_path: page[:smart_folder_api_path].presence&.to_s,

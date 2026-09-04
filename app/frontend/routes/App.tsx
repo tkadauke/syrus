@@ -60,7 +60,6 @@ import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
-import { SearchRoute } from "./Search"
 import { Tags } from "./Tags"
 import { TerminalRoute } from "./Terminal"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
@@ -84,7 +83,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
-  { path: "/search", element: <SearchRoute /> },
+  { path: "/search", element: <PluginSidebarPageRoute /> },
   { path: "/design_docs", element: <PluginSidebarPageRoute /> },
   { path: "/design_docs/:id", element: <PluginSidebarPageRoute /> },
   { path: "/insights/spending", element: <PluginSidebarPageRoute /> },

@@ -73,6 +73,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/global_search
+  specs:
+    global_search (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/go
   specs:
     go (0.1.0)
@@ -732,6 +738,7 @@ DEPENDENCIES
   faraday-retry
   git_history!
   github_source!
+  global_search!
   go!
   image_processing (~> 2.0)
   javascript!
@@ -869,6 +876,7 @@ CHECKSUMS
   fugit (1.13.0) sha256=a4f093fce740da52f216740a5041e2a594ea763cdb89e8b2754ca4399634ab18
   git_history (0.1.0)
   github_source (0.1.0)
+  global_search (0.1.0)
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427
   go (0.1.0)
   hana (1.3.7) sha256=5425db42d651fea08859811c29d20446f16af196308162894db208cac5ce9b0d

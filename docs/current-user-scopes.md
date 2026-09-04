@@ -177,7 +177,7 @@ per-user/private:
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
-  - app/controllers/api/v1/app/search_controller.rb
+  - plugins/global_search/app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/sidebar_nav_order_controller.rb
   - app/controllers/api/v1/app/skills_controller.rb
@@ -376,7 +376,7 @@ instead of broader model scopes.
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private | Job-less repository preview show/logs/create/destroy find the repository through `Current.user.repositories`, so only the repository owner can start, inspect, or stop it. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
-| `app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
+| `plugins/global_search/app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
 | `app/controllers/api/v1/app/skills_controller.rb` | per-user/private | The skill picker/launch endpoints find the parent repository through `Current.user.repositories` and create skill Jobs via `SkillJobs::Creator` scoped to `Current.user`, so only the repository owner can list or launch skills. |
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |

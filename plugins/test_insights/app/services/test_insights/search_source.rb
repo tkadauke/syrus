@@ -1,8 +1,6 @@
 module TestInsights
   # Owns the test_identity_fts index and the "test_case" global-search type.
   class SearchSource
-    include Syrus::Plugin::SearchSource
-
     TABLE_SQL = <<~SQL.freeze
       CREATE VIRTUAL TABLE IF NOT EXISTS test_identity_fts
       USING fts5(

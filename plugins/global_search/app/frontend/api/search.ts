@@ -1,5 +1,5 @@
-import { getJson } from "./client"
-import type { FilterSchemaField } from "../components/FilterBar"
+import { getJson } from "@app/api/client"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type SearchResultType = "job" | "epic" | "chat" | "test_case"
 

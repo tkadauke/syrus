@@ -42,7 +42,7 @@ RSpec.describe Api::V1::App::SearchController do
 
     it "appends a plugin-contributed type after the built-ins" do
       provider = Class.new do
-        include Syrus::Plugin::SearchSource
+        include GlobalSearch::Source
 
         def self.search_type = "widget"
         def self.filter_subject = :job
@@ -50,7 +50,7 @@ RSpec.describe Api::V1::App::SearchController do
         def self.search_rows(query:, user:, limit:) = []
         def self.result_json(row:, user:) = { id: 1 }
       end
-      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { search_source: provider })
+      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
       expect(described_class.types.last).to eq("widget")
       expect(described_class.filter_subjects["widget"]).to eq(:job)
@@ -58,7 +58,7 @@ RSpec.describe Api::V1::App::SearchController do
 
     it "drops a plugin type when the plugin is disabled" do
       provider = Class.new do
-        include Syrus::Plugin::SearchSource
+        include GlobalSearch::Source
 
         def self.search_type = "widget"
         def self.filter_subject = :job
@@ -66,7 +66,7 @@ RSpec.describe Api::V1::App::SearchController do
         def self.search_rows(query:, user:, limit:) = []
         def self.result_json(row:, user:) = { id: 1 }
       end
-      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { search_source: provider })
+      Syrus::PluginRegistry.register(name: "search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
       PluginRecord.find_or_create_by!(name: "search_plugin").update!(enabled: false, disableable: true)
 
       expect(described_class.types).not_to include("widget")

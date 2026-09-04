@@ -37,12 +37,13 @@ RSpec.describe JobMetadataRefreshApplier do
   end
   let(:client) { instance_double(GithubClient) }
 
-  it "updates a direct Job title, managed PR metadata, audit artifact, and search index" do
+  it "updates a direct Job title, managed PR metadata, audit artifact, and announces the change" do
     allow(client).to receive(:pull_request)
       .with("acme/widgets", 9, bypass_cache: true)
       .and_return(Struct.new(:title, :body).new("Old PR title", "Old PR body"))
     allow(client).to receive(:update_pull_request_metadata)
-    allow(IndexJobSearchJob).to receive(:perform_later)
+    workflow # materialize before spying so creation events do not pollute the assertion
+    allow(Syrus::Events).to receive(:publish).and_call_original
 
     result = described_class.new(workflow, client: client).call
 
@@ -63,7 +64,7 @@ RSpec.describe JobMetadataRefreshApplier do
       "before" => include("job_title" => "Pin provider creation", "pr_title" => "Old PR title"),
       "after" => include("title" => "Preserve provider switching")
     )
-    expect(IndexJobSearchJob).to have_received(:perform_later).with(job.id).at_least(:once)
+    expect(Syrus::Events).to have_received(:publish).with("job.upserted", hash_including(job_id: job.id)).at_least(:once)
   end
 
   it "does not update canonical metadata when changed=false" do
@@ -74,9 +75,11 @@ RSpec.describe JobMetadataRefreshApplier do
     allow(client).to receive(:pull_request).and_return(Struct.new(:title, :body).new("Old", "Body"))
 
     expect(client).not_to receive(:update_pull_request_metadata)
-    expect(IndexJobSearchJob).not_to receive(:perform_later)
+    allow(Syrus::Events).to receive(:publish).and_call_original
 
     result = described_class.new(workflow, client: client).call
+
+    expect(Syrus::Events).not_to have_received(:publish).with("job.upserted", anything)
 
     expect(result).to eq("metadata refresh made no canonical changes")
     expect(job.reload.issue_title).to eq("Pin provider creation")
@@ -90,11 +93,14 @@ RSpec.describe JobMetadataRefreshApplier do
     job.update!(kind: "issue", issue_number: 42, issue_title: "Original issue title")
     allow(client).to receive(:pull_request).and_return(Struct.new(:title, :body).new("Old PR title", "Old PR body"))
     allow(client).to receive(:update_pull_request_metadata)
-    allow(IndexJobSearchJob).to receive(:perform_later)
+    allow(Syrus::Events).to receive(:publish).and_call_original
 
     described_class.new(workflow, client: client).call
 
     expect(job.reload.issue_title).to eq("Original issue title")
+    # The Job row never changes here, so this announcement can only come from
+    # the applier itself -- without it the refreshed summary is never picked up.
+    expect(Syrus::Events).to have_received(:publish).with("job.upserted", hash_including(job_id: job.id)).once
     expect(client).to have_received(:update_pull_request_metadata).with(
       "acme/widgets",
       9,

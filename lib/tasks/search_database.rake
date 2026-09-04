@@ -119,7 +119,7 @@ module SyrusSearchDatabaseTasks
   module_function
 
   # Built-in tables plus whatever enabled plugins declare through
-  # :search_source. Resolved at call time rather than frozen into a constant so
+  # "global_search:source". Resolved at call time rather than frozen into a constant so
   # installing a plugin that owns an index needs only `syrus:prepare_search`,
   # not a core edit.
   #
@@ -134,7 +134,7 @@ module SyrusSearchDatabaseTasks
   def plugin_table_sql
     return {} unless defined?(Syrus::PluginRegistry)
 
-    Syrus::PluginRegistry.providers_for(:search_source).each_with_object({}) do |provider, tables|
+    Syrus::PluginRegistry.providers_for("global_search:source").each_with_object({}) do |provider, tables|
       next unless provider.respond_to?(:search_tables)
 
       Array(provider.search_tables).to_h.each do |name, sql|
@@ -155,7 +155,7 @@ module SyrusSearchDatabaseTasks
   def plugin_rebuild_hook(table_name)
     return nil unless defined?(Syrus::PluginRegistry)
 
-    Syrus::PluginRegistry.providers_for(:search_source).each do |provider|
+    Syrus::PluginRegistry.providers_for("global_search:source").each do |provider|
       next unless provider.respond_to?(:search_tables) && provider.respond_to?(:rebuild_search_table)
       next unless Array(provider.search_tables).to_h.key?(table_name)
 

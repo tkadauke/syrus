@@ -21,9 +21,13 @@ RSpec.describe "Job domain events" do
   end
 
   it "publishes job.created when a Job is created" do
-    register(subscriber("job.created"))
+    klass = subscriber("job.created")
+    register(klass)
 
-    expect { Factories.job }.to have_enqueued_job(DomainEventJob)
+    # Scoped to this subscriber: other plugins legitimately subscribe to Job
+    # events too, and a bare count would break whenever one is added.
+    expect { Factories.job }
+      .to have_enqueued_job(DomainEventJob).with("job.created", anything, klass.to_s)
   end
 
   it "publishes job.closed with the closure reason" do
@@ -55,9 +59,12 @@ RSpec.describe "Job domain events" do
     expect(change[:previous_state]).not_to eq("closed")
   end
 
-  it "does not publish when nothing subscribes" do
+  it "does not deliver an event to a plugin that did not subscribe to it" do
+    klass = subscriber("job.created")
+    register(klass)
     job = Factories.job
 
-    expect { job.close_with_reason!("pr_merged") }.not_to have_enqueued_job(DomainEventJob)
+    expect { job.close_with_reason!("pr_merged") }
+      .not_to have_enqueued_job(DomainEventJob).with(anything, anything, klass.to_s)
   end
 end

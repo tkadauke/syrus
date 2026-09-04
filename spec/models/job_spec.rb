@@ -226,39 +226,6 @@ RSpec.describe Job, :ci_only do
     end
   end
 
-  describe "search indexing" do
-    it "enqueues indexing when created" do
-      repo = Factories.repository
-
-      expect {
-        Factories.job_record(user: repo.user, repository: repo, issue_title: "Search me")
-      }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("indexing")
-    end
-
-    it "enqueues indexing when updated" do
-      job = Factories.job_record(issue_title: "Search me")
-      clear_enqueued_jobs
-
-      expect {
-        job.update!(issue_title: "Search me again")
-      }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("indexing")
-    end
-
-    it "does not fail job creation when async search indexing cannot enqueue" do
-      repo = Factories.repository
-      error = SolidQueue::Job::EnqueueError.new(
-        ActiveRecord::StatementInvalid.new("Could not find table 'solid_queue_jobs'")
-      )
-
-      allow(IndexJobSearchJob).to receive(:perform_later).and_raise(error)
-      expect(Rails.logger).to receive(:warn).with(include("[SearchIndex] skipped IndexJobSearchJob"))
-
-      expect {
-        Factories.job_record(user: repo.user, repository: repo, issue_title: "Search me")
-      }.not_to raise_error
-    end
-  end
-
   describe "epic title snapshot" do
     it "stores the Epic title when assigned" do
       epic = Factories.epic(title: "Migration train")

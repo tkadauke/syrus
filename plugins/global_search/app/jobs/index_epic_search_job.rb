@@ -5,6 +5,6 @@ class IndexEpicSearchJob < ApplicationJob
     epic = Epic.find_by(id: epic_id)
     return unless epic
 
-    EpicSearchIndex.upsert(epic)
+    GlobalSearch::EpicIndex.upsert(epic)
   end
 end

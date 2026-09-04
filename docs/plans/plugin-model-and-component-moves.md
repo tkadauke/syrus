@@ -49,7 +49,7 @@ disposed in reverse when it is disabled or unloaded — replacing 47
 `providers_for` call sites that re-derive the active set on every call, and the
 hand-invalidated caches behind them that produced most of this session's bugs.
 Extension points become owned rather than centrally enumerated, so a plugin can
-host a point other plugins contribute to (`search:source`), which is what
+host a point other plugins contribute to (`global_search:source`), which is what
 "search should be a plugin" requires. This lands before further extractions,
 because it changes how every plugin registers. Principles 8 and 9, G13.
 
@@ -221,7 +221,7 @@ These are rules, not preferences. A move that cannot satisfy them is not ready.
    the active set *is* what is installed. See G13.
 10. **Extension points are owned, not centrally enumerated.** Any plugin may
    host a point for other plugins to contribute to, declared in its manifest
-   and named for its owner (`search:source`). Core's own points are simply
+   and named for its owner (`global_search:source`). Core's own points are simply
    the ones the kernel hosts. See G13.
 11. **Plugin tables are namespace-prefixed**, enforced by
    `bin/check-plugin-model-namespaces`. STI onto a core-owned table is the only
@@ -456,14 +456,24 @@ Still outstanding:
   `@plugins/rails/...` directly. Convert to the same `import.meta.glob` pattern
   the other four plugin frontend surfaces use.
 
-### G6. Search host — done
+### G6. Search host — done, then federated
 
-`:search_source` lets a plugin register FTS tables (created by
+`:search_source` let a plugin register FTS tables (created by
 `syrus:prepare_search` alongside the built-ins, with an optional
 drift-rebuild hook) and a global-search result type. `test_insights` owns
 `test_identity_fts` and the `test_case` type through it. The compute-tier
 indexing defect below is fixed: identities index through
 `IndexTestIdentitiesJob` on `indexing`.
+
+G13 then finished the job: search itself is the `global_search` plugin, which
+*hosts* `global_search:source` instead of core pre-declaring `:search_source`.
+Core keeps only the search-database infrastructure (`SearchRecord`, the
+`indexing` queue, `syrus:prepare_search`) and `ChatMessageSearchIndex`, which
+core chat features query directly. The plugin owns the Job and Epic indexes,
+their index jobs, `SearchController`, the `/search` UI, and the API client.
+`test_insights` contributes through `optionally_depends_on: ["global_search"]`,
+so removing `global_search` leaves it installed and merely without a search
+type -- verified by `bin/plugin-boundary-audit global_search`.
 
 Original problem, for the record:
 
@@ -733,16 +743,19 @@ install; call sites evaluate.
 
 **Federated extension points.** `EXTENSION_POINTS` is a frozen array of names
 in core and `providers_for` raises on anything else, so a plugin can only
-contribute to a point core anticipated. `search_source` shows the limit: it
-exists and `test_insights` contributes to it, but *search itself is core*, so
+contribute to a point core anticipated. `search_source` showed the limit: it
+existed and `test_insights` contributed to it, but *search itself was core*, so
 the interface had to be pre-declared by the kernel. G6 made search a plugin
-**host** without making it a plugin.
+**host** without making it a plugin; G13 made it a plugin outright.
 
 Under this model a plugin declares the points it hosts, and contributions name
-them qualified — `search:source`, `workflow:judge`. Core's points are the ones
-the kernel hosts, nothing more. Contributing to `search:source` implies
-`depends_on: ["search"]`, which the existing health model already handles: a
-disabled hard dependency degrades the dependent and withholds its providers.
+them qualified — `global_search:source`, `workflow:judge`. Core's points are the
+ones the kernel hosts, nothing more. Contributing to `global_search:source`
+implies a dependency on `global_search`, which the existing health model already
+handles: a disabled hard dependency degrades the dependent and withholds its
+providers. A contributor that only wants the point when it happens to be there
+declares `optionally_depends_on:` instead and stays healthy without it --
+`test_insights` is the worked example.
 
 Two properties to preserve deliberately:
 

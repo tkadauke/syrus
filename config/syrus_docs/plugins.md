@@ -94,7 +94,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
-| `tooling` | Tooling | `syrus_dev`, `design_docs` |
+| `tooling` | Tooling | `syrus_dev`, `design_docs`, `global_search` |
 
 ```ruby
 Syrus::PluginRegistry.register(
@@ -194,6 +194,12 @@ described below.
 
 Only `depends_on` and `conflicts_with` can make a plugin unhealthy;
 `optionally_depends_on` is documentation plus admin metadata.
+
+The distinction is load-bearing for `bin/plugin-boundary-audit`: removing a
+plugin also removes its hard dependents, but an *optional* dependent stays and
+must keep passing without the thing it optionally uses. (The audit read the two
+as one for a while, because `optionally_depends_on` ends in `depends_on` --
+`spec/architecture/plugin_source_boundary_audit_spec.rb` now pins them apart.)
 
 ### Plugin health
 
@@ -2055,6 +2061,31 @@ Bundled plugins:
   Disabling the plugin removes the nav entry, retires the filter subject and
   the MCP tool, and makes both the JSON endpoint and `PluginSidebarPageRoute`
   stop serving the page.
+- `global_search` — default-enabled. Owns global search: the `job_fts` and
+  `epic_fts` indexes (`GlobalSearch::JobIndex`, `GlobalSearch::EpicIndex`),
+  their `IndexJobSearchJob` / `IndexEpicSearchJob` writers, the
+  `api/v1/app/search#index` controller, and the `/search` page as a
+  `sidebar_page` in the hidden section (the sidebar's search field is core
+  chrome and navigates to `/search` whether or not the plugin is enabled; with
+  it disabled that route stops serving). Indexing is event-driven: the plugin
+  registers a `:domain_subscriber` for `job.upserted` and `epic.upserted`
+  rather than core enqueuing index jobs by name. A service that changes
+  something the indexed representation derives from without writing the row
+  itself calls `Job#publish_upserted!` (`JobMetadataRefreshApplier` does, since
+  the workflow artifact it writes feeds the indexed body).
+
+  It **hosts** `global_search:source`, the federated extension point other
+  plugins contribute a searchable type through — `test_insights` registers
+  `test_identity_fts` and the `test_case` result type that way, under
+  `optionally_depends_on: ["global_search"]`, so it stays healthy and merely
+  loses its search type if `global_search` is removed.
+
+  Core keeps the search *infrastructure* the plugin builds on: the search
+  database and `SearchRecord`, the `indexing` queue, the
+  `syrus:prepare_search` task, and `ChatMessageSearchIndex` — chat message
+  search is queried directly by core chat features (`ChatSearch`, the
+  `search_chats` MCP tool, `ChatSessionCleanupJob`) and is not part of this
+  plugin.
 - `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,

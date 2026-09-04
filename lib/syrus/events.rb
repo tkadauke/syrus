@@ -19,6 +19,10 @@ module Syrus
     # instead of silently reaching nobody, and so the catalog is discoverable.
     EVENTS = {
       "job.created"           => :async,
+      # Fires on any persisted change, not just a state transition: a title or
+      # body edit changes what a search index or summary should show, and
+      # job.state_changed would miss it.
+      "job.upserted"          => :async,
       "job.state_changed"     => :async,
       "job.closed"            => :async,
       "job.approved"          => :async,
@@ -27,6 +31,7 @@ module Syrus
       "run.finished"          => :async,
       "step.grader.completed" => :inline,
       "step.command.completed" => :inline,
+      "epic.upserted"         => :async,
       "repository.created"    => :async,
       "repository.archived"   => :async,
       "repository.destroyed"  => :async

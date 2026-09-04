@@ -108,4 +108,16 @@ RSpec.describe Syrus::Events do
     expect(payload).to eq({ run_id: 7, nested: { a: 1 } })
     expect(payload).to be_frozen
   end
+
+  it "does not take down the publisher when a subscriber cannot be enqueued" do
+    klass = subscriber({ "job.closed" => :on_event })
+    register(klass)
+    error = SolidQueue::Job::EnqueueError.new(
+      ActiveRecord::StatementInvalid.new("Could not find table 'solid_queue_jobs'")
+    )
+    allow(DomainEventJob).to receive(:set).and_raise(error)
+    expect(Rails.logger).to receive(:error).with(include("[Syrus::Events] could not enqueue job.closed"))
+
+    expect { described_class.publish("job.closed", job_id: 3) }.not_to raise_error
+  end
 end

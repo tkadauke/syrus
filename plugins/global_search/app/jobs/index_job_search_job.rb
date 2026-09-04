@@ -5,6 +5,6 @@ class IndexJobSearchJob < ApplicationJob
     job = Job.find_by(id: job_id)
     return unless job
 
-    JobSearchIndex.upsert(job)
+    GlobalSearch::JobIndex.upsert(job)
   end
 end

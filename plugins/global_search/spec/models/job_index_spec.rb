@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe JobSearchIndex do
+RSpec.describe GlobalSearch::JobIndex do
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }

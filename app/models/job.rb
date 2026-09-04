@@ -9,7 +9,6 @@ class Job < ApplicationRecord
   include JobDependencies
   include JobExecutionAccessors
   include JobLifecycle
-  include EnqueuesSearchIndex
 
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
@@ -115,7 +114,7 @@ class Job < ApplicationRecord
   has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
   has_many :preview_environments, dependent: :destroy
 
-  validates :kind, presence: true, inclusion: { in: -> (_) { Job::Kind.values } }
+  validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
   validates :state, presence: true, inclusion: { in: STATES }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
@@ -658,7 +657,6 @@ class Job < ApplicationRecord
   # awareness without scheduling any agent work.
   after_create :seed_parsed_dependencies
   after_create :resolve_pending_dependencies_targeting_self
-  after_create_commit :enqueue_search_index_after_create
   after_create_commit :broadcast_app_job_created
   # `after_save :refresh_epic_auto_state` used to fire on every save.
   # Keep it scoped to changes that actually affect the epic rollup:
@@ -679,6 +677,7 @@ class Job < ApplicationRecord
   # the AASM transition, so a subscriber never observes a state that a later
   # rollback undoes.
   after_create_commit :publish_job_created_event
+  after_create_commit :publish_job_upserted_event
   after_update_commit :publish_job_closed_event, if: :saved_change_to_closed?
   after_update_commit :publish_job_approved_event, if: :saved_change_to_approved?
   after_update_commit :publish_job_state_changed_event, if: :saved_change_to_state?
@@ -698,7 +697,7 @@ class Job < ApplicationRecord
   after_update_commit :dispatch_upstream_export_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
   after_update_commit :publish_goal_closed_event, if: :saved_change_to_closed?
-  after_update_commit :enqueue_search_index_after_update
+  after_update_commit :publish_job_upserted_event
   after_update_commit :broadcast_app_job_updated
 
   def solid_queue_priority
@@ -814,6 +813,18 @@ class Job < ApplicationRecord
 
   def publish_job_created_event
     Syrus::Events.publish("job.created", **domain_event_payload)
+  end
+
+  def publish_job_upserted_event
+    Syrus::Events.publish("job.upserted", **domain_event_payload)
+  end
+
+  # For callers that change something a Job's derived representation depends on
+  # without writing the Job row itself -- JobMetadataRefreshApplier writes a
+  # workflow artifact that feeds the search body, for instance. Without this
+  # the change would never reach anything listening for job.upserted.
+  def publish_upserted!
+    publish_job_upserted_event
   end
 
   def publish_job_closed_event
@@ -1431,18 +1442,6 @@ class Job < ApplicationRecord
       ).to_s
     end
     WorkUnits::Launcher.start!(workflow, prompt: prompt)
-  end
-
-  def enqueue_search_index_after_create
-    enqueue_search_index
-  end
-
-  def enqueue_search_index_after_update
-    enqueue_search_index
-  end
-
-  def enqueue_search_index
-    enqueue_search_index_job(IndexJobSearchJob, id)
   end
 
   # Auto-create the Job's first workflow when the Job reaches :queued

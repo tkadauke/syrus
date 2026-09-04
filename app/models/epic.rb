@@ -1,7 +1,6 @@
 class Epic < ApplicationRecord
   include AASM
   include AutoApproveModes
-  include EnqueuesSearchIndex
 
   # Raised by #start_implementing! when the Epic cannot move to
   # :in_progress (already running/finished, claimed by someone else,
@@ -51,11 +50,11 @@ class Epic < ApplicationRecord
   after_create :resolve_pending_child_jobs
   after_create :seed_parsed_epic_dependencies
   after_create :resolve_pending_epic_dependencies_targeting_self
-  after_create_commit :enqueue_search_index_after_create
+  after_create_commit :publish_epic_upserted_event
   after_create_commit :broadcast_app_epic_created
   after_update_commit :sync_job_epic_titles, if: :saved_change_to_title?
   after_update_commit :record_version, if: :title_or_description_changed?
-  after_update_commit :enqueue_search_index_after_update
+  after_update_commit :publish_epic_upserted_event
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
   after_update_commit :publish_goal_boundary_event, if: :saved_change_to_goal_boundary?
@@ -652,16 +651,8 @@ class Epic < ApplicationRecord
     dependent_epics.find_each(&:refresh_auto_state!)
   end
 
-  def enqueue_search_index_after_create
-    enqueue_search_index
-  end
-
-  def enqueue_search_index_after_update
-    enqueue_search_index
-  end
-
-  def enqueue_search_index
-    enqueue_search_index_job(IndexEpicSearchJob, id)
+  def publish_epic_upserted_event
+    Syrus::Events.publish("epic.upserted", epic_id: id, user_id: user_id, repository_id: repository_id)
   end
 
   def assign_owner!(new_owner)

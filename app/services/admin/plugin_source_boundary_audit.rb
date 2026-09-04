@@ -167,7 +167,10 @@ module Admin
         name: name,
         dir_name: dir.basename.to_s,
         path: relative(dir),
-        depends_on: source.scan(/depends_on:\s*\[(.*?)\]/m).flat_map { |match| match.first.scan(/["']([^"']+)["']/).flatten }.uniq,
+        # Lookbehind so optionally_depends_on: is not read as a hard dependency --
+        # an optional dependent must survive its provider's removal, which is the
+        # whole point of the audit.
+        depends_on: source.scan(/(?<!optionally_)depends_on:\s*\[(.*?)\]/m).flat_map { |match| match.first.scan(/["']([^"']+)["']/).flatten }.uniq,
         constants: owned_constants(dir, source_files),
         gem_name: gem_name_for(dir)
       )
