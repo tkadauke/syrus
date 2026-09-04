@@ -56,6 +56,27 @@ module Api
           }
         end
 
+        def version_threads
+          design_doc = find_design_doc
+          version = design_doc.versions.find(params[:version_id])
+          anchor_ids = design_doc.anchors.active_as_of(version.version_number).select(:id)
+
+          render json: {
+            design_doc: serializer.summary(design_doc),
+            version: serializer.version(version),
+            threads: design_doc.threads
+              .where(design_doc_anchor_id: anchor_ids)
+              .includes(:anchor, comments: :author_user)
+              .order(:created_at, :id)
+              .map { |thread| serializer.thread(thread) },
+            suggestions: design_doc.suggestions
+              .where(design_doc_anchor_id: anchor_ids)
+              .includes(:anchor, :suggested_by_user, :reviewed_by_user, thread: [ :anchor, { comments: :author_user } ])
+              .order(created_at: :desc, id: :desc)
+              .map { |suggestion| serializer.suggestion(suggestion) }
+          }
+        end
+
         def comments
           result = ::DesignDocs::CreateComment.call(
             design_doc: find_design_doc,

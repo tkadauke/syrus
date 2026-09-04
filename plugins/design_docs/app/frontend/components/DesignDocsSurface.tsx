@@ -23,6 +23,7 @@ import {
   fetchDesignDoc,
   fetchDesignDocs,
   fetchDesignDocVersions,
+  fetchDesignDocVersionThreads,
   fetchRepositoryDesignDocs,
   rejectDesignDocSuggestion,
   resolveDesignDocThread,
@@ -304,6 +305,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
     enabled: versionsOpen
+  })
+  const isViewingHistoricalVersion = selectedVersionId !== "current"
+  const versionThreadsQuery = useQuery({
+    queryKey: ["design_docs", "version_threads", String(doc.id), selectedVersionId],
+    queryFn: () => fetchDesignDocVersionThreads(doc.id, selectedVersionId),
+    enabled: isViewingHistoricalVersion
   })
   const saveMutation = useMutation({
     mutationFn: () => effectiveChangeMode === "edit"
@@ -694,6 +701,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
+          historicalVersion={isViewingHistoricalVersion ? versionThreadsQuery.data ?? null : null}
+          historicalVersionLoading={isViewingHistoricalVersion && versionThreadsQuery.isPending}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
           replyBodies={replyBodies}
@@ -1132,11 +1141,13 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   )
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
+  historicalVersion: { version: DesignDocVersion; threads: DesignDocThread[]; suggestions: DesignDocSuggestion[] } | null
+  historicalVersionLoading: boolean
   focusedSuggestionId: number | null
   focusedThreadId: number | null
   replyBodies: Record<number, string>
@@ -1152,15 +1163,30 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   onResolve: (threadId: number) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
-  const hasSelection = selection.end > selection.start
-  const activeSuggestions = doc.suggestions.filter((suggestion) => suggestion.state === "pending")
-  const suggestionThreadIds = new Set(doc.suggestions.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
-  const activeCommentThreads = doc.threads.filter((thread) => thread.state === "open" && !suggestionThreadIds.has(thread.id))
+  const viewingHistory = historicalVersionLoading || historicalVersion != null
+  const hasSelection = selection.end > selection.start && !viewingHistory
+  // While a historical version's threads are still loading, show nothing
+  // rather than flashing the current document's (differently-filtered)
+  // threads under the "as of vN" heading.
+  const suggestionSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.suggestions : doc.suggestions
+  const threadSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.threads : doc.threads
+  const activeSuggestions = viewingHistory
+    ? suggestionSource
+    : suggestionSource.filter((suggestion) => suggestion.state === "pending" && suggestion.anchor.status === "active")
+  const suggestionThreadIds = new Set(suggestionSource.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
+  const activeCommentThreads = viewingHistory
+    ? threadSource.filter((thread) => !suggestionThreadIds.has(thread.id))
+    : threadSource.filter((thread) => thread.state === "open" && thread.anchor.status === "active" && !suggestionThreadIds.has(thread.id))
   const activeCount = activeCommentThreads.length + activeSuggestions.length
 
   return (
     <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">Threads</SectionHeading>
+      {historicalVersion ? (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Viewing comments and suggestions as of v{historicalVersion.version.version_number}. Read only.
+        </p>
+      ) : null}
       <div className="relative mt-3 space-y-3">
         {hasSelection ? (
           <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
@@ -1187,11 +1213,13 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
             </div>
           </div>
         ) : null}
-        {activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No active threads.</p> : null}
+        {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
+        {!historicalVersionLoading && activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         {activeCommentThreads.map((thread) => (
           <CommentThreadCard
             focused={focusedThreadId === thread.id}
             key={`thread-${thread.id}`}
+            readOnly={viewingHistory}
             replyBody={replyBodies[thread.id] ?? ""}
             thread={thread}
             threadRefs={threadRefs}
@@ -1203,9 +1231,10 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
         ))}
         {activeSuggestions.map((suggestion) => (
           <SuggestionThreadCard
-            canReview={doc.permissions.can_review_suggestions}
+            canReview={!viewingHistory && doc.permissions.can_review_suggestions}
             focused={focusedSuggestionId === suggestion.id}
             key={`suggestion-${suggestion.id}`}
+            readOnly={viewingHistory}
             replyBody={suggestion.thread ? replyBodies[suggestion.thread.id] ?? "" : ""}
             suggestion={suggestion}
             suggestionRefs={suggestionRefs}
@@ -1220,8 +1249,9 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   )
 }
 
-function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+function CommentThreadCard({ focused, readOnly = false, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
   focused: boolean
+  readOnly?: boolean
   replyBody: string
   thread: DesignDocThread
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1238,7 +1268,7 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
       ref={(element) => { threadRefs.current[thread.id] = element }}
       style={{ marginTop: railOffset(thread) }}
     >
-      <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={(
+      <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={readOnly ? null : (
         <Button
           onClick={(event) => {
             event.stopPropagation()
@@ -1252,20 +1282,23 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
       )} />
       <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
       <ThreadComments comments={thread.comments} />
-      <ThreadReplyForm
-        label={`Reply to thread ${thread.id}`}
-        replyBody={replyBody}
-        threadId={thread.id}
-        onReply={onReply}
-        onReplyChange={onReplyChange}
-      />
+      {readOnly ? null : (
+        <ThreadReplyForm
+          label={`Reply to thread ${thread.id}`}
+          replyBody={replyBody}
+          threadId={thread.id}
+          onReply={onReply}
+          onReplyChange={onReplyChange}
+        />
+      )}
     </div>
   )
 }
 
-function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
+function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
   canReview: boolean
   focused: boolean
+  readOnly?: boolean
   replyBody: string
   suggestion: DesignDocSuggestion
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1284,14 +1317,14 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
       ref={(element) => { suggestionRefs.current[suggestion.id] = element }}
       style={{ marginTop: railOffset(suggestion) }}
     >
-      <ThreadCardHeader labels={<><StatusLabel value="suggestion" />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
+      <ThreadCardHeader labels={<><StatusLabel value="suggestion" />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}{readOnly && suggestion.state !== "pending" ? <StatusLabel value={suggestion.state} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
       <div className="mt-2 grid gap-2 text-xs">
         <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
         <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
       </div>
       {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
       {thread ? <ThreadComments comments={thread.comments} /> : null}
-      {thread ? (
+      {thread && !readOnly ? (
         <ThreadReplyForm
           label={`Reply to suggestion ${suggestion.id}`}
           replyBody={replyBody}
@@ -1300,7 +1333,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
           onReplyChange={onReplyChange}
         />
       ) : null}
-      {canReview ? (
+      {readOnly ? null : canReview ? (
         <div className="mt-3 flex gap-2">
           <Button
             onClick={(event) => {

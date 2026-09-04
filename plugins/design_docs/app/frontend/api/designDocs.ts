@@ -134,6 +134,13 @@ export type DesignDocVersionsPayload = {
   versions: DesignDocVersion[]
 }
 
+export type DesignDocVersionThreadsPayload = {
+  design_doc: DesignDocSummary
+  version: DesignDocVersion
+  threads: DesignDocThread[]
+  suggestions: DesignDocSuggestion[]
+}
+
 export type DesignDocWritePayload = DesignDocDetailPayload & {
   mode?: "canonical" | "suggestion"
   suggestion?: DesignDocSuggestion
@@ -197,4 +204,8 @@ export function rejectDesignDocSuggestion(id: string | number, suggestionId: str
 
 export function fetchDesignDocVersions(id: string | number) {
   return getJson<DesignDocVersionsPayload>(`/api/v1/app/design_docs/${id}/versions`)
+}
+
+export function fetchDesignDocVersionThreads(id: string | number, versionId: string | number) {
+  return getJson<DesignDocVersionThreadsPayload>(`/api/v1/app/design_docs/${id}/versions/${versionId}/threads`)
 }
