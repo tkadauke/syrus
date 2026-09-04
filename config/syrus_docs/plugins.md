@@ -676,6 +676,31 @@ each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
 
+## `adjudicator`
+
+Rung 0 of the attention ladder (see `docs/plans/workflow-engine-v3.md`): free,
+deterministic judgment about whether a `Problem` should stand, tried before
+anything is spent on a repair or an agent turn.
+
+```ruby
+.adjudicate(problem:, workflow: nil, step: nil, **context) # => Adjudication
+.name                                                      # => "short_identifier"
+```
+
+Return `Adjudication.inconclusive` whenever the check does not apply or cannot
+tell. That is not a formality -- the ladder only works because a cheap rung
+that declines lets a more expensive one take its turn, and an adjudicator that
+guesses instead spends someone's attention on a wrong answer. An adjudicator
+that raises is treated as declining, loudly: rung 0 runs on the failure path,
+and a broken cheap check must not stop the expensive rungs from running.
+
+Core ships two, both adaptations of checks that already existed in their own
+private shapes: `inherited_grader_failure` (`.syrus.yml`'s
+`grade.failures: allow_inherited`, via `MainBranchFailureClassifier`) and
+`validated_landing` (the `LandingValidationCache` reuse decision). A language
+plugin that can tell "this grader was already failing" from its own parsed
+output is the obvious contributor.
+
 ## `chat_media_source`
 
 A media ref is a `"<kind>:<id>"` string a chat agent passes to `propose_job`

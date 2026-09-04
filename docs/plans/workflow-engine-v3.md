@@ -13,8 +13,9 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-04, **A1 and A2 are implemented** (`Problem` / `Problem::Kind`,
-`Remediation` / `Remediation::Resolver`); the rest is still a proposal. It is written
+As of 2026-09-04, **A1, A2 and B1 are implemented** (`Problem` /
+`Problem::Kind`, `Remediation` / `Remediation::Resolver`, `Adjudication` /
+`Adjudicators`); the rest is still a proposal. It is written
 to be executed in three independent tracks (see
 [Incremental Plan](#incremental-plan)); the first two phases of Track A change
 no behavior and unblock everything else.
@@ -520,9 +521,17 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
 
 Depends on A1 and A2 only.
 
-- **B1 · Generalize rung 0.** Lift `allow_inherited`, timeout detection and
-  validation-cache reuse into a common adjudicator interface:
-  `(problem, evidence) → uphold | dismiss | inconclusive`.
+- **B1 · Generalize rung 0 — done.** `Adjudication` is the three-verdict answer
+  and `Adjudicators` is the rung: registered checks are consulted in order and
+  the first to decide wins. `inherited_grader_failure` wraps
+  `MainBranchFailureClassifier` (`allow_inherited`) and `validated_landing`
+  wraps the `LandingValidationCache` reuse decision; both previously answered
+  only in shapes their own callers understood. `:adjudicator` is a plugin
+  extension point, since a language plugin is well placed to tell "this grader
+  was already failing" from its own parsed output. An adjudicator that raises
+  is treated as declining, loudly -- rung 0 runs on the failure path. Not yet
+  wired into a caller: nothing consults the rung until B2 gives a decided
+  verdict somewhere to go.
 - **B2 · Decision queue.** A `Decision` record bound to existing
   `PendingActions`. Cut `SupervisorEvents` off the `NotificationService`
   firehose.

@@ -16,6 +16,7 @@ module Syrus
       chat_media_source
       chat_payload_contributor
       chat_prompt_injector
+      adjudicator
       source_control_provider
       artifact_renderer
       grader_augmentor
@@ -52,6 +53,7 @@ module Syrus
       chat_media_source:       -> { Syrus::Plugin::ChatMediaSource },
       chat_payload_contributor: -> { Syrus::Plugin::ChatPayloadContributor },
       chat_prompt_injector:    -> { Syrus::Plugin::ChatPromptInjector },
+      adjudicator:             -> { Syrus::Plugin::Adjudicator },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
       grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
