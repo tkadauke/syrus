@@ -123,13 +123,25 @@ module DesignDocs
           next
         end
 
-        reproject_or_mark_stale!(candidate, version)
+        reproject_or_mark_stale!(candidate, version, after)
       end
     end
 
-    def reproject_or_mark_stale!(candidate, version)
+    # `after.status == "duplicated"` means the candidate's marker id already
+    # appears more than once in the current markdown; inserting yet another
+    # occurrence via AnchorMarkers.insert would not resolve that; it would
+    # just add a third one. Only "missing" (the marker is genuinely gone) is
+    # eligible for re-projection -- anything else goes straight to stale.
+    #
+    # Point anchors always have an empty `selected_markdown` (they mark a
+    # single position, not a text range), so there is nothing to search for
+    # and they always fall through to stale here -- there is no such thing
+    # as a safe re-projection for a point anchor once its marker is gone.
+    def reproject_or_mark_stale!(candidate, version, after)
+      return mark_unrelated_anchor_stale!(candidate, version) unless after.status == "missing"
+
       selected = candidate.selected_markdown.to_s
-      matches = selected.present? ? exact_offsets(AnchorMarkers.strip(design_doc.markdown), selected) : []
+      matches = AnchorMarkers.exact_matches(AnchorMarkers.strip(design_doc.markdown), selected)
 
       return mark_unrelated_anchor_stale!(candidate, version) unless matches.one?
 
@@ -162,16 +174,6 @@ module DesignDocs
       end
     end
 
-    def exact_offsets(markdown, selection)
-      matches = []
-      offset = 0
-      while (index = markdown.index(selection, offset))
-        matches << index
-        offset = index + 1
-      end
-      matches
-    end
-
     def autosave_suggestion?
       ActiveModel::Type::Boolean.new.cast(suggestion.provenance&.fetch("autosave", false))
     end
@@ -182,7 +184,13 @@ module DesignDocs
     end
 
     def mark_stale!(current_text)
-      suggestion.anchor.update!(status: "stale")
+      # No new version is created on this path (the suggestion is rejected
+      # outright, not applied), so the design doc's current version is the
+      # closest available "as of" marker for when the anchor stopped being
+      # trustworthy -- same invariant `mark_unrelated_anchor_stale!` keeps
+      # for the reconciliation path, just anchored to the existing version
+      # instead of a newly created one.
+      suggestion.anchor.update!(status: "stale", stale_as_of_version: design_doc.current_version)
       suggestion.update!(
         state: "stale",
         reviewed_at: Time.current,

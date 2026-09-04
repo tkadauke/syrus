@@ -96,4 +96,35 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(DesignDocAnchor.active_as_of(stale_version_number)).not_to include(beta_anchor)
     expect(result.applied).to be(true)
   end
+
+  it "stamps stale_as_of_version on the anchor when the suggestion's own text has drifted, not just when an unrelated overwrite reconciles it" do
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
+      actor_kind: "user"
+    ).suggestion
+    anchor = suggestion.anchor
+    birth_version_number = anchor.design_doc_version.version_number
+
+    # An intervening checkpointed version elapses before anyone reviews the
+    # suggestion, then the live markdown drifts (e.g. an owner autosave)
+    # without a matching version -- design_doc.current_version stays pinned
+    # to the last real checkpoint, which is the best available "as of"
+    # marker for when the suggestion's assumptions stopped holding.
+    doc.reload
+    intervening_version = doc.versions.create!(markdown: doc.markdown, version_number: doc.versions.maximum(:version_number) + 1, actor_kind: "user", actor_user: owner)
+    doc.update!(current_version: intervening_version)
+    doc.update!(markdown: doc.markdown.sub("beta", "zeta"))
+
+    result = described_class.accept(suggestion: suggestion, user: owner)
+
+    expect(result.applied).to be(false)
+    expect(suggestion.reload.state).to eq("stale")
+    expect(anchor.reload.status).to eq("stale")
+    expect(anchor.stale_as_of_version).to eq(intervening_version)
+
+    expect(DesignDocAnchor.active_as_of(birth_version_number + 1)).to include(anchor)
+    expect(DesignDocAnchor.active_as_of(intervening_version.version_number)).not_to include(anchor)
+  end
 end
