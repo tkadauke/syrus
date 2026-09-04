@@ -58,7 +58,12 @@ the document, and is otherwise marked `status: "stale"` immediately (with
 `stale_as_of_version` set to the version the acceptance produced) along with
 any of its still-`pending` suggestions. A `stale` anchor's offsets are frozen
 at their last known position — the anchor is never silently re-derived from
-numeric offsets once it can no longer be trusted.
+numeric offsets once it can no longer be trusted. The pre-existing path where
+a suggestion's own anchor text has drifted since it was authored (checked
+against `suggestion.original_markdown` before any replacement happens) also
+stamps `stale_as_of_version`, pinned to the design doc's current version
+since that path never creates a new one — every code path that flips an
+anchor to `stale` keeps the same version-window invariant.
 
 The current-document editor and Threads rail only render anchors with
 `status: "active"` (`buildAnchorHighlights`'s highlight filter and
