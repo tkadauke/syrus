@@ -32,13 +32,18 @@ module AgentInvocation
     attr_reader :turns, :exit_status, :timed_out, :is_error, :outcome,
                 :final_text, :session_id, :transcript_jsonl, :transcript_path,
                 :cost_usd, :input_tokens, :output_tokens,
-                :cache_creation_input_tokens, :cache_read_input_tokens
+                :cache_creation_input_tokens, :cache_read_input_tokens,
+                :process_outcome, :spawned_process_id, :silent_timed_out,
+                :stopped, :operator_killed, :aliveness_failed
 
     def initialize(turns:, exit_status:, timed_out:, is_error:, outcome:,
                    final_text:, session_id:, transcript_jsonl: nil,
                    transcript_path: nil, cost_usd: nil, input_tokens: nil,
                    output_tokens: nil, cache_creation_input_tokens: nil,
-                   cache_read_input_tokens: nil)
+                   cache_read_input_tokens: nil, process_outcome: nil,
+                   spawned_process_id: nil, silent_timed_out: false,
+                   stopped: false, operator_killed: false,
+                   aliveness_failed: false)
       @turns = turns
       @exit_status = exit_status
       @timed_out = timed_out
@@ -53,8 +58,14 @@ module AgentInvocation
       @output_tokens = output_tokens
       @cache_creation_input_tokens = cache_creation_input_tokens
       @cache_read_input_tokens = cache_read_input_tokens
+      @process_outcome = process_outcome
+      @spawned_process_id = spawned_process_id
+      @silent_timed_out = silent_timed_out
+      @stopped = stopped
+      @operator_killed = operator_killed
+      @aliveness_failed = aliveness_failed
     end
 
-    def success? = !timed_out && exit_status == 0 && !is_error
+    def success? = !timed_out && !silent_timed_out && !stopped && !operator_killed && !aliveness_failed && exit_status == 0 && !is_error
   end
 end

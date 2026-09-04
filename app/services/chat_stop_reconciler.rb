@@ -2,6 +2,7 @@ class ChatStopReconciler
   CANCELLED_MESSAGE = "Cancelled by operator."
   FAILED_MESSAGE = "Agent turn failed."
   TERMINAL_MESSAGE = CANCELLED_MESSAGE
+  FAILED_PROCESS_OUTCOMES = (SpawnedProcess::OUTCOMES - [ "succeeded" ]).freeze
   STALE_TURN_THRESHOLD = AgentInvocation::DEFAULT_TIMEOUT_SECONDS.seconds + 30.minutes
 
   def self.reconcile!(...)
@@ -99,10 +100,10 @@ class ChatStopReconciler
   end
 
   def reconcile_orphaned_turn?(chat)
-    return false unless spawned_process_orphaned?
+    return false unless spawned_process_failed?
     return false if newer_turn_than_spawned_process?(chat)
 
-    chat.turn_in_flight?
+    chat.turn_in_flight? || dangling_tool_calls_after_latest_user?(chat)
   end
 
   def reconcile_stale_turn?(chat)
@@ -115,10 +116,10 @@ class ChatStopReconciler
     chat.turn_in_flight?
   end
 
-  def spawned_process_orphaned?
+  def spawned_process_failed?
     return false unless @spawned_process
 
-    @spawned_process.reload.outcome == "orphaned"
+    FAILED_PROCESS_OUTCOMES.include?(@spawned_process.reload.outcome)
   rescue ActiveRecord::RecordNotFound
     false
   end
@@ -134,6 +135,25 @@ class ChatStopReconciler
 
   def latest_user_message(chat)
     chat.messages.where(role: "user").order(:created_at, :id).last
+  end
+
+  def dangling_tool_calls_after_latest_user?(chat)
+    latest_user_message = latest_user_message(chat)
+    return false unless latest_user_message
+
+    messages_after_latest_user = chat.messages.where(
+      "created_at > ? OR (created_at = ? AND id > ?)",
+      latest_user_message.created_at,
+      latest_user_message.created_at,
+      latest_user_message.id
+    )
+    tool_use_ids = messages_after_latest_user.where(role: "tool_use").pluck(:tool_use_id).compact_blank
+    return false if tool_use_ids.empty?
+
+    answered_ids = messages_after_latest_user
+      .where(role: "tool_result", tool_use_id: tool_use_ids)
+      .pluck(:tool_use_id)
+    (tool_use_ids - answered_ids).any?
   end
 
   def live_agent_process?(chat)

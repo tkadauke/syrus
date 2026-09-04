@@ -66,6 +66,42 @@ RSpec.describe ChatStopReconciler do
     )
   end
 
+  it "marks a failed chat agent process as failed and closes dangling tool calls" do
+    chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-stop-reconciler-failed-process")
+    chat.messages.create!(role: "user", content: { "text" => "This turn crashed" }, created_at: 20.seconds.ago)
+    chat.messages.create!(
+      role: "tool_use",
+      tool_use_id: "call_crashed_tool",
+      tool_name: "Bash",
+      content: {
+        "type" => "tool_use",
+        "id" => "call_crashed_tool",
+        "name" => "Bash",
+        "input" => { "command" => "sleep 10" }
+      },
+      created_at: 10.seconds.ago
+    )
+    spawned_process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: 15.seconds.ago,
+      finished_at: Time.current,
+      outcome: "failed"
+    )
+
+    expect(described_class.reconcile_spawned_process!(spawned_process)).to eq(true)
+
+    expect(chat.reload.stop_requested_at).to be_nil
+    expect(chat).not_to be_turn_in_flight
+    expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
+      [ "system", { "text" => "Agent turn failed." } ]
+    )
+    tool_result = chat.messages.find_by!(role: "tool_result", tool_use_id: "call_crashed_tool")
+    expect(tool_result.content.dig("content", 0, "text")).to eq("Agent turn failed before this tool returned.")
+  end
+
   it "does not mark normal completed agent processes as failed while ChatTurnJob finishes" do
     chat = ChatSession.create!(user: user, workspace_path: "/tmp/chat-stop-reconciler-success")
     chat.messages.create!(role: "user", content: { "text" => "This turn is still flushing" }, created_at: 20.seconds.ago)

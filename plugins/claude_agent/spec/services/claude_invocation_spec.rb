@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe ClaudeInvocation do
   def result_fixture(**overrides)
@@ -101,6 +102,77 @@ RSpec.describe ClaudeInvocation do
       expect(received_callback).to respond_to(:call)
       expect { received_callback.call("sid") }.not_to raise_error
     end
+
+    it "marks subprocess exits without a Claude result event as provider errors" do
+      runner_result = ProcessRunner::Result.new(
+        exit_status: nil,
+        timed_out: false,
+        stopped: false,
+        silent_timed_out: false,
+        operator_killed: false,
+        aliveness_failed: false,
+        duration_s: 1.0,
+        spawned_process_id: 42
+      )
+      allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: runner_result))
+
+      Dir.mktmpdir do |workspace|
+        result = described_class.new(workspace, prompt: "x", oauth_token: "x").send(
+          :default_runner,
+          workspace_path: workspace,
+          prompt: "x",
+          oauth_token: "x",
+          log_sink: ->(_line, **_) { },
+          timeout: 60,
+          max_turns: nil
+        )
+
+        expect(result).not_to be_success
+        expect(result).to have_attributes(
+          is_error: true,
+          outcome: "unknown_process_failure",
+          final_text: "Claude process ended without a result event: the process exited without a status.",
+          process_outcome: "unknown_process_failure",
+          spawned_process_id: 42
+        )
+      end
+    end
+
+    it "preserves nonzero subprocess exit diagnostics when no Claude result event appears" do
+      runner_result = ProcessRunner::Result.new(
+        exit_status: 7,
+        timed_out: false,
+        stopped: false,
+        silent_timed_out: false,
+        operator_killed: false,
+        aliveness_failed: false,
+        duration_s: 1.0,
+        spawned_process_id: 43
+      )
+      allow(ProcessRunner).to receive(:new).and_return(instance_double(ProcessRunner, run: runner_result))
+
+      Dir.mktmpdir do |workspace|
+        result = described_class.new(workspace, prompt: "x", oauth_token: "x").send(
+          :default_runner,
+          workspace_path: workspace,
+          prompt: "x",
+          oauth_token: "x",
+          log_sink: ->(_line, **_) { },
+          timeout: 60,
+          max_turns: nil
+        )
+
+        expect(result).not_to be_success
+        expect(result).to have_attributes(
+          is_error: true,
+          outcome: "process_failed",
+          final_text: "Claude process ended without a result event: the process exited with status 7.",
+          process_outcome: "process_failed",
+          spawned_process_id: 43,
+          exit_status: 7
+        )
+      end
+    end
   end
 
   describe AgentInvocation::Result do
@@ -121,6 +193,11 @@ RSpec.describe ClaudeInvocation do
 
     it "is not success when is_error is true (e.g. error_max_turns)" do
       r = described_class.new(turns: 50, exit_status: 0, timed_out: false, is_error: true, outcome: "error_max_turns", final_text: nil, session_id: nil)
+      expect(r).not_to be_success
+    end
+
+    it "is not success when the subprocess stopped even with exit status 0" do
+      r = described_class.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil, stopped: true)
       expect(r).not_to be_success
     end
   end

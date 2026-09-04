@@ -1013,6 +1013,77 @@ RSpec.describe ChatTurnJob, :ci_only do
     )
   end
 
+  it "marks a no-result provider exit as failed and closes dangling tool calls" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call(
+        "● Bash(sleep 10)",
+        kind: "tool_call",
+        tool_name: "Bash",
+        tool_input: { "command" => "sleep 10" },
+        tool_use_id: "call_sleep"
+      )
+
+      result_fixture(
+        session_id: nil,
+        transcript_jsonl: "x",
+        exit_status: nil,
+        is_error: true,
+        outcome: "unknown_process_failure",
+        final_text: "Claude process ended without a result event: the process exited without a status.",
+        process_outcome: "unknown_process_failure",
+        spawned_process_id: 123,
+        silent_timed_out: false,
+        stopped: false,
+        operator_killed: false,
+        aliveness_failed: false
+      )
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    failure = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(failure.content["text"]).to eq("Agent turn failed: Claude process ended without a result event: the process exited without a status.")
+    expect(failure.content.dig("provider_error", "process")).to include(
+      "outcome" => "unknown_process_failure",
+      "spawned_process_id" => 123,
+      "timed_out" => false,
+      "silent_timed_out" => false,
+      "stopped" => false,
+      "operator_killed" => false,
+      "aliveness_failed" => false
+    )
+
+    tool_result = chat.messages.find_by!(role: "tool_result", tool_use_id: "call_sleep")
+    expect(tool_result.content.dig("content", 0, "text")).to eq("Agent turn failed before this tool returned.")
+    expect(chat.reload).not_to be_turn_in_flight
+  end
+
+  it "treats a nonzero provider process exit as a failed chat turn" do
+    ChatTurnJob.agent_runner = ->(**_) {
+      result_fixture(
+        session_id: nil,
+        transcript_jsonl: "x",
+        exit_status: 1,
+        is_error: false,
+        outcome: "process_failed",
+        final_text: "Claude process ended without a result event: the process exited with status 1.",
+        process_outcome: "process_failed",
+        spawned_process_id: 456
+      )
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    failure = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(failure.content["text"]).to eq("Agent turn failed: Claude process ended without a result event: the process exited with status 1.")
+    expect(failure.content.dig("provider_error", "process")).to include(
+      "outcome" => "process_failed",
+      "spawned_process_id" => 456,
+      "exit_status" => 1
+    )
+    expect(chat.reload).not_to be_turn_in_flight
+  end
+
   it "does not promote a queued follow-up while the agent process is still live" do
     queued_message = chat.chat_queued_messages.create!(content: { "text" => "Wait for process exit" })
     ChatTurnJob.agent_runner = ->(workspace_path:, process_started:, stop_requested:, **_) {
@@ -1163,6 +1234,26 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received[:prompt]).to include("system: Proposal \"Billing export\" was confirmed as JOB-123")
     expect(received[:prompt]).to include("What is the plan?")
     expect(received[:prompt]).not_to include("You are Syrus Chat")
+  end
+
+  it "includes compact persisted chat history when a fresh Claude turn has no provider session" do
+    chat.messages.create!(role: "user", content: { text: "Earlier: investigate chat 274." })
+    chat.messages.create!(role: "assistant", content: { text: "I read the workflow plan and spawned review agents." })
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "new")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:resume_session_id]).to be_nil
+    expect(received[:prompt]).to include("You are Syrus Chat")
+    expect(received[:prompt]).to include("Recent persisted chat context fallback:")
+    expect(received[:prompt]).to include("user: Earlier: investigate chat 274.")
+    expect(received[:prompt]).to include("assistant: I read the workflow plan and spawned review agents.")
+    expect(received[:prompt]).to include("What is the plan?")
   end
 
   it "summarizes tool calls and caps large tool results in resumed chat history" do

@@ -150,6 +150,11 @@ class ClaudeInvocation
       metadata[:outcome] = "mcp_sidecar_failed"
       metadata[:final_text] = nil
     end
+    if metadata[:outcome].blank? && !runner_result.success?
+      metadata[:is_error] = true
+      metadata[:outcome] = process_failure_outcome(runner_result)
+      metadata[:final_text] = process_failure_message(runner_result)
+    end
 
     # If the provider already emitted a successful result event, any
     # subsequent timeout is cleanup overhead (e.g. a lingering background
@@ -170,8 +175,52 @@ class ClaudeInvocation
       input_tokens: metadata[:input_tokens],
       output_tokens: metadata[:output_tokens],
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
-      cache_read_input_tokens: metadata[:cache_read_input_tokens]
+      cache_read_input_tokens: metadata[:cache_read_input_tokens],
+      process_outcome: process_outcome(runner_result),
+      spawned_process_id: runner_result.spawned_process_id,
+      silent_timed_out: !cleanup_timeout && runner_result.silent_timed_out,
+      stopped: runner_result.stopped,
+      operator_killed: runner_result.operator_killed,
+      aliveness_failed: runner_result.aliveness_failed
     )
+  end
+
+  def process_outcome(result)
+    return "succeeded" if result.success?
+
+    process_failure_outcome(result)
+  end
+
+  def process_failure_outcome(result)
+    return "operator_killed" if result.operator_killed?
+    return "aliveness_failed" if result.aliveness_failed?
+    return "silent_timed_out" if result.silent_timed_out?
+    return "timed_out" if result.timed_out?
+    return "stopped" if result.stopped?
+    return "process_failed" if result.exit_status.present?
+
+    "unknown_process_failure"
+  end
+
+  def process_failure_message(result)
+    detail =
+      if result.operator_killed?
+        "the process was killed by an operator"
+      elsif result.aliveness_failed?
+        "the parent process disappeared before the runner observed a clean exit"
+      elsif result.silent_timed_out?
+        "the process produced no output before the silent timeout"
+      elsif result.timed_out?
+        "the process exceeded the wall-clock timeout"
+      elsif result.stopped?
+        "the process was stopped before completion"
+      elsif result.exit_status
+        "the process exited with status #{result.exit_status}"
+      else
+        "the process exited without a status"
+      end
+
+    "Claude process ended without a result event: #{detail}."
   end
 
   def ensure_session_on_disk(session_id, workspace_path, log_sink)

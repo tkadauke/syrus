@@ -107,10 +107,10 @@ class ChatTurnJob < ApplicationJob
     update_coding_checkout_uncommitted_state!
     touch_chat!
     stop_requested?(force: true)
-    if result&.is_error
-      create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
-    else
+    if result&.success?
       create_terminal_completion_message! unless @cancelled
+    else
+      create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     end
   rescue StandardError => e
     stop_requested?(force: true) || create_terminal_failure_message!(exception: e)
@@ -215,13 +215,13 @@ class ChatTurnJob < ApplicationJob
     return proposal_outcome_prompt(snapshot: snapshot, user_text: user_text) if proposal_outcome_message?
 
     if @skill_invocation
-      return [ snapshot, system_guidance(parent_session_id), goal_context, (chat_history_fallback if parent_session_id.present?), skill_invocation_text ]
+      return [ snapshot, system_guidance(parent_session_id), goal_context, chat_history_fallback, skill_invocation_text ]
         .compact.join("\n\n---\n\n")
     end
 
     walkthrough_text = walkthrough_orientation(user_note: user_text)
     if walkthrough_text
-      return [ snapshot, system_guidance(parent_session_id), goal_context, (chat_history_fallback if parent_session_id.present?), walkthrough_text ]
+      return [ snapshot, system_guidance(parent_session_id), goal_context, chat_history_fallback, walkthrough_text ]
         .compact.join("\n\n---\n\n")
     end
 
@@ -230,7 +230,7 @@ class ChatTurnJob < ApplicationJob
       return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
     end
 
-    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, user_text ].compact.join("\n\n")
+    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
   end
 
   # A walkthrough-video message triggers the FIRST-CLASS handoff: rather than
@@ -958,9 +958,10 @@ class ChatTurnJob < ApplicationJob
     return unless @chat && @user_message
 
     @chat.reload
-    return unless @chat.turn_in_flight?
+    turn_in_flight = @chat.turn_in_flight?
+    closed_tool_calls = close_dangling_tool_calls!("Agent turn failed before this tool returned.")
+    return unless turn_in_flight || closed_tool_calls.positive?
 
-    close_dangling_tool_calls!("Agent turn failed before this tool returned.")
     create_message!("system", terminal_failure_content(exception: exception, result: result, provider: provider))
   end
 
@@ -1011,9 +1012,25 @@ class ChatTurnJob < ApplicationJob
         provider: provider_name,
         model: model,
         halted: false,
-        detail: detail
+        detail: detail,
+        process: process_failure_details(result)
       }.compact
     }
+  end
+
+  def process_failure_details(result)
+    return nil unless result
+
+    {
+      outcome: result.process_outcome.presence,
+      spawned_process_id: result.spawned_process_id,
+      exit_status: result.exit_status,
+      timed_out: result.timed_out == true,
+      silent_timed_out: result.silent_timed_out == true,
+      stopped: result.stopped == true,
+      operator_killed: result.operator_killed == true,
+      aliveness_failed: result.aliveness_failed == true
+    }.compact
   end
 
   def exception_detail(exception)
