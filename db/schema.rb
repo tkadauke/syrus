@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_220834) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -842,6 +842,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.text "prefix_context"
     t.text "selected_markdown"
     t.text "selected_text"
+    t.integer "stale_as_of_version_id"
     t.integer "start_offset", null: false
     t.string "status", default: "active", null: false
     t.text "suffix_context"
@@ -850,6 +851,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["design_doc_id", "marker_id"], name: "index_design_doc_anchors_on_doc_and_marker_id", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_anchors_on_design_doc_id"
     t.index ["design_doc_version_id"], name: "index_design_doc_anchors_on_design_doc_version_id"
+    t.index ["stale_as_of_version_id"], name: "index_design_doc_anchors_on_stale_as_of_version_id"
   end
 
   create_table "design_doc_collaborators", force: :cascade do |t|
@@ -2978,4 +2980,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "design_doc_anchors", "design_doc_versions", column: "stale_as_of_version_id"
 end

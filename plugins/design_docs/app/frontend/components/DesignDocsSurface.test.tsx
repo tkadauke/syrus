@@ -1559,4 +1559,64 @@ describe("DesignDocsSurface", () => {
 
     await waitFor(() => expect(screen.getAllByText("Autosaved suggestion draft").length).toBeGreaterThan(0))
   })
+
+  it("hides a stale-anchored comment from the current thread rail but shows it when viewing the version where it existed", async () => {
+    const historicalVersion = { id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }
+    const staleThread = {
+      id: 70,
+      state: "open" as const,
+      anchor: {
+        id: 90,
+        anchor_key: "stale-a",
+        marker_id: "stale-a",
+        anchor_kind: "range" as const,
+        status: "stale",
+        start_offset: 0,
+        end_offset: 4,
+        last_known_start_offset: 0,
+        last_known_end_offset: 4,
+        selected_markdown: "Once",
+        selected_text: "Once",
+        prefix_context: null,
+        suffix_context: null
+      },
+      opened_by: docDetail.owner,
+      resolved_by: null,
+      resolved_at: null,
+      comments: [{ id: 71, author_kind: "user", author: docDetail.owner, body: "This got overwritten", created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z" }],
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z"
+    }
+    const docWithStaleThread = { ...docDetail, threads: [...docDetail.threads, staleThread] }
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: docWithStaleThread })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1/versions") {
+        return jsonResponse({ design_doc: docWithStaleThread, versions: [historicalVersion] })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1/versions/1/threads") {
+        return jsonResponse({ design_doc: docWithStaleThread, version: historicalVersion, threads: [staleThread], suggestions: [] })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    expect(screen.queryByText("This got overwritten")).not.toBeInTheDocument()
+
+    const versionSelect = screen.getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await screen.findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    expect(await screen.findByText("This got overwritten")).toBeInTheDocument()
+    expect(await screen.findByText(/Viewing comments and suggestions as of v1\b/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument()
+  })
 })

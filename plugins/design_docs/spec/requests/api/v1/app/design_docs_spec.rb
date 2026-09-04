@@ -1132,4 +1132,60 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if defined?(subscriber) && subscriber
   end
+
+  it "reproduces the DOC-20 sequence: a comment anchor survives until an unrelated full-document suggestion overwrites it, then goes stale" do
+    doc = create_design_doc(markdown: "Alpha beta gamma delta")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: { body: "directory's legacy sections", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    }
+    expect(response).to have_http_status(:created)
+    thread_id = parse_body.dig("thread", "id")
+    version_before_rewrite = doc.reload.current_version
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: DesignDocs::AnchorMarkers.strip(doc.reload.markdown).length,
+        original_markdown: DesignDocs::AnchorMarkers.strip(doc.markdown),
+        proposed_markdown: "Zeta omega",
+        change_type: "replace",
+        change_summary: "Full rewrite"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    suggestion_id = parse_body.dig("suggestion", "id")
+
+    sign_in_as(owner)
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion_id}/accept"
+    expect(response).to have_http_status(:ok)
+    current_version_number = parse_body.dig("design_doc", "current_version_number")
+
+    thread = DesignDocThread.find(thread_id)
+    expect(thread.anchor.status).to eq("stale")
+
+    # The current-document payload still carries the thread record (so an
+    # audit trail / thread count is possible), but its anchor is flagged
+    # stale so the SPA's current-version thread rail and editor highlights
+    # (which only render "active" anchors) hide it.
+    get "/api/v1/app/design_docs/#{doc.id}"
+    expect(response).to have_http_status(:ok)
+    current_doc_thread = parse_body.dig("design_doc", "threads").find { |json| json.fetch("id") == thread_id }
+    expect(current_doc_thread.dig("anchor", "status")).to eq("stale")
+
+    get "/api/v1/app/design_docs/#{doc.id}/versions/#{version_before_rewrite.id}/threads"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("version").fetch("version_number")).to eq(version_before_rewrite.version_number)
+    historical_thread_ids = parse_body.fetch("threads").map { |json| json.fetch("id") }
+    expect(historical_thread_ids).to include(thread_id)
+    historical_comment = parse_body.fetch("threads").find { |json| json.fetch("id") == thread_id }
+    expect(historical_comment.dig("anchor", "selected_text")).to eq("beta")
+
+    current_version_id = DesignDocVersion.find_by!(design_doc_id: doc.id, version_number: current_version_number).id
+    get "/api/v1/app/design_docs/#{doc.id}/versions/#{current_version_id}/threads"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("threads").map { |json| json.fetch("id") }).not_to include(thread_id)
+  end
 end

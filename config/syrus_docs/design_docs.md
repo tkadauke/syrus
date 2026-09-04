@@ -44,6 +44,35 @@ owners can see their docs, explicit collaborators can see private docs, and
 public docs are visible to users who can access at least one associated
 repository.
 
+### Anchor staleness and version-scoped history
+
+Accepting a suggestion can overwrite raw Markdown that other anchors' hidden
+markers were sitting in — a full-document suggestion is the extreme case,
+since its replaced range is the entire document. `DesignDocs::ReviewSuggestion`
+reconciles every other `active` anchor around every acceptance (both the
+normal range-replace path and the marker-less autosave full-document path):
+an anchor whose marker survived untouched just gets its cached offsets
+refreshed; an anchor whose marker disappeared gets re-projected onto the new
+text when its exact previous excerpt still exists exactly once elsewhere in
+the document, and is otherwise marked `status: "stale"` immediately (with
+`stale_as_of_version` set to the version the acceptance produced) along with
+any of its still-`pending` suggestions. A `stale` anchor's offsets are frozen
+at their last known position — the anchor is never silently re-derived from
+numeric offsets once it can no longer be trusted.
+
+The current-document editor and Threads rail only render anchors with
+`status: "active"` (`buildAnchorHighlights`'s highlight filter and
+`ThreadPanel`'s current-view filters in `DesignDocsSurface.tsx`), so stale
+threads/suggestions disappear from the live view without being deleted.
+`GET /api/v1/app/design_docs/:id/versions/:version_id/threads` (backed by
+`DesignDocAnchor.active_as_of(version_number)`, using each anchor's birth
+`design_doc_version` and `stale_as_of_version`) returns the threads and
+suggestions that were active as of a specific historical version, so a stale
+comment remains inspectable when viewing the version where its anchor
+existed. The version dropdown in the editor title bar fetches this endpoint
+and renders those results read-only (no reply, resolve, or accept/reject
+controls) while a non-current version is selected.
+
 ## Editor UI
 
 The plugin-owned editor uses a full-width document title bar above the document

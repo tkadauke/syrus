@@ -47,8 +47,9 @@ module DesignDocs
       anchor = suggestion.anchor
       return mark_conflict!("Suggestions can only be accepted for range anchors.") unless anchor.range?
 
+      old_markdown = design_doc.markdown
       location = AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
-      return accept_unmarked_autosave_range(anchor) if location.status == "missing" && autosave_suggestion?
+      return accept_unmarked_autosave_range(anchor, old_markdown) if location.status == "missing" && autosave_suggestion?
       return mark_conflict!("Anchor marker is #{location.status}.") if location.status.in?(%w[missing duplicated])
       return mark_stale!(location.selected_markdown.to_s) unless location.selected_markdown.to_s == suggestion.original_markdown.to_s
 
@@ -70,11 +71,12 @@ module DesignDocs
       design_doc.update!(current_version: version)
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
       AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
+      reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
 
       Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
     end
 
-    def accept_unmarked_autosave_range(anchor)
+    def accept_unmarked_autosave_range(anchor, old_markdown)
       markdown = AnchorMarkers.strip(design_doc.markdown)
       start_offset = anchor.last_known_start_offset || anchor.start_offset
       end_offset = anchor.last_known_end_offset || anchor.end_offset
@@ -92,8 +94,82 @@ module DesignDocs
       design_doc.update!(current_version: version)
       anchor.update!(status: "active", last_known_end_offset: start_offset + suggestion.proposed_markdown_value.length)
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
+      reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
 
       Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
+    end
+
+    # Accepting a suggestion can overwrite raw markdown that other anchors'
+    # hidden markers were sitting in (a full-document suggestion is the
+    # extreme case: its replaced range is the entire document). Anything that
+    # was active before and lost its marker gets re-projected onto the new
+    # text when the exact same excerpt still exists exactly once, otherwise
+    # it's marked stale immediately instead of quietly drifting to the wrong
+    # offsets. Anchors whose marker survived untouched still get their cached
+    # offsets refreshed, since the surrounding text length may have changed.
+    def reconcile_unrelated_anchors!(old_markdown:, version:, accepted_anchor:)
+      design_doc.anchors.where(status: "active").where.not(id: accepted_anchor.id).find_each do |candidate|
+        before = AnchorMarkers.locate(markdown: old_markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
+        next unless before.status == "active"
+
+        after = AnchorMarkers.locate(markdown: design_doc.markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
+        if after.status == "active"
+          candidate.update!(
+            last_known_start_offset: after.start_offset,
+            last_known_end_offset: after.end_offset,
+            prefix_context: after.prefix_context,
+            suffix_context: after.suffix_context
+          )
+          next
+        end
+
+        reproject_or_mark_stale!(candidate, version)
+      end
+    end
+
+    def reproject_or_mark_stale!(candidate, version)
+      selected = candidate.selected_markdown.to_s
+      matches = selected.present? ? exact_offsets(AnchorMarkers.strip(design_doc.markdown), selected) : []
+
+      return mark_unrelated_anchor_stale!(candidate, version) unless matches.one?
+
+      inserted = AnchorMarkers.insert(
+        markdown: design_doc.markdown,
+        marker_id: candidate.marker_id,
+        start_offset: matches.first,
+        end_offset: matches.first + selected.length,
+        anchor_kind: candidate.anchor_kind
+      )
+      design_doc.update!(markdown: inserted.markdown)
+      candidate.update!(
+        status: "active",
+        last_known_start_offset: inserted.start_offset,
+        last_known_end_offset: inserted.end_offset,
+        prefix_context: inserted.prefix_context,
+        suffix_context: inserted.suffix_context
+      )
+    end
+
+    def mark_unrelated_anchor_stale!(candidate, version)
+      candidate.update!(status: "stale", stale_as_of_version: version)
+      candidate.suggestions.where(state: "pending").find_each do |pending|
+        pending.update!(
+          state: "stale",
+          reviewed_at: Time.current,
+          reviewed_by_user: user,
+          conflict_reason: "Anchor marker was overwritten while accepting suggestion ##{suggestion.id}."
+        )
+      end
+    end
+
+    def exact_offsets(markdown, selection)
+      matches = []
+      offset = 0
+      while (index = markdown.index(selection, offset))
+        matches << index
+        offset = index + 1
+      end
+      matches
     end
 
     def autosave_suggestion?
