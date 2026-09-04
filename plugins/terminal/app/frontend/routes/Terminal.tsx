@@ -322,3 +322,8 @@ function useElapsedTime(startedAt: string) {
     return `${seconds}s`
   }, [now, startedAt])
 }
+
+// Default export is what the plugin component loaders require
+// (app/frontend/pluginSidebarPages.tsx and siblings resolve
+// `<plugin>/<Component>` to this module and read `.default`).
+export default TerminalRoute

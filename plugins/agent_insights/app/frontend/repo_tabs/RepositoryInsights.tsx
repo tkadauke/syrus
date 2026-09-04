@@ -709,3 +709,8 @@ function StatePill({ state }: { state: string }) {
 function isInteractiveClickTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link'], [data-insight-card-interactive]"))
 }
+
+// Default export is what the plugin component loaders require
+// (app/frontend/pluginRepoPageTabs.tsx and siblings resolve
+// `<plugin>/<Component>` to this module and read `.default`).
+export default RepositoryInsightsRoute

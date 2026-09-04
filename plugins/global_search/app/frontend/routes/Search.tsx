@@ -294,3 +294,8 @@ function isEncodedFilterTree(value: string) {
     return false
   }
 }
+
+// Default export is what the plugin component loaders require
+// (app/frontend/pluginSidebarPages.tsx and siblings resolve
+// `<plugin>/<Component>` to this module and read `.default`).
+export default SearchRoute
