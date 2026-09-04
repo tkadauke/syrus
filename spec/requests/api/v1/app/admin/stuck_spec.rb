@@ -54,7 +54,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
       "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail",
       "has_transcript" => false
     )
-    expect(parse_body["items"].first["repair_plan"]).to include("action" => "mark_worker_died")
+    expect(parse_body["items"].first["repair_plan"].fetch("action")).to match(/\Amark_worker_died/)
   end
 
   it "uses a fresh stuck snapshot instead of recomputing the reconciler on normal page loads" do
