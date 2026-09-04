@@ -1242,7 +1242,7 @@ class StepDispatcher
   def ready?(step)
     return false if waiting_for_grader_batch?(step)
 
-    step.dependencies_settled?
+    step.dependencies_settled?(settled_step: @from_step)
   rescue StandardError => e
     Rails.logger.warn("[StepDispatcher] readiness check failed for Step ##{step.id}: #{e.class}: #{e.message}")
     true
