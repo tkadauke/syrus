@@ -70,6 +70,12 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(described_class.non_retryable_message?(message)).to be(true)
   end
 
+  it "recognizes stale merge-train agent rebase checkouts as non-retryable rebuild failures" do
+    message = "merge_train_agent_rebase: checkout is on syrus/issue-1, not integration branch syrus/job-bundle-4705; rebuild required"
+
+    expect(described_class.non_retryable_message?(message)).to be(true)
+  end
+
   it "recognizes unresolved merge-train rebase conflicts as non-retryable" do
     expect(described_class.non_retryable_message?("merge_train: rebase for syrus/issue-3 was not completed")).to be(true)
   end
