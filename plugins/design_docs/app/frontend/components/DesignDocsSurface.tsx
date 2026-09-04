@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -1158,6 +1158,14 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   const activeCommentThreads = doc.threads.filter((thread) => thread.state === "open" && !suggestionThreadIds.has(thread.id))
   const activeCount = activeCommentThreads.length + activeSuggestions.length
 
+  function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+    if (commentPending || commentBody.trim().length === 0) return
+
+    event.preventDefault()
+    onComment()
+  }
+
   return (
     <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">Threads</SectionHeading>
@@ -1172,6 +1180,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
               <Input
                 aria-label="New thread comment"
                 onChange={(event) => onCommentChange(event.target.value)}
+                onKeyDown={submitCommentOnShortcut}
                 placeholder="Comment"
                 ref={composerRef}
                 value={commentBody}
@@ -1359,12 +1368,22 @@ function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }:
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
 }) {
+  function submitReplyOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+    if (replyBody.trim().length === 0) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    onReply(threadId)
+  }
+
   return (
     <div className="mt-3 flex gap-2">
       <Input
         aria-label={label}
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onReplyChange(threadId, event.target.value)}
+        onKeyDown={submitReplyOnShortcut}
         placeholder="Reply"
         value={replyBody}
       />
