@@ -81,6 +81,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
 COPY plugins/ ./plugins/
+# Every bundled plugin's gemspec is `Syrus.plugin_gemspec(__FILE__)`, which
+# require_relatives this file. Bundler evaluates all 31 gemspecs during
+# `bundle install`, so it has to be here before that runs -- long before
+# `COPY . .` brings the rest of lib/ in. Kept to the single file the gemspecs
+# need so the layer cache does not turn over on unrelated lib/ edits.
+# Guarded by spec/architecture/docker_gemspec_requires_spec.rb.
+COPY lib/syrus/plugin_gemspec.rb ./lib/syrus/plugin_gemspec.rb
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
