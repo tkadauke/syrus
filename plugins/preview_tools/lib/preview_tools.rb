@@ -13,6 +13,7 @@ module PreviewTools
     category "agent_capability"
     default_enabled true
     disableable true
-    provides chat_mcp_tool_set: "PreviewTools::ChatToolSet"
+    provides chat_mcp_tool_set: "PreviewTools::ChatToolSet",
+             chat_media_source: "PreviewTools::MediaSource"
   end
 end

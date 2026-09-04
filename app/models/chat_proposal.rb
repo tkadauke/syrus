@@ -1,8 +1,6 @@
 require "set"
 
 class ChatProposal < ApplicationRecord
-  MEDIA_ID_FORMAT = ChatMediaRef::FORMAT
-
   STATE_ALIASES = {
     "pending" => "proposed",
     "filed" => "confirmed",
@@ -300,9 +298,9 @@ class ChatProposal < ApplicationRecord
     return unless media_ids.is_a?(Array)
 
     media_ids.each do |ref|
-      next if MEDIA_ID_FORMAT.match?(ref.to_s)
+      next if ChatMediaRef.valid?(ref)
 
-      errors.add(:media_ids, "contains invalid entry '#{ref}'; must be snapshot:ID, chat_image:ID, or preview_panel_version:ID")
+      errors.add(:media_ids, "contains invalid entry '#{ref}'; must be #{ChatMediaRef.expected_format}")
     end
   end
 
@@ -310,24 +308,14 @@ class ChatProposal < ApplicationRecord
     return unless chat_session && media_ids.is_a?(Array)
 
     media_ids.each do |ref|
-      next unless MEDIA_ID_FORMAT.match?(ref.to_s)
+      next unless ChatMediaRef.valid?(ref)
 
-      kind, id_str = ref.split(":", 2)
-      id = id_str.to_i
+      kind, id = ChatMediaRef.split(ref)
+      source = ChatMediaSources.for_kind(kind)
+      next unless source
 
-      case kind
-      when "snapshot"
-        unless chat_session.whiteboard_snapshots.exists?(id)
-          errors.add(:media_ids, "contains snapshot:#{id} that does not belong to this chat session")
-        end
-      when "chat_image"
-        unless chat_session.attached_repository_documents.exists?(id)
-          errors.add(:media_ids, "contains chat_image:#{id} that does not belong to this chat session")
-        end
-      when "preview_panel_version"
-        unless PreviewPanelVersion.where(preview_panel: chat_session.preview_panels).exists?(id)
-          errors.add(:media_ids, "contains preview_panel_version:#{id} that does not belong to this chat session")
-        end
+      unless source.chat_media_exists?(chat_session: chat_session, id: id)
+        errors.add(:media_ids, "contains #{kind}:#{id} that does not belong to this chat session")
       end
     end
   end

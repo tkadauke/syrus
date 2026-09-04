@@ -4,52 +4,30 @@ module Mcp::Tools
   class ListChatMediaTool < MCP::Tool
     tool_name "list_chat_media"
 
-    description "List media available in this chat session that can be attached to a Job proposal or to chat feedback on an existing Job. Returns whiteboard snapshots (use save_canvas to create one) and chat image attachments. Pass the returned IDs to propose_job's or submit_chat_feedback's media array."
+    description "List media available in this chat session that can be attached to a Job proposal or to chat feedback on an existing Job. Pass the returned IDs to propose_job's or submit_chat_feedback's media array."
 
     input_schema(properties: {})
 
     class << self
+      # The kinds come from the registered media sources; the grouped keys
+      # below are the shape the chat UI's media gallery already reads.
       def call(server_context:)
         chat_session = server_context.fetch(:chat_session)
         ChatMediaLibrary.materialize_inline_images!(chat_session)
 
-        snapshots = chat_session.whiteboard_snapshots.limit(10).map { |s| snapshot_payload(s) }
+        entries = []
+        context = {}
 
-        images = chat_session.attached_repository_documents
-                             .newest_first
-                             .to_a
-                             .select { |doc| doc.content_type.to_s.start_with?("image/") }
-                             .map { |doc| image_payload(chat_session, doc) }
-
-        element_count = chat_session.whiteboard&.elements&.size || 0
+        ChatMediaSources.all.each do |source|
+          entries.concat(Array(source.list_chat_media(chat_session: chat_session)))
+          context.merge!(source.chat_media_context(chat_session: chat_session).to_h)
+        end
 
         Mcp::Tools.success(
-          snapshots: snapshots,
-          chat_images: images,
-          whiteboard_element_count: element_count
+          snapshots: entries.select { |entry| entry[:kind].to_s == "snapshot" },
+          chat_images: entries.select { |entry| entry[:kind].to_s == "chat_image" },
+          **context
         )
-      end
-
-      private
-
-      def snapshot_payload(snapshot)
-        {
-          id: "snapshot:#{snapshot.id}",
-          kind: "snapshot",
-          name: snapshot.name,
-          element_count: snapshot.element_count,
-          created_at: snapshot.created_at&.iso8601
-        }
-      end
-
-      def image_payload(chat_session, doc)
-        {
-          id: "chat_image:#{doc.id}",
-          kind: "chat_image",
-          filename: doc.filename,
-          content_type: doc.content_type,
-          file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file"
-        }
       end
     end
   end

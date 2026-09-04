@@ -94,15 +94,15 @@ module Mcp::Tools
       def validate_media_refs(chat_session, media_refs)
         media_refs.each do |ref|
           unless ChatMediaRef.valid?(ref)
-            return "media contains invalid entry '#{ref}'; must be snapshot:ID or chat_image:ID"
+            return "media contains invalid entry '#{ref}'; must be #{ChatMediaRef.expected_format}"
           end
 
           kind, id = ChatMediaRef.split(ref)
-          case kind
-          when "snapshot"
-            return "media contains #{ref} that does not belong to this chat session" unless chat_session.whiteboard_snapshots.exists?(id)
-          when "chat_image"
-            return "media contains #{ref} that does not belong to this chat session" unless chat_session.attached_repository_documents.exists?(id)
+          source = ChatMediaSources.for_kind(kind)
+          next unless source
+
+          unless source.chat_media_exists?(chat_session: chat_session, id: id)
+            return "media contains #{ref} that does not belong to this chat session"
           end
         end
 

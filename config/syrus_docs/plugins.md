@@ -676,6 +676,34 @@ each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
 
+## `chat_media_source`
+
+A media ref is a `"<kind>:<id>"` string a chat agent passes to `propose_job`
+or `submit_chat_feedback`. Three questions get asked about every ref -- is it
+valid, does it belong to this chat, and how does it become a Job attachment --
+and they used to be a `case kind` repeated in `ChatMediaAttacher`,
+`ChatProposal`, `submit_chat_feedback`, `list_chat_media`, and `ChatMediaRef`'s
+format regex, with `snapshot` (whiteboard_tools) and `preview_panel_version`
+(preview_tools) named in core.
+
+A provider answers:
+
+```ruby
+.chat_media_kind                                   # => "snapshot"
+.chat_media_exists?(chat_session:, id:)            # => true / false
+.attach_chat_media(chat_session:, job:, ref:, id:) # => Document, [Document, ...], or nil
+.list_chat_media(chat_session:)                    # => [ { id:, kind:, ... } ]  (optional)
+.chat_media_context(chat_session:)                 # => { key => value }         (optional)
+```
+
+`ChatMediaSources` merges core's own `chat_image` source with the registered
+providers, and `ChatMediaRef` derives the valid kinds from it -- so
+contributing a kind is no longer also an edit to core. `attach_chat_media`
+returns nil when the id does not resolve; the caller records a skipped ref
+rather than failing the whole attach. `chat_media_context` exists for
+kind-specific context that sits beside the list: whiteboard_tools reports how
+many elements are currently on the canvas.
+
 ## `workspace_tab`
 
 Lets a plugin add a tab to the chat sidebar's workspace panel, generalizing
@@ -2124,7 +2152,10 @@ Bundled plugins:
   durable, operator-visible artifact calls the core `submit_visual_artifact`
   MCP tool with the returned `image_path` (see
   `config/syrus_docs/typed_artifacts.md`) to persist it.
-- `preview_tools` — default-enabled. Provides `:chat_mcp_tool_set`
+- `preview_tools` — default-enabled. Provides `:chat_media_source`
+  (`PreviewTools::MediaSource`, the `preview_panel_version:` kind, the one
+  source that attaches several Documents from one ref) and
+  `:chat_mcp_tool_set`
   (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`
   (jailed to a `PreviewPanel`'s own scratch directory) plus
   `show_preview`/`close_preview`, letting a planning-mode chat agent build
@@ -2193,7 +2224,8 @@ Bundled plugins:
   the Action Cable channel guards itself, because Action Cable resolves a
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
-- `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
+- `whiteboard_tools` — default-enabled. Provides `:chat_media_source`
+  (`WhiteboardTools::MediaSource`, the `snapshot:` kind), `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
   a real Excalidraw canvas with its own fullscreen handling — see the
