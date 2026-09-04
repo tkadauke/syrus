@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_130139) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_133232) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1959,6 +1959,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_130139) do
     t.boolean "pr_cost_footer_enabled", default: true, null: false
     t.boolean "prepare_enabled", default: true, null: false
     t.string "review_policy", default: "self", null: false
+    t.string "risk_profile", default: "production", null: false
     t.boolean "treat_grader_timeouts_as_failures", default: false, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.boolean "trust_clean_rebase_grade", default: false, null: false

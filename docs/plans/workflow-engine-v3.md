@@ -588,12 +588,27 @@ Depends on A1 and A2 only.
 
 ### Track C — Scale
 
-- **C0 · Policy registry and risk profiles.** Extend
-  `AppSettingRegistry::Definition` with accepted scopes; promote
-  `AutoApprovalRule`'s candidate chain into the shared resolver; record which
-  tier answered on the Workflow; make repo-file resolution fail closed. Collapse
-  the main-branch six into a `risk_profile` with overrides. Depends on nothing;
-  pairs naturally with A2, since a per-definition ladder is policy.
+- **C0 · Policy registry and risk profiles — profile and resolver landed.**
+  `RiskProfile` is the bundle: three postures answering all six main-branch
+  knobs consistently, plus the attention posture. `Repository#risk_profile`
+  makes a project's posture readable from one value, and
+  `#risk_profile_overridden?` notices when the booleans have drifted away from
+  the label. Applying a profile writes its booleans, so the bundle is a bundle
+  rather than a seventh knob.
+
+  Worth recording plainly: Syrus's shipped defaults (halt unrelated work,
+  strict breakage policy) *are* the plan's `production` posture, not
+  `standard`. Every existing repository is backfilled with the profile matching
+  the columns it already has, so nothing is relabelled and nothing is relaxed;
+  moving a project to `standard` is a deliberate act.
+
+  `Policy::Resolver` generalizes `AutoApprovalRule`'s candidate chain and
+  reports which tier answered. It also makes the "policy fails open" defect
+  fixable: `Policy::Resolver::Unreadable` distinguishes a tier that *said
+  nothing* from one that *could not be read*, and the default is to fail
+  closed. Still to do: moving the three sibling repo-file resolvers onto it,
+  scopes on `AppSettingRegistry::Definition`, and recording the answering tier
+  on the Workflow.
 - **C1 · Actor-scoped admission and budgets.** Actor dimension on admission
   keys, per-user concurrency share, enforced spend budget, fairness rung that
   defers rather than fails.

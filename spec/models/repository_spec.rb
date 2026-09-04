@@ -513,4 +513,44 @@ RSpec.describe Repository do
       expect(Repository.accessible_to(unrelated_user)).not_to include(other_repo)
     end
   end
+
+  describe "risk posture" do
+    let(:repo) { Factories.repository }
+
+    # The success criterion: a project's risk posture readable from one value.
+    it "answers the postures that previously had no repository tier at all" do
+      repo.apply_risk_profile!("prototype")
+
+      expect(repo.breakage_policy).to eq("isolate_unrelated_failures")
+      expect(repo.escalates_landing_failures?).to be(false)
+    end
+
+    it "applies the profile's booleans so the label and the engine agree" do
+      repo.apply_risk_profile!("prototype")
+
+      expect(repo.reload.main_branch_health_enabled?).to be(false)
+      expect(repo).not_to be_risk_profile_overridden
+    end
+
+    # A repository whose booleans no longer match its label has a posture no
+    # single value describes -- which is what C0 exists to notice.
+    it "reports drift when a boolean is changed away from the profile" do
+      repo.apply_risk_profile!("production")
+      repo.update!(main_branch_repair_blocks_work: false)
+
+      expect(repo).to be_risk_profile_overridden
+    end
+
+    it "forbids agentic dismissal under production and allows it under standard" do
+      repo.apply_risk_profile!("production")
+      expect(repo.allows_agentic_dismissal?).to be(false)
+
+      repo.apply_risk_profile!("standard")
+      expect(repo.allows_agentic_dismissal?).to be(true)
+    end
+
+    it "refuses a profile that does not exist" do
+      expect { repo.update!(risk_profile: "yolo") }.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
 end

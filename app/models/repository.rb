@@ -75,6 +75,7 @@ class Repository < ApplicationRecord
   has_many :preview_environments, dependent: :destroy
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }
+  validates :risk_profile, inclusion: { in: RiskProfile.keys }, allow_nil: true
   validates :name, presence: true, format: { with: GITHUB_NAME }
   validates :upstream_owner, format: { with: GITHUB_NAME }, allow_blank: true
   validates :upstream_name, format: { with: GITHUB_NAME }, allow_blank: true
@@ -136,6 +137,51 @@ class Repository < ApplicationRecord
 
     update_columns(last_poll_status: "failed", last_poll_error: message)
     assign_attributes(last_poll_status: "failed", last_poll_error: message)
+  end
+
+  # workflow-engine-v3 C0. The profile answers the posture questions that had
+  # no repository tier at all -- they were instance-wide, so an instance
+  # hosting a throwaway repo and a production service had to pick one posture
+  # for both.
+  #
+  # The four main-branch booleans remain authoritative on their own; choosing a
+  # profile applies them (see #apply_risk_profile!), which is what keeps the
+  # bundle a bundle rather than a seventh knob beside the six.
+  def risk_posture = RiskProfile.fetch(risk_profile.presence || RiskProfile::SHIPPED_DEFAULT)
+
+  def breakage_policy = risk_posture.main_branch_breakage_policy
+
+  def escalates_landing_failures? = risk_posture.escalates_landing_failures
+
+  # "production" means no agent may dismiss a failing check: every override is
+  # human and audited.
+  def allows_agentic_dismissal? = risk_posture.allows_agentic_dismissal
+
+  # Applying a profile writes its booleans, so the posture a person picked is
+  # the posture the engine reads -- not a label sitting beside four knobs that
+  # say something else.
+  def apply_risk_profile!(key)
+    posture = RiskProfile.fetch(key)
+
+    update!(
+      risk_profile: posture.key,
+      main_branch_health_enabled: posture.main_branch_health_enabled,
+      main_branch_repair_enabled: posture.main_branch_repair_enabled,
+      main_branch_repair_auto_approve: posture.main_branch_repair_auto_approve,
+      main_branch_repair_blocks_work: posture.main_branch_repair_blocks_work
+    )
+  end
+
+  # Whether the booleans still say what the profile says. A repository that has
+  # drifted has a posture no single value describes any more, which is exactly
+  # what C0 exists to notice.
+  def risk_profile_overridden?
+    posture = risk_posture
+
+    main_branch_health_enabled? != posture.main_branch_health_enabled ||
+      main_branch_repair_enabled? != posture.main_branch_repair_enabled ||
+      main_branch_repair_auto_approve? != posture.main_branch_repair_auto_approve ||
+      main_branch_repair_blocks_work? != posture.main_branch_repair_blocks_work
   end
 
   def main_health
