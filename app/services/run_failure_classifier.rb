@@ -202,7 +202,7 @@ class RunFailureClassifier
 
   def merge_train_rebuild_required?
     text_match?(
-      /merge_train: base moved .* rebuild required|merge_train: missing built base SHA; rebuild required|merge_train_reconcile: built integration branch .* rebuild required/i
+      /merge_train: base moved .* rebuild required|merge_train: missing built base SHA; rebuild required|merge_train_reconcile: built integration branch .* rebuild required|merge_train_agent_rebase: .* rebuild required/i
     )
   end
 
