@@ -57,6 +57,7 @@ class AutoRetryFailureClassifier
     /merge_train: base moved .* rebuild required/i,
     /merge_train: missing built base SHA; rebuild required/i,
     /merge_train_reconcile: built integration branch .* rebuild required/i,
+    /merge_train_agent_rebase: .* rebuild required/i,
     /merge_train: integration PR has merge conflicts .*operator intervention required/i
   ].freeze
 

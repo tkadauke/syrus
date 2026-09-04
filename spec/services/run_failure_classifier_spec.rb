@@ -709,6 +709,17 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(false)
   end
 
+  it "classifies stale merge-train agent rebase checkouts as rebuild-required" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "merge_train_agent_rebase: checkout is on syrus/issue-1, not integration branch syrus/job-bundle-4705; rebuild required"
+    )
+
+    expect(classification.classification).to eq("merge_train_rebuild_required")
+    expect(classification.retryable).to eq(false)
+  end
+
   it "classifies unresolved merge-train rebase conflicts separately from generic git corruption" do
     run.update!(state: "failed")
     diagnostic("Steps::Base::StepFailed", "merge_train: rebase for syrus/issue-3 was not completed")
