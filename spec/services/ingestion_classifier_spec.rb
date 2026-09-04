@@ -6,21 +6,20 @@ RSpec.describe IngestionClassifier do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:github_client) { instance_double(GithubClient, list_pull_requests_for_triage: []) }
 
-  def agent_returning(json)
-    result = AgentInvocation::Result.new(
-      turns: 1,
-      exit_status: 0,
-      timed_out: false,
-      is_error: false,
-      outcome: "success",
-      final_text: JSON.generate(json),
-      session_id: nil
+  # The classifier goes through Judgment now, so the seam is the provider call
+  # every other one-shot caller stubs.
+  def stub_agent_text(text)
+    allow(AgentProviders).to receive(:run_one_shot).and_return(
+      AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false,
+        outcome: "success", final_text: text, session_id: nil
+      )
     )
-    instance_double("ClassifierAgent", run_once: result)
   end
 
   def classify(job, json, client: github_client)
-    described_class.call(job: job, agent: agent_returning(json), github_client: client)
+    stub_agent_text(JSON.generate(json))
+    described_class.call(job: job, github_client: client)
   end
 
   it "marks a duplicate issue invalid with the original issue URL as evidence" do
@@ -144,9 +143,9 @@ RSpec.describe IngestionClassifier do
       final_text: "not json",
       session_id: nil
     )
-    agent = instance_double("ClassifierAgent", run_once: result)
+    allow(AgentProviders).to receive(:run_one_shot).and_return(result)
 
-    described_class.call(job: job, agent: agent, github_client: github_client)
+    described_class.call(job: job, github_client: github_client)
 
     expect(job.reload).to be_triaging
     expect(job.triaging_reason).to eq("classifier_uncertain")
@@ -161,7 +160,7 @@ RSpec.describe IngestionClassifier do
       issue_title: "Huge ingest payload",
       issue_body: ("alpha " * 600) + ("tailtoken " * 10_000)
     )
-    classifier = described_class.new(job: job, agent: agent_returning({}), github_client: github_client)
+    classifier = described_class.new(job: job, github_client: github_client)
 
     tokens = classifier.send(:job_text, job)
 

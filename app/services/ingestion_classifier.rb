@@ -16,14 +16,16 @@ class IngestionClassifier
 
   def self.call(...) = new(...).call
 
-  def initialize(job:, agent: nil, github_client: nil,
+  def initialize(job:, runner: nil, github_client: nil,
                  timeout: DEFAULT_TIMEOUT_SECONDS,
                  max_turns: DEFAULT_MAX_TURNS,
                  now: Time.current)
     @job = job
     @repository = job.repository
     @user = job.user
-    @agent = agent || OneShotAgent.new(user: @user, provider: job.workflow_agent_provider)
+    # `runner` rather than a bespoke agent object: the judgment itself is the
+    # primitive now, and this is the same seam every other one-shot caller has.
+    @runner = runner
     @github_client = github_client
     @timeout = timeout
     @max_turns = max_turns
@@ -58,25 +60,22 @@ class IngestionClassifier
       duplicate_candidates: duplicate_candidate_index
     ).to_s
 
-    result = agent.run_once(
+    judgment = Judgment.call(
+      scope: "ingestion-classifier",
       prompt: prompt,
-      log_sink: ->(*, **) { },
+      user: @user,
+      provider: job.workflow_agent_provider,
+      runner: @runner,
       timeout: timeout,
       max_turns: max_turns
     )
+    return failure(judgment.error) if judgment.failed?
 
-    return failure("timed out after #{timeout}s") if result.timed_out
-    return failure("agent reported #{result.outcome || 'error'}") if result.is_error
-    return failure("agent exited #{result.exit_status}") unless result.success?
-    return failure("empty response") if result.final_text.blank?
-
-    parse(result.final_text)
+    parse(judgment.value)
   end
 
-  def parse(raw)
-    text = raw.to_s.strip
-    text = text.sub(/\A```(?:json)?\s*\n/, "").sub(/\n```\s*\z/, "").strip
-    parsed = JSON.parse(text)
+  def parse(parsed)
+    return failure("invalid JSON: expected an object") unless parsed.is_a?(Hash)
 
     invalid = parsed["invalid"].is_a?(Hash) ? parsed["invalid"] : {}
     kind = invalid["kind"].to_s.presence
@@ -93,8 +92,6 @@ class IngestionClassifier
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
       error: nil
     )
-  rescue JSON::ParserError => e
-    failure("invalid JSON: #{e.message[0..120]}")
   rescue ArgumentError
     failure("epic_id must be an integer or null")
   end
@@ -231,25 +228,5 @@ class IngestionClassifier
 
   def failure(reason)
     Result.new(epic_id: nil, invalid_kind: nil, reason: nil, evidence_urls: [], error: reason)
-  end
-
-  class OneShotAgent
-    def initialize(user:, provider:)
-      @user = user
-      @provider = provider
-    end
-
-    def run_once(prompt:, log_sink:, timeout:, max_turns:)
-      AgentProviders.run_one_shot(
-        provider: @provider,
-        user: @user,
-        runner: RunJob.agent_runner,
-        scope: "ingestion-classifier",
-        prompt: prompt,
-        log_sink: log_sink,
-        timeout: timeout,
-        max_turns: max_turns
-      )
-    end
   end
 end

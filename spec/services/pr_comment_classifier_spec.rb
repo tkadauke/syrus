@@ -59,7 +59,7 @@ RSpec.describe PrCommentClassifier do
       result = described_class.call(body: "hello", user: user, agent_provider: "claude")
 
       expect(result.success?).to be false
-      expect(result.error).to match(/agent error/)
+      expect(result.error).to match(/agent reported/)
     end
 
     it "returns a failure when the response is not valid JSON" do
@@ -71,39 +71,6 @@ RSpec.describe PrCommentClassifier do
 
       expect(result.success?).to be false
       expect(result.error).to match(/invalid JSON/)
-    end
-  end
-
-  describe "OneShotAgent" do
-    it "delegates to AgentProviders.run_one_shot with the comment_classifier scope" do
-      fake_result = agent_result(text: JSON.generate("actionable" => true, "reason" => "test"))
-
-      expect(AgentProviders).to receive(:run_one_shot).with(
-        hash_including(
-          provider: "claude",
-          user: user,
-          scope: "comment_classifier"
-        )
-      ).and_return(fake_result)
-
-      described_class::OneShotAgent.new(user: user, provider: "claude").run_once(
-        prompt: "classify this",
-        log_sink: ->(*) { },
-        timeout: 20,
-        max_turns: 1
-      )
-    end
-
-    it "raises ConfigurationError for unknown providers" do
-      expect(AgentProviders).to receive(:run_one_shot).and_raise(
-        AgentProviders::ConfigurationError, "Unknown agent provider: \"oracle\""
-      )
-
-      expect {
-        described_class::OneShotAgent.new(user: user, provider: "oracle").run_once(
-          prompt: "x", log_sink: ->(*) { }, timeout: 20, max_turns: 1
-        )
-      }.to raise_error(AgentProviders::ConfigurationError)
     end
   end
 end

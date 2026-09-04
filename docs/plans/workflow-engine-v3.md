@@ -549,8 +549,13 @@ Depends on A1 and A2 only.
   applies -- scoped to a repository, never global, and expiring, since a
   dismissal that made sense against one base revision should not silently
   outlive it. Still to do: the escalations-per-landing baseline.
-- **B4 · Judgment primitive.** A Run with no workspace, declared output schema,
-  cost ceiling, timeout remediation. Retrofit the four `OneShotAgent` copies.
+- **B4 · Judgment primitive — done.** `Judgment` is one bounded agent turn: a
+  prompt, a declared output schema, a cost ceiling and timeout remediation from
+  the day it landed, with every failure reported as a `Problem` rather than as
+  an exception each caller has to recognize. All four `OneShotAgent` copies are
+  retrofitted and deleted, along with the four hand-rolled fenced-JSON strips
+  and the four copies of the provider-outcome checks. The success criterion
+  "no `OneShotAgent` class remains outside the Judgment primitive" holds.
 - **B5 · Agentic adjudication.** Built on B4. Enable per workflow, starting with
   `auto_merge`.
 

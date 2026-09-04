@@ -51,39 +51,31 @@ class DirectJobTitleGenerator
   def generate
     return failure("agent provider is not configured") unless user.agent_provider_configured?(agent_provider)
 
-    result = invoke_agent
-    return failure("timed out after #{timeout}s") if result.timed_out
-    return failure("agent reported #{result.outcome || 'error'}") if result.is_error
-    return failure("agent exited #{result.exit_status}") unless result.success?
-    return failure("empty response") if result.final_text.blank?
-
-    parse(result.final_text)
-  rescue StandardError => e
-    failure("#{e.class}: #{e.message}")
+    parse(invoke_agent)
   end
 
   private
 
   def invoke_agent
-    OneShotAgent.new(user: user, provider: agent_provider, runner: runner).run_once(
+    Judgment.call(
+      scope: "direct-job-title",
       prompt: Prompts::DirectJobTitle.new(prompt: prompt, repository: repository).to_s,
-      log_sink: ->(*, **) { },
+      user: user,
+      provider: agent_provider,
+      runner: runner,
+      schema: %w[title],
       timeout: timeout,
       max_turns: 1
     )
   end
 
-  def parse(raw)
-    text = raw.to_s.strip
-    text = text.sub(/\A```(?:json)?\s*\n/, "").sub(/\n```\s*\z/, "").strip
+  def parse(judgment)
+    return failure(judgment.error) if judgment.failed?
 
-    parsed = JSON.parse(text)
-    title = strip_wrapping_marks(parsed["title"].to_s.squish)
+    title = strip_wrapping_marks(judgment.value["title"].to_s.squish)
     return failure("empty title") if title.blank?
 
     Result.new(title: truncate(title), error: nil)
-  rescue JSON::ParserError => e
-    failure("invalid JSON: #{e.message[0..120]}")
   end
 
   def failure(reason)
@@ -106,27 +98,6 @@ class DirectJobTitleGenerator
       return stripped if stripped == result
 
       result = stripped
-    end
-  end
-
-  class OneShotAgent
-    def initialize(user:, provider:, runner:)
-      @user = user
-      @provider = provider
-      @runner = runner
-    end
-
-    def run_once(prompt:, log_sink:, timeout:, max_turns:)
-      AgentProviders.run_one_shot(
-        provider: @provider,
-        user: @user,
-        runner: @runner,
-        scope: "direct-job-title",
-        prompt: prompt,
-        log_sink: log_sink,
-        timeout: timeout,
-        max_turns: max_turns
-      )
     end
   end
 end

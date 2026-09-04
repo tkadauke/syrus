@@ -23,65 +23,33 @@ class PrCommentClassifier
   end
 
   def call
-    prompt = Prompts::CommentClassifier.new(body: @body).to_s
-    result = agent.run_once(
-      prompt: prompt,
-      log_sink: ->(*) { },
+    judgment = Judgment.call(
+      scope: "comment_classifier",
+      prompt: Prompts::CommentClassifier.new(body: @body).to_s,
+      user: @user,
+      provider: @agent_provider,
+      schema: %w[actionable],
       timeout: @timeout,
       max_turns: @max_turns
     )
 
-    return failure("timed out after #{@timeout}s") if result.timed_out
-    return failure("agent error: #{result.outcome}") if result.is_error
-    return failure("agent exited #{result.exit_status}") unless result.success?
-    return failure("empty response") if result.final_text.blank?
+    return classification_failure(judgment.error) if judgment.failed?
 
-    parse(result.final_text)
-  rescue StandardError => e
-    Rails.logger.warn("[PrCommentClassifier] classification error: #{e.class}: #{e.message}")
-    failure("#{e.class}: #{e.message}")
+    Result.new(
+      actionable: judgment.value["actionable"] == true,
+      reason: judgment.value["reason"].to_s.strip.presence,
+      error: nil
+    )
   end
 
   private
 
-  def parse(raw)
-    text = raw.to_s.strip
-    text = text.sub(/\A```(?:json)?\s*\n/, "").sub(/\n```\s*\z/, "").strip
-    parsed = JSON.parse(text)
-
-    actionable = parsed["actionable"] == true
-    reason = parsed["reason"].to_s.strip.presence
-
-    Result.new(actionable: actionable, reason: reason, error: nil)
-  rescue JSON::ParserError => e
-    failure("invalid JSON: #{e.message[0..80]}")
-  end
-
-  def agent
-    @agent ||= OneShotAgent.new(user: @user, provider: @agent_provider)
+  def classification_failure(reason)
+    Rails.logger.warn("[PrCommentClassifier] classification error: #{reason}")
+    failure(reason)
   end
 
   def failure(reason)
     Result.new(actionable: true, reason: nil, error: reason)
-  end
-
-  class OneShotAgent
-    def initialize(user:, provider:)
-      @user = user
-      @provider = provider
-    end
-
-    def run_once(prompt:, log_sink:, timeout:, max_turns:)
-      AgentProviders.run_one_shot(
-        provider: @provider,
-        user: @user,
-        runner: RunJob.agent_runner,
-        scope: "comment_classifier",
-        prompt: prompt,
-        log_sink: log_sink,
-        timeout: timeout,
-        max_turns: max_turns
-      )
-    end
   end
 end
