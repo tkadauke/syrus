@@ -270,6 +270,10 @@ module Workflows
         when Workflows::Loop, Workflows::RetryUntil, Workflows::Try
           validate_control_node!(node)
           node
+        when Workflows::ForEachMember, Workflows::Barrier
+          # Unit-scoped nodes carry no nested chain, so there is nothing to
+          # validate beyond what the node validated for itself.
+          node
         when Symbol, String
           node.to_s
         else
@@ -307,7 +311,7 @@ module Workflows
 
     def self.serialize_chain_template(nodes)
       nodes.map do |node|
-        if node.is_a?(Workflows::Loop) || node.is_a?(Workflows::RetryUntil) || node.is_a?(Workflows::Try)
+        if node.respond_to?(:to_chain_template)
           node.to_chain_template
         else
           { "type" => "step", "kind" => node.to_s }
@@ -320,6 +324,20 @@ module Workflows
       nodes.flat_map do |node|
         if node.is_a?(Workflows::Try)
           step = materialize_try_step!(workflow, node, position)
+          position += 1
+          step
+        elsif node.is_a?(Workflows::ForEachMember) || node.is_a?(Workflows::Barrier)
+          # Members are only known at run time, so the fan-out materializes as
+          # one Step and inserts the per-member Steps when it runs -- the same
+          # shape Steps::GraderFanout already uses. A barrier is just the Step
+          # that depends on all of them (see Step#depends_on_ids).
+          step = Step.create!(
+            workflow: workflow,
+            kind: node.step_kind,
+            position: position,
+            iteration: 1,
+            details: node.to_chain_template.slice("type", "id", "preemption")
+          )
           position += 1
           step
         elsif node.is_a?(Workflows::Loop) || node.is_a?(Workflows::RetryUntil)

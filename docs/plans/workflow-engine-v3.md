@@ -554,8 +554,23 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   belt-and-braces fallback. Worth correcting the plan's framing while here:
   fan-in was never "exactly one case"; two step kinds already used that
   declarative rule.
-- **A6 · Unit-scoped nodes.** `for_each_member`/`barrier`; move the merge-train
-  shape into a template; attach preemption policy to nodes.
+- **A6 · Unit-scoped nodes — node types landed; the merge-train move still to
+  do.** `Workflows::ForEachMember` and `Workflows::Barrier` are node types with
+  preemption declared per node (`checkpoint` / `cancel` / `rebuild`, all three
+  already existing WorkUnit behaviors), so "what happens if this is preempted
+  mid-train" has a per-node answer rather than only a per-definition one.
+
+  A5 made the barrier nearly free: with real dependency edges it is just a Step
+  that depends on every member Step, so it needs no sentinel and no per-kind
+  rule -- the same mechanism `grader_collect` uses. The fan-out materializes as
+  one Step and inserts the per-member Steps when it runs, since members are
+  only known at run time; that is the shape `GraderFanout` already uses, which
+  is why both are `runtime_inserted`.
+
+  Still to do: actually moving the merge-train shape out of
+  `Steps::MergeTrainBuild` into a template built from these nodes. That is a
+  behavior migration for the landing path, not a node-type addition, and wants
+  its own change.
 - **A7 · Agent authoring.** MCP tools for runtime patches, and a
   proposal → confirm flow for writing `.syrus/workflows/*.yml`. Last,
   deliberately: only safe once A4's provenance, validation and capability model
