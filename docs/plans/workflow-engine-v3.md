@@ -31,6 +31,46 @@ template resolution is built but opt-in because it would put a GitHub
 round-trip on workflow instantiation (A4/A7), classification is not yet a Run
 inside a `triage` template (C2), and the decision queue has no UI surface (B2).
 
+### Problems now flow from the step that raised them
+
+The first criterion above was met at the level of *vocabulary* -- the codes
+were declared and aliased -- but not at the level of *flow*. A step still
+raised prose, and each downstream layer regex-matched its way back to a meaning
+the step had already computed. Four layers kept a private copy of that guess:
+`RunFailureClassifier`, `AutoRetryFailureClassifier`, `LandingFailureHandler`
+and `MergeTrainFailureHandler`. They disagreed.
+
+Measured against the messages the merge-train steps actually raise, seven of
+eleven matched none of the classifier's patterns and degraded to
+`application_error`; `LandingFailureHandler`'s `\A`-anchored patterns could not
+match the `RunJob` path at all, since `RunJob` prefixes the reason with the
+exception class. The visible cost was a train that needed rebuilding being
+hard-failed, clearing the operator's approval.
+
+`Steps::Base::StepFailed` now carries an optional `Problem`, declared per raise
+site with `fail_with!` or once per exception class with `problem_code`.
+`CaptureRunDiagnostic` records it, and all four layers read it before falling
+back to their patterns. `MergeTrainFailureHandler` lost the method that
+rendered a structured artifact back into an English sentence so that a regex
+downstream would match it.
+
+Emission is deliberately optional and partial. Only the sites that were already
+being regex-recovered were converted; most failures are genuinely opaque where
+they are raised, and a confident wrong code is worse than an honest
+`application_error`. Five other "agent didn't call" sites were left inferring
+because, unlike the two read-only reviewer steps, they may have mutated the
+workspace -- and that distinction is what makes their retry unsafe.
+
+**Still re-derived, and why.** `WorkEngine::Reconciler`'s 51 issue kinds are
+not this axis: they describe structural drift (a queued Run with no queue
+claim), not why a Run failed, and collapsing them into Problems would merge two
+genuinely different questions. `WorkEngine::RepairPlanner` still string-matches
+`classification.classification` against scattered constants; that string is now
+problem-backed, so the remaining work there is renaming rather than
+re-deriving. `LandingFailureHandler.infrastructure_blocker?` still pattern-
+matches disk-full text because no `Problem::Kind` code covers it -- adding one
+is a vocabulary change with its own blast radius, not a cleanup.
+
 ## Relationship To Other Plans
 
 - `docs/plans/work-units-and-execution-resilience.md` — the v2 plan, largely
