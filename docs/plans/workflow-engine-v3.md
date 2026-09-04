@@ -604,8 +604,11 @@ Depends on A1 and A2 only.
   the producer: a terminally failed Workflow becomes one Decision, named in the
   shared vocabulary, ranked by what the failure costs (a stalled landing is
   urgent; a failed initial attempt is not), carrying the rung-0 verdict and the
-  retry action an operator already has. Still to do: cutting `SupervisorEvents`
-  off the `NotificationService` firehose, and the surface itself.
+  retry action an operator already has. `SupervisorEvents` is off the
+  `NotificationService` firehose: only the notification kinds that represent
+  something a person may have to act on publish an event, since most
+  notifications report that something went fine and a queue of those buries the
+  rare one that needs a decision. Still to do: the queue surface itself.
 - **B3 · Decision signatures — fingerprint and consult landed; metric still to
   do.** `Decisions::Signature` is problem code plus a normalized fingerprint of
   only the evidence that says *which* problem this is, so two occurrences match

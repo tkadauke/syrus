@@ -230,4 +230,32 @@ RSpec.describe NotificationService do
       setting&.update!(mode: original_mode || "advanced")
     end
   end
+
+  describe "supervisor events" do
+    let(:user) { Factories.user }
+    let(:job) { Factories.job(user: user) }
+
+    # workflow-engine-v3 B2. Most notifications report that something went
+    # fine; a supervisor queue full of those buries the rare one that needs a
+    # decision.
+    it "publishes an event for a kind someone may have to act on" do
+      expect(SupervisorEvents).to receive(:publish!).with(hash_including(kind: "job_failed"))
+
+      described_class.create_for(user: user, kind: "job_failed", job: job, body: "failed")
+    end
+
+    it "does not wake the supervisor for routine good news" do
+      expect(SupervisorEvents).not_to receive(:publish!)
+
+      described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged")
+      described_class.create_for(user: user, kind: "job_implemented", job: job, body: "done")
+      described_class.create_for(user: user, kind: "main_recovered", job: job, body: "recovered")
+    end
+
+    # The user still sees them; they just are not supervisor events.
+    it "still creates the notification for a kind it does not publish" do
+      expect { described_class.create_for(user: user, kind: "pr_merged", job: job, body: "merged") }
+        .to change(Notification, :count).by(1)
+    end
+  end
 end

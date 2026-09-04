@@ -70,7 +70,25 @@ class NotificationService
     }
   end
 
+  # workflow-engine-v3 B2: the supervisor is not a notification firehose.
+  #
+  # Every notification used to become a SupervisorEvent, which is why the
+  # supervisor chat drowned: most notifications report that something *went
+  # fine*, and a queue of those buries the rare one that needs a decision.
+  #
+  # Only kinds that represent something a person may have to act on publish an
+  # event now. The rest are still notifications -- the user sees them -- they
+  # just do not wake the supervisor.
+  SUPERVISOR_EVENT_KINDS = %w[
+    job_failed epic_failed main_broken main_inconclusive upstream_pr_closed
+  ].freeze
+
+  def self.supervisor_event_kind?(kind) = SUPERVISOR_EVENT_KINDS.include?(kind.to_s)
+  private_class_method :supervisor_event_kind?
+
   def self.publish_supervisor_event(user:, kind:, job:, repository:, actor:, pr_url:, body:, dedupe_key:)
+    return unless supervisor_event_kind?(kind)
+
     SupervisorEvents.publish!(
       kind: kind,
       severity: severity_for(kind),
