@@ -695,6 +695,41 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
   })
+
+  it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
+    // list_design_docs's card lives entirely under
+    // plugins/design_docs/app/frontend/tool_cards/ (see JOB-4219) — this
+    // spec proves the extension point resolves it purely by tool name.
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List design docs",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_design_docs",
+          raw_name: "list_design_docs",
+          detail: "No arguments",
+          display_label: "List design docs",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({ design_docs: [{ id: 20, doc_ref: "DOC-20", title: "Target Graphs", state: "draft" }] }),
+          result_error: false,
+          result_kind: "record",
+          result_summary: "1 design doc"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.queryByText("DOC-20")).not.toBeInTheDocument()
+
+    expandToolGroup("List design docs")
+
+    expect(screen.getByText("DOC-20")).toBeInTheDocument()
+    expect(screen.getByText("Target Graphs")).toBeInTheDocument()
+  })
 })
 
 describe("pin control", () => {
