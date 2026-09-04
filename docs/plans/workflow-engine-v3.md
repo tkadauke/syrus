@@ -13,9 +13,10 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-04, **A1, A2 and B1 are implemented** (`Problem` /
-`Problem::Kind`, `Remediation` / `Remediation::Resolver`, `Adjudication` /
-`Adjudicators`); the rest is still a proposal. It is written
+As of 2026-09-04, **A1, A2, B1, B2 and B3's record half are implemented**
+(`Problem` / `Problem::Kind`, `Remediation` / `Remediation::Resolver`,
+`Adjudication` / `Adjudicators`, `Decision` / `Decisions::Opener` /
+`Decisions::Signature`); the rest is still a proposal. It is written
 to be executed in three independent tracks (see
 [Incremental Plan](#incremental-plan)); the first two phases of Track A change
 no behavior and unblock everything else.
@@ -532,11 +533,22 @@ Depends on A1 and A2 only.
   is treated as declining, loudly -- rung 0 runs on the failure path. Not yet
   wired into a caller: nothing consults the rung until B2 gives a decided
   verdict somewhere to go.
-- **B2 · Decision queue.** A `Decision` record bound to existing
-  `PendingActions`. Cut `SupervisorEvents` off the `NotificationService`
-  firehose.
-- **B3 · Decision signatures.** Fingerprint problems, record decisions, consult
-  from rung 0. Start the escalations-per-landing metric here for a baseline.
+- **B2 · Decision queue — record landed; routing still to do.** `Decision` is
+  the unit: one problem, its evidence, the rung-0 verdict, and typed actions
+  that must name real `PendingActions` entries (a decision offering an action
+  nobody can execute reads as answerable and is not). `queue` separates
+  operator decisions from triage, because merging them buries the rare
+  important decision under the frequent cheap one. Still to do: cutting
+  `SupervisorEvents` off the `NotificationService` firehose, and the surface
+  itself.
+- **B3 · Decision signatures — fingerprint and consult landed; metric still to
+  do.** `Decisions::Signature` is problem code plus a normalized fingerprint of
+  only the evidence that says *which* problem this is, so two occurrences match
+  and a decision can compound. `Decisions::Opener` reuses an open decision for
+  the same signature and declines to ask again when a prior decision still
+  applies -- scoped to a repository, never global, and expiring, since a
+  dismissal that made sense against one base revision should not silently
+  outlive it. Still to do: the escalations-per-landing baseline.
 - **B4 · Judgment primitive.** A Run with no workspace, declared output schema,
   cost ceiling, timeout remediation. Retrofit the four `OneShotAgent` copies.
 - **B5 · Agentic adjudication.** Built on B4. Enable per workflow, starting with
