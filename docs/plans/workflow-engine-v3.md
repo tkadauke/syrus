@@ -571,10 +571,18 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   `Steps::MergeTrainBuild` into a template built from these nodes. That is a
   behavior migration for the landing path, not a node-type addition, and wants
   its own change.
-- **A7 · Agent authoring.** MCP tools for runtime patches, and a
-  proposal → confirm flow for writing `.syrus/workflows/*.yml`. Last,
-  deliberately: only safe once A4's provenance, validation and capability model
-  exist.
+- **A7 · Agent authoring — runtime patches landed; the repo-file proposal flow
+  still to do.** `WorkflowPatch` is the typed, append-only, attributed change,
+  and `patch_workflow` is the MCP tool that lets an implementing agent add a
+  check to its own workflow. All three guardrails are enforced rather than
+  described: a patch cannot remove a node (checked against the resulting graph,
+  not trusted from the operation name), cannot add a publication step, and
+  records its author and reason.
+
+  Permanent customization -- writing `.syrus/workflows/<key>.yml` through the
+  pending-action confirmation flow -- is still to do. It needs A4's override
+  resolution wired on with a cache, which is the piece deliberately left
+  opt-in there.
 
 ### Track B — Attention
 

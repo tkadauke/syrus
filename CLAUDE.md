@@ -385,6 +385,12 @@ under `Workflow#artifacts["typed_artifacts"]`; idempotent on `type` (replaces an
 prior entry with the same type); available to implement, summarize/test-plan, and
 rebase-conflict agents; use for structured outputs reviewers can see rendered
 (e.g. `rails_schema_erd`, `rails_migration_diff`);
+`patch_workflow(step_kinds, after_kind, reason)` — lets an implementing agent
+add a check to its own running workflow when the work turns out to need one the
+template did not include. Append-only and attributed: it cannot remove a step
+and cannot add one that publishes (`pr_open`, `push`, `auto_merge` and
+siblings), so the checks a workflow exists to satisfy cannot be patched away by
+the thing being checked. See `WorkflowPatch`;
 `submit_job_metadata(changed:, ...)` — used only by `refresh_job_metadata`;
 `submit_adversarial_review(verdict, critique)` — used by the `adversarial_review` step;
 `submit_visual_review(verdict, critique)` — used by the `visual_review` step;

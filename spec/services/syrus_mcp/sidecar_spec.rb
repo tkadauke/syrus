@@ -66,7 +66,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names - plugin_names).to contain_exactly(
         *%w[read_live_state read_run_worker_health get_coverage_report report_main_concern
             start_preview stop_preview read_preview_log
-            submit_summary submit_test_plan submit_review_plan submit_artifact submit_visual_artifact]
+            submit_summary submit_test_plan submit_review_plan submit_artifact patch_workflow submit_visual_artifact]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
     end

@@ -319,6 +319,12 @@ class McpToolRegistry
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReviewPlanTool, capability: :submit_review_plan, required_roles: summary_roles, mutation: true),
         workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
+        # Only the implementing agent may add work to its own workflow, and
+        # WorkflowPatch bounds what "add" means (workflow-engine-v3 A7).
+        workflow(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
+          AgentRole::WORKFLOW_IMPLEMENT,
+          AgentRole::WORKFLOW_MANUAL
+        ], mutation: true),
         workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
         workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, mutation: true),
         workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
