@@ -5,6 +5,10 @@ class Step
     #   :loop_iteration — drives the retry_until loop counter (grader_collect, grade)
     #   :default        — workflow fails unless a try-branch handles it
     #
+    # These are the step-kind half of the remediation vocabulary; see
+    # Step::Kind.remediation_for, which states each one as a Remediation action
+    # so the in-flight and reconciliation planes name the same outcomes.
+    #
     # reconcile_strategy maps to a RunCompletionReconciler method suffix:
     #   nil           — not reconcilable (most steps)
     #   :pr_open      → reconcile_pr_open
@@ -285,6 +289,18 @@ class Step
 
     def registry
       by_kind.transform_values(&:handler).freeze
+    end
+
+    # The fail_policy stated in the shared action set (workflow-engine-v3
+    # primitive B). :default is not an action -- it means "no step-kind opinion",
+    # so the resolver's later tiers decide.
+    FAIL_POLICY_ACTIONS = { advance: :advance, loop_iteration: :retry_step }.freeze
+
+    def remediation_for(kind)
+      action = FAIL_POLICY_ACTIONS[fetch(kind).fail_policy]
+      return nil unless action
+
+      Remediation[action, source: :template_override]
     end
 
     def label_for(kind)

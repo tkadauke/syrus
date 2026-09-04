@@ -51,8 +51,9 @@ class RetryFailedStepEnqueuer
 
     failed_step = self.class.failed_step_for(workflow)
     return failure("No failed step to retry.") unless failed_step
-    return rebuild_merge_train if retry_policy.rebuild_unit?(failed_step)
-    return failure("Failed step requires a new workflow attempt.") unless retry_policy.continuation?(failed_step)
+    remediation = remediation_for(failed_step)
+    return rebuild_merge_train if remediation.rebuild_unit?
+    return failure("Failed step requires a new workflow attempt.") unless remediation.resume_step?
     if (lock_error = active_work_lock_error)
       return failure(lock_error)
     end
@@ -90,8 +91,21 @@ class RetryFailedStepEnqueuer
     parent_session_id
   end
 
-  def retry_policy
-    workflow.work_definition.retry_policy
+  # Resolved through the one remediation rule rather than asking the work
+  # definition's retry policy directly. The policy is still what answers --
+  # it is tier 3 of that rule -- but going through the resolver is what lets a
+  # step or template override take precedence later without this call site
+  # learning about them.
+  def remediation_for(failed_step)
+    Remediation::Resolver.call(
+      problem: problem_for(failed_step),
+      step: failed_step,
+      workflow: workflow
+    )
+  end
+
+  def problem_for(failed_step)
+    Problem::Kind.resolve(failed_step.details.to_h["failure_code"])&.then { |entry| Problem[entry.code] }
   end
 
   def active_work_lock_error

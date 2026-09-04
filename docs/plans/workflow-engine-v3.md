@@ -13,8 +13,8 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-04, **A1 is implemented** (`Problem` / `Problem::Kind`); the rest
-is still a proposal. It is written
+As of 2026-09-04, **A1 and A2 are implemented** (`Problem` / `Problem::Kind`,
+`Remediation` / `Remediation::Resolver`); the rest is still a proposal. It is written
 to be executed in three independent tracks (see
 [Incremental Plan](#incremental-plan)); the first two phases of Track A change
 no behavior and unblock everything else.
@@ -490,10 +490,19 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   index. Coverage is pinned statically (`spec/models/problem/kind_spec.rb`)
   rather than enforced at runtime: the emitters run on the failure path, where
   a new raise would turn a handled failure into a crash. No behavior changed.
-- **A2 · Remediation table.** One resolver seeded to reproduce today's behavior;
-  `fail_policy`, retry policies and executor actions delegate into it.
-  `spec/services/work_engine/resilience_matrix_spec.rb` (519 lines) is the
-  golden master that makes this a refactor rather than a leap.
+- **A2 · Remediation table — resolver landed; executor actions still to
+  delegate.** `Remediation` is the closed action set and `Remediation::Resolver`
+  is the one rule, seeded to reproduce today's decisions: tier 3 asks the work
+  definition's retry policy rather than reimplementing it, so nothing moved.
+  `RetryFailedStepEnqueuer` and `StepDispatcher#fail!` now go through it, and
+  `Step::Kind.remediation_for` states `fail_policy` in the shared action set
+  (`:advance` stays `:advance`; `:loop_iteration` is `:retry_step`; `:default`
+  means "no step-kind opinion", so later tiers decide). Tiers 1 and 2 have no
+  producers yet -- they exist because the order is the contract.
+  `spec/services/work_engine/resilience_matrix_spec.rb` stayed green
+  throughout, which is what makes this a refactor rather than a leap. Still to
+  do: `Workflows::Try`/`RetryUntil` declaring their branches as template
+  overrides, and the RepairExecutor actions resolving through the same table.
 - **A3 · Node objects.** Loop/RetryUntil/Try semantics move into node classes;
   the two reviewer-loop copies collapse into one `Gate`.
 - **A4 · Templates as data.** Persist compiled templates with provenance; add

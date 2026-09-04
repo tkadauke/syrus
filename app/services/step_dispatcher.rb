@@ -809,10 +809,13 @@ class StepDispatcher
   def fail!
     return if @workflow.terminal?
 
-    case @from_step && Step::Kind.fetch(@from_step.kind).fail_policy
+    # The step kind's own opinion, stated as a Remediation action so this
+    # dispatch and the reconciler name the same outcomes. No step-kind opinion
+    # means the try branches get their say, then the workflow fails.
+    case @from_step && Step::Kind.remediation_for(@from_step.kind)&.action
     when :advance
       advance!
-    when :loop_iteration
+    when :retry_step
       handle_loop_iteration
     else
       return if handle_try_failure
