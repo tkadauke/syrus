@@ -1,3 +1,5 @@
+require "monitor"
+
 module Syrus
   # Runs plugin installs, and re-runs them when the active plugin set changes.
   #
@@ -23,7 +25,14 @@ module Syrus
   module Installer
     Registration = Struct.new(:label, :plugin, :install, keyword_init: true)
 
-    @mutex = Mutex.new
+    # A Monitor rather than a Mutex because installs re-enter: an install block
+    # can touch a registry that is autoloaded for the first time right then,
+    # and a KindRegistry defines its own installer entry when it is
+    # constructed. With a plain Mutex that raised
+    # `ThreadError: deadlock; recursive locking` inside apply!, which is
+    # rescued per-registration -- so every scoped effect silently failed to
+    # install while sync! still recorded the fingerprint as applied.
+    @mutex = Monitor.new
     @registrations = {}
     @scope = nil
     @applied_fingerprint = nil
@@ -126,7 +135,11 @@ module Syrus
 
         active = enabled_plugin_names
 
-        @registrations.each_value do |registration|
+        # A snapshot, because an install can define a new registration: a
+        # KindRegistry constructed for the first time during an install adds
+        # its own entry. Those are picked up by the next sync -- `define` nils
+        # the applied fingerprint, so one is already guaranteed.
+        @registrations.values.each do |registration|
           next if registration.plugin && active && !active.include?(registration.plugin)
 
           child = @scope.child(label: registration.label)

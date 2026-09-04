@@ -15,13 +15,15 @@ class CreateDecisions < ActiveRecord::Migration[8.1]
       t.string :title, null: false
       t.text :summary
 
-      t.references :user, null: true, foreign_key: true
-      t.references :repository, null: true, foreign_key: true
-      t.references :job, null: true, foreign_key: true
-      t.references :workflow, null: true, foreign_key: true
-      t.references :step, null: true, foreign_key: true
+      # Indexed references without database-level constraints: Syrus keeps
+      # referential behavior in application code (see CLAUDE.md).
+      t.references :user, null: true
+      t.references :repository, null: true
+      t.references :job, null: true
+      t.references :workflow, null: true
+      t.references :step, null: true
 
-      t.references :decided_by_user, null: true, foreign_key: { to_table: :users }
+      t.references :decided_by_user, null: true
       t.datetime :decided_at
       t.string :resolution
       t.text :reason
