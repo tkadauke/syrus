@@ -1553,7 +1553,9 @@ function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
 function nodeToMarkdown(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? ""
   if (!(node instanceof HTMLElement)) return ""
-  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
+  if (node.dataset.inlineSuggestionState) return originalMarkdownForSuggestionPreview(node).trim()
+  if (node.dataset.reviewOriginal) return inlineMarkdownChildren(node).trim()
+  if (isReviewOnlyElement(node)) return ""
 
   if (node.tagName === "HR") return "---"
   if (node.tagName === "PRE") return fencedCodeMarkdown(node)
@@ -1574,7 +1576,9 @@ function nodeToMarkdown(node: ChildNode): string {
 function inlineMarkdownText(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ""
   if (!(node instanceof HTMLElement)) return ""
-  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
+  if (node.dataset.inlineSuggestionState) return originalMarkdownForSuggestionPreview(node)
+  if (node.dataset.reviewOriginal) return inlineMarkdownChildren(node)
+  if (isReviewOnlyElement(node)) return ""
   if (node.tagName === "BR") return "\n"
   if (node.tagName === "STRONG" || node.tagName === "B") return `**${inlineMarkdownChildren(node)}**`
   if (node.tagName === "EM" || node.tagName === "I") return `*${inlineMarkdownChildren(node)}*`
@@ -1592,6 +1596,14 @@ function inlineMarkdownText(node: ChildNode): string {
 
 function inlineMarkdownChildren(node: HTMLElement) {
   return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
+}
+
+function originalMarkdownForSuggestionPreview(node: HTMLElement) {
+  return node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
+}
+
+function isReviewOnlyElement(node: HTMLElement) {
+  return Boolean(node.dataset.reviewDecoration) || Boolean(node.closest("[data-inline-suggestion-state]") && (node.matches("ins, [data-review-proposed]")))
 }
 
 function fencedCodeMarkdown(node: HTMLElement) {
@@ -1966,9 +1978,9 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
           ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
           : "rounded-sm bg-surface-raised px-0.5"
         return [
-          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>`,
-          `<del class="text-warning decoration-warning decoration-2">${sourceText}</del>`,
-          `<ins class="ml-1 text-success no-underline">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
+          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(segment.text)}"${suggestionAttrs}>`,
+          `<del class="text-warning decoration-warning decoration-2" data-review-original="true">${sourceText}</del>`,
+          `<ins class="ml-1 text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
           "</mark>"
         ].join("")
       }
