@@ -818,7 +818,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_220834) do
     t.text "prefix_context"
     t.text "selected_markdown"
     t.text "selected_text"
-    t.integer "stale_as_of_version_id"
+    t.bigint "stale_as_of_version_id"
     t.integer "start_offset", null: false
     t.string "status", default: "active", null: false
     t.text "suffix_context"
@@ -2948,6 +2948,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_220834) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  add_foreign_key "design_doc_anchors", "design_doc_versions", column: "stale_as_of_version_id"
 end
