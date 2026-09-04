@@ -8,6 +8,17 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
 
   def auth(token = admin_token) = { "Authorization" => "Bearer #{token}" }
   def parse_body = JSON.parse(response.body)
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql.squish unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
 
   let(:job) { Factories.job(user: admin) }
 
@@ -161,6 +172,19 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
         { "sequence" => 1, "kind" => "system", "chunk" => "auto_merge: deferred - mergeable_state=unknown" }
       ])
       expect(body["logs"].first["created_at"]).to be_present
+    end
+
+    it "does not eager-load full JobLog rows" do
+      run = job.initial_run
+      JobLog.append!(run: run, chunk: "diagnostic row", kind: "system")
+
+      sql = capture_sql do
+        get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+      end
+
+      job_log_selects = sql.select { |statement| statement.match?(/FROM [`"]?job_logs[`"]?/i) }
+      expect(job_log_selects).not_to include(match(/SELECT [`"]?job_logs[`"]?\.\*/i))
+      expect(job_log_selects.join("\n")).to include("chunk")
     end
 
     it "403s for a non-admin token" do

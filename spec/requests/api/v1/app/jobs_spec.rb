@@ -925,6 +925,19 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     ])
   end
 
+  it "does not eager-load full JobLog rows for the artifact payload" do
+    run = job.initial_run
+    JobLog.append!(run: run, chunk: "artifact transcript row", kind: "system")
+
+    sql = capture_sql do
+      get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
+    end
+
+    job_log_selects = sql.select { |statement| statement.match?(/FROM [`"]?job_logs[`"]?/i) }
+    expect(job_log_selects).not_to include(match(/SELECT [`"]?job_logs[`"]?\.\*/i))
+    expect(job_log_selects.join("\n")).to include("chunk")
+  end
+
   it "returns step_agent_diff in artifact payload when present" do
     run = job.initial_run
     run.update!(
