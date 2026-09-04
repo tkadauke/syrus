@@ -131,6 +131,7 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
 function renderWorkspacePanel(payload: ChatPayload, options: {
   activeTab?: WorkspaceTab
   onSelectTab?: (tab: WorkspaceTab) => void
+  onToggleCollapse?: () => void
   onBookmarkSelect?: (messageId: number) => void
   onNotice?: (message: string | null) => void
 } = {}) {
@@ -144,6 +145,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
           payload={payload}
           prefix=""
           queryKey={["chats", "1", ""] as const}
+          onToggleCollapse={options.onToggleCollapse}
           onBookmarkSelect={options.onBookmarkSelect ?? (() => {})}
           onNotice={options.onNotice ?? (() => {})}
         />
@@ -1032,6 +1034,35 @@ describe("ChatWorkspacePanel plugin tabs", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "files" })
 
     expect(screen.queryByRole("button", { name: "Demo Tab" })).not.toBeInTheDocument()
+  })
+
+  it("keeps the workspace tab row horizontally scrollable without scrolling the close control", () => {
+    const payload: ChatPayload = {
+      ...makePayload({
+        confirmed_proposal_count: 1
+      }),
+      preview_panels: [
+        { id: 7, title: "DOC-20", file_count: 1, url: "https://example.test/7", app_close_path: "/panels/7", app_visibility_path: "/panels/7/visibility", app_export_path: "/panels/7/export", app_file_base_path: "/panels/7/files", app_token_path: "/panels/7/token", visibility: "public", current_version_id: null, entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html", versions: [] },
+        { id: 8, title: "DOC-17", file_count: 1, url: "https://example.test/8", app_close_path: "/panels/8", app_visibility_path: "/panels/8/visibility", app_export_path: "/panels/8/export", app_file_base_path: "/panels/8/files", app_token_path: "/panels/8/token", visibility: "public", current_version_id: null, entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html", versions: [] }
+      ],
+      workspace_tabs: [
+        { id: "design_docs.inline", label: "Design Doc Inline Comments", label_key: null, component: "test_plugin/DemoTab", order: 20 },
+        { id: "whiteboard.canvas", label: "Whiteboard", label_key: null, component: "test_plugin/DemoTab", order: 30 }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "plugin:whiteboard.canvas" as WorkspaceTab, onToggleCollapse: () => {} })
+
+    const tabNav = screen.getByRole("navigation", { name: "Chat workspace tabs" })
+    const scrollRow = tabNav.firstElementChild
+    const closeButton = screen.getByRole("button", { name: "Close workspace panel" })
+
+    expect(tabNav).toHaveClass("min-w-0")
+    expect(scrollRow).toHaveClass("overflow-x-auto", "min-w-0", "flex-1")
+    expect(scrollRow).toContainElement(screen.getByRole("button", { name: "Design Doc Inline Comments" }))
+    expect(scrollRow).toContainElement(screen.getByRole("button", { name: "DOC-17" }))
+    expect(scrollRow).not.toContainElement(closeButton)
+    expect(closeButton).toHaveClass("shrink-0")
   })
 
   it("lets closeable plugin workspace tabs be dismissed without removing other tabs", () => {
