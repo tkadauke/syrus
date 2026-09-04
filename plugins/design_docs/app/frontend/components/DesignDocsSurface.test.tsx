@@ -210,7 +210,7 @@ function LocationProbe() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
-function indexPayload() {
+function indexPayload(detail = docDetail) {
   return {
     active_smart_folder_id: null,
     filter: { and: [] },
@@ -249,24 +249,24 @@ function indexPayload() {
         path: "/design_docs?smart_folder_id=8"
       }
     ],
-    design_docs: [docDetail, secondDocDetail]
+    design_docs: [detail, secondDocDetail]
   }
 }
 
-function mockFetch() {
+function mockFetch(detail = docDetail) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = new URL(String(input), "http://test.host")
     if (url.pathname === "/api/v1/app/repositories") {
       return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
     }
     if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse(indexPayload())
+      return jsonResponse(indexPayload(detail))
     }
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse(indexPayload())
+      return jsonResponse(indexPayload(detail))
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
-      return jsonResponse({ design_doc: docDetail })
+      return jsonResponse({ design_doc: detail })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
@@ -349,6 +349,43 @@ function mockMobileViewport() {
       dispatchEvent: vi.fn()
     }))
   })
+}
+
+function docWithSuggestion(markdown: string, proposedMarkdown: string, originalMarkdown = markdown) {
+  return {
+    ...docDetail,
+    markdown,
+    rendered_markdown: markdown,
+    threads: [],
+    open_threads_count: 0,
+    suggestions: [{
+      ...docDetail.suggestions[0],
+      original_markdown: originalMarkdown,
+      suggested_markdown: proposedMarkdown,
+      proposed_markdown: proposedMarkdown,
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        start_offset: 0,
+        end_offset: markdown.length,
+        last_known_start_offset: 0,
+        last_known_end_offset: markdown.length,
+        selected_markdown: originalMarkdown,
+        selected_text: originalMarkdown
+      },
+      thread: {
+        ...docDetail.suggestions[0].thread,
+        anchor: {
+          ...docDetail.suggestions[0].thread.anchor,
+          start_offset: 0,
+          end_offset: markdown.length,
+          last_known_start_offset: 0,
+          last_known_end_offset: markdown.length,
+          selected_markdown: originalMarkdown,
+          selected_text: originalMarkdown
+        }
+      }
+    }]
+  }
 }
 
 describe("DesignDocsSurface", () => {
@@ -1077,6 +1114,68 @@ describe("DesignDocsSurface", () => {
     fireEvent.input(wysiwygEditor)
     fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+  })
+
+  it("renders sentence replacements as coherent deleted and added blocks", async () => {
+    const original = "The workflow starts queued. It then runs graders."
+    const proposed = "The workflow starts immediately. Graders run after setup."
+    mockFetch(docWithSuggestion(original, proposed))
+    const { container } = renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(suggestion?.querySelector("ins")).toHaveTextContent(proposed)
+    expect(suggestion?.querySelector("del")).toHaveClass("block", "text-warning")
+    expect(suggestion?.querySelector("ins")).toHaveClass("block", "text-success")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const markdownSuggestion = container.querySelector("[data-testid='markdown-highlight-mirror'] [data-inline-suggestion-state='pending']")
+    expect(markdownSuggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(markdownSuggestion?.querySelector("ins")).toHaveTextContent(proposed)
+  })
+
+  it("keeps bullet item replacements together instead of splicing list fragments", async () => {
+    const original = "- Backlogged Jobs keep no owner claim.\n- Active Jobs claim one workflow slot."
+    const proposed = "- Backlogged Jobs keep their intent lock.\n- Active Jobs claim one runtime unit."
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestions = wysiwygEditor.querySelectorAll("[data-inline-suggestion-state='pending']")
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0].querySelector("del")?.textContent).toBe(original)
+    expect(suggestions[0].querySelector("ins")?.textContent).toBe(proposed)
+  })
+
+  it("renders block-level replacements as one old block followed by one new block", async () => {
+    const original = "The owner reviews suggested edits.\n\nThe collaborator keeps working from the draft."
+    const proposed = "The owner reviews the consolidated proposal.\n\nThe collaborator sees the accepted revision."
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestions = wysiwygEditor.querySelectorAll("[data-inline-suggestion-state='pending']")
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0].querySelector("del")?.textContent).toBe(original)
+    expect(suggestions[0].querySelector("ins")?.textContent).toBe(proposed)
+    expect(suggestions[0].querySelector("del")).toHaveClass("whitespace-pre-wrap")
+    expect(suggestions[0].querySelector("ins")).toHaveClass("whitespace-pre-wrap")
+  })
+
+  it("keeps small phrase replacements fine-grained", async () => {
+    const original = "Use the cached workspace snapshot"
+    const proposed = "Use the shared workspace snapshot"
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion).toHaveTextContent("Use the cachedshared workspace snapshot")
+    expect(suggestion?.querySelector("del")).toHaveTextContent("cached")
+    expect(suggestion?.querySelector("ins")).toHaveTextContent("shared")
+    expect(suggestion?.querySelector("del")).not.toHaveClass("block")
+    expect(suggestion?.querySelector("ins")).not.toHaveClass("block")
   })
 
   it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {
