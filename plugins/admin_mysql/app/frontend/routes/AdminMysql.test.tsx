@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
+import type { MysqlSnapshot } from "../api/adminMysql"
 import { AdminMysql } from "./AdminMysql"
 
 describe("AdminMysql", () => {
@@ -26,6 +27,31 @@ describe("AdminMysql", () => {
     expect(digestsHeading.closest("section")).toHaveClass("min-w-0")
     expect(slowLogHeading.closest("section")).toHaveClass("min-w-0")
   })
+
+  it("hides idle (Sleep) threads by default and reveals them when the toggle is unchecked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
+      process_list: [
+        { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null },
+        { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT 1" }
+      ]
+    })))
+
+    renderRoute(<AdminMysql />)
+
+    await waitFor(() => expect(screen.queryByText("Loading MySQL state...")).not.toBeInTheDocument())
+
+    const toggle = await screen.findByLabelText(/Hide idle threads/)
+    expect(toggle).toBeChecked()
+
+    expect(screen.queryByText("Sleep")).not.toBeInTheDocument()
+    expect(screen.getByText("Query")).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByText("Sleep")).toBeInTheDocument()
+    expect(screen.getByText("Query")).toBeInTheDocument()
+  })
 })
 
 function renderRoute(children: ReactNode) {
@@ -38,7 +64,11 @@ function renderRoute(children: ReactNode) {
   )
 }
 
-function mysqlPayload() {
+function mysqlPayload(overrides: Partial<MysqlSnapshot> = {}) {
+  return { ...baseMysqlPayload(), ...overrides }
+}
+
+function baseMysqlPayload(): MysqlSnapshot {
   return {
     available: true,
     generated_at: "2026-08-27T12:00:00Z",

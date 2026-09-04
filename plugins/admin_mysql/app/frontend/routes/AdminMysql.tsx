@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
+import { Checkbox } from "@app/components/Checkbox"
 import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
 
 export function AdminMysql() {
   const [limit, setLimit] = useState(50)
   const [includeSlowLog, setIncludeSlowLog] = useState(false)
+  const [hideIdle, setHideIdle] = useState(true)
   const queryClient = useQueryClient()
   const mysql = useQuery({
     queryKey: ["admin", "mysql", limit, includeSlowLog],
@@ -61,10 +63,12 @@ export function AdminMysql() {
 
       {mysql.data ? (
         <MysqlDashboard
+          hideIdle={hideIdle}
           includeSlowLog={includeSlowLog}
           killingThreadId={killQuery.isPending ? killQuery.variables : null}
           payload={mysql.data}
           onKill={onKill}
+          onToggleHideIdle={() => setHideIdle((value) => !value)}
           onToggleSlowLog={() => setIncludeSlowLog((value) => !value)}
         />
       ) : null}
@@ -73,19 +77,26 @@ export function AdminMysql() {
 }
 
 function MysqlDashboard({
+  hideIdle,
   includeSlowLog,
   killingThreadId,
   onKill,
+  onToggleHideIdle,
   onToggleSlowLog,
   payload
 }: {
+  hideIdle: boolean
   includeSlowLog: boolean
   killingThreadId: number | null
   onKill: (process: MysqlProcess) => void
+  onToggleHideIdle: () => void
   onToggleSlowLog: () => void
   payload: MysqlSnapshot
 }) {
   const summary = payload.connection_summary
+  const activeProcesses = payload.process_list.filter((process) => process.command !== "Sleep")
+  const idleCount = payload.process_list.length - activeProcesses.length
+  const visibleProcesses = hideIdle ? activeProcesses : payload.process_list
   return (
     <div className="space-y-6">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -132,7 +143,14 @@ function MysqlDashboard({
       <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Process list</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Generated {new Date(payload.generated_at).toLocaleString()}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Checkbox
+              checked={hideIdle}
+              label={`Hide idle threads${idleCount > 0 ? ` (${idleCount})` : ""}`}
+              onChange={onToggleHideIdle}
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Generated {new Date(payload.generated_at).toLocaleString()}</p>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -148,7 +166,14 @@ function MysqlDashboard({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
-              {payload.process_list.map((process) => (
+              {visibleProcesses.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400" colSpan={7}>
+                    {hideIdle && payload.process_list.length > 0 ? "All threads are idle and hidden." : "No processes."}
+                  </td>
+                </tr>
+              ) : null}
+              {visibleProcesses.map((process) => (
                 <tr key={process.id}>
                   <td className="px-4 py-2 font-mono text-gray-800 dark:text-gray-100">{process.id}</td>
                   <td className="px-4 py-2">{process.command}</td>
