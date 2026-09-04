@@ -26,10 +26,11 @@ terminal workflows.
 
 ## Terminal Sessions
 
-When the `terminal` feature flag is enabled, user-scoped app API clients
+When the `terminal` plugin is enabled, user-scoped app API clients
 can manage their own interactive terminal sessions. `GET
 /api/v1/app/terminal_sessions` lists the authenticated user's running
-sessions. `POST /api/v1/app/terminal_sessions` creates a session and accepts
+sessions, and `GET /api/v1/app/terminal_sessions/open_count` returns just the
+count. With the plugin disabled these endpoints return `plugin_disabled`. `POST /api/v1/app/terminal_sessions` creates a session and accepts
 optional `workflow_id`, `name`, and `working_directory` fields; when
 `workflow_id` is present, Syrus defaults the working directory to that
 Workflow workspace.

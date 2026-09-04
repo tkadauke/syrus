@@ -1028,17 +1028,24 @@ describe("AppChromeV2 primary nav reordering", () => {
   })
 
   it("keeps the live reorder intact when an unrelated query update re-renders the sidebar mid-drag", async () => {
+    const badgedPage = {
+      id: "badged.page", label: "Badged", path: "/badged", paths: ["/badged"], order: 40,
+      badge_api_path: "/api/v1/app/badged/count"
+    }
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
-        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories", "terminal"] }))
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories", "badged.page"] }))
       }
       if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2, feature_flags: { terminal: true } })))
+        return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
       }
-      if (path === "/api/v1/app/terminal_sessions") {
-        return Promise.resolve(jsonResponse({ sessions: [], workspaces: [] }))
+      if (path === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({ pages: [ badgedPage ] }))
+      }
+      if (path === "/api/v1/app/badged/count") {
+        return Promise.resolve(jsonResponse({ count: 0 }))
       }
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
     })
@@ -1046,15 +1053,15 @@ describe("AppChromeV2 primary nav reordering", () => {
     renderAppChrome(<div>Dashboard</div>, {
       initialEntries: ["/repositories"],
       queryClient,
-      bootstrap: bootstrapPayload({ team_user_count: 2, feature_flags: { terminal: true } })
+      bootstrap: bootstrapPayload({ team_user_count: 2 })
     })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
 
-    // Let the initial mount fetch for terminal_sessions settle first, so it
-    // can't race with (and clobber) the mid-drag update below.
+    // Let the initial badge poll settle first, so it can't race with (and
+    // clobber) the mid-drag update below.
     await waitFor(() => {
-      expect(queryClient.getQueryState(["terminal_sessions"])?.status).toBe("success")
+      expect(queryClient.getQueryState(["sidebar_badge", "badged.page"])?.status).toBe("success")
     })
 
     const scheduleRow = within(primaryNav).getByRole("link", { name: "Schedules" }).parentElement!
@@ -1064,16 +1071,12 @@ describe("AppChromeV2 primary nav reordering", () => {
     fireEvent.dragStart(scheduleRow, { dataTransfer })
     fireEvent.dragOver(dashboardRow, { dataTransfer })
 
-    // Directly deliver a fresh terminal-session poll result mid-drag, the
-    // same way the real 10s refetchInterval does — it changes the badge on
-    // the "terminal" nav item, which (pre-fix) rebuilt `navItems` with a new
-    // array reference and reset the in-flight drag order out from under the
-    // user's gesture.
+    // Directly deliver a fresh badge poll result mid-drag, the same way the
+    // real 10s refetchInterval does — it changes the number on a nav item,
+    // which (pre-fix) rebuilt `navItems` with a new array reference and reset
+    // the in-flight drag order out from under the user's gesture.
     act(() => {
-      queryClient.setQueryData(["terminal_sessions"], {
-        sessions: [{ id: 1, name: "session", working_directory: "/", started_at: "2026-06-27T12:00:00Z", finished_at: null, outcome: null, workflow_id: null }],
-        workspaces: []
-      })
+      queryClient.setQueryData(["sidebar_badge", "badged.page"], { count: 1 })
     })
 
     // Flush react-query's notifyManager-scheduled re-render so the update
@@ -1087,7 +1090,7 @@ describe("AppChromeV2 primary nav reordering", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories", "terminal"] })
+        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories", "badged.page"] })
       }))
     })
   })

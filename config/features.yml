@@ -1,11 +1,4 @@
 features:
-  - slug: terminal
-    category: "Labs"
-    name: "Terminal"
-    name_i18n_key: "features.slugs.terminal.name"
-    description: "Enables the interactive terminal experience."
-    description_i18n_key: "features.slugs.terminal.description"
-    default: false
   - slug: video_walkthroughs
     category: "Labs"
     name: "Walkthrough videos"

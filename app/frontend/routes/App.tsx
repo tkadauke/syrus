@@ -61,7 +61,6 @@ import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { Tags } from "./Tags"
-import { TerminalRoute } from "./Terminal"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
@@ -90,7 +89,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/db_browser", element: <PluginSidebarPageRoute /> },
   { path: "/worker_timeline", element: <PluginSidebarPageRoute /> },
   { path: "/worker_timeline/workflow", element: <PluginSidebarPageRoute /> },
-  { path: "/terminal", element: <TerminalRoute /> },
+  { path: "/terminal", element: <PluginSidebarPageRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },

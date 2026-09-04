@@ -454,11 +454,11 @@ via the `report_main_concern` MCP tool (see above).
 
 ### Terminal feature
 
-Interactive terminal access is a labs feature and is off by default. Enable it
-with:
+Interactive terminal access ships as the `terminal` plugin and is off by
+default. Enable it from Admin -> Plugins, or with:
 
 ```ruby
-Feature.find_by(slug: 'terminal').update(enabled: true)
+PluginRecord.find_by(name: "terminal").update(enabled: true)
 ```
 
 Worker-side terminal sessions advertise their TCP relay with

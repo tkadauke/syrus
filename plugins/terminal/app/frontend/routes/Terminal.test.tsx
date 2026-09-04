@@ -1,12 +1,12 @@
-import { jsonResponse } from "../testSupport"
+import { jsonResponse } from "@app/testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import type { ReactElement } from "react"
-import { AppChromeV2 } from "./AppChromeV2"
+import { AppChromeV2 } from "@app/routes/AppChromeV2"
 import { TerminalPane, TerminalRoute } from "./Terminal"
-import type { BootstrapPayload } from "../api/bootstrap"
+import type { BootstrapPayload } from "@app/api/bootstrap"
 import type { TerminalSessionRecord, TerminalSessionsPayload } from "../api/terminal"
 
 const actionCable = vi.hoisted(() => ({
@@ -279,45 +279,60 @@ describe("TerminalRoute", () => {
     expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from(Array.from("live output", (c) => c.charCodeAt(0))))
   })
 
-  it("renders the sidebar Terminal item and live badge when the feature is enabled", async () => {
+  // Terminal reaches the sidebar as a sidebar_page now, and its badge through
+  // the generic badge_api_path the chrome polls -- core no longer knows what
+  // is being counted.
+  const sidebarPage = {
+    id: "terminal",
+    label: "Terminal",
+    path: "/terminal",
+    paths: [ "/terminal" ],
+    order: 40,
+    icon: "terminal",
+    badge_api_path: "/api/v1/app/terminal_sessions/open_count"
+  }
+
+  it("renders the sidebar Terminal item and its live badge", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path === "/api/v1/app/terminal_sessions") return Promise.resolve(jsonResponse(terminalSessionsPayload()))
+      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [ sidebarPage ] }))
+      if (path.startsWith("/api/v1/app/terminal_sessions/open_count")) return Promise.resolve(jsonResponse({ count: 2 }))
       if (path.startsWith("/api/v1/app/chats")) return Promise.resolve(jsonResponse({ groups: [], chats: [], pagination: { total: 0 } }))
-      return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { terminal: true, v2_ui: true } })))
+      return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
     })
 
     renderWithClient(
       <MemoryRouter initialEntries={["/app-shell/repositories"]}>
-        <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { terminal: true, v2_ui: true } })}>
+        <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { v2_ui: true } })}>
           <main>Dashboard</main>
         </AppChromeV2>
       </MemoryRouter>
     )
 
     const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-    expect(within(primaryNav).getByRole("link", { name: /Terminal/ })).toHaveAttribute("href", "/app-shell/terminal")
+    expect(await within(primaryNav).findByRole("link", { name: /Terminal/ })).toHaveAttribute("href", "/app-shell/terminal")
     expect(await within(primaryNav).findByText("2")).toBeInTheDocument()
   })
 
   it("hides the sidebar Terminal badge when there are no running sessions", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
-      if (path === "/api/v1/app/terminal_sessions") return Promise.resolve(jsonResponse(terminalSessionsPayload({ sessions: [] })))
+      if (path.startsWith("/api/v1/app/sidebar_pages")) return Promise.resolve(jsonResponse({ pages: [ sidebarPage ] }))
+      if (path.startsWith("/api/v1/app/terminal_sessions/open_count")) return Promise.resolve(jsonResponse({ count: 0 }))
       if (path.startsWith("/api/v1/app/chats")) return Promise.resolve(jsonResponse({ groups: [], chats: [], pagination: { total: 0 } }))
-      return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { terminal: true, v2_ui: true } })))
+      return Promise.resolve(jsonResponse(bootstrapPayload({ feature_flags: { v2_ui: true } })))
     })
 
     renderWithClient(
       <MemoryRouter initialEntries={["/app-shell/repositories"]}>
-        <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { terminal: true, v2_ui: true } })}>
+        <AppChromeV2 initialBootstrap={bootstrapPayload({ feature_flags: { v2_ui: true } })}>
           <main>Dashboard</main>
         </AppChromeV2>
       </MemoryRouter>
     )
 
     const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-    expect(within(primaryNav).getByRole("link", { name: "Terminal" })).toBeInTheDocument()
+    expect(await within(primaryNav).findByRole("link", { name: "Terminal" })).toBeInTheDocument()
     expect(within(primaryNav).queryByText("0")).not.toBeInTheDocument()
   })
 })

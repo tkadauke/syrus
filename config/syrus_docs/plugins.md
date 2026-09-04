@@ -95,7 +95,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
 | `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
-| `tooling` | Tooling | `build_cache`, `mysql_db_browser`, `syrus_dev` |
+| `tooling` | Tooling | `build_cache`, `mysql_db_browser`, `syrus_dev`, `terminal` |
 
 A category answers **what the plugin is for**, never which extension point it
 registers. `mcp_tool_set` was both a category and an extension point, which put
@@ -2176,6 +2176,23 @@ Bundled plugins:
   search is queried directly by core chat features (`ChatSearch`, the
   `search_chats` MCP tool, `ChatSessionCleanupJob`) and is not part of this
   plugin.
+- `terminal` — **default-disabled**, and deliberately so: a session is a real
+  shell on the worker that owns the workspace, and the security boundary is the
+  per-session token exchanged over the relay socket. Owns `Terminal::Session`
+  (table `terminal_sessions`), `TerminalChannel`, `TerminalSessionJob`,
+  `Terminal::Relay`, the sessions controller, and the `/terminal` SPA route.
+
+  It reaches the UI through two extension points rather than core knowing about
+  it: `:sidebar_page` for the nav entry, and the `job.workflow.actions`
+  `:ui_slot` for the "Open terminal in workspace" button on each workflow card.
+  The nav badge uses the sidebar page's `badge_api_path`, which core polls for
+  `{"count": n}` without knowing what is being counted.
+
+  Enablement replaced the old `terminal` Feature flag. A disabled plugin's
+  routes return `plugin_disabled` through the normal plugin route dispatcher;
+  the Action Cable channel guards itself, because Action Cable resolves a
+  channel by constantizing the identifier and would otherwise reach a disabled
+  plugin's channel.
 - `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,

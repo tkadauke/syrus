@@ -19,7 +19,6 @@ class User < ApplicationRecord
   has_many :job_pins, dependent: :destroy
   has_many :pinned_jobs, through: :job_pins, source: :job
   has_many :diff_review_comments, dependent: :destroy
-  has_many :terminal_sessions, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :smart_folders, dependent: :destroy
   has_many :tags, dependent: :destroy

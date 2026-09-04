@@ -6,7 +6,6 @@ RSpec.describe FeatureRegistry do
 
     expect(declarations).to all(have_attributes(type: :boolean))
     expect(declarations.map(&:slug)).to include(
-      "terminal",
       "coding_mode",
       "video_walkthroughs",
       "local_mode",
@@ -19,7 +18,6 @@ RSpec.describe FeatureRegistry do
     defaults = described_class.declarations.index_by(&:slug).transform_values(&:default_enabled)
 
     expect(defaults).to include(
-      "terminal" => false,
       "video_walkthroughs" => false,
       "coding_mode" => false,
       "performance_logging" => false,
@@ -30,7 +28,8 @@ RSpec.describe FeatureRegistry do
   end
 
   it "uses description as operational meaning unless explicitly declared" do
-    declaration = described_class.declarations.find { |feature| feature.slug == "terminal" }
+    declaration = described_class.declarations.find { |feature| feature.operational_meaning.blank? } ||
+                  described_class.declarations.first
 
     expect(declaration.operational_meaning).to eq(declaration.description)
   end

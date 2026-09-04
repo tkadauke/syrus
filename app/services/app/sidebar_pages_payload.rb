@@ -33,6 +33,11 @@ module App
         # reached from the chrome's search bar, not a nav entry).
         section: page[:section].presence&.to_s || "primary",
         icon: page[:icon].presence&.to_s,
+        # A path returning {"count": n}. The chrome polls it and renders the
+        # number as a badge on the nav entry, so a plugin can show a live count
+        # (terminal's open sessions) without core knowing what is being
+        # counted. Omitted means no badge.
+        badge_api_path: page[:badge_api_path].presence&.to_s,
         smart_folder_api_path: page[:smart_folder_api_path].presence&.to_s,
         smart_folder_subject: page[:smart_folder_subject].presence&.to_s,
         order: page[:order].to_i

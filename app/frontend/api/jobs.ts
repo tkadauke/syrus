@@ -851,6 +851,7 @@ export type DeployActionPayload = {
 export type JobDetailPayload = {
   ui_panels?: Array<{ id: string; component: string; order: number; props?: Record<string, unknown> }>
   ui_tabs?: Array<{ id: string; component: string; order: number; key?: string; label?: string; label_key?: string; props?: Record<string, unknown> }>
+  ui_workflow_actions?: Array<{ id: string; component: string; order: number; props?: Record<string, unknown> }>
   message?: string | null
   job: JobRecord
   repository: JobRepository

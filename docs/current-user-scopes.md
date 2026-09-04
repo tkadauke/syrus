@@ -184,7 +184,7 @@ per-user/private:
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/speech_to_text_controller.rb
   - app/controllers/api/v1/app/tags_controller.rb
-  - app/controllers/api/v1/app/terminal_sessions_controller.rb
+  - plugins/terminal/app/controllers/api/v1/app/terminal_sessions_controller.rb
   - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/api/v1/app/themes_controller.rb
   - app/controllers/api/v1/app/tours_controller.rb
@@ -309,7 +309,7 @@ These scopes expose or mutate records that belong to the signed-in user.
 They intentionally use associations such as `Current.user.jobs`,
 `Current.user.repositories`, `Current.user.epics`, `Current.user.tags`,
 `Current.user.documents`, `Current.user.chat_sessions`, and
-`Current.user.terminal_sessions`, plus `ScheduledTask.where(user: Current.user)`,
+`Terminal::Session.where(user: Current.user)`, plus `ScheduledTask.where(user: Current.user)`,
 instead of broader model scopes.
 
 | File | Classification | Reason |
@@ -382,7 +382,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/smart_folders_controller.rb` | per-user/private | User-defined smart folders are owned by `Current.user`; built-ins are returned through `SmartFolder.for_user`. |
 | `app/controllers/api/v1/app/speech_to_text_controller.rb` | per-user/private | Speech-to-text endpoint access is gated through `Current.user.chat_sessions` so backend transcription requests stay scoped to the current user's chats. |
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
-| `app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Current.user.terminal_sessions`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
+| `plugins/terminal/app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Terminal::Session.where(user: Current.user)`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/themes_controller.rb` | per-user/private | Lists and shows themes through `Theme.selectable_by(Current.user)` (built-ins plus the current user's own custom themes), so a user can't fetch another user's custom theme by guessing its id. |
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |

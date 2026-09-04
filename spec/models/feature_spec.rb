@@ -70,17 +70,6 @@ RSpec.describe Feature, type: :model do
     end
   end
 
-  describe ".terminal_enabled?" do
-    it "returns the live terminal flag state" do
-      Feature.find_or_create_by!(slug: "terminal") do |feature|
-        feature.category = "labs"
-        feature.name = "Terminal"
-      end.update!(enabled: true)
-
-      expect(Feature.terminal_enabled?).to be true
-    end
-  end
-
   describe ".video_walkthroughs_enabled?" do
     it "is false when the row is absent and follows the row when present" do
       Feature.where(slug: "video_walkthroughs").delete_all

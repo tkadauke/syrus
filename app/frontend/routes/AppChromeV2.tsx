@@ -5,19 +5,18 @@ import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from 
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
-import { postJson } from "../api/client"
+import { getJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
-import { fetchSidebarPluginPages } from "../api/sidebarPages"
+import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
 import { fetchSmartFolderNavigation } from "../api/smartFolders"
-import { fetchTerminalSessions } from "../api/terminal"
 import { fetchThemes } from "../api/themes"
 import { useT } from "../hooks/useT"
 import { BugIcon, BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
@@ -99,7 +98,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
 
-  const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags?.terminal && user))
   const sidebarPluginPages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
@@ -111,6 +109,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     featureFlags: data?.feature_flags ?? {},
     teamUserCount: data?.team_user_count ?? 0
   }), [simpleMode, data?.feature_flags, data?.team_user_count])
+  const navBadges = useSidebarNavBadges(sidebarPluginPages.data?.pages ?? [], Boolean(user))
   const sidebarNavOrder = data?.current_user?.sidebar_nav_order ?? EMPTY_SIDEBAR_NAV_ORDER
   const mergedSidebarNavItems = useMemo(
     () => applySidebarNavOrder(buildSidebarNavItems(sidebarNavContext, sidebarPluginPages.data?.pages ?? [], t), sidebarNavOrder),
@@ -131,8 +130,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     icon: item.icon,
     smartFolderApiPath: item.smartFolderApiPath,
     smartFolderSubject: item.smartFolderSubject,
-    ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
-  })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
+    ...(navBadges[item.id] === undefined ? {} : { badge: navBadges[item.id] })
+  })), [mergedSidebarNavItems, navBadges, normalizedPath, prefix])
   const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
       ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null }] : []),
@@ -1267,14 +1266,32 @@ function ColorThemePicker() {
   )
 }
 
-export function useTerminalSessionCount(enabled: boolean) {
-  const terminalSessions = useQuery({
-    queryKey: ["terminal_sessions"],
-    queryFn: ({ signal }) => fetchTerminalSessions({ signal }),
-    enabled,
-    refetchInterval: enabled ? 10000 : false
+// Nav badges come from whichever sidebar_page plugins declared a
+// `badge_api_path`; core polls it and renders the number without knowing what
+// is being counted. This used to be a hardcoded terminal-session query here,
+// which meant core had to import the terminal API to draw its own sidebar.
+export function useSidebarNavBadges(pages: SidebarPluginPage[], enabled: boolean): Record<string, number> {
+  const badged = useMemo(
+    () => pages.filter((page) => Boolean(page.badge_api_path)),
+    [pages]
+  )
+
+  const results = useQueries({
+    queries: badged.map((page) => ({
+      queryKey: [ "sidebar_badge", page.id ],
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        getJson<{ count?: number }>(page.badge_api_path as string, { signal }),
+      enabled,
+      refetchInterval: enabled ? 10000 : (false as const)
+    }))
   })
 
-  if (!enabled) return 0
-  return terminalSessions.data?.sessions?.filter((session) => !session.finished_at).length ?? 0
+  return useMemo(() => {
+    const badges: Record<string, number> = {}
+    badged.forEach((page, index) => {
+      const count = results[index]?.data?.count
+      if (typeof count === "number") badges[page.id] = count
+    })
+    return badges
+  }, [badged, results])
 }

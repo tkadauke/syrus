@@ -13,6 +13,8 @@ export type SidebarPluginPage = {
   section?: string | null
   smart_folder_api_path?: string | null
   smart_folder_subject?: string | null
+  /** Endpoint returning {"count": n}; polled to badge the nav entry. */
+  badge_api_path?: string | null
 }
 
 export type SidebarPluginPagesPayload = {

@@ -4,7 +4,7 @@ The coding workspace relay is a lightweight HTTP server that runs on the `chat`
 queue worker and serves coding-session file and diff reads to web pods. It solves
 the multi-pod problem: `$SYRUS_DATA_ROOT/chat-workspaces/` is on the worker pod's
 local disk, so the web pod cannot read it directly. The relay uses the same
-pattern as `TerminalRelay`.
+pattern as `Terminal::Relay`.
 
 ## Architecture
 

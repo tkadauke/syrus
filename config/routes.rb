@@ -177,11 +177,6 @@ Rails.application.routes.draw do
         post "jobs/:job_id/workflows/:workflow_id/push_commits", to: "job_run_commands#push_commits", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         post "jobs/:job_id/workflows/:workflow_id/force_push_branch", to: "job_run_commands#force_push_branch", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         post "jobs/:job_id/workflows/:workflow_id/discard_branch_output", to: "job_run_commands#discard_branch_output", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
-        resources :terminal_sessions, only: %i[ index create show destroy ] do
-          member do
-            post :kill
-          end
-        end
         get "epics", to: "epics#index"
         get "epics/graph", to: "epics#graph"
         get "epics/new", to: "epics#new"

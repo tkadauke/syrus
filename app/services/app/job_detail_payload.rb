@@ -55,6 +55,7 @@ module App
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
           ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
           ui_tabs: ::App::UiSlotsPayload.panels_for(slot: "job.detail.tab", context: { job: @job, user: Current.user }),
+          ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user }),
           feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
@@ -113,7 +114,6 @@ module App
 
     def feature_flags_json
       {
-        terminal: Feature.terminal_enabled?,
         coding_mode: Feature.coding_mode_enabled?,
         local_mode: Feature.local_mode_enabled?,
         work_unit_debug: work_unit_debug_enabled?

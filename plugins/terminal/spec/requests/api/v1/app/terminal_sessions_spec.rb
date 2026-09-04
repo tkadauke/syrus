@@ -10,29 +10,25 @@ RSpec.describe "App API terminal sessions", type: :request do
   let(:workflow) { job.workflows.first }
 
   before do
-    feature = Feature.find_or_create_by!(slug: "terminal") do |record|
-      record.category = "Terminal"
-      record.name = "Terminal"
-    end
-    feature.update!(enabled: true)
+    PluginRecord.find_or_create_by!(name: "terminal").update!(enabled: true, disableable: true)
   end
 
   def parse_body = JSON.parse(response.body)
 
-  it "returns 404 for every endpoint when the terminal feature is disabled" do
+  it "returns 404 for every endpoint when the terminal plugin is disabled" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: user,
       name: "Shell",
       working_directory: "/tmp/shell",
       auth_token: SecureRandom.hex(32),
       started_at: Time.current
     )
-    Feature.find_by!(slug: "terminal").update!(enabled: false)
+    PluginRecord.find_by!(name: "terminal").update!(enabled: false)
 
     get "/api/v1/app/terminal_sessions"
     expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "code")).to eq("terminal_disabled")
+    expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
 
     post "/api/v1/app/terminal_sessions", params: {}, as: :json
     expect(response).to have_http_status(:not_found)
@@ -48,7 +44,7 @@ RSpec.describe "App API terminal sessions", type: :request do
   end
 
   it "returns 401 for every endpoint when unauthenticated" do
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: user,
       name: "Shell",
       working_directory: "/tmp/shell",
@@ -75,14 +71,14 @@ RSpec.describe "App API terminal sessions", type: :request do
   it "lists current-user running sessions and recent workflow workspaces" do
     sign_in_as(user)
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new("/tmp/workflows/#{workflow.id}"))
-    older = TerminalSession.create!(
+    older = Terminal::Session.create!(
       user: user,
       name: "Older",
       working_directory: "/tmp/older",
       auth_token: SecureRandom.hex(32),
       started_at: 2.hours.ago
     )
-    newer = TerminalSession.create!(
+    newer = Terminal::Session.create!(
       user: user,
       workflow: workflow,
       name: "Newer",
@@ -91,7 +87,7 @@ RSpec.describe "App API terminal sessions", type: :request do
       auth_token: SecureRandom.hex(32),
       started_at: 1.hour.ago
     )
-    TerminalSession.create!(
+    Terminal::Session.create!(
       user: user,
       name: "Done",
       working_directory: "/tmp/done",
@@ -100,7 +96,7 @@ RSpec.describe "App API terminal sessions", type: :request do
       finished_at: 1.hour.ago,
       outcome: "exited"
     )
-    TerminalSession.create!(
+    Terminal::Session.create!(
       user: other_user,
       name: "Other",
       working_directory: "/tmp/other",
@@ -134,10 +130,10 @@ RSpec.describe "App API terminal sessions", type: :request do
 
     expect {
       post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell", working_directory: "/ignored" } }, as: :json
-    }.to change { TerminalSession.count }.by(1)
+    }.to change { Terminal::Session.count }.by(1)
       .and have_enqueued_job(TerminalSessionJob).on_queue("chat")
 
-    session = TerminalSession.last
+    session = Terminal::Session.last
     expect(response).to have_http_status(:created)
     expect(session.user).to eq(user)
     expect(session.workflow).to eq(workflow)
@@ -157,12 +153,12 @@ RSpec.describe "App API terminal sessions", type: :request do
 
     post "/api/v1/app/terminal_sessions", params: { terminal_session: { name: "Scratch" } }, as: :json
     expect(response).to have_http_status(:created)
-    expect(TerminalSession.last.working_directory).to eq(Rails.root.to_s)
+    expect(Terminal::Session.last.working_directory).to eq(Rails.root.to_s)
   end
 
   it "shows a session scoped to the current user" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: user,
       workflow: workflow,
       name: "Shell",
@@ -181,7 +177,7 @@ RSpec.describe "App API terminal sessions", type: :request do
 
   it "does not show another user's session" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: other_user,
       name: "Other",
       working_directory: "/tmp/other",
@@ -196,7 +192,7 @@ RSpec.describe "App API terminal sessions", type: :request do
 
   it "kills the current user's session" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: user,
       name: "Shell",
       working_directory: "/tmp/shell",
@@ -214,7 +210,7 @@ RSpec.describe "App API terminal sessions", type: :request do
 
   it "supports the legacy kill endpoint" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: user,
       name: "Shell",
       working_directory: "/tmp/shell",
@@ -231,7 +227,7 @@ RSpec.describe "App API terminal sessions", type: :request do
 
   it "does not kill another user's session" do
     sign_in_as(user)
-    session = TerminalSession.create!(
+    session = Terminal::Session.create!(
       user: other_user,
       name: "Other",
       working_directory: "/tmp/other",

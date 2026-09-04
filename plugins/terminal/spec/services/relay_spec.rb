@@ -3,7 +3,7 @@ require "socket"
 require "timeout"
 require "base64"
 
-RSpec.describe TerminalRelay, :ci_only do
+RSpec.describe Terminal::Relay, :ci_only do
   RELAY_READY_TIMEOUT = 15
 
   class FakePtyInput
@@ -33,7 +33,7 @@ RSpec.describe TerminalRelay, :ci_only do
 
   let(:user) { Factories.user }
   let(:session) do
-    TerminalSession.create!(
+    Terminal::Session.create!(
       user: user,
       name: "scratch",
       working_directory: Rails.root.to_s,
@@ -61,7 +61,7 @@ RSpec.describe TerminalRelay, :ci_only do
     thread[:terminal_relay_spec] = true
     Timeout.timeout(RELAY_READY_TIMEOUT) do
       until session.relay_ready?
-        raise "TerminalRelay exited before recording relay_address" unless thread.alive?
+        raise "Terminal::Relay exited before recording relay_address" unless thread.alive?
 
         sleep 0.01
       end
@@ -267,7 +267,7 @@ RSpec.describe TerminalRelay, :ci_only do
     relay, child_output_write, pty_input_read, = build_relay
     finished = false
     allow(session).to receive(:reload) do
-      finished ? instance_double(TerminalSession, finished_at: Time.current) : session
+      finished ? instance_double(Terminal::Session, finished_at: Time.current) : session
     end
     expect(Process).to receive(:kill).with("TERM", pid).at_least(:once).and_return(1)
 
@@ -330,7 +330,7 @@ RSpec.describe TerminalRelay, :ci_only do
 
   it "truncates the scrollback on a UTF-8 boundary so no multibyte char is split" do
     relay = described_class.new(session: session, command: [ "bash" ], env: {})
-    size = TerminalRelay::SCROLLBACK_SIZE
+    size = Terminal::Relay::SCROLLBACK_SIZE
     # "a€" + a*(size-1) = size+3 bytes; the excess-3 cut lands inside "€",
     # which plain byteslice would leave as a dangling invalid continuation byte.
     relay.send(:append_scrollback, "a€" + ("a" * (size - 1)))

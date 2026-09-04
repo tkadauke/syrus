@@ -1,14 +1,18 @@
 # Terminal
 
-The terminal feature gives operators interactive PTY access to the agent's workspace during a workflow run. It is a labs feature, disabled by default.
+The terminal gives operators interactive PTY access to the agent's workspace during a workflow run. It ships as the `terminal` plugin, disabled by default.
 
 ## Enabling
 
+Enable it from Admin -> Plugins, or:
+
 ```ruby
-Feature.find_by(slug: 'terminal').update(enabled: true)
+PluginRecord.find_by(name: "terminal").update(enabled: true)
 ```
 
-Once enabled, a Terminal button appears on the Run detail page while a workflow is active.
+Once enabled, a Terminal entry appears in the sidebar (badged with the number of open sessions) and an "Open terminal in workspace" button appears on each workflow card on the Job page. Disabling the plugin withholds both, and its API routes return `plugin_disabled`; the Action Cable channel rejects new subscriptions.
+
+The plugin owns `Terminal::Session` (table `terminal_sessions`), `TerminalChannel`, `TerminalSessionJob`, `Terminal::Relay`, its controller, and the SPA route. It reaches the sidebar through `:sidebar_page` and the Job page through the `job.workflow.actions` `:ui_slot`.
 
 ## Architecture
 
@@ -20,7 +24,7 @@ The terminal relay is a TCP server that the worker-side PTY session advertises. 
 
 | Environment | Setting |
 |---|---|
-| Bare-metal / local dev | Leave blank; `TerminalRelay` defaults to `127.0.0.1` |
+| Bare-metal / local dev | Leave blank; `Terminal::Relay` defaults to `127.0.0.1` |
 | Docker Compose | Set to the worker service name (e.g., `worker`) so web reaches it via Docker DNS |
 | Kubernetes | Set `SYRUS_TERMINAL_HOST` from the Downward API field `status.podIP` on worker pods; web pods connect directly over the CNI network |
 

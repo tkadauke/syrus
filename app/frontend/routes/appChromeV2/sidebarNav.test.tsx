@@ -7,12 +7,11 @@ const translate = (key: string, options?: { defaultValue?: string }) => options?
 const baseContext = { simpleMode: false, featureFlags: { terminal: true }, teamUserCount: 2 }
 
 describe("CORE_NAV_ITEMS", () => {
-  it("covers the built-in nav entries except spending and setup", () => {
+  it("covers the built-in nav entries, excluding the plugin-provided ones and setup", () => {
     expect(CORE_NAV_ITEMS.map((item) => item.id)).toEqual([
       "dashboard",
       "repositories",
-      "schedules",
-      "terminal"
+      "schedules"
     ])
   })
 })
@@ -21,7 +20,7 @@ describe("buildSidebarNavItems", () => {
   it("includes all core items in order when every visibility condition is met", () => {
     const items = buildSidebarNavItems(baseContext, [], translate)
 
-    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules", "terminal"])
+    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules"])
   })
 
   it("routes dashboard to the jobs board in simple mode", () => {
@@ -42,11 +41,6 @@ describe("buildSidebarNavItems", () => {
     expect(items.map((item) => item.id)).not.toContain("schedules")
   })
 
-  it("hides terminal when the terminal feature flag is off", () => {
-    const items = buildSidebarNavItems({ ...baseContext, featureFlags: {} }, [], translate)
-
-    expect(items.map((item) => item.id)).not.toContain("terminal")
-  })
 
   it("appends enabled plugin-provided pages after the core items, preserving their given order", () => {
     const pluginPages: SidebarPluginPage[] = [
@@ -60,7 +54,6 @@ describe("buildSidebarNavItems", () => {
       "dashboard",
       "repositories",
       "schedules",
-      "terminal",
       "spending.dashboard",
       "extra.page"
     ])

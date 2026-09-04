@@ -6,11 +6,11 @@ import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "xterm"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchBootstrap, type BootstrapPayload } from "@app/api/bootstrap"
 import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
-import { useT } from "../hooks/useT"
-import { usePageTitle } from "../hooks/usePageTitle"
-import { CloseIcon } from "../components/CloseIcon"
+import { useT } from "@app/hooks/useT"
+import { usePageTitle } from "@app/hooks/usePageTitle"
+import { CloseIcon } from "@app/components/CloseIcon"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
 

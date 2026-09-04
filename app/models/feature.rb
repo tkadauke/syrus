@@ -68,10 +68,6 @@ class Feature < ApplicationRecord
     end
   end
 
-  def self.terminal_enabled?
-    enabled?(:terminal)
-  end
-
   def self.video_walkthroughs_enabled?
     enabled?(:video_walkthroughs)
   end

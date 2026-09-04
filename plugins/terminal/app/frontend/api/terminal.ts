@@ -1,4 +1,4 @@
-import { deleteJson, getJson, postJson } from "./client"
+import { deleteJson, getJson, postJson } from "@app/api/client"
 
 export type TerminalSessionRecord = {
   id: number

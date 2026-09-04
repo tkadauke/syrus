@@ -1117,38 +1117,6 @@ describe("JobDetailView", () => {
     expect(screen.queryByText(/Detected:/)).not.toBeInTheDocument()
   })
 
-  it("opens a terminal session from a workflow row and navigates to it", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      session: {
-        id: 77,
-        name: "WF-4 workspace",
-        working_directory: "/tmp/workflows/4",
-        started_at: "2026-06-27T10:00:00Z",
-        finished_at: null,
-        outcome: null,
-        workflow_id: 4
-      }
-    }))
-
-    renderJobDetail(jobPayload({
-      feature_flags: { terminal: true },
-      workflows: [ workflow({ id: 4, slug: "WF-4" }) ],
-      workflows_pagination: workflowPagination(1)
-    }), { activeTab: "workflows", showLocation: true })
-
-    fireEvent.click(screen.getByRole("button", { name: "Open terminal in workspace" }))
-
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/terminal_sessions",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ terminal_session: { workflow_id: 4, name: "WF-4 workspace" } })
-      })
-    ))
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
-
-    fetchSpy.mockRestore()
-  })
 
   it("renders ANSI color directives in run transcripts", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({

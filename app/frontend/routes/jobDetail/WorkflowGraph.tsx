@@ -3,8 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { PluginUiSlot } from "../../pluginUiSlots"
 import { useT } from "../../hooks/useT"
-import { createTerminalSession } from "../../api/terminal"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { StatusPill, TonePill } from "../../components/StatusPill"
@@ -324,23 +324,6 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
   const stepItems = workflowStepItems(workflow.steps)
   const branchDivergence = workflowBranchDivergence(workflow)
   const detectedPlugins = workflowDetectedPlugins(workflow)
-  const navigate = useNavigate()
-  const [terminalOpening, setTerminalOpening] = useState(false)
-
-  async function openTerminal() {
-    setTerminalOpening(true)
-    try {
-      const { session } = await createTerminalSession({
-        workflow_id: workflow.id,
-        name: `${workflow.slug || workflowSlug(workflow.id)} workspace`
-      })
-      setTerminalOpening(false)
-      navigate(`${prefix}/terminal?session=${session.id}`)
-    } catch (error) {
-      setTerminalOpening(false)
-      throw error
-    }
-  }
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" id={`workflow-${workflow.id}`}>
@@ -365,11 +348,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
-          {payload.feature_flags?.terminal ? (
-            <Button disabled={terminalOpening} onClick={openTerminal} variant="secondary">
-              {t("open_terminal_in_workspace")}
-            </Button>
-          ) : null}
+          <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
           {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">{t("retry_failed_step")}</CommandButton> : null}
           {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">{t("push_commits")}</CommandButton> : null}
         </div>

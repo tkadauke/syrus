@@ -487,6 +487,29 @@ re-opens it, and `bin/plugin-boundary-audit` read `optionally_depends_on` as
 `depends_on`, so it had never once exercised the optional-dependency path it
 exists to protect.
 
+### G7. Routes beyond the two API namespaces — partly answered by `terminal`
+
+Extracting `terminal` was supposed to need this. Most of it turned out not to
+be a gap:
+
+- **Action Cable channels need no mechanism.** Action Cable resolves a channel
+  by constantizing the subscription identifier and checking it is a
+  `Channel::Base` subclass, and an engine's `app/channels` is already in the
+  autoload path. A plugin channel simply works. What *is* missing is gating: a
+  disabled plugin's channel stays reachable, so the channel has to guard itself
+  (`return reject unless Terminal.enabled?`). A declarative version of that
+  guard would be worth having if a second plugin ever ships a channel.
+- **HTML routes still need core.** `terminal`'s `/terminal` SPA shell route
+  stays in `config/routes.rb`, the same limitation `spending_insights` and the
+  other sidebar pages have: sidebar pages have no route wildcard the way
+  `/admin/*` and repo-page tabs do. This is the part of G7 that is still real.
+
+Two smaller platform pieces landed with it: a `job.workflow.actions` ui_slot
+(an action-row slot, rendered once per workflow card with the workflow passed
+as a prop) and `badge_api_path` on a sidebar page, which core polls for
+`{"count": n}` so a plugin can badge its nav entry without core knowing what
+is being counted.
+
 ### G6. Search host — done, then federated
 
 `:search_source` let a plugin register FTS tables (created by
@@ -1433,7 +1456,6 @@ Of what is left, the queue by readiness rather than by phase number:
 
 | | blocker |
 |---|---|
-| `terminal` | G7 only, plus one `ui_slot` move — nearest to ready |
 | `video_walkthroughs` | a chat-turn prompt injection point (small, well-shaped) |
 | `visual_review`, `coverage`, `review_plan` | G12, now designed |
 | `scheduled_tasks` | G8, an open design question, not code |

@@ -17,6 +17,11 @@ module Syrus
     # Panels in a `.tab` slot are rendered as extra tabs rather than inline
     # sections, so they also carry `label` (or `label_key`) and a `key`.
     #
+    # `job.workflow.actions` is an action-row slot rather than a section: its
+    # panels render inside every workflow card on the job page, and the card
+    # passes the workflow it is drawing as a prop. Contributions belong in the
+    # row of buttons beside the status pill, not as a block.
+    #
     # `slot` is a name from Syrus::Plugin::UiSlot::SLOTS. `context` carries
     # whatever the host page has resolved (e.g. { repository:, user: } or
     # { job:, user: }), so a provider can decide per record whether to render.
@@ -28,6 +33,7 @@ module Syrus
         repository.detail
         job.detail
         job.detail.tab
+        job.workflow.actions
       ].freeze
 
       def self.valid_slot?(slot) = SLOTS.include?(slot.to_s)

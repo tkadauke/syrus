@@ -8,9 +8,11 @@ class TerminalChannel < ApplicationCable::Channel
   RELAY_SELECT_TIMEOUT = 0.05
 
   def subscribed
-    @session = TerminalSession.running.find_by(id: params[:session_id])
+    @session = Terminal::Session.running.find_by(id: params[:session_id])
 
-    return reject unless Feature.terminal_enabled?
+    # Action Cable resolves a channel by constantizing the identifier, so a
+    # disabled plugin's channel is still reachable; the guard has to be here.
+    return reject unless ::Terminal.enabled?
     return reject unless @session&.user_id == current_user.id
     return reject unless wait_for_relay_address
 

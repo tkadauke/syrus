@@ -5,7 +5,7 @@ require "json"
 # Lightweight per-worker HTTP relay that serves coding workspace file/diff reads
 # from the worker pod's local filesystem to the web pod over the pod network.
 #
-# Mirrors the terminal relay pattern (TerminalRelay + TerminalSession): the
+# Mirrors the terminal relay pattern (Terminal::Relay + Terminal::Session): the
 # worker records its host:port in the DB (chat_sessions.coding_relay_address),
 # the web pod proxies the coding API endpoints to it, and request auth
 # is a per-session bearer token (chat_sessions.coding_relay_token).

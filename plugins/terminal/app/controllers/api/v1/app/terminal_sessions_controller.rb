@@ -2,14 +2,13 @@ module Api
   module V1
     module App
       class TerminalSessionsController < BaseController
-        before_action :require_terminal_feature
-
         def index
           render json: sessions_payload
         end
 
         def create
-          session = Current.user.terminal_sessions.create!(
+          session = ::Terminal::Session.create!(
+            user: Current.user,
             workflow: selected_workflow,
             name: session_name,
             working_directory: working_directory,
@@ -29,6 +28,11 @@ module Api
           destroy
         end
 
+        # Polled by the chrome to badge the nav entry (badge_api_path).
+        def open_count
+          render json: { count: ::Terminal::Session.where(user: Current.user).running.count }
+        end
+
         def destroy
           session = find_session
           session.update!(finished_at: Time.current, outcome: "killed") if session.running?
@@ -38,23 +42,19 @@ module Api
 
         private
 
-        def require_terminal_feature
-          render_terminal_disabled unless Feature.terminal_enabled?
-        end
-
         def find_session
-          Current.user.terminal_sessions.find(params[:id])
+          ::Terminal::Session.where(user: Current.user).find(params[:id])
         end
 
         def sessions_payload
           {
-            sessions: Current.user.terminal_sessions.running.order(started_at: :desc).map { |session| session_json(session) },
+            sessions: ::Terminal::Session.where(user: Current.user).running.order(started_at: :desc).map { |session| session_json(session) },
             workspaces: workspace_json
           }
         end
 
         def session_json(session)
-          ::App::TerminalSessionSerializer.render(session)
+          ::Terminal::SessionSerializer.render(session)
         end
 
         def workspace_json
@@ -107,10 +107,6 @@ module Api
           return params.permit(:workflow_id, :working_directory, :name) unless params[:terminal_session].is_a?(ActionController::Parameters)
 
           params.require(:terminal_session).permit(:workflow_id, :working_directory, :name)
-        end
-
-        def render_terminal_disabled
-          render_error("terminal_disabled", "Terminal is not enabled.", status: :not_found)
         end
       end
     end

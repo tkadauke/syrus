@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe TerminalSession, type: :model do
+RSpec.describe Terminal::Session, type: :model do
   let(:user) { Factories.user }
   let(:base_attrs) do
     {

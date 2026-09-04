@@ -10,12 +10,11 @@ RSpec.describe TerminalChannel, type: :channel do
   end
 
   def enable_terminal
-    feature = Feature.find_or_initialize_by(slug: "terminal")
-    feature.update!(category: "labs", name: "Terminal", enabled: true)
+    PluginRecord.find_or_create_by!(name: "terminal").update!(enabled: true, disableable: true)
   end
 
   def terminal_session(**attrs)
-    TerminalSession.create!(
+    Terminal::Session.create!(
       {
         user: user,
         name: "scratch",

@@ -1,5 +1,5 @@
-module App
-  class TerminalSessionSerializer
+module Terminal
+  class SessionSerializer
     def self.render(session)
       new(session).render
     end

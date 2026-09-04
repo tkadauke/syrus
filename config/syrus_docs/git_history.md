@@ -24,7 +24,7 @@ populate the clone.
 `Api::V1::App::GitHistoryController` is served by **web** pods, which do not
 mount `$SYRUS_DATA_ROOT` and can't read the bare clone off local disk. Reads
 are proxied to a worker pod instead, mirroring the `PreviewControlServer` /
-`PreviewLogClient` pattern (not `ChatWorkspaceRelay`/`TerminalRelay` — this is
+`PreviewLogClient` pattern (not `ChatWorkspaceRelay`/`Terminal::Relay` — this is
 a stateless, `repository_id`-keyed read with no session to pin to):
 
 - `GitHistory::RelayServer` — an internal-only HTTP server (Puma, JSON)

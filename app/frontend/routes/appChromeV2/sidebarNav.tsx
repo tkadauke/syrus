@@ -25,16 +25,17 @@ export type MergedNavItem = {
   order: number
   smartFolderApiPath?: string | null
   smartFolderSubject?: string | null
+  badgeApiPath?: string | null
 }
 
-// The primary sidebar nav, minus "spending" (now provided by the
-// spending_insights sidebar_page plugin, appended via pluginPages below) and
-// "setup" (onboarding-only, assembled separately).
+// The primary sidebar nav, minus the entries now provided by sidebar_page
+// plugins and appended via pluginPages below ("spending" from
+// spending_insights, "terminal" from terminal), and "setup" (onboarding-only,
+// assembled separately).
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "dashboard", labelKey: "nav:dashboard", to: () => "/dashboard/jobs", icon: <DashboardIcon />, order: 10 },
   { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
   { id: "schedules", labelKey: "nav:schedules", to: () => "/scheduled_tasks", icon: <ScheduleIcon />, order: 30, visible: (ctx) => !ctx.simpleMode },
-  { id: "terminal", labelKey: "nav:terminal", to: () => "/terminal", icon: <TerminalIcon />, order: 40, visible: (ctx) => Boolean(ctx.featureFlags.terminal) },
 ]
 
 // Known icon references a sidebar_page plugin may declare. Anything else
@@ -86,6 +87,7 @@ export function buildSidebarNavItems(
       order: page.order,
       smartFolderApiPath: page.smart_folder_api_path,
       smartFolderSubject: page.smart_folder_subject,
+      badgeApiPath: page.badge_api_path,
     }))
 
   return [...coreItems, ...pluginItems]

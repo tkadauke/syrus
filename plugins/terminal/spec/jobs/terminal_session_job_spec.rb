@@ -6,7 +6,7 @@ RSpec.describe TerminalSessionJob, type: :job do
   let(:user) { Factories.user }
 
   def terminal_session(**attrs)
-    TerminalSession.create!(
+    Terminal::Session.create!(
       {
         user: user,
         name: "scratch",
@@ -24,10 +24,10 @@ RSpec.describe TerminalSessionJob, type: :job do
 
   it "starts a bash terminal relay for a running session" do
     session = terminal_session
-    relay = instance_double(TerminalRelay, run: true)
+    relay = instance_double(Terminal::Relay, run: true)
 
     allow(ProcessRunner).to receive(:forwarded_env).with([]).and_return({ "TERM" => "xterm-256color" })
-    expect(TerminalRelay).to receive(:new).with(
+    expect(Terminal::Relay).to receive(:new).with(
       session: session,
       command: [ "bash" ],
       env: { "TERM" => "xterm-256color" }
@@ -41,7 +41,7 @@ RSpec.describe TerminalSessionJob, type: :job do
   it "does not start a relay for a finished session" do
     session = terminal_session(finished_at: Time.current, outcome: "exited")
 
-    expect(TerminalRelay).not_to receive(:new)
+    expect(Terminal::Relay).not_to receive(:new)
 
     described_class.perform_now(session.id)
   end
