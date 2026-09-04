@@ -168,6 +168,89 @@ const reviewerDocDetail = {
   }
 }
 
+const openQuestionsMarkdown = [
+  "## Open Questions",
+  "",
+  "- Should nested .syrus.yml discovery be automatic or opt-in?",
+  "- Should graders be first-class targets?",
+  "- Should project ownership inherit from repository defaults?"
+].join("\n")
+
+const openQuestionsDocDetail = {
+  ...docDetail,
+  id: 4,
+  display_id: "DOC-4",
+  title: "Target Graphs",
+  markdown: openQuestionsMarkdown,
+  rendered_markdown: openQuestionsMarkdown,
+  current_version_number: 13,
+  pending_suggestions_count: 3,
+  open_threads_count: 3,
+  threads: [],
+  suggestions: [
+    {
+      ...docDetail.suggestions[0],
+      id: 31,
+      original_markdown: "Should nested .syrus.yml discovery be automatic or opt-in?",
+      suggested_markdown: "Nested .syrus.yml discovery should be automatic once a target graph exists.",
+      proposed_markdown: "Nested .syrus.yml discovery should be automatic once a target graph exists.",
+      change_summary: "Clarify nested config discovery",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 41,
+        marker_id: "oq1",
+        start_offset: openQuestionsMarkdown.indexOf("Should nested"),
+        end_offset: openQuestionsMarkdown.indexOf("Should nested") + "Should nested .syrus.yml discovery be automatic or opt-in?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should nested"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should nested") + "Should nested .syrus.yml discovery be automatic or opt-in?".length,
+        selected_markdown: "Should nested .syrus.yml discovery be automatic or opt-in?",
+        selected_text: "Should nested .syrus.yml discovery be automatic or opt-in?"
+      },
+      thread: null
+    },
+    {
+      ...docDetail.suggestions[0],
+      id: 32,
+      original_markdown: "Should graders be first-class targets?",
+      suggested_markdown: "Graders should be first-class targets with explicit ownership.",
+      proposed_markdown: "Graders should be first-class targets with explicit ownership.",
+      change_summary: "Clarify grader target model",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 42,
+        marker_id: "oq2",
+        start_offset: openQuestionsMarkdown.indexOf("Should graders"),
+        end_offset: openQuestionsMarkdown.indexOf("Should graders") + "Should graders be first-class targets?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should graders"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should graders") + "Should graders be first-class targets?".length,
+        selected_markdown: "Should graders be first-class targets?",
+        selected_text: "Should graders be first-class targets?"
+      },
+      thread: null
+    },
+    {
+      ...docDetail.suggestions[0],
+      id: 33,
+      original_markdown: "Should project ownership inherit from repository defaults?",
+      suggested_markdown: "Project ownership should start from repository defaults and allow per-target overrides.",
+      proposed_markdown: "Project ownership should start from repository defaults and allow per-target overrides.",
+      change_summary: "Clarify ownership defaults",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 43,
+        marker_id: "oq3",
+        start_offset: openQuestionsMarkdown.indexOf("Should project ownership"),
+        end_offset: openQuestionsMarkdown.indexOf("Should project ownership") + "Should project ownership inherit from repository defaults?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should project ownership"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should project ownership") + "Should project ownership inherit from repository defaults?".length,
+        selected_markdown: "Should project ownership inherit from repository defaults?",
+        selected_text: "Should project ownership inherit from repository defaults?"
+      },
+      thread: null
+    }
+  ]
+}
+
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -280,6 +363,12 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
     }
+    if (url.pathname === "/api/v1/app/design_docs/4" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: openQuestionsDocDetail })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: openQuestionsDocDetail, mode: "canonical", message: "Design doc updated." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
       return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
     }
@@ -326,6 +415,9 @@ function mockFetch() {
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/4/suggestions/31/accept") {
+      return jsonResponse({ design_doc: { ...openQuestionsDocDetail, suggestions: openQuestionsDocDetail.suggestions.slice(1) }, suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
       return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
@@ -679,6 +771,31 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/reject", expect.objectContaining({ method: "POST" })))
     await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
     expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+  })
+
+  it("does not serialize pending Rich Text suggestion previews into canonical markdown before accepting one", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/4")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(editor).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
+    Array.from(editor.querySelectorAll("[data-inline-suggestion-state]")).forEach((preview) => {
+      preview.replaceWith(...Array.from(preview.childNodes))
+    })
+    fireEvent.input(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Accept" })[0])
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/4", expect.objectContaining({ method: "PATCH" })))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/4/suggestions/31/accept", expect.objectContaining({ method: "POST" })))
+    const updateRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/4" && call[1]?.method === "PATCH")
+    const markdown = JSON.parse(String(updateRequest?.[1]?.body)).design_doc.markdown
+
+    expect(markdown).toBe(openQuestionsMarkdown)
+    expect(markdown).not.toContain("automatic or opt-in?Nested")
+    expect(markdown).not.toContain("first-class targets?Graders")
+    expect(markdown).not.toContain("repository defaults?Project")
   })
 
   it("resets draft editor state when opening a different focused design doc route", async () => {
