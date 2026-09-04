@@ -13,13 +13,20 @@ module Steps
 
       new_base_sha = workflow.artifact("merge_train_rebase_new_base_sha").to_s
       raise StepFailed, "merge_train_agent_rebase: missing moved base SHA; rebuild required" if new_base_sha.blank?
+      checkout_integration_branch!(git, train, chdir: chdir, context: "merge_train_agent_rebase") unless rebase_in_progress?(git, chdir)
       run.update!(prompt: compose_prompt(train, new_base_sha)) if run.prompt.blank?
 
       log("invoking agent for merge_train_agent_rebase step (#{workflow.slug})")
       run_agent(prompt: run.prompt)
 
       verify_rebase_complete!(git, train, new_base_sha, chdir)
-      new_integration_sha = git.run("rev-parse", "HEAD", chdir: chdir).strip
+      new_integration_sha = ensure_integration_branch_ref_at_head!(
+        git,
+        train,
+        chdir: chdir,
+        context: "merge_train_agent_rebase"
+      )
+      verify_integration_branch_rebased!(git, train, new_base_sha, chdir)
       workflow.set_artifact!(MergeTrainLand::BASE_SHA_ARTIFACT, new_base_sha)
       train.update!(integration_sha: new_integration_sha)
       run.update!(head_sha: new_integration_sha)
@@ -48,6 +55,11 @@ module Steps
       raise StepFailed, "merge_train_agent_rebase: working tree is not clean after rebase" if status.present?
 
       git.run("merge-base", "--is-ancestor", new_base_sha, "HEAD", chdir: chdir)
+    rescue GitRunner::GitError => e
+      raise StepFailed, "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}"
+    end
+
+    def verify_integration_branch_rebased!(git, train, new_base_sha, chdir)
       git.run("merge-base", "--is-ancestor", new_base_sha, train.integration_branch, chdir: chdir)
     rescue GitRunner::GitError => e
       raise StepFailed, "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}"

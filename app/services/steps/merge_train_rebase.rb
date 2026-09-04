@@ -18,6 +18,7 @@ module Steps
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      checkout_integration_branch!(git, train, chdir: chdir, context: "merge_train_rebase")
 
       log("merge_train_rebase: fetching #{train.base_branch} to find new base tip")
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_rebase_fetch", log: method(:log)) do |url|
