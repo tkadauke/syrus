@@ -549,9 +549,12 @@ Depends on A1 and A2 only.
   that must name real `PendingActions` entries (a decision offering an action
   nobody can execute reads as answerable and is not). `queue` separates
   operator decisions from triage, because merging them buries the rare
-  important decision under the frequent cheap one. Still to do: cutting
-  `SupervisorEvents` off the `NotificationService` firehose, and the surface
-  itself.
+  important decision under the frequent cheap one. `Decisions::Escalator` is
+  the producer: a terminally failed Workflow becomes one Decision, named in the
+  shared vocabulary, ranked by what the failure costs (a stalled landing is
+  urgent; a failed initial attempt is not), carrying the rung-0 verdict and the
+  retry action an operator already has. Still to do: cutting `SupervisorEvents`
+  off the `NotificationService` firehose, and the surface itself.
 - **B3 · Decision signatures — fingerprint and consult landed; metric still to
   do.** `Decisions::Signature` is problem code plus a normalized fingerprint of
   only the evidence that says *which* problem this is, so two occurrences match
@@ -559,7 +562,9 @@ Depends on A1 and A2 only.
   the same signature and declines to ask again when a prior decision still
   applies -- scoped to a repository, never global, and expiring, since a
   dismissal that made sense against one base revision should not silently
-  outlive it. Still to do: the escalations-per-landing baseline.
+  outlive it. `Metrics::EscalationsPerLanding` is the plan's one metric:
+  Decisions opened over landings completed, broken down by problem code, with
+  no ratio at all rather than a misleading infinity when nothing landed.
 - **B4 · Judgment primitive — done.** `Judgment` is one bounded agent turn: a
   prompt, a declared output schema, a cost ceiling and timeout remediation from
   the day it landed, with every failure reported as a `Problem` rather than as
