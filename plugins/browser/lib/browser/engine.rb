@@ -1,9 +1,10 @@
 module SyrusBrowser
   class Engine < ::Rails::Engine
-    # after_initialize runs after Zeitwerk is fully active, ensuring
-    # Syrus::PluginRegistry (autoloaded from lib/) and app/services/syrus_browser
-    # (autoloaded from this engine's own app/ dir) are resolvable.
-    config.after_initialize do
+    # to_prepare, not after_initialize: lib/ is autoloaded and therefore
+    # reloadable, so Syrus::PluginRegistry is replaced by an empty one on every
+    # code reload. after_initialize runs once per boot and would never put the
+    # registrations back.  Registration is idempotent by name.
+    config.to_prepare do
       SyrusBrowser::McpToolSet.include(Syrus::Plugin::McpToolSet)
       SyrusBrowser::ImageDiffRenderer.include(Syrus::Plugin::ArtifactRenderer)
 

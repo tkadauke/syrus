@@ -4,7 +4,7 @@ module AgentMemory
       AgentMemory::DataCleanup.install!
     end
 
-    config.after_initialize do
+    config.to_prepare do
       unless AgentMemory::McpToolSet < Syrus::Plugin::McpToolSet
         AgentMemory::McpToolSet.include(Syrus::Plugin::McpToolSet)
       end

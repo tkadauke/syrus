@@ -1,6 +1,6 @@
 module SyrusGithubSource
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       Syrus::PluginRegistry.register(
         name:            "github_source",
         display_name:    "GitHub Source",

@@ -2,7 +2,7 @@ require "rails"
 
 module SyrusRails
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       # Wire up interface modules now that Zeitwerk is active and all
       # Syrus::Plugin::* constants are autoloadable from the main app's lib/.
       SyrusRails::McpToolSet.include(Syrus::Plugin::McpToolSet)

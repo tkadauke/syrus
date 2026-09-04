@@ -1,6 +1,6 @@
 module SyrusLinearSource
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       Syrus::PluginRegistry.register(
         name:            "linear_source",
         display_name:    "Linear Source",

@@ -4,7 +4,7 @@ module DesignDocs
       DesignDocs::DataCleanup.install!
     end
 
-    config.after_initialize do
+    config.to_prepare do
       DesignDocs::ChatToolSet.include(Syrus::Plugin::ChatMcpToolSet) unless DesignDocs::ChatToolSet < Syrus::Plugin::ChatMcpToolSet
       DesignDocs::WorkflowToolSet.include(Syrus::Plugin::McpToolSet) unless DesignDocs::WorkflowToolSet < Syrus::Plugin::McpToolSet
 

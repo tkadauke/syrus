@@ -1,6 +1,6 @@
 module WorkerTimeline
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       WorkerTimeline.register!
     end
   end

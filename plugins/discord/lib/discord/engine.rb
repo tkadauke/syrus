@@ -1,6 +1,6 @@
 module SyrusDiscord
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       Syrus::PluginRegistry.register(
         name:            "discord",
         display_name:    "Discord",

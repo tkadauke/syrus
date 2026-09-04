@@ -1,6 +1,6 @@
 module TeamDirectory
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       TeamDirectory.register!
     end
   end

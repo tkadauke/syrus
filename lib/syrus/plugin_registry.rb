@@ -96,6 +96,12 @@ module Syrus
         validate_category!(category)
 
         @mutex.synchronize do
+          # Registration runs on every `to_prepare`, so re-registering a name
+          # replaces the previous manifest rather than appending a second one.
+          # It has to happen before the uniqueness checks, or a plugin would
+          # collide with its own prior registration on the first reload.
+          @plugins.reject! { |manifest| manifest.name == name }
+
           validate_mcp_tool_name_uniqueness!(provides)
           validate_workspace_tab_id_uniqueness!(provides)
           @generation += 1

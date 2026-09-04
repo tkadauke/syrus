@@ -4,7 +4,7 @@ module AgentInsights
       AgentInsights::DataCleanup.install!
     end
 
-    config.after_initialize do
+    config.to_prepare do
       unless AgentInsights::McpToolSet < Syrus::Plugin::McpToolSet
         AgentInsights::McpToolSet.include(Syrus::Plugin::McpToolSet)
       end

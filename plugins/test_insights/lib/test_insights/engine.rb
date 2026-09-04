@@ -4,7 +4,7 @@ module TestInsights
       TestInsights::DataCleanup.install!
     end
 
-    config.after_initialize do
+    config.to_prepare do
       unless TestInsights::McpToolSet < Syrus::Plugin::McpToolSet
         TestInsights::McpToolSet.include(Syrus::Plugin::McpToolSet)
       end

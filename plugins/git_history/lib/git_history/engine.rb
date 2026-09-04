@@ -1,6 +1,6 @@
 module GitHistory
   class Engine < ::Rails::Engine
-    config.after_initialize do
+    config.to_prepare do
       GitHistory.register!
 
       # Start the internal-only relay that serves bare-clone reads to web
