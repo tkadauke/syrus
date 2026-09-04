@@ -4,10 +4,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import { MemoriesRoute } from "./Memories"
+import MemoriesDefaultRoute, { MemoriesRoute } from "./Memories"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 
 describe("MemoriesRoute", () => {
+  it("exports the route as the default plugin sidebar component", () => {
+    expect(MemoriesDefaultRoute).toBe(MemoriesRoute)
+  })
+
   it("renders filters, admin owner column, rows, and pagination", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
       current_user: { id: 1, admin: true },
