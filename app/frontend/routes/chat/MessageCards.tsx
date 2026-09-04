@@ -18,7 +18,8 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, typedToolResult, type ChatMediaImage, type ChatMediaSnapshot, type TypedToolResult } from "./toolRendering"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, parseJsonText, typedToolResult, type ChatMediaImage, type ChatMediaSnapshot, type TypedToolResult } from "./toolRendering"
+import { pluginToolCardExpandedBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -437,8 +438,16 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
 
 function ToolResultBody({ call, groupTool }: { call: ChatToolGroupItem["calls"][number]; groupTool: string }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
-
   if (typed) return <TypedToolResultBody result={typed} />
+
+  const pluginBody = call.result_error ? null : pluginToolCardExpandedBody({
+    toolName: call.tool_name,
+    input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
+    resultBody: call.result_body,
+    resultError: call.result_error,
+    parsedResult: parseJsonText(call.result_body)
+  })
+  if (pluginBody != null) return <>{pluginBody}</>
 
   return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={call.display_label || groupTool} />
 }
