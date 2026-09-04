@@ -21,7 +21,8 @@ module Steps
       workflow.reload
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
-        raise StepFailed, "agent didn't call submit_visual_review"
+        fail_with!(:missing_required_tool_call, "agent didn't call submit_visual_review",
+                   evidence: { tool: "submit_visual_review" })
       end
 
       VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)

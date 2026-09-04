@@ -20,6 +20,7 @@ module Steps
     # → merge_train_land_after_rebase.
     class BaseMoved < StepFailed
       FAILURE_CODE = "merge_train_base_moved".freeze
+      problem_code :merge_train_rebuild_required
     end
 
     def call
@@ -108,7 +109,7 @@ module Steps
           "reason" => "missing_built_base_sha"
         }
       )
-      raise StepFailed, "#{MISSING_BASE_FAILURE_PREFIX}; rebuild required"
+      fail_with!(:merge_train_rebuild_required, "#{MISSING_BASE_FAILURE_PREFIX}; rebuild required")
     end
 
     def push_integration_branch(train, client)
@@ -222,7 +223,10 @@ module Steps
         "Closed by Syrus because the merge-train integration PR could not be merged cleanly. Re-approve the Epic jobs after resolving the conflict."
       )
       message = e.message.to_s.presence || "GitHub refused the integration merge"
-      raise StepFailed, "#{INTEGRATION_CONFLICT_FAILURE_PREFIX} for PR ##{pr.number}: #{message.truncate(180)}; operator intervention required"
+      fail_with!(:merge_train_rebase_conflict,
+                 "#{INTEGRATION_CONFLICT_FAILURE_PREFIX} for PR ##{pr.number}: " \
+                 "#{message.truncate(180)}; operator intervention required",
+                 evidence: { pr_number: pr.number })
     end
 
     def close_open_integration_pr!(train, client, reason)

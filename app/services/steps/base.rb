@@ -23,10 +23,56 @@ module Steps
   # orchestrator catches it, transitions the Run + Step to
   # failed, and increments the Workflow's failure_count.
   class Base
-    class StepFailed < StandardError; end
+    # A step failure, optionally carrying the Problem it represents.
+    #
+    # Historically a step raised prose and every downstream layer regex-matched
+    # its way back to a meaning the step already knew --- the classifier, the
+    # landing-failure handler and the merge-train handler each kept their own
+    # copy of that guess, and they disagreed. A step that knows what went wrong
+    # says so here instead, in the shared vocabulary (Problem::Kind), and the
+    # layers read it.
+    #
+    # Emission is optional on purpose. Most failures are genuinely opaque at
+    # the raise site (a git command failed, the provider returned something
+    # unexpected) and are still classified downstream from evidence; this is
+    # for the cases where guessing is silly because the step was certain.
+    class StepFailed < StandardError
+      # Declares the Problem code a whole exception class always represents,
+      # so every `raise BranchDiverged, "..."` site carries it for free.
+      # Inherited, so a subclass narrows its parent rather than restating it.
+      def self.problem_code(code = nil)
+        return @problem_code = code.to_s if code
+
+        @problem_code || (superclass.respond_to?(:problem_code) ? superclass.problem_code : nil)
+      end
+
+      attr_reader :evidence
+
+      def initialize(message = nil, problem_code: nil, evidence: {})
+        super(message)
+        @explicit_problem_code = problem_code&.to_s
+        @evidence = evidence.to_h
+      end
+
+      # The Problem this failure represents, or nil when the step did not
+      # claim to know. Unmapped codes resolve to nil rather than raising: this
+      # runs on the failure path, where a new exception turns a handled
+      # failure into a crash.
+      def problem
+        code = @explicit_problem_code || self.class.problem_code
+        return nil if code.blank?
+
+        Problem.resolve(code, evidence: evidence)
+      end
+    end
+
     class NoChangesProduced < StepFailed; end
-    class AgentGaveUpWaiting < StepFailed; end
-    class AgentTimedOut < StepFailed; end
+    class AgentGaveUpWaiting < StepFailed
+      problem_code :agent_gave_up_waiting
+    end
+    class AgentTimedOut < StepFailed
+      problem_code :timeout
+    end
     DEFAULT_AGENT_RESUME = Object.new.freeze
     DISABLE_AGENT_RESUME = "__syrus_disable_agent_resume__".freeze
 
@@ -84,6 +130,14 @@ module Steps
     # Deliberately not raising on an unmapped code: this runs on the failure
     # path, where a new exception would turn a handled failure into a crash.
     # spec/models/problem/kind_spec.rb pins the mapping statically instead.
+    # Fails the step with an explicit Problem code, for handlers that know
+    # exactly what went wrong. Prefer this over a bare `raise StepFailed` when
+    # the answer is not a guess: the message stays for humans, and the code is
+    # what the classifier, the landing handler and any adjudicator read.
+    def fail_with!(code, message, evidence: {})
+      raise StepFailed.new(message, problem_code: code, evidence: evidence)
+    end
+
     def mark_failure_code!(code)
       details = step.details.to_h.merge("failure_code" => code)
       problem = Problem::Kind.resolve(code)
@@ -663,7 +717,9 @@ module Steps
     # default branch. Same outcome label as RunJob's existing
     # check (`git_state_corrupt`) so the dashboard can tell this
     # class of failure apart from generic AgentRunFailed.
-    class AgentBrokeGitState < StepFailed; end
+    class AgentBrokeGitState < StepFailed
+      problem_code :git_state_corrupt
+    end
 
     def assert_branch_history_intact!
       # Use the remote-tracking ref (`origin/<default>`), not the bare

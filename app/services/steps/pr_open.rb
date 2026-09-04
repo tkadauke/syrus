@@ -25,7 +25,9 @@ module Steps
       { latin: "Dum aliquid superest, nihil perisse putandum est.", english: "While something remains, nothing should be thought lost." }
     ].freeze
 
-    class BranchDiverged < StepFailed; end
+    class BranchDiverged < StepFailed
+      problem_code :branch_diverged
+    end
 
     def call
       workspace.setup

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_185550) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2041,10 +2041,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_185550) do
     t.string "error_class", null: false
     t.text "error_message"
     t.text "git_snapshot"
+    t.string "problem_code"
+    t.json "problem_evidence"
     t.text "repo_snapshot"
     t.integer "run_id", null: false
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_run_diagnostics_on_created_at"
+    t.index ["problem_code"], name: "index_run_diagnostics_on_problem_code"
     t.index ["run_id"], name: "index_run_diagnostics_on_run_id", unique: true
   end
 

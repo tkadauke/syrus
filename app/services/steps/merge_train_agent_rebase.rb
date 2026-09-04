@@ -12,7 +12,9 @@ module Steps
       chdir = workspace.path.to_s
 
       new_base_sha = workflow.artifact("merge_train_rebase_new_base_sha").to_s
-      raise StepFailed, "merge_train_agent_rebase: missing moved base SHA; rebuild required" if new_base_sha.blank?
+      if new_base_sha.blank?
+        fail_with!(:merge_train_rebuild_required, "merge_train_agent_rebase: missing moved base SHA; rebuild required")
+      end
       checkout_integration_branch!(git, train, chdir: chdir, context: "merge_train_agent_rebase") unless rebase_in_progress?(git, chdir)
       run.update!(prompt: compose_prompt(train, new_base_sha)) if run.prompt.blank?
 
@@ -48,21 +50,28 @@ module Steps
 
     def verify_rebase_complete!(git, train, new_base_sha, chdir)
       if rebase_in_progress?(git, chdir)
-        raise StepFailed, "merge_train_agent_rebase: rebase is still in progress; run git rebase --continue until it completes"
+        fail_with!(:merge_train_rebase_conflict,
+                   "merge_train_agent_rebase: rebase is still in progress; run git rebase --continue until it completes")
       end
 
       status = git.run("status", "--porcelain", chdir: chdir).strip
-      raise StepFailed, "merge_train_agent_rebase: working tree is not clean after rebase" if status.present?
+      if status.present?
+        fail_with!(:merge_train_rebase_conflict, "merge_train_agent_rebase: working tree is not clean after rebase")
+      end
 
       git.run("merge-base", "--is-ancestor", new_base_sha, "HEAD", chdir: chdir)
     rescue GitRunner::GitError => e
-      raise StepFailed, "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}"
+      fail_with!(:merge_train_rebase_conflict,
+                 "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}",
+                 evidence: { integration_branch: train.integration_branch, new_base_sha: new_base_sha })
     end
 
     def verify_integration_branch_rebased!(git, train, new_base_sha, chdir)
       git.run("merge-base", "--is-ancestor", new_base_sha, train.integration_branch, chdir: chdir)
     rescue GitRunner::GitError => e
-      raise StepFailed, "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}"
+      fail_with!(:merge_train_rebase_conflict,
+                 "merge_train_agent_rebase: #{train.integration_branch} was not rebased onto the moved base: #{e.message}",
+                 evidence: { integration_branch: train.integration_branch, new_base_sha: new_base_sha })
     end
 
     def rebase_in_progress?(git, chdir)

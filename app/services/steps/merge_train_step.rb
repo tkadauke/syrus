@@ -13,7 +13,8 @@ module Steps
         train = MergeTrain.find_by(id: id) ||
           raise(Base::StepFailed, "merge_train: MergeTrain ##{id} not found")
         if train.terminal?
-          raise Base::StepFailed, "merge_train: MergeTrain ##{id} is #{train.state}; rebuild required"
+          fail_with!(:merge_train_rebuild_required, "merge_train: MergeTrain ##{id} is #{train.state}; rebuild required",
+                     evidence: { merge_train_id: id, state: train.state })
         end
 
         train
@@ -25,7 +26,10 @@ module Steps
     end
 
     def checkout_integration_branch!(git, train, chdir:, context:)
-      raise Base::StepFailed, "#{context}: integration branch is missing; rebuild required" if train.integration_branch.blank?
+      if train.integration_branch.blank?
+        fail_with!(:merge_train_rebuild_required, "#{context}: integration branch is missing; rebuild required",
+                   evidence: { context: context, merge_train_id: train.id })
+      end
 
       if train.integration_sha.present?
         git.run("checkout", "-B", train.integration_branch, train.integration_sha, chdir: chdir)
@@ -33,9 +37,11 @@ module Steps
         git.run("checkout", train.integration_branch, chdir: chdir)
       end
     rescue GitRunner::GitError => e
-      raise Base::StepFailed,
-            "#{context}: built integration branch #{train.integration_branch} " \
-            "at #{train.integration_sha.presence || 'unknown SHA'} is unavailable; rebuild required (#{e.message})"
+      fail_with!(:merge_train_rebuild_required,
+                 "#{context}: built integration branch #{train.integration_branch} " \
+                 "at #{train.integration_sha.presence || 'unknown SHA'} is unavailable; rebuild required (#{e.message})",
+                 evidence: { context: context, integration_branch: train.integration_branch,
+                             integration_sha: train.integration_sha })
     end
 
     def current_git_branch(git, chdir)
@@ -52,7 +58,10 @@ module Steps
 
     def ensure_integration_branch_ref_at_head!(git, train, chdir:, context:)
       branch = train.integration_branch.to_s
-      raise Base::StepFailed, "#{context}: integration branch is missing; rebuild required" if branch.blank?
+      if branch.blank?
+        fail_with!(:merge_train_rebuild_required, "#{context}: integration branch is missing; rebuild required",
+                   evidence: { context: context, merge_train_id: train.id })
+      end
 
       head_sha = git.run("rev-parse", "HEAD", chdir: chdir).to_s.strip
       branch_sha = local_branch_sha(git, branch, chdir)
@@ -64,9 +73,10 @@ module Steps
         return head_sha
       end
 
-      raise Base::StepFailed,
-            "#{context}: checkout is on #{current_branch.presence || 'unknown branch'}, " \
-            "not integration branch #{branch}; rebuild required"
+      fail_with!(:merge_train_rebuild_required,
+                 "#{context}: checkout is on #{current_branch.presence || 'unknown branch'}, " \
+                 "not integration branch #{branch}; rebuild required",
+                 evidence: { context: context, current_branch: current_branch, integration_branch: branch })
     rescue GitRunner::GitError => e
       raise Base::StepFailed,
             "#{context}: could not update integration branch #{train.integration_branch}: #{e.message}"

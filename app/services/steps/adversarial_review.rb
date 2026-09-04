@@ -24,7 +24,8 @@ module Steps
           return
         end
 
-        raise StepFailed, "agent didn't call submit_adversarial_review"
+        fail_with!(:missing_required_tool_call, "agent didn't call submit_adversarial_review",
+                   evidence: { tool: "submit_adversarial_review" })
       end
     rescue StandardError => e
       raise unless skippable_review_failure?(e)

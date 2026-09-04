@@ -45,9 +45,12 @@ module Steps
 
       return if dismissed_by_rung_zero?(failed_required)
 
-      failed_names = failed_required.map { |g| g.details["name"] }.join(", ")
+      failed_names = grader_names(failed_required).join(", ")
       log("[grader_collect] required graders failed: #{failed_names}")
-      raise Base::StepFailed, "required graders failed: #{failed_names}"
+      # The same Problem rung 0 just adjudicated, carried on the failure rather
+      # than re-derived from this message downstream.
+      fail_with!(:grader_failure, "required graders failed: #{failed_names}",
+                 evidence: { grader_names: grader_names(failed_required) })
     end
 
     private
@@ -62,9 +65,7 @@ module Steps
     # adjudication never applies itself" guardrail.
     def dismissed_by_rung_zero?(failed_required)
       verdict = Adjudicators.call(
-        problem: Problem[:grader_failure, evidence: {
-          grader_names: failed_required.map { |grader| grader.details["name"] }
-        }],
+        problem: Problem[:grader_failure, evidence: { grader_names: grader_names(failed_required) }],
         workflow: workflow,
         step: failed_required,
         authorized: %w[inherited_grader_failure]
@@ -75,6 +76,8 @@ module Steps
       record_inherited_main_failure!(failed_required)
       true
     end
+
+    def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }
 
     def record_inherited_main_failure!(failed_required)
       classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)

@@ -5,6 +5,7 @@ module Steps
   class Push < Base
     class RemoteBranchAdvancedRebaseConflict < StepFailed
       FAILURE_CODE = "remote_branch_advanced_rebase_conflict".freeze
+      problem_code :branch_diverged
     end
 
     def call

@@ -13,6 +13,43 @@ record `failed_worker_*` context and defer while the failed host's fresh health
 sample remains critical. See
 [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
 
+## How a step reports failure
+
+A step handler raises `Steps::Base::StepFailed`. When the handler knows *what*
+went wrong, it says so in the shared failure vocabulary
+(`Problem::Kind`) rather than only in prose:
+
+```ruby
+fail_with!(:merge_train_rebuild_required,
+           "merge_train_reconcile: integration branch is missing; rebuild required",
+           evidence: { merge_train_id: train.id })
+```
+
+An exception class that always means one thing declares it once instead, and
+every `raise` of that class carries it:
+
+```ruby
+class BranchDiverged < StepFailed
+  problem_code :branch_diverged
+end
+```
+
+The declared code is persisted on the Run's diagnostic and read by the layers
+that act on the failure — `RunFailureClassifier` returns it directly (with
+confidence `1.0`, because it is a report rather than a guess), and
+`LandingFailureHandler` uses it to tell "rebuild this train" apart from "this
+landing is dead". Those layers previously recovered the meaning by matching
+regular expressions against the message text, and they disagreed with each
+other whenever the wording drifted.
+
+Declaring a problem is **optional and should stay that way**. Most failures are
+genuinely opaque at the raise site — a git command failed, the provider
+returned something unexpected — and are still classified downstream from
+process outcomes, exception classes and log evidence. Declare a code only where
+the step was actually certain; a confident wrong code is worse than an honest
+`application_error`. Codes are validated statically by
+`spec/architecture/declared_problems_are_known_spec.rb`.
+
 ## Setup steps
 
 ### prepare

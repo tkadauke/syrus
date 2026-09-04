@@ -140,16 +140,21 @@ module Steps
         @git.run("checkout", temp, chdir: @chdir)
       rescue GitRunner::GitError
         abort_rebase!
-        raise StepFailed, "merge_train: rebase for #{branch} was not completed"
+        fail_with!(:merge_train_rebase_conflict, "merge_train: rebase for #{branch} was not completed",
+                   evidence: { branch: branch })
       end
 
       status = @git.run("status", "--porcelain", chdir: @chdir).to_s.strip
-      raise StepFailed, "merge_train: integrating #{branch} left a dirty worktree" unless status.empty?
+      unless status.empty?
+        fail_with!(:merge_train_rebase_conflict, "merge_train: integrating #{branch} left a dirty worktree",
+                   evidence: { branch: branch })
+      end
 
       begin
         @git.run("merge-base", "--is-ancestor", @integration, temp, chdir: @chdir)
       rescue GitRunner::GitError
-        raise StepFailed, "merge_train: #{branch} was not rebased onto the integration branch"
+        fail_with!(:merge_train_rebase_conflict, "merge_train: #{branch} was not rebased onto the integration branch",
+                   evidence: { branch: branch })
       end
     end
 

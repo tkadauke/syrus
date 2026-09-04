@@ -7,7 +7,10 @@ module Steps
 
     def call
       train = merge_train
-      raise StepFailed, "merge_train_reconcile: integration branch is missing; rebuild required" if train.integration_branch.blank?
+      if train.integration_branch.blank?
+        fail_with!(:merge_train_rebuild_required, "merge_train_reconcile: integration branch is missing; rebuild required",
+                   evidence: { merge_train_id: train.id })
+      end
 
       workspace.setup
       checkout_integration_branch!(git, train, chdir: workspace.path.to_s, context: "merge_train_reconcile")
@@ -70,7 +73,9 @@ module Steps
 
     def ensure_clean_worktree!
       status = git.run("status", "--porcelain", chdir: workspace.path.to_s).to_s.strip
-      raise StepFailed, "merge_train_reconcile: working tree is not clean after reconciliation" if status.present?
+      if status.present?
+        fail_with!(:merge_train_rebase_conflict, "merge_train_reconcile: working tree is not clean after reconciliation")
+      end
     end
 
     def skip_revalidated_grade_steps!(sha)

@@ -67,6 +67,7 @@ class CaptureRunDiagnostic
       diagnostic.git_snapshot = capture_git_snapshot
       diagnostic.environment_snapshot = capture_environment_snapshot
       diagnostic.repo_snapshot = capture_repo_snapshot
+      assign_problem(diagnostic)
     end
   rescue ActiveRecord::RecordNotUnique
     RunDiagnostic.find_by(run: @run)
@@ -76,6 +77,23 @@ class CaptureRunDiagnostic
   end
 
   private
+
+  # A step that knew what went wrong says so on the exception (see
+  # Steps::Base::StepFailed#problem). Recording it here is what lets the
+  # classifier and the landing handlers read the step's own answer instead of
+  # regex-matching their way back to it from the message.
+  def assign_problem(diagnostic)
+    return unless @exception.respond_to?(:problem)
+
+    problem = @exception.problem
+    return if problem.nil?
+
+    diagnostic.problem_code = problem.code
+    diagnostic.problem_evidence = problem.evidence.presence
+  rescue StandardError => e
+    # Never let describing a failure become a second failure.
+    Rails.logger.warn("[CaptureRunDiagnostic] problem capture failed for Run ##{@run&.id}: #{e.class}: #{e.message}")
+  end
 
   def format_backtrace
     return nil unless @exception.backtrace
