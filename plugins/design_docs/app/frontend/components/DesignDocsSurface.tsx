@@ -1588,9 +1588,9 @@ function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThrea
   const proposed = highlight.proposedMarkdown ?? ""
 
   return [
-    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}"${suggestionAttrs}>`,
-    `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2">${sourceSpan(original, highlight.start)}</del>`,
-    `<ins class="block whitespace-pre-wrap text-success no-underline">${escapeHtml(proposed)}</ins>`,
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+    `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, highlight.start)}</del>`,
+    `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(proposed)}</ins>`,
     "</div>"
   ].join("")
 }
@@ -1625,7 +1625,9 @@ function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
 function nodeToMarkdown(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ?? ""
   if (!(node instanceof HTMLElement)) return ""
-  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent?.trim() ?? ""
+  if (node.dataset.inlineSuggestionState) return originalMarkdownForSuggestionPreview(node).trim()
+  if (node.dataset.reviewOriginal) return inlineMarkdownChildren(node).trim()
+  if (isReviewOnlyElement(node)) return ""
 
   if (node.tagName === "HR") return "---"
   if (node.tagName === "PRE") return fencedCodeMarkdown(node)
@@ -1646,7 +1648,9 @@ function nodeToMarkdown(node: ChildNode): string {
 function inlineMarkdownText(node: ChildNode): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ""
   if (!(node instanceof HTMLElement)) return ""
-  if (node.dataset.inlineSuggestionState) return node.querySelector("del")?.textContent ?? ""
+  if (node.dataset.inlineSuggestionState) return originalMarkdownForSuggestionPreview(node)
+  if (node.dataset.reviewOriginal) return inlineMarkdownChildren(node)
+  if (isReviewOnlyElement(node)) return ""
   if (node.tagName === "BR") return "\n"
   if (node.tagName === "STRONG" || node.tagName === "B") return `**${inlineMarkdownChildren(node)}**`
   if (node.tagName === "EM" || node.tagName === "I") return `*${inlineMarkdownChildren(node)}*`
@@ -1664,6 +1668,14 @@ function inlineMarkdownText(node: ChildNode): string {
 
 function inlineMarkdownChildren(node: HTMLElement) {
   return Array.from(node.childNodes).map((child) => inlineMarkdownText(child)).join("")
+}
+
+function originalMarkdownForSuggestionPreview(node: HTMLElement) {
+  return node.dataset.originalMarkdown ?? node.querySelector("[data-review-original]")?.textContent ?? node.querySelector("del")?.textContent ?? ""
+}
+
+function isReviewOnlyElement(node: HTMLElement) {
+  return Boolean(node.dataset.reviewDecoration) || Boolean(node.closest("[data-inline-suggestion-state]") && (node.matches("ins, [data-review-proposed]")))
 }
 
 function fencedCodeMarkdown(node: HTMLElement) {
@@ -2072,7 +2084,7 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
         if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
         return [
-          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>`,
+          `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
           renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
           "</mark>"
         ].join("")
@@ -2206,19 +2218,19 @@ function isWeakDiffToken(token: string) {
 function renderInlineSuggestionDiffHtml(diff: InlineSuggestionDiff, original: string, originalStart: number) {
   if (diff.mode === "whole") {
     return [
-      `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2">${sourceSpan(original, originalStart)}</del>`,
-      `<ins class="block whitespace-pre-wrap text-success no-underline">${escapeHtml(diff.proposed)}</ins>`
+      `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, originalStart)}</del>`,
+      `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(diff.proposed)}</ins>`
     ].join("")
   }
 
   let oldOffset = 0
   return diff.parts.map((part) => {
-    if (part.kind === "insert") return `<ins class="text-success no-underline">${escapeHtml(part.text)}</ins>`
+    if (part.kind === "insert") return `<ins class="text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(part.text)}</ins>`
 
     const sourceText = sourceSpan(part.text, originalStart + oldOffset)
     oldOffset += part.text.length
     if (part.kind === "equal") return sourceText
-    return `<del class="text-warning decoration-warning decoration-2">${sourceText}</del>`
+    return `<del class="text-warning decoration-warning decoration-2" data-review-original="true">${sourceText}</del>`
   }).join("")
 }
 
