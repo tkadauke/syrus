@@ -687,8 +687,17 @@ Depends on A1 and A2 only.
   Run inside a `triage` template, which is a migration of the
   highest-volume surface and wants its own change -- the win here is that
   intake no longer carries its own copy of the reaping logic.
-- **C3 · Triage queue.** Second queue on the decision mechanism, separately
-  routed.
+- **C3 · Triage queue — done.** `Decisions::Triage` is the second producer and
+  `Decision`'s queue scopes are the routing. A Job the classifier could not
+  place is the natural first input: nothing is broken and nothing is stuck, it
+  just needs a person to say what it is, which is a triage decision rather than
+  an operator escalation -- so it files at low urgency and offers a
+  *classifying* action rather than a repair.
+
+  `in_attention_order` is deliberately scoped to one queue rather than ordering
+  across both: an urgent triage item is not more important than an urgent
+  landing failure, it is a different person's problem, and ranking them against
+  each other is exactly the merge this phase exists to avoid.
 - **C4 · Identity cleanup — done.** `Job#source_ref` is the qualified,
   cross-door identity (`"github:acme/widgets#42"`), derived on save so it
   cannot drift from the issue it names. `external_ref` could not serve: it

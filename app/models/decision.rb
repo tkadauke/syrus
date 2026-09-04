@@ -39,6 +39,24 @@ class Decision < ApplicationRecord
   scope :for_queue, ->(queue) { where(queue: queue.to_s) }
   scope :unexpired, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
 
+  # The two queues are routed separately on purpose (workflow-engine-v3 C3):
+  # different audience, different SLA, different actions. Merging them would
+  # bury the rare important decision under the frequent cheap one.
+  scope :operator_queue, -> { for_queue("operator") }
+  scope :triage_queue, -> { for_queue("triage") }
+
+  # Most urgent first, then oldest -- within one queue. Deliberately not a
+  # cross-queue ordering: an urgent triage item is not more important than an
+  # urgent landing failure, it is a different person's problem.
+  scope :in_attention_order, lambda {
+    order(Arel.sql("CASE urgency WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END"), created_at: :asc)
+  }
+
+  def self.queue_summary(queue)
+    scope = for_queue(queue).open_decisions.unexpired
+    { queue: queue.to_s, open: scope.count, by_urgency: scope.group(:urgency).count }
+  end
+
   def problem = Problem.new(problem_code, evidence: evidence.to_h.symbolize_keys)
 
   def open? = state == "open"
