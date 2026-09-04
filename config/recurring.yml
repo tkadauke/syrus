@@ -79,10 +79,6 @@ default: &default
     class: DataRootDiskUsageRefreshJob
     queue: cleanup
     schedule: every minute
-  reap_classifier_pending:
-    class: ReapClassifierPendingJob
-    queue: low_priority_maintenance
-    schedule: every 5 minutes
   reap_orphaned_spawned_processes:
     class: ReapOrphanedSpawnedProcessesJob
     queue: cleanup

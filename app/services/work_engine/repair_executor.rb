@@ -470,6 +470,26 @@ module WorkEngine
         end
       end
 
+      # workflow-engine-v3 C2. What ReapClassifierPendingJob used to do on its
+      # own timer, expressed as a repair the engine plans and audits like any
+      # other -- so intake stops having a private copy of stale-work reaping.
+      class ReclassifyStalledIntake < Base
+        def perform
+          job_ids = Array(plan.affected_ids["job_ids"])
+          return skipped("no stalled intake Jobs") if job_ids.empty?
+
+          reclassified = Job.where(id: job_ids).select do |job|
+            job.state == "triaging" && job.triaging_reason.to_s == "classifier_pending"
+          end
+          return skipped("intake Jobs are no longer classifier_pending") if reclassified.empty?
+
+          # ClassifyIssueJob's concurrency lock keeps a duplicate from racing a
+          # classify that is genuinely still in flight.
+          reclassified.each { |job| ClassifyIssueJob.perform_later(job.id) }
+          success("re-enqueued classification for #{reclassified.size} Job(s)")
+        end
+      end
+
       class SkipObsoleteRun < Base
         def perform
           run = target_run

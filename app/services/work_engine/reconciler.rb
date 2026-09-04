@@ -166,6 +166,7 @@ module WorkEngine
       @solid_queue = capture_solid_queue
 
       issues = []
+      issues.concat(classify_stalled_classifier_pending_jobs)
       issues.concat(classify_epic_workflow_conflicts)
       issues.concat(classify_closed_jobs_with_active_runtime_work)
       issues.concat(classify_closed_jobs_with_active_work_units)
@@ -2144,6 +2145,34 @@ module WorkEngine
         )
       end
       issues
+    end
+
+    # workflow-engine-v3 C2. Intake sat off the engine: because classification
+    # is not a Run, the reconciler could not see a Job stuck waiting for one,
+    # so ReapClassifierPendingJob reimplemented stale-work reaping that this
+    # class already does properly. Detection belongs here; the bespoke sweep
+    # does not.
+    CLASSIFIER_PENDING_STUCK_AFTER = 10.minutes
+
+    def classify_stalled_classifier_pending_jobs
+      stalled = jobs.select do |job|
+        job.state == "triaging" &&
+          job.triaging_reason.to_s == "classifier_pending" &&
+          job.created_at.present? && job.created_at < now - CLASSIFIER_PENDING_STUCK_AFTER
+      end
+      return [] if stalled.empty?
+
+      [
+        issue(
+          kind: :stalled_classifier_pending_job,
+          severity: :warning,
+          affected_ids: { job_ids: stalled.map(&:id) },
+          safe_to_auto_repair: true,
+          recommended_repair_action: "reclassify_stalled_intake",
+          evidence: { stuck_after_minutes: CLASSIFIER_PENDING_STUCK_AFTER.to_i / 60, job_count: stalled.size },
+          explanation: "Jobs are waiting on intake classification that never completed."
+        )
+      ]
     end
 
     def classify_rate_limits

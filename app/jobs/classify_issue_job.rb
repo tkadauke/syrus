@@ -11,9 +11,11 @@
 # a worker SIGKILL during classification leaves the SQ job in
 # `pending` so the next worker picks it up and retries the classifier.
 #
-# Companion: ReapClassifierPendingJob (recurring) sweeps Jobs that
-# slipped through the cracks anyway — anything still
-# triaging/classifier_pending after a few minutes gets re-enqueued.
+# Companion: WorkEngine::Reconciler detects Jobs stuck
+# triaging/classifier_pending and plans a `reclassify_stalled_intake` repair,
+# which re-enqueues this job. That used to be ReapClassifierPendingJob -- a
+# private copy of the stale-work reaping the reconciler already does, which
+# existed only because classification is not a Run the reconciler could see.
 class ClassifyIssueJob < ApplicationJob
   queue_as :control_plane
 

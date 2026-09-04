@@ -237,7 +237,7 @@ class PollRepositoryJob < ApplicationJob
   # triaging/classifier_pending forever (the poll's dedup logic
   # never re-tries existing Jobs). SolidQueue's at-least-once
   # delivery lets a fresh worker pick up the classify after a
-  # restart. See ClassifyIssueJob + ReapClassifierPendingJob.
+  # restart. See ClassifyIssueJob; WorkEngine::Reconciler reaps stalled ones.
   def classify_if_available(job)
     return unless job.triaging? && job.triaging_reason_classifier_pending?
     return unless job.user.agent_provider_configured?(job.workflow_agent_provider)

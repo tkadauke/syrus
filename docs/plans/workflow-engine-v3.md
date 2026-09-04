@@ -674,8 +674,19 @@ Depends on A1 and A2 only.
   attention problem. A spend deferral waits fifteen minutes rather than fifteen
   seconds, since that budget resets on a day boundary. Still to do: the actor
   dimension on `WorkflowAdmissionBudget`'s own keys.
-- **C2 · Intake on the engine.** Classification and dedup as Judgment Runs
-  inside a `triage` template; delete `ReapClassifierPendingJob`.
+- **C2 · Intake on the engine — reaping moved, `ReapClassifierPendingJob`
+  deleted; the `triage` template still to do.** The classifier already runs
+  through the Judgment primitive (B4). What kept intake off the engine was
+  detection: because classification is not a Run, `WorkEngine::Reconciler`
+  could not see a Job stuck waiting for one, so a private sweep on its own
+  timer reimplemented stale-work reaping the reconciler already does properly.
+
+  Detection is now a reconciler issue (`stalled_classifier_pending_job`) with a
+  planned, audited repair (`reclassify_stalled_intake`), and the sweep and its
+  recurring schedule entry are gone. Still to do: making classification a real
+  Run inside a `triage` template, which is a migration of the
+  highest-volume surface and wants its own change -- the win here is that
+  intake no longer carries its own copy of the reaping logic.
 - **C3 · Triage queue.** Second queue on the decision mechanism, separately
   routed.
 - **C4 · Identity cleanup — done.** `Job#source_ref` is the qualified,
