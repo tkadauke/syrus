@@ -226,6 +226,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :user_daily_spend_budget_usd,
+      type: :integer,
+      default: 0,
+      min: 0,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Per-user daily spend ceiling across agent Runs and chat turns. Work from a user over budget is deferred to the next day, never failed.",
+      zero_means: "No per-user spend budget; only the global cost controls apply.",
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :proactive_rebase_commit_threshold,
       type: :integer,
       default: 20,

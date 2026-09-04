@@ -58,6 +58,9 @@ class RunJob < ApplicationJob
   # not days.
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
+  # A spend budget resets on a day boundary, so retrying in fifteen seconds
+  # would just burn queue cycles until midnight.
+  SPEND_BUDGET_RETRY_DELAY = 15.minutes
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
@@ -70,6 +73,7 @@ class RunJob < ApplicationJob
     end
 
     return if defer_for_agent_concurrency?(run_id)
+    return if defer_for_actor_share?(run_id)
 
     @run = ::Run.find(run_id)
     Thread.current[:syrus_current_run] = @run
@@ -156,6 +160,33 @@ class RunJob < ApplicationJob
 
     Rails.logger.info("[RunJob] agent concurrency #{active}/#{limit} reached — deferring Run ##{run_id} by #{AGENT_CONCURRENCY_RETRY_DELAY.inspect}")
     defer_run(run_id, AGENT_CONCURRENCY_RETRY_DELAY)
+    true
+  end
+
+  # workflow-engine-v3 C1's fairness rung. The global cap alone lets one user's
+  # large Epic occupy every slot, because admission keys have no actor
+  # dimension.
+  #
+  # This always defers and never fails, which the plan is emphatic about: a
+  # starvation guard that fails work converts a queueing problem into an
+  # attention problem. The work keeps its place and runs when the contention
+  # clears.
+  def defer_for_actor_share?(run_id)
+    run = ::Run.find_by(id: run_id)
+    return false unless run && !run.terminal? && run.agent_queue?
+    return false if work_definition_for_run(run).agent_concurrency_exempt?
+
+    share = Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
+    budget = Admission::SpendBudget.for(user: run.user)
+    return false unless share.over_share? || budget.over_budget?
+
+    reason = share.over_share? ? "actor_fair_share" : "actor_spend_budget"
+    delay = budget.over_budget? ? SPEND_BUDGET_RETRY_DELAY : AGENT_CONCURRENCY_RETRY_DELAY
+    Rails.logger.info(
+      "[RunJob] #{reason} for user ##{run.user_id} " \
+        "(#{share.to_h.inspect} #{budget.to_h.inspect}) — deferring Run ##{run_id} by #{delay.inspect}"
+    )
+    defer_run(run_id, delay)
     true
   end
 

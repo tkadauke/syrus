@@ -84,6 +84,10 @@ class AppSetting < ApplicationRecord
     current.max_concurrent_agent_runs
   end
 
+  def self.user_daily_spend_budget_usd
+    current.user_daily_spend_budget_usd
+  end
+
   def self.proactive_rebase_commit_threshold
     current.proactive_rebase_commit_threshold
   end

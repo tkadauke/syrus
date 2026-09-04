@@ -609,9 +609,19 @@ Depends on A1 and A2 only.
   closed. Still to do: moving the three sibling repo-file resolvers onto it,
   scopes on `AppSettingRegistry::Definition`, and recording the answering tier
   on the Workflow.
-- **C1 · Actor-scoped admission and budgets.** Actor dimension on admission
-  keys, per-user concurrency share, enforced spend budget, fairness rung that
-  defers rather than fails.
+- **C1 · Actor-scoped admission and budgets — fairness rung landed.**
+  `Admission::FairShare` gives admission its missing actor dimension: a user's
+  share is computed against the users *actually contending right now*, so a
+  sole user still gets the whole cap and the share only bites when someone else
+  is waiting. `Admission::SpendBudget` enforces
+  `user_daily_spend_budget_usd`, which Syrus previously only ever reported.
+  Both default to off (`0`), so nothing changes until an operator sets them.
+
+  `RunJob` consults both and **defers** -- the guardrail is absolute: a
+  starvation guard that fails work converts a queueing problem into an
+  attention problem. A spend deferral waits fifteen minutes rather than fifteen
+  seconds, since that budget resets on a day boundary. Still to do: the actor
+  dimension on `WorkflowAdmissionBudget`'s own keys.
 - **C2 · Intake on the engine.** Classification and dedup as Judgment Runs
   inside a `triage` template; delete `ReapClassifierPendingJob`.
 - **C3 · Triage queue.** Second queue on the decision mechanism, separately

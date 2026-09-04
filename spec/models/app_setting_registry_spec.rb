@@ -31,6 +31,7 @@ RSpec.describe AppSettingRegistry do
       :telegram_bot_token,
       :discord_bot_token,
       :max_concurrent_agent_runs,
+      :user_daily_spend_budget_usd,
       :proactive_rebase_commit_threshold,
       :show_work_unit_debug,
       :video_retention_days,

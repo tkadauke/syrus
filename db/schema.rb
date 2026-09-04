@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_133232) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_134705) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -191,6 +191,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_133232) do
     t.text "telegram_bot_token"
     t.integer "telegram_update_offset", default: 0
     t.datetime "updated_at", null: false
+    t.integer "user_daily_spend_budget_usd", default: 0, null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
     t.datetime "workflow_admission_control_changed_at"
