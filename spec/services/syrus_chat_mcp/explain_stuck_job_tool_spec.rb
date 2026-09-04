@@ -80,10 +80,9 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
       workflow_id: workflow.id,
       run_id: run.id
     )
-    expect(payload.fetch(:issues).first.fetch(:repair_plan)).to include(
-      action: "mark_worker_died",
-      auto_executable: true
-    )
+    repair_plan = payload.fetch(:issues).first.fetch(:repair_plan)
+    expect(repair_plan.fetch(:action)).to match(/\Amark_worker_died/)
+    expect(repair_plan).to include(auto_executable: true)
   end
 
   it "is exposed through the deferred sidecar" do

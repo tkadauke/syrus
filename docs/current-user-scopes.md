@@ -113,12 +113,10 @@ it in (via `super` in `RepositoryPolicy#admin?`, via a direct `admin?` call
 in `JobPolicy#write?`) so a global admin always satisfies the tier check
 even with no `RepositoryMembership` row of their own.
 
-`spec/docs/current_user_scopes_spec.rb` only scans `app/controllers/**` and
-`app/views/**`, so plugin-owned controllers (e.g. `plugins/whiteboard`'s
-`ChatWhiteboardsController`/`WhiteboardSnapshotsController`, both scoped
-through `Current.user.accessible_chat_sessions`, same as the rest of the
-chat surface) aren't covered by this audit or its spec. That's a pre-existing
-gap in the audit's scan globs, not something specific to those controllers.
+`spec/docs/current_user_scopes_spec.rb` scans `app/controllers/**`,
+`app/views/**`, and installed plugin controllers under
+`plugins/*/app/controllers/**`, so user-facing plugin controllers that
+reference `Current.user` stay covered by this audit too.
 
 ```yaml current_user_scope_files
 per-user/private:
@@ -146,6 +144,7 @@ per-user/private:
   - app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
+  - app/controllers/api/v1/app/diff_review_comments_controller.rb
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
   - app/controllers/api/v1/app/filters_controller.rb
