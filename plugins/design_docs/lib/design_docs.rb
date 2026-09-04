@@ -9,7 +9,8 @@ module DesignDocs
     long_description "Design Docs adds database-backed collaborative Markdown documents to Syrus. Documents have canonical DOC identifiers, auditable versions, repository associations, explicit collaborators for private drafts, inline discussion anchors, and owner-reviewed suggestions.\n\nThis is first-party authoring data, separate from attachment-oriented repository and job Documents."
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
-    category "tooling"
+    icon_url "/plugin-icons/design_docs.svg"
+    category "collaboration"
     default_enabled true
     disableable true
     provides sidebar_page: "DesignDocs::SidebarPages",

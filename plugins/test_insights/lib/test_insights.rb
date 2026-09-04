@@ -9,7 +9,7 @@ module TestInsights
     description "Flaky, failing, and slow test tracking built from grader JUnit output."
     long_description "Test Insights turns the JUnit output graders already produce into durable per-test history: which tests are flaky, which are newly failing, and which have got slower.\n\nIt gives agents structured test data to investigate instead of scraping transcripts, and gives operators a per-repository view of test health. Disabling it stops ingestion; the recorded history is left in place."
     homepage "https://github.com/tkadauke/syrus"
-    icon_url "/plugin-icons/spqr_eagle.svg"
+    icon_url "/plugin-icons/test_insights.svg"
     author "Thomas Kadauke"
     category "observability"
     default_enabled true

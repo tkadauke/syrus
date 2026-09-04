@@ -10,7 +10,7 @@ module PreviewTools
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/preview_tools.svg"
     author "Thomas Kadauke"
-    category "mcp_tool_set"
+    category "agent_capability"
     default_enabled true
     disableable true
     provides chat_mcp_tool_set: "PreviewTools::ChatToolSet"

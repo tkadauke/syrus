@@ -18,9 +18,9 @@ module AgentMemory
     description "Durable facts agents remember between runs, scoped per user and repository."
     long_description "Agent Memory is the store behind `write_memory` and its siblings: short, durable facts an agent records in one run and reads back in the next -- a user's preferences, a project decision, a correction worth not repeating.\n\nIt registers as Syrus's `memory_store`, which means it is swappable rather than merely optional: disable it and prompts simply carry no memory section, or replace it with a different store entirely."
     homepage "https://github.com/tkadauke/syrus"
-    icon_url "/plugin-icons/spqr_eagle.svg"
+    icon_url "/plugin-icons/agent_memory.svg"
     author "Thomas Kadauke"
-    category "mcp_tool_set"
+    category "agent_capability"
     default_enabled true
     disableable true
     provides memory_store: "AgentMemory::Store",

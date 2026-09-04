@@ -144,15 +144,15 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     Syrus::PluginRegistry.register(
       name: "categorized-plugin",
       version: "1.0.0",
-      category: "mcp_tool_set"
+      category: "agent_capability"
     )
 
     get "/api/v1/app/admin/plugins"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("plugins").sole).to include(
-      "category" => "mcp_tool_set",
-      "category_label" => "MCP tool set"
+      "category" => "agent_capability",
+      "category_label" => "Agent capability"
     )
   end
 
@@ -585,5 +585,4 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(entry["health"]["reasons"]).to include("requires absent_plugin, which is not installed")
     end
   end
-
 end

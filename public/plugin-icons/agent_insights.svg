@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Agent Insights">
+  <rect width="24" height="24" rx="5" fill="#a16207"/>
+  <path d="M12 4.2a5.2 5.2 0 0 0-3.1 9.4c.5.4.8 1 .8 1.6v.3h4.6v-.3c0-.6.3-1.2.8-1.6A5.2 5.2 0 0 0 12 4.2Z" fill="#fef3c7"/>
+  <rect x="9.7" y="16.7" width="4.6" height="1.7" rx=".85" fill="#fde68a"/>
+  <rect x="10.4" y="19.1" width="3.2" height="1.5" rx=".75" fill="#fcd34d"/>
+</svg>

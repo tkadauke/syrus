@@ -7,7 +7,7 @@ require "rails_helper"
 # show up in Syrus::PluginRegistry.all_plugins during a typical example.
 # This keeps the regression coverage complete without polluting every other
 # spec's registry state.
-RSpec.describe "Bundled plugin categories" do
+RSpec.describe "Bundled plugin manifest metadata" do
   plugin_root = Rails.root.join("plugins")
   plugin_dirs = plugin_root.children.select(&:directory?).sort_by(&:to_s)
 
@@ -16,7 +16,7 @@ RSpec.describe "Bundled plugin categories" do
   end
 
   plugin_dirs.each do |dir|
-    it "sets a category from Syrus::Plugin::Category on the #{dir.basename} plugin manifest" do
+    it "sets a category, author, and its own icon on the #{dir.basename} plugin manifest" do
       manifest_file = Dir.glob(dir.join("lib/**/*.rb").to_s).find do |path|
         File.read(path).match?(/^\s*syrus_plugin\s+["']/)
       end
@@ -31,6 +31,24 @@ RSpec.describe "Bundled plugin categories" do
       expect(Syrus::Plugin::Category.valid?(category)).to be(true),
         "#{dir.basename} plugin category #{category.inspect} is not a canonical " \
         "Syrus::Plugin::Category key (#{Syrus::Plugin::Category.values.join(', ')})"
+
+      source = File.read(manifest_file)
+
+      author = source[/^\s*author\s+["']([^"']+)["']/, 1]
+      expect(author).to be_present,
+        "#{dir.basename} plugin manifest has no author: set"
+
+      icon = source[/^\s*icon_url\s+["']([^"']+)["']/, 1]
+      expect(icon).to be_present,
+        "#{dir.basename} plugin manifest has no icon_url: set"
+
+      # The generic standard is the payload's fallback for a plugin that has
+      # not been given a face yet, not something a bundled plugin should ship.
+      expect(icon).not_to end_with("/spqr_eagle.svg"),
+        "#{dir.basename} still uses the generic fallback icon; give it its own"
+
+      expect(Rails.root.join("public", icon.delete_prefix("/"))).to exist,
+        "#{dir.basename} points at #{icon}, which does not exist under public/"
     end
   end
 end

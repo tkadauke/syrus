@@ -88,13 +88,21 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | Key | Label | Bundled plugins |
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
-| `agent` | Agent provider | `claude_agent`, `codex_agent` |
+| `agent_provider` | Agent provider | `claude_agent`, `codex_agent` |
+| `agent_capability` | Agent capability | `browser`, `preview_tools`, `theming_tools`, `whiteboard_tools`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
-| `mcp_tool_set` | MCP tool set | `browser`, `preview_tools` |
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
-| `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
-| `tooling` | Tooling | `syrus_dev`, `design_docs`, `global_search` |
+| `observability` | Observability | `admin_mysql`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
+| `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
+| `tooling` | Tooling | `build_cache`, `mysql_db_browser`, `syrus_dev` |
+
+A category answers **what the plugin is for**, never which extension point it
+registers. `mcp_tool_set` was both a category and an extension point, which put
+the memory store in a bucket named after a mechanism it only incidentally uses;
+`agent_capability` is the question an operator scanning the list is actually
+asking. `collaboration` was split out of `tooling`, which had become a grab bag
+holding a build accelerator, a people directory, search, and dev diagnostics.
 
 ```ruby
 syrus_plugin "my-plugin" do

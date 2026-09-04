@@ -1,8 +1,14 @@
 module Syrus
   module Plugin
-    # Canonical plugin category taxonomy — the single source of truth for the
-    # category: kwarg on Syrus::PluginRegistry.register and for the
-    # operator-facing label shown on /admin/plugins. Mirrors the
+    # Canonical plugin category taxonomy -- the single source of truth for a
+    # plugin's `category` and for the operator-facing label shown on
+    # /admin/plugins.
+    #
+    # A category answers "what is this plugin FOR", never "which extension
+    # point does it register". `mcp_tool_set` used to be a category as well as
+    # an extension point, which put the memory store in a bucket named after a
+    # mechanism it only incidentally uses; `agent_capability` is the question
+    # an operator scanning the list is actually asking. Mirrors the
     # Workflow::TriggerKind / Step::Kind convention: one small registry backs
     # validation instead of scattering ad hoc category strings across plugin
     # engine initializers.
@@ -11,12 +17,13 @@ module Syrus
 
       ENTRIES = [
         Entry.new(key: "language",          label: "Language & framework intelligence"),
-        Entry.new(key: "agent",             label: "Agent provider"),
+        Entry.new(key: "agent_provider",    label: "Agent provider"),
+        Entry.new(key: "agent_capability",  label: "Agent capability"),
         Entry.new(key: "input_source",      label: "Input source"),
-        Entry.new(key: "mcp_tool_set",      label: "MCP tool set"),
         Entry.new(key: "platform_delivery", label: "Platform delivery"),
         Entry.new(key: "connectivity",      label: "Connectivity"),
         Entry.new(key: "observability",     label: "Observability"),
+        Entry.new(key: "collaboration",     label: "Collaboration"),
         Entry.new(key: "tooling",           label: "Tooling")
       ].freeze
 

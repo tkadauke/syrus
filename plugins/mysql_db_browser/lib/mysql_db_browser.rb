@@ -16,7 +16,7 @@ module MysqlDbBrowser
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/mysql_db_browser.svg"
     author "Thomas Kadauke"
-    category "observability"
+    category "tooling"
     default_enabled false
     disableable true
     provides sidebar_page: "MysqlDbBrowser::SidebarPages",

@@ -8,7 +8,7 @@ module AgentInsights
     description "Periodic read-only agent surveys of a repository that propose follow-up work."
     long_description "Agent Insights runs an agent over a repository\'s recent workflow activity and has it propose concrete follow-ups: jobs worth filing, facts worth remembering, memories that have gone stale.\n\nRuns are read-only -- no commits, no pull request -- and every suggestion is reviewed by an operator before anything happens. Off by default, since it spends agent budget on its own schedule."
     homepage "https://github.com/tkadauke/syrus"
-    icon_url "/plugin-icons/spqr_eagle.svg"
+    icon_url "/plugin-icons/agent_insights.svg"
     author "Thomas Kadauke"
     category "observability"
     default_enabled false

@@ -19,7 +19,7 @@ module ThemingTools
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/theming_tools.svg"
     author "Thomas Kadauke"
-    category "mcp_tool_set"
+    category "agent_capability"
     default_enabled false
     disableable true
     provides chat_mcp_tool_set: "ThemingTools::ChatToolSet"

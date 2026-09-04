@@ -8,7 +8,7 @@ module SyrusCodexAgent
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/codex_agent.svg"
     author "Thomas Kadauke"
-    category "agent"
+    category "agent_provider"
     default_enabled true
     disableable true
     provides agent_provider: "AgentProviders::Codex",

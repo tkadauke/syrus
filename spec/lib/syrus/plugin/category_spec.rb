@@ -5,8 +5,9 @@ RSpec.describe Syrus::Plugin::Category do
   describe ".values" do
     it "returns the canonical set of category keys" do
       expect(described_class.values).to contain_exactly(
-        "language", "agent", "input_source", "mcp_tool_set",
-        "platform_delivery", "connectivity", "observability", "tooling"
+        "language", "agent_provider", "agent_capability", "input_source",
+        "platform_delivery", "connectivity", "observability", "collaboration",
+        "tooling"
       )
     end
 
@@ -46,7 +47,7 @@ RSpec.describe Syrus::Plugin::Category do
 
   describe ".label_for" do
     it "returns the human-readable label for a known key" do
-      expect(described_class.label_for("mcp_tool_set")).to eq("MCP tool set")
+      expect(described_class.label_for("agent_capability")).to eq("Agent capability")
     end
 
     it "returns nil for an unknown key" do

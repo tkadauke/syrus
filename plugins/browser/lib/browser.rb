@@ -11,7 +11,7 @@ module SyrusBrowser
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/browser.svg"
     author "Thomas Kadauke"
-    category "mcp_tool_set"
+    category "agent_capability"
     default_enabled true
     disableable true
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
