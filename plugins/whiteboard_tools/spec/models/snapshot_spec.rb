@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WhiteboardSnapshot do
+RSpec.describe WhiteboardTools::Snapshot do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

@@ -8,7 +8,7 @@ module WhiteboardTools
 
     input_schema(
       properties: {
-        snapshot_id: { type: "integer", description: "ID of the WhiteboardSnapshot to load." },
+        snapshot_id: { type: "integer", description: "ID of the WhiteboardTools::Snapshot to load." },
         mode: { type: "string", enum: %w[merge replace], description: "merge appends snapshot elements with fresh IDs; replace swaps the whole canvas after auto-saving the current scene." }
       },
       required: %w[snapshot_id]
@@ -17,8 +17,8 @@ module WhiteboardTools
     class << self
       def call(snapshot_id:, server_context:, mode: "merge")
         chat_session = server_context.fetch(:chat_session)
-        snapshot = chat_session.whiteboard_snapshots.find(snapshot_id)
-        snapshot_scene = Whiteboard.normalize_scene!(snapshot.scene_json)
+        snapshot = WhiteboardTools::Snapshot.for(chat_session).find(snapshot_id)
+        snapshot_scene = WhiteboardTools::Board.normalize_scene!(snapshot.scene_json)
         mode = mode.to_s.presence || "merge"
 
         return Mcp::Tools.invalid("mode must be merge or replace") unless %w[merge replace].include?(mode)
@@ -41,7 +41,7 @@ module WhiteboardTools
       def replace_canvas(chat_session, snapshot_scene)
         current_scene = Canvas.read(chat_session)
         auto_saved_snapshot = if current_scene.fetch("elements").any?
-          WhiteboardSnapshot.create_from_scene!(
+          WhiteboardTools::Snapshot.create_from_scene!(
             chat_session: chat_session,
             scene: current_scene,
             kind: "auto_before_load"
@@ -67,8 +67,8 @@ module WhiteboardTools
       def merge_canvas(chat_session, snapshot_scene)
         Canvas.mutate(chat_session, tool_name, { "mode" => "merge" }) do |elements, scene|
           snapshot_elements = remap_snapshot_elements(snapshot_scene.fetch("elements"))
-          if elements.size + snapshot_elements.size > Whiteboard::MAX_ELEMENTS
-            raise Canvas::ElementLimitExceeded, Whiteboard.element_limit_message
+          if elements.size + snapshot_elements.size > WhiteboardTools::Board::MAX_ELEMENTS
+            raise Canvas::ElementLimitExceeded, WhiteboardTools::Board.element_limit_message
           end
 
           elements.concat(snapshot_elements)

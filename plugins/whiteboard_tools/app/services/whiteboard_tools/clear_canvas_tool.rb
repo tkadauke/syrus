@@ -13,7 +13,7 @@ module WhiteboardTools
         chat_session = server_context.fetch(:chat_session)
         scene = Canvas.read(chat_session)
         snapshot = if scene.fetch("elements").any?
-          WhiteboardSnapshot.create_from_scene!(
+          WhiteboardTools::Snapshot.create_from_scene!(
             chat_session: chat_session,
             scene: scene,
             kind: "auto_clear"

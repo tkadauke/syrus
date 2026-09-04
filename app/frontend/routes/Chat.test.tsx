@@ -1167,7 +1167,7 @@ describe("chat slash commands", () => {
     expect(JSON.parse(scheduleCall?.[1]?.body as string).scheduled_message.body).toBe("Check the landing queue")
   })
 
-  for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42", "/clear-canvas"]) {
+  for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42"]) {
     it(`shows confirmation before executing ${command}`, async () => {
       const fetchMock = mockChatRouteFetch(chatPayload({
         messages: [messageWithProposal(9, proposal())]

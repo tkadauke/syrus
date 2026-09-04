@@ -19,7 +19,7 @@ module WhiteboardTools
 
         return Mcp::Tools.success(saved: false, reason: "canvas is empty") if scene.fetch("elements").empty?
 
-        snapshot = WhiteboardSnapshot.create_from_scene!(
+        snapshot = WhiteboardTools::Snapshot.create_from_scene!(
           chat_session: chat_session,
           scene: scene,
           kind: "manual",

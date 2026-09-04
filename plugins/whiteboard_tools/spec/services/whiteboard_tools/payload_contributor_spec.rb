@@ -5,7 +5,7 @@ RSpec.describe WhiteboardTools::PayloadContributor do
   let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
 
   def board(elements)
-    Whiteboard.create!(chat_session: chat, scene_json: { "elements" => elements, "appState" => {}, "files" => {} })
+    WhiteboardTools::Board.create!(chat_session: chat, scene_json: { "elements" => elements, "appState" => {}, "files" => {} })
   end
 
   it "omits the scene unless the request asked for it" do
@@ -34,7 +34,7 @@ RSpec.describe WhiteboardTools::PayloadContributor do
   end
 
   it "contributes its path and snapshot count" do
-    WhiteboardSnapshot.create!(
+    WhiteboardTools::Snapshot.create!(
       chat_session: chat, name: "One",
       scene_json: { "elements" => [], "appState" => {}, "files" => {} },
       snapshot_kind: "manual", element_count: 0

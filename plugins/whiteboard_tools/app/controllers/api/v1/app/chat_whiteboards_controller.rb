@@ -3,7 +3,7 @@ module Api
     module App
       class ChatWhiteboardsController < BaseController
         def show
-          render json: whiteboard_payload(find_chat_session.whiteboard)
+          render json: whiteboard_payload(WhiteboardTools::Board.for(find_chat_session))
         end
 
         def update
@@ -14,8 +14,8 @@ module Api
             return
           end
 
-          if elements.size > Whiteboard::MAX_ELEMENTS
-            render_error("element_limit", Whiteboard.element_limit_message, status: :unprocessable_content)
+          if elements.size > WhiteboardTools::Board::MAX_ELEMENTS
+            render_error("element_limit", WhiteboardTools::Board.element_limit_message, status: :unprocessable_content)
             return
           end
 
@@ -29,7 +29,7 @@ module Api
           whiteboard = nil
 
           chat_session.with_lock do
-            whiteboard = chat_session.whiteboard || chat_session.create_whiteboard!
+            whiteboard = WhiteboardTools::Board.for!(chat_session)
             if expected_version == whiteboard.version
               whiteboard.replace_scene!(scene)
             else
@@ -50,7 +50,7 @@ module Api
 
         def whiteboard_payload(whiteboard)
           {
-            scene_json: whiteboard ? whiteboard.current_state.except("version") : Whiteboard.default_scene,
+            scene_json: whiteboard ? whiteboard.current_state.except("version") : WhiteboardTools::Board.default_scene,
             version: whiteboard&.version || 0
           }
         end

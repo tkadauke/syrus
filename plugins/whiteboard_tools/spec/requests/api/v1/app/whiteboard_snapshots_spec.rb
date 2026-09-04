@@ -133,7 +133,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
         name: "Before load - Jun 26 10:00"
       }, as: :json
 
-      snapshot = chat.whiteboard_snapshots.first
+      snapshot = WhiteboardTools::Snapshot.for(chat).first
       expect(response).to have_http_status(:created)
       expect(parse_body).to include(
         "id" => snapshot.id,
@@ -146,7 +146,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
   end
 
   def create_snapshot(attributes)
-    WhiteboardSnapshot.create!(
+    WhiteboardTools::Snapshot.create!(
       {
         chat_session: chat,
         name: "Snapshot",

@@ -8,23 +8,23 @@ module WhiteboardTools
     def self.chat_media_kind = "snapshot"
 
     def self.chat_media_exists?(chat_session:, id:)
-      WhiteboardSnapshot.where(chat_session_id: chat_session.id).exists?(id)
+      WhiteboardTools::Snapshot.where(chat_session_id: chat_session.id).exists?(id)
     end
 
     def self.attach_chat_media(chat_session:, job:, ref:, id:)
-      snapshot = WhiteboardSnapshot.where(chat_session_id: chat_session.id).find_by(id: id)
+      snapshot = WhiteboardTools::Snapshot.where(chat_session_id: chat_session.id).find_by(id: id)
       return nil unless snapshot
 
       job.job_attachments.create!(
         kind: "pending_snapshot",
-        title: snapshot.name.presence || "Whiteboard Snapshot",
+        title: snapshot.name.presence || "WhiteboardTools::Board Snapshot",
         content_cache: snapshot.scene_json.to_json,
         source_url: ref
       )
     end
 
     def self.list_chat_media(chat_session:)
-      WhiteboardSnapshot.where(chat_session_id: chat_session.id).limit(10).map do |snapshot|
+      WhiteboardTools::Snapshot.where(chat_session_id: chat_session.id).limit(10).map do |snapshot|
         {
           id: "snapshot:#{snapshot.id}",
           kind: "snapshot",
@@ -38,9 +38,9 @@ module WhiteboardTools
     # The media panel's whiteboard section: every snapshot, plus whether the
     # live canvas has edits no snapshot captured yet.
     def self.chat_media_panel(chat_session:)
-      board = Whiteboard.find_by(chat_session_id: chat_session.id)
+      board = WhiteboardTools::Board.find_by(chat_session_id: chat_session.id)
       elements = board ? Array(board.scene_json&.dig("elements")).reject { |el| el["isDeleted"] } : []
-      snapshots = WhiteboardSnapshot.where(chat_session_id: chat_session.id).order(created_at: :desc)
+      snapshots = WhiteboardTools::Snapshot.where(chat_session_id: chat_session.id).order(created_at: :desc)
       latest_manual = snapshots.find { |snapshot| snapshot.snapshot_kind == "manual" }
       last_edited = board&.last_edited_at || board&.created_at
 
@@ -62,7 +62,7 @@ module WhiteboardTools
     # How full the canvas is right now, reported beside the snapshot list so
     # the agent can tell an empty board from one worth saving.
     def self.chat_media_context(chat_session:)
-      board = Whiteboard.find_by(chat_session_id: chat_session.id)
+      board = WhiteboardTools::Board.find_by(chat_session_id: chat_session.id)
       { whiteboard_element_count: board&.elements&.size || 0 }
     end
   end

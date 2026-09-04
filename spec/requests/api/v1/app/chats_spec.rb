@@ -953,7 +953,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(ChatBookmark.exists?(bookmark.id)).to be(true)
       expect(ChatQueuedMessage.exists?(queued.id)).to be(true)
       expect(ChatProposal.exists?(proposal.id)).to be(true)
-      expect(Whiteboard.exists?(whiteboard.id)).to be(true)
+      expect(WhiteboardTools::Board.exists?(whiteboard.id)).to be(true)
       expect(ChatAttachment.where(chat_session_id: chat.id)).not_to be_empty
       expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).to be_empty
 
@@ -2025,7 +2025,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "counts whiteboard snapshots and typed artifacts attached to the chat" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
-      WhiteboardSnapshot.create!(
+      WhiteboardTools::Snapshot.create!(
         chat_session: chat,
         name: "Arch diagram",
         scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ], "appState" => {} },
@@ -3453,7 +3453,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "includes media refs for child proposal payloads" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    snapshot = WhiteboardSnapshot.create!(
+    snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: chat,
       name: "Annotated proposal",
       scene_json: { "elements" => [], "appState" => {} },
@@ -3486,7 +3486,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "updates a proposed proposal title, body, dependencies, and media refs" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    snapshot = WhiteboardSnapshot.create!(
+    snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: chat,
       name: "Edited media",
       scene_json: { "elements" => [], "appState" => {} },
@@ -3572,7 +3572,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     other_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    other_snapshot = WhiteboardSnapshot.create!(
+    other_snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: other_chat,
       name: "Other chat media",
       scene_json: { "elements" => [], "appState" => {} },
@@ -3680,7 +3680,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Body.")
-    snapshot = WhiteboardSnapshot.create!(
+    snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: chat,
       name: "My snapshot",
       scene_json: { "elements" => [], "appState" => {} },
@@ -3706,7 +3706,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "clears media_ids on a proposed proposal when passed an empty array" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    snapshot = WhiteboardSnapshot.create!(
+    snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: chat,
       name: "My snapshot",
       scene_json: { "elements" => [], "appState" => {} },
@@ -3734,7 +3734,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "returns snapshots and chat images for the chat session" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-      snapshot = WhiteboardSnapshot.create!(
+      snapshot = WhiteboardTools::Snapshot.create!(
         chat_session: chat,
         name: "Arch diagram",
         scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ], "appState" => {} },
@@ -3857,7 +3857,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ] }
       )
       whiteboard.update_columns(last_edited_at: 1.hour.ago)
-      WhiteboardSnapshot.create!(
+      WhiteboardTools::Snapshot.create!(
         chat_session: chat,
         name: "Saved",
         scene_json: { "elements" => [] },
@@ -4619,7 +4619,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 8)
     prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
-    snapshot = WhiteboardSnapshot.create!(
+    snapshot = WhiteboardTools::Snapshot.create!(
       chat_session: chat,
       name: "Mockup",
       scene_json: { "elements" => [], "appState" => {} },

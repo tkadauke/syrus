@@ -19,7 +19,7 @@ class StateTransition < ApplicationRecord
 
   # Seed an empty hash on new records — MySQL 8 disallows defaults
   # on JSON columns, so the migration left the column nullable.
-  # SmartFolder + Whiteboard + Step.details use the same pattern.
+  # SmartFolder + WhiteboardTools::Board + Step.details use the same pattern.
   after_initialize :default_metadata, if: :new_record?
 
   scope :for_subject, ->(subject) {

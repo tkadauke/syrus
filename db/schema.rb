@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_031753) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -702,16 +703,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
     t.index ["chat_session_id"], name: "index_chat_wakeups_on_chat_session_id"
     t.index ["state", "fire_at"], name: "index_chat_wakeups_on_state_and_fire_at"
     t.index ["user_id"], name: "index_chat_wakeups_on_user_id"
-  end
-
-  create_table "chat_whiteboards", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "last_edited_at"
-    t.json "scene_json", null: false
-    t.datetime "updated_at", null: false
-    t.integer "version", default: 0, null: false
-    t.index ["chat_session_id"], name: "index_chat_whiteboards_on_chat_session_id", unique: true
   end
 
   create_table "command_spans", force: :cascade do |t|
@@ -2570,24 +2561,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
   end
 
-  create_table "whiteboard_snapshots", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
-    t.datetime "created_at", null: false
-    t.integer "element_count", null: false
-    t.string "name"
-    t.json "scene_json", null: false
-    t.string "snapshot_kind", null: false
-    t.index ["chat_session_id"], name: "index_whiteboard_snapshots_on_chat_session_id"
-  end
-
-  create_table "whiteboards", force: :cascade do |t|
+  create_table "whiteboard_tools_boards", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
     t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
-    t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
+    t.index ["chat_session_id"], name: "index_whiteboard_tools_boards_on_chat_session_id", unique: true
+  end
+
+  create_table "whiteboard_tools_snapshots", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "element_count", null: false
+    t.string "name"
+    t.json "scene_json", null: false
+    t.string "snapshot_kind", null: false
+    t.index ["chat_session_id"], name: "index_whiteboard_tools_snapshots_on_chat_session_id"
   end
 
   create_table "work_engine_reconciler_activity_events", force: :cascade do |t|
@@ -2914,4 +2905,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100500) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "build_cache_clear_requests", "users"
+  add_foreign_key "chat_goals", "chat_sessions"
+  add_foreign_key "chat_goals", "repositories"
+  add_foreign_key "chat_goals", "users"
+  add_foreign_key "chat_proposals", "chat_goals"
+  add_foreign_key "design_doc_anchors", "design_doc_versions"
+  add_foreign_key "design_doc_anchors", "design_docs"
+  add_foreign_key "design_doc_collaborators", "design_docs"
+  add_foreign_key "design_doc_collaborators", "users"
+  add_foreign_key "design_doc_collaborators", "users", column: "added_by_user_id"
+  add_foreign_key "design_doc_comments", "design_doc_threads"
+  add_foreign_key "design_doc_comments", "users", column: "author_user_id"
+  add_foreign_key "design_doc_repositories", "design_docs"
+  add_foreign_key "design_doc_repositories", "repositories"
+  add_foreign_key "design_doc_suggestions", "design_doc_anchors"
+  add_foreign_key "design_doc_suggestions", "design_doc_threads"
+  add_foreign_key "design_doc_suggestions", "design_doc_versions", column: "base_version_id"
+  add_foreign_key "design_doc_suggestions", "design_docs"
+  add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
+  add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
+  add_foreign_key "design_doc_threads", "design_doc_anchors"
+  add_foreign_key "design_doc_threads", "design_docs"
+  add_foreign_key "design_doc_threads", "users", column: "opened_by_user_id"
+  add_foreign_key "design_doc_threads", "users", column: "resolved_by_user_id"
+  add_foreign_key "design_doc_versions", "design_docs"
+  add_foreign_key "design_doc_versions", "users", column: "actor_user_id"
+  add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
+  add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id", on_delete: :nullify
+  add_foreign_key "design_docs", "users", column: "owner_user_id"
+  add_foreign_key "epics", "chat_goals"
+  add_foreign_key "github_collaborator_discrepancies", "repositories"
+  add_foreign_key "jobs", "chat_goals"
+  add_foreign_key "preview_environments", "repositories"
+  add_foreign_key "team_memberships", "teams"
+  add_foreign_key "team_memberships", "users"
+  add_foreign_key "team_repositories", "repositories"
+  add_foreign_key "team_repositories", "teams"
+  add_foreign_key "test_insight_runtime_summaries", "repositories"
+  add_foreign_key "test_insight_runtime_summaries", "test_insight_identities", column: "test_identity_id"
 end

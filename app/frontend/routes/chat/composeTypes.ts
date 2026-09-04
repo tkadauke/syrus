@@ -47,7 +47,6 @@ export type ChatSystemCommandAction =
   | { kind: "discard"; path: string }
   | { kind: "job"; action: "cancel" | "retry" | "approve"; jobId: string }
   | { kind: "goal"; action: "start" | "pause" | "resume" | "stop" | "edit"; prompt?: string }
-  | { kind: "clear-canvas" }
 
 export type ChatComposeAttachment = ChatMessageAttachmentInput & {
   size: number

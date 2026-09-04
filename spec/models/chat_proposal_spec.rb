@@ -102,7 +102,7 @@ RSpec.describe ChatProposal do
     end
 
     it "accepts valid format entries when IDs belong to the session" do
-      snapshot = WhiteboardSnapshot.create!(
+      snapshot = WhiteboardTools::Snapshot.create!(
         chat_session: chat_session,
         name: "Test",
         scene_json: { "elements" => [], "appState" => {} },
@@ -123,7 +123,7 @@ RSpec.describe ChatProposal do
 
     it "rejects a snapshot ID that belongs to a different chat session" do
       other_session = ChatSession.create!(user: user, repository: repository)
-      snapshot = WhiteboardSnapshot.create!(
+      snapshot = WhiteboardTools::Snapshot.create!(
         chat_session: other_session,
         name: "Other snapshot",
         scene_json: { "elements" => [], "appState" => {} },

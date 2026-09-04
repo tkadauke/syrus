@@ -1,5 +1,5 @@
 module WhiteboardTools
-  # :workspace_tab provider for the chat sidebar's Whiteboard tab (see
+  # :workspace_tab provider for the chat sidebar's WhiteboardTools::Board tab (see
   # Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md). Available in
   # every chat, matching the tab's previous unconditional, hardcoded presence
   # in app/frontend/routes/chat/workspaceTabs.ts before this migration.
@@ -8,7 +8,7 @@ module WhiteboardTools
       [
         {
           id: "whiteboard_tools.canvas",
-          label: "Whiteboard",
+          label: "WhiteboardTools::Board",
           label_key: "whiteboard_tools:tab_whiteboard",
           component: "whiteboard_tools/WhiteboardTab",
           order: 0

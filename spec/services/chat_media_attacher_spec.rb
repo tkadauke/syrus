@@ -7,7 +7,7 @@ RSpec.describe ChatMediaAttacher do
   let(:job) { Factories.job_record(repository: repository, state: "implemented") }
 
   def whiteboard_snapshot
-    WhiteboardSnapshot.create!(
+    WhiteboardTools::Snapshot.create!(
       chat_session: chat_session,
       name: "My snapshot",
       scene_json: { "elements" => [ { "id" => "abc" } ], "appState" => {} },

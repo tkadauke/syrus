@@ -25,7 +25,6 @@ describe("slashCommands", () => {
     "/cancel",
     "/retry",
     "/review",
-    "/clear-canvas",
     "/approve",
     "/schedule",
     "/goal"
@@ -131,11 +130,9 @@ describe("slashCommands", () => {
   })
 
   it("keeps agent-backed commands as skill commands", () => {
-    for (const commandName of ["/propose", "/feedback", "/canvas"]) {
+    for (const commandName of [ "/propose", "/feedback" ]) {
       expect(slashCommands.find((item) => item.name === commandName)?.kind).toBe("skill")
     }
-
-    expect(promptFor("/canvas")).toContain("Call the `read_scene` MCP tool")
   })
 
   it("transforms /propose into the Job proposal wizard prompt", () => {

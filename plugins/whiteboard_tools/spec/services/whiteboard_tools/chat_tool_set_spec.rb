@@ -57,7 +57,6 @@ RSpec.describe WhiteboardTools::ChatToolSet do
         "update_scene", "save_canvas", "clear_canvas", "load_canvas"
       )
     end
-
   end
 
   describe "#handle" do
@@ -81,7 +80,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     expect(response.error?).to be_falsey
     expect(payload(response)).to eq(version: 0, elements: [], appState: {}, files: {})
-    expect(chat_session.reload.whiteboard).to be_nil
+    expect(WhiteboardTools::Board.for(chat_session.reload)).to be_nil
     expect(chat_session.messages).to be_empty
   end
 
@@ -91,7 +90,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = draw_shape(type: "sticky", label: "Plan", color: "#fef08a")
 
     id = payload(response).fetch(:id)
-    whiteboard = chat_session.reload.whiteboard
+    whiteboard = WhiteboardTools::Board.for(chat_session.reload)
     shape, label = whiteboard.elements
     expect(response.error?).to be_falsey
     expect(id).to match(/\A[0-9A-Z_a-z-]{21}\z/)
@@ -117,7 +116,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("draw_text", content: "Hello", x: 3, y: 4, font_size: 24)
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include("type" => "text", "text" => "Hello", "originalText" => "Hello", "fontSize" => 24)
   end
@@ -134,7 +133,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
       end_arrowhead: "triangle"
     )
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "arrow",
@@ -158,7 +157,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
       simulate_pressure: false
     )
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "freedraw",
@@ -173,7 +172,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("draw_frame", type: "magicframe", x: 0, y: 0, width: 400, height: 300, name: "Plan")
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include("type" => "magicframe", "name" => "Plan", "width" => 400.0, "height" => 300.0)
   end
@@ -183,7 +182,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("draw_embed", type: "iframe", link: "https://example.com/demo", x: 1, y: 2, width: 300, height: 180)
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include("type" => "iframe", "link" => "https://example.com/demo")
   end
@@ -193,7 +192,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("draw_image", data_url: "data:image/png;base64,abc", x: 1, y: 2, width: 30, height: 40)
 
-    whiteboard = chat_session.reload.whiteboard
+    whiteboard = WhiteboardTools::Board.for(chat_session.reload)
     element = whiteboard.elements.first
     file_id = element.fetch("fileId")
     expect(response.error?).to be_falsey
@@ -213,7 +212,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = call_tool("draw_arrow", from_id: from_id, to_id: to_id, label: "flows")
 
     arrow_id = payload(response).fetch(:id)
-    elements = chat_session.reload.whiteboard.elements
+    elements = WhiteboardTools::Board.for(chat_session.reload).elements
     arrow = elements.find { |element| element["id"] == arrow_id }
     from = elements.find { |element| element["id"] == from_id }
     to = elements.find { |element| element["id"] == to_id }
@@ -236,7 +235,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("move_element", id: from_id, x: 50, y: 60)
 
-    elements = chat_session.reload.whiteboard.elements
+    elements = WhiteboardTools::Board.for(chat_session.reload).elements
     from = elements.find { |element| element["id"] == from_id }
     arrow = elements.find { |element| element["id"] == arrow_id }
     expect(response.error?).to be_falsey
@@ -253,7 +252,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = call_tool("delete_element", id: id)
 
     expect(response.error?).to be_falsey
-    expect(chat_session.reload.whiteboard.elements).to be_empty
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements).to be_empty
   end
 
   it "save_canvas returns an empty-canvas result without creating a snapshot" do
@@ -261,14 +260,14 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     expect {
       response = call_tool("save_canvas", name: "Empty plan")
-    }.not_to change(WhiteboardSnapshot, :count)
+    }.not_to change(WhiteboardTools::Snapshot, :count)
 
     expect(response.error?).to be_falsey
     expect(payload(response)).to eq(saved: false, reason: "canvas is empty")
   end
 
   it "save_canvas saves a non-empty canvas as a manual snapshot" do
-    chat_session.create_whiteboard!(
+    WhiteboardTools::Board.create!(chat_session: chat_session,
       scene_json: {
         "elements" => [ { "id" => "box-1", "type" => "rectangle" }, { "id" => "note-1", "type" => "text" } ],
         "appState" => { "viewBackgroundColor" => "#ffffff" },
@@ -280,9 +279,9 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = nil
     expect {
       response = call_tool("save_canvas", name: "Planning board")
-    }.to change(WhiteboardSnapshot, :count).by(1)
+    }.to change(WhiteboardTools::Snapshot, :count).by(1)
 
-    snapshot = WhiteboardSnapshot.first
+    snapshot = WhiteboardTools::Snapshot.first
     expect(response.error?).to be_falsey
     expect(payload(response)).to include(
       saved: true,
@@ -311,9 +310,9 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = nil
     expect {
       response = call_tool("clear_canvas")
-    }.to change(WhiteboardSnapshot, :count).by(1)
+    }.to change(WhiteboardTools::Snapshot, :count).by(1)
 
-    snapshot = WhiteboardSnapshot.first
+    snapshot = WhiteboardTools::Snapshot.first
     expect(response.error?).to be_falsey
     expect(payload(response)).to include(cleared: true, snapshot_id: snapshot.id)
     expect(snapshot).to have_attributes(
@@ -322,7 +321,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
       element_count: 2
     )
     expect(snapshot.scene_json.fetch("elements").map { |element| element.fetch("type") }).to contain_exactly("rectangle", "text")
-    expect(chat_session.reload.whiteboard.elements).to be_empty
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements).to be_empty
   end
 
   it "clear_canvas skips snapshot creation for an empty scene" do
@@ -331,16 +330,16 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = nil
     expect {
       response = call_tool("clear_canvas")
-    }.not_to change(WhiteboardSnapshot, :count)
+    }.not_to change(WhiteboardTools::Snapshot, :count)
 
     expect(response.error?).to be_falsey
     expect(payload(response)).to include(cleared: true, snapshot_id: nil)
-    expect(chat_session.reload.whiteboard.elements).to be_empty
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements).to be_empty
   end
 
   it "load_canvas merges snapshot elements with fresh ids and merged files" do
     existing_id = payload(draw_shape).fetch(:id)
-    snapshot = WhiteboardSnapshot.create_from_scene!(
+    snapshot = WhiteboardTools::Snapshot.create_from_scene!(
       chat_session: chat_session,
       kind: "manual",
       scene: {
@@ -372,7 +371,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = call_tool("load_canvas", snapshot_id: snapshot.id)
 
-    whiteboard = chat_session.reload.whiteboard
+    whiteboard = WhiteboardTools::Board.for(chat_session.reload)
     loaded_elements = whiteboard.elements.reject { |element| element.fetch("id") == existing_id }
     loaded_box = loaded_elements.find { |element| element["type"] == "rectangle" }
     loaded_label = loaded_elements.find { |element| element["type"] == "text" }
@@ -393,7 +392,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
   it "load_canvas replace mode auto-saves the current canvas and replaces scene and files" do
     current_element_id = payload(draw_shape(type: "ellipse")).fetch(:id)
-    snapshot = WhiteboardSnapshot.create_from_scene!(
+    snapshot = WhiteboardTools::Snapshot.create_from_scene!(
       chat_session: chat_session,
       kind: "manual",
       scene: {
@@ -407,10 +406,10 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = nil
     expect {
       response = call_tool("load_canvas", snapshot_id: snapshot.id, mode: "replace")
-    }.to change(WhiteboardSnapshot, :count).by(1)
+    }.to change(WhiteboardTools::Snapshot, :count).by(1)
 
-    auto_saved_snapshot = WhiteboardSnapshot.where(snapshot_kind: "auto_before_load").first
-    whiteboard = chat_session.reload.whiteboard
+    auto_saved_snapshot = WhiteboardTools::Snapshot.where(snapshot_kind: "auto_before_load").first
+    whiteboard = WhiteboardTools::Board.for(chat_session.reload)
     expect(response.error?).to be_falsey
     expect(payload(response)).to include(
       loaded: true,
@@ -426,10 +425,10 @@ RSpec.describe WhiteboardTools::ChatToolSet do
   end
 
   it "load_canvas enforces the element limit before merging" do
-    chat_session.create_whiteboard!(
-      scene_json: { "elements" => Array.new(Whiteboard::MAX_ELEMENTS) { |index| minimal_element(index) } }
+    WhiteboardTools::Board.create!(chat_session: chat_session,
+      scene_json: { "elements" => Array.new(WhiteboardTools::Board::MAX_ELEMENTS) { |index| minimal_element(index) } }
     )
-    snapshot = WhiteboardSnapshot.create_from_scene!(
+    snapshot = WhiteboardTools::Snapshot.create_from_scene!(
       chat_session: chat_session,
       kind: "manual",
       scene: { "elements" => [ { "id" => "extra", "type" => "rectangle" } ] }
@@ -438,13 +437,13 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = call_tool("load_canvas", snapshot_id: snapshot.id)
 
     expect(response.error?).to be(true)
-    expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
-    expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
+    expect(response.content.first[:text]).to eq(WhiteboardTools::Board.element_limit_message)
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements.size).to eq(WhiteboardTools::Board::MAX_ELEMENTS)
   end
 
   it "load_canvas scopes snapshots to the current chat session" do
     other_session = ChatSession.create!(user: user, repository: repository)
-    snapshot = WhiteboardSnapshot.create_from_scene!(
+    snapshot = WhiteboardTools::Snapshot.create_from_scene!(
       chat_session: other_session,
       kind: "manual",
       scene: { "elements" => [ { "id" => "other", "type" => "rectangle" } ] }
@@ -466,14 +465,14 @@ RSpec.describe WhiteboardTools::ChatToolSet do
     response = call_tool("update_scene", elements: replacement, appState: { viewBackgroundColor: "#fff" }, files: files)
 
     expect(response.error?).to be_falsey
-    expect(chat_session.reload.whiteboard.elements).to eq(replacement)
-    expect(chat_session.reload.whiteboard.app_state).to eq("viewBackgroundColor" => "#fff")
-    expect(chat_session.reload.whiteboard.files).to eq(files)
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements).to eq(replacement)
+    expect(WhiteboardTools::Board.for(chat_session.reload).app_state).to eq("viewBackgroundColor" => "#fff")
+    expect(WhiteboardTools::Board.for(chat_session.reload).files).to eq(files)
   end
 
   it "rejects append tools when the whiteboard is at the element limit" do
-    chat_session.create_whiteboard!(
-      scene_json: { "elements" => Array.new(Whiteboard::MAX_ELEMENTS) { |index| minimal_element(index) } }
+    WhiteboardTools::Board.create!(chat_session: chat_session,
+      scene_json: { "elements" => Array.new(WhiteboardTools::Board::MAX_ELEMENTS) { |index| minimal_element(index) } }
     )
 
     responses = [
@@ -484,21 +483,21 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     responses.each do |response|
       expect(response.error?).to be(true)
-      expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
+      expect(response.content.first[:text]).to eq(WhiteboardTools::Board.element_limit_message)
     end
-    expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
+    expect(WhiteboardTools::Board.for(chat_session.reload).elements.size).to eq(WhiteboardTools::Board::MAX_ELEMENTS)
     expect(chat_session.messages).to be_empty
   end
 
   it "rejects raw scene replacements beyond the element limit" do
     response = call_tool(
       "update_scene",
-      elements: Array.new(Whiteboard::MAX_ELEMENTS + 1) { |index| minimal_element(index) }
+      elements: Array.new(WhiteboardTools::Board::MAX_ELEMENTS + 1) { |index| minimal_element(index) }
     )
 
     expect(response.error?).to be(true)
-    expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
-    expect(chat_session.reload.whiteboard).to be_nil
+    expect(response.content.first[:text]).to eq(WhiteboardTools::Board.element_limit_message)
+    expect(WhiteboardTools::Board.for(chat_session.reload)).to be_nil
     expect(chat_session.messages).to be_empty
   end
 
@@ -532,7 +531,7 @@ RSpec.describe WhiteboardTools::ChatToolSet do
 
     response = draw_shape(type: "sticky", x: 50, y: 50, width: 150, height: 100)
 
-    element = chat_session.reload.whiteboard.elements.first
+    element = WhiteboardTools::Board.for(chat_session.reload).elements.first
     expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "rectangle",

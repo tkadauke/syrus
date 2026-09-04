@@ -120,13 +120,6 @@ export const slashCommands = [
     description: "Jump to proposed work in this chat."
   },
   {
-    name: "/canvas",
-    kind: "skill",
-    args: [],
-    description: "Ask the agent to describe the whiteboard.",
-    toPrompt: () => "Call the `read_scene` MCP tool and describe the current whiteboard contents, including notable shapes, text, connections, frames, and empty-state if there is nothing on the canvas."
-  },
-  {
     name: "/bookmark",
     kind: "system",
     args: [{ name: "label", required: true }],
@@ -138,7 +131,6 @@ export const slashCommands = [
   { name: "/review", kind: "system", args: [{ name: "id", required: false }], description: "Open a Job's pull request in a new tab." },
   { name: "/approve", kind: "system", args: [{ name: "id", required: false }], description: "Approve a Job for landing.", requiresConfirmation: true },
   { name: "/feedback", kind: "skill", args: [{ name: "id", required: false }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
-  { name: "/clear-canvas", kind: "system", args: [], description: "Clear the whiteboard.", requiresConfirmation: true },
   {
     name: "/propose",
     kind: "skill",

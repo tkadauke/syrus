@@ -24,8 +24,8 @@ module WhiteboardTools
     module_function
 
     def read(chat_session)
-      whiteboard = chat_session.whiteboard
-      return Whiteboard.default_state unless whiteboard
+      whiteboard = WhiteboardTools::Board.for(chat_session)
+      return WhiteboardTools::Board.default_state unless whiteboard
 
       whiteboard.current_state
     end
@@ -34,7 +34,7 @@ module WhiteboardTools
       whiteboard = nil
       result = nil
 
-      Whiteboard.transaction do
+      WhiteboardTools::Board.transaction do
         whiteboard = find_or_create_whiteboard(chat_session).lock!
         scene = deep_dup_scene(whiteboard.current_state.except("version"))
         elements = scene.fetch("elements")
@@ -58,7 +58,7 @@ module WhiteboardTools
     end
 
     def find_or_create_whiteboard(chat_session)
-      chat_session.whiteboard || chat_session.create_whiteboard!
+      WhiteboardTools::Board.for!(chat_session)
     end
 
     def shape_element(type:, x:, y:, width:, height:, color: nil, **)
@@ -285,11 +285,11 @@ module WhiteboardTools
     end
 
     def ensure_can_append_element!(elements)
-      raise ElementLimitExceeded, Whiteboard.element_limit_message if elements.size >= Whiteboard::MAX_ELEMENTS
+      raise ElementLimitExceeded, WhiteboardTools::Board.element_limit_message if elements.size >= WhiteboardTools::Board::MAX_ELEMENTS
     end
 
     def ensure_within_element_limit!(elements)
-      raise ElementLimitExceeded, Whiteboard.element_limit_message if elements.size > Whiteboard::MAX_ELEMENTS
+      raise ElementLimitExceeded, WhiteboardTools::Board.element_limit_message if elements.size > WhiteboardTools::Board::MAX_ELEMENTS
     end
 
     def find_element(elements, id)

@@ -87,7 +87,7 @@ RSpec.describe ChatFeedbackSubmission do
     let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
     def whiteboard_snapshot
-      WhiteboardSnapshot.create!(
+      WhiteboardTools::Snapshot.create!(
         chat_session: chat_session,
         name: "My snapshot",
         scene_json: { "elements" => [ { "id" => "abc" } ], "appState" => {} },

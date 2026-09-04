@@ -180,16 +180,10 @@ class ChatProposalFiler
     return false unless chat_session && ChatMediaRef.valid?(ref)
 
     kind, id = ChatMediaRef.split(ref)
-    case kind
-    when "snapshot"
-      chat_session.whiteboard_snapshots.exists?(id: id)
-    when "chat_image"
-      chat_session.attached_repository_documents.exists?(id: id)
-    when "preview_panel_version"
-      PreviewPanelVersion.where(preview_panel: chat_session.preview_panels).exists?(id: id)
-    else
-      false
-    end
+    source = ChatMediaSources.for_kind(kind)
+    return false unless source
+
+    source.chat_media_exists?(chat_session: chat_session, id: id)
   end
 
   def file_github_issue(proposal)

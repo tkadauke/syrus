@@ -510,6 +510,39 @@ as a prop) and `badge_api_path` on a sidebar page, which core polls for
 `{"count": n}` so a plugin can badge its nav entry without core knowing what
 is being counted.
 
+### G15. The chat plugin surface — three points, and the whiteboard move
+
+"Are there whiteboard remnants?" turned out to be a question about the chat
+integration surface rather than about the whiteboard. Core held the whiteboard's
+models and ten references to them, but nine of those were instances of three
+gaps that each already had more than one plugin customer:
+
+| Gap | Core site | Customers |
+|---|---|---|
+| `chat_media_source` | a `case kind` in `ChatMediaAttacher`, `ChatProposal`, `submit_chat_feedback`, `list_chat_media`, `ChatProposalFiler`, plus `ChatMediaRef`'s regex | whiteboard_tools (`snapshot`), preview_tools (`preview_panel_version`) |
+| `chat_payload_contributor` | `ChatSerialization` building plugin-owned payload keys inline | whiteboard_tools, preview_tools, video_walkthroughs |
+| `chat_prompt_injector` | `Prompts::ChatSystem` naming plugin tools | whiteboard_tools, preview_tools, video_walkthroughs |
+
+All three landed, and `WhiteboardTools::Board` / `::Snapshot` then moved with a
+table rename to the plugin prefix. `preview_tools` had the same remnants and
+was cleaned up in the same passes.
+
+**This unblocks `video_walkthroughs`**, whose only listed blocker was the
+chat-turn prompt injection point.
+
+Two incidental finds: `chat_whiteboards` was an orphan table from a superseded
+iteration, never dropped and never read, now dropped; and the plugin
+table-name rule only looked at `create_table`, so it could not see a table
+renamed into the prefix later, a table dropped later, or a `down` block
+recreating one it was rolling back.
+
+**Still core, and out of scope here:** the chat media panel's whiteboard
+section in `WorkspacePanels.tsx` (~120 lines) and the Excalidraw scene helper
+both sides share. Moving those needs a chat-workspace-panel slot -- a fifth
+mechanism -- rather than any of the three above. The `/canvas` and
+`/clear-canvas` slash commands were dropped rather than given a mechanism for
+a single customer.
+
 ### G6. Search host — done, then federated
 
 `:search_source` let a plugin register FTS tables (created by

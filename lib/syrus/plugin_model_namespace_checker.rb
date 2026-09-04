@@ -106,10 +106,19 @@ module Syrus
     def migration_errors
       plugin_dirs.flat_map do |dir|
         plugin_name = plugin_name_for(dir)
+        paths = Dir.glob(dir.join("db/migrate/*.rb")).sort
+        # The rule is about the schema the migrations arrive at, not every
+        # intermediate name: a table created before the plugin was extracted
+        # and renamed into the prefix later is fine.
+        renamed = paths.flat_map { |path| renamed_table_names(path) }.to_h
+        dropped = paths.flat_map { |path| dropped_table_names(path) }.to_set
 
-        Dir.glob(dir.join("db/migrate/*.rb")).sort.flat_map do |path|
+        paths.flat_map do |path|
           create_table_names(path).filter_map do |table_name|
-            next if permitted_table_name?(table_name, plugin_name)
+            final_name = renamed.fetch(table_name, table_name)
+            # A table a later migration drops leaves nothing behind to name.
+            next if dropped.include?(final_name)
+            next if permitted_table_name?(final_name, plugin_name)
 
             "#{relative(path)} creates table #{table_name.inspect}; plugin migration tables must start with #{plugin_name.inspect}, #{plugin_name + "_"} or #{plugin_name.singularize + "_"}"
           end
@@ -124,8 +133,24 @@ module Syrus
       File.read(gemspec)[/spec\.name\s*=\s*["']([^"']+)["']/, 1].presence || dir.basename.to_s
     end
 
+    # [[old, new], ...] for every rename_table in this migration.
+    def renamed_table_names(path)
+      forward_source(File.read(path)).scan(/rename_table\s*(?:\(\s*)?:([a-zA-Z_]\w*)\s*,\s*:([a-zA-Z_]\w*)/)
+    end
+
+    def dropped_table_names(path)
+      forward_source(File.read(path)).scan(/drop_table\s*(?:\(\s*)?:([a-zA-Z_]\w*)/).flatten
+    end
+
+    # Only the forward path: a `down` that recreates a table it is rolling
+    # back is describing history, not the schema this plugin owns.
     def create_table_names(path)
-      File.read(path).scan(/create_table\s*(?:\(\s*)?(?::([a-zA-Z_]\w*)|["']([^"']+)["'])/).flatten.compact
+      forward_source(File.read(path)).scan(/create_table\s*(?:\(\s*)?(?::([a-zA-Z_]\w*)|["']([^"']+)["'])/).flatten.compact
+    end
+
+    def forward_source(source)
+      down = source.index(/^\s*def down\b/)
+      down ? source[0...down] : source
     end
 
     def relative(path)

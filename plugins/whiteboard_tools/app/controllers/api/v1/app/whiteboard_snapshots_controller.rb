@@ -3,7 +3,7 @@ module Api
     module App
       class WhiteboardSnapshotsController < BaseController
         def index
-          snapshots = find_chat_session.whiteboard_snapshots
+          snapshots = WhiteboardTools::Snapshot.for(find_chat_session)
 
           render json: {
             whiteboard_snapshots: snapshots.map { |snapshot| snapshot_payload(snapshot) }
@@ -11,14 +11,14 @@ module Api
         end
 
         def show
-          snapshot = find_chat_session.whiteboard_snapshots.find(params[:id])
+          snapshot = WhiteboardTools::Snapshot.for(find_chat_session).find(params[:id])
 
           render json: snapshot_payload(snapshot, include_scene: true)
         end
 
         def create
           chat_session = find_chat_session
-          snapshot = WhiteboardSnapshot.create_from_scene!(
+          snapshot = WhiteboardTools::Snapshot.create_from_scene!(
             chat_session: chat_session,
             scene: plain_json(params.fetch(:scene_json)),
             kind: params.fetch(:snapshot_kind),

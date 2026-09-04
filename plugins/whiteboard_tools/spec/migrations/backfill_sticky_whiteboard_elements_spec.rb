@@ -1,5 +1,5 @@
 require "rails_helper"
-require Rails.root.join("db/migrate/20260702011906_backfill_sticky_whiteboard_elements")
+require Rails.root.join("plugins/whiteboard_tools/db/migrate/20260702011906_backfill_sticky_whiteboard_elements")
 
 RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   let(:migration) { described_class.new }
@@ -8,7 +8,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   it "remaps sticky elements to rectangles with yellow styling" do
-    whiteboard = chat_session.create_whiteboard!(
+    whiteboard = WhiteboardTools::Board.create!(chat_session: chat_session,
       scene_json: {
         "elements" => [
           { "id" => "s1", "type" => "sticky", "x" => 0, "y" => 0, "width" => 100, "height" => 80 },
@@ -30,7 +30,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   end
 
   it "preserves an explicit backgroundColor set on a sticky element" do
-    whiteboard = chat_session.create_whiteboard!(
+    whiteboard = WhiteboardTools::Board.create!(chat_session: chat_session,
       scene_json: {
         "elements" => [
           { "id" => "s1", "type" => "sticky", "backgroundColor" => "#bbf7d0", "x" => 0, "y" => 0, "width" => 100, "height" => 80 }
@@ -47,7 +47,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   end
 
   it "is idempotent — re-running leaves no sticky elements" do
-    whiteboard = chat_session.create_whiteboard!(
+    whiteboard = WhiteboardTools::Board.create!(chat_session: chat_session,
       scene_json: {
         "elements" => [ { "id" => "s1", "type" => "sticky", "x" => 0, "y" => 0, "width" => 100, "height" => 80 } ],
         "appState" => {},
@@ -64,7 +64,7 @@ RSpec.describe BackfillStickyWhiteboardElements, :ci_only do
   end
 
   it "skips whiteboards with no sticky elements" do
-    whiteboard = chat_session.create_whiteboard!(
+    whiteboard = WhiteboardTools::Board.create!(chat_session: chat_session,
       scene_json: {
         "elements" => [ { "id" => "r1", "type" => "rectangle", "x" => 0, "y" => 0, "width" => 100, "height" => 80 } ],
         "appState" => {},

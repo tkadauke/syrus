@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, useLocation } from "react-router-dom"
+import { slashCommandPrompt } from "../lib/slashCommands"
 import { App } from "./App"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
@@ -12514,15 +12515,18 @@ describe("App", () => {
     )
 
     const input = await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.change(input, { target: { value: "/canvas" } })
+    fireEvent.change(input, { target: { value: "/propose" } })
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
+    // The prompt itself is the slash command module's business; this asserts
+    // the mechanism -- a skill command sends its generated prompt down the
+    // normal message path.
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ chat_message: { text: "Call the `read_scene` MCP tool and describe the current whiteboard contents, including notable shapes, text, connections, frames, and empty-state if there is nothing on the canvas." } })
+          body: JSON.stringify({ chat_message: { text: slashCommandPrompt("/propose") } })
         })
       )
     })

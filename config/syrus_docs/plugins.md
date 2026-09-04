@@ -2273,7 +2273,21 @@ Bundled plugins:
   the Action Cable channel guards itself, because Action Cable resolves a
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
-- `whiteboard_tools` — default-enabled. Provides `:chat_media_source`
+- `whiteboard_tools` — default-enabled, and owns the whiteboard end to end:
+  `WhiteboardTools::Board` (table `whiteboard_tools_boards`) and
+  `WhiteboardTools::Snapshot` (`whiteboard_tools_snapshots`) moved out of core
+  once the three chat points below existed. `ChatSession` no longer carries
+  `has_one :whiteboard` / `has_many :whiteboard_snapshots`; the queries live on
+  the models as `.for(chat_session)` / `.for!(chat_session)` and the cleanup is
+  an `always` effect, so disabling the plugin stops the canvas being drawn on
+  without deleting what was already saved.
+
+  What is still core: the chat media panel's whiteboard section
+  (`WorkspacePanels.tsx`) and the Excalidraw scene helper it shares with the
+  plugin's tab. Moving those needs a chat-workspace-panel slot, which does not
+  exist yet.
+
+  Provides `:chat_media_source`
   (`WhiteboardTools::MediaSource`, the `snapshot:` kind, including the media
   panel's snapshot list and unsaved-canvas state),
   `:chat_payload_contributor` (`WhiteboardTools::PayloadContributor`, the

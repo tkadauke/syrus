@@ -2,11 +2,11 @@ module WhiteboardTools
   extend Syrus::PluginApi
 
   syrus_plugin "whiteboard_tools" do
-    display_name "Whiteboard"
+    display_name "WhiteboardTools::Board"
     description "Excalidraw-based chat whiteboard: workspace sidebar tab plus draw/move/delete/read/" \
       "save/clear/load MCP tools so agents and operators can sketch together on a shared " \
       "per-chat canvas."
-    long_description "Whiteboard adds a shared Excalidraw canvas to chat workspaces and exposes drawing tools to chat agents. Operators and agents can sketch flows, annotate ideas, save snapshots, and revisit visual state as part of a planning session.\n\nUse it for design and architecture discussions where text is not enough. The plugin stores whiteboard state per chat and keeps the drawing surface separate from repository code."
+    long_description "WhiteboardTools::Board adds a shared Excalidraw canvas to chat workspaces and exposes drawing tools to chat agents. Operators and agents can sketch flows, annotate ideas, save snapshots, and revisit visual state as part of a planning session.\n\nUse it for design and architecture discussions where text is not enough. The plugin stores whiteboard state per chat and keeps the drawing surface separate from repository code."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/whiteboard_tools.svg"
     author "Thomas Kadauke"
@@ -27,5 +27,9 @@ module WhiteboardTools
           "whiteboard_tools/WhiteboardTab" => "app/frontend/workspaceTabs/WhiteboardTab.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/whiteboard_tools.json" ]
+
+    always do |scope|
+      WhiteboardTools::DataCleanup.install_into(scope)
+    end
   end
 end

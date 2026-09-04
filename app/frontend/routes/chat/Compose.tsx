@@ -684,11 +684,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
-    if (command.name === "/clear-canvas") {
-      systemCommandAction.mutate({ kind: "clear-canvas" })
-      return
-    }
-
     if (command.name === "/copy") {
       const lastAssistantMessage = lastAssistantRenderedMessage(payload.messages)
       if (!lastAssistantMessage) {

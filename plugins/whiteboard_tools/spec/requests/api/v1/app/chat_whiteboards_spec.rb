@@ -15,14 +15,14 @@ RSpec.describe "App API chat whiteboards", type: :request do
     it "returns the empty default state without creating a whiteboard" do
       expect {
         get whiteboard_path(chat), as: :json
-      }.not_to change(Whiteboard, :count)
+      }.not_to change(WhiteboardTools::Board, :count)
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq("scene_json" => { "elements" => [], "appState" => {}, "files" => {} }, "version" => 0)
     end
 
     it "returns the current whiteboard state" do
-      chat.create_whiteboard!(
+      WhiteboardTools::Board.create!(chat_session: chat,
         scene_json: {
           "elements" => [ { "id" => "rect-1", "type" => "rectangle" } ],
           "appState" => { "viewBackgroundColor" => "#ffffff" },
@@ -48,7 +48,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
       other_chat = ChatSession.create!(repository: other_repo, user: other_user)
-      other_chat.create_whiteboard!(
+      WhiteboardTools::Board.create!(chat_session: other_chat,
         scene_json: { "elements" => [ { "id" => "private-box" } ], "appState" => {}, "files" => {} },
         version: 4
       )
@@ -79,9 +79,9 @@ RSpec.describe "App API chat whiteboards", type: :request do
         patch whiteboard_path(chat),
               params: { elements: elements, appState: app_state, files: files, expected_version: 0 },
               as: :json
-      }.to change(Whiteboard, :count).by(1)
+      }.to change(WhiteboardTools::Board, :count).by(1)
 
-      whiteboard = chat.reload.whiteboard
+      whiteboard = WhiteboardTools::Board.for(chat.reload)
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq("scene_json" => { "elements" => elements, "appState" => app_state, "files" => files }, "version" => 1)
       expect(whiteboard.scene_json).to eq("elements" => elements, "appState" => app_state, "files" => files)
@@ -90,7 +90,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
     end
 
     it "rejects updates beyond the element limit with a structured error" do
-      elements = Array.new(Whiteboard::MAX_ELEMENTS + 1) { |index| element("shape-#{index}") }
+      elements = Array.new(WhiteboardTools::Board::MAX_ELEMENTS + 1) { |index| element("shape-#{index}") }
 
       expect(AppEvents).not_to receive(:broadcast)
 
@@ -98,19 +98,19 @@ RSpec.describe "App API chat whiteboards", type: :request do
         patch whiteboard_path(chat),
               params: { elements: elements, expected_version: 0 },
               as: :json
-      }.not_to change(Whiteboard, :count)
+      }.not_to change(WhiteboardTools::Board, :count)
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body).to eq(
         "error" => {
           "code" => "element_limit",
-          "message" => Whiteboard.element_limit_message
+          "message" => WhiteboardTools::Board.element_limit_message
         }
       )
     end
 
     it "returns conflict and the current state when the expected version is stale" do
-      whiteboard = chat.create_whiteboard!(
+      whiteboard = WhiteboardTools::Board.create!(chat_session: chat,
         scene_json: { "elements" => [ { "id" => "current" } ] },
         version: 3
       )

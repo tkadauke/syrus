@@ -1,6 +1,6 @@
 class BackfillStickyWhiteboardElements < ActiveRecord::Migration[8.1]
   def up
-    Whiteboard.find_each do |whiteboard|
+    WhiteboardTools::Board.find_each do |whiteboard|
       elements = whiteboard.elements
       next unless elements.any? { |el| el["type"] == "sticky" }
 

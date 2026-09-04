@@ -6,7 +6,7 @@ RSpec.describe WhiteboardTools::MediaSource do
   let(:other_chat) { ChatSession.create!(repository: repo, user: repo.user) }
 
   def snapshot(session, name: "Board")
-    WhiteboardSnapshot.create!(
+    WhiteboardTools::Snapshot.create!(
       chat_session: session, name: name,
       scene_json: { "elements" => [ { "id" => "a" } ], "appState" => {}, "files" => {} },
       snapshot_kind: "manual", element_count: 1
@@ -46,7 +46,7 @@ RSpec.describe WhiteboardTools::MediaSource do
 
   it "lists snapshots and reports the live element count as context" do
     snapshot(chat, name: "One")
-    Whiteboard.create!(chat_session: chat, scene_json: { "elements" => [ { "id" => "x" }, { "id" => "y" } ], "appState" => {}, "files" => {} })
+    WhiteboardTools::Board.create!(chat_session: chat, scene_json: { "elements" => [ { "id" => "x" }, { "id" => "y" } ], "appState" => {}, "files" => {} })
 
     entries = described_class.list_chat_media(chat_session: chat)
 
