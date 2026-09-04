@@ -537,9 +537,13 @@ Depends on A1 and A2 only.
   only in shapes their own callers understood. `:adjudicator` is a plugin
   extension point, since a language plugin is well placed to tell "this grader
   was already failing" from its own parsed output. An adjudicator that raises
-  is treated as declining, loudly -- rung 0 runs on the failure path. Not yet
-  wired into a caller: nothing consults the rung until B2 gives a decided
-  verdict somewhere to go.
+  is treated as declining, loudly -- rung 0 runs on the failure path.
+  `Steps::GraderCollect` consults the rung and records its verdict as a
+  workflow artifact whether or not anything acts on it, which is where the
+  escalations-per-landing baseline comes from. "Verdict authority" is enforced
+  by `authorized:`: a call site names the adjudicators it will act on, and an
+  unauthorized verdict is reported but withheld, so adding an adjudicator
+  cannot silently change what a site does.
 - **B2 · Decision queue — record landed; routing still to do.** `Decision` is
   the unit: one problem, its evidence, the rung-0 verdict, and typed actions
   that must name real `PendingActions` entries (a decision offering an action

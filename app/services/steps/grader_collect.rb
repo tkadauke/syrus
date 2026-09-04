@@ -43,23 +43,7 @@ module Steps
         return
       end
 
-      inherited_main_failure = MainBranchFailureClassifier.call(
-        workflow: workflow,
-        failed_grader_steps: failed_required
-      )
-      if inherited_main_failure.inherited?
-        workflow.set_artifact!("inherited_main_branch_grader_failure", {
-          "failed_names" => inherited_main_failure.inherited_names,
-          "evidence" => inherited_main_failure.evidence,
-          "classifications" => inherited_main_failure.classifications,
-          "classified_at" => Time.current.iso8601
-        })
-        log(
-          "[grader_collect] required grader failures match broken-main evidence; " \
-          "treating as inherited: #{inherited_main_failure.inherited_names.join(', ')}"
-        )
-        return
-      end
+      return if dismissed_by_rung_zero?(failed_required)
 
       failed_names = failed_required.map { |g| g.details["name"] }.join(", ")
       log("[grader_collect] required graders failed: #{failed_names}")
@@ -67,6 +51,44 @@ module Steps
     end
 
     private
+
+    # Rung 0 of the attention ladder: free, deterministic adjudication before
+    # the failure costs anyone anything.
+    #
+    # Only `inherited_grader_failure` is pre-authorized here, which is exactly
+    # what this site already acted on. Other adjudicators still run and their
+    # verdicts are still recorded, but acting on one would be a behavior change
+    # in when graders are treated as authoritative -- the plan's "an
+    # adjudication never applies itself" guardrail.
+    def dismissed_by_rung_zero?(failed_required)
+      verdict = Adjudicators.call(
+        problem: Problem[:grader_failure, evidence: {
+          grader_names: failed_required.map { |grader| grader.details["name"] }
+        }],
+        workflow: workflow,
+        step: failed_required,
+        authorized: %w[inherited_grader_failure]
+      )
+      workflow.set_artifact!("rung_zero_adjudication", verdict.to_h.merge("adjudicated_at" => Time.current.iso8601))
+      return false unless verdict.dismiss?
+
+      record_inherited_main_failure!(failed_required)
+      true
+    end
+
+    def record_inherited_main_failure!(failed_required)
+      classified = MainBranchFailureClassifier.call(workflow: workflow, failed_grader_steps: failed_required)
+      workflow.set_artifact!("inherited_main_branch_grader_failure", {
+        "failed_names" => classified.inherited_names,
+        "evidence" => classified.evidence,
+        "classifications" => classified.classifications,
+        "classified_at" => Time.current.iso8601
+      })
+      log(
+        "[grader_collect] required grader failures match broken-main evidence; " \
+        "treating as inherited: #{classified.inherited_names.join(', ')}"
+      )
+    end
 
     # Grader Steps belonging to this loop iteration, in chain order.
     # When inside a loop/retry_until the loop_id scopes to this exact

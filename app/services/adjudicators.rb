@@ -18,17 +18,36 @@ module Adjudicators
 
   # Returns the first decided verdict, or an inconclusive one carrying every
   # adjudicator that declined -- the ladder needs to know it genuinely asked.
-  def self.call(problem:, **context)
+  #
+  # `authorized:` is the plan's "an adjudication never applies itself" guardrail
+  # made concrete: a call site names the adjudicators whose verdict it will act
+  # on. An unauthorized adjudicator still runs and its verdict is still
+  # returned for the record, but it comes back marked so the caller does not
+  # act on it. `:all` pre-authorizes every adjudicator, for a site where that
+  # is the policy.
+  def self.call(problem:, authorized: [], **context)
     declined = []
 
     all.each do |adjudicator|
       verdict = adjudicate_one(adjudicator, problem: problem, **context)
-      return verdict if verdict.decided?
+      next declined << adjudicator.name unless verdict.decided?
 
-      declined << adjudicator.name
+      return verdict if authorized_for?(authorized, adjudicator)
+
+      return Adjudication.inconclusive(
+        adjudicator: adjudicator.name,
+        reason: "verdict_not_authorized_here",
+        evidence: { withheld_verdict: verdict.verdict.to_s, withheld_reason: verdict.reason }
+      )
     end
 
     Adjudication.inconclusive(reason: "no_adjudicator_decided", evidence: { consulted: declined })
+  end
+
+  def self.authorized_for?(authorized, adjudicator)
+    return true if authorized == :all
+
+    Array(authorized).map(&:to_s).include?(adjudicator.name.to_s)
   end
 
   def self.all

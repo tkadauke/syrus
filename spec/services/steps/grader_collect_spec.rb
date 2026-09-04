@@ -118,6 +118,21 @@ RSpec.describe Steps::GraderCollect do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
   end
 
+  # Rung 0 records what it decided even when nothing acts on it, so the
+  # escalations-per-landing metric has something to count.
+  it "records the rung-0 verdict alongside the failure" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+    expect(workflow.reload.artifact("rung_zero_adjudication")).to include(
+      "verdict" => "inconclusive", "reason" => "no_adjudicator_decided"
+    )
+  end
+
   it "passes allow-inherited grader failures that match broken-main grader evidence" do
     job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
     base_workflow = Workflow.create!(job: job, trigger_kind: "main_grader")

@@ -694,6 +694,13 @@ guesses instead spends someone's attention on a wrong answer. An adjudicator
 that raises is treated as declining, loudly: rung 0 runs on the failure path,
 and a broken cheap check must not stop the expensive rungs from running.
 
+Verdicts do not apply themselves. A call site passes `authorized:` naming the
+adjudicators whose verdict it will act on; an unauthorized adjudicator still
+runs and its verdict is still reported, marked as withheld, so a decision is
+recorded without being acted on. `Steps::GraderCollect` pre-authorizes only
+`inherited_grader_failure`, which is exactly what it acted on before rung 0
+existed.
+
 Core ships two, both adaptations of checks that already existed in their own
 private shapes: `inherited_grader_failure` (`.syrus.yml`'s
 `grade.failures: allow_inherited`, via `MainBranchFailureClassifier`) and
