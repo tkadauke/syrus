@@ -15,6 +15,7 @@ module PreviewTools
     disableable true
     provides chat_mcp_tool_set: "PreviewTools::ChatToolSet",
              chat_media_source: "PreviewTools::MediaSource",
-             chat_payload_contributor: "PreviewTools::PayloadContributor"
+             chat_payload_contributor: "PreviewTools::PayloadContributor",
+             chat_prompt_injector: "PreviewTools::PromptSection"
   end
 end

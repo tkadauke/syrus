@@ -704,6 +704,26 @@ rather than failing the whole attach. `chat_media_context` exists for
 kind-specific context that sits beside the list: whiteboard_tools reports how
 many elements are currently on the canvas.
 
+## `chat_prompt_injector`
+
+The sibling of `prompt_injector`, which does the same for workflow agents.
+They are separate points because the contexts differ: a workflow prompt is
+about a Job in a repository, a chat prompt is about a conversation that may
+have no repository attached at all.
+
+```ruby
+.chat_prompt_section(chat_session:, repository:) # => String or nil
+```
+
+Return nil or a blank string to add nothing for this chat -- a plugin whose
+tools this session cannot call should not spend prompt budget describing them.
+Sections join in provider order, which follows `prepare_priority`.
+
+`Prompts::ChatSystem` used to spell out the whiteboard's drawing tools and
+preview panels' file tools directly, so core's prompt described tools core
+does not own. `video_walkthroughs` is the third customer, and this is the
+point that unblocks moving it out of core.
+
 ## `chat_payload_contributor`
 
 The chat payload is one JSON document the chat page reads, and three of its
@@ -2183,7 +2203,8 @@ Bundled plugins:
   (`PreviewTools::MediaSource`, the `preview_panel_version:` kind, the one
   source that attaches several Documents from one ref),
   `:chat_payload_contributor` (`PreviewTools::PayloadContributor`, the
-  payload's `preview_panels` key) and `:chat_mcp_tool_set`
+  payload's `preview_panels` key), `:chat_prompt_injector`
+  (`PreviewTools::PromptSection`) and `:chat_mcp_tool_set`
   (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`
   (jailed to a `PreviewPanel`'s own scratch directory) plus
   `show_preview`/`close_preview`, letting a planning-mode chat agent build
@@ -2257,6 +2278,7 @@ Bundled plugins:
   panel's snapshot list and unsaved-canvas state),
   `:chat_payload_contributor` (`WhiteboardTools::PayloadContributor`, the
   payload's `whiteboard` key, its path, and its snapshot count),
+  `:chat_prompt_injector` (`WhiteboardTools::PromptSection`),
   `:workspace_tab`
   (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
   chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,

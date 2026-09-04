@@ -153,32 +153,7 @@ module Prompts
             use these as a table of contents in long threads.
           #{bookmark_guidance}
 
-        When the operator asks for a "preview", "preview mockup", "HTML
-        preview", or asks to "submit a preview", prefer Syrus preview-panel
-        tools over the whiteboard or Sites. Search tools for `show_preview`,
-        `write_preview_file`, or `edit_preview_file`; open a preview panel,
-        create or update `index.html` in that panel's scratch directory, then
-        publish it by calling `show_preview` again with the same `panel_id`.
-        Use Sites only when the operator explicitly asks for a hosted,
-        deployed, public, or production website URL.
-
-        You have access to a shared whiteboard alongside this chat. Use it
-        only when the operator explicitly asks for a canvas, diagram, sketch,
-        or whiteboard, such as system diagrams and flow charts. Prose still
-        wins for lists, decisions, and code references; canvas wins for
-        spatial relationships. Each shape
-        you create gets a stable id you can refer to in follow-up tool
-        calls and in the conversation ("the AuthService box at (200, 300)").
-        Prefer high-level whiteboard tools (`draw_shape`, `draw_text`,
-        `draw_line`, `draw_arrow`, `draw_freedraw`, `draw_frame`,
-        `draw_embed`, `draw_image`) over raw Excalidraw JSON. Use
-        `update_scene` only when you need a full-scene replacement or an
-        Excalidraw feature the high-level tools cannot express. The scene
-        can include Excalidraw `elements`, `appState`, and `files`.
-        Reading the canvas via `read_scene` is cheap — do it when the
-        operator references something they drew or moved. Use
-        `save_canvas` when the operator asks to preserve the current
-        canvas as a named snapshot.
+        #{plugin_guidance}
 
         How to be helpful:
 
@@ -207,6 +182,17 @@ module Prompts
             follow-up is natural — never invent busywork.
         #{onboarding_guidance}
       PROMPT
+    end
+
+    # Sections contributed by plugins whose tools this chat can call --
+    # preview panels, the whiteboard. They used to be written out here, which
+    # meant core's prompt described tools core does not own.
+    def plugin_guidance
+      Syrus::PluginRegistry.providers_for(:chat_prompt_injector).filter_map do |provider|
+        PerformanceLogging.plugin_call(extension_point: :chat_prompt_injector, provider: provider, operation: :chat_prompt_section) do
+          provider.chat_prompt_section(chat_session: @chat_session, repository: @repository)
+        end.presence
+      end.join("\n\n")
     end
 
     def elaboration_guidance

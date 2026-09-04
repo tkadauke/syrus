@@ -580,4 +580,39 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).not_to include("## Local Mode")
   end
+
+  describe "plugin-contributed sections" do
+    let(:repo) { Factories.repository }
+    let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
+
+    def injector(text)
+      Class.new do
+        include Syrus::Plugin::ChatPromptInjector
+
+        class_attribute :section
+        def self.chat_prompt_section(chat_session:, repository:) = section
+      end.tap { |klass| klass.section = text }
+    end
+
+    def register(klass)
+      Syrus::PluginRegistry.register(
+        name: "chat_prompt_plugin", version: "1.0.0", provides: { chat_prompt_injector: klass }
+      )
+    end
+
+    it "includes a plugin's section in the system prompt" do
+      register(injector("Use the flux capacitor sparingly."))
+
+      expect(described_class.new(repository: repo, chat_session: chat).to_s)
+        .to include("Use the flux capacitor sparingly.")
+    end
+
+    # A plugin whose tools this chat cannot call should not spend prompt budget
+    # describing them.
+    it "skips a provider that returns nothing for this chat" do
+      register(injector(nil))
+
+      expect { described_class.new(repository: repo, chat_session: chat).to_s }.not_to raise_error
+    end
+  end
 end
