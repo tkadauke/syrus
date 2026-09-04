@@ -27,6 +27,12 @@ class Step
     #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     #
+    # runtime_inserted: true for a step kind the template never describes --
+    #   Steps::GraderFanout materializes one `grader` Step per configured
+    #   grader at run time. Template matching has to drop these before
+    #   comparing, and StepDispatcher used to do that by naming "grader"
+    #   directly.
+    #
     # review_gate: for a reviewer step that ends a loop by verdict. Declares the
     #   artifact its verdicts land in, which verdicts exit the loop, and the
     #   cancellation reason recorded when they do. StepDispatcher used to carry
@@ -43,7 +49,7 @@ class Step
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_default_overrides, :waits_for_terminal_step_kind,
-                        :review_gate) do
+                        :review_gate, :runtime_inserted) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      fail_policy: :default,
@@ -57,7 +63,8 @@ class Step
                      resource_profile_grader_name_key: nil,
                      resource_profile_default_overrides: nil,
                      waits_for_terminal_step_kind: nil,
-                     review_gate: nil)
+                     review_gate: nil,
+                     runtime_inserted: false)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
         super
@@ -196,6 +203,7 @@ class Step
       Entry.new(kind: "grader",             handler: "Grader",             label: "Grader",                     style: "bg-violet-100 text-violet-700", agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent,
+                runtime_inserted: true,
                 resource_profile_grader_name_key: "name"),
       Entry.new(kind: "grader_fanout",      handler: "GraderFanout",       label: "Plan graders",               style: "bg-violet-100 text-violet-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
@@ -317,6 +325,11 @@ class Step
     # primitive B). :default is not an action -- it means "no step-kind opinion",
     # so the resolver's later tiers decide.
     FAIL_POLICY_ACTIONS = { advance: :advance, loop_iteration: :retry_step }.freeze
+
+    # Step kinds materialized at run time rather than described by a template.
+    def runtime_inserted_kinds
+      entries.select(&:runtime_inserted).map(&:kind).freeze
+    end
 
     # The reviewer step kinds that end their loop by verdict.
     def review_gate_kinds

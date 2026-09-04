@@ -1,10 +1,13 @@
 require "rails_helper"
 
-# workflow-engine-v3 A3: "StepDispatcher no longer names any specific reviewer
-# step kind." The dispatcher used to carry one hardcoded copy of the
-# reviewer-loop exit logic per reviewer -- same method, three constants swapped
-# -- so a third reviewer cost a third copy.
-RSpec.describe "Reviewer loops are declared, not hardcoded" do
+# workflow-engine-v3 A3 and A5: the dispatcher names no specific step kind.
+#
+# It used to carry one hardcoded copy of the reviewer-loop exit logic per
+# reviewer -- same method, three constants swapped, so a third reviewer cost a
+# third copy -- and it named "grader" directly when matching a loop against its
+# template, because GraderFanout inserts Steps the template does not describe.
+# Both are declarations on Step::Kind now.
+RSpec.describe "StepDispatcher names no specific step kind" do
   it "declares a review gate on every reviewer step kind" do
     expect(Step::Kind.review_gate_kinds).to contain_exactly("adversarial_review", "visual_review")
   end
@@ -37,6 +40,23 @@ RSpec.describe "Reviewer loops are declared, not hardcoded" do
 
     Step::Kind.review_gate_kinds.each do |kind|
       expect(code).not_to include(kind), "StepDispatcher still names #{kind}"
+    end
+  end
+
+  # A5's half: the dispatcher used to name "grader" directly, because
+  # Steps::GraderFanout inserts Steps the template does not describe. Which
+  # kinds those are is declared now, so a second fan-out step kind is a
+  # registry entry rather than another name in the dispatcher.
+  it "declares which step kinds are inserted at run time" do
+    expect(Step::Kind.runtime_inserted_kinds).to eq([ "grader" ])
+  end
+
+  it "does not name a runtime-inserted step kind anywhere in StepDispatcher" do
+    source = Rails.root.join("app/services/step_dispatcher.rb").read
+    code = source.lines.reject { |line| line.strip.start_with?("#") }.join
+
+    Step::Kind.runtime_inserted_kinds.each do |kind|
+      expect(code).not_to include(%("#{kind}")), "StepDispatcher still names #{kind}"
     end
   end
 end

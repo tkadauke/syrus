@@ -932,16 +932,20 @@ class StepDispatcher
   end
 
   def loop_node_for(step)
-    # Dynamically-inserted `grader` Steps aren't part of the static
-    # chain_template — Steps::GraderFanout inserts them at run time.
-    # Drop them before comparing so the template "[implement,
-    # grader_fanout, grader_collect]" matches the actual materialized
-    # "[implement, grader_fanout, grader_a, grader_b, …, grader_collect]".
+    # Runtime-inserted Steps aren't part of the static chain_template --
+    # Steps::GraderFanout materializes one `grader` Step per configured grader.
+    # Drop them before comparing so the template "[implement, grader_fanout,
+    # grader_collect]" matches the actual materialized "[implement,
+    # grader_fanout, grader_a, grader_b, …, grader_collect]".
+    #
+    # Which kinds those are is declared on the step kind, so a second
+    # fan-out step kind is a registry entry rather than another name here.
+    inserted = Step::Kind.runtime_inserted_kinds
     actual_kinds = @workflow.steps
                             .where(loop_id: step.loop_id, iteration: step.iteration)
                             .order(:position)
                             .pluck(:kind)
-                            .reject { |k| k == "grader" }
+                            .reject { |kind| inserted.include?(kind) }
 
     workflow_template_nodes.find { |node| loop_node_matches?(node, actual_kinds) }
   end

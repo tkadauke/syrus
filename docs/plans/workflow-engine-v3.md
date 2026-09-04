@@ -531,8 +531,21 @@ Three tracks. Track A phases 1–2 change no behavior and unblock the others.
   network call -- or a new failure mode -- for a file that almost never exists.
   Wiring it on wants a cache keyed to the default-branch SHA, which belongs
   with A7 where something actually writes those files.
-- **A5 · Graph edges and fan-in.** `Step#depends_on`, ready-set dispatch, retire
-  `WAITING_FOR_BATCH` and the grader-kind filter.
+- **A5 · Graph edges and fan-in — grader-kind filter retired; edges still to
+  do.** `Step::Kind#runtime_inserted` declares which kinds a template never
+  describes, so `loop_node_for` no longer names "grader" to drop the Steps
+  `GraderFanout` materializes. A second fan-out step kind is now a registry
+  entry rather than another name in the dispatcher, and
+  `spec/architecture/dispatcher_names_no_step_kinds_spec.rb` pins it against
+  the source alongside A3's reviewer gates.
+
+  Worth correcting the plan's own framing: fan-in is *not* "exactly one case"
+  any more. `waits_for_terminal_step_kind` is already declarative and two step
+  kinds use it (`grader_collect` waits on `grader`, `preflight_graders` on
+  `preflight_grader`). What remains is `WAITING_FOR_BATCH` as an internal
+  sentinel, which is cosmetic until `Step#depends_on` replaces the
+  `next_step_id` linked list with a real ready-set query. That rewrite is the
+  substantial half of A5 and is still to do.
 - **A6 · Unit-scoped nodes.** `for_each_member`/`barrier`; move the merge-train
   shape into a template; attach preemption policy to nodes.
 - **A7 · Agent authoring.** MCP tools for runtime patches, and a
