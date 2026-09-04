@@ -18,26 +18,29 @@
 class Adjudication
   VERDICTS = %i[uphold dismiss inconclusive].freeze
 
-  attr_reader :verdict, :reason, :evidence, :adjudicator
+  attr_reader :verdict, :reason, :evidence, :adjudicator, :confidence
 
-  def self.uphold(reason:, adjudicator: nil, evidence: {})
-    new(:uphold, reason: reason, adjudicator: adjudicator, evidence: evidence)
+  def self.uphold(reason:, adjudicator: nil, evidence: {}, confidence: nil)
+    new(:uphold, reason: reason, adjudicator: adjudicator, evidence: evidence, confidence: confidence)
   end
 
-  def self.dismiss(reason:, adjudicator: nil, evidence: {})
-    new(:dismiss, reason: reason, adjudicator: adjudicator, evidence: evidence)
+  def self.dismiss(reason:, adjudicator: nil, evidence: {}, confidence: nil)
+    new(:dismiss, reason: reason, adjudicator: adjudicator, evidence: evidence, confidence: confidence)
   end
 
-  def self.inconclusive(reason: nil, adjudicator: nil, evidence: {})
-    new(:inconclusive, reason: reason, adjudicator: adjudicator, evidence: evidence)
+  def self.inconclusive(reason: nil, adjudicator: nil, evidence: {}, confidence: nil)
+    new(:inconclusive, reason: reason, adjudicator: adjudicator, evidence: evidence, confidence: confidence)
   end
 
-  def initialize(verdict, reason: nil, adjudicator: nil, evidence: {})
+  # `confidence` is only meaningful for an adjudicator that can be unsure --
+  # a deterministic check either matched or it did not.
+  def initialize(verdict, reason: nil, adjudicator: nil, evidence: {}, confidence: nil)
     @verdict = verdict.to_sym
     raise ArgumentError, "unknown adjudication verdict=#{verdict.inspect}" unless VERDICTS.include?(@verdict)
 
     @reason = reason
     @adjudicator = adjudicator
+    @confidence = confidence
     @evidence = evidence.to_h.freeze
     freeze
   end
@@ -50,7 +53,10 @@ class Adjudication
   def decided? = !inconclusive?
 
   def to_h
-    { verdict: verdict.to_s, reason: reason, adjudicator: adjudicator.to_s.presence, evidence: evidence }.compact
+    {
+      verdict: verdict.to_s, reason: reason, adjudicator: adjudicator.to_s.presence,
+      confidence: confidence, evidence: evidence
+    }.compact
   end
 
   def inspect = "#<Adjudication #{verdict}#{reason ? " #{reason}" : ""}>"

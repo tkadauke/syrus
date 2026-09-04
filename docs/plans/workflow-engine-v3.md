@@ -13,10 +13,12 @@ human decisions.
 
 ## Current Status
 
-As of 2026-09-04, **A1, A2, B1, B2 and B3's record half are implemented**
-(`Problem` / `Problem::Kind`, `Remediation` / `Remediation::Resolver`,
-`Adjudication` / `Adjudicators`, `Decision` / `Decisions::Opener` /
-`Decisions::Signature`); the rest is still a proposal. It is written
+As of 2026-09-04, **Track B is implemented and Track A's first three phases
+are partly done**: `Problem`/`Problem::Kind` (A1), `Remediation`/`Resolver`
+(A2), the reviewer `Gate` (A3), the attention ladder end to end --
+`Adjudication`/`Adjudicators` (B1), `Decision`/`Opener`/`Signature`/`Escalator`
+(B2, B3), `Judgment` (B4), `AgenticGraderReview` (B5) -- and
+`Metrics::EscalationsPerLanding`. A4-A7 and Track C are still proposals. It is written
 to be executed in three independent tracks (see
 [Incremental Plan](#incremental-plan)); the first two phases of Track A change
 no behavior and unblock everything else.
@@ -572,8 +574,17 @@ Depends on A1 and A2 only.
   retrofitted and deleted, along with the four hand-rolled fenced-JSON strips
   and the four copies of the provider-outcome checks. The success criterion
   "no `OneShotAgent` class remains outside the Judgment primitive" holds.
-- **B5 · Agentic adjudication.** Built on B4. Enable per workflow, starting with
-  `auto_merge`.
+- **B5 · Agentic adjudication — done.** `Adjudicators::AgenticGraderReview` is
+  rung 3, built on the Judgment primitive, asking only whether a failing grader
+  predates the branch -- the inconclusive branch of `allow_inherited`, not a new
+  authority. All three rules are enforced: it never takes the action (the
+  `authorized:` guardrail applies to it like any adjudicator), it is never the
+  agent that produced the diff (Judgment runs a fresh session with no
+  workspace), and `inconclusive` is first class -- a low-confidence verdict or
+  an unrecognized one becomes inconclusive rather than a guess.
+  `AttentionLadder` holds the per-definition ladders from the table above, and
+  rung 3 declines outright unless the definition includes it, so it is enabled
+  for `auto_merge`/`merge_train` to begin with as the plan asks.
 
 ### Track C — Scale
 

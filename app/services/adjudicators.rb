@@ -11,9 +11,13 @@
 # timeout detection -- each answered in their own shape, so none composed and
 # none could be tried ahead of an agent turn.
 module Adjudicators
+  # Rung 0 first, cheapest first. AgenticGraderReview is rung 3 and costs a
+  # turn, so it sits last and declines outright unless the work definition's
+  # ladder includes it.
   BUILT_INS = [
     Adjudicators::InheritedGraderFailure,
-    Adjudicators::ValidatedLanding
+    Adjudicators::ValidatedLanding,
+    Adjudicators::AgenticGraderReview
   ].freeze
 
   # Returns the first decided verdict, or an inconclusive one carrying every
