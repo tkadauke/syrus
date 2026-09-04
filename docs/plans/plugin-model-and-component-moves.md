@@ -28,8 +28,8 @@ uninstall/purge lifecycle (G10), the `step_environment` extension point, and
 `build_cache` extracted.
 
 **Phase 3 complete.** The search host (G6), the compute-tier indexing fix, and
-`test_insights` extracted with its tables. `syrus_dev` storage remains and is
-carried into Phase 4.
+`test_insights` extracted with its tables. `syrus_dev` storage was carried
+forward and has since been resolved as core -- see below.
 
 **Phase 4 in progress.** `github_issues` extracted. Two of the five turned out
 to be blocked, both for reasons the inventory missed:
@@ -64,7 +64,7 @@ plugin. Graders and `format`/`generate` deliberately stay core; G12 says why.
 entries were wrong: `video_walkthroughs` was recorded as blocked on a
 `chat_messages.video_walkthrough_id` column that does not exist, and
 `syrus_dev` storage was listed as needing G2/G6, both of which have since
-landed. See the Ordering note under Implementation Order for the queue by
+landed -- and it then turned out not to be a move at all. See the Ordering note under Implementation Order for the queue by
 readiness.
 
 **Phase 5 in progress.** `agent_insights` and `agent_memory` extracted
@@ -1284,21 +1284,26 @@ the core workflow model. Not a move candidate.
 
 ### Still outstanding from the previous plan
 
-**`syrus_dev` storage** — the admin pages, controllers, and tools moved; the
-models did not. `OperationalLogEvent`, `OperationalLogIndex`, and
-`BrowserErrorEvent` are still core, along with their indexing and prune jobs.
-Its two listed prerequisites, G2 and G6, have both landed, so this is now
-**unblocked and purely mechanical** — the same table-move shape `test_insights`
-and `agent_insights` already went through (rename to the `syrus_dev_` prefix,
-move models and migrations, declare the FTS tables through `:search_source`).
+**`syrus_dev` storage — resolved: it stays core.** The admin pages,
+controllers, and tools moved; the models were listed as a mechanical follow-up.
+On inspection they are not a follow-up at all, they are core infrastructure,
+and this plan's own boundary rule already says so: *generic event, log, and
+search infrastructure* is core, and only concrete tables may be plugin-owned.
 
-The boundary stress test showed the plugin half is already clean: removing
-`syrus_dev` leaves the suite green once its fixture-dependent core specs are
-tagged, which they now are. The remaining work is the storage, not the seams.
+- `OperationalLogEvent` is registered as a durable sink in core's
+  `Observability::EventStream`, and `PerformanceLogging` -- which writes
+  through it -- is called from 44 core files, the plugin registry included.
+  Moving the model would invert the dependency: core would need the plugin in
+  order to log.
+- `BrowserErrorEvent` is written by `api/v1/app/browser_errors#create`, the
+  non-admin endpoint the SPA reports its own exceptions to. The open question
+  asked whether core pages surface these; they do, and they ingest them.
+- `OperationalLogIndex` is the FTS index over the above, so it follows them.
 
-Open question carried forward: are browser and backend exception events core
-product diagnostics or dev observability? If core pages surface them, they stay
-core and only the *dev* views move.
+What was genuinely dev-facing -- the performance and operational log admin
+pages, `SqlExplain`, the `read_performance_diagnostics` and `read_syrus_logs`
+tools -- has already moved. There is no remaining storage move here, and the
+boundary stress test agrees: removing `syrus_dev` leaves the suite green.
 
 ## Schema Inversion Backlog
 
@@ -1396,7 +1401,7 @@ Consequences worth stating:
 
 ### Phase 3 — Search host and storage
 - Search registration (G6); fix the compute-tier FTS write.
-- `test_insights` and `syrus_dev` storage.
+- `test_insights` storage.
 
 ### Phase 4 — Agent-facing plugins
 - `agent_memory` as a swappable provider (done, after `agent_insights`),
@@ -1429,7 +1434,6 @@ Of what is left, the queue by readiness rather than by phase number:
 | | blocker |
 |---|---|
 | `terminal` | G7 only, plus one `ui_slot` move — nearest to ready |
-| `syrus_dev` storage | none; prerequisites landed, mechanical table move |
 | `video_walkthroughs` | a chat-turn prompt injection point (small, well-shaped) |
 | `visual_review`, `coverage`, `review_plan` | G12, now designed |
 | `scheduled_tasks` | G8, an open design question, not code |
