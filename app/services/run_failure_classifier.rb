@@ -38,6 +38,15 @@ class RunFailureClassifier
   end
 
   def classify
+    # A step that knew what went wrong already said so. Reading that first is
+    # the difference between a fact and a guess: every branch below infers a
+    # meaning from log text, and the merge-train branches in particular used
+    # to regex-match Syrus's own messages back into a code the step had
+    # already computed --- and missed most of them when the wording drifted.
+    if (declared = declared_problem)
+      return result(declared.code, 1.0, declared.retryable?, "The step reported this failure as #{declared.label}.")
+    end
+
     case
     when provider_usage_limit?
       result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
@@ -122,6 +131,16 @@ class RunFailureClassifier
       diagnostic_summary: diagnostic_summary,
       classifier_inputs: classifier_inputs
     )
+  end
+
+  # The Problem the failing step emitted, when it emitted one. Resolved through
+  # the registry rather than trusted verbatim, so a code that no longer exists
+  # falls back to inference instead of raising on the failure path.
+  def declared_problem
+    code = diagnostic&.problem_code
+    return nil if code.blank?
+
+    Problem.resolve(code, evidence: (diagnostic.problem_evidence || {}).to_h.symbolize_keys)
   end
 
   def rate_limited?

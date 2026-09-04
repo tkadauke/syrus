@@ -28,7 +28,7 @@ class MergeTrainFailureHandler
       # blockers defer_landing (stay approved, auto-retry), genuine
       # failures fail_landing (-> implemented, approval cleared, requires
       # operator re-approval).
-      LandingFailureHandler.call(job: job, reason: reason) if job.landing?
+      LandingFailureHandler.call(job: job, reason: reason, run: failed_run) if job.landing?
       member.update!(state: "failed", reason: reason.truncate(500))
     end
   end
@@ -43,11 +43,28 @@ class MergeTrainFailureHandler
       (@cancelled ? "merge_train cancelled" : "merge_train failed")).to_s
   end
 
-  # Reconstruct the stale-base reason string from the structured artifact
-  # that Steps::MergeTrainLand writes before raising StepFailed. This lets
-  # LandingFailureHandler match merge_train_rebuild_required? even when the
-  # workflow's failure_reason column was never populated (StepDispatcher
-  # hard_fail_workflow! is called with no reason for ordinary step failures).
+  # The run whose failure ended the train. It carries the Problem the step
+  # declared, which is how LandingFailureHandler now tells "rebuild the train"
+  # apart from "this train is dead" -- previously that decision was made by
+  # regex-matching the prose below, and `stale_base_artifact_reason` existed
+  # only to manufacture prose that would match.
+  #
+  # CaptureRunDiagnostic runs before run.fail!, so the diagnostic exists by
+  # the time after_fail fires.
+  def failed_run
+    return @failed_run if defined?(@failed_run)
+
+    @failed_run = Run.joins(:step)
+                     .where(steps: { workflow_id: @workflow.id })
+                     .where(state: "failed")
+                     .order(id: :desc)
+                     .includes(:run_diagnostic)
+                     .first
+  end
+
+  # Human-readable context for the stale-base case, from the structured
+  # artifact Steps::MergeTrainLand writes before raising. This is now only
+  # ever read as text -- the routing decision comes from the declared Problem.
   def stale_base_artifact_reason
     stale = @workflow.artifact(Steps::MergeTrainLand::STALE_BASE_ARTIFACT)
     return unless stale.is_a?(Hash)
@@ -64,17 +81,8 @@ class MergeTrainFailureHandler
 
   # Fall back to the failed run's diagnostic error message when neither
   # workflow.failure_reason nor any workflow artifact carries the reason.
-  # CaptureRunDiagnostic is called before run.fail!, so the diagnostic
-  # row exists by the time after_fail fires.
   def failed_run_error_message
-    run_id = Run.joins(:step)
-               .where(steps: { workflow_id: @workflow.id })
-               .where(state: "failed")
-               .order(id: :desc)
-               .pick(:id)
-    return unless run_id
-
-    RunDiagnostic.where(run_id: run_id).pick(:error_message).presence
+    failed_run&.run_diagnostic&.error_message.presence
   end
 
   def preserve_train_for_continuation_retry?

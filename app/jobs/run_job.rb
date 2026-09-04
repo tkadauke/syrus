@@ -496,7 +496,12 @@ class RunJob < ApplicationJob
     return unless @job&.landing?
     return if workflow_controlled_failure?
 
-    LandingFailureHandler.call(job: @job, reason: "#{exception.class}: #{exception.message}", run: @run)
+    LandingFailureHandler.call(
+      job: @job,
+      reason: "#{exception.class}: #{exception.message}",
+      run: @run,
+      problem: (exception.problem if exception.respond_to?(:problem))
+    )
   end
 
   def execution_owner_consistent?

@@ -15,10 +15,11 @@ class LandingFailureHandler
     INFRASTRUCTURE_BLOCKER_PATTERNS.any? { |pattern| text.match?(pattern) }
   end
 
-  def initialize(job:, reason:, run: nil)
+  def initialize(job:, reason:, run: nil, problem: nil)
     @job = job
     @reason = reason.to_s.presence || "auto_merge workflow failed"
     @run = run
+    @problem = problem
   end
 
   def call
@@ -41,6 +42,27 @@ class LandingFailureHandler
 
   attr_reader :job, :reason, :run
 
+  # What the failing step said the problem was, when it said anything.
+  #
+  # This used to be inferred by matching `reason` against two anchored
+  # patterns, which failed in both directions: RunJob prefixes the reason with
+  # the exception class (so `\A` never matched), and steps raise nine other
+  # "rebuild required" messages the patterns did not list. The step now
+  # declares a Problem and it is read here; the patterns stay only as a
+  # fallback for reasons that never came from a step at all.
+  def problem
+    return @problem if @problem || @problem_resolved
+
+    @problem_resolved = true
+    # Queried directly, not through `run.run_diagnostic`: CaptureRunDiagnostic
+    # creates the row with create_or_find_by!, which leaves an already-loaded
+    # association cached as nil on the very Run we are asked about.
+    code = RunDiagnostic.where(run_id: run.id).pick(:problem_code) if run
+    @problem = Problem.resolve(code) if code.present?
+  end
+
+  def problem_code = problem&.code
+
   def infrastructure_blocker?
     self.class.infrastructure_blocker?(reason)
   end
@@ -50,6 +72,8 @@ class LandingFailureHandler
   end
 
   def merge_train_rebuild_required?
+    return true if problem_code == "merge_train_rebuild_required"
+
     self.class.merge_train_rebuild_required?(reason)
   end
 
