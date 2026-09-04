@@ -537,6 +537,28 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("submits a selected-text comment with Cmd+Enter", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+
+    const composer = screen.getByRole("textbox", { name: "New thread comment" })
+    fireEvent.change(composer, { target: { value: "Shortcut comment" } })
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Shortcut comment", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    })
+  })
+
   it("dismisses the Rich Text selection comment affordance when selection is cleared", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
@@ -634,6 +656,23 @@ describe("DesignDocsSurface", () => {
     await screen.findByText("Needs evidence")
     fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Follow up", thread_id: 7 }
+    })
+    expect(await screen.findByText("Follow up")).toBeInTheDocument()
+  })
+
+  it("submits replies with Cmd+Enter", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    const composer = screen.getByRole("textbox", { name: "Reply to thread 7" })
+    fireEvent.change(composer, { target: { value: "Follow up" } })
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true })
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
     const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
