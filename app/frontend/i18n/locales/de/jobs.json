@@ -72,6 +72,7 @@
   "tab_summary": "Zusammenfassung",
   "tab_review": "Review",
   "tab_workflows": "Arbeitsabläufe ({{count}})",
+  "tab_conversation": "Agentenkonversation",
   "tab_attachments": "Anhänge ({{count}})",
   "tab_artifacts": "Artefakte ({{count}})",
   "tab_source": "Quelle",
@@ -643,5 +644,33 @@
       "upstream_closed_without_merge": "Upstream ohne Merge geschlossen",
       "delivery_needs_attention": "Delivery benötigt Aufmerksamkeit"
     }
+  },
+  "conversation": {
+    "loading": "Agentenkonversation wird geladen…",
+    "error": "Agentenkonversation konnte nicht geladen werden.",
+    "empty": "Für diesen Job wurde noch keine Agentenaktivität erfasst.",
+    "legend_agent_session": "Agentensitzung",
+    "legend_deterministic_check": "Deterministische Prüfung",
+    "legend_external_trigger": "Externer Auslöser",
+    "no_summary": "Keine Zusammenfassung übermittelt.",
+    "view_source": "Quelle ansehen",
+    "close": "Schließen",
+    "transcript_heading": "Transkript",
+    "transcript_loading": "Transkript wird geladen…",
+    "transcript_error": "Transkript konnte nicht geladen werden.",
+    "no_transcript": "Keine Transkriptzeilen für diesen Run erfasst.",
+    "check_command": "Befehl",
+    "check_exit_code": "Exit-Code",
+    "check_duration": "Dauer",
+    "check_no_output": "Keine Ausgabe für diese Prüfung erfasst.",
+    "check_clean": "sauber",
+    "check_flagged": "auffällig",
+    "edge_trigger_started": "{{trigger}} hat diesen Versuch ausgelöst",
+    "edge_reviewer_replied": "{{reviewer}} antwortete {{verdict}}",
+    "edge_check_passed": "{{check}} bestanden",
+    "edge_check_failed": "{{check}} fehlgeschlagen — Reparatur angefordert",
+    "edge_sent_for_check": "Diff zur Prüfung gesendet",
+    "edge_sent_for_review": "Diff zur Review gesendet",
+    "edge_default": "{{from}} → {{to}}"
   }
 }

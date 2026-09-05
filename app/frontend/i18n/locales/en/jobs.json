@@ -72,6 +72,7 @@
   "tab_summary": "Summary",
   "tab_review": "Review",
   "tab_workflows": "Workflows ({{count}})",
+  "tab_conversation": "Agent Conversation",
   "tab_attachments": "Attachments ({{count}})",
   "tab_artifacts": "Artifacts ({{count}})",
   "tab_source": "Source",
@@ -643,5 +644,33 @@
       "upstream_closed_without_merge": "Upstream closed without merge",
       "delivery_needs_attention": "Delivery needs attention"
     }
+  },
+  "conversation": {
+    "loading": "Loading agent conversation…",
+    "error": "Unable to load the agent conversation.",
+    "empty": "No agent activity recorded for this Job yet.",
+    "legend_agent_session": "Agent session",
+    "legend_deterministic_check": "Deterministic check",
+    "legend_external_trigger": "External trigger",
+    "no_summary": "No summary submitted.",
+    "view_source": "View source",
+    "close": "Close",
+    "transcript_heading": "Transcript",
+    "transcript_loading": "Loading transcript…",
+    "transcript_error": "Unable to load transcript.",
+    "no_transcript": "No transcript rows captured for this run.",
+    "check_command": "Command",
+    "check_exit_code": "Exit code",
+    "check_duration": "Duration",
+    "check_no_output": "No output captured for this check.",
+    "check_clean": "clean",
+    "check_flagged": "flagged",
+    "edge_trigger_started": "{{trigger}} started this attempt",
+    "edge_reviewer_replied": "{{reviewer}} replied {{verdict}}",
+    "edge_check_passed": "{{check}} passed",
+    "edge_check_failed": "{{check}} failed — repair requested",
+    "edge_sent_for_check": "diff sent for grading",
+    "edge_sent_for_review": "diff sent for review",
+    "edge_default": "{{from}} → {{to}}"
   }
 }

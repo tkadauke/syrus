@@ -926,6 +926,41 @@ export type JobTimelinePayload = {
   }>
 }
 
+export type AgentConversationNode = {
+  id: string
+  kind: "agent_session" | "deterministic_check" | "external_trigger"
+  workflow_id: number
+  trigger_kind: string | null
+  step_id: number | null
+  step_kind: string | null
+  run_id?: number
+  role?: string
+  agent_provider?: string | null
+  iteration?: number
+  label: string
+  state: string | null
+  started_at: string | null
+  finished_at: string | null
+  agentic: boolean
+  summary: string | null
+  detail: Record<string, unknown> | null
+}
+
+export type AgentConversationEdge = {
+  from_id: string
+  to_id: string
+}
+
+export type AgentConversationPayload = {
+  job_id: number
+  nodes: AgentConversationNode[]
+  edges: AgentConversationEdge[]
+}
+
+export function fetchJobAgentConversation(id: string | number) {
+  return getJson<AgentConversationPayload>(`/api/v1/app/jobs/${id}/agent_conversation`)
+}
+
 export type JobSourcePayload = {
   job_id: number
   repository: Pick<JobRepository, "id" | "slug" | "default_branch" | "repository_path">

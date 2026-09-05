@@ -70,6 +70,7 @@
   "tab_summary": "Summa",
   "tab_review": "Recensio",
   "tab_workflows": "Cursus ({{count}})",
+  "tab_conversation": "Colloquium Machinae",
   "tab_attachments": "Adiuncta ({{count}})",
   "tab_artifacts": "Artificia ({{count}})",
   "tab_source": "Fons",
@@ -639,5 +640,33 @@
       "upstream_closed_without_merge": "Upstream sine coniunctione clausa",
       "delivery_needs_attention": "Traditio attentionem requirit"
     }
+  },
+  "conversation": {
+    "loading": "Colloquium machinae oneratur…",
+    "error": "Colloquium machinae onerari non potuit.",
+    "empty": "Nulla actio machinae huic Operi adhuc notata est.",
+    "legend_agent_session": "Sessio machinae",
+    "legend_deterministic_check": "Probatio certa",
+    "legend_external_trigger": "Causa externa",
+    "no_summary": "Nulla summa missa est.",
+    "view_source": "Fontem vide",
+    "close": "Claude",
+    "transcript_heading": "Transcriptum",
+    "transcript_loading": "Transcriptum oneratur…",
+    "transcript_error": "Transcriptum onerari non potuit.",
+    "no_transcript": "Nullae lineae transcripti huic cursui notatae sunt.",
+    "check_command": "Mandatum",
+    "check_exit_code": "Codex exitus",
+    "check_duration": "Duratio",
+    "check_no_output": "Nullus exitus huic probationi notatus est.",
+    "check_clean": "purum",
+    "check_flagged": "notatum",
+    "edge_trigger_started": "{{trigger}} hunc conatum incitavit",
+    "edge_reviewer_replied": "{{reviewer}} respondit: {{verdict}}",
+    "edge_check_passed": "{{check}} probatum est",
+    "edge_check_failed": "{{check}} defecit — emendatio postulatur",
+    "edge_sent_for_check": "discrimen ad probationem missum est",
+    "edge_sent_for_review": "discrimen ad recensionem missum est",
+    "edge_default": "{{from}} → {{to}}"
   }
 }
