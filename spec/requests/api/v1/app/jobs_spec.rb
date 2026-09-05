@@ -751,10 +751,11 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     get "/api/v1/app/jobs/#{cron_job.id}"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("job", "scheduled_task")).to include(
-      "id" => task.id,
-      "name" => "Update architecture",
-      "scheduled_task_path" => "/scheduled_tasks/#{task.id}"
+    expect(parse_body.dig("job", "origin")).to include(
+      "key" => "scheduled_tasks",
+      "id" => task.id.to_s,
+      "label" => "Update architecture",
+      "url" => "/scheduled_tasks/#{task.id}"
     )
   end
 
