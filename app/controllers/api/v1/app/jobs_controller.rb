@@ -151,20 +151,7 @@ module Api
             return
           end
 
-          logs = serialize_job_logs(run)
-
-          render json: {
-            job_id: job.id,
-            workflow_id: run.step&.workflow_id,
-            run_id: run.id,
-            base_ref: run.base_sha,
-            head_ref: run.head_sha,
-            agent_diff: run.agent_diff,
-            agent_diff_bytes: run.agent_diff&.bytesize || 0,
-            step_agent_diff: run.step_agent_diff,
-            logs_count: logs.size,
-            logs: logs
-          }
+          render json: ::App::RunArtifactsPayload.build(run: run)
         end
 
         def grade_log
@@ -254,21 +241,6 @@ module Api
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
           scope
-        end
-
-        def serialize_job_logs(run)
-          run.job_logs
-            .order(:sequence)
-            .pluck(:id, :sequence, :kind, :chunk, :created_at)
-            .map do |id, sequence, kind, chunk, created_at|
-              {
-                id: id,
-                sequence: sequence,
-                kind: kind,
-                chunk: chunk,
-                created_at: created_at&.iso8601
-              }
-            end
         end
 
         def graph_smart_folder(subject_type)
