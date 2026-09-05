@@ -97,6 +97,8 @@
   "conversation_check_ran": "Ran without a recorded summary.",
   "conversation_no_raw_output": "No output captured for this check.",
   "conversation_view_source": "View source",
+  "conversation_transcript_panel_label": "{{label}} transcript",
+  "conversation_transcript_close": "Close transcript",
   "section_issue": "Issue",
   "no_issue_body": "No issue body.",
   "section_agent_summary": "Agent summary",

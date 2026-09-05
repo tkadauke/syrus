@@ -97,6 +97,8 @@
   "conversation_check_ran": "Ohne aufgezeichnete Zusammenfassung ausgeführt.",
   "conversation_no_raw_output": "Keine Ausgabe für diese Prüfung erfasst.",
   "conversation_view_source": "Quelle anzeigen",
+  "conversation_transcript_panel_label": "Transkript: {{label}}",
+  "conversation_transcript_close": "Transkript schließen",
   "section_issue": "Problem",
   "no_issue_body": "Kein Issue-Text.",
   "section_agent_summary": "Agent-Zusammenfassung",
