@@ -70,7 +70,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload.dig(:actions, :can_start)).to be(false)
       expect(payload.dig(:actions, :can_release_from_backlog)).to be(true)
-      expect(payload.dig(:actions, :can_cancel)).to be(false)
+      expect(payload.dig(:actions, :can_cancel)).to be(true)
       expect(payload.dig(:actions, :can_approve)).to be(false)
       expect(payload.dig(:actions, :can_check_mergeability)).to be(false)
       expect(payload.dig(:actions, :can_rebase)).to be(false)
@@ -114,9 +114,43 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload.dig(:actions, :can_release_from_backlog)).to be(false)
       expect(payload.dig(:actions, :can_move_to_backlog)).to be(false)
+      expect(payload.dig(:actions, :can_cancel)).to be(false)
       expect(payload.dig(:actions, :can_claim)).to be(false)
       expect(payload.dig(:actions, :can_unclaim)).to be(false)
       expect(payload.dig(:actions, :can_manage_tags)).to be(false)
+    end
+
+    it "offers cancel for a backlogged job with no Workflow/Run" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_cancel)).to be(true)
+      expect(payload.dig(:paths, :app_cancel_path)).to eq("/api/v1/app/jobs/#{job.id}/cancel")
+    end
+
+    it "still offers cancel for a backlogged job with active runtime work" do
+      job = Job.create!(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        state: "backlog",
+        issue_number: nil,
+        issue_title: "Planned repair",
+        issue_body: "Repair the basilica."
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_cancel)).to be(true)
     end
 
     it "keeps manual start visibility aligned with the owner-scoped start endpoint" do
