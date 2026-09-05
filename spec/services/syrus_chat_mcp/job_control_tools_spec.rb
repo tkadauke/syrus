@@ -84,6 +84,72 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(chat_session.pending_actions).to be_empty
   end
 
+  it "creates a grouped pending action for cancel_job job_ids" do
+    job_one = Factories.job(repository: repository)
+    job_two = Factories.job(repository: repository, issue_number: 43)
+
+    response = call_tool("cancel_job", job_ids: [ job_one.id, job_two.id ])
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Cancel 2 Jobs?")
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "cancel_job" ])
+    expect(job_one.reload).to be_open
+    expect(job_two.reload).to be_open
+  end
+
+  it "creates a grouped pending action for close_job_successfully job_ids sharing one closure_reason" do
+    job_one = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "approved", pr_number: 18)
+
+    response = call_tool(
+      "close_job_successfully",
+      job_ids: [ job_one.id, job_two.id ],
+      closure_reason: "no_changes"
+    )
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Close 2 Jobs as no_changes?")
+    payloads = group.chat_pending_actions.map(&:payload)
+    expect(payloads).to all(include("closure_reason" => "no_changes"))
+    expect(payloads.map { |p| p["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(job_one.reload).to be_approved
+    expect(job_two.reload).to be_approved
+  end
+
+  it "rejects close_job_successfully job_ids up front when any target job cannot be closed" do
+    closable_job = Factories.job_record(repository: repository, state: "approved")
+    already_closed_job = Factories.job_record(repository: repository, issue_number: 43, state: "closed")
+
+    response = call_tool(
+      "close_job_successfully",
+      job_ids: [ closable_job.id, already_closed_job.id ],
+      closure_reason: "no_changes"
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("is already closed")
+    expect(PendingActionGroup.count).to eq(0)
+    expect(chat_session.pending_actions).to be_empty
+  end
+
+  it "does not accept a single closure_reason field as a way to vary reasons across job_ids -- callers must issue separate calls for different reasons" do
+    job_one = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "approved", pr_number: 18)
+
+    response = call_tool(
+      "close_job_successfully",
+      job_ids: [ job_one.id, job_two.id ],
+      closure_reason: "pr_merged"
+    )
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(group.chat_pending_actions.map { |a| a.payload["closure_reason"] }.uniq).to eq([ "pr_merged" ])
+  end
+
   it "anchors a pending action to the current assistant message" do
     job = Factories.job(repository: repository)
     message = chat_session.messages.create!(role: "assistant", content: { "text" => "I can cancel that." })
@@ -126,6 +192,38 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to be_queued
   end
 
+  it "creates a grouped pending action for approve_job job_ids instead of approving immediately" do
+    job_one = Factories.job_record(repository: repository, state: "implemented")
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "implemented")
+
+    response = call_tool("approve_job", job_ids: [ job_one.id, job_two.id ])
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Approve 2 Jobs?")
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "approve_job" ])
+    expect(job_one.reload).to be_implemented
+    expect(job_two.reload).to be_implemented
+
+    result = group.confirm_all!(user: user)
+
+    expect(result).to be_all_succeeded
+    expect(job_one.reload).to be_approved
+    expect(job_two.reload).to be_approved
+  end
+
+  it "rejects approve_job job_ids up front when any target job is not implemented" do
+    implemented_job = Factories.job_record(repository: repository, state: "implemented")
+    queued_job = Factories.job_record(repository: repository, issue_number: 43, state: "queued")
+
+    response = call_tool("approve_job", job_ids: [ implemented_job.id, queued_job.id ])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("job must be in implemented state")
+    expect(PendingActionGroup.count).to eq(0)
+    expect(implemented_job.reload).to be_implemented
+  end
+
   it "unapproves an approved job" do
     job = Factories.job_record(repository: repository, state: "implemented")
     job.approve!(via: "operator", by_user: user)
@@ -135,6 +233,28 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(payload(response)).to include(job_id: job.id, previous_state: "approved", new_state: "implemented")
     expect(job.reload).to be_implemented
     expect(job.approved_at).to be_nil
+  end
+
+  it "creates a grouped pending action for unapprove_job job_ids instead of unapproving immediately" do
+    job_one = Factories.job_record(repository: repository, state: "implemented")
+    job_one.approve!(via: "operator", by_user: user)
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "implemented")
+    job_two.approve!(via: "operator", by_user: user)
+
+    response = call_tool("unapprove_job", job_ids: [ job_one.id, job_two.id ])
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Unapprove 2 Jobs?")
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "unapprove_job" ])
+    expect(job_one.reload).to be_approved
+    expect(job_two.reload).to be_approved
+
+    result = group.confirm_all!(user: user)
+
+    expect(result).to be_all_succeeded
+    expect(job_one.reload).to be_implemented
+    expect(job_two.reload).to be_implemented
   end
 
   it "dismisses a propagated GitHub review with the review id captured before unapproving" do
@@ -372,6 +492,21 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(pending_action).to be_pending
     expect(pending_action.action).to eq("retry_job")
     expect(job.workflows.where(trigger_kind: "retry")).to be_empty
+  end
+
+  it "creates a grouped pending action for retry_job job_ids" do
+    job_one = Factories.job(repository: repository)
+    job_two = Factories.job(repository: repository, issue_number: 43)
+
+    response = call_tool("retry_job", job_ids: [ job_one.id, job_two.id ])
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Retry 2 Jobs?")
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "retry_job" ])
+    expect(job_one.workflows.where(trigger_kind: "retry")).to be_empty
+    expect(job_two.workflows.where(trigger_kind: "retry")).to be_empty
   end
 
   it "requires admin access for force_fail_job" do
