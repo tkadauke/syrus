@@ -16,9 +16,10 @@ module Jobs
   # merged regardless of what happened to any individual member's
   # reconciliation. For each MergeTrainMember still `failed` under such a
   # train, this only repairs the member when its Job has its own recorded
-  # "implementation" LandedCommit from that train's build step -- never
-  # blindly closes every failed member, only ones with real per-member
-  # landing evidence.
+  # "implementation" LandedCommit dated within *that specific train's*
+  # created_at..finished_at window (see landed_commit_from_this_train?) --
+  # never blindly closes every failed member, and never trusts a stale
+  # LandedCommit row left by a different, unrelated train attempt.
   #
   # Idempotent / resumable: already-closed Jobs and already-merged members
   # are skipped, so re-running after a partial failure is safe.
@@ -70,11 +71,11 @@ module Jobs
         return
       end
 
-      unless LandedCommit.where(landable: job, kind: "implementation").exists?
+      unless landed_commit_from_this_train?(train, job)
         result.skipped += 1
         logger.info(
           "[MergeTrainMemberReconciliationRepair] skip #{job.slug}: no recorded implementation " \
-          "commit for train ##{train.id}; leaving failed for operator review"
+          "commit dated within train ##{train.id}'s own build/land window; leaving failed for operator review"
         )
         return
       end
@@ -85,6 +86,24 @@ module Jobs
     rescue StandardError => e
       result.errors += 1
       logger.warn("[MergeTrainMemberReconciliationRepair] failed #{job.slug} for train ##{train.id}: #{e.class}: #{e.message}")
+    end
+
+    # A Job can be a member of more than one merge-train attempt over its
+    # lifetime (e.g. an earlier failed/abandoned train, then later
+    # re-approved into a different train). `LandedCommit.sha` is globally
+    # unique but "implementation" rows are NOT scoped to a single train, so a
+    # bare existence check would accept a stale row from a wholly unrelated
+    # attempt as if it were evidence for *this* train -- the mirror-image of
+    # the bug this repair exists to fix: unmerged work wrongly marked
+    # merged. Bound to this train's own created_at..finished_at window, the
+    # same standard Steps::MergeTrainLand#trust_recent_build_evidence? and
+    # MergeTrainFailureHandler#already_landed? use (there scoped by
+    # workflow.created_at, since they run with a workflow in hand).
+    def landed_commit_from_this_train?(train, job)
+      window_end = train.finished_at || Time.current
+      LandedCommit.where(landable: job, kind: "implementation")
+        .where(created_at: train.created_at..window_end)
+        .exists?
     end
 
     def repair_records!(job, member, integration_sha)
