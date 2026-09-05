@@ -12,6 +12,7 @@ module K8sCluster
   class AgenticAccess
     class ClusterNotFound < StandardError; end
     class AccessDisabled < StandardError; end
+    class WriteAccessDisabled < StandardError; end
 
     SAFE_METADATA_FIELDS = %i[
       id
@@ -41,6 +42,23 @@ module K8sCluster
       unless cluster.agentic_access_enabled?
         raise AccessDisabled, "Agentic access is disabled for the \"#{cluster.label}\" cluster. " \
           "An admin must enable it from K8s Cluster connection settings before agents can query it."
+      end
+
+      cluster
+    end
+
+    # Second, stricter gate for the write/mutating tools (EPIC-306 phase 2):
+    # requires both agentic_access_enabled (via .cluster!) and the cluster's
+    # own, independent allow_writes opt-in. Raises a distinct error so an
+    # agent that finds a read-enabled-but-write-disabled cluster gets an
+    # actionable "turn on allow_writes" message instead of the generic
+    # AccessDisabled wording, which talks about read access.
+    def self.cluster_with_write_access!(id)
+      cluster = cluster!(id)
+      unless cluster.allow_writes?
+        raise WriteAccessDisabled, "Write access is disabled for the \"#{cluster.label}\" cluster. " \
+          "An admin must enable \"Allow writes\" for this cluster from K8s Cluster connection settings " \
+          "before agents can run mutating actions against it."
       end
 
       cluster

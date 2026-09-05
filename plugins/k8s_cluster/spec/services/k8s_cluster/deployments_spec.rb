@@ -58,4 +58,42 @@ RSpec.describe K8sCluster::Deployments do
       }.to raise_error(K8sCluster::ResourceService::NotFound)
     end
   end
+
+  describe "#restart_rollout" do
+    it "patches the pod template restart annotation and reports before/after" do
+      stub_apps_discovery(base)
+      url = "#{base}/apis/apps/v1/namespaces/default/deployments/web"
+      stub_kube_get(url, deployment)
+      restarted = deployment.deep_merge(
+        "spec" => { "template" => { "metadata" => { "annotations" => { "kubectl.kubernetes.io/restartedAt" => "2026-09-05T00:00:00Z" } } } }
+      )
+      stub_request(:patch, url).to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: restarted.to_json)
+
+      payload = described_class.new(cluster).restart_rollout("web", namespace: "default")
+
+      expect(payload[:before][:restarted_at]).to be_nil
+      expect(payload[:after][:restarted_at]).to eq("2026-09-05T00:00:00Z")
+    end
+  end
+
+  describe "#scale" do
+    it "patches spec.replicas and reports before/after replica counts" do
+      stub_apps_discovery(base)
+      url = "#{base}/apis/apps/v1/namespaces/default/deployments/web"
+      stub_kube_get(url, deployment)
+      scaled = deployment.deep_merge("spec" => { "replicas" => 5 })
+      stub_request(:patch, url).to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: scaled.to_json)
+
+      payload = described_class.new(cluster).scale("web", namespace: "default", replicas: 5)
+
+      expect(payload[:before][:replicas]).to eq(3)
+      expect(payload[:after][:replicas]).to eq(5)
+    end
+
+    it "raises InvalidArgument for a negative replica count without calling the API" do
+      expect {
+        described_class.new(cluster).scale("web", namespace: "default", replicas: -1)
+      }.to raise_error(K8sCluster::ResourceService::InvalidArgument)
+    end
+  end
 end
