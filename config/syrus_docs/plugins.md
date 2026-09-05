@@ -2626,7 +2626,8 @@ Bundled plugins:
   is a single `Run` relation. Clicking a session card reuses the existing
   `RunTranscriptLogs` transcript rendering rather than duplicating
   `AdminTranscript.tsx`'s live-tail viewer; the admin surface has its own
-  `GET .../sessions/:run_id/artifacts` route (same JSON shape) since it can
-  list sessions on repositories the admin has no membership on and so can't
-  reuse the ownership-scoped Jobs transcript route the operator surface
-  uses — see `config/syrus_docs/agent_activity.md`.
+  `GET .../sessions/:run_id/artifacts` route since it can list sessions on
+  repositories the admin has no membership on and so can't reuse the
+  ownership-scoped Jobs transcript route the operator surface uses; both
+  routes share `App::RunArtifactsPayload.build(run:)` for the JSON shape so
+  they can't drift apart — see `config/syrus_docs/agent_activity.md`.

@@ -1,6 +1,6 @@
 class FilterUsage < ApplicationRecord
-  SURFACES = %w[dashboard memories worker_timeline].freeze
-  EXTRA_SUBJECTS = %w[worker_timeline].freeze
+  SURFACES = %w[dashboard memories worker_timeline agent_activity agent_activity_admin].freeze
+  EXTRA_SUBJECTS = %w[worker_timeline agent_activity].freeze
 
   def self.subjects
     (SmartFolder.subject_types + EXTRA_SUBJECTS).uniq
