@@ -37,4 +37,52 @@ RSpec.describe "plugin documentation placement" do
     expect(misplaced).to be_empty,
       "docs must sit under docs/syrus_docs/, which is where SearchSyrusDocsTool reads:\n  #{misplaced.join("\n  ")}"
   end
+
+  # Name matching alone missed four docs -- insight_jobs, memory_audit_history,
+  # repository_throughput_metrics, sccache_build_cache -- whose subject was a
+  # plugin under a different title. A doc that leans this heavily on one
+  # plugin's constants is documenting that plugin, wherever it happens to sit.
+  #
+  # Passing mentions are fine and common (multi_worker names GitHistory,
+  # preview_panels names Mockups), which is why the bar is deliberately well
+  # above them.
+  PLUGIN_REFERENCE_LIMIT = 4
+
+  # plugins.md is the plugin model itself: naming many plugins is the point.
+  DELIBERATE_CORE_DOCS = %w[plugins].freeze
+
+  def plugin_modules
+    Rails.root.join("plugins").children.select(&:directory?).filter_map do |dir|
+      name = dir.basename.to_s
+      lib = dir.join("lib", "#{name}.rb")
+      next unless lib.exist?
+
+      mod = lib.read.match(/^module (\w+)/)&.captures&.first
+      [ mod, name ] if mod
+    end.to_h
+  end
+
+  it "keeps no core doc that is really about one plugin" do
+    modules = plugin_modules
+    offenders = Dir.glob(CORE_DOCS.join("*.md")).filter_map do |path|
+      stem = File.basename(path, ".md")
+      next if DELIBERATE_CORE_DOCS.include?(stem)
+
+      text = File.read(path)
+      counts = modules.each_with_object(Hash.new(0)) do |(mod, plugin), acc|
+        acc[plugin] += text.scan(/(?<![:\w])#{Regexp.escape(mod)}::/).size
+      end
+      total = counts.values.sum
+      next if total < PLUGIN_REFERENCE_LIMIT
+
+      "#{stem}.md (#{counts.reject { |_, n| n.zero? }.sort_by { |_, n| -n }.to_h})"
+    end
+
+    expect(offenders).to be_empty, <<~MSG
+      These core docs reference plugin internals heavily enough to be plugin
+      documentation. Move them to plugins/<name>/docs/syrus_docs/, or add the
+      stem to DELIBERATE_CORE_DOCS with a reason:
+        #{offenders.join("\n  ")}
+    MSG
+  end
 end

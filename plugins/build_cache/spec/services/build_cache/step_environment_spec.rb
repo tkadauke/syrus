@@ -10,7 +10,7 @@ RSpec.describe BuildCache::StepEnvironment do
 
   it "never forwards SCCACHE_BASEDIRS" do
     # Path normalization would let a gcov build cache-hit across workflows and
-    # silently corrupt coverage output. See config/syrus_docs/sccache_build_cache.md.
+    # silently corrupt coverage output. See plugins/build_cache/docs/syrus_docs/sccache_build_cache.md.
     expect(described_class.forwarded_env_keys).not_to include("SCCACHE_BASEDIRS")
   end
 

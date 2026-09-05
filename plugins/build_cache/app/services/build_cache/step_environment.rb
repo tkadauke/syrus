@@ -16,7 +16,7 @@ module BuildCache
     # SCCACHE_BASEDIRS would normalize those paths before hashing and let a
     # coverage build hit across workflows, silently corrupting gcovr output
     # with a .gcno pointing at a different, likely-deleted workspace.
-    # See config/syrus_docs/sccache_build_cache.md.
+    # See plugins/build_cache/docs/syrus_docs/sccache_build_cache.md.
     KEYS = %w[
       SCCACHE_BUCKET SCCACHE_ENDPOINT SCCACHE_REGION SCCACHE_S3_KEY_PREFIX
       AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
