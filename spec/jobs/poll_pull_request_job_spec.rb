@@ -322,6 +322,26 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t1)
     end
 
+    it "does not enqueue a duplicate pr_comment workflow when a conflicting WorkUnit slips past the active-unit precheck" do
+      # JOB-4235: `pending_followup?`'s active-unit check is a plain
+      # unlocked SELECT with the same TOCTOU gap as the watermark race
+      # above. Simulate it losing the race and confirm WorkUnits::Launcher
+      # itself still refuses to materialize a second Workflow.
+      stub_issue_comments([
+        { id: 1, body: "Please fix this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+      existing = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: job)
+      allow(WorkUnits::Ownership).to receive(:active_for_job?).and_return(false)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { Workflow.count }
+
+      expect(job.workflows.where(trigger_kind: "pr_comment")).to be_empty
+      expect(existing.work_unit.reload).to be_active
+    end
+
     it "attaches markdown images from PR feedback comments to the Job" do
       image_body = "\x89PNG\r\n\x1A\nreview-image".b
       stub_request(:get, "https://uploads.example.com/state.png").to_return(
@@ -767,6 +787,24 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(wf.artifact("head_sha")).to eq(sha)
       expect(wf.artifact("base_sha")).to eq(base_sha)
       expect(job.reload.last_ci_handled_sha).to eq(sha)
+    end
+
+    it "does not enqueue a ci_failure workflow while a conflicting pr_comment workflow already owns the job" do
+      # JOB-4235: `pending_ci_failure_run?` only checks for an active
+      # "ci_failure" unit, so it misses a conflicting pr_comment workflow
+      # already holding the job's lock. WorkUnits::Launcher must still
+      # refuse to materialize a second Workflow for the same job.
+      WorkUnits::Launcher.instantiate(kind: "pr_comment", job: job)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(job.reload.last_ci_handled_sha).to be_nil
     end
 
     it "fetches GitHub Actions job logs before parsing CI repair diagnostics" do

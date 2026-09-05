@@ -1,7 +1,30 @@
 require "rails_helper"
 
+# `Factories.job` (unlike `Factories.job_record`) drives the real
+# create_initial_run path, so it already owns one active "initial"
+# WorkUnit before these specs attach a second, manually-controlled
+# Workflow to exercise StepDispatcher in isolation. Since JOB-4235 made
+# active_dedup_key unique per (scope, kind), that stale sibling must be
+# cancelled through a real `update!` (not `update_columns`, which would
+# skip the callback that clears the key) before attaching the new one.
+module StepDispatcherSpecAttachWorkUnit
+  def attach_work_unit(workflow, state: "queued", **options)
+    WorkUnit
+      .joins(:work_unit_members)
+      .where(work_unit_members: { job_id: workflow.job_id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+      .where.not(workflow_id: workflow.id)
+      .find_each do |other_unit|
+        other_unit.work_unit_locks.active.find_each(&:release!)
+        other_unit.update!(state: "cancelled", finished_at: Time.current)
+      end
+
+    WorkUnitsSpecHelpers.instance_method(:attach_work_unit).bind_call(self, workflow, state: state, **options)
+  end
+end
+
 RSpec.describe StepDispatcher, :ci_only do
   include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
 
   let(:job) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
@@ -12,19 +35,6 @@ RSpec.describe StepDispatcher, :ci_only do
   before do
     s1.update!(next_step_id: s2.id)
     s2.update!(next_step_id: s3.id)
-  end
-
-  def attach_work_unit(workflow, state: "queued", **options)
-    WorkUnit
-      .joins(:work_unit_members)
-      .where(work_unit_members: { job_id: workflow.job_id }, state: WorkUnits::Ownership::ACTIVE_STATES)
-      .where.not(workflow_id: workflow.id)
-      .find_each do |other_unit|
-        other_unit.work_unit_locks.active.find_each(&:release!)
-        other_unit.update_columns(state: "cancelled", finished_at: Time.current)
-      end
-
-    WorkUnitsSpecHelpers.instance_method(:attach_work_unit).bind_call(self, workflow, state: state, **options)
   end
 
   describe ".start_workflow" do
@@ -2215,6 +2225,7 @@ end
 
 RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
   include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
 
   let(:job_model) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
@@ -2301,6 +2312,10 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
 
   it "backs off repeated urgent-blocked starts" do
     create_urgent_job!
+    puts "DEBUG job_model.id=#{job_model.id} workflow.id=#{workflow.id}"
+    WorkUnit.joins(:work_unit_members).where(work_unit_members: { job_id: job_model.id }).each do |u|
+      puts "DEBUG unit=#{u.id} kind=#{u.kind} state=#{u.state} workflow_id=#{u.workflow_id} active_dedup_key=#{u.active_dedup_key.inspect}"
+    end
     attach_work_unit(workflow)
     travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
       expect(Rails.logger).to receive(:warn).once.with(include("urgent_job_active"))
@@ -2383,6 +2398,7 @@ end
 
 RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
 
   let(:job_model) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
@@ -2528,6 +2544,7 @@ end
 
 RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_only do
   include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
 
   let(:job_model) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
@@ -2727,6 +2744,7 @@ end
 
 RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason", :ci_only do
   include ActiveJob::TestHelper
+  include StepDispatcherSpecAttachWorkUnit
 
   let(:job_model) { Factories.job }
   let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }

@@ -371,6 +371,8 @@ class PollPullRequestJob < ApplicationJob
 
     WorkUnits::Launcher.start!(workflow)
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: pr_comment already locked by WorkUnit ##{e.work_unit.id}")
   end
 
   def feedback_iteration_number
@@ -721,6 +723,8 @@ class PollPullRequestJob < ApplicationJob
 
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{result.workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure already locked by WorkUnit ##{e.work_unit.id}")
   end
 
   def no_effective_ci_repair?(head_sha, detail)

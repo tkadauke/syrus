@@ -47,6 +47,23 @@ RSpec.describe ChatFeedbackSubmission do
     expect(result.error).to eq("a chat_feedback workflow is already queued or running for this job")
   end
 
+  it "still rejects duplicate chat feedback when a conflicting WorkUnit slips past the active-unit precheck" do
+    # JOB-4235: the precheck above is a plain unlocked SELECT with a TOCTOU
+    # gap. Simulate it losing the race (returning false even though a
+    # conflicting WorkUnit already exists) and confirm WorkUnits::Launcher
+    # itself still refuses to materialize a second Workflow.
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    existing = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: job)
+    allow(WorkUnits::Ownership).to receive(:active_for_job_kind?).and_return(false)
+
+    result = described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved])
+
+    expect(result).not_to be_success
+    expect(result.error).to eq("a chat_feedback workflow is already queued or running for this job")
+    expect(job.workflows.where(trigger_kind: "chat_feedback").count).to eq(1)
+    expect(existing.work_unit.reload).to be_active
+  end
+
   it "dismisses the GitHub review and passes the captured review_id to the propagator" do
     job = Factories.job_record(
       user: user, repository: repository,

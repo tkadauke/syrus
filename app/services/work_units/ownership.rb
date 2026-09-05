@@ -148,6 +148,17 @@ module WorkUnits
       scope.order(created_at: :desc, id: :desc).first
     end
 
+    def self.active_unit_for_dedup_key(dedup_key)
+      key = dedup_key.to_s
+      return nil if key.blank?
+
+      WorkUnit
+        .where(active_dedup_key: key)
+        .includes(:workflow)
+        .order(created_at: :desc, id: :desc)
+        .first
+    end
+
     def self.active_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?
