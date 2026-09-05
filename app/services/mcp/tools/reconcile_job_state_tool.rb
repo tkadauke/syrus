@@ -41,6 +41,9 @@ module Mcp::Tools
 
         return Mcp::Tools.invalid("job_ids reconciliation is only supported for mode: auto") if job_ids.present? && mode.to_s != "auto"
 
+        reason = reason.to_s.strip
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
+
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
 
