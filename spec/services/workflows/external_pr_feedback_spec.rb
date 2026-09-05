@@ -23,6 +23,7 @@ RSpec.describe Workflows::ExternalPrFeedback do
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
       %w[ prepare respond grader_fanout grader_collect summarize_amend push ]
     )
+    expect(workflow.steps.where(kind: "respond").count).to eq(1)
   end
 
   it "uses trigger_kind external_pr_feedback" do
@@ -38,13 +39,14 @@ RSpec.describe Workflows::ExternalPrFeedback do
       )
     end
 
-    it "inserts respond/adversarial_review loop before the grader retry chain" do
+    it "inserts a review-first adversarial_review loop before the grader retry chain, with no redundant respond" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond grader_fanout grader_collect summarize_amend push ]
+        %w[ prepare respond adversarial_review grader_fanout grader_collect summarize_amend push ]
       )
+      expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
   end
 

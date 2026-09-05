@@ -70,28 +70,27 @@ RSpec.describe Workflows::ChatFeedback do
       )
     end
 
-    it "inserts respond/adversarial_review loop before the grader retry chain" do
+    it "inserts a review-first respond/adversarial_review loop before the grader retry chain, with no redundant respond" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond adversarial_review format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
+      expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
-    it "puts respond and adversarial_review in the same loop_id, distinct from the retry chain's loop_id" do
+    it "gives adversarial_review its own loop_id, distinct from the grader retry chain's and from the bare leading respond" do
       workflow = described_class.instantiate(job: job)
 
-      review_step   = workflow.steps.find_by!(kind: "adversarial_review")
-      respond_steps = workflow.steps.order(:position).select { |s| s.kind == "respond" }
+      bare_respond = workflow.steps.find_by!(kind: "respond")
+      review_step  = workflow.steps.find_by!(kind: "adversarial_review")
+      grader_step  = workflow.steps.find_by!(kind: "grader_collect")
 
-      ar_respond    = respond_steps.find { |s| s.loop_id == review_step.loop_id }
-      retry_respond = respond_steps.find { |s| s.loop_id != review_step.loop_id }
-
-      expect(ar_respond).not_to be_nil
-      expect(retry_respond).not_to be_nil
-      expect(ar_respond.loop_id).to eq(review_step.loop_id)
-      expect(retry_respond.loop_id).not_to eq(review_step.loop_id)
+      expect(bare_respond.loop_id).to be_nil
+      expect(review_step.loop_id).to be_present
+      expect(grader_step.loop_id).to be_present
+      expect(review_step.loop_id).not_to eq(grader_step.loop_id)
     end
   end
 
@@ -102,28 +101,25 @@ RSpec.describe Workflows::ChatFeedback do
       )
     end
 
-    it "inserts a respond/visual_review loop before the grader retry chain" do
+    it "inserts a review-first respond/visual_review loop before the grader retry chain, with no redundant respond" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond visual_review respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond visual_review format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
+      expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
-    it "puts respond and visual_review in the same loop_id, distinct from the retry chain's loop_id" do
+    it "gives visual_review its own loop_id, distinct from the grader retry chain's" do
       workflow = described_class.instantiate(job: job)
 
-      review_step   = workflow.steps.find_by!(kind: "visual_review")
-      respond_steps = workflow.steps.order(:position).select { |s| s.kind == "respond" }
+      review_step = workflow.steps.find_by!(kind: "visual_review")
+      grader_step = workflow.steps.find_by!(kind: "grader_collect")
 
-      vr_respond    = respond_steps.find { |s| s.loop_id == review_step.loop_id }
-      retry_respond = respond_steps.find { |s| s.loop_id != review_step.loop_id }
-
-      expect(vr_respond).not_to be_nil
-      expect(retry_respond).not_to be_nil
-      expect(vr_respond.loop_id).to eq(review_step.loop_id)
-      expect(retry_respond.loop_id).not_to eq(review_step.loop_id)
+      expect(review_step.loop_id).to be_present
+      expect(grader_step.loop_id).to be_present
+      expect(review_step.loop_id).not_to eq(grader_step.loop_id)
     end
   end
 end
