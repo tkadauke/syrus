@@ -157,6 +157,60 @@ RSpec.describe "Mcp::Tools admin tools" do
     end
   end
 
+  it "creates a grouped pending action for force_landing_recheck job_ids" do
+    job_one = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 101, branch_name: "syrus/direct-101")
+    job_two = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 102, branch_name: "syrus/direct-102")
+
+    response = call_tool(
+      admin_session,
+      "force_landing_recheck",
+      { job_ids: [ job_one.id, job_two.id ], reason: "Refresh stale landing metadata for both." }
+    )
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: a_string_matching(/\?/))
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "force_landing_recheck" ])
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Refresh stale landing metadata for both." ])
+    expect(group.reason).to eq("Refresh stale landing metadata for both.")
+  end
+
+  it "rejects force_landing_recheck job_ids for non-admin users" do
+    job = Factories.job_record(user: user, repository: repository, state: "approved")
+
+    response = call_tool(user_session, "force_landing_recheck", { job_ids: [ job.id ], reason: "Refresh stale metadata." })
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(error_text(response)).to eq("Unauthorized: Admin access required")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
+  it "creates a grouped pending action for admin_kill_process process_ids" do
+    process_one = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-a", pid: 111, started_at: 2.minutes.ago)
+    process_two = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-b", pid: 222, started_at: 1.minute.ago)
+
+    response = call_tool(admin_session, "admin_kill_process", { process_ids: [ process_one.id, process_two.id ] })
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: "Kill 2 processes?")
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "admin_kill_process" ])
+    expect(group.chat_pending_actions.map { |a| a.payload["process_id"] }).to contain_exactly(process_one.id, process_two.id)
+  end
+
+  it "rejects admin_kill_process process_ids up front when any process id is unknown" do
+    process = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-a", pid: 111, started_at: 2.minutes.ago)
+
+    response = call_tool(admin_session, "admin_kill_process", { process_ids: [ process.id, process.id + 1_000_000 ] })
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(error_text(response)).to include("process not found")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
   it "creates and confirms Job-scoped repair actions from repositoryless Supervisor chats" do
     supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
     job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
