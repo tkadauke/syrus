@@ -81,6 +81,18 @@ describe("PendingActionGroupCard", () => {
     expect(screen.getByRole("link", { name: "JOB-4163" })).toBeInTheDocument()
   })
 
+  it("renders the shared justification when the group has a reason", () => {
+    renderGroupCard(pendingActionGroup({ reason: "Both jobs were closed by the same bad merge-train run." }))
+
+    expect(screen.getByText("Both jobs were closed by the same bad merge-train run.")).toBeInTheDocument()
+  })
+
+  it("omits the reason line when the group has no reason", () => {
+    renderGroupCard(pendingActionGroup())
+
+    expect(screen.queryByText("Reason:")).not.toBeInTheDocument()
+  })
+
   it("confirms every member on Confirm all and surfaces the per-item outcome", async () => {
     const confirmed = pendingActionGroup({
       state: "confirmed",

@@ -18,7 +18,12 @@ The React admin stuck page surfaces a `Force fail` button for stuck Jobs in
 `running`, `queued`, `implemented`, `approved`, or `landing`. Chat agents can
 request the same recovery through the admin-only `force_fail_job` MCP tool; the
 tool creates a pending action and does not mutate the Job until the operator
-confirms it.
+confirms it. Passing `job_ids` (an array) instead of `job_id` force-fails
+multiple Jobs as one grouped pending action, but only once a non-blank
+`reason` is supplied as the shared root-cause justification for the whole
+batch -- see [Grouped pending actions](chat.md#grouped-pending-actions) for
+the shared infrastructure, the justification requirement, and the other
+conditional-tier tools that use it.
 
 ## Close Job Successfully
 
