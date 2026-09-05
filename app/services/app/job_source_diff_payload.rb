@@ -12,6 +12,7 @@ module App
     end
 
     def payload
+      return fixture_payload if preview_fixture.present?
       return unavailable_payload unless source_available?
 
       github = GithubClient.for(repository: @repository, user: @user)
@@ -39,6 +40,31 @@ module App
 
     def source_available?
       @repository.installation&.active? || @user.github_token.present?
+    end
+
+    # Preview-only escape hatch: `Job#diff_fixture` is populated exclusively by
+    # db/seeds.rb for the seeded demo Job, so the diff-review UI has real
+    # file/patch content to render in a preview environment that has no
+    # GitHub credentials at all. The `Rails.env.development?` guard is
+    # defense in depth on top of the column only ever being written there.
+    def preview_fixture
+      return nil unless Rails.env.development?
+
+      @job.diff_fixture
+    end
+
+    def fixture_payload
+      fixture = preview_fixture.deep_symbolize_keys
+      base_payload(
+        base_ref: fixture[:base_ref],
+        head_ref: fixture[:head_ref],
+        branch_commits: fixture.fetch(:branch_commits, []),
+        merge_base_sha: fixture[:merge_base_sha]
+      ).merge(
+        files: Array(fixture[:files]).map { |file| file_json(file) },
+        truncated: false,
+        diff_error: nil
+      )
     end
 
     def unavailable_payload

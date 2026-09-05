@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_041717) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_100826) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1347,6 +1347,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_041717) do
     t.string "delivery_track"
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
+    t.json "diff_fixture"
     t.integer "epic_id"
     t.string "epic_title"
     t.string "external_pr_author"

@@ -91,13 +91,127 @@ if Rails.env.development?
 
   demo_jobs_by_title = {}
 
+  # Real diff-review data for the seeded implemented Job (below), so the Job
+  # detail Review tab has something to render even though the demo repo has
+  # no GitHub credentials (App::JobSourceDiffPayload#preview_fixture reads
+  # this column instead of calling GithubClient in development). Keep this
+  # fixture-only: it is never applied to real files, only rendered as diff
+  # text in the preview UI.
+  demo_diff_review_fixture = {
+    base_ref: "main",
+    head_ref: "a1c9f7e0b2d4536170849f2ab6c3d8e1f0a9b7c6",
+    merge_base_sha: "7a6b5c4d3e2f10908070605040302010fedcba9",
+    branch_commits: [
+      {
+        sha: "a1c9f7e0b2d4536170849f2ab6c3d8e1f0a9b7c6",
+        short_sha: "a1c9f7e",
+        message: "Surface needs-attention badge in Dashboard header",
+        date: "2026-09-03T15:41:00Z"
+      },
+      {
+        sha: "f1e2d3c4b5a697887766554433221100ffeeddc",
+        short_sha: "f1e2d3c",
+        message: "Add needs_attention_count to dashboard summary",
+        date: "2026-09-03T14:22:00Z"
+      }
+    ],
+    files: [
+      {
+        path: "app/services/dashboard_payload.rb",
+        status: "modified",
+        additions: 5,
+        deletions: 0,
+        patch: [
+          "diff --git a/app/services/dashboard_payload.rb b/app/services/dashboard_payload.rb",
+          "index 2345678..9abcdef 100644",
+          "--- a/app/services/dashboard_payload.rb",
+          "+++ b/app/services/dashboard_payload.rb",
+          "@@ -6,9 +6,14 @@ class DashboardPayload",
+          "    def build",
+          "      {",
+          "        summary: summary_json,",
+          "+        needs_attention_count: needs_attention_count,",
+          "        jobs: jobs_json,",
+          "        epics: epics_json",
+          "      }",
+          "    end",
+          " ",
+          "+    def needs_attention_count",
+          "+      @jobs.count(&:needs_attention?)",
+          "+    end",
+          "+",
+          "    private"
+        ].join("\n")
+      },
+      {
+        path: "app/frontend/routes/Dashboard.tsx",
+        status: "modified",
+        additions: 4,
+        deletions: 1,
+        patch: [
+          "diff --git a/app/frontend/routes/Dashboard.tsx b/app/frontend/routes/Dashboard.tsx",
+          "index 1234567..89abcde 100644",
+          "--- a/app/frontend/routes/Dashboard.tsx",
+          "+++ b/app/frontend/routes/Dashboard.tsx",
+          "@@ -12,7 +12,7 @@ import { useT } from \"../hooks/useT\"",
+          " import { StatTile } from \"../components/StatTile\"",
+          " import { JobList } from \"./dashboard/JobList\"",
+          " ",
+          "-const REFRESH_INTERVAL_MS = 30000",
+          "+const REFRESH_INTERVAL_MS = 15000",
+          " ",
+          " export function Dashboard() {",
+          "   const { t } = useT(\"dashboard\")",
+          "@@ -24,6 +24,9 @@ export function Dashboard() {",
+          "   const summary = useQuery({",
+          "     queryFn: fetchDashboardSummary,",
+          "     refetchInterval: REFRESH_INTERVAL_MS",
+          "   })",
+          "+  const needsAttentionCount = summary.data?.needs_attention_count ?? 0",
+          "+",
+          "+  if (needsAttentionCount > 0) trackNeedsAttentionBadge(needsAttentionCount)",
+          " ",
+          "   return ("
+        ].join("\n")
+      },
+      {
+        path: "spec/services/dashboard_payload_spec.rb",
+        status: "added",
+        additions: 13,
+        deletions: 0,
+        patch: [
+          "diff --git a/spec/services/dashboard_payload_spec.rb b/spec/services/dashboard_payload_spec.rb",
+          "new file mode 100644",
+          "index 0000000..abc1234",
+          "--- /dev/null",
+          "+++ b/spec/services/dashboard_payload_spec.rb",
+          "@@ -0,0 +1,13 @@",
+          "+require \"rails_helper\"",
+          "+",
+          "+RSpec.describe DashboardPayload do",
+          "+  it \"includes a needs_attention_count in the summary\" do",
+          "+    user = Factories.user",
+          "+    repo = Factories.repository(user: user)",
+          "+    Factories.job(repository: repo, state: \"failed\")",
+          "+",
+          "+    payload = described_class.new(user: user).build",
+          "+",
+          "+    expect(payload[:needs_attention_count]).to eq(1)",
+          "+  end",
+          "+end"
+        ].join("\n")
+      }
+    ]
+  }.deep_stringify_keys
+
   [
     {
       title: "Inspect preview dashboard states",
       state: "implemented",
       body: "Representative implemented job with a PR waiting for review.",
       pr_number: 101,
-      branch_name: "syrus/demo-dashboard-states"
+      branch_name: "syrus/demo-dashboard-states",
+      diff_fixture: demo_diff_review_fixture
     },
     {
       title: "Repair seeded background workflow",
@@ -155,7 +269,8 @@ if Rails.env.development?
       finished_at: attrs[:finished_at],
       approved_at: attrs[:approved_at],
       approved_via: attrs[:approved_via],
-      approved_by_user: attrs[:approved_by_user]
+      approved_by_user: attrs[:approved_by_user],
+      diff_fixture: attrs[:diff_fixture]
     )
     job.save!
     demo_jobs_by_title[attrs.fetch(:title)] = job
