@@ -543,10 +543,6 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       </button>
       {open ? (
         <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
-          <div className="px-3 py-1.5">
-            <CopyableSlug slug={`CHAT-${chat.id}`} />
-          </div>
-          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           {loadingBookmarks ? (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
           ) : bookmarks.length > 0 ? (
@@ -612,6 +608,10 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
               {t("chat:discard_coding_changes")}
             </button>
           ) : null}
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <div className="px-3 py-1.5">
+            <CopyableSlug slug={`CHAT-${chat.id}`} />
+          </div>
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
