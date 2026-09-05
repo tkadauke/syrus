@@ -1,11 +1,12 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
 import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
 import { pluginSlugPreviewCardComponentForPrefix } from "../pluginSlugPreviewCards"
+import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
 interface SlugHoverCardProps {
-  kind: "job" | "epic" | "plugin"
+  kind: "job" | "epic" | "plugin" | "chat"
   id: number
   // Slug prefix (e.g. "DOC"), derived directly from the slug text by the
   // caller. Only meaningful when kind is "plugin": used to find whichever
@@ -88,6 +89,8 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
               <JobPreviewCard id={id} />
             ) : kind === "epic" ? (
               <EpicPreviewCard id={id} />
+            ) : kind === "chat" ? (
+              <ChatPreviewCard id={id} />
             ) : prefix ? (
               <PluginPreviewCard id={id} prefix={prefix} />
             ) : null}
