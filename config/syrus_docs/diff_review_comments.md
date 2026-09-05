@@ -29,6 +29,7 @@ API endpoints live under the user-scoped app API:
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit`
 - `PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve`
+- `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/reply`
 
 Listing follows normal Job visibility. Mutations use the existing Job write
 policy: the job owner, a global admin, or a write-tier-or-higher repository
@@ -36,6 +37,19 @@ member. The list endpoint accepts `surface`, `base_ref`, `head_ref`, `path`,
 `state`, `workflow_id`, and `run_id` filters and returns both a flat
 `comments` array and `by_path`, keyed as `by_path[path][anchor_key]`, where
 anchor keys are `side:old:new` with blank coordinates left empty.
+
+A comment optionally belongs to a `parent` (`DiffReviewComment#parent_id`, no
+DB-level foreign key, same as every other association on this model). The
+reply endpoint takes a `body` and creates a new comment authored by the
+current user, threaded under the target comment via `parent_id` and
+inheriting its surface, base/head refs, workflow/run links, and anchor
+(`anchor_kind`/`path`/`side`/`old_line`/`new_line`/`diff_hunk`) — the replier
+does not resupply anchor data. Any user who passes the same write policy as
+other mutations can reply, regardless of who authored the original comment.
+Replies start in `draft` state like any other comment and share the parent's
+`anchor_key`, so they render in the same thread ordered by `created_at`.
+`comment_json` exposes `parent_id` (`null` for top-level comments) for
+clients that want to render explicit reply structure.
 
 Current UI surfaces use these `surface` values:
 
