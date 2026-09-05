@@ -8,6 +8,11 @@ import { JobPreviewCard } from "./JobPreviewCard"
 // core code that knows a "doc" slug maps to Design Docs; the actual card,
 // its data fetching, and its serialization all live in plugins/design_docs
 // (see pluginSlugPreviewCards.tsx) so the plugin stays physically deletable.
+// This is the same acknowledged, explicit coupling
+// app/frontend/routes/chat/workspaceTabs.ts has for the whiteboard plugin's
+// default-tab heuristic -- deliberate enough to be listed in
+// Admin::PluginSourceBoundaryAudit::CORE_PATH_EXCEPTIONS rather than left to
+// escape detection by wording alone.
 const PLUGIN_PREVIEW_CARD_KEYS: Record<string, string> = {
   doc: "design_docs/DesignDocPreviewCard",
 }
