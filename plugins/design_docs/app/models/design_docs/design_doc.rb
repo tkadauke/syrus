@@ -62,7 +62,7 @@ module DesignDocs
     end
 
     def comments_count
-      DesignDocs::DesignDocComment.joins(:thread).where(design_doc_threads: { design_doc_id: id }).count
+      threads.joins(:comments).count
     end
 
     # A short, hover-preview-sized excerpt of the body: hidden Syrus anchor

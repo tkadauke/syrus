@@ -25,11 +25,16 @@ module Admin
     # Framework-level extension boundaries that must mention plugin paths or
     # component keys in order to discover installed plugin assets.
     CORE_PATH_EXCEPTIONS = [
-      %r{\Aapp/frontend/plugin(AdminPages|SidebarPages|WorkspaceTabs)\.tsx\z},
+      %r{\Aapp/frontend/plugin(AdminPages|SidebarPages|WorkspaceTabs|SlugPreviewCards)\.tsx\z},
       %r{\Aapp/frontend/pluginArtifactRenderers\.tsx\z},
       %r{\Aapp/frontend/routes/App\.tsx\z},
       %r{\Aapp/frontend/routes/chat/WorkspacePanels\.tsx\z},
       %r{\Aapp/frontend/routes/chat/workspaceTabs\.ts\z},
+      # Acknowledged coupling: SlugHoverCard is the one place core decides
+      # a "doc" slug kind renders the design_docs plugin's preview card
+      # component key, the same shape as workspaceTabs.ts's whiteboard
+      # default-tab heuristic above.
+      %r{\Aapp/frontend/components/SlugHoverCard\.tsx\z},
       %r{\Aapp/services/admin/plugin_source_boundary_audit\.rb\z},
       %r{\Aapp/services/skills/},
       %r{\Aconfig/application\.rb\z},
