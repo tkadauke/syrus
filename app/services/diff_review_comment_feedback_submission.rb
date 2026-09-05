@@ -61,13 +61,22 @@ class DiffReviewCommentFeedbackSubmission
   end
 
   def feedback_body(comments)
-    header = "Please address these #{comments.size} anchored diff review #{'comment'.pluralize(comments.size)}."
+    header = "Please address these #{comments.size} diff review #{'comment'.pluralize(comments.size)}."
     ([ header ] + comments.map { |comment| readable_comment(comment) }).join("\n\n")
   end
 
   def readable_comment(comment)
+    return whole_review_comment(comment) unless comment.line_anchor?
+
     <<~COMMENT.strip
       - #{comment.path}:#{display_line(comment)} (#{comment.side})
+        #{comment.body}
+    COMMENT
+  end
+
+  def whole_review_comment(comment)
+    <<~COMMENT.strip
+      - Whole-review comment
         #{comment.body}
     COMMENT
   end
@@ -88,11 +97,12 @@ class DiffReviewCommentFeedbackSubmission
   def structured_comment(comment)
     {
       "id" => comment.id,
+      "anchor_kind" => comment.anchor_kind,
       "path" => comment.path,
       "side" => comment.side,
       "old_line" => comment.old_line,
       "new_line" => comment.new_line,
-      "line" => display_line(comment),
+      "line" => comment.line_anchor? ? display_line(comment) : nil,
       "base_ref" => comment.base_ref,
       "head_ref" => comment.head_ref,
       "diff_hunk" => comment.diff_hunk,
