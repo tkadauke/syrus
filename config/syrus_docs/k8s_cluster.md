@@ -10,15 +10,16 @@ installed but disabled by default (`default_enabled: false`,
 action checks `K8sCluster.enabled?` and `Current.user.admin?`.
 
 The foundation Jobs scaffolded connection management (register a cluster
-from a pasted kubeconfig, test the connection, edit, and delete) and the
+from a pasted kubeconfig, test the connection, edit, and delete), the
 read-only Kubernetes API client - one service object per resource kind, and
 the JSON API endpoints those services back: namespaces, pods (including
 per-container log tail), deployments, services, events,
 PersistentVolumeClaims, nodes, CronJobs, and a cluster overview backed by
-the `metrics.k8s.io` API. This Job adds the tabbed cluster-browsing UI that
-consumes those endpoints - see "Cluster-browsing UI" below. Gated agentic
-access (MCP tools) is still follow-up work per EPIC-306 / DOC-21 - see
-"What's not here yet".
+the `metrics.k8s.io` API. A follow-up Job added the tabbed cluster-browsing
+UI that consumes those endpoints - see "Cluster-browsing UI" below. This Job
+adds gated, read-only agentic access (MCP tools) - see "Agentic access"
+below. Write-capable agentic tools are still follow-up work per EPIC-306 /
+DOC-21 - see "What's not here yet".
 
 ## Clusters (`KubernetesCluster`)
 
@@ -276,9 +277,85 @@ convention for small fixed-choice toolbar controls - never a native
 `<select>` for this kind of in-page switcher. All frontend strings are
 translated across `en`/`de`/`la` (`app/frontend/i18n/locales/*/k8s_cluster.json`).
 
+## Agentic access
+
+Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
+(surfaced as a checkbox on the connection create/edit form, default `false`),
+independent of the plugin's own enable/disable toggle. When set, that
+specific cluster becomes browsable read-only by workflow and chat agents
+through eleven MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
+(`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
+`plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
+mirroring `mysql_db_browser`'s own MCP tool sets:
+
+- `k8s_cluster_list_clusters` - lists registered clusters using safe
+  metadata only: `id`, `label`, `agentic_access_enabled`, `allow_writes`,
+  `created_at`, and `updated_at`. It deliberately omits `api_server_url` and
+  all credential fields. Agents should call this first to discover the
+  correct `cluster_id` before using any other tool.
+- `k8s_cluster_namespaces` / `k8s_cluster_nodes` - list or describe the two
+  cluster-scoped kinds. Omitting `name` lists; passing `name` describes that
+  one object.
+- `k8s_cluster_pods` / `k8s_cluster_deployments` / `k8s_cluster_services` /
+  `k8s_cluster_pvcs` / `k8s_cluster_cronjobs` - list or describe the
+  namespace-scoped kinds. Omitting `namespace` lists across every namespace
+  (matching `kubectl get <kind> -A`); passing `name` describes a single
+  object and requires `namespace` alongside it (rejected with a
+  `namespace is required` tool error otherwise) - the same list-vs-describe
+  contract `KubernetesResourcesController` uses for the browsing UI's
+  endpoints.
+- `k8s_cluster_events` - list-only, `namespace` optional, most-recent-first
+  (an individual Event has no useful describe beyond its list row).
+- `k8s_cluster_pod_logs` - a pod's log tail via `Pods#logs`; `container` is
+  required once a pod has more than one container, `tail_lines` defaults to
+  200, and `previous`/`timestamps` pass through to the same Kubernetes API
+  flags the Logs tab uses.
+- `k8s_cluster_overview` - the aggregate CPU/memory metrics overview via
+  `Overview#call`; soft-fails per-section (`available: false`) rather than
+  erroring when `metrics-server` isn't installed, same as the UI's Overview
+  tab.
+
+Every tool call takes a `cluster_id` param and every read wraps the matching
+`K8sCluster::` resource service directly (`Namespaces`, `Pods`,
+`Deployments`, `Services`, `Events`, `PersistentVolumeClaims`, `Nodes`,
+`CronJobs`, `Overview`) - no separate agentic-only code path, so the agent
+sees exactly what the browsing UI sees.
+
+**Gating is per-cluster, not per-repository or admin-only.** There is no
+framework hook to resolve an individual tool call's params from
+`available_for?`/`available_for_context?` - those are only checked once, at
+MCP manifest-build time, before any call happens. So `available_for?`/
+`available_for_context?` only decide whether the tool set appears in the
+manifest at all (plugin enabled, `WORKFLOW_IMPLEMENT` role for workflow
+runs, and at least one configured `KubernetesCluster` so an agent can
+inspect safe cluster metadata); the actual per-cluster authorization happens
+inside each tool's own `#call`, via `K8sCluster::AgenticAccess.cluster!(id)` -
+it resolves the `cluster_id` named in that call's params and raises unless
+that specific row has `agentic_access_enabled: true`, mirroring
+`MysqlDbBrowser::AgenticAccess.connection!(id)` and
+`Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
+first-party tools. `K8sCluster::ResourceService::Unavailable`/`NotFound` and
+a missing-namespace validation error are all normalized into an
+`MCP::Tool::Response` with `error: true` rather than raising out of the MCP
+sidecar process.
+
+## Audit logging
+
+Every agentic tool call - successful or not - is logged by
+`K8sCluster::AgenticAudit.log!` as a single structured line: `cluster_id`,
+`tool`, `params`, and either `outcome: "success"` with the result's
+serialized byte size, or `outcome: "error"` with the exception class and
+message. This deliberately never logs the resolved result's actual content
+(pod logs, full manifests) - only its size - so the audit trail can't become
+a second, un-redacted copy of cluster data sitting in the Rails log. This is
+the same spirit as the `JobLog` audit lines other MCP tool submissions leave
+behind, but logged rather than persisted to a DB table: `JobLog` itself
+requires a `Run`, while agentic k8s calls can equally come from a chat
+session that has no Run at all.
+
 ## What's not here yet
 
-There are no MCP tools yet. A later Job under EPIC-306 adds gated agentic
-access via `mcp_tool_set`/`chat_mcp_tool_set` MCP tools keyed off
-`agentic_access_enabled`/`allow_writes`, the same shape `mysql_db_browser`
-uses for its own MCP tool sets.
+Write-capable agentic tools (rollout restart, scale a deployment, delete a
+pod, cordon/uncordon a node) are follow-up work per EPIC-306 / DOC-21, gated
+by `agentic_access_enabled? && allow_writes?` rather than
+`agentic_access_enabled?` alone.

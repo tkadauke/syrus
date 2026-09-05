@@ -4,14 +4,16 @@ module K8sCluster
   syrus_plugin "k8s_cluster" do
     display_name "Kubernetes Cluster Viewer"
     description "Register Kubernetes/k3s clusters and browse them read-only from an admin sidebar page."
-    long_description "K8s Cluster Viewer lets admins register external Kubernetes or k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Gated agentic access ships in later work."
+    long_description "K8s Cluster Viewer lets admins register external Kubernetes or k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Read-only cluster inspection is also available to the Syrus agent as MCP tools, gated per-cluster via agentic_access_enabled."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/k8s_cluster.svg"
     author "Thomas Kadauke"
     category "tooling"
     default_enabled false
     disableable true
-    provides sidebar_page: "K8sCluster::SidebarPages"
+    provides sidebar_page: "K8sCluster::SidebarPages",
+             mcp_tool_set: "K8sCluster::WorkflowToolSet",
+             chat_mcp_tool_set: "K8sCluster::ChatToolSet"
     route :get, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#index"
     route :post, "/api/v1/app/admin/kubernetes_clusters", to: "api/v1/app/admin/kubernetes_clusters#create"
     route :patch, "/api/v1/app/admin/kubernetes_clusters/:id", to: "api/v1/app/admin/kubernetes_clusters#update"
