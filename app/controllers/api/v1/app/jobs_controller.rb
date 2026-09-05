@@ -223,6 +223,10 @@ module Api
           render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: nil, no_github_token: true }
         end
 
+        def agent_conversation
+          render json: ::App::AgentConversationPayload.build(job: find_job)
+        end
+
         private
 
         # find_job/find_job_by_param resolve against the widened,
