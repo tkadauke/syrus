@@ -15,7 +15,7 @@ import { Checkbox } from "../../components/Checkbox"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
-import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
+import { ProviderAvailabilityWarning, ProviderMismatchPill } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
 import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload } from "../../api/dashboard"
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
@@ -806,7 +806,6 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <ProviderFailoverNotice failover={job.provider_failover} />
           {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
@@ -817,6 +816,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
+          <ProviderMismatchPill mismatch={job.provider_mismatch} />
           {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
@@ -853,12 +853,12 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <td className="max-w-md px-4 py-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <ProviderFailoverNotice failover={job.provider_failover} />
           <Link className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
+          <ProviderMismatchPill mismatch={job.provider_mismatch} />
           {job.issue_number ? <IssueMetadata job={job} /> : null}
           {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
