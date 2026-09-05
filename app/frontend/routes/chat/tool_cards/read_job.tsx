@@ -1,5 +1,5 @@
-import type { ReactNode } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { Badge, CardShell, displayValue, Row, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_job (EPIC-291 / JOB-4220). Shows the
 // canonical JOB id, title, state, PR, branch, priority, agent provider,
@@ -17,12 +17,6 @@ type JobCard = {
   agentProvider: string | null
   dependencies: DependencyBadge[]
   deploymentStages: DeploymentStage[]
-}
-
-function displayValue(value: unknown): string | null {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value)
-  if (typeof value === "string" && value.trim()) return value.trim()
-  return null
 }
 
 function dependencyBadges(value: unknown): DependencyBadge[] {
@@ -92,7 +86,7 @@ function renderExpanded(context: ToolCardContext) {
   if (!job) return null
 
   return (
-    <div className="mt-1 space-y-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+    <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">JOB-{job.id}</span>
         <StatePill state={job.state} />
@@ -136,28 +130,7 @@ function renderExpanded(context: ToolCardContext) {
           </div>
         </div>
       ) : null}
-    </div>
-  )
-}
-
-function StatePill({ state }: { state: string }) {
-  return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs font-semibold uppercase text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-      {state.replace(/_/g, " ")}
-    </span>
-  )
-}
-
-function Badge({ children }: { children: ReactNode }) {
-  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="truncate font-mono text-gray-700 dark:text-gray-300" title={value}>{value}</dd>
-    </div>
+    </CardShell>
   )
 }
 

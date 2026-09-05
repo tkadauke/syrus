@@ -1,4 +1,5 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
+import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
 
 // Core-owned tool card for read_epic (EPIC-291 / JOB-4220). Shows the
 // canonical EPIC id, title, state, repository, dependency badges, and the
@@ -15,12 +16,6 @@ type EpicCard = {
   dependsOnEpics: DependencyBadge[]
   dependentEpics: DependencyBadge[]
   childJobs: ChildJobRow[]
-}
-
-function displayValue(value: unknown): string | null {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value)
-  if (typeof value === "string" && value.trim()) return value.trim()
-  return null
 }
 
 function epicDependencyBadges(value: unknown): DependencyBadge[] {
@@ -84,7 +79,7 @@ function renderExpanded(context: ToolCardContext) {
   const doneCount = epic.childJobs.filter((job) => isDoneState(job.state)).length
 
   return (
-    <div className="mt-1 space-y-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+    <CardShell>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono font-semibold text-gray-900 dark:text-gray-100">{epic.displayNumber}</span>
         <StatePill state={epic.state} />
@@ -117,20 +112,8 @@ function renderExpanded(context: ToolCardContext) {
           </ol>
         </div>
       ) : null}
-    </div>
+    </CardShell>
   )
-}
-
-function StatePill({ state }: { state: string }) {
-  return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs font-semibold uppercase text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-      {state.replace(/_/g, " ")}
-    </span>
-  )
-}
-
-function Badge({ children }: { children: string }) {
-  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-2xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
 }
 
 function DependencyGroup({ label, badges }: { label: string; badges: DependencyBadge[] }) {
