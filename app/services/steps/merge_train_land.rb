@@ -42,6 +42,11 @@ module Steps
       delete_branch_after_landing(client, train.integration_branch)
       reconcile_members!(train, client, pr, integration_sha: integration_sha)
 
+      # "succeeded" describes the train's own atomic merge, which did
+      # complete, even if reconcile_members! left an unverified member
+      # behind for re-landing -- that member's own Job state (routed through
+      # LandingFailureHandler) is what carries the operator-visible signal
+      # from here, the same as any other individual landing failure.
       train.update!(state: "succeeded", finished_at: Time.current)
       log(
         "merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \

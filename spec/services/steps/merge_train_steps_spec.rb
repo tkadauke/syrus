@@ -748,9 +748,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
       handler.call
 
@@ -792,9 +796,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         integration_branch: "syrus/job-bundle-123"
       )
       [ a, b ].each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index) }
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
       handler.call
 
@@ -928,9 +936,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
       handler.call
 
@@ -945,23 +957,31 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       a = member_job(issue_number: 1)
       a.update!(branch_name: nil)
       train = build_train([ a ])
+      record_landed_commit!(a, sha: "a-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, a)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
 
       handler.call
 
       expect(client).not_to have_received(:delete_branch).with("acme/widgets", nil)
-      expect(a.reload.branch_deleted_at).to be_nil
+      expect(a.reload).to be_closed
+      expect(a.branch_deleted_at).to be_nil
     end
 
     it "does not fail a landed train when branch cleanup is left for later" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       allow(client).to receive(:delete_branch)
         .with("acme/widgets", train.integration_branch)
         .and_return(false)
@@ -981,9 +1001,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       allow(client).to receive(:add_issue_comment)
         .with("acme/widgets", a.pr_number, anything)
         .and_raise(octokit_error(Octokit::ServerError, status: 504, message: "Gateway Timeout"))
@@ -1014,9 +1038,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     it "reuses an already-open integration PR on retry" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
+      record_landed_commit!(a, sha: "a-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, a)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       existing_pr = OpenStruct.new(number: 888, state: "open")
       allow(client).to receive(:open_pull_request_for_head).and_return(existing_pr)
 
@@ -1025,14 +1052,18 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(client).not_to have_received(:create_pull_request)
       expect(client).to have_received(:merge_pull_request).with("acme/widgets", 888, hash_including(merge_method: "merge"))
       expect(handler.workflow.artifact("merge_train_pr_number")).to eq(888)
+      expect(a.reload).to be_closed
     end
 
     it "recovers when GitHub reports the integration PR already exists during creation" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
+      record_landed_commit!(a, sha: "a-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, a)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       existing_pr = OpenStruct.new(number: 888, state: "open")
       allow(client).to receive(:open_pull_request_for_head).and_return(nil, existing_pr)
       allow(client).to receive(:create_pull_request)
@@ -1043,6 +1074,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(client).to have_received(:create_pull_request)
       expect(client).to have_received(:merge_pull_request).with("acme/widgets", 888, hash_including(merge_method: "merge"))
       expect(handler.workflow.artifact("merge_train_pr_number")).to eq(888)
+      expect(a.reload).to be_closed
     end
 
     it "raises BaseMoved (not StepFailed) and sets failure_code when the base branch moved after build" do
