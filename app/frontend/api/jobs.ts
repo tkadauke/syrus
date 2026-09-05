@@ -1066,6 +1066,46 @@ export function fetchJobSource(id: string, search = "") {
   return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source${search}`)
 }
 
+// Agent Conversation tab: node/edge graph of everything that fed into a
+// Job's implementation (agent sessions, deterministic checks, external
+// triggers). See App::AgentConversationPayload for the builder.
+export type AgentConversationNodeKind = "agent_session" | "deterministic_check" | "external_trigger"
+
+export type AgentConversationNode = {
+  id: string
+  kind: AgentConversationNodeKind
+  workflow_id: number
+  trigger_kind: string | null
+  step_id: number | null
+  step_kind: string | null
+  run_id?: number
+  role?: string
+  agent_provider?: string
+  iteration?: number
+  label: string
+  state: string | null
+  started_at: string | null
+  finished_at: string | null
+  agentic: boolean
+  summary: string | null
+  detail: Record<string, unknown>
+}
+
+export type AgentConversationEdge = {
+  from_id: string
+  to_id: string
+}
+
+export type AgentConversationGraph = {
+  job_id: number
+  nodes: AgentConversationNode[]
+  edges: AgentConversationEdge[]
+}
+
+export function fetchJobAgentConversation(id: string | number) {
+  return getJson<AgentConversationGraph>(`/api/v1/app/jobs/${id}/agent_conversation`)
+}
+
 export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
 }
