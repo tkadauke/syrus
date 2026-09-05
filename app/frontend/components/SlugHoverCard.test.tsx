@@ -14,8 +14,8 @@ vi.mock("./EpicPreviewCard", () => ({
   EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />,
 }))
 vi.mock("../pluginSlugPreviewCards", () => ({
-  pluginSlugPreviewCardComponentFor: (key: string | null | undefined) =>
-    key === "design_docs/DesignDocPreviewCard"
+  pluginSlugPreviewCardComponentForPrefix: (prefix: string | null | undefined) =>
+    prefix === "DOC"
       ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div>
       : null,
 }))
@@ -36,13 +36,14 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
-function renderCard(kind: "job" | "epic" | "doc", id: number) {
+function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const label = kind === "plugin" ? prefix : kind.toUpperCase()
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <SlugHoverCard id={id} kind={kind}>
-          <a href={`/${kind}s/${id}`}>{kind.toUpperCase()}-{id}</a>
+        <SlugHoverCard id={id} kind={kind} prefix={prefix}>
+          <a href={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>{label}-{id}</a>
         </SlugHoverCard>
       </MemoryRouter>
     </QueryClientProvider>
@@ -107,8 +108,8 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-7")
   })
 
-  it("shows the plugin-provided doc card for kind=doc", async () => {
-    renderCard("doc", 20)
+  it("shows the plugin-provided doc card for kind=plugin, prefix=DOC", async () => {
+    renderCard("plugin", 20, "DOC")
     const span = screen.getByRole("link", { name: "DOC-20" }).parentElement!
     fireEvent.mouseEnter(span)
 

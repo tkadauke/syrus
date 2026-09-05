@@ -30,11 +30,6 @@ module Admin
       %r{\Aapp/frontend/routes/App\.tsx\z},
       %r{\Aapp/frontend/routes/chat/WorkspacePanels\.tsx\z},
       %r{\Aapp/frontend/routes/chat/workspaceTabs\.ts\z},
-      # Acknowledged coupling: SlugHoverCard is the one place core decides
-      # a "doc" slug kind renders the design_docs plugin's preview card
-      # component key, the same shape as workspaceTabs.ts's whiteboard
-      # default-tab heuristic above.
-      %r{\Aapp/frontend/components/SlugHoverCard\.tsx\z},
       %r{\Aapp/services/admin/plugin_source_boundary_audit\.rb\z},
       %r{\Aapp/services/skills/},
       %r{\Aconfig/application\.rb\z},

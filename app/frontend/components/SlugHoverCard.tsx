@@ -1,30 +1,22 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
 import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
-import { pluginSlugPreviewCardComponentFor } from "../pluginSlugPreviewCards"
+import { pluginSlugPreviewCardComponentForPrefix } from "../pluginSlugPreviewCards"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
-// Kind -> plugin-owned slug preview card component key. This is the only
-// core code that knows a "doc" slug maps to Design Docs; the actual card,
-// its data fetching, and its serialization all live in plugins/design_docs
-// (see pluginSlugPreviewCards.tsx) so the plugin stays physically deletable.
-// This is the same acknowledged, explicit coupling
-// app/frontend/routes/chat/workspaceTabs.ts has for the whiteboard plugin's
-// default-tab heuristic -- deliberate enough to be listed in
-// Admin::PluginSourceBoundaryAudit::CORE_PATH_EXCEPTIONS rather than left to
-// escape detection by wording alone.
-const PLUGIN_PREVIEW_CARD_KEYS: Record<string, string> = {
-  doc: "design_docs/DesignDocPreviewCard",
-}
-
 interface SlugHoverCardProps {
-  kind: "job" | "epic" | "doc"
+  kind: "job" | "epic" | "plugin"
   id: number
+  // Slug prefix (e.g. "DOC"), derived directly from the slug text by the
+  // caller. Only meaningful when kind is "plugin": used to find whichever
+  // plugin registered a preview card for that prefix. Core never hardcodes
+  // which plugin owns which prefix -- see pluginSlugPreviewCards.tsx.
+  prefix?: string
   children: ReactNode
 }
 
-function PluginPreviewCard({ kind, id }: { kind: string; id: number }) {
-  const Component = pluginSlugPreviewCardComponentFor(PLUGIN_PREVIEW_CARD_KEYS[kind])
+function PluginPreviewCard({ prefix, id }: { prefix: string; id: number }) {
+  const Component = pluginSlugPreviewCardComponentForPrefix(prefix)
   if (!Component) return null
 
   return (
@@ -42,7 +34,7 @@ function detectPointerFine(): boolean {
   )
 }
 
-export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
+export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -96,9 +88,9 @@ export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
               <JobPreviewCard id={id} />
             ) : kind === "epic" ? (
               <EpicPreviewCard id={id} />
-            ) : (
-              <PluginPreviewCard id={id} kind={kind} />
-            )}
+            ) : prefix ? (
+              <PluginPreviewCard id={id} prefix={prefix} />
+            ) : null}
           </div>
         </FloatingPortal>
       )}
