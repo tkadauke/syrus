@@ -641,6 +641,23 @@ module App
       @job_runtime_active_repair_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_repair_work", count: job_ids.size) do
         work_unit_snapshot.active_repair_work_by_job_id
       end
+      @job_runtime_repository_memberships_by_repo_and_user = PerformanceLogging.phase("dashboard_jobs.preload.repository_memberships", count: job_ids.size) do
+        repository_memberships_by_repo_and_user_for(jobs)
+      end
+    end
+
+    # Batches the RepositoryMembership lookups that Repository#effective_agent_provider
+    # would otherwise perform one-by-one (via #membership_for) for every job row --
+    # see provider_mismatch_for / effective_repository_agent_provider in RecordSerializers.
+    def repository_memberships_by_repo_and_user_for(jobs)
+      pairs = jobs.filter_map do |job|
+        owner_user = job_owner_user(job)
+        [ job.repository_id, owner_user.id ] if job.repository_id && owner_user
+      end.uniq
+      return {} if pairs.empty?
+
+      RepositoryMembership.where(repository_id: pairs.map(&:first), user_id: pairs.map(&:last))
+        .index_by { |membership| [ membership.repository_id, membership.user_id ] }
     end
 
     def paused_job_ids(job_ids, work_unit_snapshot: nil)

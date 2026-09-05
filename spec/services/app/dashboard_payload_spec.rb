@@ -131,6 +131,57 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "provider mismatch" do
+    it "flags a job pinned to a provider different from the repository's effective provider" do
+      job = Factories.job_record(user: user, repository: repo, job_provider_setting: "codex")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:provider_mismatch]).to include(
+        job_provider: "codex",
+        job_provider_label: "Codex",
+        repository_provider: "claude",
+        repository_provider_label: "Claude Code"
+      )
+    end
+
+    it "is nil when the job provider matches the repository's effective provider" do
+      job = Factories.job_record(user: user, repository: repo, job_provider_setting: "default")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:provider_mismatch]).to be_nil
+    end
+
+    it "batches repository membership lookups instead of querying once per job row" do
+      other_repo = Factories.repository(user: user)
+      repo.membership_for(user).update!(role: "write", agent_provider: "claude")
+      other_repo.membership_for(user).update!(role: "write", agent_provider: "codex")
+      jobs = [
+        Factories.job_record(user: user, repository: repo, job_provider_setting: "codex"),
+        Factories.job_record(user: user, repository: other_repo, job_provider_setting: "claude"),
+        Factories.job_record(user: user, repository: repo, job_provider_setting: "codex")
+      ]
+
+      query_count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        query_count += 1 if payload[:sql].include?("repository_memberships")
+      end
+
+      result = begin
+        call(subject: "job", section: "rows")
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(query_count).to eq(1)
+      mismatches = jobs.index_with { |job| result[:items].find { |row| row[:id] == job.id }[:provider_mismatch] }
+      expect(mismatches.values).to all(be_present)
+    end
+  end
+
   describe "delivery status" do
     it "preloads PR links used by delivery status for job rows" do
       policy = instance_double(
