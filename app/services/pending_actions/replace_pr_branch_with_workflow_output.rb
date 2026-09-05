@@ -2,9 +2,7 @@ module PendingActions
   class ReplacePrBranchWithWorkflowOutput < Base
     action_key "replace_pr_branch_with_workflow_output"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       workflow = divergence_workflow(job)
       raise ArgumentError, "destructive confirmation is required" unless destructive_confirmation_valid?
@@ -16,7 +14,7 @@ module PendingActions
       progress!("Queueing branch recovery job...")
       BranchDivergenceRecoveryJob.perform_later(workflow.id, user.id)
       progress!("Recording repair audit...")
-      audit!(job, workflow)
+      audit!("queued PR branch replacement from #{workflow.slug}", run: job.current_run || workflow.runs.order(:created_at).last)
       workflow
     end
 
@@ -35,8 +33,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}, destructive_confirmation: #{payload["destructive_confirmation"].present?}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -49,17 +46,6 @@ module PendingActions
 
     def destructive_confirmation_valid?
       payload["destructive_confirmation"].to_s == "REPLACE PR BRANCH"
-    end
-
-    def audit!(job, workflow)
-      run = job.current_run || workflow.runs.order(:created_at).last
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] queued PR branch replacement from #{workflow.slug}; reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end

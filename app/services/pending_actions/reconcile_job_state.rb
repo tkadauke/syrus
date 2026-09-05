@@ -9,9 +9,7 @@ module PendingActions
       mark_queued
     ].freeze
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       mode = payload.fetch("mode").to_s
       progress!("Reconciling #{job.slug} with mode #{mode}...")
@@ -32,7 +30,6 @@ module PendingActions
       "job_id: #{payload["job_id"]}, mode: #{payload["mode"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
   end
 end
