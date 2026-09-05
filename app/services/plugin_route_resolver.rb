@@ -50,6 +50,41 @@ class PluginRouteResolver
       end
     end
 
+    # The same derivation for sidebar pages. A `sidebar_page` provider already
+    # returns the paths it owns, so deriving the SPA routes from that metadata
+    # is what keeps core from carrying a hand-written list of plugin URLs --
+    # and keeps a new plugin page from 404ing on hard reload because somebody
+    # forgot to add it here, which is exactly how mockups and scheduled_tasks
+    # shipped unreachable.
+    def sidebar_page_route?(path)
+      declared_sidebar_paths.any? { |declared| sidebar_path_matches?(declared, path) }
+    end
+
+    # `:id` and `:*_id` segments must be numeric, matching the `constraints:
+    # { id: /\d+/ }` every hand-written SPA route for these pages carried.
+    # Without it `/scheduled_tasks/legacy` matches `/scheduled_tasks/:id` and a
+    # retired endpoint starts answering 200 instead of 404.
+    def sidebar_path_matches?(pattern, path)
+      regex_source = pattern.split("/").map do |segment|
+        next Regexp.escape(segment) unless segment.start_with?(":")
+
+        segment.delete_prefix(":").end_with?("id") ? "(\\d+)" : "([^/]+)"
+      end.join("/")
+
+      /\A#{regex_source}\z/.match?(path)
+    end
+
+    # Enabled plugins only: a disabled plugin's page should 404 like any other
+    # thing it does not currently offer.
+    def declared_sidebar_paths
+      Syrus::PluginRegistry.providers_for(:sidebar_page).flat_map do |provider|
+        Array(provider.sidebar_pages).flat_map { |page| Array(page[:paths] || page["paths"]) }
+      rescue StandardError => e
+        Rails.logger.debug { "[plugin_route_resolver] #{provider}: #{e.class}: #{e.message}" }
+        []
+      end.uniq
+    end
+
     # Structural companion to #spa_route_declared? for the
     # "repositories/:repository_id/plugin/*path" host route. A repo_page_tab
     # provider's own repo_page_tabs(repository:, user:) already returns the

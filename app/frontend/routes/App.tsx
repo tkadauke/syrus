@@ -62,7 +62,8 @@ import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
 import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
-import { PluginSidebarPageRoute } from "../pluginSidebarPages"
+import { PluginSidebarPageRoute, usePluginSidebarPaths } from "../pluginSidebarPages"
+import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 
 type AppRouteDefinition = {
@@ -79,15 +80,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/epics", element: <DashboardRoute /> },
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
-  { path: "/search", element: <PluginSidebarPageRoute /> },
-  { path: "/design_docs", element: <PluginSidebarPageRoute /> },
-  { path: "/design_docs/:id", element: <PluginSidebarPageRoute /> },
-  { path: "/insights/spending", element: <PluginSidebarPageRoute /> },
-  { path: "/db_browser", element: <PluginSidebarPageRoute /> },
-  { path: "/k8s_clusters", element: <PluginSidebarPageRoute /> },
-  { path: "/worker_timeline", element: <PluginSidebarPageRoute /> },
-  { path: "/worker_timeline/workflow", element: <PluginSidebarPageRoute /> },
-  { path: "/terminal", element: <PluginSidebarPageRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
   { path: "/admin", element: <AdminOverview /> },
@@ -128,10 +120,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/notifications/settings", element: <SettingsSectionRoute><NotificationsSettingsRoute /></SettingsSectionRoute> },
   { path: "/settings/themes", element: <SettingsSectionRoute><ThemesSettingsRoute /></SettingsSectionRoute> },
   { path: "/settings/connected_platforms", element: <SettingsSectionRoute><ConnectedPlatformsRoute /></SettingsSectionRoute> },
-  { path: "/profiles", element: <PluginSidebarPageRoute /> },
-  { path: "/profiles/:id", element: <PluginSidebarPageRoute /> },
   { path: "/documents", element: <SettingsSectionRoute><PersonalDocumentsRoute /></SettingsSectionRoute> },
-  { path: "/memories", element: <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
@@ -187,6 +176,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
       <Route path="/app-shell" element={<RootRoute initialBootstrap={initialBootstrap} />} />
       {renderAppRoutes(initialBootstrap)}
+      {renderPluginSidebarRoutes()}
       <Route path="*" element={<BootstrapShell initialBootstrap={initialBootstrap} />} />
     </Routes>
   )
@@ -520,6 +510,42 @@ function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayl
   return <OnboardingRoute bootstrap={bootstrap.data ?? initialBootstrap} />
 }
 
+/**
+ * Real routes for whatever paths plugins have claimed, built from the
+ * `sidebar_page` declarations rather than from a list kept here.
+ *
+ * This is why core carries no plugin paths: a plugin says where it lives, and
+ * core only has to know that plugins may own URLs at all. Adding a plugin page
+ * -- or a new plugin -- needs no edit to this file.
+ *
+ * Declared last so every core route still wins on a collision, and left out
+ * entirely until the declarations arrive, so an unclaimed URL keeps falling to
+ * the shell exactly as before.
+ */
+function renderPluginSidebarRoutes() {
+  const location = useLocation()
+  // Gated only on not being a pre-auth page, deliberately not on the bootstrap
+  // query: waiting for a user would put two sequential round trips in front of
+  // a cold load of a plugin URL. Signed out, the endpoint 401s, the query
+  // errors, no routes register, and the URL falls through to the shell -- the
+  // same place it would have landed anyway.
+  const paths = usePluginSidebarPaths({ enabled: !isAuthPath(normalizedAppPath(location.pathname)) })
+
+  return paths.flatMap(({ path, section }) => {
+    const element = section === "settings"
+      ? <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute>
+      : <PluginSidebarPageRoute />
+
+    // Both variants, the same way renderAppRoutes registers core routes: the
+    // shell serves every page under /app-shell as well, and a plugin page that
+    // only registered the bare path is unreachable there.
+    return [
+      <Route element={element} key={path} path={path} />,
+      <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    ]
+  })
+}
+
 function SettingsSectionRoute({ children }: { children: ReactNode }) {
   const { t: tCommon } = useT("common")
   const { t } = useT("settings")
@@ -616,7 +642,11 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
     )
   }
 
-  const { current_user: user, app } = bootstrap.data
+  // `app` is read defensively because this component is the catch-all's
+  // element: it renders for any URL nothing else claimed, including -- for a
+  // frame -- one a plugin route is about to claim. Crashing here would take
+  // the whole SPA down over a field this page only uses to print a revision.
+  const { current_user: user, app } = bootstrap.data ?? {}
 
   return (
     <main aria-label={t("shell.spa_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
@@ -634,8 +664,8 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
 
         <div className="rounded border border-gray-200 bg-white p-4">
           <h2 className="text-sm font-medium text-gray-900">{t("shell.revision")}</h2>
-          <p className="mt-2 font-mono text-sm text-gray-700">{app.revision}</p>
-          {app.revision_url ? (
+          <p className="mt-2 font-mono text-sm text-gray-700">{app?.revision}</p>
+          {app?.revision_url ? (
             <a className="text-xs text-brand underline hover:no-underline" href={app.revision_url}>
               {t("shell.view_commit")}
             </a>

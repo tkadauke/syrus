@@ -532,8 +532,6 @@ Rails.application.routes.draw do
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
   get "search", to: "spa#show", as: :search
-  get "mockups", to: "spa#show", as: :mockups
-  get "mockups/:id", to: "spa#show", as: :mockup
   get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "scheduled_tasks/new", to: "spa#show", as: :new_scheduled_task
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
@@ -639,6 +637,16 @@ Rails.application.routes.draw do
     get "github_app/manifest", to: "github_app#manifest", as: :github_app_manifest
   end
 
+
+  # Any path a `sidebar_page` provider claims, served as the SPA shell without
+  # core listing it. Declared last so every core route still wins, and
+  # constrained so this never becomes a blanket catch-all: an undeclared path
+  # still 404s. New plugin pages need no edit to this file -- the hand-written
+  # list that used to live here is how mockups and scheduled_tasks shipped
+  # 404ing on hard reload.
+  get "*plugin_sidebar_path", to: "spa#show", constraints: lambda { |request|
+    PluginRouteResolver.sidebar_page_route?(request.path)
+  }, format: false
 
   root "spa#show"
 

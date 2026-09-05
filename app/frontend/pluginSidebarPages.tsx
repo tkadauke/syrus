@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
-import { useLocation } from "react-router-dom"
+import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
 import { useT } from "./hooks/useT"
 
@@ -38,8 +38,32 @@ export function pluginSidebarComponentFor(key: string | null | undefined) {
   return Component
 }
 
-export function PluginSidebarPageRoute() {
-  const { t } = useT("nav")
+/**
+ * Resolves the plugin sidebar page that owns the current URL, if any.
+ *
+ * Paths are matched with React Router's own matcher rather than string
+ * prefixes, because a declared path can carry parameters --
+ * `/repositories/:repository_id/scheduled_tasks` cannot be matched by
+ * comparing text, and quietly never matched before.
+ */
+/** Every path plugins have claimed, for registering real routes. */
+export function usePluginSidebarPaths({ enabled }: { enabled: boolean }) {
+  const pages = useQuery({
+    queryKey: ["sidebar", "plugin_pages"],
+    queryFn: fetchSidebarPluginPages,
+    staleTime: 30_000,
+    // Gated on being signed in, exactly as AppChromeV2 gates the same query:
+    // a pre-auth page must not call an app API, and has no plugin pages to
+    // route to anyway.
+    enabled
+  })
+
+  return (pages.data?.pages ?? []).flatMap((page) =>
+    Array.from(page.paths ?? []).map((path) => ({ path, section: page.section }))
+  )
+}
+
+export function usePluginSidebarPage() {
   const location = useLocation()
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
   const pages = useQuery({
@@ -48,12 +72,23 @@ export function PluginSidebarPageRoute() {
     staleTime: 30_000
   })
 
-  if (pages.isPending) {
+  // `pages?.` and not just `data?.`: a response without the key at all must
+  // read as "no plugin claims this URL", not throw inside the catch-all and
+  // take the whole shell down with it.
+  const page = pages.data?.pages?.find((candidate) =>
+    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
+  )
+
+  return { isPending: pages.isPending, page, Component: pluginSidebarComponentFor(page?.component) }
+}
+
+export function PluginSidebarPageRoute() {
+  const { t } = useT("nav")
+  const { isPending, page, Component } = usePluginSidebarPage()
+
+  if (isPending) {
     return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>
   }
-
-  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => path === normalizedPath || normalizedPath.startsWith(`${path}/`)))
-  const Component = pluginSidebarComponentFor(page?.component)
 
   if (!page || !Component) {
     return (
