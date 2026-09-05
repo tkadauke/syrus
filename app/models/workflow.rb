@@ -496,6 +496,18 @@ class Workflow < ApplicationRecord
     return unless failed?
 
     WorkEngine::Reconciler.request(source: "Workflow", job: job, workflow: self)
+  rescue SolidQueue::Job::EnqueueError, ActiveRecord::StatementInvalid => e
+    # Runs as an after_update_commit callback on every Workflow that fails,
+    # including from deep inside RunJob's own failure-handling cascade
+    # (Run#fail! -> Step#fail_workflow! -> Workflow#fail!). A transient DB
+    # blip during that exact commit would otherwise raise out of an
+    # after_commit callback and crash whatever caller triggered the failure
+    # transition, on top of losing the retry. ReapStaleRunsJob's
+    # every-minute unscoped reconciler sweep still catches workflows left
+    # without a scheduled auto-retry, so it's safe to log and move on.
+    Rails.logger.warn(
+      "[Workflow##{id}] schedule_auto_retry! failed to enqueue ReconcileJob: #{e.class}: #{e.message}"
+    )
   end
 
   def first_step
