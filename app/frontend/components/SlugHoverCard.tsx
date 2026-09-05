@@ -1,12 +1,32 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
-import { type ReactNode, useCallback, useRef, useState } from "react"
+import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
+import { pluginSlugPreviewCardComponentFor } from "../pluginSlugPreviewCards"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
+// Kind -> plugin-owned slug preview card component key. This is the only
+// core code that knows a "doc" slug maps to Design Docs; the actual card,
+// its data fetching, and its serialization all live in plugins/design_docs
+// (see pluginSlugPreviewCards.tsx) so the plugin stays physically deletable.
+const PLUGIN_PREVIEW_CARD_KEYS: Record<string, string> = {
+  doc: "design_docs/DesignDocPreviewCard",
+}
+
 interface SlugHoverCardProps {
-  kind: "job" | "epic"
+  kind: "job" | "epic" | "doc"
   id: number
   children: ReactNode
+}
+
+function PluginPreviewCard({ kind, id }: { kind: string; id: number }) {
+  const Component = pluginSlugPreviewCardComponentFor(PLUGIN_PREVIEW_CARD_KEYS[kind])
+  if (!Component) return null
+
+  return (
+    <Suspense fallback={null}>
+      <Component id={id} />
+    </Suspense>
+  )
 }
 
 function detectPointerFine(): boolean {
@@ -67,7 +87,13 @@ export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
             ref={refs.setFloating}
             style={{ ...floatingStyles, zIndex: 50 }}
           >
-            {kind === "job" ? <JobPreviewCard id={id} /> : <EpicPreviewCard id={id} />}
+            {kind === "job" ? (
+              <JobPreviewCard id={id} />
+            ) : kind === "epic" ? (
+              <EpicPreviewCard id={id} />
+            ) : (
+              <PluginPreviewCard id={id} kind={kind} />
+            )}
           </div>
         </FloatingPortal>
       )}
