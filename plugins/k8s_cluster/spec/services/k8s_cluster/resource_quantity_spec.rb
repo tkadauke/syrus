@@ -41,6 +41,10 @@ RSpec.describe K8sCluster::ResourceQuantity do
       expect(described_class.memory_bytes("500K")).to eq(500_000)
     end
 
+    it "does not truncate a fractional suffixed value" do
+      expect(described_class.memory_bytes("1.5Gi")).to eq((1.5 * 1024 * 1024 * 1024).round)
+    end
+
     it "parses a plain byte count with no suffix" do
       expect(described_class.memory_bytes("128974848")).to eq(128_974_848)
     end
