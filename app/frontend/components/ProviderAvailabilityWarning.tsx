@@ -1,4 +1,5 @@
-import type { ProviderAvailability, ProviderFailover } from "../api/providerAvailability"
+import type { ProviderAvailability, ProviderFailover, ProviderMismatch } from "../api/providerAvailability"
+import { TonePill } from "./StatusPill"
 
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
   if (!availability) return null
@@ -32,6 +33,23 @@ export function ProviderFailoverNotice({ failover, className = "" }: { failover?
     <span className={`inline-flex max-w-full items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200 ${className}`} title={label}>
       {copy}
     </span>
+  )
+}
+
+// Compact alternative to ProviderFailoverNotice for dense list rows (e.g. the
+// dashboard jobs table): a single red pill next to the job slug instead of a
+// full-sentence banner next to the title. Flags a Job pinned away from what
+// its repository would otherwise use, regardless of why (explicit pin,
+// automatic failover, etc.) -- see App::DashboardPayload#provider_mismatch_for.
+export function ProviderMismatchPill({ mismatch }: { mismatch?: ProviderMismatch | null }) {
+  if (!mismatch) return null
+
+  const title = `Job runs on ${mismatch.job_provider_label}; repository default is ${mismatch.repository_provider_label}.`
+
+  return (
+    <TonePill ariaLabel={title} title={title} tone="red">
+      {mismatch.job_provider_label}
+    </TonePill>
   )
 }
 
