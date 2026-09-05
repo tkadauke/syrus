@@ -366,6 +366,57 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(process.command).not_to include("x-access-token:ghp_")
   end
 
+  it "holds a shared workspace flock for the subprocess's lifetime, blocking a concurrent exclusive lock" do
+    # Mirrors WorkflowWorkspace.cleanup_for's non-blocking exclusive flock
+    # check: while this subprocess is alive, cleanup must not be able to
+    # acquire the lock and delete the workspace out from under it.
+    data_root = Dir.mktmpdir("process-runner-workspace")
+    ENV["SYRUS_DATA_ROOT"] = data_root
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    lock_path = WorkflowWorkspace.lock_path_for(workflow)
+
+    runner_thread = Thread.new do
+      described_class.new(
+        env: {},
+        command: [ ruby, "-e", "sleep 0.5" ],
+        chdir: @dir,
+        timeout: 5,
+        workflow: workflow
+      ).run
+    end
+
+    sleep 0.2 # let the runner acquire its shared lock before probing
+
+    probe = File.open(lock_path, File::CREAT | File::RDWR)
+    expect(probe.flock(File::LOCK_EX | File::LOCK_NB)).to eq(false)
+    probe.close
+
+    runner_thread.join
+
+    probe = File.open(lock_path, File::CREAT | File::RDWR)
+    expect(probe.flock(File::LOCK_EX | File::LOCK_NB)).to eq(0)
+    probe.flock(File::LOCK_UN)
+    probe.close
+  ensure
+    ENV.delete("SYRUS_DATA_ROOT")
+    FileUtils.rm_rf(data_root) if data_root
+  end
+
+  it "does not touch any lock file when no workflow is given" do
+    expect(WorkflowWorkspace).not_to receive(:lock_path_for)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5
+    ).run
+
+    expect(result).to be_success
+    expect(Dir.children(@dir)).to eq([])
+  end
+
   it "kills the subprocess when silent_timeout elapses with no output" do
     # The subprocess prints once and then sleeps — past silent_timeout
     # with no further output, ProcessRunner must terminate it and

@@ -296,7 +296,6 @@ class PollPullRequestJob < ApplicationJob
     enqueue_followup_run(
       all_comments: all_comments,
       new_comments: new_comments,
-      cutoff: cutoff,
       qualifying_records: ingestion.qualifying_records
     )
   end
@@ -318,37 +317,62 @@ class PollPullRequestJob < ApplicationJob
     reject_syrus_bot_comments(issue_comments + review_comments).sort_by(&:created_at)
   end
 
-  def enqueue_followup_run(all_comments:, new_comments:, cutoff:, qualifying_records: [])
+  # `limits_concurrency` is only a Solid Queue semaphore — it can lapse (past
+  # `expires_at` while a worker is still alive, or a manual re-enqueue) the
+  # same way RunJob's equivalent key can, which is why RunJob pairs its key
+  # with a real `Run#with_lock` backstop. Without one here, two concurrent
+  # pollers could both compute the same "new" comments against the same
+  # stale `last_seen_comment_at` and both enqueue a follow-up workflow. The
+  # row lock re-reads the watermark right before the decision: whichever
+  # poller commits first advances it, and the loser re-filters against the
+  # fresh value and backs off instead of creating a duplicate workflow.
+  def enqueue_followup_run(all_comments:, new_comments:, qualifying_records: [])
     ingest_comment_images(new_comments)
-    clear_stale_approval!
-
-    # Stash the full comment payload + the cutoff timestamp on the
-    # workflow as a structured artifact; Steps::Respond reads it at
-    # run time and composes the Prompts::PrFeedback prompt itself.
-    # Polling job stays ignorant of prompt internals.
-    iteration = feedback_iteration_number
-    source_handle = qualifying_records.first&.github_handle
-
-    artifacts = {
-      "pr_comments" => all_comments.map { |c| serialize_comment(c) },
-      "feedback_cutoff" => cutoff&.iso8601,
-      "pr_feedback_iteration" => iteration,
-      "pr_feedback_auto" => true,
-      "pr_feedback_source_handle" => source_handle,
-      "pr_review_comment_ids" => qualifying_records.map(&:id)
-    }
-    result = WorkUnits::Launcher.create_and_start!(
-      kind: "pr_comment",
-      job: @job,
-      artifacts: artifacts,
-      agent_provider: @agent_provider
-    )
-    workflow = result.workflow
-
-    qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
 
     latest = new_comments.map(&:created_at).compact.max
-    @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+    workflow = nil
+
+    @job.with_lock do
+      @job.reload
+      fresh_cutoff = feedback_cutoff
+      still_new = new_comments.select do |comment|
+        fresh_cutoff.nil? || (comment.created_at && comment.created_at > fresh_cutoff)
+      end
+      next if still_new.empty?
+
+      clear_stale_approval!
+
+      # Stash the full comment payload + the cutoff timestamp on the
+      # workflow as a structured artifact; Steps::Respond reads it at
+      # run time and composes the Prompts::PrFeedback prompt itself.
+      # Polling job stays ignorant of prompt internals.
+      iteration = feedback_iteration_number
+      source_handle = qualifying_records.first&.github_handle
+
+      artifacts = {
+        "pr_comments" => all_comments.map { |c| serialize_comment(c) },
+        "feedback_cutoff" => fresh_cutoff&.iso8601,
+        "pr_feedback_iteration" => iteration,
+        "pr_feedback_auto" => true,
+        "pr_feedback_source_handle" => source_handle,
+        "pr_review_comment_ids" => qualifying_records.map(&:id)
+      }
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "pr_comment",
+        job: @job,
+        artifacts: artifacts,
+        agent_provider: @agent_provider
+      )
+
+      @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+    end
+
+    return unless workflow
+
+    WorkUnits::Launcher.start!(workflow)
+    qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: pr_comment already locked by WorkUnit ##{e.work_unit.id}")
   end
 
   def feedback_iteration_number
@@ -699,6 +723,8 @@ class PollPullRequestJob < ApplicationJob
 
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{result.workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure already locked by WorkUnit ##{e.work_unit.id}")
   end
 
   def no_effective_ci_repair?(head_sha, detail)

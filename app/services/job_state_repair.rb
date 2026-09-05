@@ -48,7 +48,8 @@ class JobStateRepair
     end
 
     def active_work?
-      job.active_runtime_work?
+      WorkUnits::TerminalWorkflowSync.for_job(job)
+      job.reload.active_runtime_work?
     end
 
     def terminal_latest_workflow?
@@ -60,7 +61,7 @@ class JobStateRepair
     end
 
     def audit!(message)
-      run = job.runs.order(created_at: :desc, id: :desc).first
+      run = job.runs.reorder(created_at: :desc, id: :desc).first
       JobLog.append!(run: run, chunk: "[operator repair] #{message}; reason=#{reason}", kind: "system") if run
     rescue StandardError => e
       Rails.logger.warn("[JobStateRepair] audit failed for #{job.slug}: #{e.class}: #{e.message}")
@@ -69,7 +70,11 @@ class JobStateRepair
 
   class Auto < ReconcileMode
     def call
-      result = WorkEngine::Reconciler.call(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+      result = WorkEngine::Reconciler.call_locked!(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+      unless result
+        return Result.new(job: job.reload, message: "A concurrent reconciliation is already running for #{job.slug}; try again shortly.")
+      end
+
       Result.new(job: job.reload, message: "WorkEngine reconciler inspected #{result.issues.size} issue(s) and applied #{result.repair_executions.count { |execution| execution.status == "applied" }} repair(s).")
     end
   end
@@ -176,7 +181,7 @@ class JobStateRepair
     attr_reader :job, :event, :reason
 
     def audit!(from_state)
-      run = job.runs.order(created_at: :desc, id: :desc).first
+      run = job.runs.reorder(created_at: :desc, id: :desc).first
       return unless run
 
       JobLog.append!(

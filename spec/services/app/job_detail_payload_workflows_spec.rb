@@ -26,7 +26,12 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     queries
   end
 
-  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil)
+  # bypass_dedup: true simulates a legacy WorkUnit row that predates the
+  # active_dedup_key uniqueness guarantee (JOB-4235), for specs that
+  # deliberately attach more than one active work unit for the same
+  # (job, kind) to a job (e.g. exercising N+1-query preload behavior
+  # across several workflow rows, not real concurrent-launch semantics).
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil, bypass_dedup: false)
     primary = member_jobs.first
     intent = WorkIntent.create!(
       kind: kind,
@@ -37,7 +42,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       actor: primary.user,
       source_type: "spec"
     )
-    unit = WorkUnit.create!(
+    unit = WorkUnit.new(
       work_intent: intent,
       kind: kind,
       state: state,
@@ -48,6 +53,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       blocked_reason: blocked_reason,
       blocked_details: blocked_reason ? { "source" => "spec" } : {}
     )
+    bypass_dedup ? unit.save!(validate: false) : unit.save!
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
     end
@@ -1024,7 +1030,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       2.times do |index|
         workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "running", created_at: index.minutes.ago)
         Step.create!(workflow: workflow, kind: "merge_train_land", position: 1, state: "queued")
-        attach_work_unit(workflow, member_jobs: [ job ], kind: "job_bundle", state: "running")
+        attach_work_unit(workflow, member_jobs: [ job ], kind: "job_bundle", state: "running", bypass_dedup: index.positive?)
       end
 
       queries = capture_sql { workflows_payload_for(job) }

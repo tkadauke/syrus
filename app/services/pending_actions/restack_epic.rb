@@ -2,9 +2,7 @@ module PendingActions
   class RestackEpic < Base
     action_key "restack_epic"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       epic = repair_action_epic
       progress!("Computing restack plan for #{epic.slug}...")
       plan = EpicRestackPlan.new(epic)
@@ -50,7 +48,10 @@ module PendingActions
         workflow
       end
       progress!("Recording repair audit...")
-      audit!(epic, workflows, actions)
+      audit!(
+        "restacked #{epic.slug} with #{actions.size} branch(es) across #{workflows.size} rebase workflow(s)",
+        run: workflows.first&.runs&.first
+      )
       workflows.first
     end
 
@@ -86,17 +87,6 @@ module PendingActions
     def root_jobs(actions)
       root_ids = actions.select { |entry| entry["target_parent_job_id"].blank? }.map { |entry| entry.fetch("job_id") }
       Job.where(id: root_ids).order(:id).to_a
-    end
-
-    def audit!(epic, workflows, actions)
-      run = workflows.first&.runs&.first
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] restacked #{epic.slug} with #{actions.size} branch(es) across #{workflows.size} rebase workflow(s); reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end

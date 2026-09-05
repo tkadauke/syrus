@@ -314,6 +314,22 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} status --porcelain")).to be_empty
       end
 
+      it "writes the workspace lock sentinel into the git info exclude file" do
+        ws = described_class.new(workflow)
+        ws.setup
+
+        exclude_entries = ws.path.join(".git", "info", "exclude").read.lines.map(&:chomp)
+        expect(exclude_entries).to include(".workspace.lock")
+      end
+
+      it "ignores the workspace lock sentinel file" do
+        ws = described_class.new(workflow)
+        ws.setup
+        File.write(ws.path.join(".workspace.lock"), "")
+
+        expect(sh("git -C #{ws.path} status --porcelain")).to be_empty
+      end
+
       it "checks out an existing branch when one is on origin (follow-up workflow on the same Job)" do
         first_workflow_dir = Pathname.new(@data_root).join("workflows", "_setup")
         sh("git clone -q file://#{bare_remote_dir} #{first_workflow_dir}")
@@ -853,6 +869,61 @@ RSpec.describe WorkflowWorkspace, :ci_only do
 
       expect(ws.path).to exist
       expect(workflow.reload.cleaned_up_at).to be_nil
+    end
+
+    it "defers rm_rf while a live process still holds the workspace's advisory lock" do
+      # Simulates the race the fix closes: a subprocess (e.g. mid `git
+      # push`) is still alive on disk even though its Run/Step/Workflow
+      # rows already look terminal to cleanup_blocked_by_active_descendants?
+      # (a stale-heartbeat reconciler repair, or a plain race). The OS-level
+      # flock is the only signal left that can catch this.
+      ws = described_class.new(workflow)
+      ws.setup
+
+      lock_path = described_class.lock_path_for(workflow)
+      lock_file = File.open(lock_path, File::CREAT | File::RDWR)
+      lock_file.flock(File::LOCK_EX)
+
+      begin
+        expect(described_class.cleanup_for(workflow)).to eq(false)
+        expect(ws.path).to exist
+        expect(workflow.reload.cleaned_up_at).to be_nil
+      ensure
+        lock_file.flock(File::LOCK_UN)
+        lock_file.close
+      end
+
+      expect(described_class.cleanup_for(workflow)).not_to eq(false)
+      expect(ws.path).not_to exist
+      expect(workflow.reload.cleaned_up_at).to be_present
+    end
+
+    it "holds the exclusive lock through rm_rf itself, not just the pre-delete check" do
+      # Closes a check-then-act gap: if cleanup_for released the lock right
+      # after confirming no one held it, a new ProcessRunner could acquire
+      # the shared lock and start operating on the directory in the window
+      # between that check and the actual delete. Prove the lock is still
+      # held (a fresh exclusive attempt fails) at the moment rm_rf runs.
+      ws = described_class.new(workflow)
+      ws.setup
+      ws_path = ws.path
+      lock_path = described_class.lock_path_for(workflow)
+      lock_held_during_delete = nil
+
+      allow(FileUtils).to receive(:rm_rf).and_wrap_original do |original, *args|
+        if args.first == ws_path.to_s
+          probe = File.open(lock_path, File::CREAT | File::RDWR)
+          lock_held_during_delete = !probe.flock(File::LOCK_EX | File::LOCK_NB)
+          probe.close
+        end
+        original.call(*args)
+      end
+
+      expect(described_class.cleanup_for(workflow)).not_to eq(false)
+
+      expect(lock_held_during_delete).to eq(true)
+      expect(ws_path).not_to exist
+      expect(workflow.reload.cleaned_up_at).to be_present
     end
 
     it "doesn't blow up the state transition if cleanup raises" do

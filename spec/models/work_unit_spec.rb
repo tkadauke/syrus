@@ -73,6 +73,30 @@ RSpec.describe WorkUnit do
     expect(unit.definition).to be_a(WorkDefinitions::Initial)
   end
 
+  it "sets active_dedup_key for an active, lock-conflicts-enforced kind" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+    expect(unit.active_dedup_key).to eq("job:123:initial")
+  end
+
+  it "does not raise or set active_dedup_key when the kind belongs to a disabled/unregistered plugin" do
+    # JOB-4235: a WorkUnit's kind can belong to a plugin disabled after
+    # the unit was created (WorkDefinitions.for raises UnknownKind).
+    # sync_active_dedup_key runs on every save, so it must degrade to
+    # "not enforced" instead of raising — mirroring every other
+    # definition.* call site on WorkUnit (reconciler.rb, repair_executor.rb,
+    # run_job.rb, etc.) that already rescues WorkDefinitions::UnknownKind.
+    orphan_intent = WorkIntent.create!(kind: "totally_bogus_kind", state: "requested", scope_type: "job", scope_id: 456)
+
+    unit = nil
+    expect {
+      unit = described_class.create!(work_intent: orphan_intent, kind: "totally_bogus_kind", state: "queued", scope_type: "job", scope_id: 456)
+    }.not_to raise_error
+
+    expect(unit.active_dedup_key).to be_nil
+    expect { unit.mark_terminal!("cancelled") }.not_to raise_error
+  end
+
   it "can point at a child validation unit without changing the parent attempt" do
     parent = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running", scope_type: "job", scope_id: 123)
     child = described_class.create!(work_intent: intent, kind: "landing_validation", state: "queued", scope_type: "job",

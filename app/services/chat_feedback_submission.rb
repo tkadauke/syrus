@@ -38,6 +38,8 @@ class ChatFeedbackSubmission
     workflow = result.workflow
 
     Result.new(workflow: workflow, error: nil)
+  rescue WorkUnits::Launcher::LockConflict
+    Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
   end
 
   def self.attach_media!(job:, chat_session:, media:)

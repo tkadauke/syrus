@@ -11,6 +11,19 @@ global reconcile runs at a time, and duplicate global requests are discarded
 while one is already pending or executing. Scoped reconciles for a specific Job,
 Workflow, or Run use a separate key for that record scope.
 
+`WorkEngine::Reconciler.request(...)` enqueues `WorkEngine::ReconcileJob`,
+which is the only place that normally acquires that SolidQueue concurrency
+guard. Admin/operator call sites that need an inline `Result` to report back
+immediately (e.g. the "reap stale runs now" admin action, `JobStateRepair::Auto`,
+and the `cancel_stale_work` pending action's post-cancellation reconcile) must
+call `WorkEngine::Reconciler.call_locked!(...)` instead of `.call(...)` directly
+— it acquires the exact same SolidQueue semaphore key as `ReconcileJob` for the
+given scope before running inline, and returns `nil` without evaluating
+anything if a concurrent reconcile already holds that lock. A bare `.call(...)`
+skips this guard entirely and should only be used by code that is already
+running inside `ReconcileJob` or a test that doesn't need the concurrency
+guarantee.
+
 ## Result shape
 
 `WorkEngine::Reconciler.call(source:, job_id: nil, workflow_id: nil, run_id: nil,
@@ -258,6 +271,17 @@ The executor:
 - records direct state transitions with `StateTransition.with_source("reconciler")`
 - schedules retry, resume, failed-step, and workflow recovery through
   `AutoRetryAttempt` and `AutoRetryJob` instead of bypassing the retry ledger
+
+The outer `ReconcileJob`/`call_locked!` concurrency guard (above) is the
+primary defense against two reconcile passes double-applying the same repair.
+A handful of the highest-traffic `WorkEngine::RepairExecutor::Policies`
+classes additionally take a row lock and re-check their preconditions
+immediately before mutating, mirroring the pattern `schedule_auto_retry!` has
+always used for `AutoRetryAttempt` creation: `ReenqueueRun`, `StartWorkflow`,
+and `CancelWorkflowForClosedJob` each wrap their final state check and mutation
+in `record.with_lock { record.reload; ... }`. Most other Policies classes still
+do a bare check-then-act without a row lock, relying on the outer guard plus
+their own idempotent preconditions.
 
 Current automatic repairs include re-enqueueing queued Runs with no queue claim,
 starting queued Workflows whose first Step has no Run when readiness gates pass,

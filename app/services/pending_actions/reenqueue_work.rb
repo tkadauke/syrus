@@ -2,14 +2,13 @@ module PendingActions
   class ReenqueueWork < Base
     action_key "reenqueue_work"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       progress!("Finding queued work for #{job.slug}...")
       record = reenqueue!(job)
       progress!("Recording repair audit...")
-      audit!(job, record)
+      run = record.is_a?(Run) ? record : job.runs.reorder(created_at: :desc, id: :desc).first
+      audit!("re-enqueued work via #{record_label(record)}", run: run)
       record
     end
 
@@ -28,8 +27,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}, run_id: #{payload["run_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -41,7 +39,7 @@ module PendingActions
       raise ArgumentError, "workflow_id or run_id is required when the Job has no queued Run." unless workflow
       raise ArgumentError, "#{workflow.slug} is #{workflow.state}, not queued or running." unless workflow.queued? || workflow.running?
 
-      queued_run = workflow.runs.where(state: "queued").order(created_at: :desc, id: :desc).first
+      queued_run = workflow.runs.where(state: "queued").reorder(created_at: :desc, id: :desc).first
       return reenqueue_run!(queued_run) if queued_run
 
       raise ArgumentError, "#{workflow.slug} is running but has no queued Run to re-enqueue." if workflow.running?
@@ -69,7 +67,7 @@ module PendingActions
       if payload["run_id"].present?
         job.runs.find(payload["run_id"])
       else
-        job.runs.where(state: "queued").order(created_at: :desc, id: :desc).first
+        job.runs.where(state: "queued").reorder(created_at: :desc, id: :desc).first
       end
     end
 
@@ -82,17 +80,6 @@ module PendingActions
       else
         active_workflows.max_by { |workflow| [ workflow.created_at || Time.at(0), workflow.id ] }
       end
-    end
-
-    def audit!(job, record)
-      run = record.is_a?(Run) ? record : job.runs.order(created_at: :desc, id: :desc).first
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] re-enqueued work via #{record_label(record)}; reason=#{reason}",
-        kind: "system"
-      )
     end
 
     def record_label(record)

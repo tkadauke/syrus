@@ -2,9 +2,7 @@ module PendingActions
   class OverrideLandingBlockerOnce < Base
     action_key "override_landing_blocker_once"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       blocker_key = payload.fetch("blocker_key").to_s
       progress!("Refreshing landing blocker for #{job.slug}...")
@@ -29,7 +27,7 @@ module PendingActions
       progress!("Queueing landing processor wakeup...")
       LandingQueueProcessorJob.perform_later
       progress!("Recording repair audit...")
-      audit!(job, blocker_key)
+      audit!("granted one-shot landing blocker override for #{blocker_key}", run: job.current_run)
       nil
     end
 
@@ -47,25 +45,13 @@ module PendingActions
       "job_id: #{payload["job_id"]}, blocker_key: #{payload["blocker_key"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
     def current_blocker_key(job)
       LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
       job.reload.landing_queue_blocked_reason.to_h["key"].to_s
-    end
-
-    def audit!(job, blocker_key)
-      run = job.current_run
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] granted one-shot landing blocker override for #{blocker_key}; reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end

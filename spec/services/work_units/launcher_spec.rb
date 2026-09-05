@@ -63,31 +63,91 @@ RSpec.describe WorkUnits::Launcher do
     expect(WorkUnits::StartBlock.for(workflow.reload)).to be_blocked_for(StepDispatcher::BACKLOG_BLOCK_REASON)
   end
 
-  it "creates repeated non-idempotent launch attempts without granting duplicate active locks" do
+  it "rejects a repeated non-idempotent launch of the same kind while the first is still active" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
 
-    second = described_class.instantiate(kind: "manual_visual_review", job: job)
+    expect {
+      described_class.instantiate(kind: "manual_visual_review", job: job)
+    }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}:manual_visual_review/)
 
-    expect(second).not_to eq(first)
-    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(2)
+    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(1)
     expect(first.work_unit).to be_active
-    expect(second.work_unit.work_unit_locks.active).to be_empty
   end
 
-  it "blocks repeated non-idempotent launches when another WorkUnit owns job work" do
-    first = described_class.instantiate(kind: "manual_visual_review", job: job)
+  # JOB-4235: WorkUnits::Launcher#create_lock! used to only raise
+  # LockConflict for landing kinds; every other kind silently swallowed a
+  # conflict and let a second WorkUnit + Workflow + Step chain materialize
+  # anyway, which would go on to actually run once the first unit's lock
+  # released. These specs pin the fix for the kinds called out in the bug
+  # report: two concurrent triggers for the same Job/kind must produce
+  # exactly one Workflow, whether the conflict is same-kind (the DB-level
+  # active_dedup_key backstop) or cross-kind sharing the same "job:<id>"
+  # lock (the app-level create_lock! check).
+  describe "duplicate follow-up workflow prevention" do
+    it "produces exactly one chat_feedback Workflow for two concurrent triggers" do
+      described_class.instantiate(kind: "chat_feedback", job: job)
 
-    second = described_class.instantiate(kind: "manual_visual_review", job: job)
-    result = described_class.start!(second)
+      expect {
+        expect { described_class.instantiate(kind: "chat_feedback", job: job) }
+          .to raise_error(WorkUnits::Launcher::LockConflict)
+      }.not_to change { job.workflows.where(trigger_kind: "chat_feedback").count }
 
-    expect(result).to be_blocked
-    expect(result.reason).to eq("active_work_lock")
-    expect(result.work_unit.blocked_details).to include(
-      "lock_key" => "job:#{job.id}",
-      "work_unit_id" => first.work_unit.id
-    )
-    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(2)
-    expect(first.work_unit).to be_active
+      expect(job.workflows.where(trigger_kind: "chat_feedback").count).to eq(1)
+    end
+
+    it "produces exactly one pr_comment Workflow for two concurrent triggers" do
+      described_class.instantiate(kind: "pr_comment", job: job)
+
+      expect {
+        expect { described_class.instantiate(kind: "pr_comment", job: job) }
+          .to raise_error(WorkUnits::Launcher::LockConflict)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(1)
+    end
+
+    it "produces exactly one ci_failure Workflow for two concurrent triggers" do
+      described_class.instantiate(kind: "ci_failure", job: job)
+
+      expect {
+        expect { described_class.instantiate(kind: "ci_failure", job: job) }
+          .to raise_error(WorkUnits::Launcher::LockConflict)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(job.workflows.where(trigger_kind: "ci_failure").count).to eq(1)
+    end
+
+    it "produces exactly one rebase Workflow for two concurrent triggers" do
+      described_class.instantiate(kind: "rebase", job: job, base_branch: "main")
+
+      expect {
+        expect { described_class.instantiate(kind: "rebase", job: job, base_branch: "main") }
+          .to raise_error(WorkUnits::Launcher::LockConflict)
+      }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+
+      expect(job.workflows.where(trigger_kind: "rebase").count).to eq(1)
+    end
+
+    it "produces exactly one retry Workflow for two concurrent triggers" do
+      described_class.instantiate(kind: "retry", job: job)
+
+      expect {
+        expect { described_class.instantiate(kind: "retry", job: job) }
+          .to raise_error(WorkUnits::Launcher::LockConflict)
+      }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+
+      expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
+    end
+
+    it "rejects a cross-kind conflict sharing the same job lock (pr_comment vs. chat_feedback)" do
+      described_class.instantiate(kind: "chat_feedback", job: job)
+
+      expect {
+        described_class.instantiate(kind: "pr_comment", job: job)
+      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}/)
+
+      expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(0)
+    end
   end
 
   it "blocks feedback workflows for sibling jobs in the same epic" do

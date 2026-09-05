@@ -2,9 +2,7 @@ module PendingActions
   class AdoptCurrentPrHead < Base
     action_key "adopt_current_pr_head"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       workflow = divergence_workflow(job)
       progress!("Adopting current PR head for #{workflow.slug}...")
@@ -12,7 +10,7 @@ module PendingActions
       raise ArgumentError, result.error unless result.success?
 
       progress!("Recording repair audit...")
-      audit!(job, workflow)
+      audit!("adopted current PR head for #{workflow.slug}", run: job.current_run || workflow.runs.order(:created_at).last)
       workflow
     end
 
@@ -30,8 +28,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -40,17 +37,6 @@ module PendingActions
       raise ArgumentError, "Workflow has no recorded branch divergence." unless workflow.artifact("branch_divergence").present?
 
       workflow
-    end
-
-    def audit!(job, workflow)
-      run = job.current_run || workflow.runs.order(:created_at).last
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] adopted current PR head for #{workflow.slug}; reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end

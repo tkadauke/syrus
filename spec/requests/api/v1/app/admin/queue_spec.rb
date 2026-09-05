@@ -416,7 +416,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       [],
       [ instance_double(WorkEngine::RepairExecutor::Execution) ]
     )
-    expect(WorkEngine::Reconciler).to receive(:call)
+    expect(WorkEngine::Reconciler).to receive(:call_locked!)
       .with(source: "Api::V1::App::Admin::QueueController", execute_repairs: true)
       .and_return(result)
 

@@ -194,6 +194,8 @@ class PollExternalPrJob < ApplicationJob
     workflow = result.workflow
 
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollExternalPrJob] #{@job.slug}: external_pr_feedback already locked by WorkUnit ##{e.work_unit.id}")
   end
 
   def pending_external_pr_feedback?

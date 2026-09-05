@@ -2,9 +2,7 @@ module PendingActions
   class ForceStateTransition < Base
     action_key "force_state_transition"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       progress!("Forcing #{payload.fetch("event")} on #{job.slug}...")
       JobStateRepair.force_transition!(job: job, event: payload.fetch("event"), reason: reason).job
@@ -25,8 +23,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, event: #{payload["event"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 

@@ -18,6 +18,16 @@ RSpec.describe JobStateRepair do
     attach_work_unit(Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "running"))
   end
 
+  # Simulates a Workflow that finished before its WorkUnit was told about it:
+  # the Workflow row is already terminal, but the WorkUnit is still "running"
+  # because nothing has called WorkUnits::TerminalWorkflowSync for this Job yet.
+  def stale_active_work_unit_for(job)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "running")
+    unit = attach_work_unit(workflow, state: "running")
+    workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    unit
+  end
+
   def active_work_unit_for(job, kind: "initial")
     intent = WorkIntent.create!(
       kind: kind,
@@ -50,14 +60,16 @@ RSpec.describe JobStateRepair do
     end
 
     context "auto mode" do
-      it "delegates to WorkEngine::Reconciler and returns a Result" do
+      it "delegates to WorkEngine::Reconciler through the concurrency-guarded entry point and returns a Result" do
         job = build_job("failed")
-        allow(WorkEngine::Reconciler).to receive(:call).and_return(
-          WorkEngine::Reconciler::Result.new(
-            source: "test", captured_at: Time.current, snapshot: nil,
-            issues: [], repair_plans: [], repair_executions: []
+        expect(WorkEngine::Reconciler).to receive(:call_locked!)
+          .with(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+          .and_return(
+            WorkEngine::Reconciler::Result.new(
+              source: "test", captured_at: Time.current, snapshot: nil,
+              issues: [], repair_plans: [], repair_executions: []
+            )
           )
-        )
 
         result = described_class.reconcile!(mode: :auto, job: job, reason: "operator triggered")
 
@@ -65,6 +77,17 @@ RSpec.describe JobStateRepair do
         expect(result.job).to eq(job)
         expect(result.message).to include("WorkEngine reconciler")
         expect(result.message).to include("0 repair")
+      end
+
+      it "reports a skip instead of running when a concurrent reconciliation already holds the job's lock" do
+        job = build_job("failed")
+        allow(WorkEngine::Reconciler).to receive(:call_locked!).and_return(nil)
+
+        result = described_class.reconcile!(mode: :auto, job: job, reason: "operator triggered")
+
+        expect(result).to be_a(described_class::Result)
+        expect(result.job).to eq(job)
+        expect(result.message).to match(/concurrent reconciliation/i)
       end
     end
 
@@ -154,6 +177,18 @@ RSpec.describe JobStateRepair do
         expect { described_class.reconcile!(mode: :mark_implemented_from_ready_pr, job: job, reason: "fix") }
           .to change { StateTransition.where(subject: job, source: "reconciler").count }.by_at_least(1)
       end
+
+      it "syncs a stale active WorkUnit before checking for active work" do
+        job = build_job("running", pr_number: 1)
+        unit = stale_active_work_unit_for(job)
+
+        expect(WorkUnits::TerminalWorkflowSync).to receive(:for_job).with(job).twice.and_call_original
+
+        result = described_class.reconcile!(mode: :mark_implemented_from_ready_pr, job: job, reason: "reconcile")
+
+        expect(result.job.reload.state).to eq("implemented")
+        expect(unit.reload.state).to eq("succeeded")
+      end
     end
 
     context "mark_failed mode" do
@@ -208,6 +243,18 @@ RSpec.describe JobStateRepair do
         expect { described_class.reconcile!(mode: :mark_failed, job: job, reason: "fix") }
           .to change { StateTransition.where(subject: job, source: "reconciler").count }.by_at_least(1)
       end
+
+      it "syncs a stale active WorkUnit before checking for active work" do
+        job = build_job("running")
+        unit = stale_active_work_unit_for(job)
+
+        expect(WorkUnits::TerminalWorkflowSync).to receive(:for_job).with(job).twice.and_call_original
+
+        result = described_class.reconcile!(mode: :mark_failed, job: job, reason: "stuck run")
+
+        expect(result.job.reload.state).to eq("failed")
+        expect(unit.reload.state).to eq("succeeded")
+      end
     end
 
     context "mark_queued mode" do
@@ -243,6 +290,18 @@ RSpec.describe JobStateRepair do
 
         expect { described_class.reconcile!(mode: :mark_queued, job: job, reason: "retry") }
           .to change { StateTransition.where(subject: job, source: "reconciler").count }.by_at_least(1)
+      end
+
+      it "syncs a stale active WorkUnit before checking for active work" do
+        job = build_job("failed")
+        unit = stale_active_work_unit_for(job)
+
+        expect(WorkUnits::TerminalWorkflowSync).to receive(:for_job).with(job).twice.and_call_original
+
+        result = described_class.reconcile!(mode: :mark_queued, job: job, reason: "operator retry")
+
+        expect(result.job.reload.state).to eq("queued")
+        expect(unit.reload.state).to eq("succeeded")
       end
     end
   end
