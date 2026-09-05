@@ -25,6 +25,11 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
   end
 
   before do
+    # Plugins contribute their own docs (and a teaser when disabled), so these
+    # examples pin the plugin set rather than depending on which plugins happen
+    # to be bundled. Resetting the whole registry is too blunt -- User
+    # validation reads agent providers from it.
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([])
     @docs_dir = Pathname.new(Dir.mktmpdir)
     allow(described_class).to receive(:docs_dir).and_return(@docs_dir)
   end
@@ -144,5 +149,74 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
   it "returns an error for a blank query" do
     response = call_tool(query: "")
     expect(response[:result][:isError]).to be_truthy
+  end
+
+  # A plugin's docs live in the plugin, so deleting the plugin directory takes
+  # them with it; core only sees them while the plugin is enabled.
+  describe "plugin documentation" do
+    def manifest(name:, enabled:, long_description: "Opens a real PTY on the worker and streams it to the browser.")
+      instance_double(
+        Syrus::Plugin::Manifest,
+        name: name, display_name: name.capitalize, enabled?: enabled,
+        long_description: long_description, description: "short blurb",
+        # The stub is global, so unrelated machinery (domain event delivery
+        # during User.create!) walks these manifests too.
+        provides: {}
+      )
+    end
+
+    def with_plugins(*manifests)
+      allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(manifests)
+    end
+
+    it "searches an enabled plugin's own docs" do
+      dir = Pathname.new(Dir.mktmpdir)
+      (dir / "terminal.md").write("# Terminal\n\n## Sessions\nA session survives browser navigation.\n")
+      allow(described_class).to receive(:plugin_docs_dir).with("terminal").and_return(dir)
+      with_plugins(manifest(name: "terminal", enabled: true))
+
+      expect(response_text(call_tool(query: "session survives navigation"))).to include("survives browser navigation")
+    ensure
+      FileUtils.rm_rf(dir)
+    end
+
+    it "does not search a disabled plugin's docs" do
+      dir = Pathname.new(Dir.mktmpdir)
+      (dir / "terminal.md").write("# Terminal\n\n## Sessions\nA session survives browser navigation.\n")
+      allow(described_class).to receive(:plugin_docs_dir).with("terminal").and_return(dir)
+      with_plugins(manifest(name: "terminal", enabled: false))
+
+      expect(response_text(call_tool(query: "session survives navigation"))).not_to include("survives browser navigation")
+    ensure
+      FileUtils.rm_rf(dir)
+    end
+
+    # Otherwise an agent asking about a capability is told it does not exist,
+    # when it is one toggle away.
+    it "offers a teaser for a disabled plugin, leading with the fact that it is off" do
+      with_plugins(manifest(name: "terminal", enabled: false))
+
+      text = response_text(call_tool(query: "terminal"))
+
+      expect(text).to include("Terminal (plugin disabled)")
+      expect(text).to include("currently DISABLED")
+      expect(text).to include("Admin -> Plugins")
+      expect(text).to include("plugin name: terminal")
+    end
+
+    it "gives an enabled plugin no teaser" do
+      allow(described_class).to receive(:plugin_docs_dir).and_return(Pathname.new(Dir.mktmpdir))
+      with_plugins(manifest(name: "terminal", enabled: true))
+
+      expect(response_text(call_tool(query: "terminal"))).not_to include("plugin disabled")
+    end
+
+    it "skips a disabled plugin with nothing to say rather than offering an empty teaser" do
+      with_plugins(manifest(name: "terminal", enabled: false, long_description: nil))
+
+      text = response_text(call_tool(query: "terminal"))
+
+      expect(text).to include("No matching documentation").or include("short blurb")
+    end
   end
 end

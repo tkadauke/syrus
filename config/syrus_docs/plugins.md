@@ -78,6 +78,31 @@ runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
 
+## Where a plugin's documentation lives
+
+A plugin's own full documentation lives in the plugin, at
+`plugins/<name>/docs/syrus_docs/*.md`, so deleting the plugin directory removes
+its docs with it. Core docs may still *mention* a bundled plugin -- this file
+describes the whole model, and cross-references are fine -- but a doc whose
+entire subject is one plugin does not belong in `config/syrus_docs/`.
+`spec/architecture/plugin_docs_live_in_plugins_spec.rb` enforces both halves.
+
+`search_syrus_docs` assembles its corpus from three places:
+
+* core's `config/syrus_docs/*.md`, always;
+* the docs of every **enabled** plugin;
+* for a plugin that is installed but **disabled**, a single teaser section so an
+  agent searching for a capability learns it exists and is one toggle away,
+  instead of being told there is no such thing.
+
+The teaser is generated from the manifest's `long_description` (falling back to
+`description`) -- the same copy the admin Plugins page renders -- rather than a
+separate file, so there is nothing to drift. It leads with the fact that the
+plugin is disabled and how to enable it, because a long description would
+otherwise push that past the section truncation. Naming the plugin in the query
+boosts its teaser, since one teaser otherwise competes with dozens of core
+files. A plugin that cannot be disabled never produces one.
+
 ## Plugin categories (`category`)
 
 A manifest's `category:` kwarg must resolve to a key from
@@ -2393,7 +2418,7 @@ Bundled plugins:
   private-doc collaborators, and DB-authoritative anchors, threads, comments,
   and one-range suggestions. User-facing references use `DOC-<id>`.
 - `mysql_db_browser` — disabled by default (see
-  `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
+  `plugins/mysql_db_browser/docs/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
   `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:
   label "DB Browser", `path`/`paths` `/db_browser`,
   `component: "mysql_db_browser/MysqlConnections"`, `icon: "database"` (maps
@@ -2411,14 +2436,14 @@ Bundled plugins:
   (`SchemaBrowser`/`DatabaseNode`/`TableDetail` in the same file) backed by
   `MysqlDbBrowser::SchemaInspector` and the
   `GET /api/v1/app/admin/mysql_connections/:id/schema[/…]` routes — see
-  `config/syrus_docs/mysql_db_browser.md` for the introspection design. The
+  `plugins/mysql_db_browser/docs/syrus_docs/mysql_db_browser.md` for the introspection design. The
   connections list itself switches from a table to a one-column stack of
   cards below the 1024px breakpoint (`useMediaQuery`, same convention as
   `dashboard/components.tsx`'s job list) so every field stays readable
   instead of forcing horizontal scroll on a phone; row actions render as
   "Connect"/"Test"/"Edit"/"Delete" in both layouts.
 - `worker_timeline` — disabled by default (see
-  `config/syrus_docs/worker_timeline.md`); the third `sidebar_page` plugin.
+  `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md`); the third `sidebar_page` plugin.
   `WorkerTimeline::SidebarPages` provides `worker_timeline.macro`: label
   "Worker Timeline", `path` `/worker_timeline`, `paths`
   `[ "/worker_timeline", "/worker_timeline/workflow" ]`,
@@ -2441,4 +2466,4 @@ Bundled plugins:
   `GET /api/v1/app/admin/worker_timeline/workflow` — a session-authenticated
   wrapper around `Timeline::WorkflowWaterfallQuery` — and reusing the macro
   view's bar/pan-zoom/tooltip rendering primitives — see
-  `config/syrus_docs/worker_timeline.md`.
+  `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md`.

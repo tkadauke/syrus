@@ -15,6 +15,7 @@ module Mcp::Tools
 
     MAX_RESULTS = 3
     MAX_SECTION_CHARS = 600
+    NAMED_PLUGIN_BOOST = 3
 
     class << self
       def call(query:, server_context:)
@@ -27,6 +28,11 @@ module Mcp::Tools
         scored = sections.filter_map do |section|
           haystack = "#{section[:doc_title]} #{section[:heading]} #{section[:body]}".downcase
           score = words.count { |word| haystack.include?(word) }
+          # A disabled plugin contributes one teaser against a corpus of dozens
+          # of core files, so naming the plugin outright has to be enough to
+          # surface it -- otherwise the agent is told the capability does not
+          # exist when it is one toggle away.
+          score += NAMED_PLUGIN_BOOST if section[:plugin_name].present? && words.include?(section[:plugin_name])
           section.merge(score: score) if score > 0
         end
 
@@ -44,13 +50,65 @@ module Mcp::Tools
         Rails.root.join("config/syrus_docs")
       end
 
+      # Where a plugin keeps its own full documentation, so deleting the plugin
+      # directory removes its docs with it.
+      def plugin_docs_dir(name)
+        Rails.root.join("plugins", name.to_s, "docs/syrus_docs")
+      end
+
       private
 
+      # Core's docs, plus the full docs of every enabled plugin, plus a single
+      # teaser for each plugin that is installed but switched off -- so an agent
+      # searching for a capability learns it exists and is one toggle away,
+      # instead of finding nothing.
       def load_sections
-        dir = docs_dir
+        core_sections + plugin_sections
+      end
+
+      def core_sections
+        return [] unless Dir.exist?(docs_dir)
+
+        Dir.glob(docs_dir.join("*.md")).flat_map { |path| parse_sections(path) }
+      end
+
+      def plugin_sections
+        Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+          manifest.enabled? ? enabled_plugin_sections(manifest) : disabled_plugin_teaser(manifest)
+        rescue StandardError => e
+          Rails.logger.warn("[search_syrus_docs] skipped #{manifest.name}: #{e.class}: #{e.message}")
+          []
+        end
+      end
+
+      def enabled_plugin_sections(manifest)
+        dir = plugin_docs_dir(manifest.name)
         return [] unless Dir.exist?(dir)
 
-        Dir.glob(dir.join("*.md")).flat_map { |path| parse_sections(path) }
+        Dir.glob(dir.join("**/*.md")).flat_map { |path| parse_sections(path) }
+      end
+
+      # Deliberately not a separate teaser file: every manifest already carries
+      # a description written as "what this would give you", it is what the
+      # admin Plugins page renders, and a second copy would drift from it.
+      #
+      # A plugin that cannot be disabled never reaches this branch.
+      def disabled_plugin_teaser(manifest)
+        blurb = manifest.long_description.presence || manifest.description.presence
+        return [] if blurb.blank?
+
+        title = "#{manifest.display_name.presence || manifest.name} (plugin disabled)"
+        [ {
+          doc_title: title,
+          plugin_name: manifest.name.to_s.downcase,
+          heading: "What enabling this would add",
+          # The notice leads: a long description would otherwise push it past
+          # MAX_SECTION_CHARS and the agent would read the blurb as a
+          # description of something it can use right now.
+          body: "This plugin is installed but currently DISABLED, so none of what follows is " \
+                "available until an operator enables it from Admin -> Plugins " \
+                "(plugin name: #{manifest.name}).\n\n#{blurb}"
+        } ]
       end
 
       def parse_sections(path)

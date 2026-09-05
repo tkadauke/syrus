@@ -277,7 +277,7 @@ grade:
     # parsing) is used deliberately: the native parser only enumerates
     # *failing* examples, so a test can never show up with both a passed and
     # a failed row — which is exactly what TestCase.top_flaky_tests requires
-    # to flag a test as flaky. See config/syrus_docs/test_insights.md.
+    # to flag a test as flaky. See plugins/test_insights/docs/syrus_docs/test_insights.md.
     # bin/rspec-fast merges its per-worker JUnit XML into this single path so
     # ingestion works under parallelism.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast

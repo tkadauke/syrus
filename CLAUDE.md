@@ -763,6 +763,15 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
+- **A plugin's docs live in the plugin.** Full documentation for a bundled
+  plugin belongs at `plugins/<name>/docs/syrus_docs/*.md`, not in
+  `config/syrus_docs/`, so deleting the plugin directory removes its docs too.
+  Core docs may still mention a plugin; a doc whose whole subject is one plugin
+  may not live in core. `search_syrus_docs` reads core's docs plus every
+  *enabled* plugin's, and for an installed-but-disabled plugin emits one teaser
+  generated from the manifest's `long_description` (no separate teaser file to
+  drift), leading with the fact that it is disabled. Guarded by
+  `spec/architecture/plugin_docs_live_in_plugins_spec.rb`.
 - **Feature documentation is mandatory.** When adding or changing any
   operator-facing feature — configuration keys, feature flags, `AppSetting`
   columns, new step kinds, new trigger kinds, or changes to existing behavior
