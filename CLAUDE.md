@@ -124,11 +124,11 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review, last iteration implement-only)] → [loop(implement → visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
-pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
-chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+initial:     prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+pr_comment:  prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)] → [loop(visual_review first, then respond ⇄ visual_review)] → retry_until(format → generate → graders; repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+chat_feedback: prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)] → [loop(visual_review first, then respond ⇄ visual_review)] → retry_until(format → generate → graders; repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+retry:       prepare → implement → [loop(adversarial_review first, then implement ⇄ adversarial_review)] → [loop(visual_review first, then implement ⇄ visual_review)] → retry_until(format → generate → graders; repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
@@ -140,7 +140,7 @@ local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 external_pr_merge: mergeability_preflight → prepare → graders[/landing_fix] → external_pr_merge
-external_pr_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → summarize_amend → try(push)
+external_pr_feedback: prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)] → retry_until(graders; repair: respond) → summarize_amend → try(push)
 skill:       prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open
 promotion:   promotion_assemble → prepare → promotion_repair → retry_until(graders, repair: promotion_repair) → promotion_publish
 hotfix_sync: hotfix_sync_assemble → prepare → hotfix_sync_repair → retry_until(graders, repair: hotfix_sync_repair) → hotfix_sync_publish
@@ -151,9 +151,11 @@ agent_insight: [prepare] → agent_insight_run → auto_close
 deploy:      prepare → deploy
 ```
 
-`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns. In `initial`/`retry`/`pr_comment`/`chat_feedback`, the grader retry loop is likewise conditional at the step level: `format`, `generate`, and the `grader_fanout`/`grader_collect` check phase are only materialized when the repository's `.syrus.yml` configures `formatters:`, `generated:`, or `grade:` respectively (`RepoGradeLoopPlan`, resolved pre-clone the same way as the adversarial/visual review plans) — none of the three is configured by default, so a freshly onboarded repo gets a bare `implement`/`respond` step (or, in `initial`, nothing extra — the top-level `implement` already covers it) with no grade loop at all. As soon as any one of them is configured, the whole loop materializes together (the agent step, whichever of `format`/`generate` apply, and `grader_fanout`/`grader_collect`) — there is no way to retry without a check phase. This conditional gating is scoped to those four autofix-enabled chains; `ci_failure`, `skill`, `main_branch_repair`, and `external_pr_feedback` always materialize their grader check unconditionally since grading is the entire point of those repair loops.
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns. In `initial`/`retry`/`pr_comment`/`chat_feedback`, the grader retry loop is likewise conditional at the step level: `format`, `generate`, and the `grader_fanout`/`grader_collect` check phase are only materialized when the repository's `.syrus.yml` configures `formatters:`, `generated:`, or `grade:` respectively (`RepoGradeLoopPlan`, resolved pre-clone the same way as the adversarial/visual review plans) — none of the three is configured by default, so a freshly onboarded repo gets a bare `implement`/`respond` step with no grade loop at all. As soon as any one of them is configured, the whole loop materializes together (the agent step, whichever of `format`/`generate` apply, and `grader_fanout`/`grader_collect`) — there is no way to retry without a check phase. This conditional gating is scoped to those four autofix-enabled chains; `ci_failure`, `skill`, `main_branch_repair`, and `external_pr_feedback` always materialize their grader check unconditionally since grading is the entire point of those repair loops.
 
-`initial`'s `implement` is always a top-level step — it runs exactly once up front, regardless of whether adversarial review or a grade loop are configured, because implementation happens either way. The loops that follow only decide whether that work gets revised. Its adversarial review loop (when enabled) is `review_first`: iteration 1 is `adversarial_review` alone (reviewing the top-level `implement`), iterations 2..(rounds − 1) pair a repair `implement` with another review, and the final iteration (budget exhausted) is a repair `implement` with no trailing review — there's no iteration left to act on further feedback. Its grader retry loop is `repair_first: false`: the top-level `implement` (or the adversarial loop's last repair) already produced the work, so the first grading pass runs `format`/`generate`/graders directly against it; `implement` only reappears as a repair step once a grader iteration fails. `retry`/`pr_comment`/`chat_feedback` keep the older, uniform shape for both loops (`implement`/`respond` paired with the reviewer or repair step on every iteration including the first) since those workflows have no equivalent top-level agent step to review or grade first. `Workflows::Loop#review_first` and `Workflows::RetryUntil#repair_first` are the two flags behind this; see `Workflows::Base.adversarial_review_loop`/`.grader_retry_loop` and `StepDispatcher#enqueue_next_loop_iteration!`.
+Every review loop (`adversarial_review`, `visual_review`), in every chain that has one, is review-first: iteration 1 is the reviewer alone, reviewing whatever agent step already ran before the loop — a bare top-level `implement`/`respond` step (`initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` all lead with one, immediately after `prepare`), or, for the second loop in a chain, the first loop's own last repair. A `needs_work` verdict always gets a repair reaction — the corresponding `implement`/`respond` step is inserted unconditionally, regardless of remaining review budget — paired with another review whenever budget remains (iteration N's repair pairs with review N+1 as long as N < rounds); once the review that just ran was the last one `rounds` allows, its `needs_work` repair runs alone, with no further review to act on. `rounds: N` means exactly N review opinions get sought, and every one of them — including the last — gets exactly one repair reaction; the loop never ends on an unreacted-to `needs_work`, and it never fails the workflow (that's what distinguishes it from the grader retry loop below, which genuinely can exhaust its budget and fail). See `Workflows::Loop` and `StepDispatcher#enqueue_next_loop_iteration!`/`#final_review_iteration?`.
+
+The grader retry loop's `repair_first:` (default `true`) mirrors this shape: `initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` all pass `repair_first: false`, since each already has a bare `implement`/`respond` step (or a review loop's last repair) that ran before the grader loop — so the first grading pass runs `format`/`generate`/graders (or, for `external_pr_feedback`, which has no `.syrus.yml`-driven format/generate config to apply, just graders) directly against that work, and `implement`/`respond` only reappears as a repair step once a grader iteration fails. `ci_failure`, `skill`, and `main_branch_repair` have no such prior agent step and keep the default `repair_first: true`. See `Workflows::Base.adversarial_review_loop`/`.visual_review_loop`/`.grader_retry_loop`.
 
 Key steps:
 
@@ -292,8 +294,10 @@ Key steps:
 - **`adversarial_review`** — Independent critic agent that reads the issue
   and the diff from the preceding `implement` (or `respond`) step, then calls
   `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
-  loop (findings carry forward but no re-implement needed); `needs_work` keeps
-  the loop going for another `implement`/`respond` iteration. The reviewer's
+  loop (findings carry forward but no re-implement needed); `needs_work`
+  always triggers a repair `implement`/`respond` iteration — paired with
+  another review while budget remains, repair-only once the review that just
+  ran was the last one `rounds` allows. The reviewer's
   workspace changes are discarded — it is read-only. Runs in feedback
   workflows (`pr_comment`, `chat_feedback`), `initial`, and `retry`; skipped
   in `ci_failure`, `auto_merge`, and maintenance
@@ -303,9 +307,10 @@ Key steps:
 - **`visual_review`** — Independent QA agent that drives a headless browser
   (via the browser MCP tool set) against its own `start_preview` instance to
   catch visible defects, then calls `submit_visual_review(verdict, critique)`.
-  Verdicts: `approved` (looks correct), `needs_work` (keeps the loop going for
-  another `implement`/`respond` iteration), `skipped` (not visually testable —
-  exits the loop the same as `approved`). Before spending an agent turn, a
+  Verdicts: `approved` (looks correct), `needs_work` (always triggers a repair
+  `implement`/`respond` iteration, paired with another review while budget
+  remains), `skipped` (not visually testable — exits the loop the same as
+  `approved`). Before spending an agent turn, a
   deterministic `visual_review.when_files_changed` pre-filter can skip the
   step outright (mirrors `grader_fanout`'s glob matching). When it does run,
   the agent reads the `submit_test_plan` artifact's `visual_review_recommended`

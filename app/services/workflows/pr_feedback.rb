@@ -2,7 +2,11 @@ module Workflows
   # Reviewer left a comment on the PR. Address it on the existing
   # branch, push.
   #
-  #   prepare → retry_until(respond, grade) → summarize_amend → try(push)
+  #   prepare → respond
+  #     → [loop(adversarial_review first, then respond ⇄ adversarial_review)]
+  #     → [loop(visual_review first, then respond ⇄ visual_review)]
+  #     → retry_until(format, generate, graders; repair: respond)
+  #     → summarize_amend → try(push)
   #     on remote-branch rebase conflict:
   #       push_agent_rebase → retry_until(grade, repair: landing_fix) → push_after_rebase
   #
@@ -20,9 +24,10 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
+        :respond,
         adversarial_review_loop(job, agent_step: :respond),
         visual_review_loop(job, agent_step: :respond),
-        grader_retry_loop(job, :respond, autofix: true),
+        grader_retry_loop(job, :respond, autofix: true, repair_first: false),
         feedback_finish_steps
       )
     end
