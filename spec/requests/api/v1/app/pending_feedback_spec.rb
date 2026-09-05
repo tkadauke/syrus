@@ -329,6 +329,41 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(response).to have_http_status(:conflict)
       expect(ChatFeedbackSubmission).not_to have_received(:call)
     end
+
+    it "surfaces a graceful error instead of raising when retrying a work_kind path races an unrelated active WorkUnit" do
+      # JOB-4235: `active_feedback_workflow_for?` only flags a conflict
+      # when the active workflow references *this* comment. An unrelated
+      # active feedback workflow for the same job still shares the
+      # "job:<id>" lock, so WorkUnits::Launcher.instantiate must be
+      # rescued here rather than raising a 500.
+      other_comment = make_pr_comment(handling_state: "active")
+      attach_work_unit(Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "running",
+        artifacts: { "pr_review_comment_ids" => [ other_comment.id ] }
+      ))
+
+      original = Workflow.create!(
+        job: job,
+        trigger_kind: "external_pr_feedback",
+        state: "failed",
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "Please add tests" } ] }
+      )
+      comment = make_pr_comment(
+        handling_workflow: original,
+        handling_state: "failed",
+        handling_failed_at: Time.current,
+        handling_failure_reason: "rate_limit"
+      )
+      original.update!(artifacts: original.artifacts.merge("pr_review_comment_ids" => [ comment.id ]))
+
+      post "/api/v1/app/jobs/#{job.id}/pending_feedback/#{comment.id}/retry"
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body["error"]["message"]).to include("already queued or running")
+      expect(comment.reload.handling_state).to eq("failed")
+    end
   end
 
   def sign_out

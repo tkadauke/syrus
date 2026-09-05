@@ -219,6 +219,18 @@ class WorkUnit < ApplicationRecord
     # otherwise-unrelated units onto the same "<scope_type>::<kind>" key,
     # so skip the dedup guarantee rather than false-collide them. The
     # per-job lock keys in create_lock! still protect these cases.
-    self.active_dedup_key = active? && scope_id.present? && definition.lock_conflicts_enforced? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
+    self.active_dedup_key = active? && scope_id.present? && lock_conflicts_enforced_for_kind? ? "#{scope_type}:#{scope_id}:#{kind}" : nil
+  end
+
+  # A WorkUnit's kind can belong to a plugin that has since been
+  # disabled (WorkDefinitions.for raises UnknownKind in that case, per
+  # the plugin-registry contract — see config/syrus_docs/plugins.md).
+  # This callback runs on every save, so it must degrade to "not
+  # enforced" rather than raise, or transitioning/finalizing a WorkUnit
+  # whose plugin went away mid-flight would start failing outright.
+  def lock_conflicts_enforced_for_kind?
+    definition.lock_conflicts_enforced?
+  rescue WorkDefinitions::UnknownKind
+    false
   end
 end
