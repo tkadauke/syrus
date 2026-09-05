@@ -64,8 +64,12 @@ Syrus then runs the required grader suite on the integration branch (same as `au
 
 `merge_train_land`:
 1. Pushes the integration branch to GitHub.
-2. Merges the integration PR into the base branch via the GitHub API.
+2. Merges the integration PR into the base branch via the GitHub API. The resulting merge commit is created by GitHub, not locally, so Syrus fetches the base branch again before verifying members — otherwise the very next step would be checking ancestry against a commit the workspace has never seen.
 3. For each member, verifies that its rebased commits (recorded during the build phase as `LandedCommit` rows) are actually reachable from the merged SHA before touching it. A member that verifies is commented on, its PR closed with a note that it was included in the train, and its Job closed `pr_merged` with the merge SHA recorded as `landed_sha`. A member that does **not** verify — for example a stale `MergeTrainMember` carried over from an earlier failed/rebuilt train whose branch was never actually rebased into *this* train's integration branch — is left open (PR untouched, branch not deleted) and routed through the normal landing-failure path instead of being closed against a landing it was never part of.
+
+   Verification distinguishes "git can't answer the question" from "git answered no": a genuinely unreachable commit fails the member, but a SHA missing from the local object database (even after the extra fetch above — a `fatal: Not a valid commit name`/`Not a valid object name` error) is not proof the member didn't land. In that case Syrus instead trusts the member's own `LandedCommit` row when it was written by *this* workflow's own build phase moments earlier — the same positive-evidence standard `MergeTrainFailureHandler` uses for the failure path below — and only fails the member when no such recent evidence exists. This prevents a workspace-local gap (e.g. a Step's Run resuming on a different worker's disk) from reporting a successful integration merge as a failed member reconciliation.
+
+   `bin/rails "syrus:repair_merge_train_member_reconciliation[owner/repo]"` (optionally scoped with `TRAIN_IDS=1,2`, and previewed with `DRY_RUN=true`) is the one-off repair for `MergeTrainMember` rows a past instance of this bug already left `failed` under a train that otherwise reached `state: "succeeded"`: it re-closes each member's Job `pr_merged` only when that member has its own recorded `LandedCommit` for the train, and never touches a train that never landed or a member with no such evidence.
 
 If the base branch advances between build and land (GitHub returns a
 base-moved error), Syrus inserts a `merge_train_rebase` →
