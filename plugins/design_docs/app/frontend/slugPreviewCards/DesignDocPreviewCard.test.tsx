@@ -57,6 +57,28 @@ describe("DesignDocPreviewCard", () => {
     expect(screen.getByRole("link", { name: "See more" })).toHaveAttribute("href", "/design_docs/20")
   })
 
+  it("clamps preview-rendered heading font size so the card stays compact", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      design_doc: {
+        id: 20,
+        display_id: "DOC-20",
+        accessible: true,
+        title: "T",
+        owner: { id: 1, name: "Ada", email_address: "ada@example.com" },
+        collaborators: [],
+        comments_count: 0,
+        latest_version_number: 1,
+        updated_at: "2026-09-01T12:00:00Z",
+        preview_text: "# Heading\nBody text."
+      }
+    }))
+
+    renderCard(20)
+
+    const heading = await screen.findByRole("heading", { level: 1, name: "Heading" })
+    expect(heading.closest(".line-clamp-6")).toHaveClass("[&_h1]:text-xs")
+  })
+
   it("shows a concise collaborator summary when there are many collaborators", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       design_doc: {
