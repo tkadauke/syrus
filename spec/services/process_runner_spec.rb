@@ -404,6 +404,8 @@ RSpec.describe ProcessRunner, :ci_only do
   end
 
   it "does not touch any lock file when no workflow is given" do
+    expect(WorkflowWorkspace).not_to receive(:lock_path_for)
+
     result = described_class.new(
       env: {},
       command: [ ruby, "-e", "exit 0" ],
@@ -412,6 +414,7 @@ RSpec.describe ProcessRunner, :ci_only do
     ).run
 
     expect(result).to be_success
+    expect(Dir.children(@dir)).to eq([])
   end
 
   it "kills the subprocess when silent_timeout elapses with no output" do
