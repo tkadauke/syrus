@@ -669,6 +669,48 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   # --- grade.rerun_only_failed ---------------------------------------------
 
+  describe "grade.max_iterations" do
+    it "persists a configured max_iterations onto the enclosing retry_until node via Workflow#extend_chain!" do
+      workflow.update!(chain_template: [
+        { "type" => "retry_until", "max_iterations" => 3, "repair" => [ "implement" ], "check" => %w[grader_fanout grader_collect] }
+      ])
+      write_config(<<~YAML)
+        grade:
+          max_iterations: 7
+          steps:
+            - name: tests
+              run: bin/rspec
+      YAML
+
+      expect(workflow).to receive(:extend_chain!).and_call_original
+
+      handler.call
+
+      loop_node = workflow.reload.chain_template.find { |node| node["type"] == "retry_until" }
+      expect(loop_node["max_iterations"]).to eq(7)
+    end
+
+    it "leaves chain_template untouched when no enclosing loop/retry_until node matches this step" do
+      workflow.update!(chain_template: [
+        { "type" => "retry_until", "max_iterations" => 3, "repair" => [ "implement" ], "check" => %w[some_other_check] }
+      ])
+      write_config(<<~YAML)
+        grade:
+          max_iterations: 7
+          steps:
+            - name: tests
+              run: bin/rspec
+      YAML
+
+      expect(workflow).not_to receive(:extend_chain!)
+
+      handler.call
+
+      loop_node = workflow.reload.chain_template.find { |node| node["type"] == "retry_until" }
+      expect(loop_node["max_iterations"]).to eq(3)
+    end
+  end
+
   describe "grade.rerun_only_failed" do
     def create_prior_grader_step(name:, state:, iteration: 1)
       Step.create!(

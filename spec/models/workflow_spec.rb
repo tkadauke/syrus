@@ -1159,6 +1159,35 @@ RSpec.describe Workflow, :ci_only do
     end
   end
 
+  describe "#extend_chain!" do
+    let(:wf) do
+      described_class.create!(
+        job: job,
+        trigger_kind: "initial",
+        chain_template: [
+          { "type" => "retry_until", "max_iterations" => 3, "repair" => [ "implement" ], "check" => %w[grader_fanout grader_collect] }
+        ]
+      )
+    end
+
+    it "yields a mutable copy of chain_template and persists the mutation" do
+      wf.extend_chain! do |template|
+        template.find { |node| node["type"] == "retry_until" }["max_iterations"] = 9
+      end
+
+      expect(wf.reload.chain_template).to eq([
+        { "type" => "retry_until", "max_iterations" => 9, "repair" => [ "implement" ], "check" => %w[grader_fanout grader_collect] }
+      ])
+    end
+
+    it "does not mutate the original chain_template array in place before persisting" do
+      original = wf.chain_template
+      wf.extend_chain! { |template| template.first["max_iterations"] = 9 }
+
+      expect(original.first["max_iterations"]).to eq(3)
+    end
+  end
+
   describe "#current_iteration" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
 
