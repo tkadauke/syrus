@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
-import { DashboardIcon, DatabaseIcon, DocumentIcon, MockupIcon, PluginIcon, RepositoryIcon, ScheduleIcon, SpendingIcon, TeamIcon, TerminalIcon, TimelineIcon } from "./icons"
+import { DashboardIcon, DatabaseIcon, DocumentIcon, MockupIcon, PluginIcon, RepositoryIcon, ScheduleIcon, ServerIcon, SpendingIcon, TeamIcon, TerminalIcon, TimelineIcon } from "./icons"
 
 export type SidebarNavContext = {
   simpleMode: boolean
@@ -46,6 +46,7 @@ const PLUGIN_ICONS: Record<string, ReactNode> = {
   mockup: <MockupIcon />,
   repository: <RepositoryIcon />,
   schedule: <ScheduleIcon />,
+  server: <ServerIcon />,
   spending: <SpendingIcon />,
   terminal: <TerminalIcon />,
   team: <TeamIcon />,

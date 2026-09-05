@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Kubernetes Cluster Viewer">
+  <rect width="24" height="24" rx="5" fill="#1e293b"/>
+  <path d="M12 3.5 19.5 8v8L12 20.5 4.5 16V8L12 3.5Z" fill="none" stroke="#60a5fa" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="12" cy="8.4" r="1.4" fill="#93c5fd"/>
+  <circle cx="8" cy="14.8" r="1.4" fill="#93c5fd"/>
+  <circle cx="16" cy="14.8" r="1.4" fill="#93c5fd"/>
+  <path d="M12 9.8v3.2M10.9 13.6l-2 .9M13.1 13.6l2 .9" stroke="#93c5fd" stroke-width="1.1" stroke-linecap="round"/>
+</svg>
