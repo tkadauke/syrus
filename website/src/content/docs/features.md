@@ -922,7 +922,13 @@ State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
-runs. Admins can also force-fail an open stuck Job from the stuck Jobs page,
+runs. When several related actions are proposed together as a batch, chat
+renders them as a single pending-action-group card instead of one card per
+action: the shared action name and target count, an expandable list of the
+affected targets, and one Confirm all/Reject all control. Confirming applies
+every target independently and shows which ones succeeded and which failed
+and why; rejecting discards the whole batch without applying any of it.
+Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
 results in 50-item pages, while the admin overview shows the first page and a

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { ChatMessageItem, ChatPendingAction, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
-import { pendingActionCardData, renderChatMessages } from "./streamBuilders"
+import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
+import { buildMessageStreamItems, pendingActionCardData, renderChatMessages } from "./streamBuilders"
 
 function toolUse(id: number, overrides: Partial<ChatMessageItem> & { toolUseId: string; toolName: string; input?: Record<string, unknown> }): ChatMessageItem {
   const { toolUseId, toolName, input, ...rest } = overrides
@@ -57,6 +57,61 @@ describe("pendingActionCardData", () => {
       resource_url: "/repositories/9",
       app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
     })
+  })
+})
+
+function assistantMessage(id: number): ChatRenderItem {
+  return { type: "message", id, role: "assistant", content: {}, text: "done", bookmarkable: false }
+}
+
+function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): ChatPendingActionGroup {
+  return {
+    id: 7,
+    label: "Reopen job (2)",
+    state: "pending",
+    members: [],
+    app_confirm_path: "/api/v1/app/chats/122/pending_action_groups/7/confirm",
+    app_reject_path: "/api/v1/app/chats/122/pending_action_groups/7/reject",
+    ...overrides
+  }
+}
+
+describe("buildMessageStreamItems pending action groups", () => {
+  it("anchors a group to the message that produced it", () => {
+    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: 1 }) ])
+
+    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+  })
+
+  it("appends an unanchored group at the end of the stream", () => {
+    const result = buildMessageStreamItems([ assistantMessage(1) ], [], [ pendingActionGroup({ chat_message_id: null }) ])
+
+    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action_group" ])
+  })
+
+  it("appends a group whose anchor message was never rendered", () => {
+    const result = buildMessageStreamItems([], [], [ pendingActionGroup({ chat_message_id: 42 }) ])
+
+    expect(result.map((item) => item.type)).toEqual([ "pending_action_group" ])
+  })
+
+  it("interleaves pending actions and pending action groups anchored to the same message", () => {
+    const action: ChatPendingAction = {
+      id: 9,
+      label: "Cancel JOB-1",
+      detail: null,
+      state: "pending",
+      action: "cancel_job",
+      action_type: null,
+      chat_message_id: 1,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/9/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/9/reject",
+      app_cancel_path: "/api/v1/app/chats/122/pending_actions/9"
+    }
+
+    const result = buildMessageStreamItems([ assistantMessage(1) ], [ action ], [ pendingActionGroup({ chat_message_id: 1 }) ])
+
+    expect(result.map((item) => item.type)).toEqual([ "message", "pending_action", "pending_action_group" ])
   })
 })
 
