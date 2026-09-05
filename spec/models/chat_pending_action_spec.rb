@@ -815,6 +815,8 @@ RSpec.describe ChatPendingAction, :ci_only do
       PendingActions::CompleteImplementStep
       PendingActions::SubmitCodingChanges
       PendingActions::RunVisualReview
+      PendingActions::ApproveJob
+      PendingActions::UnapproveJob
       # ACTIONS/ACTION_TYPES still name actions that plugins own, so the set
       # core can assert on is what remains once a disabled plugin's are
       # subtracted. Handlers under plugins/ are the plugin's to guarantee --
