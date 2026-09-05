@@ -36,7 +36,7 @@ describe("AgentConversationTab", () => {
     expect(await screen.findByText("No agent activity recorded for this Job yet.")).toBeInTheDocument()
   })
 
-  it("renders an agent_session card and opens its transcript on click", async () => {
+  it("renders an agent_session card and opens its transcript in a sidebar on click", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/1/agent_conversation") {
@@ -83,11 +83,16 @@ describe("AgentConversationTab", () => {
 
     expect(await screen.findByText("Implement")).toBeInTheDocument()
     expect(screen.getByText("Added the greeting helper")).toBeInTheDocument()
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
 
+    const sidebar = await screen.findByRole("complementary", { name: "Implement transcript" })
     await waitFor(() => expect(screen.getByTestId("run-transcript-log-stream")).toBeInTheDocument())
     expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close transcript" }))
+    expect(sidebar).not.toBeInTheDocument()
   })
 
   it("renders a deterministic_check card and shows raw output only, no reasoning framing", async () => {
