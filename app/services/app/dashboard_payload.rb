@@ -641,6 +641,9 @@ module App
       @job_runtime_active_repair_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_repair_work", count: job_ids.size) do
         work_unit_snapshot.active_repair_work_by_job_id
       end
+      @job_runtime_effective_agent_providers_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.effective_agent_providers", count: job_ids.size) do
+        effective_agent_providers_by_job_id(jobs)
+      end
     end
 
     def paused_job_ids(job_ids, work_unit_snapshot: nil)
@@ -708,6 +711,35 @@ module App
 
     def latest_workflows_for_jobs(jobs)
       latest_workflows_by_job_id(jobs.map(&:id))
+    end
+
+    # Batched equivalent of Repository#effective_agent_provider(user:) for
+    # every (repository, owner) pair on this page of jobs, so the
+    # provider-mismatch pill doesn't issue one RepositoryMembership query per
+    # job row the way Repository#membership_for would if called directly.
+    def effective_agent_providers_by_job_id(jobs)
+      owners_by_job_id = jobs.index_by(&:id).transform_values { |job| job.owner_user || job.user }
+      repositories_by_id = jobs.filter_map(&:repository).uniq(&:id).index_by(&:id)
+      user_ids = owners_by_job_id.values.compact.map(&:id).uniq
+      repository_ids = repositories_by_id.keys
+
+      memberships_by_repository_and_user = if user_ids.empty? || repository_ids.empty?
+        {}
+      else
+        RepositoryMembership
+          .where(repository_id: repository_ids, user_id: user_ids)
+          .index_by { |membership| [ membership.repository_id, membership.user_id ] }
+      end
+
+      jobs.each_with_object({}) do |job, memo|
+        repository = repositories_by_id[job.repository_id]
+        next unless repository
+
+        owner = owners_by_job_id[job.id]
+        membership = owner ? memberships_by_repository_and_user[[ repository.id, owner.id ]] : nil
+        membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
+        memo[job.id] = membership_provider || repository.agent_provider.presence || owner&.agent_provider
+      end
     end
 
     def active_workflow_trigger_kinds_by_job_id(job_ids)
@@ -808,6 +840,14 @@ module App
       end
 
       WorkUnits::Ownership.active_repair_work_for_job(job)
+    end
+
+    def effective_agent_provider_for(job)
+      if defined?(@job_runtime_effective_agent_providers_by_job_id)
+        return @job_runtime_effective_agent_providers_by_job_id[job.id]
+      end
+
+      job.repository&.effective_agent_provider(user: job_owner_user(job))
     end
 
     def latest_workflow_for(job)

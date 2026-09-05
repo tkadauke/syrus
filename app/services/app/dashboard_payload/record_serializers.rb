@@ -44,7 +44,7 @@ module App
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
           provider_failover: provider_failover_for(job),
-          provider_mismatch: provider_mismatch_for(job, owner_user),
+          provider_mismatch: provider_mismatch_for(job),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
@@ -261,12 +261,14 @@ module App
       # powering the job's latest workflow and the repository's own default
       # provider (ignoring this job's own override) — a broader net than
       # provider_failover_for, which only reports explicit failover/override
-      # decisions recorded on the workflow itself.
-      def provider_mismatch_for(job, owner_user)
+      # decisions recorded on the workflow itself. Reads effective_agent_provider_for,
+      # which serves from the batched @job_runtime_effective_agent_providers_by_job_id
+      # map when available instead of querying RepositoryMembership per job row.
+      def provider_mismatch_for(job)
         actual_provider = latest_workflow_for(job)&.agent_provider.presence || job.workflow_agent_provider
         return nil if actual_provider.blank?
 
-        effective_provider = job.repository&.effective_agent_provider(user: owner_user)
+        effective_provider = effective_agent_provider_for(job)
         return nil if effective_provider.blank? || effective_provider == actual_provider
 
         {

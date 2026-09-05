@@ -146,6 +146,33 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(item[:provider_mismatch]).to be_nil
     end
+
+    it "batches repository membership lookups for the provider-mismatch pill across repositories in a single query" do
+      other_repo = Factories.repository(user: user)
+      job_one = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      job_two = Factories.job_record(user: user, repository: other_repo, agent_provider: "claude")
+      Workflow.create!(job: job_one, trigger_kind: "initial", state: "running", agent_provider: "codex")
+      Workflow.create!(job: job_two, trigger_kind: "initial", state: "running", agent_provider: "claude")
+
+      # Other per-job permission checks (can_approve, can_start_preview, etc.)
+      # legitimately issue their own single-row membership lookups; this only
+      # asserts on the multi-repository IN() query the provider-mismatch
+      # batching is responsible for, so it stays green independent of those.
+      batched_membership_query_count = 0
+      counter = lambda do |*, payload|
+        sql = payload[:sql]
+        next unless sql.match?(/FROM "?repository_memberships"?/i)
+
+        batched_membership_query_count += 1 if sql.match?(/repository_id"?\s+IN\s*\(/i)
+      end
+
+      result = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        call(subject: "job", section: "rows")
+      end
+
+      expect(result[:items].map { |item| item[:id] }).to include(job_one.id, job_two.id)
+      expect(batched_membership_query_count).to eq(1)
+    end
   end
 
   describe "delivery status" do
