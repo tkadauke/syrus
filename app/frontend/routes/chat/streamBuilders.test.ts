@@ -81,9 +81,11 @@ describe("renderChatMessages tool grouping", () => {
       raw_name: "syrus-chat-sidecar.list_chat_media",
       detail: "No arguments",
       raw_payload: {},
-      result_kind: "list",
-      result_summary: "2 media items",
-      summary_metadata: { count: 2, noun: "media item" }
+      // The list_chat_media tool card (routes/chat/tool_cards/, JOB-4220)
+      // supplies this summary now, taking priority over the generic
+      // count-based heuristic — see toolResultPresentation.
+      result_kind: "text",
+      result_summary: "2 media items"
     })
   })
 

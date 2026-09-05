@@ -508,7 +508,9 @@ describe("tool result rendering", () => {
     expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
   })
 
-  it("renders list_chat_media results as a compact dark-mode-safe gallery with raw JSON details", () => {
+  it("renders list_chat_media results as a compact dark-mode-safe gallery with stable IDs, filenames, kind, and content type", () => {
+    // list_chat_media's card lives under routes/chat/tool_cards/ (JOB-4220),
+    // registered through the plugin-aware extension point (JOB-4219).
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "List chat media",
@@ -544,21 +546,24 @@ describe("tool result rendering", () => {
 
     expect(screen.getAllByText("2 media items")).toHaveLength(2)
     expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
+
     const imageTile = screen.getByRole("button", { name: "Open desktop.png" })
     expect(imageTile).toHaveClass("dark:bg-gray-950")
-    const tooltip = imageTile.getAttribute("title")
-    expect(tooltip).toContain("desktop.png")
-    expect(tooltip).toContain("chat_image:3")
-    expect(tooltip).toContain("image/png")
     expect(within(imageTile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
-    expect(within(imageTile).queryByText("desktop.png")).not.toBeInTheDocument()
-    expect(within(imageTile).queryByText("chat_image:3")).not.toBeInTheDocument()
-    expect(within(imageTile).queryByText("image/png")).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Checkout flow/ })).toBeInTheDocument()
+    expect(within(imageTile).getByText("desktop.png")).toBeInTheDocument()
+    expect(within(imageTile).getByText("chat_image:3")).toBeInTheDocument()
+    expect(within(imageTile).getByText("image/png")).toBeInTheDocument()
+    expect(within(imageTile).getByText("image")).toBeInTheDocument()
+
+    const snapshotTile = screen.getByRole("button", { name: "Open Checkout flow" })
+    expect(within(snapshotTile).getByText("Checkout flow")).toBeInTheDocument()
+    expect(within(snapshotTile).getByText("snapshot:9")).toBeInTheDocument()
+    expect(within(snapshotTile).getByText("snapshot")).toBeInTheDocument()
 
     fireEvent.click(imageTile)
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "desktop.png" })).toHaveLength(2)
+    expect(screen.getByText("Content type")).toBeInTheDocument()
 
     const rawDetails = screen.getByText("Raw details").closest("details")
     expect(rawDetails).not.toBeNull()
@@ -566,6 +571,34 @@ describe("tool result rendering", () => {
     rawDetails.open = true
     fireEvent(rawDetails, new Event("toggle"))
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
+  })
+
+  it("renders an empty state for list_chat_media when the chat has no media", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List chat media",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_chat_media",
+          raw_name: "list_chat_media",
+          detail: "No arguments",
+          display_label: "List chat media",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({ snapshots: [], chat_images: [] }),
+          result_error: false,
+          result_kind: "list",
+          result_summary: "0 media items"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("List chat media")
+
+    expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
   })
 
   it("renders typed success, proposal, and state outputs instead of raw JSON", () => {
@@ -607,7 +640,7 @@ describe("tool result rendering", () => {
           display_label: "Read job",
           progress_label: "Reading",
           raw_payload: { job_id: 4048 },
-          result_body: JSON.stringify({ job: { issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus" } }),
+          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, branch_name: "syrus/direct-4048" } }),
           result_error: false,
           result_kind: "record",
           result_summary: "1 Job"
@@ -629,8 +662,11 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
     expect(screen.getByText("Job proposal ready: Fix output")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
+    expect(screen.getByText("#12")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-4048")).toBeInTheDocument()
     expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
   })
 
