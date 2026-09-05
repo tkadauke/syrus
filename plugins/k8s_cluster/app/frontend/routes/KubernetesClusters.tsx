@@ -15,8 +15,11 @@ import {
   type KubernetesClusterRow,
   type KubernetesClusterTestResult
 } from "../api/kubernetesClusters"
+import { ClusterBrowser } from "../components/ClusterBrowser"
 
 const queryKey = ["k8s_cluster", "clusters"] as const
+
+type BrowseTarget = { clusterId: number; label: string }
 
 const EMPTY_FORM: KubernetesClusterInput = {
   label: "",
@@ -33,10 +36,19 @@ export function KubernetesClusters() {
   const { t } = useT("k8s_cluster")
   usePageTitle(t("heading"))
   const [notice, setNotice] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState<BrowseTarget | null>(null)
   const clusters = useQuery({
     queryKey,
     queryFn: fetchKubernetesClusters
   })
+
+  if (browsing) {
+    return (
+      <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+        <ClusterBrowser clusterId={browsing.clusterId} label={browsing.label} onBack={() => setBrowsing(null)} />
+      </main>
+    )
+  }
 
   return (
     <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[72rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
@@ -52,7 +64,11 @@ export function KubernetesClusters() {
       {clusters.isSuccess ? (
         <>
           <ClusterCreateForm onNotice={setNotice} />
-          <ClustersTable clusters={clusters.data.kubernetes_clusters} onNotice={setNotice} />
+          <ClustersTable
+            clusters={clusters.data.kubernetes_clusters}
+            onBrowse={(cluster) => setBrowsing({ clusterId: cluster.id, label: cluster.label })}
+            onNotice={setNotice}
+          />
         </>
       ) : null}
     </main>
@@ -101,9 +117,11 @@ function ClusterCreateForm({ onNotice }: { onNotice: (message: string | null) =>
 
 function ClustersTable({
   clusters,
+  onBrowse,
   onNotice
 }: {
   clusters: KubernetesClusterRow[]
+  onBrowse: (cluster: KubernetesClusterRow) => void
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("k8s_cluster")
@@ -140,6 +158,7 @@ function ClustersTable({
                 <ClusterRow
                   cluster={cluster}
                   key={cluster.id}
+                  onBrowse={() => onBrowse(cluster)}
                   onEdit={() => setEditingId(cluster.id)}
                   onNotice={onNotice}
                 />
@@ -154,10 +173,12 @@ function ClustersTable({
 
 function ClusterRow({
   cluster,
+  onBrowse,
   onEdit,
   onNotice
 }: {
   cluster: KubernetesClusterRow
+  onBrowse: () => void
   onEdit: () => void
   onNotice: (message: string | null) => void
 }) {
@@ -190,7 +211,7 @@ function ClusterRow({
         </StatusBadge>
       </td>
       <td className="px-4 py-3">
-        <ClusterActions cluster={cluster} onEdit={onEdit} onNotice={onNotice} />
+        <ClusterActions cluster={cluster} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
       </td>
     </tr>
   )
@@ -198,10 +219,12 @@ function ClusterRow({
 
 function ClusterActions({
   cluster,
+  onBrowse,
   onEdit,
   onNotice
 }: {
   cluster: KubernetesClusterRow
+  onBrowse: () => void
   onEdit: () => void
   onNotice: (message: string | null) => void
 }) {
@@ -218,6 +241,13 @@ function ClusterActions({
   return (
     <div>
       <div className="flex flex-wrap items-start justify-end gap-2">
+        <button
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
+          onClick={onBrowse}
+          type="button"
+        >
+          {t("browse_button")}
+        </button>
         <TestButton onTest={() => testKubernetesCluster(cluster.id)} />
         <button
           className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"

@@ -9,15 +9,16 @@ installed but disabled by default (`default_enabled: false`,
 `mysql_db_browser`. There is no separate `Feature` flag. Every controller
 action checks `K8sCluster.enabled?` and `Current.user.admin?`.
 
-The foundation Job scaffolded connection management: register a cluster
-from a pasted kubeconfig, test the connection, edit, and delete. This Job
-adds the read-only Kubernetes API client, one service object per resource
-kind, and the JSON API endpoints those services back - namespaces, pods
-(including per-container log tail), deployments, services, events,
+The foundation Jobs scaffolded connection management (register a cluster
+from a pasted kubeconfig, test the connection, edit, and delete) and the
+read-only Kubernetes API client - one service object per resource kind, and
+the JSON API endpoints those services back: namespaces, pods (including
+per-container log tail), deployments, services, events,
 PersistentVolumeClaims, nodes, CronJobs, and a cluster overview backed by
-the `metrics.k8s.io` API. Gated agentic access (MCP tools) and the
-sidebar-page browsing UI that consumes these endpoints are follow-up work
-per EPIC-306 / DOC-21 - see "What's not here yet" below.
+the `metrics.k8s.io` API. This Job adds the tabbed cluster-browsing UI that
+consumes those endpoints - see "Cluster-browsing UI" below. Gated agentic
+access (MCP tools) is still follow-up work per EPIC-306 / DOC-21 - see
+"What's not here yet".
 
 ## Clusters (`KubernetesCluster`)
 
@@ -147,7 +148,11 @@ DNS/connection-refused - the same two-outcome shape `SchemaInspector` uses):
   tail_lines: 200, previous: false, timestamps: false)` for a per-container
   log tail (`Kubeclient#get_pod_log`) - `container` is required once a pod
   has more than one container, the same way the raw Kubernetes API itself
-  requires it.
+  requires it. `Pods#list`'s summary row also includes `container_names`
+  (from `spec.containers`) so the browsing UI's Logs tab can populate a
+  container picker without a second request. `Nodes#list`'s summary row
+  includes `allocatable_cpu`/`allocatable_memory` alongside
+  `capacity_cpu`/`capacity_memory` (from `status.allocatable`).
 - `Events` - namespace-scoped, `#list(namespace: nil)` only; an individual
   Event has no useful "describe" beyond its list row. Sorted
   most-recent-first by `lastTimestamp`/`eventTime`/`firstTimestamp`.
@@ -214,13 +219,55 @@ one-for-one, rather than a separate nested `/:name` route per kind.
 `ResourceService::Unavailable` renders `502 connection_unavailable`;
 `ResourceService::NotFound` renders `404 not_found`.
 
+## Cluster-browsing UI
+
+**Admin -> K8s Clusters** now has a **Browse** action per row (next to
+**Test**/**Edit**/**Delete**) that opens a tabbed, read-only viewer for that
+cluster (`plugins/k8s_cluster/app/frontend/components/ClusterBrowser.tsx`),
+mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
+
+- **Overview** - node count and ready/not-ready status (from `Nodes#list`)
+  plus aggregate node/pod CPU and memory (from `Overview#call`), with a
+  graceful "metrics unavailable" message per section instead of an error
+  when `metrics.k8s.io` isn't installed.
+- **Workloads** - a workload-kind switcher (Pods/Deployments/CronJobs) over
+  the shared namespace filter, with status/ready/restart-count (pods),
+  ready/available/updated replica counts (deployments), or
+  schedule/suspended/active-count (CronJobs) columns, plus an age column
+  computed client-side from `created_at`.
+- **Services** - namespaced services with type, cluster IP, and ports.
+  (Kubernetes' separate `Endpoints`/`EndpointSlice` objects - the actual
+  backing pod IPs - are not fetched; there is no resource service or route
+  for them yet.)
+- **Storage** - PersistentVolumeClaims with bound status, capacity, and
+  storage class.
+- **Nodes** - the cluster-scoped node list with readiness, roles,
+  capacity, and allocatable capacity.
+- **Events** - namespaced/cluster events as returned by `Events#list`
+  (already sorted most-recent-first server-side).
+- **Logs** - a pod picker (scoped by the shared namespace filter) and,
+  once a pod with more than one container is selected, a container picker
+  populated from that pod's `container_names`; fetches a fixed 200-line
+  tail per `Pods#logs` and offers a manual Refresh button rather than
+  auto-polling.
+- **Live** - a polling tab over two canned queries (pod status, recent
+  events) with a 10s `refetchInterval`, directly mirroring
+  `plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx`'s
+  canned-query shape rather than a bespoke live feed.
+
+A shared namespace filter (`ClusterBrowser`'s `NamespacePicker`, populated
+from `Namespaces#list`) appears only for the namespace-scoped tabs
+(Workloads/Services/Storage/Events/Logs); Overview and Nodes are always
+cluster-wide. The top-level tab switcher and the namespace/workload-kind/
+pod/container pickers all use the same toolbar dropdown control
+(`components/Dropdown.tsx`, a button+listbox pattern) per CLAUDE.md's
+convention for small fixed-choice toolbar controls - never a native
+`<select>` for this kind of in-page switcher. All frontend strings are
+translated across `en`/`de`/`la` (`app/frontend/i18n/locales/*/k8s_cluster.json`).
+
 ## What's not here yet
 
-Per DOC-21's phased plan, this Job stops at the API client, resource
-services, and JSON endpoints - no sidebar-page UI consumes them yet, and
-there are no MCP tools. Later Jobs under EPIC-306 add: a tabbed
-cluster-browsing UI on the sidebar page (Overview/Workloads/Services/
-Storage/Nodes/Events/Logs/Live tabs, per DOC-21) consuming these same
-endpoints, and gated agentic access via `mcp_tool_set`/`chat_mcp_tool_set`
-MCP tools keyed off `agentic_access_enabled`/`allow_writes`, the same shape
-`mysql_db_browser` uses for its own MCP tool sets.
+There are no MCP tools yet. A later Job under EPIC-306 adds gated agentic
+access via `mcp_tool_set`/`chat_mcp_tool_set` MCP tools keyed off
+`agentic_access_enabled`/`allow_writes`, the same shape `mysql_db_browser`
+uses for its own MCP tool sets.

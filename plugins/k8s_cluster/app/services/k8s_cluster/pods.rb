@@ -45,7 +45,8 @@ module K8sCluster
 
     def summary(item)
       statuses = item.dig("status", "containerStatuses") || []
-      container_count = item.dig("spec", "containers")&.length || statuses.length
+      containers = item.dig("spec", "containers") || []
+      container_count = containers.length || statuses.length
 
       {
         name: item.dig("metadata", "name"),
@@ -55,6 +56,7 @@ module K8sCluster
         node_name: item.dig("spec", "nodeName"),
         ready: "#{statuses.count { |status| status['ready'] }}/#{container_count}",
         restart_count: statuses.sum { |status| integer(status["restartCount"]).to_i },
+        container_names: containers.map { |container| container["name"] },
         created_at: item.dig("metadata", "creationTimestamp")
       }
     end

@@ -48,6 +48,15 @@ RSpec.describe K8sCluster::Pods do
       expect(summary[:restart_count]).to eq(6)
       expect(summary[:node_name]).to eq("node-1")
     end
+
+    it "lists container names for the log tab's container picker" do
+      stub_core_discovery(base)
+      stub_kube_get("#{base}/api/v1/pods", { "items" => [ pod(container_count: 2) ] })
+
+      summary = described_class.new(cluster).list[:pods].first
+
+      expect(summary[:container_names]).to eq([ "app", "app" ])
+    end
   end
 
   describe "#describe" do

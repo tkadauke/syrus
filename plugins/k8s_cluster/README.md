@@ -1,6 +1,6 @@
 # K8s Cluster Viewer
 
-K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and manage them from the Syrus admin UI. It also exposes read-only JSON API endpoints for browsing a registered cluster's resources. A sidebar browsing UI and gated agentic access ship in later Jobs under EPIC-306.
+K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Gated agentic access ships in a later Job under EPIC-306.
 
 ## What It Adds
 
@@ -9,6 +9,7 @@ K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed
 - A lightweight connection test (`GET /version`) before saving.
 - A `kubeclient`-backed API client and one read-only service per resource kind (namespaces, pods, deployments, services, events, PersistentVolumeClaims, nodes, CronJobs), plus a `metrics.k8s.io`-backed cluster overview that soft-fails when metrics-server isn't installed.
 - Admin-only JSON API endpoints for all of the above under `/api/v1/app/admin/kubernetes_clusters/:id/...`.
+- A tabbed cluster-browsing UI (Overview/Workloads/Services/Storage/Nodes/Events/Logs/Live) reached via a **Browse** action per registered cluster.
 
 ## When To Enable
 
