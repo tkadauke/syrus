@@ -2,11 +2,17 @@ module Filters
   # Shared behaviour mixed into all subject-specific Filter classes
   # (Jobs::Filter, Epics::Filter, Workflows::Filter, etc.).
   #
-  # Each including class still owns:
-  #   - `initialize` (signature varies per class)
+  # `initialize` and `from_params` are template methods hoisted here for
+  # classes with the standard `(tree, user: nil)` / `(params, smart_folder:,
+  # user:)` signatures. Each including class still owns:
   #   - `apply(scope)` (passes the right subject: to the compiler)
-  #   - `build_tree_from_url_params` (subject-specific chip building)
+  #   - `build_tree_from_url_params` (subject-specific chip building — the
+  #     hook `from_params` calls into)
   #   - any subject-specific predicate (pinned?, includes_archived_state?, …)
+  #
+  # Filter classes with a different `initialize`/`from_params` signature
+  # (e.g. Admin::Queue::Filter's required `tab:`) define their own directly,
+  # which takes precedence over these template methods.
   module BaseFilter
     extend ActiveSupport::Concern
 
@@ -14,6 +20,29 @@ module Filters
     # smart_folder_counts and by callers that already hold a tree.
     class_methods do
       def from_tree(tree, user: nil)
+        new(tree, user: user)
+      end
+
+      # Build a Filter from the controller's request params plus an
+      # optional active SmartFolder. Source-of-truth precedence (when
+      # multiple inputs are present, they AND together with the
+      # smart folder as the floor):
+      #
+      #   1. `q=<base64-json>` — chip-bar UI's canonical wire format.
+      #      A full AST tree, possibly with OR / NOT.
+      #   2. Legacy flat URL params (state=, repository_id=, etc.) —
+      #      still emitted by the existing dropdown form. Translated
+      #      to a flat AND-of-chips tree via build_tree_from_url_params,
+      #      a subject-specific hook each including class must define.
+      #   3. SmartFolder#filter — the floor when one is active.
+      def from_params(params, smart_folder: nil, user: nil)
+        q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+        url_tree = build_tree_from_url_params(params)
+        folder_tree = smart_folder&.filter.presence
+
+        tree = [ folder_tree, q_tree, url_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) }
+        tree ||= Filters::Ast.serialize(Filters::Ast::EMPTY)
+
         new(tree, user: user)
       end
 
@@ -38,6 +67,11 @@ module Filters
         end
         { "and" => children }
       end
+    end
+
+    def initialize(tree, user: nil)
+      @ast = Filters::Ast.parse(tree)
+      @user = user
     end
 
     # AST tree as a JSON-friendly Hash. Suitable for SmartFolder#filter
