@@ -48,7 +48,8 @@ class JobStateRepair
     end
 
     def active_work?
-      job.active_runtime_work?
+      WorkUnits::TerminalWorkflowSync.for_job(job)
+      job.reload.active_runtime_work?
     end
 
     def terminal_latest_workflow?
