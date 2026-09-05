@@ -251,7 +251,7 @@ export function UnifiedDiffTable({
                   <div className="space-y-2">
                     {threads.map((thread) => (
                       <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
-                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                        <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
                           <div className="flex flex-wrap items-center gap-2">
                             {thread.author ? <span>{thread.author}</span> : null}
                             <span>{thread.state}</span>
