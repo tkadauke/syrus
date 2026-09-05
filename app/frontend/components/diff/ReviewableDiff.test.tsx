@@ -189,6 +189,43 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
   })
 
+  it("offers to delete a draft diff review thread inline, but not a submitted one", () => {
+    const onDeleteThread = vi.fn()
+
+    const { rerender } = render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        onDeleteThread={onDeleteThread}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    expect(onDeleteThread).toHaveBeenCalledWith({ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" })
+
+    rerender(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "submitted" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        onDeleteThread={onDeleteThread}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+  })
+
   it("bounds the diff height by default but grows naturally when scroll is set to natural", () => {
     const { rerender } = render(<ReviewableDiff files={files} mode="continuous" />)
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).toBeInTheDocument()

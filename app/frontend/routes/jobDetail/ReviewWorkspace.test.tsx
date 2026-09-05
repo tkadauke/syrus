@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 import {
   createDiffReviewComment,
+  deleteDiffReviewComment,
   fetchDiffReviewComments,
   fetchJobSourceDiff,
   replyToDiffReviewComment,
@@ -20,6 +21,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
   return {
     ...actual,
     createDiffReviewComment: vi.fn(),
+    deleteDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
     replyToDiffReviewComment: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
 
 beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
+  vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(replyToDiffReviewComment).mockReset()
@@ -215,6 +218,75 @@ describe("ReviewWorkspace", () => {
     expect(sidebar.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument()
     expect(sidebar.getByText("-old")).toBeInTheDocument()
     expect(sidebar.getByText("+new")).toHaveClass("ring-brand")
+  })
+
+  it("deletes a draft global comment from the sidebar after confirming", async () => {
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Looks great overall."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([globalComment]))
+    vi.mocked(deleteDiffReviewComment).mockResolvedValue({ job_id: 42, deleted_id: 2 })
+
+    renderWorkspace()
+
+    await screen.findByText("Looks great overall.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 2)
+    })
+  })
+
+  it("does not delete a comment when the confirmation dialog is cancelled", async () => {
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Looks great overall."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([globalComment]))
+
+    renderWorkspace()
+
+    await screen.findByText("Looks great overall.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+
+    expect(deleteDiffReviewComment).not.toHaveBeenCalled()
+  })
+
+  it("deletes a draft code-anchored comment inline from the diff after confirming", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
+    vi.mocked(deleteDiffReviewComment).mockResolvedValue({ job_id: 42, deleted_id: 1 })
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 1)
+    })
   })
 
   it("submits actionable comments as chat feedback", async () => {

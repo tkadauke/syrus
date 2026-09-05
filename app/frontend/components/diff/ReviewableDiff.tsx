@@ -43,6 +43,7 @@ export type ReviewableDiffProps = {
   onChangeComposingBody?: (body: string) => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onDeleteThread?: (thread: DiffReviewThread) => void
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
@@ -76,6 +77,7 @@ export function ReviewableDiff({
   onChangeComposingBody,
   onChangeEditingThreadBody,
   onCommentLine,
+  onDeleteThread,
   onSaveComposing,
   onSaveEditThread,
   onSelectFile,
@@ -130,6 +132,7 @@ export function ReviewableDiff({
                 onChangeComposingBody={onChangeComposingBody}
                 onChangeEditingThreadBody={onChangeEditingThreadBody}
                 onCommentLine={onCommentLine}
+                onDeleteThread={onDeleteThread}
                 onSaveComposing={onSaveComposing}
                 onSaveEditThread={onSaveEditThread}
                 onStartEditThread={onStartEditThread}
@@ -212,6 +215,7 @@ export function UnifiedDiffTable({
   onChangeComposingBody,
   onChangeEditingThreadBody,
   onCommentLine,
+  onDeleteThread,
   onSaveComposing,
   onSaveEditThread,
   onStartEditThread,
@@ -231,6 +235,7 @@ export function UnifiedDiffTable({
   onChangeComposingBody?: (body: string) => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onDeleteThread?: (thread: DiffReviewThread) => void
   onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
@@ -296,6 +301,15 @@ export function UnifiedDiffTable({
                               type="button"
                             >
                               Edit
+                            </button>
+                          ) : null}
+                          {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
+                            <button
+                              className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+                              onClick={() => onDeleteThread(thread)}
+                              type="button"
+                            >
+                              Delete
                             </button>
                           ) : null}
                         </div>

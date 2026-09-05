@@ -31,6 +31,20 @@ module Api
           end
         end
 
+        def destroy
+          job = find_job
+          return unless authorize_job_mutation!(job)
+
+          comment = job.diff_review_comments.find(params[:id])
+          unless comment.state == "draft"
+            render_error("validation_failed", "Only draft comments can be deleted.", status: :unprocessable_content)
+            return
+          end
+
+          comment.destroy!
+          render json: { job_id: job.id, deleted_id: comment.id }
+        end
+
         def resolve
           job = find_job
           return unless authorize_job_mutation!(job)
