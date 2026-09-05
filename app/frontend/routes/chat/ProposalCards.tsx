@@ -107,6 +107,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      if (updated.proposal) dispatchProposalUpdated(queryKey[1], updated.proposal)
       onNotice(updated.message || "Proposal updated")
       onClose()
     }

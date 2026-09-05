@@ -740,6 +740,11 @@ export type ChatProposalMutationPayload = {
   pending_proposal_count?: number
 }
 
+// The update (edit) endpoint renders a full chat_payload merged with the
+// freshly serialized proposal, unlike confirm/reject's compact mutation
+// payload above.
+export type ChatProposalUpdatePayload = ChatPayload & { proposal?: ChatProposal | null }
+
 export type ChatContextPayload = Pick<ChatPayload, "attachment_groups" | "documents_in_scope" | "attachment_results">
 
 export type ChatSpeechToTextCapability = {
@@ -1209,7 +1214,7 @@ export function rejectChatProposal(path: string) {
 }
 
 export function updateChatProposal(path: string, values: ChatProposalUpdateInput) {
-  return patchJson<ChatPayload>(path, { proposal: values })
+  return patchJson<ChatProposalUpdatePayload>(path, { proposal: values })
 }
 
 export function searchChatProposals(chatId: string | number, query: string, excludeId: number, options: { signal?: AbortSignal } = {}) {
