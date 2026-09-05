@@ -334,6 +334,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.index ["user_id"], name: "index_build_cache_clear_requests_on_user_id"
   end
 
+  create_table "build_cache_repository_settings", force: :cascade do |t|
+    t.boolean "basedirs_safe", default: false, null: false
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_build_cache_repository_settings_on_repository_id", unique: true
+  end
+
   create_table "chat_agent_questions", force: :cascade do |t|
     t.datetime "answered_at"
     t.json "answers"
@@ -3033,4 +3041,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "build_cache_repository_settings", "repositories"
 end

@@ -34,9 +34,32 @@ These are forwarded into `prepare` and `grader` subprocess env by `Steps::Prepar
 
 Verify this list against [sccache's S3 docs](https://github.com/mozilla/sccache/blob/main/docs/S3.md) before changing it — it's the source of truth for what sccache's S3 backend actually reads.
 
-### Deliberately not forwarded: `SCCACHE_BASEDIRS`
+### Not forwarded by default: `SCCACHE_BASEDIRS`
 
-sccache supports normalizing away a base directory before hashing (`SCCACHE_BASEDIRS`), which lets a cache hit span builds run from different absolute paths. Syrus does **not** forward this var, and it should stay that way — see the coverage-correctness note below.
+sccache supports normalizing away a base directory before hashing (`SCCACHE_BASEDIRS`), which lets a cache hit span builds run from different absolute paths. Syrus does **not** forward this by default — see the coverage-correctness note below. A repository can opt in to having Syrus manage this itself once its coverage build has proven it is path-remapped/safe (see "Repository opt-in: `basedirs_safe`" below) — do not hand-roll `export SCCACHE_BASEDIRS=...` inside a `.syrus.yml` grader command instead; see "Why hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work" below for why that pattern silently fails.
+
+## Per-Workflow daemon isolation
+
+sccache is a client/server pair: the small CLI that masquerades as `cc`/`g++`/etc. is a *client* that talks to a long-running *server* process over a local TCP port. The server reads its entire backend and cache-key configuration — `SCCACHE_BUCKET` and friends, and `SCCACHE_BASEDIRS` — exactly once, when it starts. A client invocation's own environment only matters for the very first invocation that has to lazily spawn the server; every later invocation just reuses whatever server is already listening, regardless of that invocation's own env.
+
+Worker pods run multiple Workflows concurrently (`AppSetting.max_concurrent_agent_runs`), and by default sccache listens on one fixed port per host. That makes the daemon a de facto host-level singleton that can easily end up serving a completely different Workflow's, or even a stale/long-dead Workflow's, configuration — this was JOB-4309's root cause: a grader command exported `SCCACHE_BASEDIRS`/pointed at the shared bucket, but a daemon that had already been started earlier (by `prepare`, an earlier grade iteration, or an unrelated Job on the same worker pod) was still serving requests with whatever env it had when *it* started, silently ignoring the later command's env entirely.
+
+`BuildCache::DaemonAddress.port_for(workflow)` derives a distinct `SCCACHE_SERVER_PORT` per Workflow (`20000 + workflow.id % 40000`). Both `Steps::Prepare` and `Steps::Grader` forward this via `BuildCache::StepEnvironment#extra_env` (the computed-value companion to `#forwarded_env_keys` on `Syrus::Plugin::StepEnvironment`), so every compiler invocation within one Workflow — across `prepare` and every `grader` Step — agrees on the same port, and that Workflow's first invocation (almost always during `prepare`) lazily spawns a daemon that is guaranteed to inherit *that Workflow's own, current* env: the S3 backend vars, and conditionally `SCCACHE_BASEDIRS` (see below). It is never a daemon left over from a different Workflow, and never shared with a concurrent one on the same pod. The daemon self-terminates after sccache's own idle timeout once the Workflow's compiles stop — an accepted, low resource cost for the correctness this buys.
+
+## Repository opt-in: `basedirs_safe`
+
+`BuildCache::RepositorySettings` (`build_cache_repository_settings` table, one row per repository, missing row = not opted in) is a per-repository boolean, analogous in spirit to `Repository#trust_clean_rebase_grade` but kept in the `build_cache` plugin's own table rather than on the core `Repository` model (see `PluginDataCleanup`/`Syrus::DataCleanup` — a plugin owns the rows that reference a core record, the core model does not declare an association back into a plugin table). Read/write it via:
+
+```
+GET   /api/v1/app/repositories/:id/build_cache_settings
+PATCH /api/v1/app/repositories/:id/build_cache_settings   { "basedirs_safe": true }
+```
+
+When `basedirs_safe` is true, `BuildCache::RuntimeEnv` forwards `SCCACHE_BASEDIRS=<this Workflow's workspace path>` for that repository's `prepare`/`grader` subprocesses, for the whole Workflow — not scoped to a single grader command, since the opt-in itself is a repository-wide claim ("I have proved every coverage-relevant compile in this repo is path-remapped/stable"), and the daemon can only be configured once per Workflow regardless. Every other repository keeps sccache's default exact-path-match behavior. **Only set this after completing the two-path validation below** — an unproven repository that opts in gets exactly the `.gcno` cross-Workflow corruption risk this whole section exists to prevent.
+
+### Why hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work
+
+An earlier version of this guide suggested exporting `SCCACHE_BASEDIRS` directly inside a `.syrus.yml` grader command. **Don't do this** — per the daemon-isolation section above, that command's own env only matters if it happens to be the very first sccache invocation of the Workflow, which a coverage grader typically is not (`prepare`'s dependency install usually gets there first). The command's `export` has no effect on an already-running daemon. Use the repository-level `basedirs_safe` opt-in instead, which is threaded into every `prepare`/`grader` subprocess's env from the start of the Workflow, guaranteeing it reaches whichever invocation actually spawns the daemon.
 
 ## Coverage builds (`gcov`/`--coverage`) and cache correctness
 
@@ -44,17 +67,20 @@ sccache supports normalizing away a base directory before hashing (`SCCACHE_BASE
 
 Every Syrus Workflow clones to a fresh, never-reused `$SYRUS_DATA_ROOT/workflows/<workflow_id>/` path. Combined with sccache's *default* behavior — an exact absolute-path match is required for a cache hit — this means a coverage build's `.gcno` cache entry can only ever be reused by a later compile from the **same Workflow's same still-live workspace**. It cannot be served to a different Workflow, because the absolute path never matches. This is what keeps `gcovr`/coverage output safe: a served `.gcno` always points at a workspace that still exists on disk.
 
-**This safety property depends on never setting `SCCACHE_BASEDIRS`.** That variable exists specifically to let cache hits span different absolute paths by normalizing them away before hashing — turning it on for this fleet would let a coverage build's `.gcno` cache-hit across Workflows, silently corrupting downstream coverage reports with a notes file pointing at a different (likely deleted) workspace. If a future change wants cross-Workflow cache benefit for coverage builds specifically, it needs its own solution (e.g. rewriting/stripping the cached `.gcno`'s embedded path before use) — don't just flip on `SCCACHE_BASEDIRS`.
+**This safety property depends on never setting `SCCACHE_BASEDIRS`.** That variable exists specifically to let cache hits span different absolute paths by normalizing them away before hashing — turning it on unconditionally for this fleet would let a coverage build's `.gcno` cache-hit across Workflows, silently corrupting downstream coverage reports with a notes file pointing at a different (likely deleted) workspace. This is exactly why the `basedirs_safe` opt-in below is per-repository and requires proving the coverage build's notes are path-remapped first — don't just flip it on.
 
-Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker cache benefit once a bucket is configured. Coverage-instrumented compiles only benefit from same-Workflow reruns (still valuable — that's every retry in a grade loop) until a dedicated fix ships. This is an accepted interim limitation, not a bug.
+Net effect: non-coverage C/C++ compiles get full cross-Workflow/cross-worker cache benefit once a bucket is configured. Coverage-instrumented compiles only get cross-Workflow cache benefit for repositories that have opted into `basedirs_safe`; everyone else only benefits from same-Workflow reruns (still valuable — that's every retry in a grade loop).
 
 ## Cache-safe coverage recipe for projects that opt into path normalization
 
-Syrus itself should keep leaving `SCCACHE_BASEDIRS` out of the worker env. A
-repository may still set it inside a wrapper script or CI job when that project
-has proved its coverage build is path-stable. The validated `tkadauke/raytracer`
-approach is the generic shape to copy, with project paths and thresholds
-replaced by local values.
+Syrus leaves `SCCACHE_BASEDIRS` out of the daemon env by default. A repository
+can opt in once it has proved its coverage build is path-stable, via the
+`basedirs_safe` setting described above — Syrus then manages the actual
+`SCCACHE_BASEDIRS` value itself (the Workflow's own workspace path), scoped
+safely per-Workflow (see "Per-Workflow daemon isolation" above). The
+project-side work is unchanged: the validated `tkadauke/raytracer` approach
+below is the generic shape to copy, with project paths and thresholds replaced
+by local values.
 
 For GCC/gcov coverage builds, compile coverage objects with both coverage
 instrumentation and prefix remapping so cached `.gcno` notes do not contain the
@@ -88,21 +114,27 @@ ctest --test-dir build/coverage --output-on-failure
 gcovr --root . --object-directory build/coverage --lcov coverage/lcov.info
 ```
 
-Only after that remapping is in place should the wrapper opt into shared
-absolute-path normalization for the coverage build:
+Only after that remapping is in place, and only after the two-path validation
+below passes, set the repository's opt-in:
 
 ```bash
-export SCCACHE_BASEDIRS="$repo_root"
+curl -X PATCH -H "Authorization: Bearer $SYRUS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"basedirs_safe": true}' \
+  "$SYRUS_URL/api/v1/app/repositories/$REPOSITORY_ID/build_cache_settings"
 ```
 
-Do not set a broad value such as `/syrus-home`, `$SYRUS_DATA_ROOT`, or `/`.
-Normalize only the current repository checkout, and only from the command that
-has already added the coverage prefix-map flags.
+Do not build a project-specific workaround that sets `SCCACHE_BASEDIRS`
+directly (in a `.syrus.yml` command, a wrapper script, or otherwise) — see "Why
+hand-rolled `SCCACHE_BASEDIRS` in a grader command doesn't work" above. Syrus
+normalizes only the current Workflow's own workspace path; there is no way to
+set a broader value like `/syrus-home` or `$SYRUS_DATA_ROOT` through this
+mechanism.
 
 ### Two-path validation before enabling it
 
-Validate the recipe from two different absolute checkouts before committing the
-`SCCACHE_BASEDIRS` export:
+Validate the recipe from two different absolute checkouts before setting
+`basedirs_safe`:
 
 1. Build and test coverage from checkout A with an empty or isolated sccache
    namespace. Keep the cache warm.
@@ -150,6 +182,15 @@ After every `prepare` and `grader` shell command runs (with the compiler masquer
 
 This capture always runs (best-effort, non-fatal) regardless of whether `sccache` is actually doing anything useful for that repo — a repo with no C/C++ code just gets a near-instant no-op read (or, before the `sccache` binary existed on a given worker image, a silent skip).
 
+### Cache mismatch warnings
+
+`BuildCache::CacheMismatchDetector` runs after every captured snapshot and files a `WorkflowWarning` (`kind: "sccache_config_mismatch"`, visible on the Job details page with a one-click "file a fix Job" action — see `config/syrus_docs/workflow_warnings.md`) when the daemon's reported state doesn't match what Syrus configured it for:
+
+- **Shared cache expected, but `cache_location` reports local disk** — `SCCACHE_BUCKET` was forwarded into the command's env, but the stats snapshot still reports a local-disk cache. Per-Workflow daemon isolation (above) should make this rare going forward; a recurrence usually means the S3/MinIO backend vars aren't actually reaching the worker pod, or the daemon's connection to the bucket is failing silently.
+- **`basedirs_safe` expected, but stats report `basedirs: []`** — `SCCACHE_BASEDIRS` was forwarded (the repository opted in), but the daemon's stats show it was never applied.
+
+Both warnings are best-effort and never fail the Workflow — they're an operator signal, not a grading gate.
+
 ## Cache stats UI
 
 The Job detail page's Summary tab shows a "Compiler Cache (sccache)" card (`SccacheCard.tsx`) next to the Coverage card, using the same pattern: `BuildCache::UiSlots` (which contributes the card to the `job.detail` slot) finds the most recent `sccache_stats` capture across the Job's Workflows (by the capture's own `captured_at`, not the owning Workflow's), and `BuildCache::StatsSummary` best-effort-normalizes the raw `stats` payload into `hits`/`misses`/`hit_rate`/`cache_size`/`max_cache_size`/`cache_location` — tolerant of the shape differences sccache versions have shown (flat integers vs. per-language `counts` maps, top-level vs. nested under a `"stats"` key). The panel renders only when at least one capture exists anywhere on the Job; older Runs, non-C++ repos, and Runs predating the sccache wrapper simply omit it — no error state.
@@ -165,19 +206,30 @@ Endpoints: `GET /api/v1/app/admin/build_cache` (stats + pending/recent requests)
 ## Plugin ownership
 
 Everything above lives in the `build_cache` plugin: the S3 client, the stats
-capture and summary, the clear-request model (table `build_cache_clear_requests`),
+capture and summary, the mismatch detector, the clear-request model (table
+`build_cache_clear_requests`), the per-repository opt-in
+(`BuildCache::RepositorySettings`, table `build_cache_repository_settings`),
 the admin page, and the Job-detail card.
 
-Two core hooks make that possible. `Syrus::Plugin::StepEnvironment` lets the
-plugin contribute the `SCCACHE_*` and `AWS_*` names that `Steps::Prepare`
-forwards into prepare/grader/deploy subprocesses -- core no longer names them.
-And the capture runs as a `domain_subscriber` on `step.command.completed`, an
+Three core hooks make that possible. `Syrus::Plugin::StepEnvironment` lets the
+plugin contribute both the `SCCACHE_*`/`AWS_*` names `Steps::Prepare` forwards
+from the worker's own `ENV` into prepare/grader/deploy subprocesses
+(`#forwarded_env_keys`) and values it computes per Workflow --
+`SCCACHE_SERVER_PORT` and conditionally `SCCACHE_BASEDIRS` -- through the
+companion `#extra_env` hook, gathered by `Steps::Prepare.prep_extra_env` and
+merged into both `Steps::Prepare#env` and `Steps::Grader#env`. The stats
+capture runs as a `domain_subscriber` on `step.command.completed`, an
 inline event published after each shell command a step runs, replacing the
 `Steps::Base#capture_sccache_stats!` call that three step classes used to make
 directly. Inline delivery is what lets the subscriber still reach the workspace
-and the command's own scrubbed environment before the workspace is torn down.
+and the command's own scrubbed environment before the workspace is torn down;
+the mismatch detector runs from that same subscriber, right after the capture.
+`BuildCache::RepositorySettings` belongs to `Repository` by plain foreign key
+rather than a core-model association -- see `PluginDataCleanup`/
+`Syrus::DataCleanup`, registered via `BuildCache::DataCleanup.install_into`.
 
-Disabling the plugin stops the captures, drops the `SCCACHE_*` variables from
-step subprocesses (so sccache falls back to its local cache), and removes the
-admin page and the Job-detail card. The recorded artifacts and clear-request
-rows are left alone.
+Disabling the plugin stops the captures and mismatch warnings, drops the
+`SCCACHE_*` variables (both forwarded and computed) from step subprocesses (so
+sccache falls back to its local cache, unscoped per-Workflow), and removes the
+admin page and the Job-detail card. The recorded artifacts, clear-request rows,
+and per-repository `basedirs_safe` settings are left alone.
