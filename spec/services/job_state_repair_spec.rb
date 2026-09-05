@@ -60,14 +60,16 @@ RSpec.describe JobStateRepair do
     end
 
     context "auto mode" do
-      it "delegates to WorkEngine::Reconciler and returns a Result" do
+      it "delegates to WorkEngine::Reconciler through the concurrency-guarded entry point and returns a Result" do
         job = build_job("failed")
-        allow(WorkEngine::Reconciler).to receive(:call).and_return(
-          WorkEngine::Reconciler::Result.new(
-            source: "test", captured_at: Time.current, snapshot: nil,
-            issues: [], repair_plans: [], repair_executions: []
+        expect(WorkEngine::Reconciler).to receive(:call_locked!)
+          .with(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+          .and_return(
+            WorkEngine::Reconciler::Result.new(
+              source: "test", captured_at: Time.current, snapshot: nil,
+              issues: [], repair_plans: [], repair_executions: []
+            )
           )
-        )
 
         result = described_class.reconcile!(mode: :auto, job: job, reason: "operator triggered")
 
@@ -75,6 +77,17 @@ RSpec.describe JobStateRepair do
         expect(result.job).to eq(job)
         expect(result.message).to include("WorkEngine reconciler")
         expect(result.message).to include("0 repair")
+      end
+
+      it "reports a skip instead of running when a concurrent reconciliation already holds the job's lock" do
+        job = build_job("failed")
+        allow(WorkEngine::Reconciler).to receive(:call_locked!).and_return(nil)
+
+        result = described_class.reconcile!(mode: :auto, job: job, reason: "operator triggered")
+
+        expect(result).to be_a(described_class::Result)
+        expect(result.job).to eq(job)
+        expect(result.message).to match(/concurrent reconciliation/i)
       end
     end
 

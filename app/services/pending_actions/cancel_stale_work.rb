@@ -10,7 +10,7 @@ module PendingActions
       cancelled = cancel_work!(job)
       if payload.fetch("reconcile", true)
         progress!("Reconciling #{job.slug} after cancellation...")
-        WorkEngine::Reconciler.call(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
+        WorkEngine::Reconciler.call_locked!(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
       end
       progress!("Recording repair audit...")
       audit!(job, cancelled)

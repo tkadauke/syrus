@@ -450,8 +450,16 @@ module WorkEngine
           return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
           return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
-          run.reenqueue!
-          success("re-enqueued #{run_label(run)}")
+          run.with_lock do
+            run.reload
+            return skipped("Run is #{run.state}, not queued") unless run.queued?
+            return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
+            return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
+            return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
+
+            run.reenqueue!
+            success("re-enqueued #{run_label(run)}")
+          end
         end
 
         private
@@ -565,8 +573,16 @@ module WorkEngine
           return skipped("Workflow has no first Step") unless first
           return skipped("First Step already has a Run") if first.runs.exists?
 
-          run = WorkUnits::Launcher.start!(workflow).run
-          run ? success("started #{workflow_label(workflow)} with #{run_label(run)}") : skipped("workflow start remained blocked")
+          workflow.with_lock do
+            workflow.reload
+            return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
+            first = workflow.first_step
+            return skipped("Workflow has no first Step") unless first
+            return skipped("First Step already has a Run") if first.runs.exists?
+
+            run = WorkUnits::Launcher.start!(workflow).run
+            return run ? success("started #{workflow_label(workflow)} with #{run_label(run)}") : skipped("workflow start remained blocked")
+          end
         end
       end
 
@@ -807,19 +823,26 @@ module WorkEngine
           return skipped("Job is not closed") unless workflow.job&.closed?
           return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
 
-          with_transition_reason do
-            workflow.artifacts = (workflow.artifacts || {}).merge(
-              "cancelled_reason" => "job_closed",
-              "cancelled_by_reconciler_at" => Time.current.iso8601
-            )
-            WorkUnits::WorkflowCancellation.cancel!(
-              workflow,
-              reason: "job_closed",
-              artifacts: workflow.artifacts
-            )
-          end
+          workflow.with_lock do
+            workflow.reload
+            return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
+            return skipped("Job is not closed") unless workflow.job&.closed?
+            return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
 
-          success("cancelled #{workflow_label(workflow)} because #{job_label(workflow.job)} is closed")
+            with_transition_reason do
+              workflow.artifacts = (workflow.artifacts || {}).merge(
+                "cancelled_reason" => "job_closed",
+                "cancelled_by_reconciler_at" => Time.current.iso8601
+              )
+              WorkUnits::WorkflowCancellation.cancel!(
+                workflow,
+                reason: "job_closed",
+                artifacts: workflow.artifacts
+              )
+            end
+
+            success("cancelled #{workflow_label(workflow)} because #{job_label(workflow.job)} is closed")
+          end
         end
       end
 
