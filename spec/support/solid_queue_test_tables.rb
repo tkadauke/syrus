@@ -119,6 +119,17 @@ module SolidQueueTestTables
       end
     end
 
+    unless connection.table_exists?(:solid_queue_semaphores)
+      connection.create_table :solid_queue_semaphores do |t|
+        t.datetime :created_at, null: false
+        t.datetime :expires_at, null: false
+        t.string :key, null: false
+        t.datetime :updated_at, null: false
+        t.integer :value, default: 1, null: false
+      end
+      connection.add_index :solid_queue_semaphores, :key, unique: true, name: "index_solid_queue_semaphores_on_key"
+    end
+
     [
       SolidQueue::Job,
       SolidQueue::ClaimedExecution,
@@ -129,7 +140,8 @@ module SolidQueueTestTables
       SolidQueue::Process,
       SolidQueue::Pause,
       SolidQueue::RecurringTask,
-      SolidQueue::RecurringExecution
+      SolidQueue::RecurringExecution,
+      SolidQueue::Semaphore
     ].each(&:reset_column_information)
   end
 
@@ -146,6 +158,7 @@ module SolidQueueTestTables
       solid_queue_claimed_executions
       solid_queue_jobs
       solid_queue_processes
+      solid_queue_semaphores
     ].each do |table|
       connection.delete("DELETE FROM #{connection.quote_table_name(table)}") if connection.table_exists?(table)
     end
@@ -164,6 +177,7 @@ module SolidQueueTestTables
       solid_queue_blocked_executions
       solid_queue_processes
       solid_queue_jobs
+      solid_queue_semaphores
     ].each do |table|
       connection.drop_table(table) if connection.table_exists?(table)
     end

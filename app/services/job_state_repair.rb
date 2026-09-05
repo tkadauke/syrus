@@ -70,7 +70,11 @@ class JobStateRepair
 
   class Auto < ReconcileMode
     def call
-      result = WorkEngine::Reconciler.call(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+      result = WorkEngine::Reconciler.call_locked!(source: "operator:reconcile_job_state", job_id: job.id, execute_repairs: true)
+      unless result
+        return Result.new(job: job.reload, message: "A concurrent reconciliation is already running for #{job.slug}; try again shortly.")
+      end
+
       Result.new(job: job.reload, message: "WorkEngine reconciler inspected #{result.issues.size} issue(s) and applied #{result.repair_executions.count { |execution| execution.status == "applied" }} repair(s).")
     end
   end

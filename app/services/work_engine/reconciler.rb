@@ -135,6 +135,49 @@ module WorkEngine
       WorkEngine::ReconcileJob.perform_later(**args)
     end
 
+    # Synchronous counterpart to .request for admin/operator call sites that
+    # need an inline Result to report back immediately (e.g. the "reap stale
+    # runs now" admin action) instead of enqueuing ReconcileJob. Acquires the
+    # exact SolidQueue semaphore key ReconcileJob's limits_concurrency guard
+    # would use for the same job/workflow/run/work_intent/global scope, so an
+    # inline call can never run concurrently with an enqueued/running
+    # ReconcileJob (or another inline call) for that scope -- closing the
+    # race that produced the JOB-2970 / WF-18780 run storm, where two
+    # concurrent reconcile passes read the same stale state and both decided
+    # to repair it.
+    #
+    # Returns nil, without evaluating anything, when a concurrent reconcile
+    # already holds the lock for this scope -- callers should treat nil as
+    # "skipped, a reconcile is already in flight" rather than "no issues
+    # found". Falls back to running unlocked (logging a warning) if the
+    # SolidQueue semaphore table itself is unreachable, so environments
+    # without a live queue database degrade the same way capture_solid_queue
+    # already does elsewhere in this class.
+    def self.call_locked!(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
+      lock_job = ReconcileJob.new(source: source.to_s, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id)
+
+      locked =
+        begin
+          SolidQueue::Semaphore.wait(lock_job)
+        rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished, NameError => e
+          Rails.logger.warn("[WorkEngine::Reconciler] SolidQueue semaphore unavailable (#{e.class}: #{e.message}); running #{source} reconcile without a concurrency lock")
+          nil
+        end
+      return nil if locked == false
+
+      begin
+        call(source: source, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id, now: now, execute_repairs: execute_repairs)
+      ensure
+        if locked
+          begin
+            SolidQueue::Semaphore.signal(lock_job)
+          rescue StandardError => e
+            Rails.logger.warn("[WorkEngine::Reconciler] failed to release SolidQueue semaphore for #{lock_job.concurrency_key}: #{e.class}: #{e.message}")
+          end
+        end
+      end
+    end
+
     def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
       @source = source.to_s
       @job_id = job_id
