@@ -1080,6 +1080,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    jobs_before_request = enqueued_jobs.count
 
     expect {
       post "/api/v1/app/chats"
@@ -1094,7 +1095,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.last_message_at).to be_nil
     expect(chat.messages).to be_empty
     expect(ChatMessage.count).to eq(0)
-    expect(enqueued_jobs).to be_empty
+    expect(enqueued_jobs.count).to eq(jobs_before_request)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
   end
 
