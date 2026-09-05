@@ -174,6 +174,32 @@ The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.
 
+## Slug Hover Preview
+
+`DOC-<id>` references linkified anywhere in the app (chat messages, job/epic
+bodies, design doc comments) get a rich hover/click preview popup, the same
+interaction core already has for `JOB-<id>`/`EPIC-<id>` (`SlugHoverCard`).
+`GET /api/v1/app/design_docs/:id/preview` backs the popup with a payload
+lighter than `DesignDocDetail`: copyable `display_id`, `title`, `owner`,
+`collaborators`, `comments_count` (across all threads), `latest_version_number`,
+`updated_at`, and `preview_text` — the document body with hidden Syrus anchor
+markers stripped (`DesignDocs::DesignDoc#preview_text`) and clamped to roughly
+100 words so a page referencing many docs never fetches full editor payloads
+just to preview slugs. Visibility is enforced the same way `show` enforces
+it (`policy_scope(DesignDoc).find`), but a doc that doesn't exist or that the
+current viewer can't see returns `200` with `{ id, display_id, accessible:
+false }` instead of an error — enough for the popup to render a minimal
+"Not accessible" state without leaking whether the doc exists, its title, or
+any other field.
+
+The frontend card (`plugins/design_docs/app/frontend/slugPreviewCards/DesignDocPreviewCard.tsx`)
+is discovered by core's generic `kind -> plugin component` glob lookup
+(`app/frontend/pluginSlugPreviewCards.tsx`, the same `import.meta.glob`
+convention `workspace_tab`/`ui_slot` use) so `SlugHoverCard.tsx` never imports
+plugin code directly; core only carries the `"doc"` kind's component key
+string. The card renders a condensed collaborator list (first three names,
+then `+N`) when there are many collaborators.
+
 ## Agent Tooling
 
 Chat agents can suggest edits with `suggest_design_doc_change`. The tool

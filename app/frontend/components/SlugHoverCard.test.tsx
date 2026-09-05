@@ -13,6 +13,12 @@ vi.mock("./EpicPreviewCard", () => ({
   EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-card">EPIC-{id}</div>,
   EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />,
 }))
+vi.mock("../pluginSlugPreviewCards", () => ({
+  pluginSlugPreviewCardComponentFor: (key: string | null | undefined) =>
+    key === "design_docs/DesignDocPreviewCard"
+      ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div>
+      : null,
+}))
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -30,7 +36,7 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
-function renderCard(kind: "job" | "epic", id: number) {
+function renderCard(kind: "job" | "epic" | "doc", id: number) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
@@ -99,6 +105,17 @@ describe("SlugHoverCard on a pointer:fine device", () => {
 
     expect(screen.getByTestId("epic-card")).toBeInTheDocument()
     expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-7")
+  })
+
+  it("shows the plugin-provided doc card for kind=doc", async () => {
+    renderCard("doc", 20)
+    const span = screen.getByRole("link", { name: "DOC-20" }).parentElement!
+    fireEvent.mouseEnter(span)
+
+    await act(async () => { vi.advanceTimersByTime(300) })
+
+    expect(screen.getByTestId("doc-card")).toBeInTheDocument()
+    expect(screen.getByTestId("doc-card").textContent).toBe("DOC-20")
   })
 
   it("cancels open timer when mouse leaves before 300ms", async () => {
