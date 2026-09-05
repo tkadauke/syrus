@@ -97,6 +97,14 @@ export function TimelineIcon() {
   )
 }
 
+export function ActivityIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M4.75 12h3l2-6.5 4 13 2-6.5h3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function TeamIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">

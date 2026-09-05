@@ -571,6 +571,7 @@ Rails.application.routes.draw do
   get "db_browser", to: "spa#show", as: :db_browser
   get "worker_timeline", to: "spa#show", as: :worker_timeline
   get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
+  get "agent_activity", to: "spa#show", as: :agent_activity
   get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|

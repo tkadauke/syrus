@@ -195,6 +195,7 @@ per-user/private:
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
+  - plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb
   - plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
@@ -219,6 +220,7 @@ admin-only:
   - app/controllers/admin/base_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/api/v1/app/auth_controller.rb
+  - plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/admin/build_cache_controller.rb
   - app/controllers/api/v1/app/admin/console_controller.rb
   - app/controllers/api/v1/app/admin/github_app_controller.rb
@@ -452,3 +454,5 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `plugins/whiteboard/app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Whiteboard state is scoped to a chat session belonging to the current user. |
 | `plugins/whiteboard/app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Snapshot reads and writes are scoped to the current user's chat session. |
 | `plugins/mysql_db_browser/app/controllers/api/v1/app/admin/mysql_query_controller.rb` | admin-only | Query execution is gated on `Current.user.admin?` in addition to per-connection agentic-access opt-in. |
+| `plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb` | per-user/private | Sessions are scoped to repositories the current user belongs to plus Jobs they effectively own (`AgentActivity::SessionsQuery`, scope: `:mine`). |
+| `plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb` | admin-only | Inherits `Api::V1::App::Admin::BaseController`'s `require_admin`; lists sessions and transcripts across every repository, not just ones the admin belongs to. |
