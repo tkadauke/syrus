@@ -169,6 +169,13 @@ module Factories
     }.merge(attrs))
   end
 
+  def kubernetes_cluster(**attrs)
+    KubernetesCluster.create!({
+      label: "Cluster #{SecureRandom.hex(2)}",
+      api_server_url: "https://k8s.example.com:6443"
+    }.merge(attrs))
+  end
+
   def tag(**attrs)
     Tag.create!({
       user: attrs[:user] || user,

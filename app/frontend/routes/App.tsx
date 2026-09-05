@@ -84,6 +84,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/design_docs/:id", element: <PluginSidebarPageRoute /> },
   { path: "/insights/spending", element: <PluginSidebarPageRoute /> },
   { path: "/db_browser", element: <PluginSidebarPageRoute /> },
+  { path: "/k8s_clusters", element: <PluginSidebarPageRoute /> },
   { path: "/worker_timeline", element: <PluginSidebarPageRoute /> },
   { path: "/worker_timeline/workflow", element: <PluginSidebarPageRoute /> },
   { path: "/terminal", element: <PluginSidebarPageRoute /> },

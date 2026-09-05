@@ -116,6 +116,7 @@ gem "agent_insights", path: "plugins/agent_insights"
 gem "scheduled_tasks", path: "plugins/scheduled_tasks"
 gem "agent_memory", path: "plugins/agent_memory"
 gem "global_search", path: "plugins/global_search"
+gem "k8s_cluster", path: "plugins/k8s_cluster"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

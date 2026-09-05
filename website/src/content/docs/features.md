@@ -1186,6 +1186,47 @@ connected, a copyable `https://<device>.ts.net` URL, and a short setup
 checklist. To reach Syrus from a phone: install the Tailscale app, sign in to
 the same tailnet, then open that ts.net URL.
 
+## K8s Cluster Viewer
+
+The bundled `k8s_cluster` plugin lets admins register external
+Kubernetes/k3s clusters and browse them read-only from **Admin → K8s
+Clusters**. Like Tailscale and MySQL DB Browser, it ships installed but
+disabled by default from **Admin → Plugins**.
+
+Register a cluster by pasting its kubeconfig — Syrus resolves the
+current-context's cluster and user, then stores only the API server URL and
+whichever credentials it needs (a bearer token, or a client
+certificate/key pair), encrypted at rest. The raw kubeconfig itself is
+discarded once parsed. A **Test** button checks connectivity before saving,
+and an explicit `insecure_skip_tls_verify` opt-in skips certificate
+verification for a self-signed k3s API server.
+
+Each registered cluster has a **Browse** action that opens a tabbed,
+read-only viewer: **Overview** (node count/status plus aggregate CPU/memory
+from metrics-server, when installed), **Workloads** (pods, Deployments, and
+CronJobs, switchable per kind), **Services** (services alongside their
+backing Endpoints' ready/not-ready address counts), **Storage**
+(PersistentVolumeClaims), **Nodes** (capacity, allocatable capacity, and
+readiness), **Events** (most-recent-first), **Logs** (a pod log tail with a
+container picker for multi-container pods), and **Live** (a 10-second
+polling view over pod status and recent events). A namespace filter scopes
+the namespace-aware tabs to one namespace or all of them.
+
+This is a direct-connectivity viewer — no relay agent for clusters Syrus
+can't reach directly. Each cluster also has two independent, per-cluster
+opt-ins for the Syrus agent, both off by default: `agentic_access_enabled`
+exposes read-only MCP tools (list/describe namespaces, pods, deployments,
+services, events, PVCs, nodes, CronJobs, pod logs, and the metrics
+overview) so agents can inspect a cluster the same way the Browse viewer
+does. `allow_writes` — a stricter, separate opt-in that requires
+`agentic_access_enabled` too — additionally exposes a short, fixed
+allowlist of four mutating tools: restart a deployment's rollout, scale a
+deployment, delete a pod to force a reschedule, and cordon/uncordon a
+node. There's deliberately nothing broader than that — no namespace
+deletion, no CRD/RBAC changes, no arbitrary manifest `apply`, no
+exec-into-pod — and every write call is audit-logged with a before/after
+summary of what changed.
+
 ## GitHub App And PAT Behavior
 
 Repositories prefer an active GitHub App installation when one is linked

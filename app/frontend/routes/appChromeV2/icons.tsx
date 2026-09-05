@@ -189,6 +189,17 @@ export function GripIcon() {
   )
 }
 
+export function ServerIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <rect height="5.5" rx="1" stroke="currentColor" strokeWidth="1.7" width="16.5" x="3.75" y="4.75" />
+      <rect height="5.5" rx="1" stroke="currentColor" strokeWidth="1.7" width="16.5" x="3.75" y="13.75" />
+      <circle cx="7" cy="7.5" fill="currentColor" r="1" />
+      <circle cx="7" cy="16.5" fill="currentColor" r="1" />
+    </svg>
+  )
+}
+
 // Generic fallback for plugin-provided sidebar nav items whose icon
 // reference doesn't match a known built-in icon.
 export function PluginIcon() {
