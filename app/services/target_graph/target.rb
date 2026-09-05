@@ -2,9 +2,16 @@ class TargetGraph
   # An execution graph node: a grader, formatter, builder, generator,
   # prepare action, repo check, or plain library/binary/application node.
   # See DOC-20 "Core Model" and "Dependency Edges".
+  #
+  # `metadata` is a free-form Hash for legacy-config fields a compiler needs
+  # to preserve exactly but that don't have a dedicated column here yet
+  # (e.g. a grader's `junit_output`/`failures` policy, a generator's
+  # `generates` output globs). Consumers that care about a specific legacy
+  # quirk read it by string key; nothing in the base graph model interprets
+  # it.
   Target = Data.define(
     :label, :kind, :project_id, :source_scope, :command, :dependencies,
-    :phases, :required, :timeout_minutes, :owner_config_path
+    :phases, :required, :timeout_minutes, :owner_config_path, :metadata
   ) do
     KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
     # Mirrors SyrusYml::GRADE_PHASES's vocabulary, but this graph model does
@@ -15,7 +22,7 @@ class TargetGraph
     def initialize(
       label:, kind:, project_id:,
       source_scope: [], command: nil, dependencies: [], phases: [],
-      required: false, timeout_minutes: nil, owner_config_path: nil
+      required: false, timeout_minutes: nil, owner_config_path: nil, metadata: {}
     )
       raise ArgumentError, "label must be a TargetGraph::Label" unless label.is_a?(TargetGraph::Label)
       raise ArgumentError, "kind #{kind.inspect} must be one of #{KINDS.join(', ')}" unless KINDS.include?(kind.to_s)
@@ -36,6 +43,8 @@ class TargetGraph
       project_id = project_id.to_s.strip
       raise ArgumentError, "project_id must not be blank" if project_id.empty?
 
+      raise ArgumentError, "metadata must be a Hash" unless metadata.is_a?(Hash)
+
       super(
         label: label,
         kind: kind.to_s,
@@ -46,7 +55,8 @@ class TargetGraph
         phases: phases,
         required: !!required,
         timeout_minutes: timeout_minutes,
-        owner_config_path: owner_config_path&.to_s
+        owner_config_path: owner_config_path&.to_s,
+        metadata: metadata
       )
     end
 
