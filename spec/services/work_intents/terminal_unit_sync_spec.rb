@@ -32,14 +32,19 @@ RSpec.describe WorkIntents::TerminalUnitSync do
   it "does not satisfy the WorkIntent while another WorkUnit for it is still active" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     intent = workflow.work_unit.work_intent
-    WorkUnit.create!(
+    # Two active WorkUnits for the same (scope, kind) can no longer arise
+    # through the app's own launch path (JOB-4235's active_dedup_key
+    # uniqueness prevents it) — this simulates a legacy row that predates
+    # that guarantee, to keep exercising TerminalUnitSync's own defensive
+    # "still has an active sibling" check.
+    WorkUnit.new(
       work_intent: intent,
       kind: "initial",
       state: "queued",
       repository: repository,
       scope_type: "job",
       scope_id: job.id
-    )
+    ).save!(validate: false)
 
     workflow.work_unit.mark_terminal!("succeeded")
 
@@ -57,14 +62,19 @@ RSpec.describe WorkIntents::TerminalUnitSync do
   it "does not fail the WorkIntent while another WorkUnit for it is still active" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     intent = workflow.work_unit.work_intent
-    WorkUnit.create!(
+    # Two active WorkUnits for the same (scope, kind) can no longer arise
+    # through the app's own launch path (JOB-4235's active_dedup_key
+    # uniqueness prevents it) — this simulates a legacy row that predates
+    # that guarantee, to keep exercising TerminalUnitSync's own defensive
+    # "still has an active sibling" check.
+    WorkUnit.new(
       work_intent: intent,
       kind: "initial",
       state: "queued",
       repository: repository,
       scope_type: "job",
       scope_id: job.id
-    )
+    ).save!(validate: false)
 
     workflow.work_unit.mark_terminal!("failed")
 
@@ -103,14 +113,15 @@ RSpec.describe WorkIntents::TerminalUnitSync do
   it "does not cancel a superseded WorkIntent while another WorkUnit for it is still active" do
     workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
     intent = workflow.work_unit.work_intent
-    WorkUnit.create!(
+    # See the comment above: this simulates a legacy pre-dedup-guarantee row.
+    WorkUnit.new(
       work_intent: intent,
       kind: "ci_failure",
       state: "queued",
       repository: repository,
       scope_type: "job",
       scope_id: job.id
-    )
+    ).save!(validate: false)
 
     workflow.work_unit.preempt!(reason: Workflow::SUPERSEDED_BY_REBASE_REASON)
 

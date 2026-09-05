@@ -47,7 +47,7 @@ RSpec.describe WorkUnits::Scheduler do
   end
 
   it "uses the work unit definition's gates by default" do
-    stub_definition = instance_double(WorkDefinitions::Initial, unit_gates: [])
+    stub_definition = instance_double(WorkDefinitions::Initial, unit_gates: [], lock_conflicts_enforced?: false)
     allow(unit).to receive(:definition).and_return(stub_definition)
     unit.request_pause!
 
