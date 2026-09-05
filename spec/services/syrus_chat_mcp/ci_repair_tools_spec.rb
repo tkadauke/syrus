@@ -175,4 +175,15 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
     expect(workflow_one.reload.artifact("ci_repair_noop")).to include("reason" => "Both repairs made no branch or check progress.")
     expect(workflow_two.reload.artifact("ci_repair_noop")).to include("reason" => "Both repairs made no branch or check progress.")
   end
+
+  it "rejects mark_ci_repair_noop workflow_ids with a blank reason" do
+    workflow = Workflows::CiFailure.instantiate(job: job, artifacts: { "head_sha" => sha, "failed_checks" => [] })
+
+    response = call_tool("mark_ci_repair_noop", { workflow_ids: [ workflow.id ], reason: "   " })
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("reason is required")
+    expect(PendingActionGroup.count).to eq(0)
+    expect(ChatPendingAction.where(action: "mark_ci_repair_noop")).to be_empty
+  end
 end
