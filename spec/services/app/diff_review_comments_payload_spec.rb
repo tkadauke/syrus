@@ -43,6 +43,21 @@ RSpec.describe App::DiffReviewCommentsPayload do
     expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)
   end
 
+  it "includes the parent id for reply comments" do
+    parent = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_review_workspace",
+      anchor_kind: "review",
+      body: "Nice work overall."
+    )
+    reply = parent.build_reply(user: user, body: "Thanks!").tap(&:save!)
+
+    payload = described_class.build(job: job, comments: [ parent, reply ])
+
+    expect(payload[:comments].find { |comment| comment[:id] == parent.id }[:parent_id]).to be_nil
+    expect(payload[:comments].find { |comment| comment[:id] == reply.id }[:parent_id]).to eq(parent.id)
+  end
+
   it "groups whole-review comments under a stable key instead of a nil path" do
     global = job.diff_review_comments.create!(
       user: user,
