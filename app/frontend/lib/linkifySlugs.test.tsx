@@ -8,8 +8,8 @@ import { linkifySlugs } from "./linkifySlugs"
 // Stub SlugHoverCard so tests focus on linkifySlugs wiring, not hover behaviour.
 // This also avoids jsdom's lack of window.matchMedia.
 vi.mock("../components/SlugHoverCard", () => ({
-  SlugHoverCard: ({ kind, id, children }: { kind: string; id: number; children: ReactNode }) => (
-    <span data-testid="slug-hover-card" data-kind={kind} data-id={String(id)}>
+  SlugHoverCard: ({ kind, prefix, id, children }: { kind: string; prefix?: string; id: number; children: ReactNode }) => (
+    <span data-testid="slug-hover-card" data-kind={kind} data-prefix={prefix} data-id={String(id)}>
       {children}
     </span>
   ),
@@ -39,13 +39,14 @@ describe("linkifySlugs", () => {
     expect(card.props.children.props.to).toBe("/epics/7")
   })
 
-  it("wraps DOC slugs in SlugHoverCard with kind=doc and numeric id", () => {
+  it("wraps DOC slugs in SlugHoverCard with kind=plugin, prefix=DOC, and numeric id", () => {
     const nodes = linkifySlugs("See DOC-20 for context")
     const hoverCard = nodes.find((node) => isValidElement(node) && node.type === SlugHoverCard)
 
     expect(hoverCard).toBeTruthy()
-    const card = hoverCard as ReactElement<{ kind: string; id: number; children: ReactElement<{ to: string }> }>
-    expect(card.props.kind).toBe("doc")
+    const card = hoverCard as ReactElement<{ kind: string; prefix?: string; id: number; children: ReactElement<{ to: string }> }>
+    expect(card.props.kind).toBe("plugin")
+    expect(card.props.prefix).toBe("DOC")
     expect(card.props.id).toBe(20)
     expect(card.props.children.props.to).toBe("/design_docs/20")
   })
@@ -86,7 +87,7 @@ describe("linkifySlugs", () => {
     const cards = screen.getAllByTestId("slug-hover-card")
     const jobCard = cards.find((el) => el.getAttribute("data-kind") === "job")
     const epicCard = cards.find((el) => el.getAttribute("data-kind") === "epic")
-    const docCard = cards.find((el) => el.getAttribute("data-kind") === "doc")
+    const docCard = cards.find((el) => el.getAttribute("data-kind") === "plugin" && el.getAttribute("data-prefix") === "DOC")
 
     expect(jobCard).toHaveAttribute("data-id", "42")
     expect(epicCard).toHaveAttribute("data-id", "7")
