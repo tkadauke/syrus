@@ -235,30 +235,32 @@ module Api
 
         def bulk_approve_jobs(jobs)
           batch_id = SecureRandom.uuid
-          approved_jobs = []
           skipped_auto_merge_disabled = []
           skipped_ids = []
+          eligible_jobs = []
 
-          ActiveRecord::Base.transaction do
-            jobs.each do |job|
-              unless JobPolicy.new(Current.user, job).write? && job.may_approve?
-                skipped_ids << job.id
-                next
-              end
-
-              unless job.auto_merge_enabled?
-                skipped_auto_merge_disabled << job
-                next
-              end
-
-              job.approve!(
-                via: "bulk",
-                by_user: Current.user,
-                evidence: { "batch_id" => batch_id }
-              )
-              approved_jobs << job
+          jobs.each do |job|
+            unless JobPolicy.new(Current.user, job).write?
+              skipped_ids << job.id
+              next
             end
+
+            unless job.auto_merge_enabled?
+              skipped_auto_merge_disabled << job
+              next
+            end
+
+            eligible_jobs << job
           end
+
+          result = Jobs::BulkApprover.call(
+            eligible_jobs,
+            via: "bulk",
+            by_user: Current.user,
+            evidence: { "batch_id" => batch_id }
+          )
+          approved_jobs = result.approved
+          skipped_ids += result.failed.map(&:id)
 
           if approved_jobs.empty? && skipped_auto_merge_disabled.empty?
             render_error("validation_failed", "No selected jobs were awaiting approval.", status: :unprocessable_content)
@@ -547,16 +549,17 @@ module Api
           end
 
           batch_id = SecureRandom.uuid
-          approved_jobs = []
-          ActiveRecord::Base.transaction do
-            reviewed_jobs.each do |job|
-              job.approve!(
-                via: "bulk",
-                by_user: Current.user,
-                evidence: { "batch_id" => batch_id }
-              )
-              approved_jobs << job
-            end
+          result = Jobs::BulkApprover.call(
+            reviewed_jobs,
+            via: "bulk",
+            by_user: Current.user,
+            evidence: { "batch_id" => batch_id }
+          )
+          approved_jobs = result.approved
+
+          if approved_jobs.empty?
+            render_error("validation_failed", "No reviewed jobs were approved.", status: :unprocessable_content)
+            return
           end
 
           github_note = bulk_github_approval_note(approved_jobs)
