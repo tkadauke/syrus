@@ -882,6 +882,12 @@ export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice 
       }
       body={
         <>
+          {pendingActionGroup.reason ? (
+            <p className="mb-2 text-xs text-gray-600 dark:text-gray-300">
+              <span className="font-medium text-gray-700 dark:text-gray-200">Reason:</span>{" "}
+              <span>{pendingActionGroup.reason}</span>
+            </p>
+          ) : null}
           <button
             className="text-xs font-medium text-brand hover:underline"
             onClick={() => setExpanded((value) => !value)}
