@@ -109,7 +109,7 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
   })
 
-  it("creates a whole-review comment not anchored to any code line", async () => {
+  it("creates a whole-review comment from the permanent comment form", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
@@ -118,9 +118,13 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Comment on this review" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Looks great overall." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+    expect(screen.queryByRole("button", { name: "Comment on this review" })).not.toBeInTheDocument()
+    const commentButton = await screen.findByRole("button", { name: "Comment" })
+    expect(commentButton).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "Looks great overall." } })
+    expect(commentButton).not.toBeDisabled()
+    fireEvent.click(commentButton)
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -128,6 +132,39 @@ describe("ReviewWorkspace", () => {
         body: "Looks great overall.",
         surface: "job_review_workspace"
       }))
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText("Whole-review comment")).toHaveValue("")
+    })
+  })
+
+  it("creates a comment from non-empty text then submits the whole review when Submit feedback is clicked", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "One more thing." })
+    ]))
+    vi.mocked(submitDiffReviewComments).mockResolvedValue({
+      message: "Diff comments submitted as chat feedback.",
+      workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
+      comments: []
+    })
+
+    renderWorkspace()
+
+    await screen.findByText("Please add a regression spec.")
+    fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "One more thing." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
+        anchor_kind: "review",
+        body: "One more thing.",
+        surface: "job_review_workspace"
+      }))
+    })
+    await waitFor(() => {
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2])
     })
   })
 

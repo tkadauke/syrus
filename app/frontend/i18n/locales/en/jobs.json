@@ -383,7 +383,7 @@
   "review_update_error": "Unable to update diff comment.",
   "review_artifacts_show": "Show",
   "review_artifacts_hide": "Hide",
-  "review_add_global_comment": "Comment on this review",
+  "review_comment_button": "Comment",
   "review_global_comment_label": "Whole-review comment",
   "review_view_in_diff": "View in diff",
   "attachment_add_title": "Add attachment",

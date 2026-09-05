@@ -383,7 +383,7 @@
   "review_update_error": "Diff-Kommentar konnte nicht aktualisiert werden.",
   "review_artifacts_show": "Anzeigen",
   "review_artifacts_hide": "Verbergen",
-  "review_add_global_comment": "Zum gesamten Review kommentieren",
+  "review_comment_button": "Kommentar",
   "review_global_comment_label": "Kommentar zum gesamten Review",
   "review_view_in_diff": "Im Diff anzeigen",
   "attachment_add_title": "Anhang hinzufügen",
