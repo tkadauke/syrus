@@ -27,7 +27,9 @@ class AddActiveDedupKeyToWorkUnits < ActiveRecord::Migration[8.1]
 
     backfill_active_dedup_keys!
 
-    add_index :work_units, :active_dedup_key, unique: true, name: "idx_work_units_active_dedup_key_unique", if_not_exists: true
+    unless index_exists?(:work_units, :active_dedup_key, name: "idx_work_units_active_dedup_key_unique")
+      add_index :work_units, :active_dedup_key, unique: true, name: "idx_work_units_active_dedup_key_unique"
+    end
   end
 
   def down
