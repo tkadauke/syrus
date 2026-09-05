@@ -93,6 +93,55 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(result.workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  it "gracefully reports a conflict instead of raising when a checkpoint resume races an active WorkUnit" do
+    # JOB-4235: RunCheckpointResume's own WorkUnits::Launcher.instantiate
+    # call (kind: "checkpoint_resume") must be rescued the same way as
+    # the plain "retry" path above.
+    failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
+    failed_workflow = Workflow.create!(
+      job: failed_job,
+      user: user,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "failed",
+      artifacts: { "pr_title" => "Existing title" }
+    )
+    implement = Step.create!(workflow: failed_workflow, kind: "implement", position: 1, state: "succeeded", finished_at: 2.minutes.ago)
+    summarize = Step.create!(workflow: failed_workflow, kind: "summarize", position: 2, state: "failed", finished_at: 1.minute.ago)
+    implement.update!(next_step: summarize)
+    implement_run = implement.runs.create!(
+      job: failed_job,
+      user: user,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "succeeded",
+      head_sha: "implsha2",
+      base_sha: "basesha2",
+      finished_at: 2.minutes.ago
+    )
+    RunCheckpoint.create!(
+      run: implement_run,
+      workflow: failed_workflow,
+      step: implement,
+      job: failed_job,
+      repository: repository,
+      user: user,
+      step_kind: "implement",
+      commit_sha: "implsha2",
+      base_sha: "basesha2",
+      remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published",
+      published_at: 2.minutes.ago
+    )
+    WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: failed_job)
+
+    expect {
+      result = described_class.call(job: failed_job)
+      expect(result).not_to be_success
+      expect(result.error).to include("already queued or running")
+    }.not_to change { failed_job.workflows.where(trigger_kind: "retry").count }
+  end
+
   it "uses an explicit provider only for the new retry workflow" do
     finish_current_run!
     user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
@@ -158,6 +207,23 @@ RSpec.describe RetryWorkflowEnqueuer do
       result = described_class.call(job: job)
       expect(result).not_to be_success
       expect(result.error).to eq("A retry workflow is already queued or running for this Job.")
+    }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+  end
+
+  it "gracefully reports a conflict instead of raising when a non-retry active WorkUnit races the same job lock" do
+    # JOB-4235: RetryWorkflowEligibility#duplicate_active_retry_workflow?
+    # only flags active "retry"/"checkpoint_resume" siblings, so an
+    # active chat_feedback WorkUnit (sharing the same "job:<id>" lock)
+    # slips past that pre-check. WorkUnits::Launcher must still refuse
+    # to materialize a second Workflow, and RetryWorkflowEnqueuer must
+    # surface that as a failure Result rather than an unhandled raise.
+    finish_current_run!
+    WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: job)
+
+    expect {
+      result = described_class.call(job: job)
+      expect(result).not_to be_success
+      expect(result.error).to include("already queued or running")
     }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
 

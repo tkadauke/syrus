@@ -90,6 +90,8 @@ class RetryWorkflowEnqueuer
 
     WorkUnits::Launcher.start!(workflow)
     Result.new(workflow: workflow, error: nil, circuit: nil)
+  rescue WorkUnits::Launcher::LockConflict
+    failure("a workflow is already queued or running for this job")
   end
 
   private
