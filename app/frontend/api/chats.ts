@@ -417,6 +417,26 @@ export type ChatPendingAction = {
 
 export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"
 
+export type ChatPendingActionGroupState = "pending" | "confirming" | "confirmed" | "rejected"
+
+export type ChatPendingActionGroupMember = {
+  id: number
+  label: string
+  state: ChatPendingActionState
+  execution_error?: string | null
+}
+
+export type ChatPendingActionGroup = {
+  id: number
+  label: string
+  state: ChatPendingActionGroupState
+  reason?: string | null
+  chat_message_id?: number | null
+  members: ChatPendingActionGroupMember[]
+  app_confirm_path: string
+  app_reject_path: string
+}
+
 export type ChatAgentSubQuestion = {
   question: string
   options: string[] | null
@@ -673,6 +693,7 @@ export type ChatPayload = {
   bookmarks: ChatBookmark[]
   recent_chats: ChatNavRecord[]
   pending_actions: ChatPendingAction[]
+  pending_action_groups?: ChatPendingActionGroup[]
   agent_questions: ChatAgentQuestion[]
   queued_messages: ChatQueuedMessage[]
   scratchpad_items: ChatScratchpadItem[]

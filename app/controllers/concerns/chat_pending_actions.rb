@@ -49,4 +49,17 @@ module ChatPendingActions
     Rails.logger.warn("[ChatPendingActions] confirmation notice failed for #{action.action_key}: #{e.class}: #{e.message}")
     nil
   end
+
+  def pending_action_group_confirmed_notice(group)
+    members = group.chat_pending_actions.reload.to_a
+    failed = members.count(&:failed?)
+    succeeded = members.count(&:confirmed?)
+    return "Confirmed #{succeeded} #{'pending action'.pluralize(succeeded)}." if failed.zero?
+
+    "Confirmed #{succeeded} of #{members.size} pending actions; #{failed} failed."
+  end
+
+  def pending_action_group_rejected_notice(group)
+    "Rejected #{group.chat_pending_actions.count} pending actions."
+  end
 end

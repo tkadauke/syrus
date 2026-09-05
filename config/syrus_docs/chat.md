@@ -25,6 +25,35 @@ membership to find the durable conversation for a user's external account.
 and sets `trigger_policy` to `speak_when_spoken_to`; that is the only trigger
 policy value today, but the string enum leaves room for future policies.
 
+## Grouped pending actions
+
+A `PendingActionGroup` links several `ChatPendingAction` rows created
+together as one batch (e.g. reopening every Job a bad merge-train landing
+incorrectly closed) so the chat renders them as a single card instead of one
+per action. The card shows the shared action name plus member count (e.g.
+"Reopen job (11)"), an expandable list of the affected targets, and one
+Confirm all/Reject all control backed by
+`POST /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm`
+and `.../reject`. A member of a group never renders its own standalone
+pending-action card — `pending_actions_json` filters out any
+`ChatPendingAction` with a `pending_action_group_id` — and the group card
+itself anchors to the chat message that created it the same way an
+individual pending action does, or appends at the end of the stream when
+unanchored.
+
+Confirming applies every still-pending member independently, in its own
+transaction, so one member failing (e.g. a Job that no longer meets the
+action's precondition) does not block the rest from applying. Each member's
+resulting state (`confirmed`/`failed`, with `execution_error` when failed) is
+what the card's expandable list renders per target, and unlike a lone
+pending action (which drops out of the payload shortly after it confirms —
+a separate per-action chat notification already announces that outcome) the
+group's card stays in the payload at every state, since it is the only place
+that per-item breakdown is visible. Rejecting discards every still-pending
+member without applying any. As of this writing, no chat-sidecar tool
+creates groups yet — `PendingActionGroup.create_with_members!` exists as
+infrastructure a future tool wires into.
+
 ## Deleting a chat
 
 `DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of
