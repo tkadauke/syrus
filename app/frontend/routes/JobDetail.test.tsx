@@ -1951,6 +1951,11 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText(/custom_value/)).toBeInTheDocument()
   })
 
+  it("shows the Agent Conversation tab in the TabNav", () => {
+    renderJobDetail(jobPayload())
+    expect(screen.getByRole("button", { name: "Agent Conversation" })).toBeInTheDocument()
+  })
+
   it("shows the Artifacts tab in the TabNav with count", () => {
     renderJobDetail(jobPayload({
       typed_artifacts: [
@@ -2216,7 +2221,7 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "conversation" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
