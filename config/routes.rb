@@ -559,6 +559,7 @@ Rails.application.routes.draw do
   get "k8s_clusters", to: "spa#show", as: :k8s_clusters
   get "worker_timeline", to: "spa#show", as: :worker_timeline
   get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
+  get "agent_activity", to: "spa#show", as: :agent_activity
   get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|
