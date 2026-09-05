@@ -201,7 +201,7 @@ describe("urgent row highlight", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
-  it("shows automatic provider failover on job rows", () => {
+  it("shows a red provider pill next to the job slug when the job's provider differs from the repository default", () => {
     const payload = buildPayload([
       {
         ...kanbanJobItem(1, "medium"),
@@ -210,15 +210,11 @@ describe("urgent row highlight", () => {
         tags: [],
         workflows_count: 1,
         total_cost_usd: null,
-        provider_failover: {
-          mode: "automatic",
-          automatic: true,
-          original_provider: "claude",
-          original_provider_label: "Claude Code",
-          selected_provider: "codex",
-          selected_provider_label: "Codex",
-          reason: "provider_unavailable",
-          decided_at: "2026-08-01T12:01:00Z"
+        provider_mismatch: {
+          provider: "codex",
+          provider_label: "Codex",
+          effective_provider: "claude",
+          effective_provider_label: "Claude Code"
         }
       } as DashboardJobItem
     ])
@@ -227,7 +223,29 @@ describe("urgent row highlight", () => {
 
     renderPayload(payload)
 
-    expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+    const pill = screen.getByText("Codex")
+    expect(pill).toBeInTheDocument()
+    expect(pill.closest("[data-status-pill]")).toHaveAttribute("title", "Job runs Codex; repository default is Claude Code.")
+  })
+
+  it("shows no provider pill when the job's provider matches the repository default", () => {
+    const payload = buildPayload([
+      {
+        ...kanbanJobItem(1, "medium"),
+        kind: "direct",
+        state: "running",
+        tags: [],
+        workflows_count: 1,
+        total_cost_usd: null,
+        provider_mismatch: null
+      } as DashboardJobItem
+    ])
+    payload.preferences.visible_columns = ["title"]
+    payload.controls.columns.required = [{ key: "title", title: "Title" }]
+
+    renderPayload(payload)
+
+    expect(screen.queryByText("Codex")).not.toBeInTheDocument()
   })
 
   it("shows an availability warning for transient provider circuits", () => {

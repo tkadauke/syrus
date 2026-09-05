@@ -128,6 +128,23 @@ RSpec.describe App::DashboardPayload, :ci_only do
         evidence_source: "provider_circuit",
         observed_at: "2026-08-01T12:00:00Z"
       )
+      expect(item[:provider_mismatch]).to eq(
+        provider: "codex",
+        provider_label: "Codex",
+        effective_provider: "claude",
+        effective_provider_label: "Claude Code"
+      )
+    end
+
+    it "reports no provider mismatch when the job's latest workflow uses the repository's effective provider" do
+      job = Factories.job_record(user: user, repository: repo, agent_provider: "claude")
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", agent_provider: "claude")
+      Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:provider_mismatch]).to be_nil
     end
   end
 

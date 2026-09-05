@@ -2,7 +2,7 @@ import { getJson, getJsonWithMeta, patchJson, postJson } from "./client"
 import type { JsonResponseMeta } from "./client"
 import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
-import type { ProviderAvailability, ProviderFailover } from "./providerAvailability"
+import type { ProviderAvailability, ProviderFailover, ProviderMismatch } from "./providerAvailability"
 import type { GoalProvenance } from "./chats"
 import type { StartBlockedDetails } from "../types/startBlocked"
 
@@ -171,6 +171,7 @@ export type DashboardJobItem = {
   agent_provider: string | null
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
+  provider_mismatch?: ProviderMismatch
   total_cost_usd: number | null
   issue_number: number | null
   issue_url: string | null

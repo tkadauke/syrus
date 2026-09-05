@@ -44,6 +44,7 @@ module App
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
           provider_failover: provider_failover_for(job),
+          provider_mismatch: provider_mismatch_for(job, owner_user),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
@@ -254,6 +255,26 @@ module App
         return nil unless workflow
 
         App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: job.workflow_agent_provider)
+      end
+
+      # The dashboard pill flags any divergence between the provider actually
+      # powering the job's latest workflow and the repository's own default
+      # provider (ignoring this job's own override) — a broader net than
+      # provider_failover_for, which only reports explicit failover/override
+      # decisions recorded on the workflow itself.
+      def provider_mismatch_for(job, owner_user)
+        actual_provider = latest_workflow_for(job)&.agent_provider.presence || job.workflow_agent_provider
+        return nil if actual_provider.blank?
+
+        effective_provider = job.repository&.effective_agent_provider(user: owner_user)
+        return nil if effective_provider.blank? || effective_provider == actual_provider
+
+        {
+          provider: actual_provider,
+          provider_label: App::Presentation.agent_provider_label(actual_provider),
+          effective_provider: effective_provider,
+          effective_provider_label: App::Presentation.agent_provider_label(effective_provider)
+        }
       end
 
       def deployment_stages_for(repository)

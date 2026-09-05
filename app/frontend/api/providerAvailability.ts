@@ -50,6 +50,13 @@ export type ProviderFailover = {
   } | null
 } | null
 
+export type ProviderMismatch = {
+  provider: string
+  provider_label: string
+  effective_provider: string
+  effective_provider_label: string
+} | null
+
 export type ProviderUsageWindow = {
   label: string
   remaining_percent?: number | null

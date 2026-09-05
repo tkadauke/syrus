@@ -15,9 +15,10 @@ import { Checkbox } from "../../components/Checkbox"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
-import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
+import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
 import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus, type DashboardPayload } from "../../api/dashboard"
+import type { ProviderMismatch } from "../../api/providerAvailability"
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
@@ -806,7 +807,6 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <ProviderFailoverNotice failover={job.provider_failover} />
           {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
@@ -853,7 +853,6 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
       <td className="max-w-md px-4 py-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <ProviderFailoverNotice failover={job.provider_failover} />
           <Link className="block min-w-0 max-w-full truncate font-medium text-brand hover:underline" title={job.title} to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
@@ -1036,22 +1035,40 @@ function LatestWorkflowCell({ job }: { job: DashboardJobItem }) {
 function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
   if (job.epic) {
     return (
-      <span className="inline-flex items-center">
-        <SlugHoverCard id={job.epic.id} kind="epic">
-          <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
-        </SlugHoverCard>
-        <span>/</span>
-        <SlugHoverCard id={job.id} kind="job">
-          <CopyableSlug slug={`JOB-${job.id}`} />
-        </SlugHoverCard>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center">
+          <SlugHoverCard id={job.epic.id} kind="epic">
+            <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+          </SlugHoverCard>
+          <span>/</span>
+          <SlugHoverCard id={job.id} kind="job">
+            <CopyableSlug slug={`JOB-${job.id}`} />
+          </SlugHoverCard>
+        </span>
+        <ProviderMismatchPill mismatch={job.provider_mismatch} />
       </span>
     )
   }
 
   return (
-    <SlugHoverCard id={job.id} kind="job">
-      <CopyableSlug slug={`JOB-${job.id}`} />
-    </SlugHoverCard>
+    <span className="inline-flex items-center gap-1.5">
+      <SlugHoverCard id={job.id} kind="job">
+        <CopyableSlug slug={`JOB-${job.id}`} />
+      </SlugHoverCard>
+      <ProviderMismatchPill mismatch={job.provider_mismatch} />
+    </span>
+  )
+}
+
+function ProviderMismatchPill({ mismatch }: { mismatch?: ProviderMismatch }) {
+  if (!mismatch) return null
+
+  const title = `Job runs ${mismatch.provider_label}; repository default is ${mismatch.effective_provider_label}.`
+
+  return (
+    <TonePill title={title} tone="red">
+      {mismatch.provider_label}
+    </TonePill>
   )
 }
 
