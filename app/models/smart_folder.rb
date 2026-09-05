@@ -54,7 +54,7 @@ class SmartFolder < ApplicationRecord
     # when populated — so an empty sidebar means there's nothing
     # urgent. When populated, they sit near the top where the
     # operator will notice them.
-    { key: "backlogged_jobs",  name: "Backlogged jobs",        visibility: :when_present, filter: user_job_attention_preset_filter("backlog") },
+    { key: "backlogged_jobs",  name: "Backlog",                visibility: :when_present, filter: user_job_attention_preset_filter("backlog") },
     { key: "pinned",           name: "Pinned",                 visibility: :when_present, filter: user_job_attention_preset_filter("pinned") },
     { key: "in_progress",      name: "In progress",            visibility: :when_present, filter: user_job_attention_preset_filter("in_progress") },
     { key: "paused",           name: "Paused",                 visibility: :when_present, filter: user_job_attention_preset_filter("paused") },
