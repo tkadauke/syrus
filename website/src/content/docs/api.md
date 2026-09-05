@@ -115,6 +115,11 @@ comment resolved. Mutations use the same Job write policy as approve, retry,
 and feedback actions: the job owner, an admin, or a write-tier repository
 member.
 
+`DELETE /api/v1/app/jobs/:job_id/diff_review_comments/:id` hard-deletes a
+comment that is still in `draft` — once a comment has been submitted,
+resolved, or superseded it's part of the review history and the endpoint
+returns `422` instead. On success the response is `{ "job_id": ..., "deleted_id": ... }`.
+
 `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit` accepts
 `comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
 comments. The workflow receives both a readable feedback body and structured

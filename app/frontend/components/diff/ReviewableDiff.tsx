@@ -37,6 +37,7 @@ export type ReviewableDiffProps = {
   onCancelEditThread?: () => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onDeleteThread?: (thread: DiffReviewThread) => void
   onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
   onStartEditThread?: (thread: DiffReviewThread) => void
@@ -63,6 +64,7 @@ export function ReviewableDiff({
   onCancelEditThread,
   onChangeEditingThreadBody,
   onCommentLine,
+  onDeleteThread,
   onSaveEditThread,
   onSelectFile,
   onStartEditThread,
@@ -110,6 +112,7 @@ export function ReviewableDiff({
                 onCancelEditThread={onCancelEditThread}
                 onChangeEditingThreadBody={onChangeEditingThreadBody}
                 onCommentLine={onCommentLine}
+                onDeleteThread={onDeleteThread}
                 onSaveEditThread={onSaveEditThread}
                 onStartEditThread={onStartEditThread}
               />
@@ -185,6 +188,7 @@ export function UnifiedDiffTable({
   onCancelEditThread,
   onChangeEditingThreadBody,
   onCommentLine,
+  onDeleteThread,
   onSaveEditThread,
   onStartEditThread,
   testId
@@ -197,6 +201,7 @@ export function UnifiedDiffTable({
   onCancelEditThread?: () => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onDeleteThread?: (thread: DiffReviewThread) => void
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
   testId?: string
@@ -259,6 +264,15 @@ export function UnifiedDiffTable({
                               type="button"
                             >
                               Edit
+                            </button>
+                          ) : null}
+                          {thread.state === "draft" && onDeleteThread && editingThreadId !== thread.id ? (
+                            <button
+                              className="normal-case tracking-normal text-red-700 underline hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+                              onClick={() => onDeleteThread(thread)}
+                              type="button"
+                            >
+                              Delete
                             </button>
                           ) : null}
                         </div>
