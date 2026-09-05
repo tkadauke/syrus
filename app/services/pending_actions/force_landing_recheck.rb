@@ -2,12 +2,11 @@ module PendingActions
   class ForceLandingRecheck < Base
     action_key "force_landing_recheck"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       result = LandingQueueRecheck.call(job) { |message| progress!(message) }
-      audit!(job, result)
+      refreshed = result.refreshed_state
+      audit!("forced landing recheck; blocker=#{refreshed[:landing_queue_blocked_reason].inspect}", run: job.current_run)
       nil
     end
 
@@ -24,21 +23,6 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
-
-    private
-
-    def audit!(job, result)
-      run = job.current_run
-      return unless run
-
-      refreshed = result.refreshed_state
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] forced landing recheck; blocker=#{refreshed[:landing_queue_blocked_reason].inspect}; reason=#{reason}",
-        kind: "system"
-      )
-    end
+    repairs_job!
   end
 end

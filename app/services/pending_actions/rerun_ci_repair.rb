@@ -2,9 +2,7 @@ module PendingActions
   class RerunCiRepair < Base
     action_key "rerun_ci_repair"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       progress!("Creating CI repair rerun...")
       result = CiRepair::ManualRerun.call(
         job: repair_action_job,
@@ -15,7 +13,10 @@ module PendingActions
         agent_provider: payload["agent_provider"]
       )
       progress!("Recording repair audit...")
-      audit!(result)
+      audit!(
+        "reran CI repair for #{result.refresh.head_sha}; cleared_handled_sha=#{result.cleared_handled_sha}",
+        run: result.run
+      )
       result.workflow
     end
 
@@ -32,17 +33,6 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
-
-    private
-
-    def audit!(result)
-      JobLog.append!(
-        run: result.run,
-        chunk: "[operator repair] reran CI repair for #{result.refresh.head_sha}; cleared_handled_sha=#{result.cleared_handled_sha}; reason=#{reason}",
-        kind: "system"
-      )
-    end
+    repairs_job!
   end
 end
