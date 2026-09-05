@@ -73,12 +73,19 @@ artifacts" panel starts collapsed (summary stays visible) and expands on
 demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
 column: it scrolls with the page until its top reaches the top of the
 viewport, then pins there with its own internal scroll, and lists every
-comment for the surface (line-anchored and whole-review). A "Comment on this
-review" button starts a whole-review comment. Line-anchored (code) comments
-are only editable inline, at their anchor in the diff (a "View in diff" sidebar
-button scrolls to it) — the sidebar no longer offers an inline-comment Edit
-control for those, only Resolve; whole-review comments remain editable from
-the sidebar since they have no code anchor to edit at.
+comment for the surface (line-anchored and whole-review). A permanent
+whole-review comment textarea sits above the action row at the bottom of the
+sidebar (only on surfaces with `supportsGlobalComments`, currently just
+`job_review_workspace`), with a "Comment" button to its left of "Submit
+feedback" that is enabled only once the field holds non-empty text and
+creates a `draft` whole-review comment on click, clearing the field on
+success. "Submit feedback" also creates that draft comment first when the
+field is non-empty, then immediately submits it together with the other
+actionable comments as one `chat_feedback` submission. Line-anchored (code)
+comments are only editable inline, at their anchor in the diff (a "View in
+diff" sidebar button scrolls to it) — the sidebar no longer offers an
+inline-comment Edit control for those, only Resolve; whole-review comments
+remain editable from the sidebar since they have no code anchor to edit at.
 
 `ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
 shared diff renderer behind the review workspace, source-browser diff mode,
