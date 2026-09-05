@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_143406) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1645,6 +1645,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_143406) do
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
+  end
+
+  create_table "mockups", force: :cascade do |t|
+    t.integer "chat_session_id"
+    t.datetime "created_at", null: false
+    t.integer "preview_panel_id", null: false
+    t.datetime "published_at"
+    t.string "title", limit: 200, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id"], name: "index_mockups_on_chat_session_id"
+    t.index ["preview_panel_id"], name: "index_mockups_on_preview_panel_id", unique: true
+    t.index ["user_id", "updated_at"], name: "index_mockups_on_user_recent"
+    t.index ["user_id"], name: "index_mockups_on_user_id"
   end
 
   create_table "mysql_connections", force: :cascade do |t|

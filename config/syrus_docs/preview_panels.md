@@ -271,3 +271,30 @@ intentionally out of scope for this first pass. No zip/unzip, screenshot, or
 browser-automation step is involved. `JobAttachmentContext` frames these files
 to the implementing agent as reference material to adapt to the target repo's
 own conventions, not boilerplate to copy verbatim.
+
+## Rendering a panel outside chat
+
+Panel routes used to live only under `chats/:id/preview_panels/...`, which meant
+a panel could be shown only inside the chat it was opened in.
+`/api/v1/app/preview_panels/:id` (`show`, `files/*path`, `export`, `token`)
+serves the same content addressed by panel, authorized by
+`PreviewPanel.accessible_to(user)` -- the same rule as before, just not implied
+by the URL. `PreviewPanel::Payload` is the one serialization both surfaces use;
+only the base path differs.
+
+## Contributing a viewer kind
+
+`PreviewPanel::EntryMetadata.viewer_kind` maps an entry file to the viewer the
+frontend renders it with. A plugin adds kinds through the `preview_panel_viewer`
+extension point:
+
+```ruby
+def self.viewer_kinds
+  [ { kind: "mermaid", extensions: %w[.mmd], content_types: %w[text/vnd.mermaid] } ]
+end
+```
+
+Core's built-in kinds (html, markdown, pdf, image) are checked first, so a
+plugin extends the set rather than reinterpreting a file core already knows how
+to show. A provider that raises is skipped and the entry falls back to source
+text, so a misbehaving plugin cannot take the panel down.

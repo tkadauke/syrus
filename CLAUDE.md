@@ -590,7 +590,16 @@ of promoting the linked chat into another agent turn.
 Planning-mode preview mockups use the `mockups` plugin MCP tools:
 open a panel with `show_preview`, write or patch files in that panel's
 scratch directory with `write_preview_file` / `edit_preview_file`, then call
-`show_preview` again with the same `panel_id` to publish. Preview panel
+`show_preview` again with the same `panel_id` to publish. Publishing records a
+`Mockups::Mockup` -- slug `MOCKUP-<id>`, stable across republishes -- which
+backs the **Mockups** sidebar page: a filter-bar-searchable list whose rows open
+in a side panel. `PreviewPanel`/`PreviewPanelVersion` stay core (a generic
+html/markdown/pdf/image viewer); the plugin is a client of them. Two core seams
+make that possible: the `preview_panel_viewer` extension point, which lets a
+plugin add a content kind without editing
+`PreviewPanel::EntryMetadata` (core's kinds still win), and
+`/api/v1/app/preview_panels/:id`, which serves panel content outside the chat
+it was opened in, scoped by `PreviewPanel.accessible_to`. Preview panel
 versions can be attached to proposed Jobs as `preview_panel_version:<id>` so
 implementation agents receive the source files, not just a screenshot.
 

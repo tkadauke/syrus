@@ -10,6 +10,16 @@ class PreviewPanel < ApplicationRecord
   validates :state, presence: true, inclusion: { in: STATES }
   validates :visibility, presence: true, inclusion: { in: VISIBILITIES }
 
+  # Panels are reachable outside the chat they were opened in -- a plugin can
+  # list them on its own page -- so the access rule lives here rather than
+  # being implied by a chat-scoped route. It is the same rule either way: you
+  # can see a panel if you can see its chat.
+  scope :accessible_to, ->(user) {
+    return none if user.nil?
+
+    where(chat_session_id: user.accessible_chat_sessions.select(:id))
+  }
+
   def open? = state == "open"
   def closed? = state == "closed"
 

@@ -147,6 +147,8 @@ per-user/private:
   - app/controllers/api/v1/app/diff_review_comments_controller.rb
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
+  - plugins/mockups/app/controllers/api/v1/app/mockups_controller.rb
+  - app/controllers/api/v1/app/preview_panels_controller.rb
   - app/controllers/api/v1/app/filters_controller.rb
   - app/controllers/api/v1/app/input_sources_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
@@ -328,6 +330,8 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/chat_job_status_controller.rb` | per-user/private | Returns job and epic status for confirmed proposals in a chat session found through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chat_participants_controller.rb` | per-user/private | Group-chat participant add/remove find the chat through `Current.user.accessible_chat_sessions`, so only current participants can manage membership. |
 | `app/controllers/api/v1/app/chats_controller.rb` | per-user/private | Chat sessions, proposals, attached repositories/jobs/documents/epics, and pending actions are all owned or selected through the current user's associations. |
+| `plugins/mockups/app/controllers/api/v1/app/mockups_controller.rb` | per-user/private | Mockups are scoped to the preview panels the current user can reach, which is the panel's own access rule rather than a second one. |
+| `app/controllers/api/v1/app/preview_panels_controller.rb` | per-user/private | Panels are scoped by `PreviewPanel.accessible_to(Current.user)` — you can see a panel if you can see its chat. |
 | `app/controllers/concerns/chat_attachable_resolution.rb` | per-user/private | Attachable-resolution helpers (extracted from `ChatsController`) resolve a specific repository/job/document/epic through `Current.user`'s associations. |
 | `app/controllers/concerns/chat_attachment_search.rb` | per-user/private | Attachment-search helpers (extracted from `ChatsController`) scope candidate repositories/jobs/documents/epics through `Current.user`'s associations. |
 | `app/controllers/concerns/chat_index_payload.rb` | per-user/private | Chat index / recent-chats payload builders (extracted from `ChatsController`) list and group the current user's chat sessions through `Current.user.chat_sessions`. |

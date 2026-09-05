@@ -206,6 +206,12 @@ Rails.application.routes.draw do
         get "shared_chats/:token", to: "shared_chats#show"
         get "settings/hidden_chats", to: "chats#hidden"
         post "chats", to: "chats#create"
+        # Panels outside the chat they were opened in: a plugin listing them on
+        # its own page needs the same content and the same access rule.
+        get "preview_panels/:id", to: "preview_panels#show", constraints: { id: /\d+/ }
+        get "preview_panels/:id/export", to: "preview_panels#export", constraints: { id: /\d+/ }
+        get "preview_panels/:id/files/*path", to: "preview_panels#file", constraints: { id: /\d+/ }, format: false
+        post "preview_panels/:id/token", to: "preview_panels#token", constraints: { id: /\d+/ }
         post "chats/onboarding", to: "chats#onboarding"
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
         patch "chats/:id", to: "chats#update", constraints: { id: /\d+/ }
@@ -528,6 +534,8 @@ Rails.application.routes.draw do
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
   get "search", to: "spa#show", as: :search
+  get "mockups", to: "spa#show", as: :mockups
+  get "mockups/:id", to: "spa#show", as: :mockup
   get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "scheduled_tasks/new", to: "spa#show", as: :new_scheduled_task
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }

@@ -1,3 +1,5 @@
+require "mockups/data_cleanup"
+
 module Mockups
   extend Syrus::PluginApi
 
@@ -16,6 +18,24 @@ module Mockups
     provides chat_mcp_tool_set: "Mockups::ChatToolSet",
              chat_media_source: "Mockups::MediaSource",
              chat_payload_contributor: "Mockups::PayloadContributor",
-             chat_prompt_injector: "Mockups::PromptSection"
+             chat_prompt_injector: "Mockups::PromptSection",
+             sidebar_page: "Mockups::SidebarPages"
+
+    # Mockups index core panels, so an entry outlives the plugin being disabled
+    # but not the panel or chat it points at.
+    always do |scope|
+      Mockups::DataCleanup.install_into(scope)
+    end
+
+    # The list and its filter bar only exist while the plugin is on.
+    while_enabled do |scope|
+      Mockups::FilterSubject.install_into(scope)
+    end
+
+    route :get, "/api/v1/app/mockups", to: "api/v1/app/mockups#index"
+    route :get, "/api/v1/app/mockups/:id", to: "api/v1/app/mockups#show"
+
+    frontend routes: { "mockups/MockupsPage" => "app/frontend/routes/MockupsPage.tsx" },
+             i18n: [ "app/frontend/i18n/locales/*/mockups.json" ]
   end
 end

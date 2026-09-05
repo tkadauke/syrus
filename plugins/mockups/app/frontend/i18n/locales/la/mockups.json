@@ -1,0 +1,14 @@
+{
+  "nav_mockups": "Exemplaria",
+  "title": "Exemplaria",
+  "loading": "Onerans…",
+  "load_failed": "Exemplaria onerari non potuerunt.",
+  "empty": "Nulla adhuc exemplaria. Roga agentem ut unum per show_preview aedificet.",
+  "file_count": "{{count}} tabellae",
+  "preview_aria": "Exemplaris praevisio",
+  "close_preview": "Praevisionem claudere",
+  "preview_unavailable": "Hoc exemplar monstrari non potuit.",
+  "preview_access_pending": "Aditus praevisionis paratur…",
+  "version": "Versio",
+  "download": "Depromere"
+}

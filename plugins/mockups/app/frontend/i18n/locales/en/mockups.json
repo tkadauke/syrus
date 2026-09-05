@@ -1,0 +1,14 @@
+{
+  "nav_mockups": "Mockups",
+  "title": "Mockups",
+  "loading": "Loading…",
+  "load_failed": "Could not load mockups.",
+  "empty": "No mockups yet. Ask a chat agent to build one with show_preview.",
+  "file_count": "{{count}} files",
+  "preview_aria": "Mockup preview",
+  "close_preview": "Close preview",
+  "preview_unavailable": "This mockup could not be shown.",
+  "preview_access_pending": "Preparing preview access…",
+  "version": "Version",
+  "download": "Download"
+}

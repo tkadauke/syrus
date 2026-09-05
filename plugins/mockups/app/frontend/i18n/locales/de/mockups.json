@@ -1,0 +1,14 @@
+{
+  "nav_mockups": "Mockups",
+  "title": "Mockups",
+  "loading": "Wird geladen…",
+  "load_failed": "Mockups konnten nicht geladen werden.",
+  "empty": "Noch keine Mockups. Bitte einen Chat-Agenten, mit show_preview eines zu bauen.",
+  "file_count": "{{count}} Dateien",
+  "preview_aria": "Mockup-Vorschau",
+  "close_preview": "Vorschau schließen",
+  "preview_unavailable": "Dieses Mockup konnte nicht angezeigt werden.",
+  "preview_access_pending": "Vorschauzugriff wird vorbereitet…",
+  "version": "Version",
+  "download": "Herunterladen"
+}

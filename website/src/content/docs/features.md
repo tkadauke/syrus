@@ -1295,6 +1295,25 @@ The view respects the same ownership model as the rest of the app:
 non-admin users see only their own Run and chat costs, while admins see
 global totals across the instance.
 
+## Mockups
+
+In a planning chat, an agent can sketch an interface — HTML, CSS and JavaScript
+— in a scratch area that never touches your repository, and show it to you in
+the chat sidebar.
+
+Published sketches become **mockups**: each gets a stable `MOCKUP-123`
+reference, and a **Mockups** entry in the sidebar lists them with a searchable
+filter bar. Selecting one opens it beside the list for a quick look, so a
+filtered list stays put while you browse.
+
+Republishing a mockup updates it in place, so the reference keeps working while
+an agent iterates. Mockups are visible to whoever can see the chat they came
+from.
+
+Ships as a bundled plugin, enabled by default. Turning it off from
+Admin -> Plugins removes the page and the chat tools; mockups already published
+are kept.
+
 ## Agent Insights
 
 Agent Insights is a plugin, disabled by default; enable it from Admin →

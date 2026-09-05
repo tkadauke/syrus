@@ -33,6 +33,7 @@ module Syrus
       step_environment
       workflow_kinds
       job_origin
+      preview_panel_viewer
       memory_store
       test_evidence
     ].freeze
@@ -71,6 +72,7 @@ module Syrus
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
       job_origin:              -> { Syrus::Plugin::JobOrigin },
+      preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
       memory_store:            -> { Syrus::Plugin::MemoryStore }
     }.freeze

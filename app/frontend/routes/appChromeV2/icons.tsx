@@ -65,6 +65,16 @@ export function DocumentIcon() {
   )
 }
 
+// A framed sketch: the artboard a mockup is shown on.
+export function MockupIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <rect height="14.5" rx="2" stroke="currentColor" strokeWidth="1.7" width="16.5" x="3.75" y="4.75" />
+      <path d="M3.75 9.25h16.5M7 12.75h4.5M7 15.75h7.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function EpicIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">

@@ -58,7 +58,23 @@ module Mockups
           files: files.transform_values { |path| File.binread(path) },
           entry_file: resolved_entry_file
         )
-        ok_response(panel_payload(updated))
+        # Publishing is what makes a panel a mockup an operator can find later.
+        # Never fails the tool call: the panel is published either way, and a
+        # missing index entry is not worth losing the agent's work over.
+        mockup = record_mockup(updated, chat_session, title)
+        ok_response(panel_payload(updated).merge(mockup_slug: mockup&.slug).compact)
+      end
+
+      def record_mockup(panel, chat_session, title)
+        Mockups::Mockup.record_publish!(
+          panel: panel,
+          user: chat_session.user,
+          title: title.presence || panel.title,
+          chat_session: chat_session
+        )
+      rescue StandardError => e
+        Rails.logger.warn("[Mockups] could not record mockup for panel #{panel.id}: #{e.class}: #{e.message}")
+        nil
       end
     end
   end
