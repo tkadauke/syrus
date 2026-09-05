@@ -96,7 +96,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
-| `observability` | Observability | `admin_mysql`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
+| `observability` | Observability | `admin_mysql`, `agent_activity`, `agent_insights`, `git_history`, `spending_insights`, `test_insights`, `throughput`, `worker_timeline` |
 | `collaboration` | Collaboration | `design_docs`, `global_search`, `team_directory` |
 | `tooling` | Tooling | `build_cache`, `mysql_db_browser`, `syrus_dev`, `terminal` |
 
@@ -2400,3 +2400,32 @@ Bundled plugins:
   wrapper around `Timeline::WorkflowWaterfallQuery` — and reusing the macro
   view's bar/pan-zoom/tooltip rendering primitives — see
   `config/syrus_docs/worker_timeline.md`.
+- `agent_activity` — default-enabled; the fourth `sidebar_page` plugin, and
+  the first to register two pages from one provider class
+  (`AgentActivity::SidebarPages`): `agent_activity.mine` (`path`
+  `/agent_activity`, any signed-in user, `component:
+  "agent_activity/AgentActivity"`) and, only when `Current.user&.admin?`,
+  `agent_activity.admin` (`path` `/admin/agent_activity`, `component:
+  "agent_activity/AdminAgentActivity"`). Both `icon: "activity"`. Unlike
+  `mysql_db_browser`/`worker_timeline`, this plugin has no separate feature
+  gate at all — `PluginRecord.enabled` (default on) is the only toggle, and
+  both pages share one component (`AgentActivityFeed.tsx`, parameterized by
+  `scope: "mine" | "admin"`) rendering a live, sessions-only feed: one card
+  per agentic `Run`, headlined by whatever that session actually submitted
+  (never inferred from transcript text — see `config/syrus_docs/agent_activity.md`).
+  `AgentActivity::SessionsQuery` backs
+  `GET /api/v1/app/agent_activity/sessions` (scope `:mine`: repositories the
+  user belongs to plus Jobs they effectively own) and
+  `GET /api/v1/app/admin/agent_activity/sessions` (scope `:admin`: every
+  session on the instance, gated by `Api::V1::App::Admin::BaseController`'s
+  `require_admin`). Both respond with the same shared-`FilterBar` `filter`/
+  `filter_schema` shape (subject `:agent_activity`: `repository_id`/`job_id`
+  fk, `step_kind` enum, `agent_provider` enum, `status` enum, `window` date),
+  compiled through the normal `Filters::Compiler` since the underlying query
+  is a single `Run` relation. Clicking a session card reuses the existing
+  `RunTranscriptLogs` transcript rendering rather than duplicating
+  `AdminTranscript.tsx`'s live-tail viewer; the admin surface has its own
+  `GET .../sessions/:run_id/artifacts` route (same JSON shape) since it can
+  list sessions on repositories the admin has no membership on and so can't
+  reuse the ownership-scoped Jobs transcript route the operator surface
+  uses — see `config/syrus_docs/agent_activity.md`.
