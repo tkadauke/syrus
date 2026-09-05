@@ -34,7 +34,7 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     expect(result).to be_success
     workflow = result.workflow
     expect(workflow).to have_attributes(trigger_kind: "chat_feedback")
-    expect(workflow.artifact("chat_feedback")).to include("Please address these 2 anchored diff review comments.")
+    expect(workflow.artifact("chat_feedback")).to include("Please address these 2 diff review comments.")
     expect(workflow.artifact("chat_feedback")).to include("app/models/widget.rb:12")
     expect(workflow.artifact("feedback_source")).to include(
       "kind" => "diff_review_comments",
@@ -55,6 +55,27 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
       ),
       hash_including("id" => second.id, "path" => "app/controllers/widgets_controller.rb", "body" => "Guard this action.")
     )
+  end
+
+  it "submits whole-review comments alongside line-anchored comments" do
+    line_comment = create_comment
+    global_comment = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_source_diff",
+      anchor_kind: "review",
+      body: "Overall this looks solid, just tighten the naming."
+    )
+
+    result = described_class.call(job: job, comment_ids: [ global_comment.id, line_comment.id ], actor: user)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("chat_feedback")).to include("Whole-review comment")
+    expect(result.workflow.artifact("chat_feedback")).to include("Overall this looks solid, just tighten the naming.")
+    expect(result.workflow.artifact("diff_comments")).to contain_exactly(
+      hash_including("id" => line_comment.id, "anchor_kind" => "line", "path" => "app/models/widget.rb"),
+      hash_including("id" => global_comment.id, "anchor_kind" => "review", "path" => nil, "line" => nil)
+    )
+    expect(global_comment.reload).to have_attributes(state: "submitted", workflow: result.workflow)
   end
 
   it "marks selected comments submitted and links them to the workflow after acceptance" do

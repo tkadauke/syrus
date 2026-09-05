@@ -150,6 +150,25 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
+    it "creates a whole-review comment with no path or line anchor" do
+      expect {
+        post comments_path,
+             params: {
+               diff_review_comment: {
+                 surface: "job_review_workspace",
+                 anchor_kind: "review",
+                 body: "Nice work overall."
+               }
+             },
+             as: :json
+      }.to change { job.diff_review_comments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+      comment = job.diff_review_comments.last
+      expect(comment).to have_attributes(anchor_kind: "review", path: nil, side: nil)
+      expect(parse_body.dig("comments", 0)).to include("anchor_kind" => "review", "path" => nil, "anchor_key" => "review")
+    end
+
     it "rejects side and line coordinates that do not match" do
       post comments_path,
            params: {

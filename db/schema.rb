@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_003249) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -943,6 +943,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
   end
 
   create_table "diff_review_comments", force: :cascade do |t|
+    t.string "anchor_kind", default: "line", null: false
     t.string "base_ref"
     t.text "body", null: false
     t.json "context", null: false
@@ -952,10 +953,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.integer "job_id", null: false
     t.integer "new_line"
     t.integer "old_line"
-    t.string "path", null: false
+    t.string "path"
     t.datetime "resolved_at"
     t.integer "run_id"
-    t.string "side", null: false
+    t.string "side"
     t.string "state", default: "draft", null: false
     t.datetime "submitted_at"
     t.datetime "superseded_at"

@@ -90,6 +90,7 @@ module Api
             :surface,
             :base_ref,
             :head_ref,
+            :anchor_kind,
             :path,
             :side,
             :old_line,

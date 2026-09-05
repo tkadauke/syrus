@@ -42,4 +42,18 @@ RSpec.describe App::DiffReviewCommentsPayload do
     )
     expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)
   end
+
+  it "groups whole-review comments under a stable key instead of a nil path" do
+    global = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_review_workspace",
+      anchor_kind: "review",
+      body: "Nice work overall."
+    )
+
+    payload = described_class.build(job: job, comments: [ global ])
+
+    expect(payload[:comments].first).to include(anchor_kind: "review", path: nil, anchor_key: "review")
+    expect(payload.dig(:by_path, "__review__", "review").first[:id]).to eq(global.id)
+  end
 end

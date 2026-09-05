@@ -149,6 +149,14 @@ Comment payloads include durable anchors (`path`, `side`, `old_line`,
 Responses include both a flat `comments` array and `by_path`, keyed by file
 path and an anchor key such as `right::42` or `left:38:`.
 
+Every comment also carries `anchor_kind`, either `"line"` (the default, tied
+to a specific file/side/line) or `"review"` for a whole-review comment that
+isn't anchored to any code line. Create a whole-review comment by posting
+`anchor_kind: "review"` with no `path`/`side`/`old_line`/`new_line` — Syrus
+clears those fields regardless of what's sent. Whole-review comments submit
+through the same `submit` endpoint alongside line-anchored ones and appear in
+`by_path` under the `"__review__"` group with anchor key `"review"`.
+
 ## File a Syrus Report Issue
 
 `POST /api/v1/app/report_issue` lets the authenticated user file a GitHub

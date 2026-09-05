@@ -1,6 +1,8 @@
 class DiffReviewComment < ApplicationRecord
   STATES = %w[draft submitted resolved superseded].freeze
   SIDES = %w[left right].freeze
+  ANCHOR_KINDS = %w[line review].freeze
+  REVIEW_ANCHOR_KEY = "review".freeze
 
   belongs_to :job
   belongs_to :user
@@ -10,13 +12,14 @@ class DiffReviewComment < ApplicationRecord
   attribute :context, :json, default: -> { {} }
 
   validates :surface, presence: true
-  validates :path, presence: true
-  validates :side, presence: true, inclusion: { in: SIDES }
+  validates :anchor_kind, presence: true, inclusion: { in: ANCHOR_KINDS }
+  validates :path, presence: true, if: :line_anchor?
+  validates :side, presence: true, inclusion: { in: SIDES }, if: :line_anchor?
   validates :state, presence: true, inclusion: { in: STATES }
   validates :body, presence: true
   validates :old_line, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :new_line, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
-  validate :side_line_anchor_present
+  validate :side_line_anchor_present, if: :line_anchor?
   validate :workflow_belongs_to_job
   validate :run_belongs_to_job
   validate :run_belongs_to_workflow
@@ -24,6 +27,10 @@ class DiffReviewComment < ApplicationRecord
   before_validation :normalize_strings
   before_validation :default_context
   before_save :stamp_lifecycle_transition, if: :will_save_change_to_state?
+
+  def line_anchor?
+    anchor_kind != "review"
+  end
 
   scope :ordered, -> { order(:path, :side, :old_line, :new_line, :created_at, :id) }
   scope :for_surface, ->(surface) { where(surface: surface) if surface.present? }
@@ -35,6 +42,8 @@ class DiffReviewComment < ApplicationRecord
   scope :for_run, ->(run_id) { where(run_id: run_id) if run_id.present? }
 
   def anchor_key
+    return REVIEW_ANCHOR_KEY unless line_anchor?
+
     [
       side,
       old_line || "",
@@ -60,10 +69,20 @@ class DiffReviewComment < ApplicationRecord
     self.surface = surface.to_s.strip.presence || "job_diff"
     self.base_ref = base_ref.to_s.strip.presence
     self.head_ref = head_ref.to_s.strip.presence
-    self.path = path.to_s.strip
-    self.side = side.to_s.strip
+    self.anchor_kind = anchor_kind.to_s.strip.presence || "line"
     self.body = body.to_s.strip
-    self.diff_hunk = diff_hunk.to_s.presence
+
+    if line_anchor?
+      self.path = path.to_s.strip
+      self.side = side.to_s.strip
+      self.diff_hunk = diff_hunk.to_s.presence
+    else
+      self.path = nil
+      self.side = nil
+      self.old_line = nil
+      self.new_line = nil
+      self.diff_hunk = nil
+    end
   end
 
   def default_context
