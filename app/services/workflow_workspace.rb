@@ -26,6 +26,13 @@ require "fileutils"
 # share a path.
 class WorkflowWorkspace
   EXCLUDE_ENTRY = ".syrus/".freeze
+  # Advisory OS-level lock sentinel. ProcessRunner takes a shared flock on
+  # this file for the duration of any subprocess it spawns in this
+  # workspace; cleanup_for takes a non-blocking exclusive flock before
+  # rm_rf so a still-alive process (whose Run the reconciler already
+  # declared dead based on the slower heartbeat/poll signal) can't have
+  # its working directory deleted out from under it.
+  LOCK_SENTINEL = ".workspace.lock".freeze
 
   attr_reader :path, :branch_name
 
@@ -35,6 +42,10 @@ class WorkflowWorkspace
 
   def self.path_for(workflow)
     data_root.join("workflows", workflow.id.to_s)
+  end
+
+  def self.lock_path_for(workflow)
+    path_for(workflow).join(LOCK_SENTINEL)
   end
 
   def self.agent_home_for(workflow, provider)
@@ -139,6 +150,12 @@ class WorkflowWorkspace
 
     p = path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
+
+    if p.exist? && !try_exclusive_lock(workflow)
+      Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: workspace lock is held by a live process")
+      return false
+    end
+
     Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")
 
     FileUtils.rm_rf(p.to_s) if p.exist?
@@ -154,6 +171,25 @@ class WorkflowWorkspace
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
   end
+
+  # Non-blocking check-then-release: if a ProcessRunner-held shared flock
+  # is present, LOCK_EX|LOCK_NB fails immediately (returns false rather
+  # than raising) and we bail out without touching the filesystem. If it
+  # succeeds, nothing else can be holding the lock right now, so we
+  # release it immediately and let the caller proceed with rm_rf — the
+  # AR-level active_descendants? guard above is what keeps new work from
+  # starting in this workspace once a Workflow reaches this path.
+  def self.try_exclusive_lock(workflow)
+    lock_path = lock_path_for(workflow)
+    FileUtils.mkdir_p(lock_path.dirname)
+    File.open(lock_path, File::CREAT | File::RDWR) do |lock_file|
+      return false unless lock_file.flock(File::LOCK_EX | File::LOCK_NB)
+
+      lock_file.flock(File::LOCK_UN)
+      true
+    end
+  end
+  private_class_method :try_exclusive_lock
 
   def initialize(workflow, git: nil, log: nil)
     @workflow = workflow
@@ -680,5 +716,6 @@ class WorkflowWorkspace
 
   def ensure_exclude_entry
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+    GitInfoExclude.ensure_entry!(path, LOCK_SENTINEL)
   end
 end

@@ -1,5 +1,6 @@
 require "open3"
 require "socket"
+require "fileutils"
 
 # Small shared wrapper for subprocess lifetime management. Callers still own
 # command construction and output parsing; this class owns the boring parts:
@@ -91,6 +92,34 @@ class ProcessRunner
   end
 
   def run
+    with_workspace_lock { run_process }
+  end
+
+  private
+
+  # Held for the lifetime of the spawned subprocess so
+  # WorkflowWorkspace.cleanup_for's non-blocking exclusive flock on the
+  # same sentinel file can detect a still-live process and defer rm_rf,
+  # even when the DB-tracked SpawnedProcess/Run rows look stale (the
+  # heartbeat/poll signal cleanup_for otherwise relies on). Shared so
+  # multiple subprocesses can run concurrently in the same workspace
+  # (e.g. a landing fanout's parallel grader Runs).
+  def with_workspace_lock
+    return yield unless @workflow
+
+    lock_path = WorkflowWorkspace.lock_path_for(@workflow)
+    FileUtils.mkdir_p(lock_path.dirname)
+    File.open(lock_path, File::CREAT | File::RDWR) do |lock_file|
+      lock_file.flock(File::LOCK_SH)
+      begin
+        yield
+      ensure
+        lock_file.flock(File::LOCK_UN)
+      end
+    end
+  end
+
+  def run_process
     timed_out = false
     stopped = false
     silent_timed_out = false
