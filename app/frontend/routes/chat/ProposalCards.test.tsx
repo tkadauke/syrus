@@ -348,3 +348,75 @@ describe("ProposalCard routing", () => {
     expect(screen.queryByRole("group", { name: "Route" })).not.toBeInTheDocument()
   })
 })
+
+describe("ProposalCard live sync", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("dispatches syrus:proposal-updated and patches the cache after confirming", async () => {
+    const confirmed = proposal({ state: "confirmed", state_label: "Confirmed", proposed: false, resolved: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: confirmed }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:proposal-updated", (e) => dispatched.push(e as CustomEvent))
+
+    const { client, queryKey } = renderProposalCard(proposal())
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0].detail).toEqual({ chatSessionId: "122", proposal: confirmed })
+
+    const cached = client.getQueryData<ChatPayload>(queryKey)
+    expect(cached?.messages[0].proposal?.state).toBe("confirmed")
+  })
+
+  it("dispatches syrus:proposal-updated after rejecting", async () => {
+    const rejected = proposal({ state: "rejected", state_label: "Rejected", proposed: false, resolved: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected.", proposal: rejected }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:proposal-updated", (e) => dispatched.push(e as CustomEvent))
+
+    renderProposalCard(proposal())
+    fireEvent.click(screen.getByRole("button", { name: "Reject proposal" }))
+
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0].detail).toEqual({ chatSessionId: "122", proposal: rejected })
+  })
+
+  it("dispatches syrus:proposal-updated after editing and saving a proposal", async () => {
+    const updatedProposal = proposal({ title: "Updated title" })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({
+          ...payloadFor(["chats", "122", ""], updatedProposal),
+          proposal: updatedProposal
+        }))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:proposal-updated", (e) => dispatched.push(e as CustomEvent))
+
+    renderProposalEditModal(proposal())
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(dispatched).toHaveLength(1))
+    expect(dispatched[0].detail).toEqual({ chatSessionId: "122", proposal: updatedProposal })
+  })
+})

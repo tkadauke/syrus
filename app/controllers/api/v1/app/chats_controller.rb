@@ -1542,6 +1542,7 @@ module Api
         end
 
         def broadcast_proposal_updated(chat_session, proposal)
+          repository = chat_session.repository
           event_args = {
             type: "updated",
             resource: "chat",
@@ -1549,7 +1550,9 @@ module Api
             changed: [ "proposal" ],
             payload: {
               action: "update_proposal",
-              proposal_id: proposal.id
+              proposal_id: proposal.id,
+              proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
+              pending_proposal_count: chat_session.proposals.where(state: "proposed").count
             }
           }
           (chat_session.participants.to_a.presence || [ chat_session.user ]).each do |p|

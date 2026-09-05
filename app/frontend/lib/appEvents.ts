@@ -1,7 +1,24 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
+import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatProposal, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
+import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
+
+// A proposal card can live in a chat view's paginated-older-history state,
+// outside the React Query cache the rest of this module patches. Dispatching
+// this alongside the cache patch lets any mounted chat view also update that
+// out-of-cache copy, regardless of where the proposal's message currently
+// scrolled to. See MessageStream in routes/Chat.tsx for the listener.
+export const PROPOSAL_UPDATED_EVENT = "syrus:proposal-updated"
+
+export type ProposalUpdatedDetail = { chatSessionId: string; proposal: ChatProposal }
+
+export function dispatchProposalUpdated(chatSessionId: string | number, proposal: ChatProposal) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent<ProposalUpdatedDetail>(PROPOSAL_UPDATED_EVENT, {
+    detail: { chatSessionId: String(chatSessionId), proposal }
+  }))
+}
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -539,7 +556,28 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const updateProposal = chatUpdateProposalPayload(event.payload)
   if (updateProposal) {
     void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-    scheduleChatDetailInvalidation(queryClient, ["chats", String(event.id)])
+
+    if (!updateProposal.proposal) {
+      // Older/mixed-deploy broadcast without a serialized proposal: fall back
+      // to a full refetch, same as before this event carried enough data to
+      // patch directly.
+      scheduleChatDetailInvalidation(queryClient, ["chats", String(event.id)])
+      return true
+    }
+
+    const proposal = updateProposal.proposal
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => {
+        if (!current || !Array.isArray(current.messages)) return current
+        return {
+          ...current,
+          messages: replaceProposalInMessages(current.messages, proposal),
+          pending_proposal_count: updateProposal.pending_proposal_count ?? current.pending_proposal_count
+        }
+      }
+    )
+    dispatchProposalUpdated(event.id, proposal)
     return true
   }
 
@@ -627,6 +665,8 @@ type ChatSuggestionPayload = {
 type ChatUpdateProposalPayload = {
   action: "update_proposal"
   proposal_id: number
+  proposal?: ChatProposal
+  pending_proposal_count?: number
 }
 
 type ChatJobStatusChangedPayload = {
@@ -806,7 +846,25 @@ function chatUpdateProposalPayload(payload: unknown): ChatUpdateProposalPayload 
   if (candidate.action !== "update_proposal") return null
   if (typeof candidate.proposal_id !== "number") return null
 
-  return { action: "update_proposal", proposal_id: candidate.proposal_id }
+  return {
+    action: "update_proposal",
+    proposal_id: candidate.proposal_id,
+    proposal: isChatProposal(candidate.proposal, candidate.proposal_id) ? candidate.proposal : undefined,
+    pending_proposal_count: typeof candidate.pending_proposal_count === "number" ? candidate.pending_proposal_count : undefined
+  }
+}
+
+function isChatProposal(value: unknown, expectedId: number): value is ChatProposal {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as Partial<ChatProposal>
+  return (
+    candidate.id === expectedId &&
+    typeof candidate.slug === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.state === "string" &&
+    typeof candidate.app_confirm_path === "string"
+  )
 }
 
 function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayload | null {

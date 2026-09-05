@@ -2458,6 +2458,72 @@ describe("chat proposal cards", () => {
     expect(await screen.findByRole("button", { name: "Confirm proposal and implement" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
   })
+
+  it("updates a proposal card loaded via Load earlier messages after confirming it, without a full chat refetch", async () => {
+    // Regression test: a proposal scrolled above the latest page lives in
+    // MessageStream's separate olderMessages state, not the React Query
+    // cache. Confirming it must patch that state directly (via the
+    // syrus:proposal-updated event) instead of relying on a refetch that
+    // only ever returns the newest page and would never reach this card.
+    const confirmedProposal = proposal({
+      slug: "JOB-DRAFT-OLD",
+      title: "Old scrolled proposal",
+      proposed: false,
+      resolved: true,
+      state: "confirmed",
+      state_label: "Confirmed"
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/messages?before=9") {
+        return Promise.resolve(jsonResponse({
+          has_more_older: false,
+          messages: [messageWithProposal(4, proposal({ slug: "JOB-DRAFT-OLD", title: "Old scrolled proposal" }))]
+        }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: confirmedProposal,
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "Latest update." },
+            text: "Latest update.",
+            bookmarkable: true
+          }
+        ]
+      }, { has_more_older: true, pending_proposal_count: 1 })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Load earlier messages" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => {
+      const card = document.getElementById("chat_message_4")
+      expect(card).not.toBeNull()
+      expect(within(card as HTMLElement).getAllByText("Confirmed").length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByRole("button", { name: "Confirm proposal and implement" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject proposal" })).not.toBeInTheDocument()
+
+    const chatPayloadFetches = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/chats/8")
+    expect(chatPayloadFetches.length).toBe(1)
+  })
 })
 
 describe("chat compose image attachments", () => {

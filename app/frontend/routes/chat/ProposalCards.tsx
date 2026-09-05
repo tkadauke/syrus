@@ -7,6 +7,8 @@ import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
 import { cancelPendingAction, confirmChatProposal, confirmPendingAction, fetchChatMedia, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMediaPayload, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatPreviewPanel, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
+import { dispatchProposalUpdated } from "../../lib/appEvents"
+import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
@@ -105,6 +107,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      if (updated.proposal) dispatchProposalUpdated(queryKey[1], updated.proposal)
       onNotice(updated.message || "Proposal updated")
       onClose()
     }
@@ -390,7 +393,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start, route_to_backlog: input.routeToBacklog }) : rejectChatProposal(path)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated))
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated, queryKey[1]))
       onNotice(updated.message || null)
     }
   })
@@ -495,12 +498,13 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
   )
 }
 
-function applyProposalActionResult(current: ChatPayload | undefined, updated: ChatPayload | ChatProposalMutationPayload) {
+function applyProposalActionResult(current: ChatPayload | undefined, updated: ChatPayload | ChatProposalMutationPayload, chatId: string | number) {
   if (isChatPayload(updated)) return updated
   if (!current) return current
 
   const proposal = updated.proposal || null
-  const messages = current.messages.map((message) => proposal ? replaceProposal(message, proposal) : message)
+  if (proposal) dispatchProposalUpdated(chatId, proposal)
+  const messages = proposal ? replaceProposalInMessages(current.messages, proposal) : current.messages
   return {
     ...current,
     messages: appendMissingMessages(messages, updated.messages || []),
@@ -510,12 +514,6 @@ function applyProposalActionResult(current: ChatPayload | undefined, updated: Ch
 
 function isChatPayload(payload: ChatPayload | ChatProposalMutationPayload): payload is ChatPayload {
   return "chat" in payload && Array.isArray(payload.messages)
-}
-
-function replaceProposal(message: ChatMessageItem, proposal: ChatProposal) {
-  if (message.proposal?.id !== proposal.id) return message
-
-  return { ...message, proposal }
 }
 
 function appendMissingMessages(messages: ChatMessageItem[], additions: ChatMessageItem[]) {

@@ -770,7 +770,7 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
-  it("invalidates recent chats and chat detail for update_proposal events", () => {
+  it("falls back to invalidating recent chats and chat detail when update_proposal has no serialized proposal", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
@@ -790,6 +790,37 @@ describe("applyAppEvent", () => {
     vi.runOnlyPendingTimers()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
+  it("patches the cached proposal in place and dispatches syrus:proposal-updated when update_proposal carries the serialized proposal", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:proposal-updated", (e) => dispatched.push(e as CustomEvent))
+
+    const proposedProposal = chatProposal(42, { state: "proposed", proposed: true })
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(5, "assistant", "Proposal", { proposal: proposedProposal })]))
+
+    const confirmedProposal = chatProposal(42, { state: "confirmed", proposed: false, resolved: true })
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_proposal",
+        proposal_id: 42,
+        proposal: confirmedProposal,
+        pending_proposal_count: 3
+      }
+    })
+
+    const patched = queryClient.getQueryData<{ messages: Array<{ proposal?: { state: string } }>; pending_proposal_count: number }>(["chats", "9", ""])
+    expect(patched?.messages[0].proposal?.state).toBe("confirmed")
+    expect(patched?.pending_proposal_count).toBe(3)
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0].detail).toEqual({ chatSessionId: "9", proposal: confirmedProposal })
   })
 
   it("does not corrupt job_status cache when update_controls arrives", () => {
@@ -913,6 +944,33 @@ function notification(id: number, readAt: string | null = null) {
     job_id: null,
     job_title: null,
     created_at: "2026-06-25T12:00:00Z"
+  }
+}
+
+function chatProposal(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    kind: "syrus_issue",
+    kind_label: "Syrus issue",
+    state: "proposed",
+    state_label: "Proposed",
+    title: "Add greeting helper",
+    slug: "add-greeting-helper",
+    body: "Do it.",
+    proposed: true,
+    resolved: false,
+    epic_bundle: false,
+    scoped_repository_slug: "tkadauke/syrus",
+    dependencies: [],
+    has_dependencies: false,
+    target_epic_id: null,
+    target_epic_label: null,
+    app_update_path: "/api/v1/app/chats/9/proposals/42",
+    app_confirm_path: "/api/v1/app/chats/9/proposals/42/confirm",
+    app_reject_path: "/api/v1/app/chats/9/proposals/42/reject",
+    materialized_label: null,
+    materialized_path: null,
+    ...overrides
   }
 }
 

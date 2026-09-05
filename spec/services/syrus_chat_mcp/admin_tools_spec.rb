@@ -193,6 +193,38 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(action.after_snapshot).to include("jobs")
   end
 
+  it "rejects reconcile_job_state up front when the mode's AASM guard does not hold, without creating a pending action" do
+    job = Factories.job(user: admin, repository: repository)
+    job.update_columns(state: "triaging")
+
+    expect {
+      response = call_tool(
+        admin_session,
+        "reconcile_job_state",
+        { job_id: job.id, mode: "mark_queued", reason: "Attempt to mark queued from triaging." }
+      )
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(error_text(response)).to match(/#{Regexp.escape(job.slug)} cannot apply mark_queued from triaging/)
+    }.not_to change(ChatPendingAction, :count)
+  end
+
+  it "rejects force_state_transition up front when the event's AASM guard does not hold, without creating a pending action" do
+    job = Factories.job(user: admin, repository: repository)
+    job.update_columns(state: "approved")
+
+    expect {
+      response = call_tool(
+        admin_session,
+        "force_state_transition",
+        { job_id: job.id, event: "queue_reopened_retry", reason: "Attempt an illegal transition." }
+      )
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(error_text(response)).to match(/#{Regexp.escape(job.slug)} cannot apply queue_reopened_retry from approved/)
+    }.not_to change(ChatPendingAction, :count)
+  end
+
   it "anchors admin pending actions to the current assistant message" do
     message = admin_session.messages.create!(role: "assistant", content: { "text" => "I can pause runs." })
 

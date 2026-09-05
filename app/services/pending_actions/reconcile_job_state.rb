@@ -9,6 +9,10 @@ module PendingActions
       mark_queued
     ].freeze
 
+    GUARD_METHODS = {
+      "mark_queued" => :may_retry_after_failure?
+    }.freeze
+
     def execute
       raise ArgumentError, "Admin access required." unless user.admin?
 
@@ -26,6 +30,7 @@ module PendingActions
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:payload, "mode is invalid") unless MODES.include?(payload["mode"].to_s)
       errors.add(:reason, "is required") if reason.blank?
+      validate_transition_guard(errors)
     end
 
     def action_detail
@@ -34,5 +39,19 @@ module PendingActions
 
     def repair_action? = true
     def repair_snapshot_targets = [ repair_action_job_or_nil ]
+
+    private
+
+    def validate_transition_guard(errors)
+      return unless payload["job_id"].present? && MODES.include?(payload["mode"].to_s)
+
+      guard = GUARD_METHODS[payload["mode"].to_s]
+      return unless guard
+
+      job = repair_action_job_or_nil
+      return unless job
+
+      errors.add(:payload, "#{job.slug} cannot apply #{payload["mode"]} from #{job.state}") unless job.public_send(guard)
+    end
   end
 end
