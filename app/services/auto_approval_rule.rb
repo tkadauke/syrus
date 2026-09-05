@@ -98,7 +98,7 @@ class AutoApprovalRule
 
   def resolved_mode
     candidates = []
-    candidates << [ @job.scheduled_task&.auto_approve_mode, "ScheduledTask##{@job.scheduled_task_id}" ] if @job.cron?
+    candidates << [ Job::Origin.auto_approve_mode(@job), "#{@job.origin}##{@job.origin_id}" ] if @job.origin_id.present?
     candidates << [ @job.epic&.auto_approve_mode, "Epic##{@job.epic.number}" ] if @job.epic_id
     candidates << [ @job.repository.auto_approve_mode, "Repository##{@job.repository_id}" ]
     candidates << [ @job.user.auto_approve_mode, "User##{@job.user_id}" ]

@@ -99,7 +99,7 @@ RSpec.describe AutoApprovalRule do
     described_class.for(job).apply_after_grader_success!(step)
 
     expect(job.reload.state).to eq("landing")
-    expect(job.approval_evidence["source"]).to eq("ScheduledTask##{task.id}")
+    expect(job.approval_evidence["source"]).to eq("scheduled_tasks##{task.id}")
     expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
   end
 
@@ -148,7 +148,7 @@ RSpec.describe AutoApprovalRule do
     repository.update!(auto_approve_mode: "if_graders_pass_and_tagged_safe")
 
     cron_job = approvable_job(kind: "cron", issue_number: nil, scheduled_task: task, epic: epic)
-    expect(described_class.for(cron_job).resolved_mode).to eq([ "if_graders_pass_and_tagged_safe", "ScheduledTask##{task.id}" ])
+    expect(described_class.for(cron_job).resolved_mode).to eq([ "if_graders_pass_and_tagged_safe", "scheduled_tasks##{task.id}" ])
 
     epic_job = approvable_job(issue_number: 43, epic: epic)
     expect(described_class.for(epic_job).resolved_mode).to eq([ "if_graders_pass", "Epic##{epic.number}" ])

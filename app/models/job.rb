@@ -381,10 +381,11 @@ class Job < ApplicationRecord
   # ScheduledTask so PrFeedback / CiFailure / PrSummarizer prompts
   # don't need to special-case kind.
   def synthetic_issue
-    if cron? && scheduled_task
+    if (supplied = Job::Origin.synthetic_issue(self))
+      # A skill run carries its own rendered prompt; the origin only names it.
       Struct.new(:title, :body).new(
-        "Scheduled task: #{scheduled_task.name}",
-        skill_name.present? ? issue_body.to_s : scheduled_task.prompt.to_s
+        supplied[:title].to_s,
+        skill_name.present? ? issue_body.to_s : supplied[:body].to_s
       )
     elsif direct?
       Struct.new(:title, :body).new(issue_title.to_s, issue_body.to_s)
@@ -811,6 +812,8 @@ class Job < ApplicationRecord
       kind: kind,
       state: state,
       closure_reason: closure_reason,
+      origin: origin,
+      origin_id: origin_id,
       epic_id: epic_id,
       issue_number: issue_number,
       pr_number: pr_number

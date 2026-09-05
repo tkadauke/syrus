@@ -63,6 +63,58 @@ RSpec.describe Job::Origin do
     end
   end
 
+  describe "the prompt and approval hooks" do
+    let(:provider) do
+      Class.new do
+        include Syrus::Plugin::JobOrigin
+        def self.origin_key = "test_origin"
+        def self.synthetic_issue(origin_id:, repository: nil) = { title: "Scheduled task: Sweep", body: "survey the repo" }
+        def self.auto_approve_mode(origin_id:, repository: nil) = "if_graders_pass"
+      end
+    end
+    let(:job) { Factories.job_record(repository: repo, kind: "direct", issue_number: nil, origin: "test_origin", origin_id: "3") }
+
+    before do
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:job_origin).and_return([ provider ])
+    end
+
+    it "lets the origin supply the prompt for a Job with no issue behind it" do
+      expect(described_class.synthetic_issue(job)).to eq(title: "Scheduled task: Sweep", body: "survey the repo")
+    end
+
+    it "lets the origin ask for an approval mode" do
+      expect(described_class.auto_approve_mode(job)).to eq("if_graders_pass")
+    end
+  end
+
+  describe "an origin that supplies neither" do
+    let(:provider) do
+      Class.new do
+        include Syrus::Plugin::JobOrigin
+        def self.origin_key = "bare"
+      end
+    end
+    let(:job) { Factories.job_record(repository: repo, kind: "direct", issue_number: nil, origin: "bare", origin_id: "1") }
+
+    before do
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:job_origin).and_return([ provider ])
+    end
+
+    # Both hooks are optional; an origin that only names itself is valid.
+    it "defaults both to nil" do
+      expect(described_class.synthetic_issue(job)).to be_nil
+      expect(described_class.auto_approve_mode(job)).to be_nil
+    end
+  end
+
+  describe "the built-in scheduled-tasks origin" do
+    it "is resolved through the same lookup a plugin would use" do
+      expect(described_class.provider_for("scheduled_tasks")).to eq(JobOrigins::ScheduledTasks)
+    end
+  end
+
   describe "when no plugin claims the origin" do
     let(:job) { Factories.job_record(repository: repo, kind: "direct", issue_number: nil, origin: "uninstalled", origin_id: "12") }
 

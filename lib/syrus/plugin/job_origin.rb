@@ -31,6 +31,18 @@ module Syrus
       def url(origin_id:, repository: nil) = nil
 
       def icon = nil
+
+      # The prompt an origin supplies for a Job that has no GitHub issue behind
+      # it, as `{ title:, body: }`, or nil when the origin has none.
+      #
+      # Job#synthetic_issue used to reach into ScheduledTask for exactly this,
+      # which is why the prompt classes could not stop special-casing `kind`.
+      def synthetic_issue(origin_id:, repository: nil) = nil
+
+      # The auto-approval mode this origin asks for, if any. AutoApprovalRule
+      # consults it ahead of the Epic, repository and user settings, so a
+      # schedule can approve its own fires without core naming the schedule.
+      def auto_approve_mode(origin_id:, repository: nil) = nil
     end
   end
 end

@@ -634,16 +634,21 @@ module Steps
 
     def template_title
       if job.cron?
-        "[syrus] scheduled: #{job.scheduled_task&.name || "task ##{job.scheduled_task_id}"}"
+        "[syrus] scheduled: #{origin_label}"
       else
         "[syrus] #{repository.slug}##{job.issue_number}"
       end
     end
 
+    # The origin names itself; core does not know what a schedule is called.
+    # Falls back to the raw identifier when the owning plugin is gone.
+    def origin_label
+      Job::Origin.label(job).presence || "task ##{job.origin_id}"
+    end
+
     def template_body
       if job.cron?
-        task_name = job.scheduled_task&.name || "##{job.scheduled_task_id}"
-        "Opened by a Syrus scheduled task (`#{task_name}`).\n\nReview the diff carefully — this PR was authored by an LLM."
+        "Opened by a Syrus scheduled task (`#{origin_label}`).\n\nReview the diff carefully — this PR was authored by an LLM."
       else
         "Closes ##{job.issue_number}\n\nOpened by Syrus from issue ##{job.issue_number}.\n\nReview the diff carefully — this PR was authored by an LLM."
       end
