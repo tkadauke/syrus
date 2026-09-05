@@ -898,6 +898,34 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(workflow.reload.cleaned_up_at).to be_present
     end
 
+    it "holds the exclusive lock through rm_rf itself, not just the pre-delete check" do
+      # Closes a check-then-act gap: if cleanup_for released the lock right
+      # after confirming no one held it, a new ProcessRunner could acquire
+      # the shared lock and start operating on the directory in the window
+      # between that check and the actual delete. Prove the lock is still
+      # held (a fresh exclusive attempt fails) at the moment rm_rf runs.
+      ws = described_class.new(workflow)
+      ws.setup
+      ws_path = ws.path
+      lock_path = described_class.lock_path_for(workflow)
+      lock_held_during_delete = nil
+
+      allow(FileUtils).to receive(:rm_rf).and_wrap_original do |original, *args|
+        if args.first == ws_path.to_s
+          probe = File.open(lock_path, File::CREAT | File::RDWR)
+          lock_held_during_delete = !probe.flock(File::LOCK_EX | File::LOCK_NB)
+          probe.close
+        end
+        original.call(*args)
+      end
+
+      expect(described_class.cleanup_for(workflow)).not_to eq(false)
+
+      expect(lock_held_during_delete).to eq(true)
+      expect(ws_path).not_to exist
+      expect(workflow.reload.cleaned_up_at).to be_present
+    end
+
     it "doesn't blow up the state transition if cleanup raises" do
       ws = described_class.new(workflow)
       ws.setup
