@@ -1,6 +1,6 @@
 require "fileutils"
 
-module PreviewTools
+module Mockups
   # Jails all file reads/writes to
   # <ChatWorkspace.path_for(chat_session)>/previews/<panel_id>/ so the
   # write/edit MCP tools can never escape into the rest of the persistent

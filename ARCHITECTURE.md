@@ -58,7 +58,7 @@ domain concepts. File paths are repo-relative.
 - **Plugin system** — `Syrus::PluginRegistry` with two dozen extension points;
   bundled plugins (claude_agent, codex_agent, github_source, linear_source,
   rails, ruby, javascript, python, go, django, syrus_dev, browser,
-  preview_tools, design_docs, spending_insights, worker_timeline,
+  mockups, design_docs, spending_insights, worker_timeline,
   admin_mysql, mysql_db_browser, git_history, whiteboard,
   theming_tools, discord, tailscale) ship in `plugins/`; third-party
   plugins are ordinary Rails Engine gems
@@ -1418,7 +1418,7 @@ The registry defines twenty-four extension points:
 | `rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer` ×2, `:test_result_parser`, `:coverage_analyzer`, `:prompt_injector`, `:preview_provider` | enabled |
 | `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
 | `browser` | `plugins/browser` | `:mcp_tool_set` (headless-Chromium browser control via a bundled `@playwright/mcp` subprocess), `:artifact_renderer` (image diffs) | enabled |
-| `preview_tools` | `plugins/preview_tools` | `:chat_mcp_tool_set` for preview-panel scratch files | enabled |
+| `mockups` | `plugins/mockups` | `:chat_mcp_tool_set` for preview-panel scratch files | enabled |
 | `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set` | enabled |
 | `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
 | `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |

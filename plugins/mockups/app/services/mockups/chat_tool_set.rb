@@ -1,6 +1,6 @@
 require "mcp"
 
-module PreviewTools
+module Mockups
   # Planning-mode-only chat MCP tools. Planning mode has no Write/Edit tools
   # at all (Prompts::ChatSystem) so an agent that wants to build an HTML/CSS/JS
   # mockup or interactive widget page needs a narrow, jailed alternative:
@@ -51,7 +51,7 @@ module PreviewTools
     rescue ScratchDirectory::InvalidPath => e
       self.class.error_response(e.message)
     rescue StandardError => e
-      Rails.logger.error("[PreviewTools::ChatToolSet] #{e.class}: #{e.message}")
+      Rails.logger.error("[Mockups::ChatToolSet] #{e.class}: #{e.message}")
       self.class.error_response("#{e.class}: #{e.message}")
     end
 

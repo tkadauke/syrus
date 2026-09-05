@@ -1,4 +1,4 @@
-module PreviewTools
+module Mockups
   # The chat payload's `preview_panels` key. Core used to build this inline in
   # ChatSerialization, which meant it knew PreviewPanel's URL scheme, entry
   # metadata, and version serialization.

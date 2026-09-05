@@ -1,4 +1,4 @@
-module PreviewTools
+module Mockups
   # Shared response/panel-lookup helpers for the individual preview tool
   # classes (see ChatToolSet). `extend`ed into each tool class so they're
   # available as class methods from `.call`.

@@ -114,7 +114,7 @@ module ChatSerialization
   end
 
   # Plugin-owned slices of the payload -- `whiteboard` (whiteboard) and
-  # `preview_panels` (preview_tools) were built inline here until core stopped
+  # `preview_panels` (mockups) were built inline here until core stopped
   # needing to know those models.
   def merge_chat_payload_contributions(payload, chat_session)
     context = { params: params, ssl: request.ssl? }

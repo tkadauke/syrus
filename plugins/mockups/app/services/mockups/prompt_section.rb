@@ -1,4 +1,4 @@
-module PreviewTools
+module Mockups
   # The preview panel's slice of the chat agent's system prompt.
   module PromptSection
     include Syrus::Plugin::ChatPromptInjector

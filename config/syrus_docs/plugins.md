@@ -92,7 +92,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 |---|---|---|
 | `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
 | `agent_provider` | Agent provider | `claude_agent`, `codex_agent` |
-| `agent_capability` | Agent capability | `browser`, `preview_tools`, `theming_tools`, `whiteboard`, `agent_memory` |
+| `agent_capability` | Agent capability | `browser`, `mockups`, `theming_tools`, `whiteboard`, `agent_memory` |
 | `input_source` | Input source | `github_source`, `linear_source` |
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
@@ -482,14 +482,14 @@ When several tools in one set share real logic (not just similar shape), pull
 it into a small shared module or base class instead of duplicating it per
 tool — `SyrusBrowser::BrowserTool` (a shared `MCP::Tool` base class for the
 five browser tools that proxy to the same upstream Playwright MCP session)
-and `PreviewTools::ToolSupport` (a mixin of response/panel-lookup helpers
+and `Mockups::ToolSupport` (a mixin of response/panel-lookup helpers
 used by all four preview tools) are the two real examples in this codebase.
 Don't invent a shared abstraction for tools that don't actually share logic.
 
 This convention is followed by `syrus_dev` (`SyrusDev::WorkflowToolSet`,
 the original precedent), `syrus_rails` (`SyrusRails::McpToolSet`), `browser`
 (`SyrusBrowser::McpToolSet`), `admin_mysql` (`AdminMysql::ChatToolSet`,
-`AdminMysql::WorkflowToolSet`), and `preview_tools` (`PreviewTools::ChatToolSet`).
+`AdminMysql::WorkflowToolSet`), and `mockups` (`Mockups::ChatToolSet`).
 
 ## `callbacks`
 
@@ -719,7 +719,7 @@ valid, does it belong to this chat, and how does it become a Job attachment --
 and they used to be a `case kind` repeated in `ChatMediaAttacher`,
 `ChatProposal`, `submit_chat_feedback`, `list_chat_media`, and `ChatMediaRef`'s
 format regex, with `snapshot` (whiteboard) and `preview_panel_version`
-(preview_tools) named in core.
+(mockups) named in core.
 
 A provider answers:
 
@@ -763,7 +763,7 @@ point that unblocks moving it out of core.
 
 The chat payload is one JSON document the chat page reads, and three of its
 top-level keys belonged to plugins rather than core: `whiteboard`
-(whiteboard), `preview_panels` (preview_tools), and `video_walkthroughs`.
+(whiteboard), `preview_panels` (mockups), and `video_walkthroughs`.
 Core built all of them inline, so it knew those models and their
 serialization.
 
@@ -776,7 +776,7 @@ serialization.
 `context` carries what the host resolved for the request -- `:params`, so a
 contributor can honour a query flag it owns (whiteboard only serializes
 the full scene when `include_whiteboard` is present, because the scene is
-large), and `:ssl`, which preview_tools needs for panel URLs. It is a hash so
+large), and `:ssl`, which mockups needs for panel URLs. It is a hash so
 new host context does not change every provider's signature.
 
 Paths merge into `paths`, counts merge into `chat` -- both where the page
@@ -889,7 +889,7 @@ recording:
   unrenamed. `Syrus::PluginModelNamespaceChecker` only requires namespacing for
   `ApplicationRecord` subclasses that physically live under `plugins/*/app/models/`
   — a plugin is free to depend on a core model it doesn't own, same as
-  `preview_tools`' `ChatToolSet`/`ScratchDirectory` already depend on the core
+  `mockups`' `ChatToolSet`/`ScratchDirectory` already depend on the core
   `PreviewPanel` model. Moving the model itself (rename + table migration) was a much
   larger, riskier change for no behavioral gain here, since `chat_session.whiteboard`/
   `chat_session.whiteboard_snapshots` association method names didn't need to change.
@@ -2234,13 +2234,13 @@ Bundled plugins:
   durable, operator-visible artifact calls the core `submit_visual_artifact`
   MCP tool with the returned `image_path` (see
   `config/syrus_docs/typed_artifacts.md`) to persist it.
-- `preview_tools` — default-enabled. Provides `:chat_media_source`
-  (`PreviewTools::MediaSource`, the `preview_panel_version:` kind, the one
+- `mockups` — default-enabled. Provides `:chat_media_source`
+  (`Mockups::MediaSource`, the `preview_panel_version:` kind, the one
   source that attaches several Documents from one ref),
-  `:chat_payload_contributor` (`PreviewTools::PayloadContributor`, the
+  `:chat_payload_contributor` (`Mockups::PayloadContributor`, the
   payload's `preview_panels` key), `:chat_prompt_injector`
-  (`PreviewTools::PromptSection`) and `:chat_mcp_tool_set`
-  (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`
+  (`Mockups::PromptSection`) and `:chat_mcp_tool_set`
+  (`Mockups::ChatToolSet`): `write_preview_file`/`edit_preview_file`
   (jailed to a `PreviewPanel`'s own scratch directory) plus
   `show_preview`/`close_preview`, letting a planning-mode chat agent build
   and preview an HTML/CSS/JS mockup or interactive widget page without

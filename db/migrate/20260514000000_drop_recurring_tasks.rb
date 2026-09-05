@@ -17,7 +17,7 @@ class DropRecurringTasks < ActiveRecord::Migration[8.1]
     MigrationRecurringTask.reset_column_information
     MigrationScheduledTask.reset_column_information
 
-    say_with_time "Migrating RecurringTask rows to ScheduledTasks::Task" do
+    say_with_time "Migrating RecurringTask rows to ScheduledTask" do
       MigrationRecurringTask.find_each do |task|
         MigrationScheduledTask.create!(
           user_id: task.user_id,

@@ -13,7 +13,7 @@ RSpec.describe McpToolRegistry do
     described_class.tools_for_context(context, tier: tier).map(&:tool_name)
   end
 
-  # Chat-surface plugin tool sets (e.g. PreviewTools::ChatToolSet) are
+  # Chat-surface plugin tool sets (e.g. Mockups::ChatToolSet) are
   # dynamically defined per session/tier and layered on top of the sidecar's
   # output by Mcp::Sidecar.plugin_tools_for -- they never enter the static
   # McpToolRegistry, so the registry-vs-sidecar equivalence checks below

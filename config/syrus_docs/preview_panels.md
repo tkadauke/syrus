@@ -199,12 +199,12 @@ browser downloads rather than tries to render the archive inline. Requires
 the `rubyzip` gem (declared explicitly in the `Gemfile` — it was previously
 only a transitive dependency of `docx`/`selenium-webdriver`).
 
-## Chat MCP tools (`preview_tools` plugin)
+## Chat MCP tools (`mockups` plugin)
 
 Planning mode has no Write/Edit tools at all (see `Prompts::ChatSystem`) —
 attached repository checkouts are read-only for a planning agent. The bundled
-`preview_tools` plugin (`Syrus::Plugin::ChatMcpToolSet`,
-`PreviewTools::ChatToolSet`) adds a narrow, separately-jailed alternative
+`mockups` plugin (`Syrus::Plugin::ChatMcpToolSet`,
+`Mockups::ChatToolSet`) adds a narrow, separately-jailed alternative
 scoped only to a preview panel's own scratch directory:
 
 - `write_preview_file(panel_id, path, content)` / `edit_preview_file(panel_id,
@@ -212,7 +212,7 @@ scoped only to a preview panel's own scratch directory:
   harness's own Write/Edit tools (edit requires `old_string` to be unique
   unless `replace_all` is set), but every path is resolved and jailed to
   `<ChatWorkspace.path_for(chat_session)>/previews/<panel_id>/`
-  (`PreviewTools::ScratchDirectory`, mirroring the cleanpath + prefix-check
+  (`Mockups::ScratchDirectory`, mirroring the cleanpath + prefix-check
   pattern `ChatWorkspace#safe_checkout_path` uses for repository paths) — no
   `../` traversal, no absolute paths elsewhere, and `panel_id` is only ever
   taken from a panel the calling chat session actually owns, never

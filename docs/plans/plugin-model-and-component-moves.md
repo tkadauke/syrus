@@ -172,7 +172,7 @@ Final tally, every bundled plugin removed at HEAD:
 
 | result | plugins |
 |---|---|
-| 0 failures | admin_mysql, agent_insights, agent_memory, browser, build_cache, design_docs, discord, django, git_history, go, javascript, linear_source, mysql_db_browser, preview_tools, python, ruby, spending_insights, syrus-rails, syrus_dev, tailscale, team_directory, test_insights, theming_tools, throughput, whiteboard, worker_timeline |
+| 0 failures | admin_mysql, agent_insights, agent_memory, browser, build_cache, design_docs, discord, django, git_history, go, javascript, linear_source, mysql_db_browser, mockups, python, ruby, spending_insights, syrus-rails, syrus_dev, tailscale, team_directory, test_insights, theming_tools, throughput, whiteboard, worker_timeline |
 | structural | claude_agent (7,770), github_source (6,123), codex_agent (258) |
 
 `reconciler_chaos_spec` fails intermittently on a random seed and
@@ -297,7 +297,7 @@ phases:
   filter subject, chat tool, i18n), `throughput` (new), `team_directory` (new).
 - **Standalone pages** — `design_docs` (with its own migrations),
   `worker_timeline`, `mysql_db_browser`, `spending_insights` (page only),
-  `preview_tools`, `whiteboard`, `theming_tools`, `git_history`,
+  `mockups`, `whiteboard`, `theming_tools`, `git_history`,
   `discord`, `tailscale`.
 
 ## What Stays Core
@@ -519,12 +519,12 @@ gaps that each already had more than one plugin customer:
 
 | Gap | Core site | Customers |
 |---|---|---|
-| `chat_media_source` | a `case kind` in `ChatMediaAttacher`, `ChatProposal`, `submit_chat_feedback`, `list_chat_media`, `ChatProposalFiler`, plus `ChatMediaRef`'s regex | whiteboard (`snapshot`), preview_tools (`preview_panel_version`) |
-| `chat_payload_contributor` | `ChatSerialization` building plugin-owned payload keys inline | whiteboard, preview_tools, video_walkthroughs |
-| `chat_prompt_injector` | `Prompts::ChatSystem` naming plugin tools | whiteboard, preview_tools, video_walkthroughs |
+| `chat_media_source` | a `case kind` in `ChatMediaAttacher`, `ChatProposal`, `submit_chat_feedback`, `list_chat_media`, `ChatProposalFiler`, plus `ChatMediaRef`'s regex | whiteboard (`snapshot`), mockups (`preview_panel_version`) |
+| `chat_payload_contributor` | `ChatSerialization` building plugin-owned payload keys inline | whiteboard, mockups, video_walkthroughs |
+| `chat_prompt_injector` | `Prompts::ChatSystem` naming plugin tools | whiteboard, mockups, video_walkthroughs |
 
 All three landed, and `Whiteboard::Board` / `::Snapshot` then moved with a
-table rename to the plugin prefix. `preview_tools` had the same remnants and
+table rename to the plugin prefix. `mockups` had the same remnants and
 was cleaned up in the same passes.
 
 **This unblocks `video_walkthroughs`**, whose only listed blocker was the

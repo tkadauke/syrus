@@ -1,6 +1,6 @@
 require "mcp"
 
-module PreviewTools
+module Mockups
   class ClosePreviewTool < MCP::Tool
     extend ToolSupport
 

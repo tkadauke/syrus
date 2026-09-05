@@ -126,7 +126,7 @@ theme.
 
 There is no general "agent opens a popup in the user's chat UI" primitive in
 Syrus — `typed_artifacts` render inline in the transcript, and workspace
-tabs like `preview_tools`' panel are a sidebar tab, not an overlay. On a
+tabs like `mockups`' panel are a sidebar tab, not an overlay. On a
 successful upsert, the tool broadcasts an `AppEvents` app event scoped to
 the chat (`resource: "chat"`, `id: <chat_session_id>`, mirroring the pattern
 `WhiteboardSnapshot#broadcast_created` and

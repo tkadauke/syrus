@@ -9,7 +9,7 @@ module Syrus
     # attachment. Those used to be a `case kind` in each of ChatMediaAttacher,
     # ChatProposal, submit_chat_feedback, list_chat_media, and ChatMediaRef's
     # own format regex -- with `snapshot` (whiteboard) and
-    # `preview_panel_version` (preview_tools) hardcoded into core.
+    # `preview_panel_version` (mockups) hardcoded into core.
     #
     # Providers expose:
     #

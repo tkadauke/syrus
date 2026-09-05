@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PreviewTools::PromptSection do
+RSpec.describe Mockups::PromptSection do
   let(:repo) { Factories.repository }
   let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
 

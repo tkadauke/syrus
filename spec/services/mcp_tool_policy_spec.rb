@@ -13,7 +13,7 @@ RSpec.describe McpToolPolicy do
     ChatSession.create!({ user: user, repository: repository }.merge(attrs))
   end
 
-  # Chat-surface plugin tool sets (e.g. PreviewTools::ChatToolSet) are
+  # Chat-surface plugin tool sets (e.g. Mockups::ChatToolSet) are
   # dynamically defined per session/tier and layered on top of the sidecar's
   # output by Mcp::Sidecar.plugin_tools_for -- McpToolPolicy only knows about
   # the static registry-backed tool classes, so the equivalence checks below

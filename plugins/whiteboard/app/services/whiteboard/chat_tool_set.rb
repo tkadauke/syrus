@@ -5,7 +5,7 @@ module Whiteboard
   # live Excalidraw scene, plus save/clear/load named snapshots. Each tool
   # (see the individual *_tool.rb files in this directory) is its own
   # MCP::Tool class; this set just aggregates them and dispatches by name,
-  # mirroring PreviewTools::ChatToolSet / AdminMysql::ChatToolSet.
+  # mirroring Mockups::ChatToolSet / AdminMysql::ChatToolSet.
   class ChatToolSet
     TOOL_CLASSES = [
       ReadSceneTool,

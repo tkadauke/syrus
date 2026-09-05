@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PreviewTools::MediaSource do
+RSpec.describe Mockups::MediaSource do
   let(:repo) { Factories.repository }
   let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
   let(:other_chat) { ChatSession.create!(repository: repo, user: repo.user) }

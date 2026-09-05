@@ -1,4 +1,4 @@
-module PreviewTools
+module Mockups
   # The "preview_panel_version:<id>" media kind. A version can carry several
   # files, so this is the source that returns more than one Document.
   module MediaSource

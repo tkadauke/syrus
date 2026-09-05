@@ -587,7 +587,7 @@ that the operator must confirm before dispatch. After confirmation, the
 `local_mode_handoff_fix`; failed grader repair reports back passively instead
 of promoting the linked chat into another agent turn.
 
-Planning-mode preview mockups use the `preview_tools` plugin MCP tools:
+Planning-mode preview mockups use the `mockups` plugin MCP tools:
 open a panel with `show_preview`, write or patch files in that panel's
 scratch directory with `write_preview_file` / `edit_preview_file`, then call
 `show_preview` again with the same `panel_id` to publish. Preview panel
