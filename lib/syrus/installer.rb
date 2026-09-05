@@ -23,7 +23,10 @@ module Syrus
   # lifecycle events. Both are EffectScopes underneath; only the trigger
   # differs.
   module Installer
-    Registration = Struct.new(:label, :plugin, :install, keyword_init: true)
+    # `requires` says what has to be true of `plugin` for the install to run:
+    # :enabled (the plugin is on now) or :ever_enabled (it is on now, or has
+    # been at some point here).
+    Registration = Struct.new(:label, :plugin, :requires, :install, keyword_init: true)
 
     # A Monitor rather than a Mutex because installs re-enter: an install block
     # can touch a registry that is autoloaded for the first time right then,
@@ -45,9 +48,11 @@ module Syrus
       # common case — it saves every plugin writing the same guard, and means
       # disabling the plugin disposes its installs without the plugin having to
       # notice.
-      def define(label, plugin: nil, &install)
+      def define(label, plugin: nil, requires: :enabled, &install)
         @mutex.synchronize do
-          @registrations[label.to_s] = Registration.new(label: label.to_s, plugin: plugin&.to_s, install: install)
+          @registrations[label.to_s] = Registration.new(
+            label: label.to_s, plugin: plugin&.to_s, requires: requires&.to_sym, install: install
+          )
           @applied_fingerprint = nil
         end
       end
@@ -128,19 +133,31 @@ module Syrus
         nil
       end
 
+      # A plugin that has never been switched on here wrote no rows, so its
+      # `always` effects -- which exist to clean up rows that outlive being
+      # disabled -- have nothing to clean up, and running them would load the
+      # plugin's models for no reason. nil means "cannot tell", and installs
+      # run rather than being suppressed.
+      def ever_enabled_plugin_names
+        Syrus::PluginRegistry.ever_enabled_plugin_names
+      rescue StandardError
+        nil
+      end
+
       def apply!(current)
         @scope&.dispose
         @scope = EffectScope.new(label: "installer")
         @applied_fingerprint = current
 
         active = enabled_plugin_names
+        ever_active = ever_enabled_plugin_names
 
         # A snapshot, because an install can define a new registration: a
         # KindRegistry constructed for the first time during an install adds
         # its own entry. Those are picked up by the next sync -- `define` nils
         # the applied fingerprint, so one is already guaranteed.
         @registrations.values.each do |registration|
-          next if registration.plugin && active && !active.include?(registration.plugin)
+          next unless install?(registration, active, ever_active)
 
           child = @scope.child(label: registration.label)
           begin
@@ -149,6 +166,15 @@ module Syrus
             Rails.logger.error("[Syrus::Installer] install #{registration.label.inspect} failed: #{e.class}: #{e.message}")
             child.dispose
           end
+        end
+      end
+
+      def install?(registration, active, ever_active)
+        return true if registration.plugin.nil?
+
+        case registration.requires
+        when :ever_enabled then ever_active.nil? || ever_active.include?(registration.plugin)
+        else active.nil? || active.include?(registration.plugin)
         end
       end
     end

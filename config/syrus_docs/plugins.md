@@ -78,6 +78,44 @@ runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
 
+## What a disabled plugin costs
+
+A disabled plugin's code is **not eager loaded**. Its `app/` directories stay on
+the autoload path -- a Rails engine required through the Gemfile always does --
+so Zeitwerk resolves its constants on first reference and enabling needs no
+restart. What goes away is the cost of loading code for features nobody can
+reach: on a typical instance that is roughly a quarter of all plugin code.
+
+Ruby cannot unload a constant tree, so "unload on disable" is not available at
+all; "never load it" is, and this is that. The lookup fails open -- if
+`plugin_records` cannot be read, everything is eager loaded as before.
+
+### The three states a plugin can be in
+
+| State | `while_enabled` effects | `always` effects | Code eager loaded |
+|---|---|---|---|
+| Enabled | yes | yes | yes |
+| Disabled, enabled here before | no | yes | no |
+| Never enabled here | no | no | no |
+
+`always` effects exist so disabling a plugin does not orphan the rows it wrote
+-- a deleted repository still has to take them with it. A plugin that was never
+enabled on this instance wrote none, so running its cleanup would only load its
+models for nothing. `plugin_records.ever_enabled` is stamped by the model
+whenever a record is saved enabled, so every path that turns a plugin on
+records it, and it is never cleared: it is a fact about the instance's history.
+
+Existing records were backfilled to `true` rather than to their current
+`enabled` value. We cannot tell whether a plugin that is off today was once on
+and left rows behind, and an orphaned row costs more than one cleanup effect
+installed for nothing.
+
+**Plugin migrations run regardless of enabled state**, at deploy time, like
+every other migration. Enabling a plugin finds its tables ready. Running
+migrations from a runtime toggle would mean choosing which of several processes
+runs them while the others serve traffic against a changing schema, with no
+rollout gate -- the deploy path exists precisely to avoid that.
+
 ## Where a plugin's documentation lives
 
 A plugin's own full documentation lives in the plugin, at

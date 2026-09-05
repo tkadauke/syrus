@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_183610) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -790,7 +790,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
 
   create_table "design_doc_agent_runs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.integer "base_version_id"
+    t.bigint "base_version_id"
     t.json "context_snapshot"
     t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
@@ -798,11 +798,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.text "error_message"
     t.datetime "finished_at"
     t.json "output_payload"
-    t.integer "requested_by_user_id", null: false
+    t.bigint "requested_by_user_id", null: false
     t.text "result_summary"
     t.datetime "started_at"
     t.string "status", default: "queued", null: false
-    t.integer "triggering_comment_id", null: false
+    t.bigint "triggering_comment_id", null: false
     t.datetime "updated_at", null: false
     t.index ["base_version_id"], name: "index_design_doc_agent_runs_on_base_version_id"
     t.index ["design_doc_id"], name: "index_design_doc_agent_runs_on_design_doc_id"
@@ -855,7 +855,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.integer "author_user_id"
     t.text "body", null: false
     t.datetime "created_at", null: false
-    t.integer "design_doc_agent_run_id"
+    t.bigint "design_doc_agent_run_id"
     t.integer "design_doc_thread_id", null: false
     t.datetime "updated_at", null: false
     t.index ["author_user_id"], name: "index_design_doc_comments_on_author_user_id"
@@ -880,7 +880,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.string "change_type", default: "replace", null: false
     t.text "conflict_reason"
     t.datetime "created_at", null: false
-    t.integer "design_doc_agent_run_id"
+    t.bigint "design_doc_agent_run_id"
     t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id"
@@ -1813,6 +1813,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.boolean "disableable", default: true, null: false
     t.string "display_name"
     t.boolean "enabled", default: true, null: false
+    t.boolean "ever_enabled", default: false, null: false
     t.text "extension_points"
     t.datetime "last_ticked_at"
     t.string "name", null: false
@@ -2670,7 +2671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: {"elements" => []}, null: false
+    t.json "scene_json", default: { "elements" => [] }, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

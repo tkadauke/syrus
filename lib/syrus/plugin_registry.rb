@@ -208,6 +208,36 @@ module Syrus
         key.include?(":") && hosted_extension_points.include?(key)
       end
 
+      # Plugins that are on now, or have been on at some point on this
+      # instance. Backed by plugin_records.ever_enabled, which the model stamps
+      # whenever a record is saved enabled.
+      def ever_enabled_plugin_names
+        plugins = @mutex.synchronize { @plugins.dup }
+        return Set.new if plugins.empty?
+
+        records = records_for(plugins)
+        plugins.select { |manifest|
+          record = records[manifest.name]
+          plugin_enabled?(manifest, record) || record&.ever_enabled?
+        }.map(&:name).to_set
+      end
+
+      # Plugins whose code may be left out of the eager load: installed,
+      # switchable, and currently off.
+      #
+      # Fails open on any database trouble -- an unreadable plugin_records
+      # table means "eager load everything", never "silently ship less code".
+      def eager_load_skippable_plugin_names
+        plugins = @mutex.synchronize { @plugins.dup }
+        return [] if plugins.empty?
+
+        records = records_for(plugins)
+        plugins.reject { |manifest| plugin_enabled?(manifest, records[manifest.name]) }.map(&:name)
+      rescue StandardError => e
+        Rails.logger.warn("[PluginRegistry] eager-load skip disabled: #{e.class}: #{e.message}") if defined?(Rails.logger)
+        []
+      end
+
       def providers_for(extension_point)
         return hosted_providers_for(extension_point) if extension_point.to_s.include?(":")
 

@@ -241,9 +241,12 @@ module Syrus
           kind = effect[:scoped] ? "while_enabled" : "always"
           # Stable across reloads, which is what the Installer keys on.
           label = effect[:label] ? "#{name}:#{effect[:label]}" : "#{name}:#{kind}:#{index}"
-          scope_plugin = effect[:scoped] ? name : nil
+          # `always` is still scoped to the plugin -- just to a weaker
+          # condition. It exists so disabling does not orphan rows the plugin
+          # wrote; a plugin that was never enabled here wrote none.
+          requires = effect[:scoped] ? :enabled : :ever_enabled
 
-          Syrus::Installer.define(label, plugin: scope_plugin, &effect[:block])
+          Syrus::Installer.define(label, plugin: name, requires: requires, &effect[:block])
         end
       end
     end

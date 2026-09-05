@@ -4,6 +4,10 @@ RSpec.describe AgentInsights::DataCleanup do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
+  # Cleanup is scoped to plugins that have been enabled here: a plugin that
+  # never ran wrote no rows. These rows exist, so the plugin ran.
+  before { PluginRecord.find_or_create_by!(name: "agent_insights").update!(ever_enabled: true) }
+
   it "removes a repository's suggestions and schedule config when it is destroyed" do
     job = Factories.job(user: user, repository: repository)
     AgentInsights::Suggestion.create!(

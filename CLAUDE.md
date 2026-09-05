@@ -763,6 +763,15 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
+- **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
+  autoload path, so Zeitwerk resolves constants on demand and enabling needs no
+  restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,
+  fails open if `plugin_records` is unreadable). Three states, not two:
+  enabled runs `while_enabled` + `always` effects; disabled-but-enabled-before
+  runs only `always` (the cleanup that keeps disabling from orphaning rows);
+  never-enabled-here runs neither. `plugin_records.ever_enabled` is stamped by
+  the model on any save while enabled and never cleared. Plugin migrations run
+  at deploy time regardless of enabled state -- never from a runtime toggle.
 - **A plugin's docs live in the plugin.** Full documentation for a bundled
   plugin belongs at `plugins/<name>/docs/syrus_docs/*.md`, not in
   `config/syrus_docs/`, so deleting the plugin directory removes its docs too.

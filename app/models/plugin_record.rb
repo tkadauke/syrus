@@ -1,4 +1,11 @@
 class PluginRecord < ApplicationRecord
+  # Stamped here rather than in the enable action so every path that turns a
+  # plugin on -- admin UI, cascade of a dependency, console, seeds -- records
+  # it. Never cleared: "has been enabled here" is a fact about the instance's
+  # history, and the rows a plugin left behind do not disappear when it is
+  # switched off again.
+  before_save :remember_enablement
+
   SEARCH_COLUMNS = %w[name display_name description category].freeze
 
   validates :name, presence: true, uniqueness: true
@@ -58,5 +65,14 @@ class PluginRecord < ApplicationRecord
     return if disableable?
 
     errors.add(:enabled, "cannot be false for a non-disableable plugin")
+  end
+
+  def remember_enablement
+    # Guarded like enabled_plugin_is_disableable above: this runs on databases
+    # that have not taken the migration yet (a worker on the old image during a
+    # rollout, a console against an older schema).
+    return unless has_attribute?(:ever_enabled)
+
+    self.ever_enabled = true if enabled?
   end
 end
