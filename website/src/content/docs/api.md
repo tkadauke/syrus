@@ -385,7 +385,11 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
 
 `GET /api/v1/app/themes` lists built-in color themes plus custom,
 non-built-in themes owned by the authenticated user. `GET
-/api/v1/app/themes/:id` returns one selectable theme. Theme payloads include:
+/api/v1/app/themes/:id` returns one selectable theme, plus a top-level
+`contrast_warnings` array (empty when the theme has no WCAG AA issues) so a
+draft theme's preview can show the same non-blocking contrast warnings the
+`preview_theme` chat tool returns, without gating the fetch on it. Theme
+payloads include:
 
 Token hashes are abbreviated below; real create requests must include every
 theme token key for both modes.

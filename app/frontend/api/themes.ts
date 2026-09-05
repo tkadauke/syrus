@@ -20,6 +20,7 @@ export type ThemesPayload = {
 
 export type ThemePayload = {
   theme: ColorTheme
+  contrast_warnings?: string[]
 }
 
 export type ThemeInput = {

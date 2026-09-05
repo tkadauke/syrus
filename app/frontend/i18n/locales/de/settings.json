@@ -193,6 +193,7 @@
     "description": "Eine lebendige Galerie der gemeinsam genutzten UI-Komponenten von Syrus, gerendert aus den echten Design-System-Primitiven und mit der aktiven Farb-Token-Ebene gestaltet.",
     "preview_banner": "Vorschau von „{{name}}“ — nur auf dieser Seite sichtbar. Der Rest der App behält dein aktives Theme.",
     "preview_not_found": "Dieses Theme konnte nicht geladen werden — es existiert möglicherweise nicht oder gehört einem anderen Benutzer.",
+    "preview_contrast_warnings_heading": "Kontrastwarnungen — diese blockieren install_theme, bis sie behoben sind",
     "tokens": {
       "heading": "Farb-Tokens",
       "description": "Semantische Farb-Custom-Properties, aus denen jede Komponente unten gestaltet ist."
