@@ -249,7 +249,7 @@ module Steps
       train.members.includes(:job).each do |member|
         member_job = member.job
         reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
-        if member_job.open?
+        if member_job.may_close?
           member_job.update_column(:landed_sha, integration_sha) if integration_sha.present?
           member_job.close_with_reason!("pr_merged")
         end

@@ -75,7 +75,7 @@ module Steps
     end
 
     def close_job_for_closed_pull_request!(pr, client)
-      return unless job.open?
+      return unless job.may_close?
 
       job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
     end
@@ -94,7 +94,7 @@ module Steps
     end
 
     def close_job_for_closed_pull_request_external!(pr)
-      return unless job.open?
+      return unless job.may_close?
 
       reason = pr.merged ? "external_pr_merged" : "external_pr_closed"
       job.close_with_reason!(reason)
