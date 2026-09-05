@@ -441,5 +441,9 @@
   "pinned_role_assistant": "Assistent",
   "theme_preview_title": "Themenvorschau",
   "theme_preview_open_in_new_tab": "In neuem Tab öffnen",
-  "theme_preview_close": "Schließen"
+  "theme_preview_close": "Schließen",
+  "card_preview_generating_title": "Titel wird generiert…",
+  "card_preview_see_more": "Mehr anzeigen",
+  "card_preview_pending_one": "{{count}} ausstehend",
+  "card_preview_pending_other": "{{count}} ausstehend"
 }

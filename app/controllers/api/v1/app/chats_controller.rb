@@ -68,6 +68,15 @@ module Api
           render json: chat_payload(find_chat_session)
         end
 
+        # Lightweight payload for the CHAT-<id> hover preview card — unlike
+        # #show, this does not load the transcript/messages/bookmarks/
+        # scratchpad via chat_payload, which is far too heavy for a hover
+        # card fetch.
+        def preview
+          chat_session = find_chat_session
+          render json: PerformanceLogging.phase("chat_preview_payload", chat_id: chat_session.id) { chat_preview_json(chat_session) }
+        end
+
         def update
           chat_session = ChatSession.find(params[:id])
           unless chat_session.user_id == Current.user.id
@@ -1753,6 +1762,23 @@ module Api
             confirmed_proposals: row.fetch("confirmed_proposals", 0).to_i,
             linked_direct_jobs: row.fetch("linked_direct_jobs", 0).to_i,
             scratchpad_items: row.fetch("scratchpad_items", 0).to_i
+          }
+        end
+
+        # Slim payload for the CHAT-<id> hover preview card. Deliberately
+        # excludes everything chat_payload eagerly loads (transcript,
+        # messages, bookmarks, scratchpad) — the hover card only needs
+        # enough to render a title, participant avatars, and a
+        # pending-work indicator.
+        def chat_preview_json(chat_session)
+          {
+            id: chat_session.id,
+            chat_slug: ::App::Presentation.chat_slug(chat_session),
+            title: chat_session.title,
+            title_pending: chat_session.title_pending?,
+            participants: chat_session.participants_payload,
+            pending_proposal_count: chat_session.proposals.pending.count,
+            pending_actions_count: chat_session.pending_actions.pending.count
           }
         end
 
