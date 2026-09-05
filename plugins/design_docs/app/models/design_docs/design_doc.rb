@@ -4,6 +4,7 @@ module DesignDocs
 
     VISIBILITIES = %w[private public].freeze
     STATES = %w[draft accepted archived].freeze
+    PREVIEW_WORD_LIMIT = 100
 
     belongs_to :owner_user, class_name: "User"
     belongs_to :origin_chat_session, class_name: "ChatSession", optional: true
@@ -58,6 +59,21 @@ module DesignDocs
 
     def public?
       visibility == "public"
+    end
+
+    def comments_count
+      DesignDocs::DesignDocComment.joins(:thread).where(design_doc_threads: { design_doc_id: id }).count
+    end
+
+    # A short, hover-preview-sized excerpt of the body: hidden Syrus anchor
+    # markers stripped, clamped to roughly PREVIEW_WORD_LIMIT words so a
+    # popup never has to render (or fetch) the whole document.
+    def preview_text(word_limit: PREVIEW_WORD_LIMIT)
+      visible = DesignDocs::AnchorMarkers.strip(markdown).strip
+      words = visible.split(/\s+/)
+      return visible if words.length <= word_limit
+
+      "#{words.first(word_limit).join(' ')}…"
     end
 
     private

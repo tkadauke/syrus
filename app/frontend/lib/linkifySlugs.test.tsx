@@ -39,6 +39,17 @@ describe("linkifySlugs", () => {
     expect(card.props.children.props.to).toBe("/epics/7")
   })
 
+  it("wraps DOC slugs in SlugHoverCard with kind=doc and numeric id", () => {
+    const nodes = linkifySlugs("See DOC-20 for context")
+    const hoverCard = nodes.find((node) => isValidElement(node) && node.type === SlugHoverCard)
+
+    expect(hoverCard).toBeTruthy()
+    const card = hoverCard as ReactElement<{ kind: string; id: number; children: ReactElement<{ to: string }> }>
+    expect(card.props.kind).toBe("doc")
+    expect(card.props.id).toBe(20)
+    expect(card.props.children.props.to).toBe("/design_docs/20")
+  })
+
   it("returns plain text unchanged when there are no slugs", () => {
     expect(linkifySlugs("plain text with no slugs")).toEqual(["plain text with no slugs"])
   })
@@ -70,13 +81,15 @@ describe("linkifySlugs", () => {
   })
 
   it("renders one SlugHoverCard per slug with correct kind and id attributes", () => {
-    render(<MemoryRouter>{linkifySlugs("See JOB-42 and EPIC-7")}</MemoryRouter>)
+    render(<MemoryRouter>{linkifySlugs("See JOB-42, EPIC-7, and DOC-9")}</MemoryRouter>)
 
     const cards = screen.getAllByTestId("slug-hover-card")
     const jobCard = cards.find((el) => el.getAttribute("data-kind") === "job")
     const epicCard = cards.find((el) => el.getAttribute("data-kind") === "epic")
+    const docCard = cards.find((el) => el.getAttribute("data-kind") === "doc")
 
     expect(jobCard).toHaveAttribute("data-id", "42")
     expect(epicCard).toHaveAttribute("data-id", "7")
+    expect(docCard).toHaveAttribute("data-id", "9")
   })
 })

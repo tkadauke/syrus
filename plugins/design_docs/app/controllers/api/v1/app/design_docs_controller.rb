@@ -22,6 +22,13 @@ module Api
           render json: { design_doc: serializer.detail(ensure_suggestion_threads(find_design_doc), user: Current.user) }
         end
 
+        def preview
+          design_doc = policy_scope(DesignDoc).find(params[:id])
+          render json: { design_doc: serializer.preview(design_doc) }
+        rescue ActiveRecord::RecordNotFound
+          render json: { design_doc: serializer.unavailable_preview(params[:id]) }
+        end
+
         def create
           result = ::DesignDocs::Create.call(user: Current.user, attributes: design_doc_params.to_h.symbolize_keys)
           render json: { design_doc: serializer.detail(result.design_doc, user: Current.user), message: "Design doc created." }, status: :created

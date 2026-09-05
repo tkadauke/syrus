@@ -91,6 +91,38 @@ module DesignDocs
         comment_json(comment)
       end
 
+      # Lightweight payload for the DOC-<id> hover/click preview popup.
+      # Deliberately excludes the full markdown/threads/suggestions payload
+      # `detail` carries, since a chat message can reference many DOC slugs
+      # at once.
+      def preview(design_doc)
+        {
+          id: design_doc.id,
+          display_id: design_doc.display_id,
+          accessible: true,
+          title: design_doc.title,
+          visibility: design_doc.visibility,
+          state: design_doc.state,
+          owner: user_json(design_doc.owner_user),
+          collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
+          comments_count: design_doc.comments_count,
+          latest_version_number: design_doc.current_version&.version_number,
+          updated_at: design_doc.updated_at.iso8601,
+          preview_text: design_doc.preview_text
+        }
+      end
+
+      # Rendered when the doc doesn't exist or the current viewer can't see
+      # it. Carries only the slug so the popup can render a minimal
+      # "not accessible" state without leaking title, owner, or content.
+      def unavailable_preview(id)
+        {
+          id: id.to_i,
+          display_id: "DOC-#{id}",
+          accessible: false
+        }
+      end
+
       private
 
       def permissions_json(design_doc, user)
