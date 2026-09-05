@@ -61,7 +61,9 @@ describe("toolPresentation", () => {
 })
 
 describe("toolResultPresentation", () => {
-  it("summarizes escaped JSON-in-text MCP list results", () => {
+  it("prioritizes a core-registered card's collapsed summary over the generic list heuristic", () => {
+    // list_chat_media's card lives under routes/chat/tool_cards/ (JOB-4220) —
+    // this proves the registered card wins over the blind generic guess.
     const result = toolResultPresentation(
       "list_chat_media",
       JSON.stringify(JSON.stringify({
@@ -70,21 +72,13 @@ describe("toolResultPresentation", () => {
       }))
     )
 
-    expect(result).toMatchObject({
-      kind: "list",
-      summary: "2 media items",
-      metadata: { count: 2, noun: "media item" }
-    })
+    expect(result).toMatchObject({ kind: "text", summary: "2 media items" })
   })
 
-  it("summarizes empty chat media payloads as empty lists", () => {
+  it("summarizes empty chat media payloads through the registered card", () => {
     const result = toolResultPresentation("list_chat_media", JSON.stringify({ snapshots: [], chat_images: [] }))
 
-    expect(result).toMatchObject({
-      kind: "list",
-      summary: "0 media items",
-      metadata: { count: 0, noun: "media item" }
-    })
+    expect(result).toMatchObject({ kind: "text", summary: "0 media items" })
   })
 
   it("falls back to a plugin-registered card's collapsed summary for a plugin-owned tool", () => {
@@ -106,21 +100,6 @@ describe("toolResultPresentation", () => {
 })
 
 describe("typedToolResult", () => {
-  it("detects list_chat_media galleries from escaped MCP JSON text", () => {
-    const result = typedToolResult("syrus-chat-sidecar.list_chat_media", JSON.stringify(JSON.stringify({
-      snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
-      chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png" }],
-      whiteboard_element_count: 7
-    })))
-
-    expect(result).toMatchObject({
-      type: "chat_media_gallery",
-      whiteboard_element_count: 7,
-      snapshots: [{ id: "snapshot:9", name: "Checkout flow", element_count: 4 }],
-      images: [{ id: "chat_image:3", filename: "desktop.png", content_type: "image/png" }]
-    })
-  })
-
   it("renders set_bookmark as a concise success outcome", () => {
     expect(typedToolResult("set_bookmark", JSON.stringify({ id: 12, label: "Launch notes", kind: "topic" }))).toEqual({
       type: "success_row",
@@ -144,37 +123,9 @@ describe("typedToolResult", () => {
     })
   })
 
-  it("summarizes predictable live job state payloads", () => {
-    expect(typedToolResult("read_job", JSON.stringify({
-      job: { id: 4048, issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus", pr_number: 12, branch_name: "syrus/direct-4048" },
-      latest_workflow: { state: "running" }
-    }))).toEqual({
-      type: "state_summary",
-      label: "Typed renderers",
-      rows: [
-        { label: "State", value: "running" },
-        { label: "Repository", value: "tkadauke/syrus" },
-        { label: "PR", value: "12" },
-        { label: "Branch", value: "syrus/direct-4048" },
-        { label: "Latest workflow", value: "running" }
-      ]
-    })
-  })
-
-  it("summarizes predictable live epic state payloads", () => {
-    expect(typedToolResult("read_epic", JSON.stringify({
-      epic: { id: 285, display_number: "EPIC-285", title: "Polished Chat Tool Output", state: "running", repository: "tkadauke/syrus", depends_on_epics: [] },
-      child_jobs: [{ id: 4046 }, { id: 4048 }]
-    }))).toEqual({
-      type: "state_summary",
-      label: "Polished Chat Tool Output",
-      rows: [
-        { label: "State", value: "running" },
-        { label: "Repository", value: "tkadauke/syrus" },
-        { label: "Children", value: "2" },
-        { label: "Depends on", value: "0" }
-      ]
-    })
+  it("no longer special-cases read_job/read_epic (superseded by their tool_cards/ renderers)", () => {
+    expect(typedToolResult("read_job", JSON.stringify({ job: { id: 4048, state: "running" } }))).toBeNull()
+    expect(typedToolResult("read_epic", JSON.stringify({ epic: { id: 285, state: "running" } }))).toBeNull()
   })
 
   it("summarizes predictable mergeability pending-action payloads", () => {
@@ -195,7 +146,6 @@ describe("typedToolResult", () => {
   it("returns null for unknown tools and malformed typed payloads", () => {
     expect(typedToolResult("unknown_tool", JSON.stringify({ label: "Nope" }))).toBeNull()
     expect(typedToolResult("set_bookmark", "{not json")).toBeNull()
-    expect(typedToolResult("list_chat_media", JSON.stringify({ snapshots: [{ id: "" }], chat_images: "bad" }))).toBeNull()
   })
 })
 
