@@ -4,7 +4,7 @@ module K8sCluster
   syrus_plugin "k8s_cluster" do
     display_name "Kubernetes Cluster Viewer"
     description "Register Kubernetes/k3s clusters and browse them read-only from an admin sidebar page."
-    long_description "K8s Cluster Viewer lets admins register external Kubernetes or k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage. This scaffold covers connection management only; cluster-resource browsing and agentic access ship in later work."
+    long_description "K8s Cluster Viewer lets admins register external Kubernetes or k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Gated agentic access ships in later work."
     homepage "https://github.com/tkadauke/syrus"
     icon_url "/plugin-icons/k8s_cluster.svg"
     author "Thomas Kadauke"
