@@ -851,13 +851,14 @@ class StepDispatcher
 
     if review_loop_exit?(gate.fetch(:artifact_key), gate.fetch(:exit_verdicts))
       exit_review_loop!(loop_node, cancellation_reason: gate.fetch(:cancellation_reason))
-      true
-    elsif @from_step.iteration < loop_max_iterations(loop_node)
-      enqueue_next_loop_iteration!(loop_node)
-      true
     else
-      false
+      # needs_work always gets a repair reaction, unconditionally --
+      # regardless of remaining review budget. enqueue_next_loop_iteration!
+      # (via final_review_iteration?) decides whether that repair also gets
+      # a trailing review: only when review budget remains.
+      enqueue_next_loop_iteration!(loop_node)
     end
+    true
   end
 
   def review_loop_exit?(artifact_key, exit_verdicts)
@@ -866,12 +867,15 @@ class StepDispatcher
   end
 
   # The step right after this loop is only skippable when it's another
-  # redundant run of this loop's own agent_step (e.g. the visual_review
-  # loop's own leading implement, or a repair_first grade loop's leading
-  # implement/respond) — a pass this exit no longer needs since the
-  # reviewer just approved. A review_first grade loop (Initial) has no
-  # such step waiting there anymore (its first iteration is check-only),
-  # so there's nothing to skip: just advance to whatever's next as normal.
+  # redundant run of this loop's own agent_step -- a pass this exit no
+  # longer needs since the reviewer just approved. Every review loop
+  # (adversarial_review, visual_review) and the grader retry loop that
+  # follows them are now review/check-first everywhere: the agent step
+  # that produced the work to review/grade always ran before the loop
+  # (as a bare leading step, or as the previous loop's own last repair),
+  # so no loop's iteration 1 is ever a redundant agent_step waiting right
+  # after this one. This stays as a defensive no-op rather than a live
+  # path, in case a future call site reintroduces that shape.
   def exit_review_loop!(loop_node, cancellation_reason:)
     next_node = @from_step.next_step
     agent_kind = loop_step_kinds(loop_node).first
@@ -951,12 +955,12 @@ class StepDispatcher
     case node["type"]
     when "loop"
       full_steps = Array(node["steps"]).map(&:to_s)
-      return full_steps == actual_kinds unless node["review_first"]
 
-      # A review_first loop's materialized shape varies by iteration: just
-      # the review step (iteration 1), the full agent+review pair (middle
-      # iterations), or just the agent step (the final, budget-exhausted
-      # iteration — see StepDispatcher#enqueue_next_loop_iteration!).
+      # A loop's materialized shape varies by iteration: just the review
+      # step (iteration 1), the full agent+review pair (middle iterations,
+      # inserted unconditionally on a needs_work verdict), or just the
+      # agent step (the final, budget-exhausted iteration — see
+      # StepDispatcher#enqueue_next_loop_iteration!).
       actual_kinds == full_steps || actual_kinds == [ full_steps.last ] || actual_kinds == [ full_steps.first ]
     when "retry_until"
       check_steps = Array(node["check"]).map(&:to_s)
@@ -981,12 +985,17 @@ class StepDispatcher
     end
   end
 
-  # The final iteration of a review_first loop (budget exhausted) drops
-  # the trailing review step — it's the last repair attempt, and there's
-  # no iteration left to act on further review feedback. See
-  # Workflows::Loop.
+  # The final iteration of a loop (review budget exhausted) drops the
+  # trailing review step — it's the last repair attempt, and there's no
+  # review left in the budget to act on further feedback. `iteration` here
+  # is the iteration number about to be materialized (current review's
+  # iteration + 1), so `>` (not `==`) is what actually bounds it to the
+  # configured number of review opinions: with `max_iterations: 2`, the
+  # repair inserted after review 1 (iteration 2) still gets a trailing
+  # review, and only the repair inserted after review 2 (iteration 3) is
+  # final. See Workflows::Loop.
   def final_review_iteration?(loop_node, iteration)
-    loop_node["type"] == "loop" && loop_node["review_first"] && iteration == loop_max_iterations(loop_node)
+    loop_node["type"] == "loop" && iteration > loop_max_iterations(loop_node)
   end
 
   def handle_try_failure
@@ -1181,26 +1190,16 @@ class StepDispatcher
     @workflow.save!
   end
 
+  # The agent step being repaired is no longer reliably inside this loop at
+  # this loop's own iteration: every review loop is review-first now, so
+  # iteration 1's agent step is always a step *before* the loop (a bare
+  # leading implement/respond, or the tail of a preceding loop), not one
+  # sharing this loop's loop_id/iteration. Step#upstream_session_id already
+  # solves this generally -- it walks back through previous_step ancestors,
+  # skipping steps with no session, regardless of loop membership -- so
+  # reuse it instead of re-deriving loop-relative lookup here.
   def prior_iteration_session_id
-    prior_iteration_agent_step&.latest_run&.provider_session&.session_id
-  end
-
-  def prior_iteration_agent_step
-    loop_node = loop_node_for(@from_step)
-    agent_step_kind =
-      if loop_node
-        # In adversarial loops, both implement and adversarial_review are agentic.
-        # Resuming the first agentic loop kind keeps implementer sessions chained;
-        # the reviewer handler separately finds prior adversarial_review sessions.
-        loop_step_kinds(loop_node).find { |kind| Step::AGENTIC_KINDS.include?(kind.to_s) }
-      end
-    return nil unless agent_step_kind
-
-    @workflow.steps.find_by(
-      loop_id: @from_step.loop_id,
-      iteration: @from_step.iteration,
-      kind: agent_step_kind
-    )
+    @from_step.upstream_session_id
   end
 
   # Linear chain walk: starting at `@from_step.next_step`, find

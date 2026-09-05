@@ -27,21 +27,33 @@ it does not by itself require any per-repo configuration.
 ## How it works
 
 When visual review is enabled and configured with `rounds > 0`, Syrus
-inserts a bounded loop immediately after the `adversarial_review` loop and
-before the grader retry loop:
+inserts a bounded, review-first loop immediately after the `adversarial_review`
+loop and before the grader retry loop. Iteration 1 is the reviewer alone,
+looking at whatever `implement`/`respond` step already ran before the loop —
+either the workflow's own top-level `implement`/`respond` step, or the tail
+of the `adversarial_review` loop when both are enabled:
 
 ```
-implement → visual_review → implement → visual_review → ... → graders
+visual_review(1)
+  approved/skipped → exits the loop
+  needs_work       → implement/respond (repair), then, if rounds allow
+                      another look, visual_review(2) → repeat
 ```
 
-(`respond → visual_review → ...` in feedback workflows.) Each iteration:
+A `needs_work` verdict always gets a repair reaction — the corresponding
+`implement`/`respond` step is inserted unconditionally, regardless of
+remaining review budget — paired with another `visual_review` call whenever
+budget remains. Once the review that just ran was the last one `rounds`
+allows, its `needs_work` repair runs alone, with no further review to act on.
+`rounds: N` means exactly N review opinions get sought, and every one of
+them — including the last — gets exactly one repair reaction; the loop never
+fails the workflow. Each `visual_review` call:
 
-1. **implement**/**respond** — the agent writes or revises the code and commits.
-2. **visual_review** — a fresh agent (in a new session) independently decides
-   whether the change is visually testable, drives a headless browser against
-   its own `start_preview` instance if so, captures screenshots, and calls
-   `submit_visual_review` with a verdict and critique. Any workspace changes
-   the reviewer makes are discarded — the reviewer is read-only.
+**visual_review** — a fresh agent (in a new session) independently decides
+whether the change is visually testable, drives a headless browser against
+its own `start_preview` instance if so, captures screenshots, and calls
+`submit_visual_review` with a verdict and critique. Any workspace changes
+the reviewer makes are discarded — the reviewer is read-only.
 
 Before spending an agent turn, a deterministic pre-filter can skip the step
 outright: if `.syrus.yml` sets `visual_review.when_files_changed` and none of
@@ -65,8 +77,8 @@ verdicts:
 - **`approved`** — the change looks correct. Exits the loop the same as
   `skipped`.
 - **`needs_work`** — the reviewer found a visible defect. Findings are
-  stored and fed back to the `implement`/`respond` agent on the next
-  iteration, the same way `adversarial_review`'s `needs_work` does.
+  stored and fed back to the `implement`/`respond` agent in an always-inserted
+  repair iteration, the same way `adversarial_review`'s `needs_work` does.
 - **`skipped`** — the change isn't visually testable (invisible/backend-only
   diff, tests, docs, non-UI config). Exits the loop without treating it as a
   failure.
@@ -207,11 +219,13 @@ wherever the Job state and repository configuration allow it.
 
 ### Feedback workflows (pr_comment, chat_feedback)
 
-When visual review is enabled for a feedback workflow, the loop runs after
-the `adversarial_review` loop and before the grader retry chain:
+`pr_comment` and `chat_feedback` lead with a bare top-level `respond` step,
+the same way `initial`/`retry` lead with `implement`. When visual review is
+enabled, the loop runs after the `adversarial_review` loop and before the
+grader retry chain, review-first just like `initial`:
 
 ```
-respond → visual_review → ... → graders
+respond → visual_review(1) → [respond → visual_review(2) → ...] → graders
 ```
 
 The reviewer prompt includes a note that this is a feedback workflow and the

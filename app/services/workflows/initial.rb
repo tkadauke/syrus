@@ -8,7 +8,7 @@ module Workflows
   #
   #   prepare → implement
   #     → [loop(adversarial_review first, then implement ⇄ adversarial_review)]
-  #     → [loop(implement, visual_review)]
+  #     → [loop(visual_review first, then implement ⇄ visual_review)]
   #     → retry_until(format, generate, graders; repair: implement)
   #     → ...
   #
@@ -19,13 +19,18 @@ module Workflows
   # workspace, makes commits, but does NOT call submit_summary
   # — that's a separate phase.
   #
-  # The adversarial review loop is `review_first`: iteration 1 reviews the
-  # top-level implement's diff directly (no redundant re-implement first).
-  # Iterations 2..(rounds - 1) pair a repair `implement` with another
-  # review. The final iteration (rounds, once reached) is a repair
-  # `implement` only — with no review budget left to act on further
-  # feedback, running another review would just be a no-op. See
-  # Workflows::Loop and StepDispatcher#enqueue_next_loop_iteration!.
+  # Every review loop is review-first: iteration 1 reviews the preceding
+  # agent step's diff directly (no redundant re-implement first) — for the
+  # adversarial review loop, that's the top-level `implement`; for the
+  # visual review loop that follows it, that's whatever the adversarial
+  # loop last produced (its own top-level `implement`, or its last repair).
+  # On a `needs_work` verdict, a repair `implement` is always inserted,
+  # unconditionally, regardless of remaining budget; if review budget
+  # remains, another review follows it, repeating the same decision. Once
+  # the last review round's verdict is `needs_work`, the final repair
+  # `implement` runs with no trailing review — there's no budget left to
+  # act on further feedback. See Workflows::Loop and
+  # StepDispatcher#enqueue_next_loop_iteration!.
   #
   # The grade retry loop is `repair_first: false`: the top-level implement
   # (or the adversarial loop's last repair, if that ran) already produced
@@ -57,7 +62,7 @@ module Workflows
       prepare_then(
         job,
         :implement,
-        adversarial_review_loop(job, agent_step: :implement, review_first: true),
+        adversarial_review_loop(job, agent_step: :implement),
         visual_review_loop(job, agent_step: :implement),
         grader_retry_loop(job, :implement, autofix: true, repair_first: false),
         "coverage_analyze",
