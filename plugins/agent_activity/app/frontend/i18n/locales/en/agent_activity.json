@@ -1,0 +1,22 @@
+{
+  "nav_agent_activity": "Agent Activity",
+  "nav_admin_agent_activity": "Agent Activity",
+  "eyebrow": "Operations",
+  "heading": "Agent Activity",
+  "admin_heading": "Agent Activity (all repositories)",
+  "description": "A live feed of agent sessions across the repositories you can see -- one card per session, headlined by what it actually decided.",
+  "admin_description": "A live feed of every agent session on this instance -- one card per session, headlined by what it actually decided.",
+  "aria_page": "Agent Activity",
+  "loading": "Loading sessions…",
+  "error_loading": "Unable to load agent sessions.",
+  "empty": "No agent sessions match this filter.",
+  "running_now_count": "{{count}} running now",
+  "quick_filter_running_now": "Running now",
+  "quick_filter_needs_work": "Needs work",
+  "quick_filter_all": "All history",
+  "no_summary_submitted": "No summary submitted for this session.",
+  "transcript_heading": "Transcript",
+  "transcript_hide": "Hide transcript",
+  "no_transcript": "No transcript recorded for this session.",
+  "loading_transcript": "Loading transcript…"
+}

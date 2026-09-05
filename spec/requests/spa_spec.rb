@@ -230,6 +230,26 @@ RSpec.describe "SPA shell", type: :request do
     expect(response.body).to include('id="syrus-bootstrap-data"')
   end
 
+  it "serves the operator-scoped agent_activity route through the SPA shell for any signed-in user" do
+    user = Factories.user(admin: false)
+    sign_in_as(user)
+
+    get "/agent_activity"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+  end
+
+  it "serves the admin-wide agent_activity route through the SPA shell, gated to admins" do
+    user = Factories.user(admin: true)
+    sign_in_as(user)
+
+    get "/admin/agent_activity"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
+  end
+
   it "does not route unmatched API paths through the SPA shell" do
     expect {
       Rails.application.routes.recognize_path("/api/nope", method: :get)
