@@ -221,6 +221,56 @@ RSpec.describe "App API diff review comments", type: :request do
     end
   end
 
+  describe "POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/reply" do
+    it "lets an eligible user reply to a comment, inheriting its anchor" do
+      comment = create_comment(state: "submitted")
+      writer = Factories.user
+      RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+      sign_in_as(writer)
+
+      expect {
+        post "#{comment_path(comment)}/reply", params: { body: "Fixed in the follow-up commit." }, as: :json
+      }.to change { job.diff_review_comments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+      reply = job.diff_review_comments.order(:id).last
+      expect(reply).to have_attributes(
+        parent_id: comment.id,
+        user: writer,
+        body: "Fixed in the follow-up commit.",
+        surface: comment.surface,
+        base_ref: comment.base_ref,
+        head_ref: comment.head_ref,
+        path: comment.path,
+        side: comment.side,
+        new_line: comment.new_line,
+        state: "draft"
+      )
+      expect(parse_body.dig("comments", 0)).to include("id" => reply.id, "parent_id" => comment.id)
+    end
+
+    it "rejects a blank reply body" do
+      comment = create_comment
+
+      post "#{comment_path(comment)}/reply", params: { body: "  " }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(job.diff_review_comments.count).to eq(1)
+    end
+
+    it "blocks read-tier repository members from replying" do
+      comment = create_comment
+      reader = Factories.user
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      sign_in_as(reader)
+
+      post "#{comment_path(comment)}/reply", params: { body: "Nope." }, as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.diff_review_comments.count).to eq(1)
+    end
+  end
+
   describe "POST /api/v1/app/jobs/:job_id/diff_review_comments/submit" do
     it "submits selected comments as chat feedback" do
       job.update_columns(state: "implemented")
