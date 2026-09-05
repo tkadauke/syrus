@@ -2312,10 +2312,6 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
 
   it "backs off repeated urgent-blocked starts" do
     create_urgent_job!
-    puts "DEBUG job_model.id=#{job_model.id} workflow.id=#{workflow.id}"
-    WorkUnit.joins(:work_unit_members).where(work_unit_members: { job_id: job_model.id }).each do |u|
-      puts "DEBUG unit=#{u.id} kind=#{u.kind} state=#{u.state} workflow_id=#{u.workflow_id} active_dedup_key=#{u.active_dedup_key.inspect}"
-    end
     attach_work_unit(workflow)
     travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
       expect(Rails.logger).to receive(:warn).once.with(include("urgent_job_active"))

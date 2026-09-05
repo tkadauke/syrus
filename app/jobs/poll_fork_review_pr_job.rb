@@ -189,5 +189,7 @@ class PollForkReviewPrJob < ApplicationJob
 
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_fork_review_comment_at: latest) if latest
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollForkReviewPrJob] #{@job.slug}: pr_comment already locked by WorkUnit ##{e.work_unit.id}")
   end
 end

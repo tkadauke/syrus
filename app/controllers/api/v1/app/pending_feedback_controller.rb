@@ -196,6 +196,8 @@ module Api
               extra_artifacts: { "feedback_source" => source }
             )
           end
+        rescue WorkUnits::Launcher::LockConflict
+          ChatFeedbackSubmission::Result.new(workflow: nil, error: "a #{work_kind} workflow is already queued or running for this job")
         end
       end
     end

@@ -41,6 +41,8 @@ class RunCheckpointResume
       artifacts: checkpoint_artifacts(source, failed_step, checkpoint)
     )
     Result.new(workflow: workflow, checkpoint: checkpoint, error: nil)
+  rescue WorkUnits::Launcher::LockConflict
+    failure("a workflow is already queued or running for this job")
   end
 
   private

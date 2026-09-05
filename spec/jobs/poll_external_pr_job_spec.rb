@@ -572,6 +572,23 @@ RSpec.describe PollExternalPrJob, :ci_only do
         .not_to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }
     end
 
+    it "does not dispatch a duplicate workflow when a conflicting WorkUnit slips past the active-unit precheck" do
+      # JOB-4235: `pending_external_pr_feedback?`'s active-unit check is a
+      # plain unlocked SELECT with a TOCTOU gap. Simulate it losing the
+      # race and confirm WorkUnits::Launcher itself still refuses to
+      # materialize a second Workflow.
+      stub_actionable_owner_comment
+      existing = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: external_pr_job)
+      allow(WorkUnits::Ownership).to receive(:active_for_job?).and_return(false)
+
+      expect {
+        described_class.perform_now(external_pr_job.id)
+      }.not_to change { Workflow.count }
+
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
+      expect(existing.work_unit.reload).to be_active
+    end
+
     it "does not react to needs_attention_reason=upstream_pr_changes_requested for fork Jobs (fork path unaffected)" do
       fork_job = Job.create!(
         user: user, repository: repository, kind: "external_pr",

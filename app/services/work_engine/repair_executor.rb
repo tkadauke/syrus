@@ -237,6 +237,8 @@ module WorkEngine
               automatic: true
             )
           end
+        rescue WorkUnits::Launcher::LockConflict
+          RetryWorkflowEnqueuer::Result.new(workflow: nil, error: "a workflow is already queued or running for this job", circuit: nil)
         end
 
         def target_step
