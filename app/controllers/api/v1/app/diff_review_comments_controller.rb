@@ -40,6 +40,19 @@ module Api
           render json: comments_payload(job, job.diff_review_comments.where(id: comment.id))
         end
 
+        def reply
+          job = find_job
+          return unless authorize_job_mutation!(job)
+
+          parent = job.diff_review_comments.find(params[:id])
+          comment = DiffReviewComment.build_reply(parent: parent, user: Current.user, body: reply_params[:body])
+          if comment.save
+            render json: comments_payload(job, job.diff_review_comments.where(id: comment.id)), status: :created
+          else
+            render_error("validation_failed", comment.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
         def submit
           job = find_job
           return unless authorize_job_mutation!(job)
@@ -102,6 +115,10 @@ module Api
             :run_id,
             context: {}
           )
+        end
+
+        def reply_params
+          params.require(:diff_review_comment).permit(:body)
         end
 
         def comments_payload(job, comments)

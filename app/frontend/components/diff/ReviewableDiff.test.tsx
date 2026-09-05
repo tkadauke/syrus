@@ -142,6 +142,71 @@ describe("ReviewableDiff", () => {
     expect(onSaveEditThread).toHaveBeenCalled()
   })
 
+  it("replies to a diff review thread inline instead of requiring a sidebar form", () => {
+    const onStartReplyThread = vi.fn()
+    const onChangeReplyingThreadBody = vi.fn()
+    const onSaveReplyThread = vi.fn()
+
+    const { rerender } = render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "submitted" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        onStartReplyThread={onStartReplyThread}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+    expect(onStartReplyThread).toHaveBeenCalledWith({ id: 1, author: "Ada", body: "Please cover this branch.", state: "submitted" })
+
+    rerender(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "submitted" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        onChangeReplyingThreadBody={onChangeReplyingThreadBody}
+        onSaveReplyThread={onSaveReplyThread}
+        onStartReplyThread={onStartReplyThread}
+        replyingThreadBody="Agreed, adding a spec now."
+        replyingThreadId={1}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.getByLabelText("Reply to comment 1")).toHaveValue("Agreed, adding a spec now.")
+    fireEvent.click(screen.getByRole("button", { name: "Post reply" }))
+    expect(onSaveReplyThread).toHaveBeenCalled()
+  })
+
+  it("shows which comment a reply is replying to", () => {
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [
+              { id: 1, author: "Ada", body: "Please cover this branch.", state: "submitted" },
+              { id: 2, author: "Grace", body: "Adding a spec now.", parentId: 1, replyToAuthor: "Ada", state: "draft" }
+            ]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.getByText("Replying to Ada")).toBeInTheDocument()
+  })
+
   it("bounds the diff height by default but grows naturally when scroll is set to natural", () => {
     const { rerender } = render(<ReviewableDiff files={files} mode="continuous" />)
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).toBeInTheDocument()

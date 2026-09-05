@@ -106,6 +106,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/diff_review_comments/submit", to: "diff_review_comments#submit", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/diff_review_comments/:id", to: "diff_review_comments#update", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/diff_review_comments/:id/resolve", to: "diff_review_comments#resolve", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/diff_review_comments/:id/replies", to: "diff_review_comments#reply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         patch "jobs/:job_id/priority", to: "jobs#update_priority", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/provider_setting", to: "jobs#update_provider_setting", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id", to: "jobs#show", constraints: { id: /[a-zA-Z0-9_-]+/ }

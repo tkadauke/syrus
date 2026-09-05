@@ -221,6 +221,63 @@ RSpec.describe "App API diff review comments", type: :request do
     end
   end
 
+  describe "POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/replies" do
+    it "creates a draft reply anchored like its parent, authored by the current user" do
+      parent = create_comment(state: "submitted")
+
+      expect {
+        post "#{comment_path(parent)}/replies",
+             params: { diff_review_comment: { body: "Thanks, that makes sense." } },
+             as: :json
+      }.to change { job.diff_review_comments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+      reply = job.diff_review_comments.last
+      expect(reply.parent).to eq(parent)
+      expect(reply.user).to eq(user)
+      expect(reply).to have_attributes(
+        state: "draft",
+        surface: parent.surface,
+        path: parent.path,
+        side: parent.side,
+        new_line: parent.new_line,
+        body: "Thanks, that makes sense."
+      )
+      expect(parse_body.dig("comments", 0)).to include("id" => reply.id, "parent_id" => parent.id, "body" => "Thanks, that makes sense.")
+    end
+
+    it "lets any write-eligible user reply, not just the comment's author" do
+      parent = create_comment
+      writer = Factories.user
+      RepositoryMembership.create!(repository: repo, user: writer, role: "write")
+      sign_in_as(writer)
+
+      post "#{comment_path(parent)}/replies", params: { diff_review_comment: { body: "I can take this." } }, as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(job.diff_review_comments.last).to have_attributes(user: writer, parent: parent)
+    end
+
+    it "blocks read-tier repository members from replying" do
+      parent = create_comment
+      reader = Factories.user
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      sign_in_as(reader)
+
+      post "#{comment_path(parent)}/replies", params: { diff_review_comment: { body: "Nope." } }, as: :json
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "rejects a blank reply body" do
+      parent = create_comment
+
+      post "#{comment_path(parent)}/replies", params: { diff_review_comment: { body: "" } }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
+
   describe "POST /api/v1/app/jobs/:job_id/diff_review_comments/submit" do
     it "submits selected comments as chat feedback" do
       job.update_columns(state: "implemented")

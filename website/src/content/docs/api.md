@@ -115,6 +115,14 @@ comment resolved. Mutations use the same Job write policy as approve, retry,
 and feedback actions: the job owner, an admin, or a write-tier repository
 member.
 
+`POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/replies` lets any
+write-eligible user (not just the comment's original author) reply to a
+comment. It accepts a `diff_review_comment.body` field; the reply inherits
+its anchor (surface, path, side, line, base/head refs) from the parent
+comment, is created in `draft` state, and its `parent_id` in the response
+points back at the comment being replied to (top-level comments have
+`parent_id: null`).
+
 `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit` accepts
 `comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
 comments. The workflow receives both a readable feedback body and structured
@@ -145,7 +153,8 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/diff_review_comments 
 
 Comment payloads include durable anchors (`path`, `side`, `old_line`,
 `new_line`, base/head refs, and hunk/context data), lifecycle state (`draft`,
-`submitted`, `resolved`, or `superseded`), timestamps, and author details.
+`submitted`, `resolved`, or `superseded`), `parent_id` (set for replies, `null`
+for top-level comments), timestamps, and author details.
 Responses include both a flat `comments` array and `by_path`, keyed by file
 path and an anchor key such as `right::42` or `left:38:`.
 

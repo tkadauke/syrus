@@ -8,6 +8,8 @@ class DiffReviewComment < ApplicationRecord
   belongs_to :user
   belongs_to :workflow, optional: true
   belongs_to :run, optional: true
+  belongs_to :parent, class_name: "DiffReviewComment", optional: true, inverse_of: :replies
+  has_many :replies, class_name: "DiffReviewComment", foreign_key: :parent_id, inverse_of: :parent, dependent: :nullify
 
   attribute :context, :json, default: -> { {} }
 
@@ -23,6 +25,7 @@ class DiffReviewComment < ApplicationRecord
   validate :workflow_belongs_to_job
   validate :run_belongs_to_job
   validate :run_belongs_to_workflow
+  validate :parent_belongs_to_same_job
 
   before_validation :normalize_strings
   before_validation :default_context
@@ -49,6 +52,26 @@ class DiffReviewComment < ApplicationRecord
       old_line || "",
       new_line || ""
     ].join(":")
+  end
+
+  def self.build_reply(parent:, user:, body:)
+    parent.job.diff_review_comments.build(
+      user: user,
+      parent: parent,
+      surface: parent.surface,
+      base_ref: parent.base_ref,
+      head_ref: parent.head_ref,
+      anchor_kind: parent.anchor_kind,
+      path: parent.path,
+      side: parent.side,
+      old_line: parent.old_line,
+      new_line: parent.new_line,
+      diff_hunk: parent.diff_hunk,
+      workflow_id: parent.workflow_id,
+      run_id: parent.run_id,
+      body: body,
+      state: "draft"
+    )
   end
 
   def submit!
@@ -113,6 +136,12 @@ class DiffReviewComment < ApplicationRecord
     return unless run && workflow && run.step&.workflow_id != workflow.id
 
     errors.add(:run, "must belong to the same workflow")
+  end
+
+  def parent_belongs_to_same_job
+    return unless parent && job_id && parent.job_id != job_id
+
+    errors.add(:parent, "must belong to the same job")
   end
 
   def stamp_lifecycle_transition

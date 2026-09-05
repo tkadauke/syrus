@@ -6,6 +6,7 @@ import {
   createDiffReviewComment,
   fetchDiffReviewComments,
   fetchJobSourceDiff,
+  replyToDiffReviewComment,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
@@ -21,6 +22,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     createDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
+    replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
     submitDiffReviewComments: vi.fn(),
     updateDiffReviewComment: vi.fn()
@@ -31,6 +33,7 @@ beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
+  vi.mocked(replyToDiffReviewComment).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
   Element.prototype.scrollIntoView = vi.fn()
@@ -187,6 +190,47 @@ describe("ReviewWorkspace", () => {
     })
   })
 
+  it("replies to a comment from the sidebar, anchored like the parent comment", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, parent_id: 1, body: "Thanks, fixing now.", new_line: 1, anchor_key: "right::1" })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+
+    fireEvent.click(sidebar.getByRole("button", { name: "Reply" }))
+    fireEvent.change(sidebar.getByLabelText("Reply to comment 1"), { target: { value: "Thanks, fixing now." } })
+    fireEvent.click(sidebar.getByRole("button", { name: "Post reply" }))
+
+    await waitFor(() => {
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Thanks, fixing now.")
+    })
+  })
+
+  it("replies to a comment inline in the diff", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, parent_id: 1, body: "On it.", new_line: 1, anchor_key: "right::1" })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    const diffViewer = within(screen.getByTestId("agent-diff-viewer"))
+    fireEvent.click(diffViewer.getByRole("button", { name: "Reply" }))
+    fireEvent.change(diffViewer.getByLabelText("Reply to comment 1"), { target: { value: "On it." } })
+    fireEvent.click(diffViewer.getByRole("button", { name: "Post reply" }))
+
+    await waitFor(() => {
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "On it.")
+    })
+  })
+
   it("submits actionable comments as chat feedback", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
@@ -289,6 +333,7 @@ function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment 
   return {
     id: 1,
     job_id: 42,
+    parent_id: null,
     user_id: 5,
     user: { id: 5, display_name: "Ada", email_address: "ada@example.com", avatar_url: null },
     workflow_id: null,

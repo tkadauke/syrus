@@ -121,4 +121,43 @@ RSpec.describe DiffReviewComment do
     }.to change { comment.reload.resolved_at }.from(nil)
     expect(comment.state).to eq("resolved")
   end
+
+  describe ".build_reply" do
+    it "inherits the parent's anchor fields and starts as a draft" do
+      parent = build_comment.tap(&:save!)
+      replying_user = Factories.user(email_address: "reviewer@example.com")
+
+      reply = described_class.build_reply(parent: parent, user: replying_user, body: "Good catch, fixing now.")
+
+      expect(reply.save).to be true
+      expect(reply.parent).to eq(parent)
+      expect(reply.user).to eq(replying_user)
+      expect(reply.job).to eq(parent.job)
+      expect(reply.surface).to eq(parent.surface)
+      expect(reply.path).to eq(parent.path)
+      expect(reply.side).to eq(parent.side)
+      expect(reply.new_line).to eq(parent.new_line)
+      expect(reply.anchor_key).to eq(parent.anchor_key)
+      expect(reply.state).to eq("draft")
+      expect(parent.replies).to contain_exactly(reply)
+    end
+  end
+
+  it "requires a reply's parent to belong to the same job" do
+    other_job = Factories.job_record(repository: repo, issue_number: 44)
+    other_parent = build_comment(job: other_job).tap(&:save!)
+    comment = build_comment(parent: other_parent)
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:parent]).to include("must belong to the same job")
+  end
+
+  it "nullifies replies when the parent comment is destroyed" do
+    parent = build_comment.tap(&:save!)
+    reply = described_class.build_reply(parent: parent, user: user, body: "Reply body").tap(&:save!)
+
+    parent.destroy!
+
+    expect(reply.reload.parent_id).to be_nil
+  end
 end

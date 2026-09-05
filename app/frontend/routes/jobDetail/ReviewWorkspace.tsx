@@ -74,11 +74,17 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             files={sourceDiff.data.files}
             mode="continuous"
             onCancelEditThread={feedback.onCancelEditThread}
+            onCancelReplyThread={feedback.onCancelReplyThread}
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
+            onChangeReplyingThreadBody={feedback.onChangeReplyingThreadBody}
             onCommentLine={startComment}
             onSaveEditThread={feedback.onSaveEditThread}
+            onSaveReplyThread={feedback.onSaveReplyThread}
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}
+            onStartReplyThread={feedback.onStartReplyThread}
+            replyingThreadBody={feedback.replyingThreadBody}
+            replyingThreadId={feedback.replyingThreadId}
             scroll="natural"
             selectedPath={selectedPath}
             showFileHeaders

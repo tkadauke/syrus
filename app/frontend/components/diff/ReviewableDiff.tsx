@@ -22,6 +22,8 @@ export type DiffReviewThread = {
   state: string
   author?: string | null
   workflowState?: string | null
+  parentId?: number | null
+  replyToAuthor?: string | null
 }
 
 export type ReviewableDiffProps = {
@@ -35,11 +37,17 @@ export type ReviewableDiffProps = {
   files?: ReviewableDiffFile[]
   mode?: "single-file" | "continuous"
   onCancelEditThread?: () => void
+  onCancelReplyThread?: () => void
   onChangeEditingThreadBody?: (body: string) => void
+  onChangeReplyingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
   onSaveEditThread?: () => void
+  onSaveReplyThread?: () => void
   onSelectFile?: (path: string) => void
   onStartEditThread?: (thread: DiffReviewThread) => void
+  onStartReplyThread?: (thread: DiffReviewThread) => void
+  replyingThreadBody?: string
+  replyingThreadId?: number | null
   scroll?: "bounded" | "natural"
   selectedPath?: string | null
   showFileHeaders?: boolean | "continuous"
@@ -61,11 +69,17 @@ export function ReviewableDiff({
   files = [],
   mode = "single-file",
   onCancelEditThread,
+  onCancelReplyThread,
   onChangeEditingThreadBody,
+  onChangeReplyingThreadBody,
   onCommentLine,
   onSaveEditThread,
+  onSaveReplyThread,
   onSelectFile,
   onStartEditThread,
+  onStartReplyThread,
+  replyingThreadBody,
+  replyingThreadId,
   scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
@@ -108,10 +122,16 @@ export function ReviewableDiff({
                 editingThreadId={editingThreadId}
                 file={file}
                 onCancelEditThread={onCancelEditThread}
+                onCancelReplyThread={onCancelReplyThread}
                 onChangeEditingThreadBody={onChangeEditingThreadBody}
+                onChangeReplyingThreadBody={onChangeReplyingThreadBody}
                 onCommentLine={onCommentLine}
                 onSaveEditThread={onSaveEditThread}
+                onSaveReplyThread={onSaveReplyThread}
                 onStartEditThread={onStartEditThread}
+                onStartReplyThread={onStartReplyThread}
+                replyingThreadBody={replyingThreadBody}
+                replyingThreadId={replyingThreadId}
               />
             ) : (
               <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
@@ -183,10 +203,16 @@ export function UnifiedDiffTable({
   editingThreadId,
   file,
   onCancelEditThread,
+  onCancelReplyThread,
   onChangeEditingThreadBody,
+  onChangeReplyingThreadBody,
   onCommentLine,
   onSaveEditThread,
+  onSaveReplyThread,
   onStartEditThread,
+  onStartReplyThread,
+  replyingThreadBody,
+  replyingThreadId,
   testId
 }: {
   annotations?: Record<string, LineAnnotation>
@@ -195,10 +221,16 @@ export function UnifiedDiffTable({
   editingThreadId?: number | null
   file: ReviewableDiffFile
   onCancelEditThread?: () => void
+  onCancelReplyThread?: () => void
   onChangeEditingThreadBody?: (body: string) => void
+  onChangeReplyingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
   onSaveEditThread?: () => void
+  onSaveReplyThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
+  onStartReplyThread?: (thread: DiffReviewThread) => void
+  replyingThreadBody?: string
+  replyingThreadId?: number | null
   testId?: string
 }) {
   const lines = parseUnifiedDiff(file.patch || "")
@@ -245,23 +277,37 @@ export function UnifiedDiffTable({
                 <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
                   <div className="space-y-2">
                     {threads.map((thread) => (
-                      <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
+                      <div className={`rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950 ${thread.parentId != null ? "ml-4" : ""}`} key={thread.id}>
                         <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
                           <div className="flex flex-wrap items-center gap-2">
                             {thread.author ? <span>{thread.author}</span> : null}
                             <span>{thread.state}</span>
                             {thread.workflowState ? <span>{thread.workflowState}</span> : null}
                           </div>
-                          {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
-                            <button
-                              className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
-                              onClick={() => onStartEditThread(thread)}
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                          ) : null}
+                          <div className="flex flex-wrap items-center gap-2 normal-case tracking-normal">
+                            {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
+                              <button
+                                className="text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                                onClick={() => onStartEditThread(thread)}
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                            {onStartReplyThread && replyingThreadId !== thread.id ? (
+                              <button
+                                className="text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                                onClick={() => onStartReplyThread(thread)}
+                                type="button"
+                              >
+                                Reply
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
+                        {thread.replyToAuthor ? (
+                          <p className="mb-1 text-2xs normal-case tracking-normal text-amber-700 dark:text-amber-400">Replying to {thread.replyToAuthor}</p>
+                        ) : null}
                         {editingThreadId === thread.id ? (
                           <div className="space-y-2">
                             <textarea
@@ -278,6 +324,21 @@ export function UnifiedDiffTable({
                         ) : (
                           <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
                         )}
+                        {replyingThreadId === thread.id ? (
+                          <div className="mt-2 space-y-2 border-t border-amber-100 pt-2 dark:border-amber-900">
+                            <textarea
+                              aria-label={`Reply to comment ${thread.id}`}
+                              className="min-h-16 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                              onChange={(event) => onChangeReplyingThreadBody?.(event.target.value)}
+                              placeholder="Write a reply…"
+                              value={replyingThreadBody ?? ""}
+                            />
+                            <div className="flex gap-2">
+                              <Button disabled={!replyingThreadBody?.trim()} onClick={onSaveReplyThread} size="sm">Post reply</Button>
+                              <Button onClick={onCancelReplyThread} size="sm" variant="secondary">Cancel</Button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>

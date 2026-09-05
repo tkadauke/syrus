@@ -43,6 +43,23 @@ RSpec.describe App::DiffReviewCommentsPayload do
     expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)
   end
 
+  it "includes parent_id so replies can be linked back to their parent comment" do
+    parent = job.diff_review_comments.create!(
+      user: user,
+      surface: "job_source_diff",
+      path: "app/models/widget.rb",
+      side: "right",
+      new_line: 12,
+      body: "Add a spec."
+    )
+    reply = DiffReviewComment.build_reply(parent: parent, user: user, body: "On it.").tap(&:save!)
+
+    payload = described_class.build(job: job, comments: [ parent, reply ])
+
+    expect(payload[:comments].find { |comment| comment[:id] == parent.id }[:parent_id]).to be_nil
+    expect(payload[:comments].find { |comment| comment[:id] == reply.id }[:parent_id]).to eq(parent.id)
+  end
+
   it "groups whole-review comments under a stable key instead of a nil path" do
     global = job.diff_review_comments.create!(
       user: user,

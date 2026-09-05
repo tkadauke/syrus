@@ -33,6 +33,7 @@ module App
       {
         id: comment.id,
         job_id: comment.job_id,
+        parent_id: comment.parent_id,
         user_id: comment.user_id,
         user: user_json(comment.user),
         workflow_id: comment.workflow_id,
