@@ -1,13 +1,15 @@
 import { type RepositoryDetailQueryKey, appendSearch, buttonClass, PanelMessage, StatusPill } from "./repositoryDetail/shared"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { ChevronIcon } from "../components/ChevronIcon"
+import { DismissButton } from "../components/DismissButton"
 import { PluginUiSlot } from "../pluginUiSlots"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
 import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -19,7 +21,7 @@ import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPil
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, runRepositoryRecommendation, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFeatureRecommendation } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -70,6 +72,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         </PageHeading>
       </header>
 
+      <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
       <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
@@ -124,6 +127,132 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       ))}
     </div>
   )
+}
+
+function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const search = queryKey[3]
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const recommendationAction = useMutation({
+    mutationFn: (recommendation: RepositoryFeatureRecommendation) => runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
+    onSuccess: (updated) => {
+      if ("repository" in updated && "tabs" in updated) {
+        queryClient.setQueryData(queryKey, updated)
+        onNotice(updated.message || null)
+      } else {
+        onNotice(updated.message || "Recommendation job created.")
+        navigate(withRoutePrefix(updated.redirect_to, prefix))
+      }
+    }
+  })
+
+  const recommendations = (payload.recommended_actions || []).filter((recommendation) => !dismissed.has(recommendation.dismissal_key))
+  const activeIndex = Math.min(currentIndex, Math.max(recommendations.length - 1, 0))
+  const recommendation = recommendations[activeIndex]
+  const hasMultiple = recommendations.length > 1
+
+  useEffect(() => {
+    if (currentIndex >= recommendations.length) {
+      setCurrentIndex(Math.max(recommendations.length - 1, 0))
+    }
+  }, [currentIndex, recommendations.length])
+
+  if (recommendations.length === 0) return null
+
+  function dismiss(recommendation: RepositoryFeatureRecommendation) {
+    const next = new Set(dismissed)
+    next.add(recommendation.dismissal_key)
+    setDismissed(next)
+    writeDismissedRecommendations(payload.repository.id, next)
+    if (activeIndex >= recommendations.length - 1) {
+      setCurrentIndex(Math.max(recommendations.length - 2, 0))
+    }
+  }
+
+  return (
+    <section aria-label="Recommended actions" className="space-y-2">
+      <div className={`rounded border px-3 py-2 text-sm ${recommendationToneClass(recommendation.tone)}`} key={recommendation.id}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{recommendation.title}</span>
+              <span className="text-xs opacity-75">{recommendation.category}</span>
+              <span className="text-xs opacity-75">Tip {activeIndex + 1} of {recommendations.length}</span>
+            </div>
+            <p className="mt-0.5 text-xs leading-5 opacity-90">{recommendation.body}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {hasMultiple ? (
+              <div className="flex items-center gap-1">
+                <button
+                  aria-label="Previous tip"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
+                  disabled={recommendationAction.isPending}
+                  onClick={() => setCurrentIndex((index) => (index - 1 + recommendations.length) % recommendations.length)}
+                  type="button"
+                >
+                  <ChevronIcon className="h-4 w-4 rotate-180" />
+                </button>
+                <button
+                  aria-label="Next tip"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded border border-current/20 hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
+                  disabled={recommendationAction.isPending}
+                  onClick={() => setCurrentIndex((index) => (index + 1) % recommendations.length)}
+                  type="button"
+                >
+                  <ChevronIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
+            {recommendation.cta.kind === "link" ? (
+              <Link className={buttonClass("gray")} to={withRoutePrefix(recommendation.cta.path, prefix)}>{recommendation.cta.label}</Link>
+            ) : (
+              <button
+                className={buttonClass(recommendation.cta.kind === "job" ? "blue" : "green")}
+                disabled={recommendationAction.isPending}
+                onClick={() => { onNotice(null); recommendationAction.mutate(recommendation) }}
+                type="button"
+              >
+                {recommendationAction.isPending ? "Working..." : recommendation.cta.label}
+              </button>
+            )}
+            <DismissButton label={`Dismiss ${recommendation.title}`} onClick={() => dismiss(recommendation)} />
+          </div>
+        </div>
+      </div>
+      {recommendationAction.isError ? <PanelMessage tone="error">{errorMessage(recommendationAction.error, "Recommendation action failed.")}</PanelMessage> : null}
+    </section>
+  )
+}
+
+function recommendationToneClass(tone: RepositoryFeatureRecommendation["tone"]) {
+  const classes = {
+    amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
+    blue: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
+    gray: "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  }
+  return classes[tone]
+}
+
+function dismissedRecommendationStorageKey(repositoryId: number) {
+  return `syrus:repository:${repositoryId}:dismissed-recommendations`
+}
+
+function readDismissedRecommendations(repositoryId: number) {
+  if (typeof window === "undefined") return new Set<string>()
+  try {
+    return new Set<string>(JSON.parse(window.localStorage.getItem(dismissedRecommendationStorageKey(repositoryId)) || "[]"))
+  } catch (_error) {
+    return new Set<string>()
+  }
+}
+
+function writeDismissedRecommendations(repositoryId: number, dismissed: Set<string>) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(dismissedRecommendationStorageKey(repositoryId), JSON.stringify([...dismissed]))
 }
 
 function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {

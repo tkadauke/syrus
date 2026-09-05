@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_041717) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -805,6 +805,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["workflow_id"], name: "index_decisions_on_workflow_id"
   end
 
+  create_table "design_doc_agent_runs", force: :cascade do |t|
+    t.string "agent_provider", null: false
+    t.integer "base_version_id"
+    t.json "context_snapshot"
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "design_doc_thread_id", null: false
+    t.text "error_message"
+    t.datetime "finished_at"
+    t.json "output_payload"
+    t.integer "requested_by_user_id", null: false
+    t.text "result_summary"
+    t.datetime "started_at"
+    t.string "status", default: "queued", null: false
+    t.integer "triggering_comment_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["base_version_id"], name: "index_design_doc_agent_runs_on_base_version_id"
+    t.index ["design_doc_id"], name: "index_design_doc_agent_runs_on_design_doc_id"
+    t.index ["design_doc_thread_id", "status"], name: "index_design_doc_agent_runs_on_thread_and_status"
+    t.index ["design_doc_thread_id"], name: "index_design_doc_agent_runs_on_design_doc_thread_id"
+    t.index ["requested_by_user_id"], name: "index_design_doc_agent_runs_on_requested_by_user_id"
+    t.index ["triggering_comment_id"], name: "index_design_doc_agent_runs_on_triggering_comment", unique: true
+  end
+
   create_table "design_doc_anchors", force: :cascade do |t|
     t.string "anchor_key", null: false
     t.string "anchor_kind", default: "range", null: false
@@ -818,6 +842,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.text "prefix_context"
     t.text "selected_markdown"
     t.text "selected_text"
+    t.bigint "stale_as_of_version_id"
     t.integer "start_offset", null: false
     t.string "status", default: "active", null: false
     t.text "suffix_context"
@@ -826,6 +851,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.index ["design_doc_id", "marker_id"], name: "index_design_doc_anchors_on_doc_and_marker_id", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_anchors_on_design_doc_id"
     t.index ["design_doc_version_id"], name: "index_design_doc_anchors_on_design_doc_version_id"
+    t.index ["stale_as_of_version_id"], name: "index_design_doc_anchors_on_stale_as_of_version_id"
   end
 
   create_table "design_doc_collaborators", force: :cascade do |t|
@@ -846,9 +872,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.integer "author_user_id"
     t.text "body", null: false
     t.datetime "created_at", null: false
+    t.integer "design_doc_agent_run_id"
     t.integer "design_doc_thread_id", null: false
     t.datetime "updated_at", null: false
     t.index ["author_user_id"], name: "index_design_doc_comments_on_author_user_id"
+    t.index ["design_doc_agent_run_id"], name: "index_design_doc_comments_on_design_doc_agent_run_id"
     t.index ["design_doc_thread_id", "created_at"], name: "index_design_doc_comments_on_thread_and_created_at"
     t.index ["design_doc_thread_id"], name: "index_design_doc_comments_on_design_doc_thread_id"
   end
@@ -869,12 +897,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.string "change_type", default: "replace", null: false
     t.text "conflict_reason"
     t.datetime "created_at", null: false
+    t.integer "design_doc_agent_run_id"
     t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id"
     t.text "original_markdown", null: false
     t.text "proposed_markdown", null: false
     t.json "provenance"
+    t.string "render_mode", default: "inline", null: false
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.string "state", default: "pending", null: false
@@ -883,6 +913,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.text "suggested_markdown", null: false
     t.datetime "updated_at", null: false
     t.index ["base_version_id"], name: "index_design_doc_suggestions_on_base_version_id"
+    t.index ["design_doc_agent_run_id"], name: "index_design_doc_suggestions_on_design_doc_agent_run_id"
     t.index ["design_doc_anchor_id", "state"], name: "index_design_doc_suggestions_on_anchor_and_state"
     t.index ["design_doc_anchor_id"], name: "index_design_doc_suggestions_on_design_doc_anchor_id"
     t.index ["design_doc_id", "state"], name: "index_design_doc_suggestions_on_doc_and_state"
@@ -943,6 +974,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
   end
 
   create_table "diff_review_comments", force: :cascade do |t|
+    t.string "anchor_kind", default: "line", null: false
     t.string "base_ref"
     t.text "body", null: false
     t.json "context", null: false
@@ -952,10 +984,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.integer "job_id", null: false
     t.integer "new_line"
     t.integer "old_line"
-    t.string "path", null: false
+    t.string "path"
     t.datetime "resolved_at"
     t.integer "run_id"
-    t.string "side", null: false
+    t.string "side"
     t.string "state", default: "draft", null: false
     t.datetime "submitted_at"
     t.datetime "superseded_at"
@@ -1760,6 +1792,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
   end
 
   create_table "plugin_records", force: :cascade do |t|
+    t.string "author"
     t.string "category"
     t.json "config", null: false
     t.datetime "created_at", null: false
@@ -1768,6 +1801,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_194747) do
     t.boolean "disableable", default: true, null: false
     t.string "display_name"
     t.boolean "enabled", default: true, null: false
+    t.text "extension_points"
     t.datetime "last_ticked_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false

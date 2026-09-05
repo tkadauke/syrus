@@ -79,6 +79,40 @@ RSpec.describe DiffReviewComment do
     expect(comment.errors[:run]).to include("must belong to the same workflow")
   end
 
+  it "supports whole-review comments with no code anchor" do
+    comment = described_class.new(
+      job: job,
+      user: user,
+      surface: "job_review_workspace",
+      anchor_kind: "review",
+      body: "Nice work overall."
+    )
+
+    expect(comment.save).to be true
+    expect(comment).not_to be_line_anchor
+    expect(comment.path).to be_nil
+    expect(comment.side).to be_nil
+    expect(comment.anchor_key).to eq("review")
+  end
+
+  it "clears line-anchor fields when saved as a whole-review comment" do
+    comment = build_comment(anchor_kind: "review")
+
+    expect(comment.save).to be true
+    expect(comment.path).to be_nil
+    expect(comment.side).to be_nil
+    expect(comment.old_line).to be_nil
+    expect(comment.new_line).to be_nil
+    expect(comment.diff_hunk).to be_nil
+  end
+
+  it "rejects an unknown anchor_kind" do
+    comment = build_comment(anchor_kind: "paragraph")
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:anchor_kind]).to be_present
+  end
+
   it "stamps lifecycle timestamps when state changes" do
     comment = build_comment.tap(&:save!)
 

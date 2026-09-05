@@ -10,7 +10,8 @@ import {
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
-  type DiffReviewCommentInput
+  type DiffReviewCommentInput,
+  type DiffReviewCommentAnchorKind
 } from "../../api/jobs"
 import type { DiffLineSelection, DiffReviewThread } from "../../components/diff/ReviewableDiff"
 
@@ -21,12 +22,17 @@ type DiffReviewFeedbackOptions = {
   headRef?: string | null
   jobId: number | string
   runId?: number | null
+  supportsGlobalComments?: boolean
   surface: string
   workflowId?: number | null
 }
 
 export function diffReviewFeedbackAllowed(jobState: string) {
   return jobState === "implemented" || jobState === "approved" || jobState === "failed"
+}
+
+function scrollToDiffAnchor(path: string) {
+  document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" })
 }
 
 export function useDiffReviewFeedback({
@@ -36,6 +42,7 @@ export function useDiffReviewFeedback({
   headRef,
   jobId,
   runId,
+  supportsGlobalComments = false,
   surface,
   workflowId
 }: DiffReviewFeedbackOptions) {
@@ -44,6 +51,9 @@ export function useDiffReviewFeedback({
   const [selection, setSelection] = useState<DiffLineSelection | null>(null)
   const [body, setBody] = useState("")
   const [editing, setEditing] = useState<DiffReviewComment | null>(null)
+  const [addingGlobal, setAddingGlobal] = useState(false)
+  const [editingThreadId, setEditingThreadId] = useState<number | null>(null)
+  const [editingThreadBody, setEditingThreadBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
   const search = diffReviewCommentsSearch({ surface, baseRef, headRef, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
@@ -65,6 +75,7 @@ export function useDiffReviewFeedback({
     mutationFn: (input: DiffReviewCommentInput) => createDiffReviewComment(jobId, input),
     onSuccess: () => {
       setSelection(null)
+      setAddingGlobal(false)
       setBody("")
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
@@ -74,6 +85,8 @@ export function useDiffReviewFeedback({
     onSuccess: () => {
       setEditing(null)
       setBody("")
+      setEditingThreadId(null)
+      setEditingThreadBody("")
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
   })
@@ -94,6 +107,15 @@ export function useDiffReviewFeedback({
     if (!enabled) return
     setSelection(nextSelection)
     setEditing(null)
+    setAddingGlobal(false)
+    setBody("")
+  }
+
+  function startGlobalComment() {
+    if (!enabled) return
+    setSelection(null)
+    setEditing(null)
+    setAddingGlobal(true)
     setBody("")
   }
 
@@ -102,6 +124,10 @@ export function useDiffReviewFeedback({
     if (!trimmed) return
     if (editing) {
       updateComment.mutate({ id: editing.id, input: { body: trimmed } })
+      return
+    }
+    if (addingGlobal) {
+      createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }))
       return
     }
     if (!selection) return
@@ -119,8 +145,32 @@ export function useDiffReviewFeedback({
 
   function editComment(comment: DiffReviewComment) {
     setSelection(null)
+    setAddingGlobal(false)
     setEditing(comment)
     setBody(comment.body)
+  }
+
+  function cancelComposer() {
+    setSelection(null)
+    setEditing(null)
+    setAddingGlobal(false)
+    setBody("")
+  }
+
+  function startEditThread(thread: DiffReviewThread) {
+    setEditingThreadId(thread.id)
+    setEditingThreadBody(thread.body)
+  }
+
+  function saveEditThread() {
+    const trimmed = editingThreadBody.trim()
+    if (!trimmed || editingThreadId == null) return
+    updateComment.mutate({ id: editingThreadId, input: { body: trimmed } })
+  }
+
+  function cancelEditThread() {
+    setEditingThreadId(null)
+    setEditingThreadBody("")
   }
 
   const panel = enabled ? (
@@ -132,16 +182,20 @@ export function useDiffReviewFeedback({
       createPending={createComment.isPending}
       editing={editing}
       handledComments={handledComments}
+      isComposing={Boolean(selection || editing || addingGlobal)}
+      onAddGlobalComment={startGlobalComment}
       onBodyChange={setBody}
-      onCancel={() => { setSelection(null); setEditing(null); setBody("") }}
+      onCancel={cancelComposer}
       onEdit={editComment}
       onResolve={(comment) => resolveComment.mutate(comment.id)}
       onSave={saveComment}
       onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
+      onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
       resolvePending={resolveComment.isPending}
       selection={selection}
       submitError={submitError}
       submitPending={submitComments.isPending}
+      supportsGlobalComments={supportsGlobalComments}
       updateError={updateComment.error}
       updatePending={updateComment.isPending}
       workflowActive={workflowActive}
@@ -152,7 +206,13 @@ export function useDiffReviewFeedback({
     commentCounts: counts,
     commentsQuery: comments,
     diffThreads,
+    editingThreadBody,
+    editingThreadId,
+    onCancelEditThread: cancelEditThread,
+    onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
+    onSaveEditThread: saveEditThread,
+    onStartEditThread: startEditThread,
     panel,
     selectedCommentPath: selection?.file.path || editing?.path || null
   }
@@ -166,16 +226,20 @@ function DiffReviewFeedbackPanel({
   createPending,
   editing,
   handledComments,
+  isComposing,
+  onAddGlobalComment,
   onBodyChange,
   onCancel,
   onEdit,
   onResolve,
   onSave,
   onSubmit,
+  onViewInDiff,
   resolvePending,
   selection,
   submitError,
   submitPending,
+  supportsGlobalComments,
   updateError,
   updatePending,
   workflowActive
@@ -187,16 +251,20 @@ function DiffReviewFeedbackPanel({
   createPending: boolean
   editing: DiffReviewComment | null
   handledComments: DiffReviewComment[]
+  isComposing: boolean
+  onAddGlobalComment: () => void
   onBodyChange: (body: string) => void
   onCancel: () => void
   onEdit: (comment: DiffReviewComment) => void
   onResolve: (comment: DiffReviewComment) => void
   onSave: () => void
   onSubmit: () => void
+  onViewInDiff: (comment: DiffReviewComment) => void
   resolvePending: boolean
   selection: DiffLineSelection | null
   submitError: string | null
   submitPending: boolean
+  supportsGlobalComments: boolean
   updateError: Error | null
   updatePending: boolean
   workflowActive: boolean
@@ -212,26 +280,42 @@ function DiffReviewFeedbackPanel({
           <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
         </div>
       </div>
+      {supportsGlobalComments ? (
+        <div className="mt-3">
+          <Button onClick={onAddGlobalComment} size="sm" variant="secondary">{t("review_add_global_comment")}</Button>
+        </div>
+      ) : null}
       <div className="mt-3 space-y-3">
-        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => (
+        {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
+          const isGlobal = comment.anchor_kind === "review"
+          const canEditHere = supportsGlobalComments ? isGlobal : true
+          return (
           <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{comment.path}:{comment.side === "left" ? comment.old_line : comment.new_line}</span>
+              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
+              </span>
               <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
             </div>
             <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {comment.state === "draft" ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+              {comment.state === "draft" && canEditHere ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+              {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
-      {selection || editing ? (
+      {isComposing ? (
         <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
           <p className="font-mono text-xs text-gray-600 dark:text-gray-300">
-            {editing ? `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}` : `${selection?.file.path}:${selection?.side === "old" ? selection.line.oldLine : selection?.line.newLine}`}
+            {editing
+              ? (editing.anchor_kind === "review" ? t("review_global_comment_label") : `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}`)
+              : selection
+                ? `${selection.file.path}:${selection.side === "old" ? selection.line.oldLine : selection.line.newLine}`
+                : t("review_global_comment_label")}
           </p>
           <textarea
             aria-label={t("review_comment_body")}
@@ -282,6 +366,7 @@ function commentInputForSelection({
     surface,
     base_ref: baseRef,
     head_ref: headRef,
+    anchor_kind: "line",
     path: selection.file.path,
     side: left ? "left" : "right",
     old_line: selection.line.oldLine,
@@ -300,6 +385,37 @@ function commentInputForSelection({
   }
 }
 
+function commentInputForGlobal({
+  baseRef,
+  body,
+  headRef,
+  runId,
+  surface,
+  workflowId
+}: {
+  baseRef?: string | null
+  body: string
+  headRef?: string | null
+  runId?: number | null
+  surface: string
+  workflowId?: number | null
+}): DiffReviewCommentInput {
+  const anchorKind: DiffReviewCommentAnchorKind = "review"
+  return {
+    surface,
+    base_ref: baseRef,
+    head_ref: headRef,
+    anchor_kind: anchorKind,
+    body,
+    context: {
+      ...(workflowId ? { workflow_id: workflowId } : {}),
+      ...(runId ? { run_id: runId } : {})
+    },
+    ...(workflowId ? { workflow_id: workflowId } : {}),
+    ...(runId ? { run_id: runId } : {})
+  }
+}
+
 function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
   if (!patch) return null
   const rows = patch.split("\n")
@@ -312,6 +428,7 @@ function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
 function commentCountsByPath(comments: DiffReviewComment[]) {
   return comments.reduce<Record<string, number>>((counts, comment) => {
     if (comment.state === "resolved" || comment.state === "superseded") return counts
+    if (!comment.path) return counts
     counts[comment.path] = (counts[comment.path] || 0) + 1
     return counts
   }, {})
@@ -320,6 +437,7 @@ function commentCountsByPath(comments: DiffReviewComment[]) {
 function diffThreadsByPath(comments: DiffReviewComment[]) {
   return comments.reduce<Record<string, Record<string, DiffReviewThread[]>>>((paths, comment) => {
     if (comment.state === "superseded") return paths
+    if (!comment.path) return paths
     const pathThreads = paths[comment.path] || {}
     const anchorThreads = pathThreads[comment.anchor_key] || []
     pathThreads[comment.anchor_key] = [

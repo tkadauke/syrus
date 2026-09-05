@@ -48,7 +48,23 @@ export type DesignDocComment = {
   id: number
   author_kind: string
   author: DesignDocUser | null
+  design_doc_agent_run_id: number | null
   body: string
+  created_at: string
+  updated_at: string
+}
+
+export type DesignDocAgentRun = {
+  id: number
+  status: "queued" | "running" | "succeeded" | "failed" | "canceled"
+  triggering_comment_id: number
+  requested_by: DesignDocUser | null
+  agent_provider: string
+  base_version_id: number | null
+  result_summary: string | null
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
   created_at: string
   updated_at: string
 }
@@ -60,6 +76,7 @@ export type DesignDocThread = {
   opened_by: DesignDocUser | null
   resolved_by: DesignDocUser | null
   resolved_at: string | null
+  agent_run: DesignDocAgentRun | null
   comments: DesignDocComment[]
   created_at: string
   updated_at: string
@@ -74,8 +91,10 @@ export type DesignDocSuggestion = {
   suggested_markdown: string
   proposed_markdown: string
   change_type: "replace"
+  render_mode: "inline" | "block"
   change_summary: string | null
   base_version_id: number | null
+  design_doc_agent_run_id: number | null
   provenance: Record<string, unknown>
   conflict_reason: string | null
   anchor: DesignDocAnchor
@@ -132,6 +151,13 @@ export type DesignDocDetailPayload = {
 export type DesignDocVersionsPayload = {
   design_doc: DesignDocSummary
   versions: DesignDocVersion[]
+}
+
+export type DesignDocVersionThreadsPayload = {
+  design_doc: DesignDocSummary
+  version: DesignDocVersion
+  threads: DesignDocThread[]
+  suggestions: DesignDocSuggestion[]
 }
 
 export type DesignDocWritePayload = DesignDocDetailPayload & {
@@ -197,4 +223,8 @@ export function rejectDesignDocSuggestion(id: string | number, suggestionId: str
 
 export function fetchDesignDocVersions(id: string | number) {
   return getJson<DesignDocVersionsPayload>(`/api/v1/app/design_docs/${id}/versions`)
+}
+
+export function fetchDesignDocVersionThreads(id: string | number, versionId: string | number) {
+  return getJson<DesignDocVersionThreadsPayload>(`/api/v1/app/design_docs/${id}/versions/${versionId}/threads`)
 }

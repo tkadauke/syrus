@@ -1,11 +1,17 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/design_docs", type: :request do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user(email_address: "owner@example.com") }
   let(:collaborator) { Factories.user(email_address: "collaborator@example.com") }
   let(:outsider) { Factories.user(email_address: "outsider@example.com") }
   let(:admin) { Factories.user(email_address: "admin@example.com", admin: true) }
   let(:repository) { Factories.repository(user: owner, owner: "acme", name: "widgets") }
+
+  before do
+    DesignDocs.register! unless PluginRecord.exists?(name: "design_docs")
+  end
 
   def parse_body
     JSON.parse(response.body)
@@ -650,6 +656,34 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(AppEvents).not_to have_received(:broadcast).with(user: outsider, type: "design_doc.updated", resource: "design_doc", id: doc.id, changed: [ "comments" ])
   end
 
+  it "returns queued @syrus agent run state when a new comment mentions the agent" do
+    owner.update!(agent_provider: "codex", codex_api_key: "sk-test")
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "@Syrus suggest clearer wording",
+          start_offset: 6,
+          end_offset: 10,
+          selected_markdown: "beta"
+        }
+      }
+    }.to change(DesignDocs::DesignDocAgentRun, :count).by(1)
+      .and have_enqueued_job(DesignDocs::AgentRunJob)
+
+    expect(response).to have_http_status(:created)
+    run = DesignDocs::DesignDocAgentRun.last
+    expect(parse_body.dig("thread", "agent_run")).to include(
+      "id" => run.id,
+      "status" => "queued",
+      "triggering_comment_id" => run.triggering_comment_id
+    )
+    expect(parse_body.dig("comment", "design_doc_agent_run_id")).to be_nil
+  end
+
   it "returns anchored active comment and suggestion threads from the document detail API" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -873,6 +907,90 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
   end
 
+  it "classifies block-level heading suggestions and accepts them once into canonical markdown" do
+    doc = create_design_doc(markdown: "# Old Title\n\n## Problem\n\nBody")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: "# Old Title".length,
+        original_markdown: "# Old Title",
+        proposed_markdown: "# New Title\n\n## Context\n\nAdded",
+        change_type: "replace",
+        change_summary: "Replace title and add context"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.last
+    expect(parse_body.dig("suggestion", "render_mode")).to eq("block")
+    expect(suggestion).to have_attributes(render_mode: "block")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("# Old Title\n\n## Problem\n\nBody")
+
+    sign_in_as(owner)
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.to change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("suggestion", "state")).to eq("accepted")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("# New Title\n\n## Context\n\nAdded\n\n## Problem\n\nBody")
+  end
+
+  it "rejects suggestions that select only part of Markdown heading syntax" do
+    doc = create_design_doc(markdown: "# Network-Transparent MCP Tools for Local Mode\n\n## Problem\n\nBody")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    partial_end = doc.markdown.index("## Problem") + "## P".length
+    original_markdown = doc.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 0,
+          end_offset: partial_end,
+          original_markdown: doc.markdown[0...partial_end],
+          proposed_markdown: "# Replacement\n\n## Problem\n\nBody",
+          change_type: "replace"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("cannot select only part of Markdown block syntax")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
+  it "rejects overlapping pending suggestions instead of rendering nested active ranges" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    existing = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    original_markdown = doc.reload.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 8,
+          end_offset: 16,
+          original_markdown: "ta gamma",
+          proposed_markdown: "overlap",
+          change_type: "replace"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("overlaps pending suggestion ##{existing.id}")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
   it "prevents admin non-owners from accepting suggestions into canonical markdown" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -1013,5 +1131,61 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(user_selects.size).to be <= 3
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if defined?(subscriber) && subscriber
+  end
+
+  it "reproduces the DOC-20 sequence: a comment anchor survives until an unrelated full-document suggestion overwrites it, then goes stale" do
+    doc = create_design_doc(markdown: "Alpha beta gamma delta")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: { body: "directory's legacy sections", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    }
+    expect(response).to have_http_status(:created)
+    thread_id = parse_body.dig("thread", "id")
+    version_before_rewrite = doc.reload.current_version
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 0,
+        end_offset: DesignDocs::AnchorMarkers.strip(doc.reload.markdown).length,
+        original_markdown: DesignDocs::AnchorMarkers.strip(doc.markdown),
+        proposed_markdown: "Zeta omega",
+        change_type: "replace",
+        change_summary: "Full rewrite"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    suggestion_id = parse_body.dig("suggestion", "id")
+
+    sign_in_as(owner)
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion_id}/accept"
+    expect(response).to have_http_status(:ok)
+    current_version_number = parse_body.dig("design_doc", "current_version_number")
+
+    thread = DesignDocThread.find(thread_id)
+    expect(thread.anchor.status).to eq("stale")
+
+    # The current-document payload still carries the thread record (so an
+    # audit trail / thread count is possible), but its anchor is flagged
+    # stale so the SPA's current-version thread rail and editor highlights
+    # (which only render "active" anchors) hide it.
+    get "/api/v1/app/design_docs/#{doc.id}"
+    expect(response).to have_http_status(:ok)
+    current_doc_thread = parse_body.dig("design_doc", "threads").find { |json| json.fetch("id") == thread_id }
+    expect(current_doc_thread.dig("anchor", "status")).to eq("stale")
+
+    get "/api/v1/app/design_docs/#{doc.id}/versions/#{version_before_rewrite.id}/threads"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("version").fetch("version_number")).to eq(version_before_rewrite.version_number)
+    historical_thread_ids = parse_body.fetch("threads").map { |json| json.fetch("id") }
+    expect(historical_thread_ids).to include(thread_id)
+    historical_comment = parse_body.fetch("threads").find { |json| json.fetch("id") == thread_id }
+    expect(historical_comment.dig("anchor", "selected_text")).to eq("beta")
+
+    current_version_id = DesignDocVersion.find_by!(design_doc_id: doc.id, version_number: current_version_number).id
+    get "/api/v1/app/design_docs/#{doc.id}/versions/#{current_version_id}/threads"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("threads").map { |json| json.fetch("id") }).not_to include(thread_id)
   end
 end

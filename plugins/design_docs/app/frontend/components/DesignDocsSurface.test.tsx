@@ -53,7 +53,21 @@ const docDetail = {
     opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
     resolved_by: null,
     resolved_at: null,
-    comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
+    agent_run: {
+      id: 4,
+      status: "running",
+      triggering_comment_id: 8,
+      requested_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      agent_provider: "codex",
+      base_version_id: 1,
+      result_summary: null,
+      error_message: null,
+      started_at: "2026-08-29T12:02:00Z",
+      finished_at: null,
+      created_at: "2026-08-29T12:02:00Z",
+      updated_at: "2026-08-29T12:02:00Z"
+    },
+    comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
     created_at: "2026-08-29T12:01:00Z",
     updated_at: "2026-08-29T12:01:00Z"
   }, {
@@ -77,7 +91,8 @@ const docDetail = {
     opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
     resolved_by: null,
     resolved_at: null,
-    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+    agent_run: null,
+    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
     created_at: "2026-08-29T12:02:00Z",
     updated_at: "2026-08-29T12:02:30Z"
   }],
@@ -90,8 +105,10 @@ const docDetail = {
     suggested_markdown: "delta",
     proposed_markdown: "delta",
     change_type: "replace",
+    render_mode: "inline",
     change_summary: "Use newer name",
     base_version_id: 1,
+    design_doc_agent_run_id: null,
     provenance: {},
     conflict_reason: null,
     anchor: {
@@ -130,7 +147,8 @@ const docDetail = {
       opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
       resolved_by: null,
       resolved_at: null,
-      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+      agent_run: null,
+      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, design_doc_agent_run_id: null, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
       created_at: "2026-08-29T12:02:00Z",
       updated_at: "2026-08-29T12:02:30Z"
     },
@@ -380,7 +398,7 @@ function mockFetch(detail = docDetail) {
       if (payload.comment?.thread_id === 7) {
         const commentThread = {
           ...docDetail.threads[0],
-          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
         }
         return jsonResponse({
           design_doc: {
@@ -393,7 +411,7 @@ function mockFetch(detail = docDetail) {
       if (payload.comment?.thread_id === 17) {
         const suggestionThread = {
           ...docDetail.threads[1],
-          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
+          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
         }
         const suggestion = { ...docDetail.suggestions[0], thread: suggestionThread }
         return jsonResponse({
@@ -778,11 +796,74 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
   })
 
+  it("renders block-level suggestions as anchored document marks and structured thread diffs", async () => {
+    const blockSuggestion = {
+      ...docDetail.suggestions[0],
+      id: 51,
+      original_markdown: "# Old Title",
+      suggested_markdown: "# New Title\n\n## Context\n\nAdded",
+      proposed_markdown: "# New Title\n\n## Context\n\nAdded",
+      render_mode: "block" as const,
+      change_summary: "Replace title and add context",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        start_offset: 0,
+        end_offset: "# Old Title".length,
+        last_known_start_offset: 0,
+        last_known_end_offset: "# Old Title".length,
+        selected_markdown: "# Old Title",
+        selected_text: "# Old Title"
+      },
+      thread: {
+        ...docDetail.suggestions[0].thread!,
+        id: 51,
+        comments: [],
+        anchor: {
+          ...docDetail.suggestions[0].thread!.anchor,
+          start_offset: 0,
+          end_offset: "# Old Title".length,
+          last_known_start_offset: 0,
+          last_known_end_offset: "# Old Title".length,
+          selected_markdown: "# Old Title",
+          selected_text: "# Old Title"
+        }
+      }
+    }
+    const blockDoc = {
+      ...docDetail,
+      markdown: "# Old Title\n\n## Problem\n\nBody",
+      rendered_markdown: "# Old Title\n\n## Problem\n\nBody",
+      threads: [blockSuggestion.thread],
+      suggestions: [blockSuggestion]
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: blockDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+
+    expect(editor).toHaveTextContent("Old Title")
+    expect(within(editor).queryByText("# New Title")).not.toBeInTheDocument()
+    expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
+    expect(screen.getByText("Current")).toBeInTheDocument()
+    expect(screen.getByText("Proposed")).toBeInTheDocument()
+    expect(screen.getByText(/## Context/)).toBeInTheDocument()
+  })
+
   it("groups replies beneath their parent comment thread", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
     await screen.findByText("Needs evidence")
+    expect(screen.getByText("Syrus is drafting...")).toBeInTheDocument()
     fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
     fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
 
@@ -1451,6 +1532,7 @@ describe("DesignDocsSurface", () => {
             original_markdown: payload.suggestion.original_markdown,
             proposed_markdown: payload.suggestion.proposed_markdown,
             suggested_markdown: payload.suggestion.proposed_markdown,
+            render_mode: "block",
             provenance: { autosave: true }
           }],
           pending_suggestions_count: 1
@@ -1476,5 +1558,65 @@ describe("DesignDocsSurface", () => {
     renderSurface("/design_docs/3")
 
     await waitFor(() => expect(screen.getAllByText("Autosaved suggestion draft").length).toBeGreaterThan(0))
+  })
+
+  it("hides a stale-anchored comment from the current thread rail but shows it when viewing the version where it existed", async () => {
+    const historicalVersion = { id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }
+    const staleThread = {
+      id: 70,
+      state: "open" as const,
+      anchor: {
+        id: 90,
+        anchor_key: "stale-a",
+        marker_id: "stale-a",
+        anchor_kind: "range" as const,
+        status: "stale",
+        start_offset: 0,
+        end_offset: 4,
+        last_known_start_offset: 0,
+        last_known_end_offset: 4,
+        selected_markdown: "Once",
+        selected_text: "Once",
+        prefix_context: null,
+        suffix_context: null
+      },
+      opened_by: docDetail.owner,
+      resolved_by: null,
+      resolved_at: null,
+      comments: [{ id: 71, author_kind: "user", author: docDetail.owner, body: "This got overwritten", created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z" }],
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z"
+    }
+    const docWithStaleThread = { ...docDetail, threads: [...docDetail.threads, staleThread] }
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+        return jsonResponse({ design_doc: docWithStaleThread })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1/versions") {
+        return jsonResponse({ design_doc: docWithStaleThread, versions: [historicalVersion] })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1/versions/1/threads") {
+        return jsonResponse({ design_doc: docWithStaleThread, version: historicalVersion, threads: [staleThread], suggestions: [] })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    expect(screen.queryByText("This got overwritten")).not.toBeInTheDocument()
+
+    const versionSelect = screen.getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await screen.findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    expect(await screen.findByText("This got overwritten")).toBeInTheDocument()
+    expect(await screen.findByText(/Viewing comments and suggestions as of v1\b/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument()
   })
 })

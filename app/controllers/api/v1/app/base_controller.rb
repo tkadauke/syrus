@@ -26,7 +26,7 @@ module Api
         private
 
         def resume_session
-          super || resume_api_token_session
+          resume_api_token_session || super
         end
 
         def resume_api_token_session

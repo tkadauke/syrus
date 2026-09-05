@@ -16,9 +16,10 @@ module Admin
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
-          scope = filter.apply(base_scope).includes(workflow: :job, chat_session: :user).order(started_at: :desc).limit(@per_page)
+          scope = filter.apply(base_scope).includes(workflow: [ :job, :user ], chat_session: :user).order(started_at: :desc).limit(@per_page)
 
           processes = PerformanceLogging.phase("admin_processes.load_processes") { scope.to_a }
+          PerformanceLogging.phase("admin_processes.owner_user_cache") { warm_owner_user_cache(processes) }
 
           {
             filter: filter.to_h,
@@ -158,6 +159,7 @@ module Admin
           stale: process.stale?,
           kill_requested_at: process.kill_requested_at&.iso8601,
           kill_requested_by_user_id: process.kill_requested_by_user_id,
+          user: user_payload(owner_user(process)),
           owner: owner_payload(process)
         }
         payload[:host_metrics] = process.host_metrics if include_host_metrics
@@ -188,6 +190,81 @@ module Admin
         end
 
         preview_owner_payload(process)
+      end
+
+      def owner_user(process)
+        return process.workflow.user if process.workflow
+        return process.chat_session.user if process.chat_session
+
+        preview_owner_user(process)
+      end
+
+      def user_payload(user)
+        return nil unless user
+
+        {
+          id: user.id,
+          label: user.display_name,
+          email_address: user.email_address,
+          path: "/admin/users/#{user.id}"
+        }
+      end
+
+      def warm_owner_user_cache(processes)
+        preview_processes = processes.select { |process| process.kind == "preview" }
+        attribution_values = preview_processes.map { |process| process.resource_attribution || {} }
+        @preview_environment_owner_users_by_id = preview_environment_owner_users_by_id(attribution_values.filter_map { |attrs| attrs["preview_environment_id"] })
+        @preview_job_users_by_id = users_by_job_id(attribution_values.filter_map { |attrs| attrs["job_id"] })
+        @preview_repository_users_by_id = users_by_repository_id(attribution_values.filter_map { |attrs| attrs["repository_id"] })
+      end
+
+      def preview_owner_user(process)
+        return nil unless process.kind == "preview"
+
+        attribution = process.resource_attribution || {}
+        if (preview_environment_id = attribution["preview_environment_id"]).present?
+          user = preview_environment_owner_users_by_id([ preview_environment_id ]).fetch(preview_environment_id.to_i, nil)
+          return user if user
+        end
+
+        if (job_id = attribution["job_id"]).present?
+          user = users_by_job_id([ job_id ]).fetch(job_id.to_i, nil)
+          return user if user
+        end
+
+        if (repository_id = attribution["repository_id"]).present?
+          users_by_repository_id([ repository_id ]).fetch(repository_id.to_i, nil)
+        end
+      end
+
+      def preview_environment_owner_users_by_id(ids)
+        ids = ids.map { |id| Integer(id, exception: false) }.compact.uniq
+        return {} if ids.empty?
+        return @preview_environment_owner_users_by_id.slice(*ids) if defined?(@preview_environment_owner_users_by_id)
+
+        PreviewEnvironment.includes(job: :user, repository: :user).where(id: ids).each_with_object({}) do |environment, result|
+          result[environment.id] = environment.job&.user || environment.repository&.user
+        end
+      end
+
+      def users_by_job_id(ids)
+        ids = ids.map { |id| Integer(id, exception: false) }.compact.uniq
+        return {} if ids.empty?
+        return @preview_job_users_by_id.slice(*ids) if defined?(@preview_job_users_by_id)
+
+        Job.includes(:user).where(id: ids).each_with_object({}) do |job, result|
+          result[job.id] = job.user
+        end
+      end
+
+      def users_by_repository_id(ids)
+        ids = ids.map { |id| Integer(id, exception: false) }.compact.uniq
+        return {} if ids.empty?
+        return @preview_repository_users_by_id.slice(*ids) if defined?(@preview_repository_users_by_id)
+
+        Repository.includes(:user).where(id: ids).each_with_object({}) do |repository, result|
+          result[repository.id] = repository.user
+        end
       end
 
       def preview_owner_payload(process)

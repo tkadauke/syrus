@@ -193,6 +193,7 @@ export type RepositoryDetailPayload = {
   }
   health_history?: RepositoryHealthHistory
   delivery?: RepositoryDeliveryPayload | null
+  recommended_actions?: RepositoryFeatureRecommendation[]
   retry_failed_jobs: {
     count: number
     agent_provider: string
@@ -252,6 +253,35 @@ export type RepositoryDetailPayload = {
     job_path: string
   } | null
   insight_schedule_config?: InsightScheduleConfigRecord
+}
+
+export type RepositoryFeatureRecommendation = {
+  id: string
+  title: string
+  body: string
+  tone: "amber" | "blue" | "green" | "gray"
+  category: string
+  dismissal_key: string
+  secondary_path: string | null
+  cta: {
+    label: string
+    kind: "job" | "toggle" | "link"
+    path: string
+    method: "GET" | "POST"
+    action_id?: string
+  }
+}
+
+export type RepositoryRecommendationJobPayload = {
+  message: string
+  redirect_to: string
+  job: {
+    id: number
+    slug: string
+    state: string
+    issue_title: string
+    job_path: string
+  }
 }
 
 export type RepositoryDetailRecord = {
@@ -528,6 +558,10 @@ export function repairMainBranch(path: string, page: number) {
 
 export function checkCiNow(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+}
+
+export function runRepositoryRecommendation(path: string, page: number) {
+  return postJson<RepositoryDetailPayload | RepositoryRecommendationJobPayload>(path, { return_to: "detail", page })
 }
 
 export function archiveRepositoryFromPath(path: string) {

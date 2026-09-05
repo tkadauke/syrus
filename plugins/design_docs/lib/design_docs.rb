@@ -24,6 +24,7 @@ module DesignDocs
     route :patch, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#update"
     route :put, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#update"
     route :get, "/api/v1/app/design_docs/:id/versions", to: "api/v1/app/design_docs#versions"
+    route :get, "/api/v1/app/design_docs/:id/versions/:version_id/threads", to: "api/v1/app/design_docs#version_threads"
     route :post, "/api/v1/app/design_docs/:id/comments", to: "api/v1/app/design_docs#comments"
     route :post, "/api/v1/app/design_docs/:id/suggestions", to: "api/v1/app/design_docs#create_suggestion"
     route :post, "/api/v1/app/design_docs/:id/threads/:thread_id/resolve", to: "api/v1/app/design_docs#resolve_thread"

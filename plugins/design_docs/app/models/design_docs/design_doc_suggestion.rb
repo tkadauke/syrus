@@ -5,6 +5,7 @@ module DesignDocs
     STATES = %w[pending accepted rejected stale conflict].freeze
     SUGGESTER_KINDS = %w[user agent system].freeze
     CHANGE_TYPES = %w[replace].freeze
+    RENDER_MODES = %w[inline block].freeze
 
     belongs_to :design_doc, class_name: "DesignDocs::DesignDoc"
     belongs_to :anchor, class_name: "DesignDocs::DesignDocAnchor", foreign_key: :design_doc_anchor_id
@@ -12,17 +13,20 @@ module DesignDocs
     belongs_to :suggested_by_user, class_name: "User", optional: true
     belongs_to :reviewed_by_user, class_name: "User", optional: true
     belongs_to :base_version, class_name: "DesignDocs::DesignDocVersion", optional: true
+    belongs_to :agent_run, class_name: "DesignDocs::DesignDocAgentRun", foreign_key: :design_doc_agent_run_id, optional: true
 
     before_validation :normalize_markdown_fields
 
     validates :state, presence: true, inclusion: { in: STATES }
     validates :suggested_by_kind, presence: true, inclusion: { in: SUGGESTER_KINDS }
     validates :change_type, presence: true, inclusion: { in: CHANGE_TYPES }
+    validates :render_mode, presence: true, inclusion: { in: RENDER_MODES }
     validates :original_markdown, :suggested_markdown, :proposed_markdown, presence: true
     validates :suggested_by_user, presence: true, if: :user_suggester?
     validate :anchor_belongs_to_doc
     validate :thread_belongs_to_doc
     validate :base_version_belongs_to_doc
+    validate :agent_run_belongs_to_doc
     validate :review_metadata_matches_state
 
     def user_suggester?
@@ -39,6 +43,7 @@ module DesignDocs
       self.original_markdown = original_markdown.to_s
       self.proposed_markdown = proposed_markdown.presence || suggested_markdown
       self.suggested_markdown = suggested_markdown.presence || proposed_markdown
+      self.render_mode = render_mode.presence || "inline"
       self.provenance = (provenance || {}).merge("suggested_at" => created_at&.iso8601 || Time.current.iso8601)
     end
 
@@ -61,6 +66,13 @@ module DesignDocs
       return if base_version.design_doc_id == design_doc_id
 
       errors.add(:base_version, "must belong to the same design doc")
+    end
+
+    def agent_run_belongs_to_doc
+      return if agent_run.nil? || design_doc.nil?
+      return if agent_run.design_doc_id == design_doc_id
+
+      errors.add(:agent_run, "must belong to the same design doc")
     end
 
     def review_metadata_matches_state

@@ -1,5 +1,7 @@
 module App
   class DiffReviewCommentsPayload
+    REVIEW_GROUP_KEY = "__review__".freeze
+
     def self.build(job:, comments:)
       new(job: job, comments: comments).payload
     end
@@ -22,7 +24,7 @@ module App
     private
 
     def grouped_by_path(serialized)
-      serialized.group_by { |comment| comment[:path] }.transform_values do |path_comments|
+      serialized.group_by { |comment| comment[:path] || REVIEW_GROUP_KEY }.transform_values do |path_comments|
         path_comments.group_by { |comment| comment[:anchor_key] }
       end
     end
@@ -39,6 +41,7 @@ module App
         surface: comment.surface,
         base_ref: comment.base_ref,
         head_ref: comment.head_ref,
+        anchor_kind: comment.anchor_kind,
         path: comment.path,
         side: comment.side,
         old_line: comment.old_line,

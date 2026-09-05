@@ -23,6 +23,7 @@ import {
   fetchDesignDoc,
   fetchDesignDocs,
   fetchDesignDocVersions,
+  fetchDesignDocVersionThreads,
   fetchRepositoryDesignDocs,
   rejectDesignDocSuggestion,
   resolveDesignDocThread,
@@ -56,6 +57,7 @@ type AnchorHighlight = {
   suggestionId?: number
   originalMarkdown?: string
   proposedMarkdown?: string
+  renderMode?: "inline" | "block"
   suggestionState?: string
   status: string
   start: number
@@ -307,6 +309,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
     enabled: versionsOpen
+  })
+  const isViewingHistoricalVersion = selectedVersionId !== "current"
+  const versionThreadsQuery = useQuery({
+    queryKey: ["design_docs", "version_threads", String(doc.id), selectedVersionId],
+    queryFn: () => fetchDesignDocVersionThreads(doc.id, selectedVersionId),
+    enabled: isViewingHistoricalVersion
   })
   const saveMutation = useMutation({
     mutationFn: () => effectiveChangeMode === "edit"
@@ -697,6 +705,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
+          historicalVersion={isViewingHistoricalVersion ? versionThreadsQuery.data ?? null : null}
+          historicalVersionLoading={isViewingHistoricalVersion && versionThreadsQuery.isPending}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
           replyBodies={replyBodies}
@@ -878,6 +888,19 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
 
         const focused = segment.highlight.threadId === focusedThreadId || segment.highlight.suggestionId === focusedSuggestionId
         if (segment.highlight.kind === "suggestion") {
+          if (segment.highlight.renderMode === "block") {
+            return (
+              <mark
+                className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-amber-100 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"}`}
+                data-anchor-status={segment.highlight.status}
+                data-block-suggestion-state={segment.highlight.suggestionState}
+                key={index}
+              >
+                {segment.text}
+              </mark>
+            )
+          }
+
           const diff = inlineSuggestionDiff(segment.highlight.originalMarkdown ?? segment.text, segment.highlight.proposedMarkdown || "")
           return (
             <span
@@ -1135,11 +1158,13 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   )
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
+  historicalVersion: { version: DesignDocVersion; threads: DesignDocThread[]; suggestions: DesignDocSuggestion[] } | null
+  historicalVersionLoading: boolean
   focusedSuggestionId: number | null
   focusedThreadId: number | null
   replyBodies: Record<number, string>
@@ -1155,10 +1180,20 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   onResolve: (threadId: number) => void
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
-  const hasSelection = selection.end > selection.start
-  const activeSuggestions = doc.suggestions.filter((suggestion) => suggestion.state === "pending")
-  const suggestionThreadIds = new Set(doc.suggestions.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
-  const activeCommentThreads = doc.threads.filter((thread) => thread.state === "open" && !suggestionThreadIds.has(thread.id))
+  const viewingHistory = historicalVersionLoading || historicalVersion != null
+  const hasSelection = selection.end > selection.start && !viewingHistory
+  // While a historical version's threads are still loading, show nothing
+  // rather than flashing the current document's (differently-filtered)
+  // threads under the "as of vN" heading.
+  const suggestionSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.suggestions : doc.suggestions
+  const threadSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.threads : doc.threads
+  const activeSuggestions = viewingHistory
+    ? suggestionSource
+    : suggestionSource.filter((suggestion) => suggestion.state === "pending" && suggestion.anchor.status === "active")
+  const suggestionThreadIds = new Set(suggestionSource.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
+  const activeCommentThreads = viewingHistory
+    ? threadSource.filter((thread) => !suggestionThreadIds.has(thread.id))
+    : threadSource.filter((thread) => thread.state === "open" && thread.anchor.status === "active" && !suggestionThreadIds.has(thread.id))
   const activeCount = activeCommentThreads.length + activeSuggestions.length
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
@@ -1172,6 +1207,11 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   return (
     <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">Threads</SectionHeading>
+      {historicalVersion ? (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Viewing comments and suggestions as of v{historicalVersion.version.version_number}. Read only.
+        </p>
+      ) : null}
       <div className="relative mt-3 space-y-3">
         {hasSelection ? (
           <div className="rounded border border-brand/30 bg-brand/5 p-3 dark:border-brand/40 dark:bg-brand/10">
@@ -1199,11 +1239,13 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
             </div>
           </div>
         ) : null}
-        {activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No active threads.</p> : null}
+        {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
+        {!historicalVersionLoading && activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         {activeCommentThreads.map((thread) => (
           <CommentThreadCard
             focused={focusedThreadId === thread.id}
             key={`thread-${thread.id}`}
+            readOnly={viewingHistory}
             replyBody={replyBodies[thread.id] ?? ""}
             thread={thread}
             threadRefs={threadRefs}
@@ -1215,9 +1257,10 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
         ))}
         {activeSuggestions.map((suggestion) => (
           <SuggestionThreadCard
-            canReview={doc.permissions.can_review_suggestions}
+            canReview={!viewingHistory && doc.permissions.can_review_suggestions}
             focused={focusedSuggestionId === suggestion.id}
             key={`suggestion-${suggestion.id}`}
+            readOnly={viewingHistory}
             replyBody={suggestion.thread ? replyBodies[suggestion.thread.id] ?? "" : ""}
             suggestion={suggestion}
             suggestionRefs={suggestionRefs}
@@ -1232,8 +1275,9 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, focusedSug
   )
 }
 
-function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+function CommentThreadCard({ focused, readOnly = false, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
   focused: boolean
+  readOnly?: boolean
   replyBody: string
   thread: DesignDocThread
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1250,7 +1294,7 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
       ref={(element) => { threadRefs.current[thread.id] = element }}
       style={{ marginTop: railOffset(thread) }}
     >
-      <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={(
+      <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={readOnly ? null : (
         <Button
           onClick={(event) => {
             event.stopPropagation()
@@ -1262,22 +1306,26 @@ function CommentThreadCard({ focused, replyBody, thread, threadRefs, onFocus, on
           Resolve
         </Button>
       )} />
+      <ThreadAgentRunStatus run={thread.agent_run} />
       <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
       <ThreadComments comments={thread.comments} />
-      <ThreadReplyForm
-        label={`Reply to thread ${thread.id}`}
-        replyBody={replyBody}
-        threadId={thread.id}
-        onReply={onReply}
-        onReplyChange={onReplyChange}
-      />
+      {readOnly ? null : (
+        <ThreadReplyForm
+          label={`Reply to thread ${thread.id}`}
+          replyBody={replyBody}
+          threadId={thread.id}
+          onReply={onReply}
+          onReplyChange={onReplyChange}
+        />
+      )}
     </div>
   )
 }
 
-function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
+function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
   canReview: boolean
   focused: boolean
+  readOnly?: boolean
   replyBody: string
   suggestion: DesignDocSuggestion
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1296,14 +1344,12 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
       ref={(element) => { suggestionRefs.current[suggestion.id] = element }}
       style={{ marginTop: railOffset(suggestion) }}
     >
-      <ThreadCardHeader labels={<><StatusLabel value="suggestion" />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
-      <div className="mt-2 grid gap-2 text-xs">
-        <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
-        <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
-      </div>
+      <ThreadCardHeader labels={<><StatusLabel value="suggestion" /><StatusLabel value={suggestion.render_mode === "block" ? "block" : "inline"} />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}{readOnly && suggestion.state !== "pending" ? <StatusLabel value={suggestion.state} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
+      {thread ? <ThreadAgentRunStatus run={thread.agent_run} /> : null}
+      {suggestion.render_mode === "block" ? <BlockSuggestionDiff suggestion={suggestion} /> : <InlineSuggestionDiff suggestion={suggestion} />}
       {suggestion.change_summary ? <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{suggestion.change_summary}</p> : null}
       {thread ? <ThreadComments comments={thread.comments} /> : null}
-      {thread ? (
+      {thread && !readOnly ? (
         <ThreadReplyForm
           label={`Reply to suggestion ${suggestion.id}`}
           replyBody={replyBody}
@@ -1312,7 +1358,7 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
           onReplyChange={onReplyChange}
         />
       ) : null}
-      {canReview ? (
+      {readOnly ? null : canReview ? (
         <div className="mt-3 flex gap-2">
           <Button
             onClick={(event) => {
@@ -1340,6 +1386,26 @@ function SuggestionThreadCard({ canReview, focused, replyBody, suggestion, sugge
   )
 }
 
+function InlineSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion }) {
+  return (
+    <div className="mt-2 grid gap-2 text-xs">
+      <del className="rounded bg-warning/10 p-2 text-warning">{suggestion.original_markdown}</del>
+      <ins className="rounded bg-success/10 p-2 text-success no-underline">{suggestion.proposed_markdown}</ins>
+    </div>
+  )
+}
+
+function BlockSuggestionDiff({ suggestion }: { suggestion: DesignDocSuggestion }) {
+  return (
+    <div className="mt-2 overflow-hidden rounded border border-border text-xs">
+      <div className="border-b border-border bg-warning/10 px-2 py-1 font-medium text-warning">Current</div>
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-secondary">{suggestion.original_markdown}</pre>
+      <div className="border-y border-border bg-success/10 px-2 py-1 font-medium text-success">Proposed</div>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words bg-surface p-2 font-mono text-text-primary">{suggestion.proposed_markdown}</pre>
+    </div>
+  )
+}
+
 function ThreadCardHeader({ action, labels }: { action: React.ReactNode; labels: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -1357,11 +1423,30 @@ function ThreadComments({ comments }: { comments: DesignDocThread["comments"] })
       {comments.map((comment) => (
         <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
           <p>{comment.body}</p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || comment.author_kind}</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || (comment.author_kind === "agent" ? "Syrus" : comment.author_kind)}</p>
         </div>
       ))}
     </div>
   )
+}
+
+function ThreadAgentRunStatus({ run }: { run: DesignDocThread["agent_run"] }) {
+  if (!run) return null
+
+  const message = run.status === "queued" || run.status === "running"
+    ? "Syrus is drafting..."
+    : run.status === "failed"
+      ? `Syrus failed${run.error_message ? `: ${run.error_message}` : "."}`
+      : run.status === "canceled"
+        ? "Syrus canceled."
+        : run.result_summary || "Syrus finished."
+  const tone = run.status === "failed"
+    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+    : run.status === "queued" || run.status === "running"
+      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+      : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200"
+
+  return <p className={`mt-2 rounded border px-2 py-1 text-xs break-words ${tone}`}>{message}</p>
 }
 
 function ThreadReplyForm({ label, replyBody, threadId, onReply, onReplyChange }: {
@@ -1566,7 +1651,7 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
   return highlights.find((highlight) => {
-    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.kind !== "suggestion" || highlight.renderMode === "block" || context.renderedSuggestionIds.has(highlight.id)) return false
     if (highlight.start > offset || highlight.end <= offset) return false
 
     const original = highlight.originalMarkdown ?? ""
@@ -1909,6 +1994,7 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
         suggestionId: suggestion.id,
         originalMarkdown: suggestion.original_markdown,
         proposedMarkdown: suggestion.proposed_markdown,
+        renderMode: suggestion.render_mode,
         suggestionState: suggestion.state,
         status: suggestion.anchor.status,
         start: start ?? 0,
@@ -2077,6 +2163,13 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         context.renderedSuggestionIds.add(suggestionKey)
 
         const suggestionAttrs = segment.highlight.suggestionId ? ` data-suggestion-id="${segment.highlight.suggestionId}"` : ""
+        if (segment.highlight.renderMode === "block") {
+          const className = focused
+            ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
+            : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
+          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceSpan(segment.text, baseOffset + segment.start)}</mark>`
+        }
+
         const className = focused
           ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
           : "rounded-sm bg-surface-raised px-0.5"

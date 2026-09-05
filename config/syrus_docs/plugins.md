@@ -35,8 +35,11 @@ installed plugins can be enabled or disabled live; new requests and sidecars use
 the latest `PluginRecord` state through `PluginRegistry.providers_for`.
 
 The page filters plugins with the same chip-based `FilterBar` query builder
-used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav —
-the `admin_plugins` `Filters::Subject` only needs the two chips below). A
+used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav).
+The `admin_plugins` subject exposes `enabled`, `author`, `extension_point`,
+`category`, and `search` chips. `enabled` filters enabled vs. disabled
+plugins. `author` is a free-text column filter. `extension_point` filters
+against the extension point names a plugin registers in `provides:`. A
 `category` chip (`Filters::Chips::AdminPlugins::Category`, bucket `enum`,
 values from `Syrus::Plugin::Category::ENTRIES`) filters by the taxonomy key;
 its `is`/`is_not`/`is_one_of`/`is_none_of`/`is_set`/`is_unset` operators (from
@@ -44,15 +47,15 @@ the shared `Filters::Chips::EnumColumn` base) also make "uncategorized
 plugins" (`is_unset`) directly filterable. A `search` chip
 (`Filters::Chips::AdminPlugins::Search`, bucket `string`, `contains` only)
 replaces the old plain-text search box and filters by name, display name,
-description, and category — it delegates to `PluginRecord.search`, so it
-keeps running as a real MySQL `FULLTEXT` `MATCH ... AGAINST` query in
-production, with SQLite (dev/test) falling back to a `LIKE` scan. This is
-still a plain per-table full text search, not the SQLite FTS5 `SearchRecord`
-search engine used for Jobs/Epics/chat/operational logs. Both chips combine
-with AND semantics. The filter tree is base64url-encoded into the `q` query
-param on `GET /api/v1/app/admin/plugins`, which also returns `filter` (the
-active tree) and `controls.filter_schema` (the chip definitions) for the
-`FilterBar` component, exactly like `Admin::Queue::Payload`/`Admin::Users::Payload`.
+description, and category — it delegates to `PluginRecord.search`, so it keeps
+running as a real MySQL `FULLTEXT` `MATCH ... AGAINST` query in production,
+with SQLite (dev/test) falling back to a `LIKE` scan. This is still a plain
+per-table full text search, not the SQLite FTS5 `SearchRecord` search engine
+used for Jobs/Epics/chat/operational logs. Chips combine with AND semantics.
+The filter tree is base64url-encoded into the `q` query param on
+`GET /api/v1/app/admin/plugins`, which also returns `filter` (the active tree)
+and `controls.filter_schema` (the chip definitions) for the `FilterBar`
+component, exactly like `Admin::Queue::Payload`/`Admin::Users::Payload`.
 The bearer-token `GET /api/v1/admin/plugins` API is unchanged: it keeps its
 original plain-text `q=<text>` full-text search (via `Admin::PluginsPayload`'s
 legacy `query:` argument), independent of the chip filter framework, so

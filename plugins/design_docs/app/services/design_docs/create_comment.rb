@@ -22,6 +22,7 @@ module DesignDocs
           comment = thread.comments.create!(
             author_kind: actor_kind,
             author_user: actor_kind == "user" ? user : nil,
+            agent_run: agent_run,
             body: attributes[:body]
           )
 
@@ -37,6 +38,7 @@ module DesignDocs
           comment = thread.comments.create!(
             author_kind: actor_kind,
             author_user: actor_kind == "user" ? user : nil,
+            agent_run: agent_run,
             body: attributes[:body]
           )
 
@@ -55,6 +57,12 @@ module DesignDocs
     def anchor_attributes
       attributes.slice(:start_offset, :end_offset, :selected_markdown, :selected_text, :anchor_kind)
         .merge(change_summary: "Add inline comment anchor")
+    end
+
+    def agent_run
+      return nil if attributes[:design_doc_agent_run_id].blank?
+
+      @agent_run ||= DesignDocs::DesignDocAgentRun.find(attributes[:design_doc_agent_run_id])
     end
   end
 end

@@ -160,6 +160,23 @@ module DesignDocs
       offset.to_i.clamp(0, length)
     end
 
+    # Every occurrence of `selection` in `markdown`, by index. Shared by
+    # OffsetProjection's diff-based re-anchoring and ReviewSuggestion's
+    # reconciliation of anchors whose marker was overwritten -- both need to
+    # know whether an anchor's exact prior excerpt still exists exactly once
+    # (safe to re-point at) or not (ambiguous/missing, so it's left alone).
+    def exact_matches(markdown, selection)
+      return [] if selection.blank?
+
+      matches = []
+      offset = 0
+      while (index = markdown.index(selection, offset))
+        matches << index
+        offset = index + 1
+      end
+      matches
+    end
+
     def raw_offset_for_visible_offset(markdown, visible_offset)
       raw_index = 0
       visible_index = 0
@@ -196,10 +213,8 @@ module DesignDocs
 
       def range(start_offset, end_offset, selected_markdown:)
         selected = selected_markdown.to_s
-        if selected.present?
-          matches = exact_matches(next_visible, selected)
-          return [ matches.first, matches.first + selected.length ] if matches.one?
-        end
+        matches = AnchorMarkers.exact_matches(next_visible, selected)
+        return [ matches.first, matches.first + selected.length ] if matches.one?
 
         [ start(start_offset), self.end(end_offset) ]
       end
@@ -236,16 +251,6 @@ module DesignDocs
         count = 0
         count += 1 while count < limit && old_visible[old_visible.length - count - 1] == next_visible[next_visible.length - count - 1]
         count
-      end
-
-      def exact_matches(markdown, selected)
-        matches = []
-        offset = 0
-        while (index = markdown.index(selected, offset))
-          matches << index
-          offset = index + 1
-        end
-        matches
       end
     end
   end

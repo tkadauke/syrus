@@ -33,11 +33,50 @@ and `ChatSession`.
   selected text, prefix/suffix context, last known offsets, provenance, state,
   and permissions. Suggestions are v1 range replacements (`change_type:
   replace`) reviewed explicitly by the design doc owner.
+- `design_doc_agent_runs` records lightweight `@syrus` thread turns. Each run
+  belongs to a doc, thread, triggering comment, requesting user, and base
+  version; stores provider/status/timestamps, a prompt context snapshot, output
+  payload, result summary, and error message; and links generated
+  comments/suggestions back to the run for provenance.
 
 `DesignDocs::DesignDoc.visible_to(user)` implements the v1 visibility rule:
 owners can see their docs, explicit collaborators can see private docs, and
 public docs are visible to users who can access at least one associated
 repository.
+
+### Anchor staleness and version-scoped history
+
+Accepting a suggestion can overwrite raw Markdown that other anchors' hidden
+markers were sitting in — a full-document suggestion is the extreme case,
+since its replaced range is the entire document. `DesignDocs::ReviewSuggestion`
+reconciles every other `active` anchor around every acceptance (both the
+normal range-replace path and the marker-less autosave full-document path):
+an anchor whose marker survived untouched just gets its cached offsets
+refreshed; an anchor whose marker disappeared gets re-projected onto the new
+text when its exact previous excerpt still exists exactly once elsewhere in
+the document, and is otherwise marked `status: "stale"` immediately (with
+`stale_as_of_version` set to the version the acceptance produced) along with
+any of its still-`pending` suggestions. A `stale` anchor's offsets are frozen
+at their last known position — the anchor is never silently re-derived from
+numeric offsets once it can no longer be trusted. The pre-existing path where
+a suggestion's own anchor text has drifted since it was authored (checked
+against `suggestion.original_markdown` before any replacement happens) also
+stamps `stale_as_of_version`, pinned to the design doc's current version
+since that path never creates a new one — every code path that flips an
+anchor to `stale` keeps the same version-window invariant.
+
+The current-document editor and Threads rail only render anchors with
+`status: "active"` (`buildAnchorHighlights`'s highlight filter and
+`ThreadPanel`'s current-view filters in `DesignDocsSurface.tsx`), so stale
+threads/suggestions disappear from the live view without being deleted.
+`GET /api/v1/app/design_docs/:id/versions/:version_id/threads` (backed by
+`DesignDocAnchor.active_as_of(version_number)`, using each anchor's birth
+`design_doc_version` and `stale_as_of_version`) returns the threads and
+suggestions that were active as of a specific historical version, so a stale
+comment remains inspectable when viewing the version where its anchor
+existed. The version dropdown in the editor title bar fetches this endpoint
+and renders those results read-only (no reply, resolve, or accept/reject
+controls) while a non-current version is selected.
 
 ## Editor UI
 
@@ -55,13 +94,21 @@ title-bar dropdown loads that version's Markdown into the current working copy;
 it is autosaved like any other edit, while `Save` creates a new auditable
 version/checkpoint from the current persisted working copy.
 
-Pending suggestions appear inline at their anchored range in both editor modes
-where practical: the original Markdown range is struck through in the active
-theme warning color and the proposed replacement appears next to it in the
-active theme success color. The default Terracotta theme uses terracotta for
-warning and green for success. This inline diff is display-only. Rich Text
-conversion keeps the original anchored text in the draft, and canonical
-Markdown is not changed until the owner accepts a suggestion.
+Pending suggestions are classified before rendering. Inline-safe suggestions
+appear inline at their anchored range in both editor modes where practical: the
+original Markdown range is struck through in the active theme warning color and
+the proposed replacement appears next to it in the active theme success color.
+Block-level suggestions, including multiline replacements and replacements that
+begin with Markdown block markers such as headings, lists, blockquotes, or code
+fences, render as an anchor mark in the document body and as a structured
+Current/Proposed block diff in the Threads column. Proposed block Markdown is
+never injected as inline text inside an existing heading, paragraph, or list
+item. The default Terracotta theme uses terracotta for warning and green for
+success. Suggestion previews are display-only. Rich Text conversion keeps the
+original anchored text in the draft, and canonical Markdown is not changed
+until the owner accepts a suggestion. New pending suggestions cannot overlap an
+existing pending suggestion, and selections that cut through partial Markdown
+block syntax are rejected with a validation error.
 
 The document detail API includes editor permission flags:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
@@ -75,6 +122,30 @@ review controls. Non-owners with access are forced into `Suggest` mode: the
 toolbar does not offer `Edit`, their in-flight edits autosave as pending
 suggestions, the save action is labeled as suggestion creation, and
 accept/reject controls render as pending owner review.
+
+## Thread Mentions
+
+Users who can comment/suggest on a Design Doc can invoke a lightweight Design
+Docs agent turn by mentioning `@syrus` in a newly created comment/reply or in an
+edit that newly introduces the mention. Matching is case-insensitive and ignores
+mentions in quoted text, inline code, and fenced code blocks to avoid triggering
+from pasted historical content or examples.
+
+Mention turns are scoped to the thread instead of materializing normal Syrus
+Jobs. The queued run captures `DOC-<id>`, the current version and Markdown, the
+thread anchor, the full thread discussion, pending thread suggestions, doc
+visibility/repository/collaborator metadata, and a small origin-chat excerpt
+when one is available. The agent may create a pending suggestion on that thread
+or post an agent-authored reply such as a clarifying question or an explanation
+that no safe suggestion can be made. It must not directly mutate canonical
+Markdown. Requests for repository implementation or file work should be
+answered with a redirect to the chat Job/Epic proposal flow.
+
+The Design Docs surface shows thread-level status for the latest agent run:
+queued/running displays `Syrus is drafting...`, success shows the run summary,
+failure shows the failure reason, and cancellation shows a canceled state.
+Duplicate saves of the same triggering comment reuse the existing run, and only
+one queued/running agent run is active for a given thread at a time.
 
 ## Chat Workspace Tabs
 

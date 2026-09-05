@@ -58,6 +58,7 @@ function repositoryDetailPayload() {
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     preview: null,
+    recommended_actions: [],
     paths: {
       new_job_path: "/jobs/new",
       new_repository_skill_job_path: "/repositories/1/skills/new",
@@ -79,13 +80,33 @@ function repositoryDetailPayload() {
   }
 }
 
+function recommendation(overrides = {}) {
+  return {
+    id: "visual_review",
+    title: "Add visual review",
+    body: "Let Syrus run browser QA on UI diffs.",
+    tone: "blue" as const,
+    category: "quality",
+    dismissal_key: "repository:1:feature_recommendation:visual_review:v1",
+    secondary_path: "/docs/visual_review",
+    cta: {
+      label: "Configure",
+      kind: "job" as const,
+      path: "/api/v1/app/repositories/1/recommendations/visual_review",
+      method: "POST" as const,
+      action_id: "visual_review"
+    },
+    ...overrides
+  }
+}
+
 function renderRoute(payloadOverrides = {}) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = String(input)
     return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), ...payloadOverrides }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
         <Routes>
@@ -282,6 +303,183 @@ describe("RepositoryDetailRoute jobs", () => {
 
     expect(await screen.findByText("Inspect preview dashboard states")).toBeInTheDocument()
     expect(screen.getByText("Claude Code unavailable; running this workflow with Codex.")).toBeInTheDocument()
+  })
+})
+
+describe("RepositoryDetailRoute recommendations", () => {
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("renders one concise recommendation banner above repository tabs", async () => {
+    const view = renderRoute({
+      tabs: [{ key: "overview", label: "Overview", path: "/repositories/1" }],
+      recommended_actions: [recommendation()]
+    })
+
+    expect(await screen.findByRole("region", { name: "Recommended actions" })).toBeInTheDocument()
+    expect(screen.getByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 1")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Previous tip" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Poll now" })).toBeInTheDocument()
+
+    const banner = screen.getByRole("region", { name: "Recommended actions" })
+    const tabs = view.container.querySelector("nav")
+    expect(tabs).toBeTruthy()
+    expect(Boolean(banner.compareDocumentPosition(tabs as Node) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("shows one recommendation at a time and pages through multiple tips", async () => {
+    renderRoute({
+      recommended_actions: [
+        recommendation(),
+        recommendation({
+          id: "pr_cost_footer",
+          title: "Show PR cost footer",
+          body: "Add PR cost visibility for operators.",
+          dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1",
+          cta: {
+            label: "Enable",
+            kind: "toggle" as const,
+            path: "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
+            method: "POST" as const,
+            action_id: "enable_pr_cost_footer"
+          }
+        })
+      ]
+    })
+
+    expect(await screen.findByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 2")).toBeInTheDocument()
+    expect(screen.queryByText("Show PR cost footer")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next tip" }))
+
+    expect(screen.getByText("Show PR cost footer")).toBeInTheDocument()
+    expect(screen.getByText("Tip 2 of 2")).toBeInTheDocument()
+    expect(screen.queryByText("Add visual review")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous tip" }))
+
+    expect(screen.getByText("Add visual review")).toBeInTheDocument()
+    expect(screen.getByText("Tip 1 of 2")).toBeInTheDocument()
+  })
+
+  it("persists dismissals in local storage for the repository", async () => {
+    renderRoute({ recommended_actions: [recommendation()] })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss Add visual review" }))
+
+    expect(screen.queryByText("Add visual review")).not.toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem("syrus:repository:1:dismissed-recommendations") || "[]")).toContain("repository:1:feature_recommendation:visual_review:v1")
+  })
+
+  it("invokes a job recommendation CTA and navigates to the created job", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/repositories/1/recommendations/visual_review" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Recommendation job created.",
+          redirect_to: "/jobs/42",
+          job: { id: 42, slug: "JOB-42", state: "queued", issue_title: "Configure visual review", job_path: "/jobs/42" }
+        }, 201))
+      }
+      return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), recommended_actions: [recommendation()] }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
+          <Routes>
+            <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+            <Route element={<div>Created job</div>} path="/app-shell/jobs/42" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/recommendations/visual_review",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByText("Created job")).toBeInTheDocument()
+  })
+
+  it("invokes a toggle recommendation CTA and refreshes the detail payload", async () => {
+    const updated = {
+      ...repositoryDetailPayload(),
+      message: "Repository setting enabled.",
+      recommended_actions: []
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(updated))
+      }
+      return Promise.resolve(jsonResponse({
+        ...repositoryDetailPayload(),
+        recommended_actions: [
+          recommendation({
+            id: "pr_cost_footer",
+            title: "Show PR cost footer",
+            dismissal_key: "repository:1:feature_recommendation:pr_cost_footer:v1",
+            cta: {
+              label: "Enable",
+              kind: "toggle" as const,
+              path: "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
+              method: "POST" as const,
+              action_id: "enable_pr_cost_footer"
+            }
+          })
+        ]
+      }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
+          <Routes>
+            <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/recommendations/enable_pr_cost_footer",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByText("Repository setting enabled.")).toBeInTheDocument()
+  })
+
+  it("renders settings recommendation CTAs as links", async () => {
+    renderRoute({
+      recommended_actions: [
+        recommendation({
+          id: "auto_merge",
+          title: "Review auto-merge",
+          cta: {
+            label: "Open settings",
+            kind: "link" as const,
+            path: "/repositories/1/edit#auto-merge",
+            method: "GET" as const
+          }
+        })
+      ]
+    })
+
+    const link = await screen.findByRole("link", { name: "Open settings" })
+    expect(link).toHaveAttribute("href", "/app-shell/repositories/1/edit#auto-merge")
   })
 })
 

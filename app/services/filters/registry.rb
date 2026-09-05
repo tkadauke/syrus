@@ -213,8 +213,11 @@ module Filters
       name: :admin_plugins,
       model: PluginRecord,
       chips: {
-        "category" => "Filters::Chips::AdminPlugins::Category",
-        "search"   => "Filters::Chips::AdminPlugins::Search"
+        "enabled"         => "Filters::Chips::AdminPlugins::Enabled",
+        "author"          => "Filters::Chips::AdminPlugins::Author",
+        "extension_point" => "Filters::Chips::AdminPlugins::ExtensionPoint",
+        "category"        => "Filters::Chips::AdminPlugins::Category",
+        "search"          => "Filters::Chips::AdminPlugins::Search"
       }
     ),
     spawned_process: Subject.new(
@@ -224,6 +227,7 @@ module Filters
         "state"       => "Filters::Chips::SpawnedProcesses::State",
         "outcome"     => "Filters::Chips::SpawnedProcesses::Outcome",
         "kind"        => "Filters::Chips::SpawnedProcesses::Kind",
+        "user_id"     => "Filters::Chips::SpawnedProcesses::UserId",
         "hostname"    => "Filters::Chips::SpawnedProcesses::Hostname",
         "run_id"      => "Filters::Chips::SpawnedProcesses::RunId",
         "workflow_id" => "Filters::Chips::SpawnedProcesses::WorkflowId",

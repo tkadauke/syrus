@@ -954,6 +954,7 @@ export type JobSourceDiffPayload = {
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
+export type DiffReviewCommentAnchorKind = "line" | "review"
 
 export type DiffReviewComment = {
   id: number
@@ -966,8 +967,9 @@ export type DiffReviewComment = {
   surface: string
   base_ref: string | null
   head_ref: string | null
-  path: string
-  side: "left" | "right"
+  anchor_kind: DiffReviewCommentAnchorKind
+  path: string | null
+  side: "left" | "right" | null
   old_line: number | null
   new_line: number | null
   anchor_key: string
@@ -994,8 +996,9 @@ export type DiffReviewCommentInput = {
   head_ref?: string | null
   workflow_id?: number | null
   run_id?: number | null
-  path: string
-  side: "left" | "right"
+  anchor_kind?: DiffReviewCommentAnchorKind
+  path?: string
+  side?: "left" | "right"
   old_line?: number | null
   new_line?: number | null
   diff_hunk?: string | null

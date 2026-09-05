@@ -928,8 +928,8 @@ then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders. The
 Processes page works the same way, filtering the subprocess inventory by
 state (running or finished), by `outcome` for finished processes (failed,
-timed out, operator killed, and the rest), and by kind, host, or Run, with
-built-in Running, Stale, and Recently failed folders.
+timed out, operator killed, and the rest), by owning user, and by kind, host,
+or Run, with built-in Running, Stale, and Recently failed folders.
 
 Admins can also toggle boolean feature flags from `/admin/features` when
 the instance declares features in `config/features.yml`. The page groups

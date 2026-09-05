@@ -21,6 +21,10 @@ The plugin owns these tables through `plugins/design_docs/db/migrate`:
 - `design_doc_anchors`: authoritative inline range/point anchors.
 - `design_doc_threads` and `design_doc_comments`: inline discussion state.
 - `design_doc_suggestions`: one pending suggestion per anchored range in v1.
+- `design_doc_agent_runs`: lightweight, comment-scoped `@syrus` agent turns
+  requested from a design doc thread. Each run records the triggering comment,
+  requesting user, doc/thread/version scope, provider, status, context snapshot,
+  result summary, and output payload.
 
 Hidden Syrus HTML comments are inserted into Markdown to keep anchors stable
 across edits. The database records remain authoritative for provenance, state,
@@ -61,6 +65,15 @@ pending suggestions. Agent edits are always suggestion-only, enforced by the
 backend from authenticated server context rather than trusting request params.
 Only owners can resolve threads and accept/reject suggestions.
 
+Users who can suggest/comment on a Design Doc can mention `@syrus` in a newly
+created or newly edited thread comment to request a lightweight agent turn. The
+mention detector matches case-insensitively and ignores mentions in quoted text,
+inline code, and fenced code blocks. The agent turn is scoped to the design doc
+thread, includes the full thread discussion plus pending thread suggestions,
+and never creates a normal Syrus Job or directly mutates canonical Markdown.
+Generated output is either an agent-authored reply or a pending suggestion on
+the same thread; both link back to the durable run and triggering comment.
+
 The detail API serializes explicit permission booleans for the editor:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. The UI uses
 those values to keep owner-only metadata and accept/reject controls out of
@@ -82,12 +95,26 @@ The plugin registers:
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
 
-Pending suggestions render inline in the document body at their anchored range
-in both Rich Text and Markdown editor tabs. The original range is struck through
-with the active theme's warning token, and the proposed replacement is shown
-beside it with the active theme's success token. The rendered suggestion text is
-display-only: hidden anchor comments and proposed replacement previews are not
-written into canonical Markdown until the owner accepts the suggestion.
+Pending suggestions are classified before rendering. Inline-safe suggestions
+render inline in the document body at their anchored range in both Rich Text and
+Markdown editor tabs: the original range is struck through with the active
+theme's warning token, and the proposed replacement is shown beside it with the
+active theme's success token. Block-level suggestions, including multiline
+replacements and replacements that begin with Markdown block markers such as
+headings, lists, blockquotes, or code fences, render as an anchor mark in the
+document body and as a structured Current/Proposed block diff in the Threads
+column. Proposed block Markdown is never injected inline into the surrounding
+heading, paragraph, or list item. Suggestion previews are display-only: hidden
+anchor comments and proposed replacement previews are not written into
+canonical Markdown until the owner accepts the suggestion. New pending
+suggestions cannot overlap an existing pending suggestion, and selections that
+cut through partial Markdown block syntax are rejected with a validation error.
+
+Thread cards also surface lightweight agent-run state. While a run is queued or
+running, the thread shows `Syrus is drafting...`; terminal states show a success
+summary, failure reason, or cancellation notice. Duplicate saves of the same
+triggering comment reuse the existing run, and a thread has at most one queued
+or running mention turn at a time.
 
 ### Markdown Command Set
 

@@ -304,6 +304,7 @@ Rails.application.routes.draw do
             post :check_ci_now
             get :coverage_trend
           end
+          post "recommendations/:recommendation_id", to: "repository_recommendations#create"
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
         end
