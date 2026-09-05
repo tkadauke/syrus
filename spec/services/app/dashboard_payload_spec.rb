@@ -331,7 +331,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       )
     end
 
-    it "keeps the on-demand backlogged jobs SmartFolder user-facing and owner scoped" do
+    it "keeps the backlogged jobs SmartFolder user-facing and owner scoped" do
       mine = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user)
       Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, owner_user: user)
       Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: Factories.user)
@@ -339,14 +339,41 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", smart_folder_id: folder.id, scope: "team")
 
-      expect(folder.visibility).to eq(:on_demand)
+      expect(folder.visibility).to eq(:when_present)
       expect(folder.filter).to eq(SmartFolder.user_job_attention_preset_filter("backlog"))
       expect(result.fetch(:items).map { |item| item.fetch(:id) }).to contain_exactly(mine.id)
       expect(result.fetch(:smart_folders).find { |candidate| candidate.fetch(:id) == folder.id }).to include(
         key: "backlogged_jobs",
-        visibility: "on_demand",
+        visibility: "when_present",
+        count: 1,
         active: true
       )
+    end
+
+    it "surfaces the Backlogged jobs SmartFolder automatically once the current user has a matching backlog Job" do
+      Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user)
+
+      result = call(subject: "job")
+
+      folder = result.fetch(:smart_folders).find { |candidate| candidate.fetch(:key) == "backlogged_jobs" }
+      expect(folder).to include(count: 1, subject_type: "job")
+    end
+
+    it "hides the Backlogged jobs SmartFolder when the current user has no backlog Jobs" do
+      result = call(subject: "job")
+
+      folder = result.fetch(:smart_folders).find { |candidate| candidate.fetch(:key) == "backlogged_jobs" }
+      expect(folder).to be_nil
+    end
+
+    it "navigates the Backlogged jobs SmartFolder to the backlog-filtered Job list" do
+      backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user)
+
+      result = call(subject: "job")
+      folder = result.fetch(:smart_folders).find { |candidate| candidate.fetch(:key) == "backlogged_jobs" }
+      followed = call(subject: "job", smart_folder_id: folder.fetch(:id))
+
+      expect(followed.fetch(:items).map { |item| item.fetch(:id) }).to contain_exactly(backlogged.id)
     end
   end
 

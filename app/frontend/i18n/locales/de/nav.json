@@ -80,6 +80,7 @@
     "all_items_workflow": "Alle Workflows",
     "names": {
       "all_jobs": "Alle Aufgaben",
+      "backlogged_jobs": "Aufgeschobene Aufgaben",
       "pinned": "Angeheftet",
       "in_progress": "In Bearbeitung",
       "paused": "Pausiert",
