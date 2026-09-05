@@ -94,7 +94,8 @@ counts, selecting one scrolls the page to that file's section. The "Review
 artifacts" panel starts collapsed (summary stays visible) and expands on
 demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
 column: it scrolls with the page until its top reaches the top of the
-viewport, then pins there with its own internal scroll.
+viewport, then pins there with its own internal scroll, and lists every
+comment for the surface (line-anchored and whole-review).
 
 Both writing and editing a line-anchored (code) comment happen inline, at
 their anchor in the diff, not in the sidebar — clicking the gutter "+" opens a
@@ -106,16 +107,27 @@ The sidebar instead renders each comment as a compact review-story card: its
 state pill, a short `DiffHunkSnippet` of the surrounding diff context (a few
 lines above and below, pulled from the comment's stored `diff_hunk`, with the
 exact commented line highlighted), then the comment body, then actions
-("View in diff" to scroll to the anchor, "Resolve"). Only whole-review
-comments (`anchor_kind: "review"`) get an inline sidebar Edit control, since
-they have no code anchor to edit at; a "Comment on this review" button starts
-one. Draft comments (both whole-review, from the sidebar, and line-anchored,
-inline in the diff) also get a "Delete" action next to Edit/Resolve; it opens
-a shared confirmation dialog (`useConfirm`) before hard-deleting, since the
-action cannot be undone. A comment that has already been submitted, resolved,
-or superseded has no Delete affordance — the record is review history at that
-point, not a draft. The sidebar's job is to read like a concise review story —
-enough context to follow along without re-deriving it from the full diff.
+("View in diff" to scroll to the anchor, "Resolve"). Line-anchored (code)
+comments are only editable inline, at their anchor in the diff — the sidebar
+never offers an inline-comment Edit control for those, only Resolve; only
+whole-review comments (`anchor_kind: "review"`) get an inline sidebar Edit
+control, since they have no code anchor to edit at.
+
+A permanent whole-review comment textarea sits above the action row at the
+bottom of the sidebar (only on surfaces with `supportsGlobalComments`,
+currently just `job_review_workspace`), with a "Comment" button to its left
+of "Submit feedback" that is enabled only once the field holds non-empty text
+and creates a `draft` whole-review comment on click, clearing the field on
+success. "Submit feedback" also creates that draft comment first when the
+field is non-empty, then immediately submits it together with the other
+actionable comments as one `chat_feedback` submission. Draft comments (both
+whole-review, from the sidebar, and line-anchored, inline in the diff) also
+get a "Delete" action next to Edit/Resolve; it opens a shared confirmation
+dialog (`useConfirm`) before hard-deleting, since the action cannot be undone.
+A comment that has already been submitted, resolved, or superseded has no
+Delete affordance — the record is review history at that point, not a draft.
+The sidebar's job is to read like a concise review story — enough context to
+follow along without re-deriving it from the full diff.
 
 `ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
 shared diff renderer behind the review workspace, source-browser diff mode,
