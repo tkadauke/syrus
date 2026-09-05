@@ -55,6 +55,19 @@ RSpec.describe PendingActions::ForceStateTransition do
     expect(action.after_snapshot).to include("jobs")
   end
 
+  it "audits against the most recently created Run, not merely the first one found" do
+    job = build_job("implemented")
+    older = Run.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    older.update_columns(created_at: 10.minutes.ago)
+    newer = Run.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "force_fail")
+
+    expect(action.confirm!(user: admin)).to be true
+
+    expect(JobLog.where(run: newer).pluck(:chunk)).to include(a_string_matching(/forced Job event force_fail: implemented -> failed/))
+    expect(JobLog.where(run: older)).to be_empty
+  end
+
   it "raises when the event cannot be applied from the Job's current state" do
     job = build_job("queued")
     action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "approve")

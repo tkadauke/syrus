@@ -73,15 +73,18 @@ RSpec.describe PendingActions::CancelStaleWork do
     expect(action.reload).to be_confirmed
   end
 
-  it "audits the cancellation on the Job's most recent Run" do
+  it "audits the cancellation on the Job's most recent Run, not merely the first one found" do
     job = build_job(user: admin, repository: admin_repository)
     active_workflow_for(job)
+    older_run = active_run_for(job, state: "failed")
+    older_run.update_columns(created_at: 10.minutes.ago)
     audit_run = active_run_for(job, state: "failed")
     action = pending_action_for(admin, admin_repository, "job_id" => job.id, "reconcile" => false)
 
     action.confirm!(user: admin)
 
     expect(JobLog.where(run: audit_run).pluck(:chunk)).to include(match(/cancelled stale work/))
+    expect(JobLog.where(run: older_run)).to be_empty
   end
 
   it "only cancels the explicitly requested workflow ids" do

@@ -98,6 +98,20 @@ RSpec.describe PendingActions::ReconcileJobState do
 
       expect(job.reload.state).to eq("failed")
     end
+
+    it "audits against the most recently created Run, not merely the first one found" do
+      job = build_job("running")
+      terminal_workflow_for(job)
+      older = Run.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+      older.update_columns(created_at: 10.minutes.ago)
+      newer = Run.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded", finished_at: 1.minute.ago)
+      action = pending_action_for(admin, admin_repository, "job_id" => job.id, "mode" => "mark_failed")
+
+      expect(action.confirm!(user: admin)).to be true
+
+      expect(JobLog.where(run: newer).pluck(:chunk)).to include(a_string_matching(/reconciled Job state running -> failed/))
+      expect(JobLog.where(run: older)).to be_empty
+    end
   end
 
   describe "mark_queued mode" do
