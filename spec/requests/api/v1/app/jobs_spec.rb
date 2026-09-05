@@ -746,7 +746,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       kind: "cron",
       cron_expression: "0 12 * * *"
     )
-    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
+    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil,
+      scheduled_task_id: task.id, origin: "scheduled_tasks", origin_id: task.id.to_s)
 
     get "/api/v1/app/jobs/#{cron_job.id}"
 
