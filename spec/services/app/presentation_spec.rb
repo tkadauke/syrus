@@ -1,6 +1,113 @@
 require "rails_helper"
 
 RSpec.describe App::Presentation do
+  describe ".pending_action_label and .pending_action_detail" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+    let(:job) { Factories.job_record(user: user, repository: repository) }
+
+    it "labels and details a reconcile_job_state repair action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "reconcile_job_state",
+        reason: "Job is stuck ready with a merged PR.",
+        payload: { "job_id" => job.id, "mode" => "mark_implemented_from_ready_pr" }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Reconcile state for JOB-#{job.id} (mark_implemented_from_ready_pr)")
+      expect(described_class.pending_action_detail(action)).to eq("Mode: mark_implemented_from_ready_pr")
+    end
+
+    it "labels and details a force_state_transition repair action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "force_state_transition",
+        reason: "Deploy hung the workflow in running.",
+        payload: { "job_id" => job.id, "event" => "force_fail" }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Force force_fail on JOB-#{job.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Event: force_fail")
+    end
+
+    it "labels and details a cancel_stale_work repair action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "cancel_stale_work",
+        reason: "Zombie run after a deploy.",
+        payload: { "job_id" => job.id, "workflow_ids" => [ 7 ], "run_ids" => [ 11, 12 ] }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Cancel stale work for JOB-#{job.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Workflows: 7\nRuns: 11, 12")
+    end
+
+    it "labels and details a reenqueue_work repair action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "reenqueue_work",
+        reason: "Queued run was never picked up.",
+        payload: { "job_id" => job.id, "run_id" => 42 }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Re-enqueue work for JOB-#{job.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Run: #42")
+    end
+
+    it "labels and details a rerun_ci_repair repair action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "rerun_ci_repair",
+        reason: "First repair attempt missed the real failure.",
+        payload: { "job_id" => job.id, "instructions" => "Focus on the flaky spec." }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Re-run CI repair for JOB-#{job.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Focus on the flaky spec.")
+    end
+
+    it "labels and details a mark_ci_repair_noop repair action instead of leaving the card blank" do
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "failed")
+      action = chat_session.pending_actions.create!(
+        action: "mark_ci_repair_noop",
+        reason: "Repair made no branch progress.",
+        payload: { "job_id" => job.id, "workflow_id" => workflow.id }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Mark CI repair as no-op for JOB-#{job.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Workflow: ##{workflow.id}")
+    end
+
+    it "labels and details a repair_provider_circuit_evidence action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "repair_provider_circuit_evidence",
+        reason: "Evidence was misclassified as a rate limit.",
+        payload: { "evidence_type" => "ProviderCircuitEvent", "evidence_id" => 99, "repair_status" => "resolved" }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Repair ProviderCircuitEvent evidence #99")
+      expect(described_class.pending_action_detail(action)).to eq("Repair status: resolved")
+    end
+
+    it "labels and details a clear_provider_circuit action instead of leaving the card blank" do
+      target_user = Factories.user
+      action = chat_session.pending_actions.create!(
+        action: "clear_provider_circuit",
+        reason: "Provider outage is confirmed resolved.",
+        payload: { "provider" => "claude", "user_id" => target_user.id, "positive_evidence" => "manual test run succeeded" }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Clear claude circuit for user ##{target_user.id}")
+      expect(described_class.pending_action_detail(action)).to eq("Mode: clear")
+    end
+
+    it "labels a wake_provider_admission action instead of leaving the card blank" do
+      action = chat_session.pending_actions.create!(
+        action: "wake_provider_admission",
+        reason: "Admission queue looks stuck.",
+        payload: { "provider" => "claude" }
+      )
+
+      expect(described_class.pending_action_label(action)).to eq("Wake claude admission")
+    end
+  end
+
   describe ".agent_provider_label" do
     it "uses display_name from the registered plugin for known providers" do
       expect(described_class.agent_provider_label("claude")).to eq("Claude Code")
