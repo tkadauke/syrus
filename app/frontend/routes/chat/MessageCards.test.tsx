@@ -585,7 +585,7 @@ describe("tool result rendering", () => {
           display_label: "Read job",
           progress_label: "Reading",
           raw_payload: { job_id: 4048 },
-          result_body: JSON.stringify({ job: { issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus" } }),
+          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running" } }),
           result_error: false,
           result_kind: "record",
           result_summary: "1 Job"
@@ -594,7 +594,7 @@ describe("tool result rendering", () => {
       collapsed_by_default: false
     }
 
-    render(<ToolGroup item={item} />)
+    render(<MemoryRouter><ToolGroup item={item} /></MemoryRouter>)
 
     expect(screen.getByText("1 bookmark")).toBeInTheDocument()
     expect(screen.getByText("1 proposal")).toBeInTheDocument()

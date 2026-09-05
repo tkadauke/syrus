@@ -106,19 +106,12 @@ describe("toolResultPresentation", () => {
 })
 
 describe("typedToolResult", () => {
-  it("detects list_chat_media galleries from escaped MCP JSON text", () => {
-    const result = typedToolResult("syrus-chat-sidecar.list_chat_media", JSON.stringify(JSON.stringify({
-      snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
-      chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png" }],
-      whiteboard_element_count: 7
-    })))
-
-    expect(result).toMatchObject({
-      type: "chat_media_gallery",
-      whiteboard_element_count: 7,
-      snapshots: [{ id: "snapshot:9", name: "Checkout flow", element_count: 4 }],
-      images: [{ id: "chat_image:3", filename: "desktop.png", content_type: "image/png" }]
-    })
+  it("leaves list_chat_media, read_job, and read_epic to their registered tool cards instead of a hardcoded typed result", () => {
+    // These three moved to app/frontend/routes/chat/tool_cards/*.tsx (EPIC-291 / JOB-4220);
+    // see those files' own tests for payload-parsing coverage.
+    expect(typedToolResult("list_chat_media", JSON.stringify({ snapshots: [{ id: "snapshot:9" }] }))).toBeNull()
+    expect(typedToolResult("read_job", JSON.stringify({ job: { id: 4048, state: "running" } }))).toBeNull()
+    expect(typedToolResult("read_epic", JSON.stringify({ epic: { id: 285, state: "running" } }))).toBeNull()
   })
 
   it("renders set_bookmark as a concise success outcome", () => {
@@ -141,39 +134,6 @@ describe("typedToolResult", () => {
       label: "Job proposal ready",
       title: "Fix output",
       detail: "fix-output · pending · tkadauke/syrus"
-    })
-  })
-
-  it("summarizes predictable live job state payloads", () => {
-    expect(typedToolResult("read_job", JSON.stringify({
-      job: { id: 4048, issue_title: "Typed renderers", state: "running", repository: "tkadauke/syrus", pr_number: 12, branch_name: "syrus/direct-4048" },
-      latest_workflow: { state: "running" }
-    }))).toEqual({
-      type: "state_summary",
-      label: "Typed renderers",
-      rows: [
-        { label: "State", value: "running" },
-        { label: "Repository", value: "tkadauke/syrus" },
-        { label: "PR", value: "12" },
-        { label: "Branch", value: "syrus/direct-4048" },
-        { label: "Latest workflow", value: "running" }
-      ]
-    })
-  })
-
-  it("summarizes predictable live epic state payloads", () => {
-    expect(typedToolResult("read_epic", JSON.stringify({
-      epic: { id: 285, display_number: "EPIC-285", title: "Polished Chat Tool Output", state: "running", repository: "tkadauke/syrus", depends_on_epics: [] },
-      child_jobs: [{ id: 4046 }, { id: 4048 }]
-    }))).toEqual({
-      type: "state_summary",
-      label: "Polished Chat Tool Output",
-      rows: [
-        { label: "State", value: "running" },
-        { label: "Repository", value: "tkadauke/syrus" },
-        { label: "Children", value: "2" },
-        { label: "Depends on", value: "0" }
-      ]
     })
   })
 
