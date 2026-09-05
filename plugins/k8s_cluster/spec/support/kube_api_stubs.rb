@@ -10,6 +10,7 @@ module KubeApiStubs
     { "name" => "pods", "namespaced" => true, "kind" => "Pod" },
     { "name" => "pods/log", "namespaced" => true, "kind" => "Pod" },
     { "name" => "services", "namespaced" => true, "kind" => "Service" },
+    { "name" => "endpoints", "namespaced" => true, "kind" => "Endpoints" },
     { "name" => "events", "namespaced" => true, "kind" => "Event" },
     { "name" => "persistentvolumeclaims", "namespaced" => true, "kind" => "PersistentVolumeClaim" },
     { "name" => "nodes", "namespaced" => false, "kind" => "Node" }

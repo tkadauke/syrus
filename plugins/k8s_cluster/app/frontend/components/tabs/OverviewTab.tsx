@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNodes, fetchKubernetesOverview, type KubernetesMetricsSection } from "../../api/kubernetesResources"
 import { formatBytes, formatMillicores } from "../../lib/k8sFormat"
-import { Panel, StatusBadge } from "../Panel"
+import { StatusBadge } from "../StatusBadge"
 
 export function OverviewTab({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
@@ -20,11 +21,11 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
     <div aria-label={t("aria_overview_tab")} className="space-y-4">
       <section>
         <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_nodes_heading")}</h3>
-        {nodes.isPending ? <Panel>{t("overview_loading_nodes")}</Panel> : null}
-        {nodes.isError ? <Panel tone="error">{errorMessage(nodes.error, t("overview_error_loading_nodes"))}</Panel> : null}
+        {nodes.isPending ? <PanelMessage>{t("overview_loading_nodes")}</PanelMessage> : null}
+        {nodes.isError ? <PanelMessage tone="error">{errorMessage(nodes.error, t("overview_error_loading_nodes"))}</PanelMessage> : null}
         {nodes.isSuccess ? (
           nodes.data.nodes.length === 0 ? (
-            <Panel>{t("overview_no_nodes")}</Panel>
+            <PanelMessage>{t("overview_no_nodes")}</PanelMessage>
           ) : (
             <div className="flex flex-wrap items-center gap-3 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
               <span className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{nodes.data.nodes.length}</span>
@@ -39,8 +40,8 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
 
       <section>
         <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("overview_metrics_heading")}</h3>
-        {overview.isPending ? <Panel>{t("overview_loading_metrics")}</Panel> : null}
-        {overview.isError ? <Panel tone="error">{errorMessage(overview.error, t("overview_error_loading_metrics"))}</Panel> : null}
+        {overview.isPending ? <PanelMessage>{t("overview_loading_metrics")}</PanelMessage> : null}
+        {overview.isError ? <PanelMessage tone="error">{errorMessage(overview.error, t("overview_error_loading_metrics"))}</PanelMessage> : null}
         {overview.isSuccess ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <MetricsCard heading={t("overview_node_usage")} section={overview.data.nodes} />
@@ -70,7 +71,10 @@ function MetricsCard({ heading, section }: { heading: string; section: Kubernete
           </div>
         </dl>
       ) : (
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("overview_metrics_unavailable")}</p>
+        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p>{t("overview_metrics_unavailable")}</p>
+          <p className="mt-1 font-mono">{section.message}</p>
+        </div>
       )}
     </div>
   )

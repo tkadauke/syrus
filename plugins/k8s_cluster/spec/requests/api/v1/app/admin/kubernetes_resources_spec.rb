@@ -147,6 +147,17 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("services", 0, "name")).to eq("web")
     end
 
+    it "lists endpoints" do
+      endpoints = instance_double(K8sCluster::Endpoints)
+      allow(K8sCluster::Endpoints).to receive(:new).with(cluster).and_return(endpoints)
+      allow(endpoints).to receive(:list).with(namespace: nil).and_return(available: true, endpoints: [ { name: "web", ready_addresses: 2 } ])
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/endpoints"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("endpoints", 0, "name")).to eq("web")
+    end
+
     it "lists events" do
       events = instance_double(K8sCluster::Events)
       allow(K8sCluster::Events).to receive(:new).with(cluster).and_return(events)

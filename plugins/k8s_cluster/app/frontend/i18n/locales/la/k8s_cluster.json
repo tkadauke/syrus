@@ -125,6 +125,7 @@
   "col_type": "Genus",
   "col_cluster_ip": "IP acervi",
   "col_ports": "Portus",
+  "col_endpoints": "Exitus",
   "col_capacity": "Capacitas",
   "col_storage_class": "Classis repositorii",
   "col_conditions": "Condiciones",
@@ -136,6 +137,7 @@
   "services_loading": "Ministeria onerantur…",
   "services_error_loading": "Ministeria onerari non possunt.",
   "services_empty": "Nulla ministeria inventa.",
+  "services_endpoints_ready": "{{ready}}/{{total}} parati",
 
   "storage_loading": "Persistent Volume Claims onerantur…",
   "storage_error_loading": "Persistent Volume Claims onerari non possunt.",

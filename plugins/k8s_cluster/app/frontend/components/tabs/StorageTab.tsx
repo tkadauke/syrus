@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesPersistentVolumeClaims } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
-import { Panel, StatusBadge } from "../Panel"
+import { StatusBadge } from "../StatusBadge"
 
 export function StorageTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
@@ -14,11 +15,11 @@ export function StorageTab({ clusterId, namespace }: { clusterId: number; namesp
 
   return (
     <div aria-label={t("aria_storage_tab")}>
-      {pvcs.isPending ? <Panel>{t("storage_loading")}</Panel> : null}
-      {pvcs.isError ? <Panel tone="error">{errorMessage(pvcs.error, t("storage_error_loading"))}</Panel> : null}
+      {pvcs.isPending ? <PanelMessage>{t("storage_loading")}</PanelMessage> : null}
+      {pvcs.isError ? <PanelMessage tone="error">{errorMessage(pvcs.error, t("storage_error_loading"))}</PanelMessage> : null}
       {pvcs.isSuccess ? (
         pvcs.data.persistent_volume_claims.length === 0 ? (
-          <Panel>{t("storage_empty")}</Panel>
+          <PanelMessage>{t("storage_empty")}</PanelMessage>
         ) : (
           <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
