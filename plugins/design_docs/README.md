@@ -133,4 +133,8 @@ Workflow access is additionally scoped to the run repository. Agents should use
 `DOC-<id>` references returned by `list_design_docs` and `propose_design_doc`.
 For existing docs, content changes must go through
 `suggest_design_doc_change`; the tool and service layer never mutate canonical
-Markdown directly for agent actors.
+Markdown directly for agent actors. Offset-based suggestions must include the
+`current_version_number` returned by the `read_design_doc` call used to compute
+the offsets as `base_version_number`. Creating a suggestion inserts anchor
+markers and creates a new document version, so agents must re-read the Design Doc
+before sending another offset-based suggestion.

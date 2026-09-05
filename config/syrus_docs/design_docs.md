@@ -102,3 +102,13 @@ other derived id.
 The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.
+
+## Agent Tooling
+
+Chat agents can suggest edits with `suggest_design_doc_change`. The tool
+requires `base_version_number`, copied from the `current_version_number` field
+returned by the `read_design_doc` call used to compute `start_offset` and
+`end_offset`. A successful suggestion inserts anchor markers and creates a new
+document version, so agents must re-read the Design Doc before creating another
+offset-based suggestion. Stale version submissions are rejected before exact
+selected-text matching or marker insertion.

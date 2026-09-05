@@ -97,72 +97,74 @@ export function ChatWorkspacePanel({
   return (
     <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       {!showTabs ? null : (
-        <nav aria-label={t("aria_workspace_tabs")} className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {tabs.map((tab) => {
-            if (!isPreviewTab(tab)) {
-              const tabId = isPluginTab(tab) ? pluginTabIdFromTab(tab) : null
-              const pluginTab = tabId ? payload.workspace_tabs.find((candidate) => candidate.id === tabId) : null
-              if (pluginTab?.closable) {
-                const label = workspaceTabLabel(tab, t, [], payload.workspace_tabs)
+        <nav aria-label={t("aria_workspace_tabs")} className="flex min-w-0 items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
+          <div className="flex min-w-0 flex-1 overflow-x-auto">
+            {tabs.map((tab) => {
+              if (!isPreviewTab(tab)) {
+                const tabId = isPluginTab(tab) ? pluginTabIdFromTab(tab) : null
+                const pluginTab = tabId ? payload.workspace_tabs.find((candidate) => candidate.id === tabId) : null
+                if (pluginTab?.closable) {
+                  const label = workspaceTabLabel(tab, t, [], payload.workspace_tabs)
+                  return (
+                    <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
+                      <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={label} type="button">
+                        {label}
+                      </button>
+                      <button
+                        aria-label={t("aria_close_workspace_tab", { title: label })}
+                        className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current)
+                        }}
+                        type="button"
+                      >
+                        <CloseIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )
+                }
+
                 return (
-                  <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
-                    <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={label} type="button">
-                      {label}
-                    </button>
-                    <button
-                      aria-label={t("aria_close_workspace_tab", { title: label })}
-                      className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current)
-                      }}
-                      type="button"
-                    >
-                      <CloseIcon className="h-3 w-3" />
-                    </button>
-                  </span>
+                  <button
+                    className={workspaceTabClass(activeTab === tab)}
+                    key={tab}
+                    onClick={() => onSelectTab(tab)}
+                    type="button"
+                  >
+                    {workspaceTabLabel(tab, t, [], payload.workspace_tabs)}
+                  </button>
                 )
               }
 
+              const panel = payload.preview_panels.find((candidate) => previewTabId(candidate.id) === tab)
+              if (!panel) return null
+
               return (
-                <button
-                  className={workspaceTabClass(activeTab === tab)}
-                  key={tab}
-                  onClick={() => onSelectTab(tab)}
-                  type="button"
-                >
-                  {workspaceTabLabel(tab, t, [], payload.workspace_tabs)}
-                </button>
+                <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
+                  <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={panel.title} type="button">
+                    {panel.title}
+                  </button>
+                  <button
+                    aria-label={t("aria_close_preview_panel", { title: panel.title })}
+                    className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                    disabled={closePreviewPanel.isPending}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      closePreviewPanel.mutate(panel.app_close_path)
+                    }}
+                    type="button"
+                  >
+                    <CloseIcon className="h-3 w-3" />
+                  </button>
+                </span>
               )
-            }
-
-            const panel = payload.preview_panels.find((candidate) => previewTabId(candidate.id) === tab)
-            if (!panel) return null
-
-            return (
-              <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
-                <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={panel.title} type="button">
-                  {panel.title}
-                </button>
-                <button
-                  aria-label={t("aria_close_preview_panel", { title: panel.title })}
-                  className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                  disabled={closePreviewPanel.isPending}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    closePreviewPanel.mutate(panel.app_close_path)
-                  }}
-                  type="button"
-                >
-                  <CloseIcon className="h-3 w-3" />
-                </button>
-              </span>
-            )
-          })}
+            })}
+          </div>
           {onToggleCollapse ? (
             <button
               aria-label={t("aria_close_workspace")}
-              className="ml-auto self-center rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              className="ml-2 shrink-0 self-center rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               onClick={onToggleCollapse}
               title={t("aria_close_panel")}
               type="button"

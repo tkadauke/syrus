@@ -168,6 +168,89 @@ const reviewerDocDetail = {
   }
 }
 
+const openQuestionsMarkdown = [
+  "## Open Questions",
+  "",
+  "- Should nested .syrus.yml discovery be automatic or opt-in?",
+  "- Should graders be first-class targets?",
+  "- Should project ownership inherit from repository defaults?"
+].join("\n")
+
+const openQuestionsDocDetail = {
+  ...docDetail,
+  id: 4,
+  display_id: "DOC-4",
+  title: "Target Graphs",
+  markdown: openQuestionsMarkdown,
+  rendered_markdown: openQuestionsMarkdown,
+  current_version_number: 13,
+  pending_suggestions_count: 3,
+  open_threads_count: 3,
+  threads: [],
+  suggestions: [
+    {
+      ...docDetail.suggestions[0],
+      id: 31,
+      original_markdown: "Should nested .syrus.yml discovery be automatic or opt-in?",
+      suggested_markdown: "Nested .syrus.yml discovery should be automatic once a target graph exists.",
+      proposed_markdown: "Nested .syrus.yml discovery should be automatic once a target graph exists.",
+      change_summary: "Clarify nested config discovery",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 41,
+        marker_id: "oq1",
+        start_offset: openQuestionsMarkdown.indexOf("Should nested"),
+        end_offset: openQuestionsMarkdown.indexOf("Should nested") + "Should nested .syrus.yml discovery be automatic or opt-in?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should nested"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should nested") + "Should nested .syrus.yml discovery be automatic or opt-in?".length,
+        selected_markdown: "Should nested .syrus.yml discovery be automatic or opt-in?",
+        selected_text: "Should nested .syrus.yml discovery be automatic or opt-in?"
+      },
+      thread: null
+    },
+    {
+      ...docDetail.suggestions[0],
+      id: 32,
+      original_markdown: "Should graders be first-class targets?",
+      suggested_markdown: "Graders should be first-class targets with explicit ownership.",
+      proposed_markdown: "Graders should be first-class targets with explicit ownership.",
+      change_summary: "Clarify grader target model",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 42,
+        marker_id: "oq2",
+        start_offset: openQuestionsMarkdown.indexOf("Should graders"),
+        end_offset: openQuestionsMarkdown.indexOf("Should graders") + "Should graders be first-class targets?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should graders"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should graders") + "Should graders be first-class targets?".length,
+        selected_markdown: "Should graders be first-class targets?",
+        selected_text: "Should graders be first-class targets?"
+      },
+      thread: null
+    },
+    {
+      ...docDetail.suggestions[0],
+      id: 33,
+      original_markdown: "Should project ownership inherit from repository defaults?",
+      suggested_markdown: "Project ownership should start from repository defaults and allow per-target overrides.",
+      proposed_markdown: "Project ownership should start from repository defaults and allow per-target overrides.",
+      change_summary: "Clarify ownership defaults",
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        id: 43,
+        marker_id: "oq3",
+        start_offset: openQuestionsMarkdown.indexOf("Should project ownership"),
+        end_offset: openQuestionsMarkdown.indexOf("Should project ownership") + "Should project ownership inherit from repository defaults?".length,
+        last_known_start_offset: openQuestionsMarkdown.indexOf("Should project ownership"),
+        last_known_end_offset: openQuestionsMarkdown.indexOf("Should project ownership") + "Should project ownership inherit from repository defaults?".length,
+        selected_markdown: "Should project ownership inherit from repository defaults?",
+        selected_text: "Should project ownership inherit from repository defaults?"
+      },
+      thread: null
+    }
+  ]
+}
+
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -210,7 +293,7 @@ function LocationProbe() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
-function indexPayload() {
+function indexPayload(detail = docDetail) {
   return {
     active_smart_folder_id: null,
     filter: { and: [] },
@@ -249,24 +332,24 @@ function indexPayload() {
         path: "/design_docs?smart_folder_id=8"
       }
     ],
-    design_docs: [docDetail, secondDocDetail]
+    design_docs: [detail, secondDocDetail]
   }
 }
 
-function mockFetch() {
+function mockFetch(detail = docDetail) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = new URL(String(input), "http://test.host")
     if (url.pathname === "/api/v1/app/repositories") {
       return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
     }
     if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse(indexPayload())
+      return jsonResponse(indexPayload(detail))
     }
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse(indexPayload())
+      return jsonResponse(indexPayload(detail))
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
-      return jsonResponse({ design_doc: docDetail })
+      return jsonResponse({ design_doc: detail })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
@@ -279,6 +362,12 @@ function mockFetch() {
     }
     if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/4" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: openQuestionsDocDetail })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: openQuestionsDocDetail, mode: "canonical", message: "Design doc updated." })
     }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
       return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
@@ -327,6 +416,9 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
     }
+    if (url.pathname === "/api/v1/app/design_docs/4/suggestions/31/accept") {
+      return jsonResponse({ design_doc: { ...openQuestionsDocDetail, suggestions: openQuestionsDocDetail.suggestions.slice(1) }, suggestion: { ...openQuestionsDocDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
       return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
     }
@@ -349,6 +441,43 @@ function mockMobileViewport() {
       dispatchEvent: vi.fn()
     }))
   })
+}
+
+function docWithSuggestion(markdown: string, proposedMarkdown: string, originalMarkdown = markdown) {
+  return {
+    ...docDetail,
+    markdown,
+    rendered_markdown: markdown,
+    threads: [],
+    open_threads_count: 0,
+    suggestions: [{
+      ...docDetail.suggestions[0],
+      original_markdown: originalMarkdown,
+      suggested_markdown: proposedMarkdown,
+      proposed_markdown: proposedMarkdown,
+      anchor: {
+        ...docDetail.suggestions[0].anchor,
+        start_offset: 0,
+        end_offset: markdown.length,
+        last_known_start_offset: 0,
+        last_known_end_offset: markdown.length,
+        selected_markdown: originalMarkdown,
+        selected_text: originalMarkdown
+      },
+      thread: {
+        ...docDetail.suggestions[0].thread,
+        anchor: {
+          ...docDetail.suggestions[0].thread.anchor,
+          start_offset: 0,
+          end_offset: markdown.length,
+          last_known_start_offset: 0,
+          last_known_end_offset: markdown.length,
+          selected_markdown: originalMarkdown,
+          selected_text: originalMarkdown
+        }
+      }
+    }]
+  }
 }
 
 describe("DesignDocsSurface", () => {
@@ -537,6 +666,28 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("submits a selected-text comment with Cmd+Enter", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+
+    const composer = screen.getByRole("textbox", { name: "New thread comment" })
+    fireEvent.change(composer, { target: { value: "Shortcut comment" } })
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Shortcut comment", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    })
+  })
+
   it("dismisses the Rich Text selection comment affordance when selection is cleared", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
@@ -643,6 +794,23 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByText("Follow up")).toBeInTheDocument()
   })
 
+  it("submits replies with Cmd+Enter", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    const composer = screen.getByRole("textbox", { name: "Reply to thread 7" })
+    fireEvent.change(composer, { target: { value: "Follow up" } })
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Follow up", thread_id: 7 }
+    })
+    expect(await screen.findByText("Follow up")).toBeInTheDocument()
+  })
+
   it("supports replies on pending suggestion threads", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
@@ -679,6 +847,31 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/reject", expect.objectContaining({ method: "POST" })))
     await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
     expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+  })
+
+  it("does not serialize pending Rich Text suggestion previews into canonical markdown before accepting one", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/4")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(editor).toHaveTextContent("Nested .syrus.yml discovery should be automatic once a target graph exists.")
+    Array.from(editor.querySelectorAll("[data-inline-suggestion-state]")).forEach((preview) => {
+      preview.replaceWith(...Array.from(preview.childNodes))
+    })
+    fireEvent.input(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Accept" })[0])
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/4", expect.objectContaining({ method: "PATCH" })))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/4/suggestions/31/accept", expect.objectContaining({ method: "POST" })))
+    const updateRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/4" && call[1]?.method === "PATCH")
+    const markdown = JSON.parse(String(updateRequest?.[1]?.body)).design_doc.markdown
+
+    expect(markdown).toBe(openQuestionsMarkdown)
+    expect(markdown).not.toContain("automatic or opt-in?Nested")
+    expect(markdown).not.toContain("first-class targets?Graders")
+    expect(markdown).not.toContain("repository defaults?Project")
   })
 
   it("resets draft editor state when opening a different focused design doc route", async () => {
@@ -1077,6 +1270,72 @@ describe("DesignDocsSurface", () => {
     fireEvent.input(wysiwygEditor)
     fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
     expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+  })
+
+  it("renders sentence replacements as coherent deleted and added blocks", async () => {
+    const original = "The workflow starts queued. It then runs graders."
+    const proposed = "The workflow starts immediately. Graders run after setup."
+    mockFetch(docWithSuggestion(original, proposed))
+    const { container } = renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(suggestion?.querySelector("ins")).toHaveTextContent(proposed)
+    expect(suggestion?.querySelector("del")).toHaveClass("block", "text-warning")
+    expect(suggestion?.querySelector("ins")).toHaveClass("block", "text-success")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const markdownSuggestion = container.querySelector("[data-testid='markdown-highlight-mirror'] [data-inline-suggestion-state='pending']")
+    expect(markdownSuggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(markdownSuggestion?.querySelector("ins")).toHaveTextContent(proposed)
+  })
+
+  it("keeps bullet item replacements together instead of splicing list fragments", async () => {
+    const original = "- Backlogged Jobs keep no owner claim.\n- Active Jobs claim one workflow slot."
+    const proposed = "- Backlogged Jobs keep their intent lock.\n- Active Jobs claim one runtime unit."
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestions = wysiwygEditor.querySelectorAll("[data-inline-suggestion-state='pending']")
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0].tagName).toBe("DIV")
+    expect(wysiwygEditor.querySelectorAll("li")).toHaveLength(0)
+    expect(suggestions[0].querySelector("del")?.textContent).toBe(original)
+    expect(suggestions[0].querySelector("ins")?.textContent).toBe(proposed)
+  })
+
+  it("renders block-level replacements as one old block followed by one new block", async () => {
+    const original = "The owner reviews suggested edits.\n\nThe collaborator keeps working from the draft."
+    const proposed = "The owner reviews the consolidated proposal.\n\nThe collaborator sees the accepted revision."
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestions = wysiwygEditor.querySelectorAll("[data-inline-suggestion-state='pending']")
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0].tagName).toBe("DIV")
+    expect(wysiwygEditor.querySelectorAll("p")).toHaveLength(0)
+    expect(suggestions[0].querySelector("del")?.textContent).toBe(original)
+    expect(suggestions[0].querySelector("ins")?.textContent).toBe(proposed)
+    expect(suggestions[0].querySelector("del")).toHaveClass("whitespace-pre-wrap")
+    expect(suggestions[0].querySelector("ins")).toHaveClass("whitespace-pre-wrap")
+  })
+
+  it("keeps small phrase replacements fine-grained", async () => {
+    const original = "Use the cached workspace snapshot"
+    const proposed = "Use the shared workspace snapshot"
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion).toHaveTextContent("Use the cachedshared workspace snapshot")
+    expect(suggestion?.querySelector("del")).toHaveTextContent("cached")
+    expect(suggestion?.querySelector("ins")).toHaveTextContent("shared")
+    expect(suggestion?.querySelector("del")).not.toHaveClass("block")
+    expect(suggestion?.querySelector("ins")).not.toHaveClass("block")
   })
 
   it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {

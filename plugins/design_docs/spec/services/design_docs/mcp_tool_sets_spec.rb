@@ -107,6 +107,9 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(read.fetch(:description)).to include("DOC-<id>")
     expect(suggest.fetch(:description)).to include("suggestion-only")
     expect(suggest.fetch(:description)).to include("never directly mutates canonical Markdown")
+    expect(suggest.fetch(:description)).to include("re-read the Design Doc")
+    expect(suggest.dig(:input_schema, :properties, :base_version_number, :description)).to include("current_version_number")
+    expect(suggest.dig(:input_schema, :required)).to include("base_version_number")
   end
 
   it "scopes workflow reads to design docs visible through the run repository" do
@@ -141,6 +144,7 @@ RSpec.describe "DesignDocs MCP tool sets" do
         doc_ref: doc.display_id,
         start_offset: 6,
         end_offset: 11,
+        base_version_number: doc.current_version.version_number,
         original_markdown: "world",
         proposed_markdown: "Syrus",
         change_summary: "Use product name"
@@ -161,6 +165,64 @@ RSpec.describe "DesignDocs MCP tool sets" do
       "chat_message_id" => assistant_message.id
     )
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
+  end
+
+  it "rejects stale offset-based agent suggestions after an earlier suggestion creates a new version" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+    read_version = doc.current_version.version_number
+
+    first_response = call_tool(
+      server,
+      "suggest_design_doc_change",
+      doc_ref: doc.display_id,
+      start_offset: 6,
+      end_offset: 10,
+      base_version_number: read_version,
+      original_markdown: "beta",
+      proposed_markdown: "BETTA"
+    )
+    expect(first_response.dig(:result, :isError)).to be_falsey
+    expect(doc.reload.current_version.version_number).to eq(read_version + 1)
+
+    expect {
+      stale_response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        start_offset: 11,
+        end_offset: 16,
+        base_version_number: read_version,
+        original_markdown: "gamma",
+        proposed_markdown: "delta"
+      )
+
+      expect(stale_response.dig(:result, :isError)).to be true
+      expect(stale_response.dig(:result, :content, 0, :text)).to include("stale design doc offsets")
+      expect(stale_response.dig(:result, :content, 0, :text)).to include("Re-read the Design Doc")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
+
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Alpha beta gamma")
+  end
+
+  it "rejects offset-based agent suggestions without an explicit base version" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    server = chat_server
+
+    expect {
+      response = call_tool(
+        server,
+        "suggest_design_doc_change",
+        doc_ref: doc.display_id,
+        start_offset: 6,
+        end_offset: 10,
+        original_markdown: "beta",
+        proposed_markdown: "BETTA"
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(response.dig(:result, :content, 0, :text)).to include("Missing required arguments: base_version_number")
+    }.not_to change(DesignDocs::DesignDocSuggestion, :count)
   end
 
   it "records chat-agent comments as agent-authored anchored discussion" do
