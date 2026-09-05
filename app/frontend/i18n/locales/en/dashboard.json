@@ -84,7 +84,6 @@
   "generating_title": "Generating title...",
   "unclaimed": "Unclaimed",
   "claimed_by_you": "Claimed by you",
-  "chat_link": "Chat",
   "standalone": "standalone",
   "external_pr_badge": "External",
   "external_pr_badge_title": "This PR was not opened by Syrus.",
