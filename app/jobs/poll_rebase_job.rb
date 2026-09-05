@@ -21,7 +21,7 @@ class PollRebaseJob < ApplicationJob
 
   # One concurrent poll per Job — the same Job's rebase poll
   # shouldn't race itself or stack two rebase Runs at once.
-  limits_concurrency to: 1, key: ->(job_id) { "rebase_poll:#{job_id}" }
+  limits_concurrency to: 1, key: ->(job_id, **) { "rebase_poll:#{job_id}" }
 
   # `bypass_cache: true` is set by the on-demand "Check now" button on
   # Job#show. The periodic poller (PollAllMergeStatesJob → PollMergeStateJob)
