@@ -25,7 +25,11 @@ confirms it.
 Chat agents can request `close_job_successfully(job_id, closure_reason:, comment:)`
 when an existing Job should be semantically closed as successful rather than
 cancelled. The tool creates a pending action and never changes Job or PR state
-until the operator confirms it.
+until the operator confirms it. Passing `job_ids` (an array) instead of
+`job_id` closes multiple Jobs with the same `closure_reason` as one grouped
+pending action the operator confirms or rejects together; see
+[Grouped pending actions](chat.md#grouped-pending-actions) for the shared
+infrastructure and the other tools that use it.
 
 `closure_reason` must be one of `Job::SUCCESSFUL_CLOSURE_REASONS`; the common
 repair case is `no_changes`, which satisfies Job dependencies and Epic progress.

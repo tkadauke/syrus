@@ -3,42 +3,80 @@ require "mcp"
 module Mcp::Tools
   class ForceLandingRecheckTool < MCP::Tool
     extend AdminPendingActionToolSupport
+    extend BulkPendingActionToolSupport
 
     tool_name "force_landing_recheck"
-    description "Request a forced landing metadata recheck for a Job, including PR checks, mergeability, commits-behind, dependency graph, and landing blocker. Requires operator confirmation."
+    description <<~DESC
+      Request a forced landing metadata recheck for one or more Jobs,
+      including PR checks, mergeability, commits-behind, dependency graph,
+      and landing blocker. Pass job_id for a single Job (unchanged
+      single-confirmation behavior) or job_ids for multiple Jobs, which
+      creates one grouped pending action the operator confirms or rejects
+      together. Requires operator confirmation.
+    DESC
 
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id." },
+        job_ids: {
+          type: "array",
+          items: { type: "integer" },
+          description: "Multiple Syrus Job ids to recheck as one grouped pending action."
+        },
         reason: { type: "string", description: "Operator-facing audit reason for the recheck." }
       },
-      required: %w[job_id reason]
+      required: %w[reason]
     )
 
     class << self
-      def call(job_id:, reason:, server_context:)
+      def call(job_id: nil, job_ids: nil, reason:, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
-        job_id = integer_param(job_id, "job_id")
-        return job_id if job_id.is_a?(MCP::Tool::Response)
-        job = Job.find_by(id: job_id)
-        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
+        ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
+        return error if error
 
-        LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
-        job.reload
-        create_pending_admin_action(
+        jobs = ids.map { |id| Job.find_by(id: id) }
+        missing = ids.zip(jobs).select { |_id, job| job.nil? }.map(&:first)
+        return Mcp::Tools.invalid("job not found: #{missing.join(', ')}") if missing.any?
+
+        LandingQueueProcessor.refresh_snapshot!(Job.where(id: jobs.map(&:id)))
+        jobs.each(&:reload)
+
+        unless bulk
+          job = jobs.first
+          return create_pending_admin_action(
+            server_context: server_context,
+            chat_session: chat_session,
+            action: "force_landing_recheck",
+            payload: {
+              "job_id" => job.id,
+              "observed_blocker" => job.landing_queue_blocked_reason,
+              "observed_state" => observed_state(job)
+            },
+            reason: reason,
+            message: "Force landing recheck for #{job.slug}? Current blocker: #{blocker_label(job)}."
+          )
+        end
+
+        group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          action: "force_landing_recheck",
-          payload: {
-            "job_id" => job.id,
-            "observed_blocker" => job.landing_queue_blocked_reason,
-            "observed_state" => observed_state(job)
+          member_attributes: jobs.map { |job|
+            {
+              action: "force_landing_recheck",
+              payload: {
+                "job_id" => job.id,
+                "observed_blocker" => job.landing_queue_blocked_reason,
+                "observed_state" => observed_state(job)
+              },
+              requested_by: "agent",
+              reason: reason
+            }
           },
-          reason: reason,
-          message: "Force landing recheck for #{job.slug}? Current blocker: #{blocker_label(job)}."
+          reason: reason
         )
+        bulk_action_response(group: group, message: "Force landing recheck for #{jobs.size} Jobs?")
       end
 
       private
