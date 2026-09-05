@@ -1,10 +1,11 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
 import { type ReactNode, useCallback, useRef, useState } from "react"
+import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
 interface SlugHoverCardProps {
-  kind: "job" | "epic"
+  kind: "job" | "epic" | "chat"
   id: number
   children: ReactNode
 }
@@ -67,7 +68,7 @@ export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
             ref={refs.setFloating}
             style={{ ...floatingStyles, zIndex: 50 }}
           >
-            {kind === "job" ? <JobPreviewCard id={id} /> : <EpicPreviewCard id={id} />}
+            {kind === "job" ? <JobPreviewCard id={id} /> : kind === "epic" ? <EpicPreviewCard id={id} /> : <ChatPreviewCard id={id} />}
           </div>
         </FloatingPortal>
       )}

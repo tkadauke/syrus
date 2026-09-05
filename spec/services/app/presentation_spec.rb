@@ -28,6 +28,16 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".chat_slug" do
+    it "formats a chat's canonical identifier from a record or a bare id" do
+      chat = ChatSession.create!(user: Factories.user)
+
+      expect(described_class.chat_slug(chat)).to eq("CHAT-#{chat.id}")
+      expect(described_class.chat_slug(chat.id)).to eq("CHAT-#{chat.id}")
+      expect(described_class.chat_slug(42)).to eq("CHAT-42")
+    end
+  end
+
   describe ".github_app_install_url_for" do
     it "builds a GitHub App install URL for repositories under one owner" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
