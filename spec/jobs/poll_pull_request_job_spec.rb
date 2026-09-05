@@ -291,6 +291,37 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_feedback_addressed_at).to be_nil
     end
 
+    it "does not enqueue a duplicate pr_comment workflow when a concurrent poller already advanced the watermark" do
+      # Simulates the race the `limits_concurrency` Solid Queue semaphore
+      # doesn't fully guard against: two pollers both see the same "new"
+      # comment against a stale `last_seen_comment_at`, e.g. because the
+      # semaphore lapsed past `expires_at` or a Run was manually
+      # re-enqueued. Here we model the concurrent winner's commit as
+      # happening exactly at the point our poller reloads the Job inside
+      # `with_lock` — the earliest moment it could observe it.
+      stub_issue_comments([
+        { id: 1, body: "Please fix this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      concurrent_write_done = false
+      allow_any_instance_of(Job).to receive(:reload).and_wrap_original do |original, *args|
+        unless concurrent_write_done
+          concurrent_write_done = true
+          # A concurrent poller already processed this exact comment and
+          # committed the watermark past it before we acquired the lock.
+          Job.where(id: job.id).update_all(last_seen_comment_at: t1)
+        end
+        original.call(*args)
+      end
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t1)
+    end
+
     it "attaches markdown images from PR feedback comments to the Job" do
       image_body = "\x89PNG\r\n\x1A\nreview-image".b
       stub_request(:get, "https://uploads.example.com/state.png").to_return(
