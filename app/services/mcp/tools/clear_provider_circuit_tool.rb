@@ -39,6 +39,9 @@ module Mcp::Tools
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
+        reason = reason.to_s.strip
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
+
         ids, bulk, error = resolve_ids(id: user_id, ids: user_ids, param_name: "user_id")
         return error if error
 

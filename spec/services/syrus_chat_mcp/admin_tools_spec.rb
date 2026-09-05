@@ -610,6 +610,21 @@ RSpec.describe "Mcp::Tools admin tools" do
       expect(group.chat_pending_actions.map { |a| a.payload["step_slug"] }.uniq).to eq([ "implement" ])
     end
 
+    it "rejects admin_retry_step workflow_ids with a blank reason" do
+      workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+      workflow.steps.find_by!(kind: "implement").update!(state: "failed")
+
+      response = call_tool(
+        admin_session,
+        "admin_retry_step",
+        { workflow_ids: [ workflow.id ], step_slug: "implement", reason: "  " }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+    end
+
     it "creates a grouped pending action for reconcile_job_state job_ids in auto mode sharing one reason" do
       job_one = Factories.job_record(user: admin, repository: repository, state: "open")
       job_two = Factories.job_record(user: admin, repository: repository, issue_number: 45, state: "open")
@@ -652,6 +667,22 @@ RSpec.describe "Mcp::Tools admin tools" do
       expect(ChatPendingAction.where(action: "reconcile_job_state")).to be_empty
     end
 
+    it "rejects reconcile_job_state job_ids with a blank reason even in auto mode" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "open")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 145, state: "open")
+
+      response = call_tool(
+        admin_session,
+        "reconcile_job_state",
+        { job_ids: [ job_one.id, job_two.id ], mode: "auto", reason: "   " }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "reconcile_job_state")).to be_empty
+    end
+
     it "creates a grouped pending action for clear_provider_circuit user_ids sharing one provider/reason" do
       user_one = Factories.user(email_address: "one@example.com")
       user_two = Factories.user(email_address: "two@example.com")
@@ -674,6 +705,27 @@ RSpec.describe "Mcp::Tools admin tools" do
       expect(group.reason).to eq("Shared provider incident resolved for both accounts.")
       expect(group.chat_pending_actions.map { |a| a.payload["user_id"] }).to contain_exactly(user_one.id, user_two.id)
       expect(group.chat_pending_actions.map { |a| a.payload["provider"] }.uniq).to eq([ "codex" ])
+    end
+
+    it "rejects clear_provider_circuit user_ids with a blank reason" do
+      user_one = Factories.user(email_address: "blank-one@example.com")
+      user_two = Factories.user(email_address: "blank-two@example.com")
+
+      response = call_tool(
+        admin_session,
+        "clear_provider_circuit",
+        {
+          user_ids: [ user_one.id, user_two.id ],
+          provider: "codex",
+          positive_evidence: "Provider incident resolved upstream.",
+          reason: ""
+        }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "clear_provider_circuit")).to be_empty
     end
 
     it "creates a grouped pending action for repair_provider_circuit_evidence evidence_ids sharing one repair_status/reason" do
@@ -704,6 +756,29 @@ RSpec.describe "Mcp::Tools admin tools" do
       expect(body).to include(state: "pending", member_count: 2)
       expect(group.reason).to eq("Both classifications share the same misclassification root cause.")
       expect(group.chat_pending_actions.map { |a| a.payload["evidence_id"] }).to contain_exactly(classification_one.id, classification_two.id)
+    end
+
+    it "rejects repair_provider_circuit_evidence evidence_ids with a blank reason" do
+      job = Factories.job(user: admin, repository: repository, agent_provider: "codex")
+      classification = job.initial_run.create_run_failure_classification!(
+        classification: "provider_usage_limit", confidence: 0.9, retryable: false, reason: "bad evidence", classified_at: Time.current
+      )
+
+      response = call_tool(
+        admin_session,
+        "repair_provider_circuit_evidence",
+        {
+          evidence_type: "run_failure_classification",
+          evidence_ids: [ classification.id ],
+          repair_status: "false_positive",
+          reason: "   "
+        }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "repair_provider_circuit_evidence")).to be_empty
     end
 
     it "creates a grouped pending action for force_rebase job_ids sharing one reason" do
