@@ -150,14 +150,21 @@ class WorkflowWorkspace
 
     p = path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
+    lock_file = nil
 
-    if p.exist? && !try_exclusive_lock(workflow)
-      Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: workspace lock is held by a live process")
-      return false
+    if p.exist?
+      lock_file = acquire_exclusive_lock(workflow)
+      unless lock_file
+        Rails.logger.info("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: workspace lock is held by a live process")
+        return false
+      end
     end
 
     Rails.logger.info("[WorkflowWorkspace] cleanup start for Workflow ##{workflow.id} at #{p}")
 
+    # rm_rf unlinks the lock file's path along with the rest of the
+    # directory, but the fd stays valid (and the flock held) until we
+    # close it below — POSIX keeps an unlinked-but-open inode alive.
     FileUtils.rm_rf(p.to_s) if p.exist?
     FileUtils.rm_rf(agent_home.to_s) if agent_home.exist?
 
@@ -170,26 +177,32 @@ class WorkflowWorkspace
     Rails.logger.info("[WorkflowWorkspace] cleanup done for Workflow ##{workflow.id}")
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
-  end
-
-  # Non-blocking check-then-release: if a ProcessRunner-held shared flock
-  # is present, LOCK_EX|LOCK_NB fails immediately (returns false rather
-  # than raising) and we bail out without touching the filesystem. If it
-  # succeeds, nothing else can be holding the lock right now, so we
-  # release it immediately and let the caller proceed with rm_rf — the
-  # AR-level active_descendants? guard above is what keeps new work from
-  # starting in this workspace once a Workflow reaches this path.
-  def self.try_exclusive_lock(workflow)
-    lock_path = lock_path_for(workflow)
-    FileUtils.mkdir_p(lock_path.dirname)
-    File.open(lock_path, File::CREAT | File::RDWR) do |lock_file|
-      return false unless lock_file.flock(File::LOCK_EX | File::LOCK_NB)
-
+  ensure
+    if lock_file
       lock_file.flock(File::LOCK_UN)
-      true
+      lock_file.close
     end
   end
-  private_class_method :try_exclusive_lock
+
+  # Non-blocking acquire, held by the caller across the actual rm_rf: if
+  # a ProcessRunner-held shared flock is present, LOCK_EX|LOCK_NB fails
+  # immediately (returns false rather than raising) and we return nil so
+  # cleanup_for can bail out without touching the filesystem. Returning
+  # the still-open, still-locked file (rather than releasing it here) is
+  # what closes the check-then-act race: nothing can acquire a
+  # conflicting shared lock between "we confirmed no one's using this
+  # workspace" and "we deleted it," because we're still holding the
+  # exclusive lock for that entire window.
+  def self.acquire_exclusive_lock(workflow)
+    lock_path = lock_path_for(workflow)
+    FileUtils.mkdir_p(lock_path.dirname)
+    lock_file = File.open(lock_path, File::CREAT | File::RDWR)
+    return lock_file if lock_file.flock(File::LOCK_EX | File::LOCK_NB)
+
+    lock_file.close
+    nil
+  end
+  private_class_method :acquire_exclusive_lock
 
   def initialize(workflow, git: nil, log: nil)
     @workflow = workflow
