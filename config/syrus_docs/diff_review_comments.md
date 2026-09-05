@@ -13,6 +13,15 @@ diff hunk snapshot, and a free-form JSON context hash for nearby symbols or
 future re-anchoring metadata. State is one of `draft`, `submitted`,
 `resolved`, or `superseded`.
 
+`anchor_kind` is `"line"` (the default) for a comment tied to a specific
+file/side/line, or `"review"` for a whole-review comment that critiques the
+change as a whole rather than one line. Whole-review comments carry no
+`path`/`side`/`old_line`/`new_line`/`diff_hunk` — the model clears those
+fields on save regardless of what the client sends — and their `anchor_key`
+is always the literal string `"review"`. They submit through the same
+`chat_feedback` path as line-anchored comments and are grouped in `by_path`
+under the reserved `"__review__"` path key.
+
 API endpoints live under the user-scoped app API:
 
 - `GET /api/v1/app/jobs/:job_id/diff_review_comments`
@@ -52,3 +61,31 @@ diff hunk snapshot, context, author, and comment body. Once the feedback
 workflow is accepted, selected comments are marked `submitted` and linked to
 that workflow. Duplicate active submissions are rejected by the same active
 `chat_feedback` guard used by chat-submitted feedback.
+
+## Review workspace layout
+
+`app/frontend/routes/jobDetail/ReviewWorkspace.tsx` is the `job_review_workspace`
+surface. The diff grows to its natural height (page scroll, not an internal
+scroll box); a per-file sticky header exposes a "Files" button that opens an
+on-demand popup listing every changed file with additions/deletions/comment
+counts, selecting one scrolls the page to that file's section. The "Review
+artifacts" panel starts collapsed (summary stays visible) and expands on
+demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
+column: it scrolls with the page until its top reaches the top of the
+viewport, then pins there with its own internal scroll, and lists every
+comment for the surface (line-anchored and whole-review). A "Comment on this
+review" button starts a whole-review comment. Line-anchored (code) comments
+are only editable inline, at their anchor in the diff (a "View in diff" sidebar
+button scrolls to it) — the sidebar no longer offers an inline-comment Edit
+control for those, only Resolve; whole-review comments remain editable from
+the sidebar since they have no code anchor to edit at.
+
+`ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
+shared diff renderer behind the review workspace, source-browser diff mode,
+and run artifact diff panels; the natural-height/popup/inline-edit behaviors
+above are opt-in via its `scroll`, `changedFilesPopup`, and
+`onStartEditThread`/`editingThreadId` props so the other surfaces keep their
+existing bounded-height, permanent file list, sidebar-only-edit behavior
+unless they explicitly opt in. The add-comment affordance is a small "+" in
+the left gutter beside the line number, shown on row hover (GitHub-style),
+not a right-edge column.

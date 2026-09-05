@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from "react"
+import { Fragment, type ReactNode, useState } from "react"
+import { Button } from "../Button"
 import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff, type DiffLine, type LineAnnotation } from "./diffRendering"
 
 export type ReviewableDiffFile = {
@@ -25,12 +26,21 @@ export type DiffReviewThread = {
 
 export type ReviewableDiffProps = {
   annotations?: Record<string, Record<string, LineAnnotation>> | Record<string, LineAnnotation> | null
+  changedFilesPopup?: boolean
   comments?: Record<string, Record<string, DiffReviewThread[]>> | null
+  editingThreadBody?: string
+  editingThreadId?: number | null
   emptyState?: ReactNode
+  fileCommentCounts?: Record<string, number>
   files?: ReviewableDiffFile[]
   mode?: "single-file" | "continuous"
+  onCancelEditThread?: () => void
+  onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
+  onStartEditThread?: (thread: DiffReviewThread) => void
+  scroll?: "bounded" | "natural"
   selectedPath?: string | null
   showFileHeaders?: boolean | "continuous"
   unavailableState?: ReactNode
@@ -42,37 +52,82 @@ export type ReviewableUnifiedDiffProps = Omit<ReviewableDiffProps, "files"> & {
 
 export function ReviewableDiff({
   annotations,
+  changedFilesPopup = false,
   comments,
+  editingThreadBody,
+  editingThreadId,
   emptyState = null,
+  fileCommentCounts,
   files = [],
   mode = "single-file",
+  onCancelEditThread,
+  onChangeEditingThreadBody,
   onCommentLine,
+  onSaveEditThread,
   onSelectFile,
+  onStartEditThread,
+  scroll = "bounded",
   selectedPath,
   showFileHeaders = "continuous",
   unavailableState = "Diff not available"
 }: ReviewableDiffProps) {
+  const [filesPopupOpen, setFilesPopupOpen] = useState(false)
   const renderFiles = filesForMode(files, mode, selectedPath)
 
   if (renderFiles.length === 0) return <>{emptyState}</>
 
+  const containerClass = scroll === "natural"
+    ? "bg-white font-mono text-xs dark:bg-gray-950"
+    : "max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
+
+  function selectFileFromPopup(path: string) {
+    onSelectFile?.(path)
+    setFilesPopupOpen(false)
+    document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" })
+  }
+
   return (
-    <div className="max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950" data-testid="agent-diff-viewer">
-      {renderFiles.map((file, index) => (
-        <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path}>
-          {showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous") ? <DiffFileHeader file={file} onSelectFile={onSelectFile} selected={selectedPath === file.path} /> : null}
-          {file.patch !== null ? (
-            <UnifiedDiffTable
-              annotations={annotationsForFile(annotations, file.path)}
-              comments={comments?.[file.path]}
-              file={file}
-              onCommentLine={onCommentLine}
-            />
-          ) : (
-            <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
-          )}
-        </section>
-      ))}
+    <div className="relative" data-testid="agent-diff-viewer">
+      <div className={containerClass}>
+        {renderFiles.map((file, index) => (
+          <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path}>
+            {showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous") ? (
+              <DiffFileHeader
+                file={file}
+                onSelectFile={onSelectFile}
+                onToggleFilesPopup={changedFilesPopup ? () => setFilesPopupOpen((open) => !open) : undefined}
+                selected={selectedPath === file.path}
+                showFilesPopupTrigger={changedFilesPopup}
+              />
+            ) : null}
+            {file.patch !== null ? (
+              <UnifiedDiffTable
+                annotations={annotationsForFile(annotations, file.path)}
+                comments={comments?.[file.path]}
+                editingThreadBody={editingThreadBody}
+                editingThreadId={editingThreadId}
+                file={file}
+                onCancelEditThread={onCancelEditThread}
+                onChangeEditingThreadBody={onChangeEditingThreadBody}
+                onCommentLine={onCommentLine}
+                onSaveEditThread={onSaveEditThread}
+                onStartEditThread={onStartEditThread}
+              />
+            ) : (
+              <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
+            )}
+          </section>
+        ))}
+      </div>
+      {changedFilesPopup && filesPopupOpen ? (
+        <ChangedFilesPopup
+          commentCounts={fileCommentCounts}
+          files={files}
+          onClose={() => setFilesPopupOpen(false)}
+          onSelectFile={selectFileFromPopup}
+          selectedPath={selectedPath}
+        />
+      ) : null}
     </div>
   )
 }
@@ -81,17 +136,69 @@ export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiff
   return <ReviewableDiff annotations={annotations} files={filesFromUnifiedDiff(diff)} mode="continuous" {...props} />
 }
 
+function ChangedFilesPopup({
+  commentCounts,
+  files,
+  onClose,
+  onSelectFile,
+  selectedPath
+}: {
+  commentCounts?: Record<string, number>
+  files: ReviewableDiffFile[]
+  onClose: () => void
+  onSelectFile: (path: string) => void
+  selectedPath?: string | null
+}) {
+  return (
+    <div className="fixed inset-0 z-30" onClick={onClose}>
+      <div
+        className="absolute right-4 top-14 max-h-[70vh] w-80 overflow-auto rounded border border-gray-200 bg-white font-mono text-xs shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <p className="border-b border-gray-100 px-3 py-2 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">Changed files</p>
+        {files.map((file) => (
+          <button
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand/10 ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
+            key={file.path}
+            onClick={() => onSelectFile(file.path)}
+            title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
+            type="button"
+          >
+            <span className="min-w-0 flex-1 truncate">{file.path}</span>
+            {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
+            {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+            {commentCounts?.[file.path] ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{commentCounts[file.path]}</span> : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function UnifiedDiffTable({
   annotations,
   comments,
+  editingThreadBody,
+  editingThreadId,
   file,
+  onCancelEditThread,
+  onChangeEditingThreadBody,
   onCommentLine,
+  onSaveEditThread,
+  onStartEditThread,
   testId
 }: {
   annotations?: Record<string, LineAnnotation>
   comments?: Record<string, DiffReviewThread[]>
+  editingThreadBody?: string
+  editingThreadId?: number | null
   file: ReviewableDiffFile
+  onCancelEditThread?: () => void
+  onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onSaveEditThread?: () => void
+  onStartEditThread?: (thread: DiffReviewThread) => void
   testId?: string
 }) {
   const lines = parseUnifiedDiff(file.patch || "")
@@ -107,27 +214,26 @@ export function UnifiedDiffTable({
           return (
             <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
             <tr
-              className={diffLineClass(line.kind)}
+              className={`group ${diffLineClass(line.kind)}`}
               data-coverage={annotation}
               data-diff-kind={line.kind}
             >
-              <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
-              <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
+              <td className={`relative ${diffGutterClass(line.kind)}`}>
+                {commentSide === "old" && canComment ? (
+                  <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                ) : null}
+                {line.oldLine ?? ""}
+              </td>
+              <td className={`relative ${diffGutterClass(line.kind)}`}>
+                {commentSide === "new" && canComment ? (
+                  <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
+                ) : null}
+                {line.newLine ?? ""}
+              </td>
               <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
               <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
               <td className="w-4 select-none px-1 text-center">
-                {canComment ? (
-                  <button
-                    aria-label={`Comment on ${file.path}:${commentSide}:${line.newLine ?? line.oldLine}`}
-                    className="text-gray-300 hover:text-brand dark:text-gray-600 dark:hover:text-brand-emphasis"
-                    onClick={() => {
-                      if (commentSide) onCommentLine?.({ file, line, side: commentSide })
-                    }}
-                    type="button"
-                  >
-                    +
-                  </button>
-                ) : annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                   : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
                   : null}
               </td>
@@ -140,12 +246,38 @@ export function UnifiedDiffTable({
                   <div className="space-y-2">
                     {threads.map((thread) => (
                       <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
-                        <div className="mb-1 flex flex-wrap items-center gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                          {thread.author ? <span>{thread.author}</span> : null}
-                          <span>{thread.state}</span>
-                          {thread.workflowState ? <span>{thread.workflowState}</span> : null}
+                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {thread.author ? <span>{thread.author}</span> : null}
+                            <span>{thread.state}</span>
+                            {thread.workflowState ? <span>{thread.workflowState}</span> : null}
+                          </div>
+                          {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
+                            <button
+                              className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                              onClick={() => onStartEditThread(thread)}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
                         </div>
-                        <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
+                        {editingThreadId === thread.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              aria-label={`Edit comment ${thread.id}`}
+                              className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                              onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
+                              value={editingThreadBody ?? ""}
+                            />
+                            <div className="flex gap-2">
+                              <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">Save</Button>
+                              <Button onClick={onCancelEditThread} size="sm" variant="secondary">Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -160,6 +292,29 @@ export function UnifiedDiffTable({
   )
 }
 
+function GutterCommentButton({
+  file,
+  line,
+  onCommentLine,
+  side
+}: {
+  file: ReviewableDiffFile
+  line: DiffLine
+  onCommentLine?: (selection: DiffLineSelection) => void
+  side: "old" | "new"
+}) {
+  return (
+    <button
+      aria-label={`Comment on ${file.path}:${side}:${line.newLine ?? line.oldLine}`}
+      className="absolute left-0.5 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-brand text-2xs leading-none text-on-brand opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
+      onClick={() => onCommentLine?.({ file, line, side })}
+      type="button"
+    >
+      +
+    </button>
+  )
+}
+
 function anchorKeyForLine(line: DiffLine, side: "old" | "new") {
   if (side === "old") return `left:${line.oldLine ?? ""}:${line.newLine ?? ""}`
   return `right:${line.oldLine ?? ""}:${line.newLine ?? ""}`
@@ -168,11 +323,15 @@ function anchorKeyForLine(line: DiffLine, side: "old" | "new") {
 function DiffFileHeader({
   file,
   onSelectFile,
-  selected
+  onToggleFilesPopup,
+  selected,
+  showFilesPopupTrigger
 }: {
   file: ReviewableDiffFile
   onSelectFile?: (path: string) => void
+  onToggleFilesPopup?: () => void
   selected: boolean
+  showFilesPopupTrigger?: boolean
 }) {
   const content = (
     <>
@@ -183,15 +342,27 @@ function DiffFileHeader({
   )
   const className = `sticky top-0 z-10 flex w-full items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-left font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 
-  if (onSelectFile) {
-    return (
-      <button className={className} onClick={() => onSelectFile(file.path)} title={file.path} type="button">
-        {content}
-      </button>
-    )
-  }
-
-  return <div className={className} title={file.path}>{content}</div>
+  return (
+    <div className={className} title={file.path}>
+      {onSelectFile ? (
+        <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onSelectFile(file.path)} type="button">
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{content}</div>
+      )}
+      {showFilesPopupTrigger ? (
+        <button
+          aria-label="Browse changed files"
+          className="shrink-0 rounded border border-gray-300 px-2 py-0.5 font-sans text-2xs font-medium text-gray-600 hover:bg-white dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+          onClick={onToggleFilesPopup}
+          type="button"
+        >
+          Files
+        </button>
+      ) : null}
+    </div>
+  )
 }
 
 function filesForMode(files: ReviewableDiffFile[], mode: "single-file" | "continuous", selectedPath: string | null | undefined) {

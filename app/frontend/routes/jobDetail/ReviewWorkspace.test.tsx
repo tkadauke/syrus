@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ReviewWorkspace } from "./ReviewWorkspace"
@@ -7,6 +7,7 @@ import {
   fetchDiffReviewComments,
   fetchJobSourceDiff,
   submitDiffReviewComments,
+  updateDiffReviewComment,
   type DiffReviewComment,
   type DiffReviewCommentsPayload,
   type JobDetailPayload,
@@ -31,6 +32,7 @@ beforeEach(() => {
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
+  vi.mocked(updateDiffReviewComment).mockReset()
   Element.prototype.scrollIntoView = vi.fn()
 })
 
@@ -67,18 +69,122 @@ describe("ReviewWorkspace", () => {
     })
   })
 
-  it("navigates from the changed-file list to the continuous diff", async () => {
+  it("renders every changed file's diff without an internal max-height and navigates via the changed-files popup", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
     await screen.findByText("Implementation review")
-    const row = screen.getByTitle("app/models/run.rb (+1 -0)")
-    fireEvent.click(row)
-
-    expect(row).toHaveClass("text-brand")
+    expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.getByText("added")).toBeInTheDocument()
+    expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    expect(screen.getByText("Changed files")).toBeInTheDocument()
+
+    const target = document.querySelector('[data-diff-file="app/models/run.rb"]') as HTMLElement
+    const scrollSpy = vi.fn()
+    target.scrollIntoView = scrollSpy
+
+    fireEvent.click(screen.getByTitle("app/models/run.rb (+1 -0)"))
+
+    expect(scrollSpy).toHaveBeenCalled()
+    expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
+  })
+
+  it("starts review artifacts collapsed and expands them on demand", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await screen.findByText("Review artifacts")
+    expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Review the diff")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }))
+    expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
+  })
+
+  it("creates a whole-review comment not anchored to any code line", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "Looks great overall." })
+    ]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on this review" }))
+    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Looks great overall." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
+        anchor_kind: "review",
+        body: "Looks great overall.",
+        surface: "job_review_workspace"
+      }))
+    })
+  })
+
+  it("makes the comments sidebar a sticky, viewport-height column", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const sidebarSection = await screen.findByText("Diff comments")
+    const stickyWrapper = sidebarSection.closest("section")?.parentElement
+    expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
+  })
+
+  it("shows both code-anchored and whole-review comments together in the sidebar", async () => {
+    const lineComment = comment({ id: 1, new_line: 1, anchor_key: "right::1", body: "Please add a regression spec." })
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Looks great overall."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([lineComment, globalComment]))
+
+    renderWorkspace()
+
+    await screen.findByText("Looks great overall.")
+    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    expect(sidebar.getAllByText("Please add a regression spec.").length).toBeGreaterThan(0)
+    expect(sidebar.getByText("Looks great overall.")).toBeInTheDocument()
+    expect(sidebar.getByText("Whole-review comment")).toBeInTheDocument()
+    expect(sidebar.getByRole("button", { name: "Edit" })).toBeInTheDocument()
+  })
+
+  it("shows code-anchored comments in the sidebar without a sidebar edit affordance, and edits them inline in the diff", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
+    vi.mocked(updateDiffReviewComment).mockResolvedValue(commentsPayload([comment({ body: "Updated body." })]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    expect(sidebar.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+    expect(sidebar.getByRole("button", { name: "View in diff" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.change(screen.getByLabelText("Edit comment 1"), { target: { value: "Updated body." } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(updateDiffReviewComment).toHaveBeenCalledWith(42, 1, { body: "Updated body." })
+    })
   })
 
   it("submits actionable comments as chat feedback", async () => {
@@ -191,6 +297,7 @@ function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment 
     surface: "job_review_workspace",
     base_ref: "base-sha",
     head_ref: "head-sha",
+    anchor_kind: "line",
     path: "app/models/user.rb",
     side: "right",
     old_line: null,
