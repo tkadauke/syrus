@@ -68,6 +68,28 @@ pending-confirmation path as the other six tools, since batching several
 approvals/unapprovals behind one operator confirmation is exactly the
 higher-risk case this infrastructure exists for.
 
+A second, higher-risk conditional tier reuses the same array-of-ids pattern
+for `force_fail_job`, `mark_ci_repair_noop`, `admin_retry_step`,
+`reconcile_job_state`, `clear_provider_circuit`,
+`repair_provider_circuit_evidence`, `force_rebase`,
+`admin_pause_user_scheduling`, and `admin_unpause_user_scheduling`. These
+tools already take (or now take) a `reason` param; for a plural-id call that
+`reason` doubles as the shared root-cause justification for the whole batch:
+it must be non-blank or the call is rejected before any `ChatPendingAction`
+or `PendingActionGroup` is created, and it is stored both on the group
+(`PendingActionGroup#reason`, rendered on the confirmation card) and on every
+member (for the per-item audit trail `PendingActions::Base#reason` reads at
+confirm time). `reconcile_job_state` additionally rejects a plural `job_ids`
+call up front unless `mode` is `auto` -- the constrained explicit
+reconciliation modes (`mark_implemented_from_ready_pr`, `mark_failed`,
+`mark_queued`) stay single-item. `force_rebase`'s `dry_run` (plan preview,
+no pending action) is likewise single-item only and is rejected when
+combined with `job_ids`. The remaining strong-tier-adjacent tools --
+`replace_pr_branch_with_workflow_output`, `retry_from_current_pr_branch`,
+`adopt_current_pr_head`, `manual_agentic_run`, `override_landing_blocker_once`,
+`force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
+intentionally do not wire into this infrastructure and stay single-confirm.
+
 ## Deleting a chat
 
 `DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of

@@ -3,50 +3,97 @@ require "mcp"
 module Mcp::Tools
   class MarkCiRepairNoopTool < MCP::Tool
     extend AdminPendingActionToolSupport
+    extend BulkPendingActionToolSupport
 
     tool_name "mark_ci_repair_noop"
-    description "Record that a CI repair workflow made no effective branch/check progress and escalate the Job landing explanation. Requires operator confirmation."
+    description <<~DESC
+      Record that one or more CI repair workflows made no effective
+      branch/check progress and escalate the Job landing explanation. Pass
+      job_id/workflow_id for a single ci_failure Workflow (unchanged
+      single-confirmation behavior) or workflow_ids for multiple
+      ci_failure Workflows, which requires a shared reason (the root cause
+      behind marking every Workflow in the batch as no-op) and creates one
+      grouped pending action the operator confirms or rejects together.
+      Requires operator confirmation.
+    DESC
 
     input_schema(
       properties: {
-        job_id: { type: "integer", description: "Syrus Job id." },
+        job_id: { type: "integer", description: "Syrus Job id (single-item calls only)." },
         workflow_id: { type: "integer", description: "ci_failure Workflow id to mark as no-op." },
+        workflow_ids: {
+          type: "array",
+          items: { type: "integer" },
+          description: "Multiple ci_failure Workflow ids to mark as no-op as one grouped pending action, sharing one reason."
+        },
         reason: { type: "string", description: "Operator-facing audit reason." }
       },
-      required: %w[job_id workflow_id reason]
+      required: %w[reason]
     )
 
     class << self
-      def call(job_id:, workflow_id:, reason:, server_context:)
+      def call(job_id: nil, workflow_id: nil, workflow_ids: nil, reason:, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
-
-        job = find_admin_job(job_id)
-        return job if job.is_a?(MCP::Tool::Response)
-        workflow_id = integer_param(workflow_id, "workflow_id")
-        return workflow_id if workflow_id.is_a?(MCP::Tool::Response)
-        workflow = job.workflows.find_by(id: workflow_id)
-        return Mcp::Tools.invalid("workflow not found for job: #{workflow_id}") unless workflow
-        return Mcp::Tools.invalid("workflow is not a ci_failure repair") unless workflow.trigger_kind == "ci_failure"
 
         reason = reason.to_s.strip
         return Mcp::Tools.invalid("reason is required") if reason.empty?
 
-        refresh = CiRepair::CheckRefresh.call(job)
-        create_pending_admin_action(
+        ids, bulk, error = resolve_ids(id: workflow_id, ids: workflow_ids, param_name: "workflow_id")
+        return error if error
+
+        if !bulk
+          job = find_admin_job(job_id)
+          return job if job.is_a?(MCP::Tool::Response)
+          workflow = job.workflows.find_by(id: ids.first)
+          return Mcp::Tools.invalid("workflow not found for job: #{ids.first}") unless workflow
+          return Mcp::Tools.invalid("workflow is not a ci_failure repair") unless workflow.trigger_kind == "ci_failure"
+
+          refresh = CiRepair::CheckRefresh.call(job)
+          return create_pending_admin_action(
+            server_context: server_context,
+            chat_session: chat_session,
+            action: "mark_ci_repair_noop",
+            payload: {
+              "job_id" => job.id,
+              "workflow_id" => workflow.id,
+              "observed_head_sha" => refresh.head_sha,
+              "observed_pr_checks_state" => refresh.state,
+              "observed_failed_checks" => refresh.failed_check_summaries
+            },
+            reason: reason,
+            message: "Mark #{workflow.slug} as CI repair no-op for #{job.slug}? Current checks: #{refresh.state}; failing checks: #{check_labels(refresh)}."
+          )
+        end
+
+        workflows = ids.map { |id| Workflow.find_by(id: id) }
+        missing = ids.zip(workflows).select { |_id, workflow| workflow.nil? }.map(&:first)
+        return Mcp::Tools.invalid("workflow not found: #{missing.join(', ')}") if missing.any?
+        non_ci_failure = workflows.reject { |workflow| workflow.trigger_kind == "ci_failure" }
+        return Mcp::Tools.invalid("workflow is not a ci_failure repair: #{non_ci_failure.map(&:id).join(', ')}") if non_ci_failure.any?
+
+        group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          action: "mark_ci_repair_noop",
-          payload: {
-            "job_id" => job.id,
-            "workflow_id" => workflow.id,
-            "observed_head_sha" => refresh.head_sha,
-            "observed_pr_checks_state" => refresh.state,
-            "observed_failed_checks" => refresh.failed_check_summaries
+          member_attributes: workflows.map { |workflow|
+            job = workflow.job
+            refresh = CiRepair::CheckRefresh.call(job)
+            {
+              action: "mark_ci_repair_noop",
+              payload: {
+                "job_id" => job.id,
+                "workflow_id" => workflow.id,
+                "observed_head_sha" => refresh.head_sha,
+                "observed_pr_checks_state" => refresh.state,
+                "observed_failed_checks" => refresh.failed_check_summaries
+              },
+              requested_by: "agent",
+              reason: reason
+            }
           },
-          reason: reason,
-          message: "Mark #{workflow.slug} as CI repair no-op for #{job.slug}? Current checks: #{refresh.state}; failing checks: #{check_labels(refresh)}."
+          reason: reason
         )
+        bulk_action_response(group: group, message: "Mark #{workflows.size} CI repairs as no-op?")
       rescue ArgumentError => e
         Mcp::Tools.invalid(e.message)
       end
