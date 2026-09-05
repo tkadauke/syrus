@@ -1773,11 +1773,14 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" }).className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
+      // The dropdown itself renders through a FloatingPortal (outside `recentNav`'s
+      // DOM subtree) so flip/shift can reposition it clear of the sidebar's clipping
+      // ancestor; query its content on `screen`, not `within(recentNav)`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
-      expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
-      fireEvent.click(within(recentNav).getByRole("link", { name: "Aqueducts" }))
-      expect(within(recentNav).queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
+      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(screen.getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
+      fireEvent.click(screen.getByRole("link", { name: "Aqueducts" }))
+      expect(screen.queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
       expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
       expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
 
@@ -1853,9 +1856,11 @@ describe("App", () => {
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
       expect(await within(recentNav).findByRole("link", { name: "Widgets two" })).toBeInTheDocument()
 
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets two" }))
-      expect(await within(recentNav).findByText("No bookmarks yet")).toBeInTheDocument()
-      fireEvent.click(within(recentNav).getByRole("button", { name: "Hide Chat" }))
+      expect(await screen.findByText("No bookmarks yet")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Hide Chat" }))
 
       expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument()
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11/hide", expect.objectContaining({ method: "PATCH" })))
@@ -14227,10 +14232,12 @@ describe("App", () => {
       )
 
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
-      expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
-      expect(within(recentNav).queryByText("No bookmarks yet")).not.toBeInTheDocument()
-      expect(within(recentNav).getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(screen.queryByText("No bookmarks yet")).not.toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -14297,16 +14304,18 @@ describe("App", () => {
       )
 
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
-      expect(within(recentNav).getByText("Loading bookmarks...")).toBeInTheDocument()
+      expect(screen.getByText("Loading bookmarks...")).toBeInTheDocument()
 
       await act(async () => {
         resolveInactiveChat(new Response(JSON.stringify(inactivePayload), { status: 200, headers: { "Content-Type": "application/json" } }))
         await inactiveChatRequest
       })
 
-      expect(await within(recentNav).findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
-      expect(within(recentNav).queryByText("Loading bookmarks...")).not.toBeInTheDocument()
+      expect(await screen.findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+      expect(screen.queryByText("Loading bookmarks...")).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats/11",
         expect.objectContaining({ credentials: "same-origin" })
