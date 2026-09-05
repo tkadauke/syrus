@@ -52,6 +52,7 @@ export function DesignSystemRoute() {
   })
 
   const previewTheme = previewQuery.data?.theme ?? null
+  const contrastWarnings = previewQuery.data?.contrast_warnings ?? []
   // Applied on this page's own root <main> only (via inline style below) --
   // never on document.documentElement -- so a draft theme preview can never
   // leak into the surrounding app chrome, sidebar, or other open tabs.
@@ -81,6 +82,16 @@ export function DesignSystemRoute() {
       ) : null}
       {themeId != null && previewQuery.isError ? (
         <PanelMessage tone="error">{t("design_system.preview_not_found")}</PanelMessage>
+      ) : null}
+      {themeId != null && previewTheme && contrastWarnings.length > 0 ? (
+        <PanelMessage tone="warning">
+          <p className="font-medium">{t("design_system.preview_contrast_warnings_heading")}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {contrastWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </PanelMessage>
       ) : null}
 
       <TokenSwatchesSection tokenValues={tokenValues} />

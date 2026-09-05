@@ -74,6 +74,29 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       )
     end
 
+    it "returns an empty contrast_warnings array for a theme with no contrast issues" do
+      ocean = theme(slug: "ocean", built_in: true, name: "Ocean", tokens: legible_tokens)
+      sign_in_as(Factories.user)
+
+      get "/api/v1/app/themes/#{ocean.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["contrast_warnings"]).to eq([])
+    end
+
+    it "surfaces contrast_warnings for a draft theme with a real contrast issue, without failing the request" do
+      user = Factories.user
+      tokens = legible_tokens.deep_dup
+      tokens["light"]["text-primary"] = "#fefefe"
+      mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user, tokens: tokens)
+      sign_in_as(user)
+
+      get "/api/v1/app/themes/#{mine.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["contrast_warnings"]).to include(match(/light text-primary.*surface.*contrast/i))
+    end
+
     it "returns the signed-in user's own custom theme" do
       user = Factories.user
       mine = theme(slug: "mine", built_in: false, name: "Mine", owner_user: user)

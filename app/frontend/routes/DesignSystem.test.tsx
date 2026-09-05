@@ -71,6 +71,31 @@ describe("DesignSystemRoute", () => {
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false)
   })
 
+  it("shows non-blocking contrast warnings for a draft preview with issues", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...oceanThemePayload(),
+      contrast_warnings: [ "light text-primary (#111827) on surface (#ffffff) has contrast 1.2:1, needs at least 4.5:1 for WCAG AA" ]
+    }))
+
+    renderRoute("/design_system?theme_id=5")
+
+    await waitFor(() => {
+      expect(screen.getByText("Contrast warnings — these will block install_theme until fixed")).toBeInTheDocument()
+    })
+    expect(screen.getByText("light text-primary (#111827) on surface (#ffffff) has contrast 1.2:1, needs at least 4.5:1 for WCAG AA")).toBeInTheDocument()
+  })
+
+  it("shows no contrast warning banner when the draft preview has no issues", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(oceanThemePayload()))
+
+    renderRoute("/design_system?theme_id=5")
+
+    await waitFor(() => {
+      expect(screen.getByText('Previewing "Ocean" — shown on this page only. The rest of the app keeps your active theme.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText("Contrast warnings — these will block install_theme until fixed")).not.toBeInTheDocument()
+  })
+
   it("shows an error message when the requested theme can't be loaded", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { code: "not_found", message: "not found" } }, 404))
 
