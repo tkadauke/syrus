@@ -95,6 +95,8 @@
   "conversation_check_ran": "Sine summa notata acta est.",
   "conversation_no_raw_output": "Nullum exitum huic probationi captum est.",
   "conversation_view_source": "Fontem videre",
+  "conversation_transcript_panel_label": "Transcriptum: {{label}}",
+  "conversation_transcript_close": "Transcriptum claudere",
   "section_issue": "Quaestio",
   "no_issue_body": "Corpus quaestionis deest.",
   "section_agent_summary": "Summa agentis",
