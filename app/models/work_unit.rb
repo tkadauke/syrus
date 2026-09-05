@@ -161,15 +161,22 @@ class WorkUnit < ApplicationRecord
       next if work_unit_locks.active.exists?(lock_key: lock_key)
 
       owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
-      if owner && !same_runtime_lock_owner?(owner) && definition.lock_conflicts_enforced?
-        raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
+      if owner
+        if !same_runtime_lock_owner?(owner) &&
+            definition.lock_conflicts_enforced? &&
+            !WorkUnits::Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
+          raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
+        end
+        next
       end
-      next if owner
 
       work_unit_locks.create!(lock_key: lock_key)
     rescue ActiveRecord::RecordNotUnique
       owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
-      if owner && !same_runtime_lock_owner?(owner) && definition.lock_conflicts_enforced?
+      if owner &&
+          !same_runtime_lock_owner?(owner) &&
+          definition.lock_conflicts_enforced? &&
+          !WorkUnits::Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
         raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
       end
     end

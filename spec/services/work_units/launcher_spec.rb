@@ -216,6 +216,44 @@ RSpec.describe WorkUnits::Launcher do
     expect(rebase.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("maintenance:rebase:job:#{job.id}")
   end
 
+  it "does not take the broad repository lock for main repair when the repair-blocking policy is disabled" do
+    repository.update!(main_branch_repair_blocks_work: false)
+    repair_job = Factories.job_record(user: user, repository: repository)
+
+    workflow = described_class.instantiate(kind: "main_branch_repair", job: repair_job)
+
+    expect(workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly(
+      "job:#{repair_job.id}",
+      "main_branch_repair:repository:#{repository.id}"
+    )
+  end
+
+  it "keeps the broad repository lock for main repair when the repair-blocking policy is enabled" do
+    repository.update!(main_branch_repair_blocks_work: true)
+    repair_job = Factories.job_record(user: user, repository: repository)
+
+    workflow = described_class.instantiate(kind: "main_branch_repair", job: repair_job)
+
+    expect(workflow.work_unit.work_unit_locks.pluck(:lock_key)).to include("repository:#{repository.id}")
+  end
+
+  it "allows landing work past legacy main-repair repository locks when the repair-blocking policy is disabled" do
+    repair_job = Factories.job_record(user: user, repository: repository)
+    repair_workflow = described_class.instantiate(kind: "main_branch_repair", job: repair_job)
+    repository.update!(main_branch_repair_blocks_work: false)
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101, state: "approved")
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102, state: "approved")
+    train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+
+    bundle = described_class.instantiate(kind: "job_bundle", job: first, artifacts: { "merge_train_id" => train.id })
+    gate_result = WorkUnits::Gates::ActiveWorkLock.call(bundle.work_unit)
+
+    expect(repair_workflow.work_unit.work_unit_locks.pluck(:lock_key)).to include("repository:#{repository.id}")
+    expect(gate_result).to be_pass
+  end
+
   it "rolls back landing unit launches when another active unit owns a member lock" do
     first = Factories.job_record(user: user, repository: repository, issue_number: 101, state: "approved")
     second = Factories.job_record(user: user, repository: repository, issue_number: 102, state: "approved")

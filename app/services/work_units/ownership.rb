@@ -148,6 +148,16 @@ module WorkUnits
       scope.order(created_at: :desc, id: :desc).first
     end
 
+    def self.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
+      return false unless owner&.kind == "main_branch_repair"
+
+      match = lock_key.to_s.match(/\Arepository:(\d+)\z/)
+      return false unless match
+
+      repository = owner.repository || Repository.find_by(id: match[1])
+      repository.present? && !repository.main_branch_repair_blocks_work?
+    end
+
     def self.active_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?

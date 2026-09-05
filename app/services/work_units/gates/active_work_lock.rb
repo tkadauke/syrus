@@ -14,6 +14,7 @@ module WorkUnits
         conflict = lock_keys.filter_map do |lock_key|
           owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
           next if owner.blank? || same_runtime_lock_owner?(owner)
+          next if WorkUnits::Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
 
           { "lock_key" => lock_key, "work_unit_id" => owner.id, "workflow_id" => owner.workflow_id }
         end.first
