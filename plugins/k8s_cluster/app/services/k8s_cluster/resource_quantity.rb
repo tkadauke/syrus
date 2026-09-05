@@ -35,7 +35,7 @@ module K8sCluster
       return value.to_i unless suffix
 
       multiplier = BINARY_SUFFIXES[suffix] || DECIMAL_SUFFIXES[suffix]
-      value.delete_suffix(suffix).to_i * multiplier
+      (value.delete_suffix(suffix).to_f * multiplier).round
     end
   end
 end
