@@ -7,7 +7,7 @@ module PendingActions
       progress!("Finding queued work for #{job.slug}...")
       record = reenqueue!(job)
       progress!("Recording repair audit...")
-      run = record.is_a?(Run) ? record : job.runs.order(created_at: :desc, id: :desc).first
+      run = record.is_a?(Run) ? record : job.runs.reorder(created_at: :desc, id: :desc).first
       audit!("re-enqueued work via #{record_label(record)}", run: run)
       record
     end
@@ -39,7 +39,7 @@ module PendingActions
       raise ArgumentError, "workflow_id or run_id is required when the Job has no queued Run." unless workflow
       raise ArgumentError, "#{workflow.slug} is #{workflow.state}, not queued or running." unless workflow.queued? || workflow.running?
 
-      queued_run = workflow.runs.where(state: "queued").order(created_at: :desc, id: :desc).first
+      queued_run = workflow.runs.where(state: "queued").reorder(created_at: :desc, id: :desc).first
       return reenqueue_run!(queued_run) if queued_run
 
       raise ArgumentError, "#{workflow.slug} is running but has no queued Run to re-enqueue." if workflow.running?
@@ -67,7 +67,7 @@ module PendingActions
       if payload["run_id"].present?
         job.runs.find(payload["run_id"])
       else
-        job.runs.where(state: "queued").order(created_at: :desc, id: :desc).first
+        job.runs.where(state: "queued").reorder(created_at: :desc, id: :desc).first
       end
     end
 
