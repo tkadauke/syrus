@@ -4,9 +4,7 @@ module PendingActions
 
     DEFAULT_INSTRUCTIONS = "Start from the current remote PR branch, inspect the recorded branch divergence, and repair only the remaining work needed for this Job. Do not replay stale workflow output unless it is still required.".freeze
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       progress!("Validating branch divergence for #{job.slug}...")
       divergence_workflow(job)
@@ -19,7 +17,10 @@ module PendingActions
         push: true
       )
       progress!("Recording repair audit...")
-      audit!(result.run, result.workflow)
+      audit!(
+        "started retry_from_current_pr_branch workflow ##{result.workflow.id}; source_workflow_id=#{payload["workflow_id"]}; instructions=#{instructions}",
+        run: result.run
+      )
       result.workflow
     end
 
@@ -37,8 +38,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_id: #{payload["workflow_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -51,14 +51,6 @@ module PendingActions
 
     def instructions
       payload["instructions"].to_s.strip.presence || DEFAULT_INSTRUCTIONS
-    end
-
-    def audit!(run, workflow)
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] started retry_from_current_pr_branch workflow ##{workflow.id}; source_workflow_id=#{payload["workflow_id"]}; reason=#{reason}; instructions=#{instructions}",
-        kind: "system"
-      )
     end
   end
 end

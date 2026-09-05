@@ -11,11 +11,25 @@ module PendingActions
       end
     end
 
+    # Marks the action as an operator repair against a single Job, with the
+    # default before/after snapshot target of that Job. Actions repairing a
+    # different kind of record (e.g. an Epic) should override
+    # `repair_action?`/`repair_snapshot_targets` directly instead.
+    def self.repairs_job!
+      define_method(:repair_action?) { true }
+      define_method(:repair_snapshot_targets) { [ repair_action_job_or_nil ] }
+    end
+
     def initialize(action)
       @action = action
     end
 
     def execute
+      require_admin!
+      perform
+    end
+
+    def perform
       raise NotImplementedError
     end
 
@@ -42,6 +56,20 @@ module PendingActions
     private
 
     attr_reader :action
+
+    def require_admin!
+      raise ArgumentError, "Admin access required." unless user.admin?
+    end
+
+    def audit!(message, run:)
+      return unless run
+
+      JobLog.append!(
+        run: run,
+        chunk: "[operator repair] #{message}; reason=#{reason}",
+        kind: "system"
+      )
+    end
 
     def payload
       @action.payload.to_h
