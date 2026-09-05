@@ -76,20 +76,36 @@ module Mcp
       evaluator = tier.to_s == "evaluator"
       context = McpToolContext.from_chat_session(chat_session, evaluator: evaluator)
       if evaluator
-        McpToolPolicy.for(context).map { |tool| authorize_tool(tool) }
+        # The evaluator's core set is a fixed read-only allowlist. A plugin
+        # joins it by marking a definition `evaluator: true` -- otherwise a
+        # tool that moved out of core would silently disappear from here.
+        McpToolPolicy.for(context).map { |tool| authorize_tool(tool) } +
+          plugin_tools_for(chat_session, tier: :evaluator, policy: :evaluator)
       else
         registry_tier = tier.to_s == "all" ? :essential : tier
         allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
-        if context.chat_session&.system_kind_supervisor?
-          allowed -= McpToolPolicy::SUPERVISOR_EXCLUDED_TOOLS
-        end
+        supervisor = !!context.chat_session&.system_kind_supervisor?
+        allowed -= McpToolPolicy::SUPERVISOR_EXCLUDED_TOOLS if supervisor
         tools = allowed.map { |tool| authorize_tool(tool) }
         tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-        tools + plugin_tools_for(chat_session, tier: registry_tier)
+        # Plugin tools are appended after core's supervisor filter, so they
+        # have to be filtered on the way in or they bypass it entirely.
+        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: (:supervisor if supervisor))
       end
     end
 
-    def self.plugin_tools_for(chat_session, tier:)
+    # Applies the policy flags a plugin tool definition may declare. Nothing
+    # to apply for an ordinary chat: a plugin that says nothing keeps every
+    # tool it advertises.
+    def self.filter_by_policy(definitions, policy)
+      case policy
+      when :supervisor then definitions.reject { |defn| defn[:supervisor_excluded] || defn["supervisor_excluded"] }
+      when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
+      else definitions
+      end
+    end
+
+    def self.plugin_tools_for(chat_session, tier:, policy: nil)
       tool_sets = PerformanceLogging.phase("chat_mcp_sidecar.plugin_tool_sets", chat_id: chat_session.id, tier: tier) do
         Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)
       end
@@ -100,10 +116,10 @@ module Mcp
             tool_set.available_for?(chat_session, tier: tier)
           end
         end
-        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session) }
+        .flat_map { |tool_set| mcp_tools_for(tool_set, tier: tier, chat_session: chat_session, policy: policy) }
     end
 
-    def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil)
+    def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil, policy: nil)
       definitions = PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: :tool_definitions) do
         # Optional `chat_session:` keyword, mirroring the workflow side's
         # optional `context:`: a tool set whose advertised set depends on who
@@ -115,6 +131,8 @@ module Mcp
           tool_set_class.tool_definitions(tier: tier)
         end
       end
+
+      definitions = filter_by_policy(definitions, policy)
 
       definitions.map do |defn|
         MCP::Tool.define(
