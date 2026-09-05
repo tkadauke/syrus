@@ -31,6 +31,8 @@ module PendingActions
     private
 
     def validate_transition_guard(errors)
+      return unless action.new_record?
+
       event = payload["event"].to_s
       return unless payload["job_id"].present? && JobStateRepair::ForceTransition::ALLOWED_EVENTS.include?(event)
 
