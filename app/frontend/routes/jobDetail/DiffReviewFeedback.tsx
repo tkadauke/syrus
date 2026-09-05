@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
+import { useConfirm } from "../../hooks/useConfirm"
 import { useT } from "../../hooks/useT"
 import {
   createDiffReviewComment,
+  deleteDiffReviewComment,
   fetchDiffReviewComments,
   replyToDiffReviewComment,
   resolveDiffReviewComment,
@@ -49,6 +51,7 @@ export function useDiffReviewFeedback({
 }: DiffReviewFeedbackOptions) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [selection, setSelection] = useState<DiffLineSelection | null>(null)
   const [body, setBody] = useState("")
   const [editing, setEditing] = useState<DiffReviewComment | null>(null)
@@ -102,6 +105,20 @@ export function useDiffReviewFeedback({
     onSuccess: () => {
       setReplyingId(null)
       setReplyBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const deleteComment = useMutation({
+    mutationFn: (id: number) => deleteDiffReviewComment(jobId, id),
+    onSuccess: (_, id) => {
+      if (editing?.id === id) {
+        setEditing(null)
+        setBody("")
+      }
+      if (editingThreadId === id) {
+        setEditingThreadId(null)
+        setEditingThreadBody("")
+      }
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
   })
@@ -200,40 +217,56 @@ export function useDiffReviewFeedback({
     setReplyBody("")
   }
 
+  async function requestDeleteComment(commentId: number) {
+    const confirmed = await confirm({
+      message: t("review_delete_comment_confirm"),
+      confirmLabel: t("review_delete_comment"),
+      destructive: true
+    })
+    if (!confirmed) return
+    deleteComment.mutate(commentId)
+  }
+
   const panel = enabled ? (
-    <DiffReviewFeedbackPanel
-      actionableComments={actionableComments}
-      body={body}
-      comments={commentList}
-      createError={createComment.error}
-      createPending={createComment.isPending}
-      editing={editing}
-      handledComments={handledComments}
-      isComposing={Boolean(editing || addingGlobal)}
-      onAddGlobalComment={startGlobalComment}
-      onBodyChange={setBody}
-      onCancel={cancelComposer}
-      onCancelReply={cancelReply}
-      onChangeReplyBody={setReplyBody}
-      onEdit={editComment}
-      onReply={saveReply}
-      onResolve={(comment) => resolveComment.mutate(comment.id)}
-      onSave={saveComment}
-      onStartReply={startReply}
-      onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
-      onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
-      replyBody={replyBody}
-      replyError={replyToComment.error}
-      replyPending={replyToComment.isPending}
-      replyingId={replyingId}
-      resolvePending={resolveComment.isPending}
-      submitError={submitError}
-      submitPending={submitComments.isPending}
-      supportsGlobalComments={supportsGlobalComments}
-      updateError={updateComment.error}
-      updatePending={updateComment.isPending}
-      workflowActive={workflowActive}
-    />
+    <>
+      <DiffReviewFeedbackPanel
+        actionableComments={actionableComments}
+        body={body}
+        comments={commentList}
+        createError={createComment.error}
+        createPending={createComment.isPending}
+        deleteError={deleteComment.error}
+        deletePending={deleteComment.isPending}
+        editing={editing}
+        handledComments={handledComments}
+        isComposing={Boolean(editing || addingGlobal)}
+        onAddGlobalComment={startGlobalComment}
+        onBodyChange={setBody}
+        onCancel={cancelComposer}
+        onCancelReply={cancelReply}
+        onChangeReplyBody={setReplyBody}
+        onDelete={(comment) => requestDeleteComment(comment.id)}
+        onEdit={editComment}
+        onReply={saveReply}
+        onResolve={(comment) => resolveComment.mutate(comment.id)}
+        onSave={saveComment}
+        onStartReply={startReply}
+        onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
+        onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
+        replyBody={replyBody}
+        replyError={replyToComment.error}
+        replyPending={replyToComment.isPending}
+        replyingId={replyingId}
+        resolvePending={resolveComment.isPending}
+        submitError={submitError}
+        submitPending={submitComments.isPending}
+        supportsGlobalComments={supportsGlobalComments}
+        updateError={updateComment.error}
+        updatePending={updateComment.isPending}
+        workflowActive={workflowActive}
+      />
+      {confirmDialog}
+    </>
   ) : null
 
   return {
@@ -252,6 +285,7 @@ export function useDiffReviewFeedback({
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
     onSaveComposing: saveComment,
+    onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id) : undefined,
     onSaveEditThread: saveEditThread,
     onStartEditThread: startEditThread,
     panel,
@@ -265,6 +299,8 @@ function DiffReviewFeedbackPanel({
   comments,
   createError,
   createPending,
+  deleteError,
+  deletePending,
   editing,
   handledComments,
   isComposing,
@@ -273,6 +309,7 @@ function DiffReviewFeedbackPanel({
   onCancel,
   onCancelReply,
   onChangeReplyBody,
+  onDelete,
   onEdit,
   onReply,
   onResolve,
@@ -297,6 +334,8 @@ function DiffReviewFeedbackPanel({
   comments: DiffReviewComment[]
   createError: Error | null
   createPending: boolean
+  deleteError: Error | null
+  deletePending: boolean
   editing: DiffReviewComment | null
   handledComments: DiffReviewComment[]
   isComposing: boolean
@@ -305,6 +344,7 @@ function DiffReviewFeedbackPanel({
   onCancel: () => void
   onCancelReply: () => void
   onChangeReplyBody: (body: string) => void
+  onDelete: (comment: DiffReviewComment) => void
   onEdit: (comment: DiffReviewComment) => void
   onReply: () => void
   onResolve: (comment: DiffReviewComment) => void
@@ -362,6 +402,7 @@ function DiffReviewFeedbackPanel({
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
               {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
+              {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
             </div>
             {replyingId === comment.id ? (
               <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
@@ -382,6 +423,7 @@ function DiffReviewFeedbackPanel({
           )
         })}
       </div>
+      {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
       {isComposing ? (
         <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">

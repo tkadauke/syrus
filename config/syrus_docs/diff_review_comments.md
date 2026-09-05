@@ -28,6 +28,7 @@ API endpoints live under the user-scoped app API:
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit`
 - `PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id`
+- `DELETE /api/v1/app/jobs/:job_id/diff_review_comments/:id`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/reply`
 
@@ -50,6 +51,13 @@ Replies start in `draft` state like any other comment and share the parent's
 `anchor_key`, so they render in the same thread ordered by `created_at`.
 `comment_json` exposes `parent_id` (`null` for top-level comments) for
 clients that want to render explicit reply structure.
+
+`DELETE` hard-deletes a comment (no `deleted`/`superseded` state, a real row
+removal) and only accepts comments still in `draft` — once a comment has been
+`submitted`, `resolved`, or `superseded` it is part of the review history and
+the endpoint responds `422 unprocessable_content` instead. On success it
+returns `{ job_id, deleted_id }` rather than the usual comments payload, since
+the deleted comment no longer exists to serialize.
 
 Current UI surfaces use these `surface` values:
 
@@ -101,20 +109,29 @@ exact commented line highlighted), then the comment body, then actions
 ("View in diff" to scroll to the anchor, "Resolve"). Only whole-review
 comments (`anchor_kind: "review"`) get an inline sidebar Edit control, since
 they have no code anchor to edit at; a "Comment on this review" button starts
-one. The sidebar's job is to read like a concise review story — enough
-context to follow along without re-deriving it from the full diff.
+one. Draft comments (both whole-review, from the sidebar, and line-anchored,
+inline in the diff) also get a "Delete" action next to Edit; it opens a shared
+confirmation dialog (`useConfirm`) before hard-deleting, since the action
+cannot be undone. A comment that has already been submitted, resolved, or
+superseded has no Delete affordance — the record is review history at that
+point, not a draft. The sidebar's job is to read like a concise review story —
+enough context to follow along without re-deriving it from the full diff.
 
 `ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
 shared diff renderer behind the review workspace, source-browser diff mode,
 and run artifact diff panels; the natural-height and changed-files-popup
 behaviors above are opt-in per surface via its `scroll` and `changedFilesPopup`
-props, but inline composing and inline thread editing
+props, and inline composing and inline thread editing
 (`composingSelection`/`onSaveComposing`/`onCancelComposing`/
 `onChangeComposingBody` and `onStartEditThread`/`editingThreadId`) are wired
 into all three surfaces (`useDiffReviewFeedback` returns the same props
 regardless of surface) so writing and editing a code comment always happens
-at its anchor, never in a separate sidebar form. The add-comment affordance is
-a small "+" in the left gutter beside the line number, shown on row hover
-(GitHub-style), not a right-edge column. `DiffHunkSnippet` is exported from
-`ReviewableDiff.tsx` so the sidebar can render the same diff-line coloring
-used inside the diff itself for its compact context snippets.
+at its anchor, never in a separate sidebar form. `onDeleteThread` is the same
+kind of prop but is currently only passed by the review workspace — the
+source-browser and run-artifact-diff surfaces don't wire it up, so those
+surfaces have no delete affordance yet even though the component supports one.
+The add-comment affordance is a small "+" in the left gutter beside the line
+number, shown on row hover (GitHub-style), not a right-edge column.
+`DiffHunkSnippet` is exported from `ReviewableDiff.tsx` so the sidebar can
+render the same diff-line coloring used inside the diff itself for its
+compact context snippets.

@@ -83,6 +83,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
             onCommentLine={startComment}
             onSaveComposing={feedback.onSaveComposing}
+            onDeleteThread={feedback.onDeleteThread}
             onSaveEditThread={feedback.onSaveEditThread}
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}
