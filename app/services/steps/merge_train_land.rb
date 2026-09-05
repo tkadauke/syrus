@@ -248,6 +248,12 @@ module Steps
     def reconcile_members!(train, client, integration_pr, integration_sha: nil)
       train.members.includes(:job).each do |member|
         member_job = member.job
+
+        if integration_sha.present? && !member_landed?(member_job, integration_sha)
+          handle_unverified_member!(member, member_job, integration_sha)
+          next
+        end
+
         reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
         if member_job.open?
           member_job.update_column(:landed_sha, integration_sha) if integration_sha.present?
@@ -258,6 +264,44 @@ module Steps
         end
         member.update!(state: "merged")
       end
+    end
+
+    # Guards against stamping a member as landed when its actual commits
+    # (recorded by Steps::MergeTrainBuild#record_member_commits!) never made
+    # it into the SHA we are about to close it against -- e.g. a stale
+    # MergeTrainMember carried over from a prior failed/rebuilt train whose
+    # branch was never integrated into THIS train's integration branch.
+    # Verified via the last recorded LandedCommit for the member rather than
+    # the member's raw (unrebased) PR branch tip, since rebasing rewrites
+    # commit SHAs -- the original branch tip is never an ancestor of the
+    # rebased integration history even on the happy path.
+    def member_landed?(member_job, integration_sha)
+      last_row = LandedCommit.where(landable: member_job, kind: "implementation").order(:position).last
+      return false unless last_row
+
+      ancestor_of_integration?(last_row.sha, integration_sha)
+    end
+
+    def ancestor_of_integration?(sha, integration_sha)
+      workspace.setup
+      chdir = workspace.path.to_s
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      git.run("merge-base", "--is-ancestor", sha, integration_sha, chdir: chdir)
+      true
+    rescue GitRunner::GitError
+      false
+    end
+
+    # Do NOT close the PR/Job or delete the branch -- the member's work is
+    # not actually reachable from what we just landed. Route it back through
+    # the normal landing-failure path instead of silently treating it as
+    # done (wrong) or silently dropping it (stuck in :landing forever).
+    def handle_unverified_member!(member, member_job, integration_sha)
+      reason = "merge_train: #{member_job.slug}'s landed commits are not reachable from " \
+               "integration #{integration_sha.to_s.first(9)}; not closing as merged, needs re-landing"
+      log(reason, kind: "system")
+      member.update!(state: "failed", reason: reason.truncate(500))
+      LandingFailureHandler.call(job: member_job, reason: reason, run: run) if member_job.landing?
     end
 
     def reconcile_member_pull_request_after_landing(client, member_job, integration_pr)

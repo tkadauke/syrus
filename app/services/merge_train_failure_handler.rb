@@ -24,6 +24,17 @@ class MergeTrainFailureHandler
       next if member.state == "merged"
 
       job = member.job
+
+      # A land step can fail AFTER GitHub genuinely merged the integration
+      # branch (e.g. a crash between the merge and this member's own
+      # bookkeeping finishing in Steps::MergeTrainLand#reconcile_members!).
+      # "the workflow failed" does not mean "this member's work is lost" --
+      # check for positive evidence one way or the other before reverting.
+      if already_landed?(job)
+        complete_landing!(member, job)
+        next
+      end
+
       # LandingFailureHandler classifies the reason: transient/infra
       # blockers defer_landing (stay approved, auto-retry), genuine
       # failures fail_landing (-> implemented, approval cleared, requires
@@ -34,6 +45,64 @@ class MergeTrainFailureHandler
   end
 
   private
+
+  # Positive evidence a member's commits are already safely on base: the
+  # train actually landed a real integration merge (record_integration_merge_commit!
+  # ran before Steps::MergeTrainLand#reconcile_members! could crash), and this
+  # member's own rebased commits (record_member_commits! in
+  # Steps::MergeTrainBuild) were recorded during this same workflow attempt.
+  # Scoped by @workflow.created_at so a LandedCommit trail left by a much
+  # earlier failed/rebuilt attempt for the same Job can't be mistaken for
+  # evidence from the attempt that just failed.
+  def already_landed?(job)
+    return false unless integration_merge_sha
+
+    LandedCommit.where(landable: job, kind: "implementation")
+      .where("created_at >= ?", @workflow.created_at)
+      .exists?
+  end
+
+  def complete_landing!(member, job)
+    job.update_column(:landed_sha, integration_merge_sha)
+    job.close_with_reason!("pr_merged") if job.may_close?
+    member.update!(state: "merged")
+    log_self_healed!(job)
+  end
+
+  def log_self_healed!(job)
+    log_run = failed_run || job.current_run
+    return unless log_run
+
+    JobLog.append!(
+      run: log_run,
+      kind: "system",
+      chunk: "merge_train: #{job.slug} was already landed at #{integration_merge_sha.to_s.first(9)} when the train " \
+             "failed; closed pr_merged instead of reverting. Its PR/branch may still need manual GitHub cleanup."
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] failed to log self-healed landing for #{job.slug}: #{e.class}: #{e.message}")
+  end
+
+  def integration_merge_sha
+    return @integration_merge_sha if defined?(@integration_merge_sha)
+
+    landable = merge_train_landable
+    @integration_merge_sha = landable && LandedCommit
+      .where(landable: landable, kind: "integration_merge")
+      .where("created_at >= ?", @workflow.created_at)
+      .order(:created_at)
+      .last&.sha
+  end
+
+  # Same attribution rule as Steps::MergeTrainStep#landed_commit_landable:
+  # the Epic for an Epic-backed train, the MergeTrain itself for a
+  # bundle-backed train.
+  def merge_train_landable(train = merge_train)
+    return train.epic if train.epic_backed?
+    return train if train.bundle_backed?
+
+    nil
+  end
 
   def failure_reason
     (@workflow.failure_reason.presence ||
@@ -95,9 +164,9 @@ class MergeTrainFailureHandler
   end
 
   def merge_train
-    id = @workflow.artifact("merge_train_id")
-    return if id.blank?
+    return @merge_train if defined?(@merge_train)
 
-    MergeTrain.find_by(id: id)
+    id = @workflow.artifact("merge_train_id")
+    @merge_train = id.present? ? MergeTrain.find_by(id: id) : nil
   end
 end

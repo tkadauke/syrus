@@ -21,6 +21,13 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     train
   end
 
+  # Simulates Steps::MergeTrainBuild#record_member_commits! having already
+  # run for this member, which is what Steps::MergeTrainLand#reconcile_members!
+  # now requires as positive evidence before closing a member pr_merged.
+  def record_landed_commit!(job, sha:)
+    LandedCommit.create!(landable: job, sha: sha, kind: "implementation", position: 0)
+  end
+
   def step_handler(klass, kind, train, owner_job)
     artifacts = { "merge_train_id" => train.id }
     artifacts["merge_train_base_sha"] = "basesha123" if kind == "merge_train_land"
@@ -800,10 +807,67 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.state).to eq("succeeded")
     end
 
+    it "does not close a stale carryover member as merged when it has no recorded landed commits" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      # `b` was genuinely integrated by this train's build step; `a` is a
+      # stale MergeTrainMember carried over from a different train (e.g. a
+      # prior failed bundle) whose branch was never actually rebased into
+      # THIS train's integration branch.
+      record_landed_commit!(b, sha: "b-landed-1")
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(a.reload).not_to be_closed
+      expect(a.landed_sha).to be_nil
+      expect(a.state).to eq("implemented")
+      expect(client).not_to have_received(:close_pull_request).with("acme/widgets", a.pr_number)
+      expect(client).not_to have_received(:delete_branch).with("acme/widgets", a.branch_name)
+      expect(b.reload).to be_closed
+      expect(b.closure_reason).to eq("pr_merged")
+      expect(b.landed_sha).to eq("trainsha789")
+
+      member_a = train.members.find_by(job: a)
+      expect(member_a.state).to eq("failed")
+      expect(member_a.reason).to include("not reachable")
+      member_b = train.members.find_by(job: b)
+      expect(member_b.state).to eq("merged")
+
+      logs = handler.run.job_logs.pluck(:chunk).join("\n")
+      expect(logs).to include("#{a.slug}'s landed commits are not reachable")
+    end
+
+    it "does not close a member as merged when its recorded landed commit is not an ancestor of the integration SHA" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      git = stub_git(handler)
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "a-landed-1", "trainsha789", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not an ancestor"))
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(a.reload).not_to be_closed
+      expect(train.members.find_by(job: a).state).to eq("failed")
+    end
+
     it "stores the integration merge SHA as landed_sha on all member Jobs" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
@@ -820,6 +884,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, b)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
@@ -830,8 +896,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       rows = LandedCommit.where(kind: "integration_merge")
       expect(rows.pluck(:sha, :landable_type, :landable_id)).to eq([ [ "trainsha789", "Epic", epic.id ] ])
-      expect(LandedCommit.where(landable: a)).to be_empty
-      expect(LandedCommit.where(landable: b)).to be_empty
+      expect(LandedCommit.where(landable: a, kind: "integration_merge")).to be_empty
+      expect(LandedCommit.where(landable: b, kind: "integration_merge")).to be_empty
     end
 
     it "records one LandedCommit row for the integration merge, attributed to the MergeTrain (not a member Job), for a bundle-backed train" do
@@ -844,6 +910,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         integration_branch: "syrus/job-bundle-1"
       )
       MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      record_landed_commit!(a, sha: "a-landed-1")
       handler = step_handler(described_class, "merge_train_land", train, a)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
@@ -854,7 +921,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       rows = LandedCommit.where(kind: "integration_merge")
       expect(rows.pluck(:sha, :landable_type, :landable_id)).to eq([ [ "trainsha789", "MergeTrain", train.id ] ])
-      expect(LandedCommit.where(landable: a)).to be_empty
+      expect(LandedCommit.where(landable: a, kind: "integration_merge")).to be_empty
     end
 
     it "deletes the integration branch and each member branch after landing" do
