@@ -1,6 +1,6 @@
 # K8s Cluster Viewer
 
-K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Gated agentic access ships in a later Job under EPIC-306.
+K8s Cluster Viewer lets admins register external Kubernetes/k3s clusters, parsed from a pasted kubeconfig, with encrypted credential storage, and browse them read-only from a tabbed sidebar UI. Read-only cluster inspection is also available to the Syrus agent as MCP tools, gated per-cluster via `agentic_access_enabled`. Write-capable agentic tools ship in a later Job under EPIC-306.
 
 ## What It Adds
 

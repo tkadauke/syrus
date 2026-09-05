@@ -21,6 +21,16 @@ RSpec.describe K8sCluster::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(K8sCluster::SidebarPages)
   end
 
+  it "registers the agentic-access workflow and chat MCP tool set providers once the plugin is enabled" do
+    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(K8sCluster::WorkflowToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).not_to include(K8sCluster::ChatToolSet)
+
+    PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
+
+    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(K8sCluster::WorkflowToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(K8sCluster::ChatToolSet)
+  end
+
   describe ".enabled?" do
     it "is false when the plugin record is not enabled" do
       expect(K8sCluster.enabled?).to be(false)
