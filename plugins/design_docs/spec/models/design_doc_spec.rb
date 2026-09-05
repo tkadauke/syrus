@@ -142,5 +142,35 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
       expect(doc.reload.markdown).to include("syrus:range-start")
       expect(doc.preview_text).to eq("Alpha beta gamma")
     end
+
+    it "keeps a leading heading on its own line instead of swallowing the clamped body into it" do
+      body = (["word"] * 150).join(" ")
+      doc = described_class.create!(owner_user: owner, title: "Headed", markdown: "# Overview\n\n#{body}")
+
+      expect(doc.preview_text).to eq("# Overview\n\n#{(['word'] * 98).join(' ')}…")
+    end
+
+    it "keeps a heading on its own line even without a blank line separating it from the clamped body" do
+      body = (["word"] * 150).join(" ")
+      doc = described_class.create!(owner_user: owner, title: "Headed", markdown: "# Overview\n#{body}")
+
+      expect(doc.preview_text).to eq("# Overview\n\n#{(['word'] * 98).join(' ')}…")
+    end
+
+    it "leaves a short, unclamped document exactly as written" do
+      doc = described_class.create!(owner_user: owner, title: "Headed", markdown: "# Overview\nAlpha beta gamma.")
+
+      expect(doc.preview_text).to eq("# Overview\nAlpha beta gamma.")
+    end
+
+    it "preserves paragraph breaks and clamps by total word count across paragraphs" do
+      first_paragraph = (["alpha"] * 60).join(" ")
+      second_paragraph = (["beta"] * 60).join(" ")
+      doc = described_class.create!(owner_user: owner, title: "Multi", markdown: "#{first_paragraph}\n\n#{second_paragraph}")
+
+      preview = doc.preview_text
+
+      expect(preview).to eq("#{first_paragraph}\n\n#{(['beta'] * 40).join(' ')}…")
+    end
   end
 end
