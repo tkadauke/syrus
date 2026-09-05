@@ -51,6 +51,16 @@ describe("linkifySlugs", () => {
     expect(card.props.children.props.to).toBe("/design_docs/20")
   })
 
+  it("wraps CHAT slugs in SlugHoverCard with kind=chat and numeric id, rendered as a copyable slug", () => {
+    render(<MemoryRouter>{linkifySlugs("See CHAT-3 for context")}</MemoryRouter>)
+
+    const hoverCard = screen.getByTestId("slug-hover-card")
+    expect(hoverCard).toHaveAttribute("data-kind", "chat")
+    expect(hoverCard).toHaveAttribute("data-id", "3")
+    expect(screen.getByRole("button", { name: "Copy CHAT-3 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "CHAT-3" })).not.toBeInTheDocument()
+  })
+
   it("returns plain text unchanged when there are no slugs", () => {
     expect(linkifySlugs("plain text with no slugs")).toEqual(["plain text with no slugs"])
   })

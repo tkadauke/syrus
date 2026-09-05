@@ -441,5 +441,9 @@
   "pinned_role_assistant": "Assistant",
   "theme_preview_title": "Theme preview",
   "theme_preview_open_in_new_tab": "Open in new tab",
-  "theme_preview_close": "Close"
+  "theme_preview_close": "Close",
+  "card_preview_generating_title": "Generating title…",
+  "card_preview_see_more": "See more",
+  "card_preview_pending_one": "{{count}} pending",
+  "card_preview_pending_other": "{{count}} pending"
 }

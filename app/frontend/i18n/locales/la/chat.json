@@ -441,5 +441,9 @@
   "pinned_role_assistant": "Adiutor",
   "theme_preview_title": "Praevisio thematis",
   "theme_preview_open_in_new_tab": "In nova tabella aperi",
-  "theme_preview_close": "Claude"
+  "theme_preview_close": "Claude",
+  "card_preview_generating_title": "Titulus generatur…",
+  "card_preview_see_more": "Vide amplius",
+  "card_preview_pending_one": "{{count}} pendens",
+  "card_preview_pending_other": "{{count}} pendentia"
 }
