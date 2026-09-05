@@ -18,6 +18,7 @@ module PendingActions
       errors.add(:payload, "job_id is required") unless payload["job_id"].present?
       errors.add(:payload, "event is invalid") unless JobStateRepair::ForceTransition::ALLOWED_EVENTS.include?(payload["event"].to_s)
       errors.add(:reason, "is required") if reason.blank?
+      validate_transition_guard(errors)
     end
 
     def action_detail
@@ -26,5 +27,17 @@ module PendingActions
 
     def repair_action? = true
     def repair_snapshot_targets = [ repair_action_job_or_nil ]
+
+    private
+
+    def validate_transition_guard(errors)
+      event = payload["event"].to_s
+      return unless payload["job_id"].present? && JobStateRepair::ForceTransition::ALLOWED_EVENTS.include?(event)
+
+      job = repair_action_job_or_nil
+      return unless job
+
+      errors.add(:payload, "#{job.slug} cannot apply #{event} from #{job.state}") unless job.public_send("may_#{event}?")
+    end
   end
 end
