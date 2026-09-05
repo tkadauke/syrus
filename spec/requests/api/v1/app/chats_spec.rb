@@ -4701,7 +4701,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(proposal.job).not_to be_backlog
   end
 
-  it "broadcasts update_proposal after confirming a proposal" do
+  it "broadcasts update_proposal with the serialized proposal after confirming a proposal" do
     sign_in_as(user)
     allow(AppEvents).to receive(:broadcast)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -4717,11 +4717,16 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       resource: "chat",
       id: chat.id,
       changed: [ "proposal" ],
-      payload: { action: "update_proposal", proposal_id: proposal.id }
+      payload: hash_including(
+        action: "update_proposal",
+        proposal_id: proposal.id,
+        pending_proposal_count: 0,
+        proposal: hash_including(id: proposal.id, state: "confirmed")
+      )
     )
   end
 
-  it "broadcasts update_proposal after rejecting a proposal" do
+  it "broadcasts update_proposal with the serialized proposal after rejecting a proposal" do
     sign_in_as(user)
     allow(AppEvents).to receive(:broadcast)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -4737,7 +4742,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       resource: "chat",
       id: chat.id,
       changed: [ "proposal" ],
-      payload: { action: "update_proposal", proposal_id: proposal.id }
+      payload: hash_including(
+        action: "update_proposal",
+        proposal_id: proposal.id,
+        pending_proposal_count: 0,
+        proposal: hash_including(id: proposal.id, state: "rejected")
+      )
     )
   end
 
