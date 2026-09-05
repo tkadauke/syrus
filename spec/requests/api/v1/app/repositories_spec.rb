@@ -493,7 +493,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["tabs"]).to include(
       { "key" => "overview", "label" => "Overview", "path" => repository_path(repository) },
       { "key" => "documents", "label" => "Documents", "path" => repository_documents_path(repository) },
-      { "key" => "scheduled_tasks", "label" => "Scheduled Tasks", "path" => repository_scheduled_tasks_path(repository) }
+      { "badge" => nil, "key" => "scheduled_tasks.repository", "label" => "Scheduled Tasks", "path" => repository_scheduled_tasks_path(repository) }
     )
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 2)
     expect(body["retry_failed_jobs"]).to include("count" => 1, "agent_provider_label" => "Codex")

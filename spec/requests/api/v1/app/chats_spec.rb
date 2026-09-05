@@ -1080,6 +1080,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    # Signing in materializes `user`, whose creation publishes a "user.created"
+    # domain event (consumed by the scheduled_tasks plugin); drain that before
+    # asserting the chat-creation request itself enqueues nothing.
+    clear_enqueued_jobs
 
     expect {
       post "/api/v1/app/chats"

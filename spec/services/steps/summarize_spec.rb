@@ -421,7 +421,7 @@ RSpec.describe Steps::Summarize, :ci_only do
       )
       cron_job = Job.create!(
         user: job.user, repository: job.repository,
-        kind: "cron", scheduled_task: cron_task
+        kind: "cron", scheduled_task_id: cron_task.id
       )
       cron_workflow = Workflow.create!(job: cron_job, trigger_kind: "initial")
       cron_step     = Step.create!(workflow: cron_workflow, kind: "summarize", position: 0)

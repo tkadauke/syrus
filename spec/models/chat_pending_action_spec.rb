@@ -810,6 +810,8 @@ RSpec.describe ChatPendingAction, :ci_only do
     it "covers every ACTIONS entry and every ACTION_TYPES entry" do
       # Force auto-load of handlers that are only referenced by string key
       # in ChatPendingAction::ACTIONS, so their action_key registrations run.
+      # Includes plugin-provided handlers (scheduled_tasks), which aren't
+      # covered by config/initializers/pending_actions.rb's core-only list.
       PendingActions::CompleteImplementStep
       PendingActions::SubmitCodingChanges
       PendingActions::RunVisualReview
