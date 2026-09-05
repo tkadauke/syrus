@@ -2,9 +2,7 @@ module PendingActions
   class MarkCiRepairNoop < Base
     action_key "mark_ci_repair_noop"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       workflow = job.workflows.find(payload.fetch("workflow_id"))
       raise ArgumentError, "Workflow is not a ci_failure repair." unless workflow.trigger_kind == "ci_failure"
@@ -20,7 +18,7 @@ module PendingActions
       workflow.set_artifact!("ci_repair_noop", marker)
       job.update!(landing_failure_reason: landing_failure_reason(job, workflow))
       progress!("Recording repair audit...")
-      audit!(workflow)
+      audit!("marked #{workflow.slug} as CI repair no-op", run: workflow.runs.order(created_at: :desc, id: :desc).first || workflow.job.current_run)
       nil
     end
 
@@ -38,8 +36,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}; workflow_id: #{payload["workflow_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -47,17 +44,6 @@ module PendingActions
       prefix = "ci_repair_noop: #{job.slug} #{workflow.slug}"
       text = "#{prefix} made no effective branch/check progress; #{reason}"
       text.first(1_000)
-    end
-
-    def audit!(workflow)
-      run = workflow.runs.order(created_at: :desc, id: :desc).first || workflow.job.current_run
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] marked #{workflow.slug} as CI repair no-op; reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end

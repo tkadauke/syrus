@@ -2,9 +2,7 @@ module PendingActions
   class CancelStaleWork < Base
     action_key "cancel_stale_work"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       progress!("Cancelling stale active work for #{job.slug}...")
       cancelled = cancel_work!(job)
@@ -13,7 +11,10 @@ module PendingActions
         WorkEngine::Reconciler.call_locked!(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
       end
       progress!("Recording repair audit...")
-      audit!(job, cancelled)
+      audit!(
+        "cancelled stale work workflows=#{cancelled[:workflows].inspect} runs=#{cancelled[:runs].inspect}",
+        run: job.runs.order(created_at: :desc, id: :desc).first
+      )
       job.reload
     end
 
@@ -36,8 +37,7 @@ module PendingActions
       "job_id: #{payload["job_id"]}, workflow_ids: #{workflow_ids.inspect}, run_ids: #{run_ids.inspect}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
@@ -102,16 +102,5 @@ module PendingActions
 
     def workflow_ids = Array(payload["workflow_ids"]).compact
     def run_ids = Array(payload["run_ids"]).compact
-
-    def audit!(job, cancelled)
-      run = job.runs.order(created_at: :desc, id: :desc).first
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] cancelled stale work workflows=#{cancelled[:workflows].inspect} runs=#{cancelled[:runs].inspect}; reason=#{reason}",
-        kind: "system"
-      )
-    end
   end
 end

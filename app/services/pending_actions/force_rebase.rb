@@ -2,9 +2,7 @@ module PendingActions
   class ForceRebase < Base
     action_key "force_rebase"
 
-    def execute
-      raise ArgumentError, "Admin access required." unless user.admin?
-
+    def perform
       job = repair_action_job
       raise ArgumentError, "No PR on this Job to rebase." unless job.pr_number.present? || job.external_pr_number.present?
       raise ArgumentError, "No branch on this Job to rebase." if job.branch_name.blank?
@@ -28,7 +26,10 @@ module PendingActions
       progress!("Starting #{workflow.slug}...")
       WorkUnits::Launcher.start!(workflow)
       progress!("Recording repair audit...")
-      audit!(job, workflow)
+      audit!(
+        "forced #{workflow.trigger_kind} workflow ##{workflow.id}; bypass_front_of_queue=#{bypass_front_of_queue?}",
+        run: job.current_run
+      )
       workflow
     end
 
@@ -45,24 +46,12 @@ module PendingActions
       "job_id: #{payload["job_id"]}"
     end
 
-    def repair_action? = true
-    def repair_snapshot_targets = [ repair_action_job_or_nil ]
+    repairs_job!
 
     private
 
     def bypass_front_of_queue?
       payload.fetch("bypass_front_of_queue", true) != false
-    end
-
-    def audit!(job, workflow)
-      run = job.current_run
-      return unless run
-
-      JobLog.append!(
-        run: run,
-        chunk: "[operator repair] forced #{workflow.trigger_kind} workflow ##{workflow.id}; bypass_front_of_queue=#{bypass_front_of_queue?}; reason=#{reason}",
-        kind: "system"
-      )
     end
   end
 end
