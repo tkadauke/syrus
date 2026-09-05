@@ -217,6 +217,74 @@ RSpec.describe TargetGraph::Compiler do
     end
   end
 
+  describe ".diagnose" do
+    it "reports 'none' as the source and just the implicit root when no .syrus.yml is present" do
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics.source).to eq("none")
+      expect(diagnostics.owner_config_path).to eq(".syrus.yml")
+      expect(diagnostics.target_labels).to eq(%w[//:repo])
+      expect(diagnostics.project_count).to eq(1)
+      expect(diagnostics).not_to be_error
+      expect(diagnostics.error).to be_nil
+    end
+
+    it "reports the compiled target labels for root legacy config, sorted for stable output" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+        formatters:
+          - command: rubocop -a
+            files: ["**/*.rb"]
+      YAML
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics.source).to eq(".syrus.yml")
+      expect(diagnostics.target_labels).to eq(%w[//:format/0 //:grade/tests //:repo])
+      expect(diagnostics.error).to be_nil
+      expect(diagnostics.to_h).to include(
+        "source" => ".syrus.yml",
+        "target_count" => 3,
+        "error" => nil
+      )
+    end
+
+    it "names the owning .syrus.yml path in the error message when the config fails to parse" do
+      write(".syrus.yml", <<~YAML)
+        formatters:
+          not_an_array: true
+      YAML
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to start_with(".syrus.yml:")
+      # A parse failure degrades to the implicit root only -- never raises,
+      # matching TargetGraph::Compiler.compile's existing non-fatal contract.
+      expect(diagnostics.target_labels).to eq(%w[//:repo])
+    end
+
+    it "reports a graph validation failure through Diagnostics#error instead of raising" do
+      # Legacy root-only compilation can't produce an invalid graph today
+      # (see the ".compile" examples above), so exercise the
+      # TargetGraph::Error rescue branch directly against the message
+      # format TargetGraph#validate! actually produces (target label +
+      # owning config path; see target_graph_spec.rb for that format).
+      allow_any_instance_of(TargetGraph).to receive(:validate!)
+        .and_raise(TargetGraph::ValidationError,
+                   "target //:grade/broken (.syrus.yml) depends on unknown target //:missing")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include(".syrus.yml")
+      expect(diagnostics.error).to include("//:grade/broken")
+      expect(diagnostics.error).to include("//:missing")
+    end
+  end
+
   def write(rel, contents)
     path = File.join(@dir, rel)
     FileUtils.mkdir_p(File.dirname(path))
