@@ -171,4 +171,52 @@ RSpec.describe Theme do
       expect(issue[:message]).to include("on-brand").and include("brand")
     end
   end
+
+  describe "#contrast_warning_messages" do
+    def legible_tokens
+      {
+        "light" => {
+          "brand" => "#b6492e", "brand-emphasis" => "#973b25", "surface" => "#ffffff",
+          "surface-raised" => "#f9fafb", "border" => "#e5e7eb", "text-primary" => "#111827",
+          "text-secondary" => "#6b7280", "success" => "#047857", "warning" => "#b45309",
+          "danger" => "#b91c1c", "info" => "#1d4ed8", "neutral" => "#374151", "on-brand" => "#ffffff"
+        },
+        "dark" => {
+          "brand" => "#b6492e", "brand-emphasis" => "#dba28b", "surface" => "#111827",
+          "surface-raised" => "#1f2937", "border" => "#374151", "text-primary" => "#f3f4f6",
+          "text-secondary" => "#9ca3af", "success" => "#a7f3d0", "warning" => "#fde68a",
+          "danger" => "#fecaca", "info" => "#bfdbfe", "neutral" => "#e5e7eb", "on-brand" => "#ffffff"
+        }
+      }
+    end
+
+    it "returns the same messages as #contrast_issues for a legible palette (empty)" do
+      expect(new_theme(tokens: legible_tokens).contrast_warning_messages).to eq([])
+    end
+
+    it "returns the #contrast_issues messages for a palette with a real issue" do
+      tokens = legible_tokens
+      tokens["light"]["text-secondary"] = "#f0f0f0"
+      theme = new_theme(tokens: tokens)
+
+      expect(theme.contrast_warning_messages).to eq(theme.contrast_issues.map { |issue| issue.fetch(:message) })
+      expect(theme.contrast_warning_messages).not_to be_empty
+    end
+
+    it "rescues a malformed color value instead of raising, and logs a warning" do
+      # Only a status-tone value can actually crash contrast_issues: its check
+      # blends the tone color against `surface` via ColorContrast.blend, which
+      # zips both colors' parsed RGB channel arrays -- a value that doesn't
+      # parse into exactly 3 channels (unlike a plain ratio check) raises
+      # NoMethodError deep inside that zip.
+      tokens = legible_tokens
+      tokens["light"]["danger"] = "abcde"
+      theme = new_theme(tokens: tokens)
+
+      expect(Rails.logger).to receive(:warn).with(/contrast_issues raised/)
+      result = nil
+      expect { result = theme.contrast_warning_messages }.not_to raise_error
+      expect(result).to eq([])
+    end
+  end
 end

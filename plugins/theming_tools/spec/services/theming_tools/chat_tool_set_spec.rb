@@ -131,6 +131,31 @@ RSpec.describe ThemingTools::ChatToolSet do
       expect(Theme.where(built_in: false, owner_user: other_user).count).to eq(1)
     end
 
+    it "surfaces a non-blocking contrast_warnings array and still saves when a draft has a real contrast issue" do
+      active = Factories.theme(slug: "terracotta", built_in: true, tokens: legible_tokens)
+      user.update!(color_theme: active)
+      allow(AppEvents).to receive(:broadcast)
+
+      response = call_tool("preview_theme", name: "Bad Draft", light: { "text-primary" => "#fefefe" })
+
+      expect(response.error?).to be_falsey
+      expect(Theme.last.persisted?).to be true
+      warnings = payload(response)[:contrast_warnings]
+      expect(warnings).not_to be_empty
+      expect(warnings).to include(match(/light text-primary.*surface.*contrast/i))
+    end
+
+    it "returns an empty contrast_warnings array when the draft has no contrast issues" do
+      active = Factories.theme(slug: "terracotta", built_in: true, tokens: legible_tokens)
+      user.update!(color_theme: active)
+      allow(AppEvents).to receive(:broadcast)
+
+      response = call_tool("preview_theme", name: "Fine Draft")
+
+      expect(response.error?).to be_falsey
+      expect(payload(response)[:contrast_warnings]).to eq([])
+    end
+
     it "returns a validation error and broadcasts nothing when a token is still missing after defaulting" do
       expect(AppEvents).not_to receive(:broadcast)
 
