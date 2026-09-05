@@ -61,6 +61,25 @@ RSpec.describe Workflow::TriggerKind do
     end
   end
 
+  describe ".owns_job_lifecycle?" do
+    it "matches exactly the trigger kinds currently excluded from generic fail! propagation" do
+      owning_kinds = (
+        WorkDefinitions.landing_workflow_kinds +
+        WorkDefinitions.lifecycle_managed_workflow_kinds +
+        %w[coding_handoff local_mode_handoff external_pr_ingest]
+      ).uniq
+
+      described_class.values.each do |kind|
+        expect(described_class.owns_job_lifecycle?(kind)).to eq(owning_kinds.include?(kind)),
+          "expected owns_job_lifecycle?(#{kind.inspect}) to be #{owning_kinds.include?(kind)}"
+      end
+    end
+
+    it "returns false for unknown trigger kinds" do
+      expect(described_class.owns_job_lifecycle?("unknown")).to eq(false)
+    end
+  end
+
   describe "::ACTIVE_STATES" do
     it "is queued and running, shared with ChatFeedbackSubmission" do
       expect(described_class::ACTIVE_STATES).to eq(%w[queued running])

@@ -54,15 +54,12 @@ module Workflows
       end
     end
 
-    # When a workflow fails, drive ordinary Jobs into :failed. Specialized
-    # workflows either own their own hooks or keep landing/ingest state through
+    # When a workflow fails, drive ordinary Jobs into :failed. Trigger kinds
+    # that own their Job lifecycle (see Workflow::TriggerKind#owns_job_lifecycle?)
+    # either own their own hooks or keep landing/ingest state through
     # dedicated services.
     def fail!
-      return if workflow.landing_workflow?
-      return if workflow.coding_handoff_workflow?
-      return if workflow.local_mode_handoff_workflow?
-      return if workflow.external_pr_ingest_workflow?
-      return if workflow.infrastructure_workflow?
+      return if Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)
       return if newer_active_workflow?
 
       if no_changes_produced_failure?
