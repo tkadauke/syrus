@@ -58,6 +58,16 @@ function setupFetchMock(initial = [stagingCluster()]) {
       clusters = clusters.filter((cluster) => cluster.id !== id)
       return Promise.resolve(new Response(null, { status: 204 }))
     }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/nodes$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, nodes: [] }))
+    }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/overview$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        generated_at: "2026-01-01T00:00:00Z",
+        nodes: { available: false, reason: "metrics_unavailable", message: "no metrics-server" },
+        pods: { available: false, reason: "metrics_unavailable", message: "no metrics-server" }
+      }))
+    }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)
   }) as typeof window.fetch)
@@ -158,5 +168,15 @@ describe("KubernetesClusters", () => {
     fireEvent.click(screen.getByRole("button", { name: "Test" }))
 
     expect(await screen.findByText("Connection failed: kubeconfig is not valid YAML")).toBeInTheDocument()
+  })
+
+  it("browses into the tabbed cluster viewer from the connections list", async () => {
+    setupFetchMock()
+    renderClusters()
+
+    const row = (await screen.findByText("Staging")).closest("tr") as HTMLElement
+    fireEvent.click(within(row).getByRole("button", { name: "Browse" }))
+
+    expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
   })
 })

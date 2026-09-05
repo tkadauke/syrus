@@ -37,6 +37,8 @@ module K8sCluster
         internal_ip: internal_ip(item),
         capacity_cpu: item.dig("status", "capacity", "cpu"),
         capacity_memory: item.dig("status", "capacity", "memory"),
+        allocatable_cpu: item.dig("status", "allocatable", "cpu"),
+        allocatable_memory: item.dig("status", "allocatable", "memory"),
         created_at: item.dig("metadata", "creationTimestamp")
       }
     end

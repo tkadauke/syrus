@@ -14,7 +14,8 @@ RSpec.describe K8sCluster::Nodes do
         "conditions" => [ { "type" => "Ready", "status" => ready ? "True" : "False" } ],
         "addresses" => [ { "type" => "InternalIP", "address" => "192.168.1.10" } ],
         "nodeInfo" => { "kubeletVersion" => "v1.30.0" },
-        "capacity" => { "cpu" => "4", "memory" => "16Gi" }
+        "capacity" => { "cpu" => "4", "memory" => "16Gi" },
+        "allocatable" => { "cpu" => "3800m", "memory" => "15Gi" }
       }
     }
   end
@@ -31,6 +32,8 @@ RSpec.describe K8sCluster::Nodes do
       expect(row[:internal_ip]).to eq("192.168.1.10")
       expect(row[:capacity_cpu]).to eq("4")
       expect(row[:capacity_memory]).to eq("16Gi")
+      expect(row[:allocatable_cpu]).to eq("3800m")
+      expect(row[:allocatable_memory]).to eq("15Gi")
     end
 
     it "reports <none> for a node with no role labels" do
