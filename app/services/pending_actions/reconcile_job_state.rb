@@ -43,6 +43,7 @@ module PendingActions
     private
 
     def validate_transition_guard(errors)
+      return unless action.new_record?
       return unless payload["job_id"].present? && MODES.include?(payload["mode"].to_s)
 
       guard = GUARD_METHODS[payload["mode"].to_s]
