@@ -3,35 +3,64 @@ require "mcp"
 module Mcp::Tools
   class AdminUnpauseUserSchedulingTool < MCP::Tool
     extend AdminPendingActionToolSupport
+    extend BulkPendingActionToolSupport
 
     tool_name "admin_unpause_user_scheduling"
-    description "Request resuming scheduled task fires for a user. Requires operator confirmation."
+    description <<~DESC
+      Request resuming scheduled task fires for one or more users. Pass
+      user_id for a single user (unchanged single-confirmation behavior) or
+      user_ids for multiple users, which requires a shared reason (the
+      root cause behind resuming every user in the batch) and creates one
+      grouped pending action the operator confirms or rejects together.
+      Requires operator confirmation.
+    DESC
 
     input_schema(
       properties: {
-        user_id: { type: "integer", description: "User id whose scheduling should be resumed." }
-      },
-      required: %w[user_id]
+        user_id: { type: "integer", description: "User id whose scheduling should be resumed." },
+        user_ids: {
+          type: "array",
+          items: { type: "integer" },
+          description: "Multiple user ids to resume as one grouped pending action, sharing one reason."
+        },
+        reason: { type: "string", description: "Operator-facing audit reason. Required for user_ids, optional for a single user_id." }
+      }
     )
 
     class << self
-      def call(user_id:, server_context:)
+      def call(user_id: nil, user_ids: nil, reason: nil, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
-        user_id = integer_param(user_id, "user_id")
-        return user_id if user_id.is_a?(MCP::Tool::Response)
+        ids, bulk, error = resolve_ids(id: user_id, ids: user_ids, param_name: "user_id")
+        return error if error
+        return Mcp::Tools.invalid("reason is required for user_ids") if bulk && reason.to_s.strip.empty?
 
-        user = User.find_by(id: user_id)
-        return Mcp::Tools.invalid("user not found: #{user_id}") unless user
+        users = ids.map { |id| User.find_by(id: id) }
+        missing = ids.zip(users).select { |_id, user| user.nil? }.map(&:first)
+        return Mcp::Tools.invalid("user not found: #{missing.join(', ')}") if missing.any?
 
-        create_pending_admin_action(
+        unless bulk
+          user = users.first
+          return create_pending_admin_action(
+            server_context: server_context,
+            chat_session: chat_session,
+            action: "admin_unpause_user_scheduling",
+            payload: { "user_id" => user.id },
+            reason: reason,
+            message: "Resume scheduling for user ##{user.id} (#{user.email_address})?"
+          )
+        end
+
+        group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          action: "admin_unpause_user_scheduling",
-          payload: { "user_id" => user.id },
-          message: "Resume scheduling for user ##{user.id} (#{user.email_address})?"
+          member_attributes: users.map { |user|
+            { action: "admin_unpause_user_scheduling", payload: { "user_id" => user.id }, requested_by: "agent", reason: reason }
+          },
+          reason: reason
         )
+        bulk_action_response(group: group, message: "Resume scheduling for #{users.size} users?")
       end
     end
   end
