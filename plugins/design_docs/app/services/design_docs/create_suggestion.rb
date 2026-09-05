@@ -43,7 +43,7 @@ module DesignDocs
         end
 
         validate_range!(visible, start_offset, end_offset) unless autosave?
-        validate_pending_overlap!(start_offset, end_offset)
+        validate_pending_overlap!(start_offset, end_offset) unless full_document_suggestion?
         return create_autosave_suggestion(base_version) if autosave?
 
         anchor_result = CreateAnchor.call(
@@ -81,7 +81,7 @@ module DesignDocs
     def create_autosave_suggestion(base_version)
       visible = AnchorMarkers.strip(design_doc.markdown)
       start_offset, end_offset = normalized_offsets(visible.length)
-      validate_pending_overlap!(start_offset, end_offset)
+      validate_pending_overlap!(start_offset, end_offset) unless full_document_suggestion?
       anchor = create_autosave_anchor(base_version)
       suggestion = design_doc.suggestions.create!(
         anchor: anchor,

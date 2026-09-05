@@ -1,5 +1,5 @@
 require "rails_helper"
-require Rails.root.join("plugins/design_docs/db/migrate/20260903120000_add_render_mode_to_design_doc_suggestions")
+require Rails.root.join("plugins/design_docs/db/migrate/20260905041717_add_render_mode_to_design_doc_suggestions")
 
 RSpec.describe AddRenderModeToDesignDocSuggestions, :ci_only do
   let(:owner) { Factories.user(email_address: "owner@example.com") }
