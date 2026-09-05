@@ -1,6 +1,9 @@
-import { useEffect, useRef } from "react"
+import { type RefObject, useEffect, useRef } from "react"
 
-export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClose: () => void) {
+// extraRef covers content rendered through a portal (e.g. a floating-ui
+// FloatingPortal) that is outside `ref`'s DOM subtree but should still count
+// as "inside" the popup for outside-pointer dismissal.
+export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClose: () => void, extraRef?: RefObject<HTMLElement | null>) {
   const ref = useRef<T>(null)
 
   useEffect(() => {
@@ -12,7 +15,12 @@ export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClos
 
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target
-      if (target instanceof Node && ref.current?.contains(target)) return
+      if (!(target instanceof Node)) {
+        onClose()
+        return
+      }
+      if (ref.current?.contains(target)) return
+      if (extraRef?.current?.contains(target)) return
 
       onClose()
     }
