@@ -7,7 +7,8 @@ module AgentInsights
         {
           kind: "agent_insight", template: "AgentInsights::Workflow",
           label: "Agent insight", style: "bg-amber-100 text-amber-700",
-          retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure"
+          retry_label: nil, feedback_kind: nil, runtime_role: "infrastructure",
+          owns_job_lifecycle: true
         }
       ]
     end
