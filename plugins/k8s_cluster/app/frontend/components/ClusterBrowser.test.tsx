@@ -110,6 +110,22 @@ const DEFAULT_SERVICES = {
   ]
 }
 
+const DEFAULT_ENDPOINTS = {
+  available: true,
+  generated_at: GENERATED_AT,
+  truncated: false,
+  endpoints: [
+    {
+      name: "web",
+      namespace: "default",
+      ready_addresses: 2,
+      not_ready_addresses: 0,
+      ports: [ { name: "http", port: 8080, protocol: "TCP" } ],
+      created_at: GENERATED_AT
+    }
+  ]
+}
+
 const DEFAULT_PVCS = {
   available: true,
   generated_at: GENERATED_AT,
@@ -155,6 +171,7 @@ type ResourceKey =
   | "deployments"
   | "cronjobs"
   | "services"
+  | "endpoints"
   | "pvcs"
   | "events"
   | "podLogs"
@@ -181,6 +198,7 @@ function setupFetchMock(overrides: Partial<Record<ResourceKey, unknown>> = {}, e
     if (/\/deployments$/.test(path)) return respond("deployments", DEFAULT_DEPLOYMENTS)
     if (/\/cronjobs$/.test(path)) return respond("cronjobs", DEFAULT_CRONJOBS)
     if (/\/services$/.test(path)) return respond("services", DEFAULT_SERVICES)
+    if (/\/endpoints$/.test(path)) return respond("endpoints", DEFAULT_ENDPOINTS)
     if (/\/pvcs$/.test(path)) return respond("pvcs", DEFAULT_PVCS)
     if (/\/events$/.test(path)) return respond("events", DEFAULT_EVENTS)
 
@@ -233,11 +251,12 @@ describe("ClusterBrowser", () => {
   })
 
   describe("Overview tab", () => {
-    it("shows a graceful empty state when metrics are unavailable", async () => {
+    it("shows a graceful empty state when metrics are unavailable, including the backend's diagnostic message", async () => {
       setupFetchMock()
       renderBrowser()
 
       expect(await screen.findByText("Metrics unavailable. Install metrics-server on this cluster to see CPU/memory usage.")).toBeInTheDocument()
+      expect(screen.getByText("metrics-server is not installed")).toBeInTheDocument()
     })
 
     it("shows aggregate CPU/memory when metrics are available", async () => {
@@ -329,7 +348,7 @@ describe("ClusterBrowser", () => {
   })
 
   describe("Services tab", () => {
-    it("lists services with their ports", async () => {
+    it("lists services with their ports and paired Endpoints readiness", async () => {
       setupFetchMock()
       renderBrowser()
       await switchTab("Services")
@@ -337,6 +356,40 @@ describe("ClusterBrowser", () => {
       expect(await screen.findByText("web")).toBeInTheDocument()
       expect(screen.getByText("ClusterIP")).toBeInTheDocument()
       expect(screen.getByText("80/TCP")).toBeInTheDocument()
+      expect(screen.getByText("2/2 ready")).toBeInTheDocument()
+    })
+
+    it("shows a not-ready tone when some backing addresses are not ready", async () => {
+      setupFetchMock({
+        endpoints: {
+          available: true,
+          generated_at: GENERATED_AT,
+          truncated: false,
+          endpoints: [ { name: "web", namespace: "default", ready_addresses: 1, not_ready_addresses: 1, ports: [], created_at: GENERATED_AT } ]
+        }
+      })
+      renderBrowser()
+      await switchTab("Services")
+
+      expect(await screen.findByText("1/2 ready")).toBeInTheDocument()
+    })
+
+    it("shows a dash when a Service has no matching Endpoints object", async () => {
+      setupFetchMock({ endpoints: { available: true, generated_at: GENERATED_AT, truncated: false, endpoints: [] } })
+      renderBrowser()
+      await switchTab("Services")
+
+      await screen.findByText("web")
+      expect(screen.queryByText(/ready$/)).not.toBeInTheDocument()
+    })
+
+    it("still shows services when the Endpoints fetch fails", async () => {
+      setupFetchMock({}, { endpoints: 502 })
+      renderBrowser()
+      await switchTab("Services")
+
+      expect(await screen.findByText("web")).toBeInTheDocument()
+      expect(screen.queryByText("boom-endpoints")).not.toBeInTheDocument()
     })
 
     it("shows the empty state when there are no services", async () => {

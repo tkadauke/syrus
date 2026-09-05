@@ -119,6 +119,28 @@ export type KubernetesServicesResponse = {
   services: KubernetesServiceRow[]
 }
 
+export type KubernetesEndpointPort = {
+  name: string | null
+  port: number | null
+  protocol: string | null
+}
+
+export type KubernetesEndpointRow = {
+  name: string
+  namespace: string
+  ready_addresses: number
+  not_ready_addresses: number
+  ports: KubernetesEndpointPort[]
+  created_at: string | null
+}
+
+export type KubernetesEndpointsResponse = {
+  available: true
+  generated_at: string
+  truncated: boolean
+  endpoints: KubernetesEndpointRow[]
+}
+
 export type KubernetesPersistentVolumeClaimRow = {
   name: string
   namespace: string
@@ -214,6 +236,10 @@ export function fetchKubernetesCronJobs(clusterId: number, namespace?: string | 
 
 export function fetchKubernetesServices(clusterId: number, namespace?: string | null) {
   return getJson<KubernetesServicesResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/services`, namespace))
+}
+
+export function fetchKubernetesEndpoints(clusterId: number, namespace?: string | null) {
+  return getJson<KubernetesEndpointsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/endpoints`, namespace))
 }
 
 export function fetchKubernetesPersistentVolumeClaims(clusterId: number, namespace?: string | null) {

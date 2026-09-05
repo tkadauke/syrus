@@ -7,13 +7,14 @@ RSpec.describe K8sCluster::Pods do
   let(:cluster) { Factories.kubernetes_cluster(api_server_url: "https://k8s.example.com:6443") }
   let(:base) { "https://k8s.example.com:6443" }
 
-  def pod(name: "web-1", namespace: "default", phase: "Running", ready_count: 1, container_count: 1, restart_count: 0)
+  def pod(name: "web-1", namespace: "default", phase: "Running", ready_count: 1, container_count: 1, restart_count: 0, container_names: nil)
     statuses = Array.new(ready_count) { { "ready" => true, "restartCount" => restart_count } } +
       Array.new(container_count - ready_count) { { "ready" => false, "restartCount" => restart_count } }
+    names = container_names || Array.new(container_count) { "app" }
 
     {
       "metadata" => { "name" => name, "namespace" => namespace, "creationTimestamp" => "2026-01-01T00:00:00Z" },
-      "spec" => { "nodeName" => "node-1", "containers" => Array.new(container_count) { { "name" => "app" } } },
+      "spec" => { "nodeName" => "node-1", "containers" => names.map { |container_name| { "name" => container_name } } },
       "status" => { "phase" => phase, "podIP" => "10.0.0.5", "containerStatuses" => statuses }
     }
   end
@@ -49,13 +50,13 @@ RSpec.describe K8sCluster::Pods do
       expect(summary[:node_name]).to eq("node-1")
     end
 
-    it "lists container names for the log tab's container picker" do
+    it "lists distinct container names for the log tab's container picker" do
       stub_core_discovery(base)
-      stub_kube_get("#{base}/api/v1/pods", { "items" => [ pod(container_count: 2) ] })
+      stub_kube_get("#{base}/api/v1/pods", { "items" => [ pod(container_count: 2, container_names: [ "app", "sidecar" ]) ] })
 
       summary = described_class.new(cluster).list[:pods].first
 
-      expect(summary[:container_names]).to eq([ "app", "app" ])
+      expect(summary[:container_names]).to eq([ "app", "sidecar" ])
     end
   end
 

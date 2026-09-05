@@ -139,20 +139,26 @@ resource kind gets its own read-only service class under
 DNS/connection-refused - the same two-outcome shape `SchemaInspector` uses):
 
 - `Namespaces`, `Nodes` - cluster-scoped: `#list` and `#describe(name)`.
-- `Pods`, `Deployments`, `Services`, `PersistentVolumeClaims`, `CronJobs` -
-  namespace-scoped: `#list(namespace: nil)` (omitting `namespace` lists
-  across every namespace, matching `kubectl get <kind> -A`) and
-  `#describe(name, namespace:)` (namespace is required to describe a single
-  object, since Kubernetes has no cross-namespace "get by name" for these
-  kinds). `Pods` additionally has `#logs(name, namespace:, container: nil,
-  tail_lines: 200, previous: false, timestamps: false)` for a per-container
-  log tail (`Kubeclient#get_pod_log`) - `container` is required once a pod
-  has more than one container, the same way the raw Kubernetes API itself
-  requires it. `Pods#list`'s summary row also includes `container_names`
-  (from `spec.containers`) so the browsing UI's Logs tab can populate a
-  container picker without a second request. `Nodes#list`'s summary row
-  includes `allocatable_cpu`/`allocatable_memory` alongside
-  `capacity_cpu`/`capacity_memory` (from `status.allocatable`).
+- `Pods`, `Deployments`, `Services`, `Endpoints`, `PersistentVolumeClaims`,
+  `CronJobs` - namespace-scoped: `#list(namespace: nil)` (omitting
+  `namespace` lists across every namespace, matching `kubectl get <kind>
+  -A`) and `#describe(name, namespace:)` (namespace is required to describe
+  a single object, since Kubernetes has no cross-namespace "get by name" for
+  these kinds). `Pods` additionally has `#logs(name, namespace:, container:
+  nil, tail_lines: 200, previous: false, timestamps: false)` for a
+  per-container log tail (`Kubeclient#get_pod_log`) - `container` is
+  required once a pod has more than one container, the same way the raw
+  Kubernetes API itself requires it. `Pods#list`'s summary row also includes
+  `container_names` (from `spec.containers`) so the browsing UI's Logs tab
+  can populate a container picker without a second request. `Nodes#list`'s
+  summary row includes `allocatable_cpu`/`allocatable_memory` alongside
+  `capacity_cpu`/`capacity_memory` (from `status.allocatable`). `Endpoints`
+  summarizes each object's `ready_addresses`/`not_ready_addresses` counts
+  (summed across `subsets`) and its ports - by core v1 API convention an
+  Endpoints object shares its Service's `(namespace, name)`, which is how
+  the Services tab pairs the two without a separate lookup field; a Service
+  with no selector (e.g. `ExternalName`) simply has no matching Endpoints
+  row, which the UI treats as "not applicable" rather than an error.
 - `Events` - namespace-scoped, `#list(namespace: nil)` only; an individual
   Event has no useful "describe" beyond its list row. Sorted
   most-recent-first by `lastTimestamp`/`eventTime`/`firstTimestamp`.
@@ -203,6 +209,7 @@ GET .../kubernetes_clusters/:id/pods[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/pods/:name/logs?namespace=[&container=&tail_lines=&previous=&timestamps=]
 GET .../kubernetes_clusters/:id/deployments[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/services[?namespace=][?name=&namespace=]
+GET .../kubernetes_clusters/:id/endpoints[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/events[?namespace=]
 GET .../kubernetes_clusters/:id/pvcs[?namespace=][?name=&namespace=]
 GET .../kubernetes_clusters/:id/nodes[?name=]
@@ -235,10 +242,14 @@ mirroring `mysql_db_browser`'s connections-list-to-schema-browser flow:
   ready/available/updated replica counts (deployments), or
   schedule/suspended/active-count (CronJobs) columns, plus an age column
   computed client-side from `created_at`.
-- **Services** - namespaced services with type, cluster IP, and ports.
-  (Kubernetes' separate `Endpoints`/`EndpointSlice` objects - the actual
-  backing pod IPs - are not fetched; there is no resource service or route
-  for them yet.)
+- **Services** - namespaced services with type, cluster IP, and ports, plus
+  an Endpoints column (fetched alongside, paired by `(namespace, name)`)
+  showing ready/not-ready backing-address counts; a Service with no matching
+  Endpoints row (e.g. `ExternalName`) shows a dash, and an Endpoints fetch
+  failure degrades that column to a dash instead of failing the whole tab.
+  Kubernetes' newer `EndpointSlice` API is not fetched - the older
+  `Endpoints` object covers the same summary-level readiness data this tab
+  needs.
 - **Storage** - PersistentVolumeClaims with bound status, capacity, and
   storage class.
 - **Nodes** - the cluster-scoped node list with readiness, roles,

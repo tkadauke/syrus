@@ -48,6 +48,10 @@ module Api
             render_namespace_scoped(::K8sCluster::Services.new(@cluster))
           end
 
+          def endpoints
+            render_namespace_scoped(::K8sCluster::Endpoints.new(@cluster))
+          end
+
           def events
             render json: ::K8sCluster::Events.new(@cluster).list(namespace: params[:namespace])
           rescue ::K8sCluster::ResourceService::Unavailable => e
