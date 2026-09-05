@@ -20,12 +20,12 @@ module App
       merge_base_sha = nil
 
       if @job.branch_name.present?
-        compare = github.compare_commits(@repository.slug, @repository.default_branch, @job.branch_name)
+        compare = github.compare_commits(@repository.slug, job_base_branch, @job.branch_name)
         branch_commits = Array(compare[:commits])
         merge_base_sha = compare[:merge_base_sha]
       end
 
-      base = @params[:base].presence || merge_base_sha || @repository.default_branch
+      base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
 
@@ -37,6 +37,14 @@ module App
     end
 
     private
+
+    # The Job's own PR/stack base, not the repository's default branch — an
+    # Epic child Job stacked on a parent Job's branch must diff against that
+    # parent branch, or the review shows every accumulated commit from the
+    # start of the stack instead of just this Job's own changes.
+    def job_base_branch
+      @job.mergeability_base_ref.presence || @job.effective_base_branch.presence || @repository.default_branch
+    end
 
     def source_available?
       @repository.installation&.active? || @user.github_token.present?
