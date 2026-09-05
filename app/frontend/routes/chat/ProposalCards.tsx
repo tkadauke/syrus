@@ -793,7 +793,7 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         </>
       }
       body={
-        resourceTitle || pendingAction.detail || (pendingAction.execution_step && !isConfirming) || pendingAction.execution_error ? (
+        resourceTitle || pendingAction.detail || pendingAction.reason || (pendingAction.execution_step && !isConfirming) || pendingAction.execution_error ? (
           <>
             {resourceTitle && resourceUrl ? (
               <a className="inline-block break-words text-sm font-medium text-brand hover:underline" href={resourceUrl}>{resourceTitle}</a>
@@ -801,6 +801,9 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
               <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
             ) : null}
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
+            {pendingAction.reason ? (
+              <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300"><span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>{pendingAction.reason}</p>
+            ) : null}
             {pendingAction.execution_step && !isConfirming ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{pendingAction.execution_step}</p> : null}
             {pendingAction.execution_error ? <p className="mt-2 break-words text-xs text-red-700 dark:text-red-300">{pendingAction.execution_error}</p> : null}
           </>

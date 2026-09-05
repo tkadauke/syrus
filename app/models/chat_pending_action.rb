@@ -54,6 +54,39 @@ class ChatPendingAction < ApplicationRecord
     wake_provider_admission
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
+  # Actions whose payload["job_id"] should resolve to a target Job resource
+  # link on pending-action cards. Single source of truth for both
+  # App::ChatMessagePayload (message-anchored pending actions) and
+  # ChatSerialization (the live/unanchored pending-actions list) so the two
+  # surfaces can't drift out of sync again (see App::Presentation's
+  # pending_action_label/detail comment for the earlier incident this
+  # pattern is modeled on).
+  JOB_RESOURCE_ACTIONS = %w[
+    cancel_job
+    close_job_successfully
+    retry_job
+    force_fail_job
+    rebase_job
+    force_rebase
+    reopen_job
+    poll_job_feedback
+    run_visual_review
+    check_job_mergeability
+    submit_chat_feedback
+    force_landing_recheck
+    override_landing_blocker_once
+    complete_implement_step
+    manual_agentic_run
+    adopt_current_pr_head
+    replace_pr_branch_with_workflow_output
+    retry_from_current_pr_branch
+    reconcile_job_state
+    force_state_transition
+    cancel_stale_work
+    reenqueue_work
+    rerun_ci_repair
+    mark_ci_repair_noop
+  ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[
     admin_reap_stale_runs
     admin_pause_polling

@@ -214,6 +214,24 @@ module App
         "Replace PR branch for #{job_slug(payload['job_id'])}"
       when "retry_from_current_pr_branch"
         "Retry from current PR branch for #{job_slug(payload['job_id'])}"
+      when "reconcile_job_state"
+        "Reconcile state for #{job_slug(payload['job_id'])} (#{payload['mode']})"
+      when "force_state_transition"
+        "Force #{payload['event']} on #{job_slug(payload['job_id'])}"
+      when "cancel_stale_work"
+        "Cancel stale work for #{job_slug(payload['job_id'])}"
+      when "reenqueue_work"
+        "Re-enqueue work for #{job_slug(payload['job_id'])}"
+      when "rerun_ci_repair"
+        "Re-run CI repair for #{job_slug(payload['job_id'])}"
+      when "mark_ci_repair_noop"
+        "Mark CI repair as no-op for #{job_slug(payload['job_id'])}"
+      when "repair_provider_circuit_evidence"
+        "Repair #{payload['evidence_type']} evidence ##{payload['evidence_id']}"
+      when "clear_provider_circuit"
+        "Clear #{payload['provider']} circuit for user ##{payload['user_id']}"
+      when "wake_provider_admission"
+        payload["user_id"].present? ? "Wake #{payload['provider']} admission for user ##{payload['user_id']}" : "Wake #{payload['provider']} admission"
       else
         payload["label"].presence || action.action_type.to_s.humanize
       end
@@ -243,6 +261,28 @@ module App
         ].compact.join("\n\n").presence
       when "submit_coding_changes"
         payload["description"].presence
+      when "reconcile_job_state"
+        "Mode: #{payload['mode']}"
+      when "force_state_transition"
+        "Event: #{payload['event']}"
+      when "cancel_stale_work"
+        [
+          Array(payload["workflow_ids"]).presence&.then { |ids| "Workflows: #{ids.join(', ')}" },
+          Array(payload["run_ids"]).presence&.then { |ids| "Runs: #{ids.join(', ')}" }
+        ].compact.join("\n").presence
+      when "reenqueue_work"
+        [
+          payload["workflow_id"].presence&.then { |id| "Workflow: ##{id}" },
+          payload["run_id"].presence&.then { |id| "Run: ##{id}" }
+        ].compact.join(", ").presence
+      when "rerun_ci_repair"
+        payload["instructions"].presence
+      when "mark_ci_repair_noop"
+        "Workflow: ##{payload['workflow_id']}"
+      when "repair_provider_circuit_evidence"
+        "Repair status: #{payload['repair_status']}"
+      when "clear_provider_circuit"
+        "Mode: #{payload.fetch('mode', 'clear')}"
       end
     end
   end
