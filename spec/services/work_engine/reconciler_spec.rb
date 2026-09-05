@@ -1760,6 +1760,62 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(WorkUnits::Launcher).to have_received(:start!).with(retry_workflow)
   end
 
+  it "gracefully skips instead of raising when retrying a cancelled feedback workflow races an active WorkUnit" do
+    # JOB-4235: retry_cancelled_workflow's direct WorkUnits::Launcher call
+    # (used for feedback-kind workflows) must be rescued too, same as the
+    # RetryWorkflowEnqueuer/RunCheckpointResume paths it delegates to for
+    # non-feedback kinds. The active_runtime_work_for_job? guard normally
+    # prevents even reaching this call, so simulate it losing a TOCTOU
+    # race by stubbing the instantiate call directly.
+    epic = Factories.epic(user: job.user, repository: job.repository)
+    epic.update!(state: "in_progress")
+    parent = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 205,
+      state: "implemented",
+      epic: epic,
+      branch_name: "syrus/direct-parent",
+      pr_number: 905
+    )
+    parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: "parent-head")
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
+    child.update!(epic: epic, parent_job: parent)
+    child.dependencies.delete_all
+    JobDependency.create!(job: child, depends_on_job: parent, source: "manual", satisfaction_mode: "success")
+    child.latest_workflow.update_columns(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+    child.latest_workflow.steps.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+    child.latest_workflow.runs.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+
+    cancelled = Workflows::ChatFeedback.instantiate(
+      job: child,
+      artifacts: {
+        "chat_feedback" => "Please address the dock layout feedback.",
+        "feedback_source" => { "chat_session_id" => 136 },
+        "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
+        "cancelled_details" => {
+          "keeper_workflow_id" => 123_456,
+          "keeper_trigger_kind" => "stack_rebase"
+        }
+      }
+    )
+    first_step = cancelled.first_step
+    cancelled.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    first_step.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+    conflict = WorkUnits::Launcher::LockConflict.new(lock_key: "job:#{child.id}", work_unit: WorkUnit.new(id: -1))
+    allow(WorkUnits::Launcher).to receive(:instantiate).with(kind: "chat_feedback", job: child, artifacts: anything).and_raise(conflict)
+
+    expect {
+      result = reconcile_and_execute(job_id: child.id)
+
+      expect(kind(result, :queued_job_after_epic_workflow_conflict)).to have_attributes(
+        recommended_repair_action: "retry_job_after_epic_workflow_conflict"
+      )
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/already queued or running/))
+    }.not_to change { child.workflows.where(trigger_kind: "chat_feedback").count }
+  end
+
   it "retries a queued Job whose latest implementation workflow was cancelled without active replacement work" do
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
     cancelled = child.latest_workflow
