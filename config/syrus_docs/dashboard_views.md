@@ -16,6 +16,8 @@ Kanban payloads are paginated per lane. Each lane includes `total_count`, `loade
 
 Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
 
+The built-in "Backlogged jobs" SmartFolder (`SmartFolder::JOB_BUILTINS` key `backlogged_jobs`) uses `:when_present` visibility: it appears automatically in the Jobs sidebar whenever the current user has at least one user-facing Job (`job_type: user`) in `state = backlog` within their effective ownership, and hides itself again once that count is zero, without requiring any kanban lane customization. Its filter is `SmartFolder.user_job_attention_preset_filter("backlog")`, matching the owner/kind scoping conventions the other attention-preset Job folders use.
+
 Single-Job lifecycle endpoints:
 
 - `POST /api/v1/app/jobs/:job_id/release_from_backlog` releases a backlogged Job into the normal admission flow. A valid, dependency-ready Job transitions to `queued` and creates initial Workflow work through the same path as post-triage startup. A dependency-blocked Job transitions to `blocked_by_epic` without starting a Run. A Job that still needs classifier/triage resolution moves to `triaging`.
