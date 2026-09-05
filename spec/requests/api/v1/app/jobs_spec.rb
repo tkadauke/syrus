@@ -746,15 +746,17 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       kind: "cron",
       cron_expression: "0 12 * * *"
     )
-    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
+    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil,
+      scheduled_task_id: task.id, origin: "scheduled_tasks", origin_id: task.id.to_s)
 
     get "/api/v1/app/jobs/#{cron_job.id}"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("job", "scheduled_task")).to include(
-      "id" => task.id,
-      "name" => "Update architecture",
-      "scheduled_task_path" => "/scheduled_tasks/#{task.id}"
+    expect(parse_body.dig("job", "origin")).to include(
+      "key" => "scheduled_tasks",
+      "id" => task.id.to_s,
+      "label" => "Update architecture",
+      "url" => "/scheduled_tasks/#{task.id}"
     )
   end
 

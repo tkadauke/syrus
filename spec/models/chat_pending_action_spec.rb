@@ -806,14 +806,12 @@ RSpec.describe ChatPendingAction, :ci_only do
     end
 
     it "covers every ACTIONS entry and every ACTION_TYPES entry" do
-      # Force auto-load of handlers that are only referenced by string key
-      # in ChatPendingAction::ACTIONS, so their action_key registrations run.
-      PendingActions::CompleteImplementStep
-      PendingActions::SubmitCodingChanges
-      PendingActions::RunVisualReview
+      # PendingActions.for lazily autoloads by key, so this covers handlers
+      # only referenced by string key in ChatPendingAction::ACTIONS/ACTION_TYPES
+      # without needing to hand-maintain a force-load list here.
       all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
       all_keys.each do |key|
-        expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
+        expect { PendingActions.for(key) }.not_to raise_error, "registry missing '#{key}'"
       end
     end
   end
