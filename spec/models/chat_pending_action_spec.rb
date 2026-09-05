@@ -811,6 +811,8 @@ RSpec.describe ChatPendingAction, :ci_only do
       PendingActions::CompleteImplementStep
       PendingActions::SubmitCodingChanges
       PendingActions::RunVisualReview
+      PendingActions::ApproveJob
+      PendingActions::UnapproveJob
       all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
       all_keys.each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
