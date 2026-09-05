@@ -96,4 +96,32 @@ RSpec.describe PendingActions::CancelStaleWork do
     expect(other_workflow.reload).to be_cancelled
     expect(keep.reload).to be_running
   end
+
+  it "only cancels the explicitly requested run ids" do
+    job = build_job(user: admin, repository: admin_repository)
+    keep = active_run_for(job)
+    other_run = active_run_for(job)
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "run_ids" => [ other_run.id ], "reconcile" => false)
+
+    action.confirm!(user: admin)
+
+    expect(other_run.reload).to be_cancelled
+    expect(keep.reload).to be_queued
+  end
+
+  it "raises when a requested workflow id is not active work for the Job" do
+    job = build_job(user: admin, repository: admin_repository)
+    active_workflow_for(job)
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "workflow_ids" => [ 999_999 ])
+
+    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /Workflow ids are not active work/)
+  end
+
+  it "raises when a requested run id is not active work for the Job" do
+    job = build_job(user: admin, repository: admin_repository)
+    active_workflow_for(job)
+    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "run_ids" => [ 999_999 ])
+
+    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /Run ids are not active work/)
+  end
 end
