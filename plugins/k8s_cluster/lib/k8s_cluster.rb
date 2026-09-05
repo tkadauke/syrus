@@ -23,6 +23,7 @@ module K8sCluster
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pods/:name/logs", to: "api/v1/app/admin/kubernetes_resources#pod_logs"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/deployments", to: "api/v1/app/admin/kubernetes_resources#deployments"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/services", to: "api/v1/app/admin/kubernetes_resources#services"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/endpoints", to: "api/v1/app/admin/kubernetes_resources#endpoints"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/events", to: "api/v1/app/admin/kubernetes_resources#events"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pvcs", to: "api/v1/app/admin/kubernetes_resources#pvcs"
     route :get, "/api/v1/app/admin/kubernetes_clusters/:id/nodes", to: "api/v1/app/admin/kubernetes_resources#nodes"

@@ -1186,6 +1186,37 @@ connected, a copyable `https://<device>.ts.net` URL, and a short setup
 checklist. To reach Syrus from a phone: install the Tailscale app, sign in to
 the same tailnet, then open that ts.net URL.
 
+## K8s Cluster Viewer
+
+The bundled `k8s_cluster` plugin lets admins register external
+Kubernetes/k3s clusters and browse them read-only from **Admin → K8s
+Clusters**. Like Tailscale and MySQL DB Browser, it ships installed but
+disabled by default from **Admin → Plugins**.
+
+Register a cluster by pasting its kubeconfig — Syrus resolves the
+current-context's cluster and user, then stores only the API server URL and
+whichever credentials it needs (a bearer token, or a client
+certificate/key pair), encrypted at rest. The raw kubeconfig itself is
+discarded once parsed. A **Test** button checks connectivity before saving,
+and an explicit `insecure_skip_tls_verify` opt-in skips certificate
+verification for a self-signed k3s API server.
+
+Each registered cluster has a **Browse** action that opens a tabbed,
+read-only viewer: **Overview** (node count/status plus aggregate CPU/memory
+from metrics-server, when installed), **Workloads** (pods, Deployments, and
+CronJobs, switchable per kind), **Services** (services alongside their
+backing Endpoints' ready/not-ready address counts), **Storage**
+(PersistentVolumeClaims), **Nodes** (capacity, allocatable capacity, and
+readiness), **Events** (most-recent-first), **Logs** (a pod log tail with a
+container picker for multi-container pods), and **Live** (a 10-second
+polling view over pod status and recent events). A namespace filter scopes
+the namespace-aware tabs to one namespace or all of them.
+
+This is a direct-connectivity, read-only viewer for now — no relay agent,
+and no gated agentic access for the Syrus agent yet. The connection form's
+`agentic_access_enabled`/`allow_writes` toggles are reserved for that
+follow-up work and have no effect yet.
+
 ## GitHub App And PAT Behavior
 
 Repositories prefer an active GitHub App installation when one is linked

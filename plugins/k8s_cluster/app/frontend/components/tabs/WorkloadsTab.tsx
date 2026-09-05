@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import {
@@ -9,7 +10,7 @@ import {
 } from "../../api/kubernetesResources"
 import { formatAge } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
-import { Panel, StatusBadge } from "../Panel"
+import { StatusBadge } from "../StatusBadge"
 
 type WorkloadKind = "pods" | "deployments" | "cronjobs"
 
@@ -40,9 +41,9 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
     queryFn: () => fetchKubernetesPods(clusterId, namespace)
   })
 
-  if (pods.isPending) return <Panel>{t("workloads_loading_pods")}</Panel>
-  if (pods.isError) return <Panel tone="error">{errorMessage(pods.error, t("workloads_error_loading_pods"))}</Panel>
-  if (pods.data.pods.length === 0) return <Panel>{t("workloads_empty_pods")}</Panel>
+  if (pods.isPending) return <PanelMessage>{t("workloads_loading_pods")}</PanelMessage>
+  if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("workloads_error_loading_pods"))}</PanelMessage>
+  if (pods.data.pods.length === 0) return <PanelMessage>{t("workloads_empty_pods")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -83,9 +84,9 @@ function DeploymentsTable({ clusterId, namespace }: { clusterId: number; namespa
     queryFn: () => fetchKubernetesDeployments(clusterId, namespace)
   })
 
-  if (deployments.isPending) return <Panel>{t("workloads_loading_deployments")}</Panel>
-  if (deployments.isError) return <Panel tone="error">{errorMessage(deployments.error, t("workloads_error_loading_deployments"))}</Panel>
-  if (deployments.data.deployments.length === 0) return <Panel>{t("workloads_empty_deployments")}</Panel>
+  if (deployments.isPending) return <PanelMessage>{t("workloads_loading_deployments")}</PanelMessage>
+  if (deployments.isError) return <PanelMessage tone="error">{errorMessage(deployments.error, t("workloads_error_loading_deployments"))}</PanelMessage>
+  if (deployments.data.deployments.length === 0) return <PanelMessage>{t("workloads_empty_deployments")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -124,9 +125,9 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
     queryFn: () => fetchKubernetesCronJobs(clusterId, namespace)
   })
 
-  if (cronJobs.isPending) return <Panel>{t("workloads_loading_cronjobs")}</Panel>
-  if (cronJobs.isError) return <Panel tone="error">{errorMessage(cronJobs.error, t("workloads_error_loading_cronjobs"))}</Panel>
-  if (cronJobs.data.cron_jobs.length === 0) return <Panel>{t("workloads_empty_cronjobs")}</Panel>
+  if (cronJobs.isPending) return <PanelMessage>{t("workloads_loading_cronjobs")}</PanelMessage>
+  if (cronJobs.isError) return <PanelMessage tone="error">{errorMessage(cronJobs.error, t("workloads_error_loading_cronjobs"))}</PanelMessage>
+  if (cronJobs.data.cron_jobs.length === 0) return <PanelMessage>{t("workloads_empty_cronjobs")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
