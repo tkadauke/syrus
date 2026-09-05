@@ -76,7 +76,14 @@ describe("DesignDocPreviewCard", () => {
     renderCard(20)
 
     const heading = await screen.findByRole("heading", { level: 1, name: "Heading" })
-    expect(heading.closest(".line-clamp-6")).toHaveClass("[&_h1]:text-xs")
+    // font-size clamping lives in a plain, unlayered CSS rule
+    // (.chat-prose-compact-headings h1..h4 in application.css), not a Tailwind
+    // utility class, because Tailwind v4 wraps utilities -- including
+    // arbitrary-variant ones -- in `@layer utilities`, which always loses to
+    // an unlayered rule like `.chat-prose h1` regardless of specificity. This
+    // asserts the wiring that activates that rule; the rule's actual effect
+    // is not visible under jsdom, which doesn't apply the compiled stylesheet.
+    expect(heading.closest(".chat-prose")).toHaveClass("chat-prose-compact-headings")
   })
 
   it("shows a concise collaborator summary when there are many collaborators", async () => {
