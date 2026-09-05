@@ -35,31 +35,11 @@ module Steps
     # don't leak into a `bundle install` that's supposed to install
     # the target repo's gems (incl. test gems) into the workspace.
     # Same posture the agent gets — predictable, repo-independent.
-    # sccache (EPIC-251) is masqueraded onto PATH as cc/gcc/g++/clang/etc.
-    # in the worker image (Dockerfile, worker-deps stage); these are the
-    # env vars its S3 backend reads to reach the shared MinIO build-cache
-    # bucket instead of silently falling back to a useless per-invocation
-    # local-only cache. SCCACHE_BUCKET unset (operator hasn't provisioned
-    # the bucket yet) is a supported no-op — sccache falls back to local
-    # disk caching on its own.
     #
-    # Deliberately NOT forwarding SCCACHE_BASEDIRS: sccache's default
-    # (require an exact absolute-path match to hit cache) is what keeps
-    # gcov/`--coverage` builds safe here. Every Workflow clones to a
-    # unique, never-reused `$SYRUS_DATA_ROOT/workflows/<id>/` path, so a
-    # gcov-instrumented compile's .gcno notes file (which sccache caches
-    # and restores byte-for-byte on a hit, embedded absolute source paths
-    # and all) can only ever cache-hit against a compile from the SAME
-    # workflow's SAME still-live workspace. Forwarding SCCACHE_BASEDIRS
-    # would normalize those paths before hashing and let a coverage build
-    # cache-hit across workflows, silently corrupting `gcovr` output with
-    # a `.gcno` pointing at a different, likely-deleted workspace. See
-    # config/syrus_docs/sccache_build_cache.md.
-    SCCACHE_ENV_FORWARD = %w[
-      SCCACHE_BUCKET SCCACHE_ENDPOINT SCCACHE_REGION SCCACHE_S3_KEY_PREFIX
-      AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-    ].freeze
-
+    # sccache's S3-backend and SCCACHE_BASEDIRS config is NOT in this list --
+    # see BuildCache::StepEnvironment (:step_environment plugin) and
+    # config/syrus_docs/sccache_build_cache.md for what's forwarded and why
+    # SCCACHE_BASEDIRS stays off by default.
     BASE_ENV_FORWARD = %w[
       HOME USER LOGNAME PATH TERM LANG LC_ALL LC_CTYPE TZ HOSTNAME TMPDIR SHELL
       MISE_DATA_DIR
@@ -80,6 +60,24 @@ module Steps
       end
 
       (BASE_ENV_FORWARD + plugin_keys).uniq.freeze
+    end
+
+    # Companion to .prep_env_forward for values a plugin computes per
+    # Workflow rather than merely names to copy through from the worker
+    # pod's own ENV (see Syrus::Plugin::StepEnvironment#extra_env) -- a
+    # per-Workflow daemon port, say. Optional on the provider; most
+    # :step_environment providers only need #forwarded_env_keys.
+    def self.prep_extra_env(workflow:, workspace_path:)
+      Syrus::PluginRegistry.providers_for(:step_environment).each_with_object({}) do |provider, env|
+        next unless provider.respond_to?(:extra_env)
+
+        computed = PerformanceLogging.plugin_call(extension_point: :step_environment, provider: provider, operation: :extra_env) do
+          provider.extra_env(workflow: workflow, workspace_path: workspace_path)
+        end
+        env.merge!(Hash(computed).transform_keys(&:to_s).transform_values(&:to_s)) if computed.present?
+      rescue StandardError => e
+        Rails.logger.error("[Steps::Prepare] #{provider} extra_env failed: #{e.class}: #{e.message}")
+      end
     end
 
     def call
@@ -303,7 +301,10 @@ module Steps
     end
 
     def env
-      ProcessRunner.forwarded_env(self.class.prep_env_forward, extra: workspace_dependency_env)
+      ProcessRunner.forwarded_env(
+        self.class.prep_env_forward,
+        extra: workspace_dependency_env.merge(self.class.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
+      )
     end
 
     # Computed fresh every Run (not cached on Repository) so a repo's

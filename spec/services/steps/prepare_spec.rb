@@ -193,6 +193,56 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks).not_to include("all commands completed successfully")
   end
 
+  describe ".prep_extra_env" do
+    # A :step_environment provider only needs #forwarded_env_keys; #extra_env
+    # is the optional companion for values a plugin computes per Workflow
+    # rather than merely forwards from the worker pod's own ENV.
+    let(:computing_provider) do
+      Class.new do
+        include Syrus::Plugin::StepEnvironment
+        def self.forwarded_env_keys = []
+        def self.extra_env(workflow:, workspace_path:) = { "FAKE_COMPUTED" => "workflow-#{workflow.id}-#{workspace_path}" }
+      end
+    end
+
+    let(:silent_provider) do
+      Class.new do
+        include Syrus::Plugin::StepEnvironment
+        def self.forwarded_env_keys = []
+      end
+    end
+
+    let(:raising_provider) do
+      Class.new do
+        include Syrus::Plugin::StepEnvironment
+        def self.forwarded_env_keys = []
+        def self.extra_env(workflow:, workspace_path:) = raise("boom")
+      end
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    it "merges computed values from a provider that implements #extra_env" do
+      Syrus::PluginRegistry.register(name: "fake_extra_env", version: "1.0.0", provides: { step_environment: computing_provider })
+
+      extra = described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path)
+
+      expect(extra["FAKE_COMPUTED"]).to eq("workflow-#{workflow.id}-#{@ws_path}")
+    end
+
+    it "is a no-op for a provider that only implements #forwarded_env_keys" do
+      Syrus::PluginRegistry.register(name: "fake_silent", version: "1.0.0", provides: { step_environment: silent_provider })
+
+      expect(described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path)).not_to have_key("FAKE_COMPUTED")
+    end
+
+    it "logs and continues when a provider's #extra_env raises" do
+      Syrus::PluginRegistry.register(name: "fake_raising", version: "1.0.0", provides: { step_environment: raising_provider })
+
+      expect { described_class.prep_extra_env(workflow: workflow, workspace_path: @ws_path) }.not_to raise_error
+    end
+  end
+
   describe "plugin detection" do
     it "records the detected plugin set as a workflow artifact readable by a later step" do
       File.write(@ws_path.join("Gemfile"), "")

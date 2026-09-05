@@ -26,4 +26,29 @@ RSpec.describe BuildCache::StepEnvironment do
     expect(forwarded).to include("PATH", "HOME")
     expect(forwarded).not_to include("SCCACHE_BUCKET")
   end
+
+  describe ".extra_env" do
+    let(:job) { Factories.job }
+    let(:workflow) { job.workflows.first }
+
+    it "computes a per-workflow SCCACHE_SERVER_PORT" do
+      env = described_class.extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+
+      expect(env["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow).to_s)
+    end
+
+    it "reaches Steps::Prepare.prep_extra_env" do
+      extra = Steps::Prepare.prep_extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+
+      expect(extra["SCCACHE_SERVER_PORT"]).to eq(BuildCache::DaemonAddress.port_for(workflow).to_s)
+    end
+
+    it "is not computed when the plugin is disabled" do
+      PluginRecord.find_or_create_by!(name: "build_cache").update!(enabled: false, disableable: true)
+
+      extra = Steps::Prepare.prep_extra_env(workflow: workflow, workspace_path: Pathname.new("/tmp/ws"))
+
+      expect(extra).not_to have_key("SCCACHE_SERVER_PORT")
+    end
+  end
 end
