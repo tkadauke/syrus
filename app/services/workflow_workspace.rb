@@ -244,7 +244,7 @@ class WorkflowWorkspace
 
   def initial_branch_name
     if @job.cron?
-      "syrus/scheduled-#{@job.scheduled_task_id}-#{@job.id}"
+      "syrus/scheduled-#{@job.origin_id}-#{@job.id}"
     elsif local_source_path
       "syrus/local-#{@job.id}"
     elsif @job.direct?

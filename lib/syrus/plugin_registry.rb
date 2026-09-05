@@ -32,6 +32,7 @@ module Syrus
       domain_subscriber
       step_environment
       workflow_kinds
+      job_origin
       memory_store
       test_evidence
     ].freeze
@@ -69,6 +70,7 @@ module Syrus
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
       step_environment:        -> { Syrus::Plugin::StepEnvironment },
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
+      job_origin:              -> { Syrus::Plugin::JobOrigin },
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
       memory_store:            -> { Syrus::Plugin::MemoryStore }
     }.freeze

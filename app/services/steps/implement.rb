@@ -51,7 +51,7 @@ module Steps
       elsif job.direct?
         "direct #{job.slug}"
       else
-        "scheduled task ##{job.scheduled_task_id}"
+        "scheduled task ##{job.origin_id}"
       end
     end
 

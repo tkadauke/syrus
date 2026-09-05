@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_100826) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_120835) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1404,6 +1405,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_100826) do
     t.boolean "needs_attention", default: false, null: false
     t.string "needs_attention_reason"
     t.datetime "needs_attention_since"
+    t.string "origin", limit: 64, null: false
+    t.string "origin_id", limit: 191
     t.integer "owner_user_id"
     t.integer "parent_job_id"
     t.json "pending_epic_reference", null: false
@@ -1462,6 +1465,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_100826) do
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
     t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
+    t.index ["repository_id", "origin", "origin_id", "state"], name: "index_jobs_on_repository_origin_state"
     t.index ["repository_id", "owner_user_id", "kind", "state"], name: "idx_jobs_dashboard_repo_owner_kind_state"
     t.index ["repository_id", "state", "closure_reason", "finished_at"], name: "idx_jobs_repo_state_closure_finished"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"

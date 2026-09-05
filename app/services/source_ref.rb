@@ -43,7 +43,7 @@ module SourceRef
       return build(kind: "pr", qualifier: "#{job.repository.slug}##{job.external_pr_number}")
     end
 
-    return build(kind: "scheduled_task", qualifier: job.scheduled_task_id.to_s) if job.scheduled_task_id.present?
+    return build(kind: job.origin, qualifier: job.origin_id.to_s) if job.origin_id.present?
 
     nil
   end

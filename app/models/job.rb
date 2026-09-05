@@ -138,6 +138,7 @@ class Job < ApplicationRecord
   validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
   validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_owner_user, on: :create
+  before_validation :default_origin, on: :create
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
@@ -1162,6 +1163,43 @@ class Job < ApplicationRecord
     return unless scheduled_task
     outcome = SCHEDULED_TASK_OUTCOMES.fetch(closure_reason, :record_success!)
     scheduled_task.public_send(outcome) if outcome
+  end
+
+  # Derives origin/origin_id from whichever column is authoritative today, so
+  # every creation path records provenance without each one being taught to.
+  #
+  # Callers that already know their origin (a plugin creating its own Job) set
+  # it explicitly and this leaves it alone. Step 4 of the Job Origin migration
+  # drops the columns read here; until then they stay authoritative and this
+  # keeps the new columns in step with them.
+  def default_origin
+    self.origin_id = derived_origin_id if origin_id.blank?
+    self.origin = derived_origin if origin.blank?
+  end
+
+  def derived_origin
+    return "scheduled_tasks" if scheduled_task_id.present?
+    return input_source_origin if input_source&.type.present?
+    return "github_source" if issue_number.present? || external_pr_number.present?
+
+    Job::Origin::CORE
+  end
+
+  # InputSource is STI and its subclasses ship in the source plugins, which are
+  # named "<source>_source" -- InputSources::Github in github_source,
+  # InputSources::Linear in linear_source. Taken as a naming convention rather
+  # than asked of the record, because this whole derivation is a compatibility
+  # shim: creation paths set origin explicitly once they are moved onto it.
+  def input_source_origin
+    "#{input_source.type.to_s.demodulize.underscore}_source"
+  end
+
+  def derived_origin_id
+    return scheduled_task_id.to_s if scheduled_task_id.present?
+    return issue_number.to_s if issue_number.present?
+    return external_pr_number.to_s if external_pr_number.present?
+
+    nil
   end
 
   private

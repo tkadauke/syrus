@@ -34,7 +34,7 @@ RSpec.describe SourceRef do
     it "identifies a scheduled Job by its task" do
       job = Factories.job_record(repository: repo, kind: "cron", issue_number: nil, scheduled_task_id: 7)
 
-      expect(described_class.for_job(job)).to eq("scheduled_task:7")
+      expect(described_class.for_job(job)).to eq("scheduled_tasks:7")
     end
 
     # A prompt someone typed is not the same request as anything else.

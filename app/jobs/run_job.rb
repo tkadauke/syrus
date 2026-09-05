@@ -290,7 +290,7 @@ class RunJob < ApplicationJob
 
     return unless acquire_run_execution!
 
-    target = @job.cron? ? "scheduled task ##{@job.scheduled_task_id}" : "#{@job.repository.slug}##{@job.issue_number}"
+    target = @job.cron? ? "scheduled task ##{@job.origin_id}" : "#{@job.repository.slug}##{@job.issue_number}"
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
 
     @handler = Steps.handler_for(@step.kind).new(@run)

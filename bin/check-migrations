@@ -222,6 +222,14 @@ rule "mysql_index_key_length" do |offenses, path, lines|
     widths[name] = ((limit || 255) * UTF8MB4)
   end
   source.scan(/^\s*t\.(?:references|belongs_to)\s+:(\w+)/) { |(name)| widths["#{name}_id"] = 8 }
+
+  # Columns added to an existing table count too -- an index added alongside
+  # them is the same hazard, and reading only create_table missed it.
+  source.scan(/^\s*add_column\s+:\w+,\s*:(\w+),\s*:(string|text)(.*)$/) do |name, _type, rest|
+    limit = rest[/limit:\s*(\d+)/, 1]&.to_i
+    widths[name] = ((limit || 255) * UTF8MB4)
+  end
+  source.scan(/^\s*add_(?:reference|belongs_to)\s+:\w+,\s*:(\w+)/) { |(name)| widths["#{name}_id"] = 8 }
   %w[id created_at updated_at].each { |name| widths[name] ||= 8 }
 
   # Column lists are often hoisted into a local first:
