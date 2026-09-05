@@ -193,6 +193,7 @@
     "description": "Pinacotheca vivens elementorum communium formae Syri, ex ipsis primitivis systematis formae reddita et ex ordine tesserarum coloris activo formata.",
     "preview_banner": "Thema \"{{name}}\" prospicitur — tantum in hac pagina. Reliqua applicatio thema tuum activum servat.",
     "preview_not_found": "Illud thema onerari non potuit — fortasse non exstat, aut alterius usoris est.",
+    "preview_contrast_warnings_heading": "Monita discriminis — haec install_theme impedient donec emendata sint",
     "tokens": {
       "heading": "Tesserae coloris",
       "description": "Proprietates coloris significantes quibus omne elementum infra formatur."

@@ -63,6 +63,19 @@ class Theme < ApplicationRecord
     end
   end
 
+  # Non-blocking counterpart to #contrast_issues for callers that only ever
+  # warn (preview_theme, the live Style Guide preview panel) instead of
+  # rejecting -- unlike install_theme/update_user_theme, these callers must
+  # never raise on a malformed/placeholder color value, since the whole
+  # point is to keep working through invalid intermediate states. Does not
+  # change what #contrast_issues itself considers a failing pair.
+  def contrast_warning_messages
+    contrast_issues.map { |issue| issue.fetch(:message) }
+  rescue StandardError => e
+    Rails.logger.warn("Theme##{id || 'new'} contrast_issues raised while computing preview warnings: #{e.class}: #{e.message}")
+    []
+  end
+
   private
 
   def brand_contrast_issues(mode, mode_tokens)

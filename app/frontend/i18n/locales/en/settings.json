@@ -193,6 +193,7 @@
     "description": "A living gallery of Syrus's shared UI components, rendered from the real design-system primitives and styled from the active color token layer.",
     "preview_banner": "Previewing \"{{name}}\" — shown on this page only. The rest of the app keeps your active theme.",
     "preview_not_found": "That theme couldn't be loaded — it may not exist, or it may belong to another user.",
+    "preview_contrast_warnings_heading": "Contrast warnings — these will block install_theme until fixed",
     "tokens": {
       "heading": "Color tokens",
       "description": "Semantic color custom properties every primitive below is styled from."
