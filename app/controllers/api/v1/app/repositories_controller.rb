@@ -658,10 +658,9 @@ module Api
 
         def job_source_json(job)
           if job.cron?
-            task = job.scheduled_task
             return {
-              label: task ? "scheduled: #{task.name}" : "scheduled task ##{job.scheduled_task_id}",
-              path: task ? scheduled_task_path(task) : nil,
+              label: "scheduled: #{Job::Origin.label(job)}",
+              path: Job::Origin.url(job),
               external: false
             }
           end
