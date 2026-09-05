@@ -1,0 +1,22 @@
+{
+  "nav_agent_activity": "Actio Agentium",
+  "nav_admin_agent_activity": "Actio Agentium",
+  "eyebrow": "Administratio",
+  "heading": "Actio Agentium",
+  "admin_heading": "Actio Agentium (omnia repositoria)",
+  "description": "Flumen vivum sessionum agentium per repositoria quae videre potes -- una charta per sessionem, cum eo quod re vera constitutum est ut titulus.",
+  "admin_description": "Flumen vivum omnis sessionis agentis in hac instantia -- una charta per sessionem, cum eo quod re vera constitutum est ut titulus.",
+  "aria_page": "Actio Agentium",
+  "loading": "Sessiones onerantur…",
+  "error_loading": "Sessiones agentium onerari non possunt.",
+  "empty": "Nulla sessio agentis huic discrimini congruit.",
+  "running_now_count": "{{count}} nunc currunt",
+  "quick_filter_running_now": "Nunc currit",
+  "quick_filter_needs_work": "Opus adhuc est",
+  "quick_filter_all": "Omnis historia",
+  "no_summary_submitted": "Nullum summarium huic sessioni submissum est.",
+  "transcript_heading": "Transcriptum",
+  "transcript_hide": "Transcriptum celare",
+  "no_transcript": "Nullum transcriptum huic sessioni notatum est.",
+  "loading_transcript": "Transcriptum oneratur…"
+}
