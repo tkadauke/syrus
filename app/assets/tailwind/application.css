@@ -173,6 +173,27 @@
 .chat-prose h3 { font-size: 1rem; }
 .chat-prose h4 { font-size: 0.9375rem; }
 
+/*
+ * Compact contexts (e.g. the DOC-<id> slug hover-preview card) render a
+ * `Markdown` block at a small, clamped size and can't afford the heading
+ * scale above -- a document whose body opens with an H1 would blow well
+ * past the card's clamped height budget. This can't be fixed with a
+ * Tailwind utility override on a wrapping element: `@import "tailwindcss"`
+ * (Tailwind v4) puts every generated utility, including arbitrary-variant
+ * ones like `[&_h1]:text-xs`, inside `@layer utilities`, and per the CSS
+ * cascade-layers spec an unlayered rule (like `.chat-prose h1` above)
+ * always wins over a layered one regardless of specificity or source
+ * order. So this has to be a second unlayered rule, declared after the
+ * block above so normal (non-important) source-order tie-breaking favors
+ * it over `.chat-prose h1`..`h4`.
+ */
+.chat-prose-compact-headings h1,
+.chat-prose-compact-headings h2,
+.chat-prose-compact-headings h3,
+.chat-prose-compact-headings h4 {
+  font-size: inherit;
+}
+
 .chat-prose a { color: #2563eb; text-decoration: underline; }
 .chat-prose a:hover { text-decoration: none; }
 

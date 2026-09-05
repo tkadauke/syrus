@@ -60,8 +60,10 @@ export function DesignDocPreviewCard({ id, compact = false }: { id: number; comp
         {doc.title}
       </Link>
       {!compact && doc.preview_text ? (
-        <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
-          <Markdown text={doc.preview_text} />
+        <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
+          {/* chat-prose-compact-headings (app/assets/tailwind/application.css) clamps h1-h4 to
+              font-size: inherit -- see that file for why this can't be a Tailwind utility override. */}
+          <Markdown className="chat-prose-compact-headings" text={doc.preview_text} />
         </div>
       ) : null}
       {!compact ? (
