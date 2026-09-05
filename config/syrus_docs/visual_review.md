@@ -143,10 +143,14 @@ driving the browser.
 
 The reviewer's browser tools are provided by the `browser` plugin
 (`plugins/browser/`), a granular MCP tool set — `browser_navigate`,
-`browser_snapshot`, `browser_click`, `browser_fill`, `browser_screenshot`,
-`browser_wait_for`, `browser_close` — rather than one opaque "run test
-suite" tool, so the agent improvises its own test plan against the running
-preview. Each call is proxied to a per-Run `@playwright/mcp` subprocess.
+`browser_snapshot`, `browser_click`, `browser_fill`, `browser_hover`,
+`browser_screenshot`, `browser_wait_for`, `browser_close` — rather than one
+opaque "run test suite" tool, so the agent improvises its own test plan
+against the running preview. Each call is proxied to a per-Run
+`@playwright/mcp` subprocess. `browser_hover` exists specifically so
+`:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards,
+hover-revealed controls) is reviewable — without it, the reviewer had no way
+to trigger that behavior and could only record `skipped` for it.
 
 **Loopback restriction.** `browser_navigate` is hard-restricted to the
 worker's own loopback preview (`SyrusBrowser::LoopbackGuard`): only literal

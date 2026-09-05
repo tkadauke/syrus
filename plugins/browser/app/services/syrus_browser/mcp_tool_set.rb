@@ -3,7 +3,7 @@ require "json"
 
 module SyrusBrowser
   # Granular browser-control MCP tools for the visual_review agent (and any
-  # other agentic step): navigate, click, fill, snapshot, screenshot,
+  # other agentic step): navigate, click, fill, hover, snapshot, screenshot,
   # wait_for, close. Deliberately NOT one opaque "run test suite" tool — the
   # agent improvises its own test plan against the running preview.
   #
@@ -16,6 +16,7 @@ module SyrusBrowser
       SnapshotTool,
       ClickTool,
       FillTool,
+      HoverTool,
       ScreenshotTool,
       WaitForTool,
       CloseTool
