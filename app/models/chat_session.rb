@@ -73,6 +73,7 @@ class ChatSession < ApplicationRecord
            source: :bookmarks
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy
   has_many :pending_actions, class_name: "ChatPendingAction", dependent: :destroy
+  has_many :pending_action_groups, dependent: :destroy
   has_one :provider_session, as: :resumable, dependent: :destroy
   has_one :provider_session_metadata,
           -> { metadata_only },
