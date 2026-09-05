@@ -50,9 +50,23 @@ pending action (which drops out of the payload shortly after it confirms —
 a separate per-action chat notification already announces that outcome) the
 group's card stays in the payload at every state, since it is the only place
 that per-item breakdown is visible. Rejecting discards every still-pending
-member without applying any. As of this writing, no chat-sidecar tool
-creates groups yet — `PendingActionGroup.create_with_members!` exists as
-infrastructure a future tool wires into.
+member without applying any.
+
+Eight chat-sidecar tools wire into this infrastructure: `reopen_job`,
+`retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
+`admin_kill_process`, `approve_job`, and `unapprove_job`. Each accepts either
+a singular id param (`job_id`/`process_id`) for the original single-target
+behavior, or a plural array param (`job_ids`/`process_ids`) that creates one
+`PendingActionGroup` instead of one pending action per id. Passing both or
+neither is rejected before anything is created. `close_job_successfully`
+takes one `closure_reason` for the whole call, applied identically to every
+member's payload -- targets that need different reasons require separate
+calls. `approve_job` and `unapprove_job` keep executing immediately and
+synchronously for a single `job_id` (unchanged behavior, no pending action
+at all), but a `job_ids` array now goes through the same grouped
+pending-confirmation path as the other six tools, since batching several
+approvals/unapprovals behind one operator confirmation is exactly the
+higher-risk case this infrastructure exists for.
 
 ## Deleting a chat
 

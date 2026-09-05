@@ -10,6 +10,8 @@ class ChatPendingAction < ApplicationRecord
     force_rebase
     restack_epic
     reopen_job
+    approve_job
+    unapprove_job
     force_fail_job
     fire_scheduled_task_now
     create_repo_document

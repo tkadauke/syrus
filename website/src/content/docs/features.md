@@ -672,7 +672,12 @@ polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
 documents, or pausing and resuming the landing queue, also render as inline
 confirmation cards in the message stream so operators can review the target
-before confirming or rejecting them.
+before confirming or rejecting them. When the agent acts on several Jobs at
+once with reopening, retrying, cancelling, closing successfully, forcing a
+landing recheck, killing a process, approving, or unapproving, Syrus renders
+one grouped card with a single Confirm all/Reject all control instead of a
+separate card per Job, and reports each Job's individual outcome once
+confirmed.
 Successful Job close is separate from cancellation: `close_job_successfully`
 records a successful closure reason such as `no_changes`, which satisfies
 dependencies and Epic progress, while `cancel_job` remains non-successful. When

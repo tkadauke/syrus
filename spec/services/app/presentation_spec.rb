@@ -163,6 +163,16 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".pending_action_label" do
+    it "labels approve_job and unapprove_job by job slug" do
+      approve = ChatPendingAction.new(action: "approve_job", payload: { "job_id" => 42 })
+      unapprove = ChatPendingAction.new(action: "unapprove_job", payload: { "job_id" => 42 })
+
+      expect(described_class.pending_action_label(approve)).to eq("Approve JOB-42")
+      expect(described_class.pending_action_label(unapprove)).to eq("Unapprove JOB-42")
+    end
+  end
+
   describe ".pending_action_group_label" do
     it "names the shared action and the member count when every member matches" do
       members = [ ChatPendingAction.new(action: "reopen_job"), ChatPendingAction.new(action: "reopen_job") ]

@@ -70,6 +70,42 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     expect(job.reload).to be_triaging
   end
 
+  it "creates a grouped pending action for reopen_job job_ids" do
+    job_one = Factories.job_record(repository: repository, state: "closed", closure_reason: "cancelled", finished_at: 1.hour.ago)
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "closed", closure_reason: "cancelled", finished_at: 1.hour.ago)
+
+    response = call_tool("reopen_job", job_ids: [ job_one.id, job_two.id ])
+    body = payload(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(body).to include(state: "pending", member_count: 2, message: "Reopen 2 Jobs?")
+    expect(group.chat_pending_actions.count).to eq(2)
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "reopen_job" ])
+
+    result = group.confirm_all!(user: user)
+
+    expect(result).to be_all_succeeded
+    expect(job_one.reload).to be_triaging
+    expect(job_two.reload).to be_triaging
+  end
+
+  it "rejects reopen_job when both job_id and job_ids are given" do
+    job = Factories.job_record(repository: repository, state: "closed")
+
+    response = call_tool("reopen_job", job_id: job.id, job_ids: [ job.id ])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(text(response)).to include("provide only one of job_id or job_ids")
+  end
+
+  it "rejects reopen_job with an empty job_ids array" do
+    response = call_tool("reopen_job", job_ids: [])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(text(response)).to include("job_ids must not be empty")
+  end
+
   it "creates and confirms a fire_scheduled_task_now action" do
     task = scheduled_task
     result = ScheduledTaskFire::Result.new(job: Factories.job_record(user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil), skipped: false, reason: nil)
@@ -191,6 +227,18 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
       expect(response.dig(:result, :isError)).to be true
       expect(text(response)).to include("job not found")
     end
+  end
+
+  it "rejects reopen_job job_ids containing a cross-user job at tool call time" do
+    other_user = Factories.user
+    other_job = Factories.job_record(user: other_user, repository: Factories.repository(user: other_user))
+    own_job = Factories.job_record(repository: repository, state: "closed")
+
+    response = call_tool("reopen_job", job_ids: [ own_job.id, other_job.id ])
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(text(response)).to include("job not found")
+    expect(PendingActionGroup.count).to eq(0)
   end
 
   it "allows an admin to check mergeability for another user's job" do
