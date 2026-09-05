@@ -1032,8 +1032,9 @@ workflow runner container, and polls its health-check path) and then drives
 a headless Chromium browser against that preview through the `browser`
 plugin's MCP tool set (`browser_navigate` — hard-restricted to the
 worker's own loopback preview — `browser_snapshot`, `browser_click`,
-`browser_fill`, `browser_screenshot`, `browser_wait_for`, `browser_close`,
-proxying each call to a per-Run `@playwright/mcp` stdio subprocess). It
+`browser_fill`, `browser_hover`, `browser_screenshot`, `browser_wait_for`,
+`browser_close`, proxying each call to a per-Run `@playwright/mcp` stdio
+subprocess). It
 reads the implementing agent's `submit_test_plan` `visual_review_recommended`
 hint but makes its own go/no-go call, always calls `stop_preview` before
 exiting, and must call `submit_visual_review(verdict:, critique:)` with
@@ -1564,8 +1565,8 @@ agent at it over stdio. Today's tool surface:
   hosted preview described under [Preview hosting](#preview-hosting).
 
 The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
-/ `browser_click` / `browser_fill` / `browser_screenshot` / `browser_wait_for`
-/ `browser_close` MCP tool set, proxying each call to a per-Run
+/ `browser_click` / `browser_fill` / `browser_hover` / `browser_screenshot`
+/ `browser_wait_for` / `browser_close` MCP tool set, proxying each call to a per-Run
 `@playwright/mcp` stdio subprocess. `browser_navigate` is hard-restricted to
 loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
 steered at an arbitrary network destination.

@@ -126,12 +126,14 @@ module Prompts
         2. If it is visually testable, call `start_preview` to boot the app. If the documented seed
            data above doesn't cover the feature under test, you may run additional ad hoc seed
            commands yourself via your normal shell access to reach the state you need.
-        3. Use your browser tools (navigate, snapshot, click, fill, wait_for, screenshot) to drive the
-           running app against your own improvised test plan targeting what changed. Don't just load
-           the homepage — exercise the actual feature.
-           For click/fill/single-element screenshots, call `browser_snapshot` first and copy the exact
+        3. Use your browser tools (navigate, snapshot, click, fill, hover, wait_for, screenshot) to drive
+           the running app against your own improvised test plan targeting what changed. Don't just load
+           the homepage — exercise the actual feature. Use `hover` for `:hover`/`mouseenter`-triggered UI
+           (tooltips, hover popups/cards, hover-revealed controls) that `click` cannot exercise — don't
+           default to "skipped" just because the behavior only appears on hover.
+           For click/fill/hover/single-element screenshots, call `browser_snapshot` first and copy the exact
            `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
-           refs, pass an undefined target, or call click/fill when the element is absent. If the element
+           refs, pass an undefined target, or call click/fill/hover when the element is absent. If the element
            cannot be located, record that as a visual finding instead of repeatedly calling browser tools
            with missing arguments.
            If browser automation itself appears unavailable or broken (for example click/fill/navigate
