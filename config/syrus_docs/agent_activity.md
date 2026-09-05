@@ -79,10 +79,13 @@ carries its own `transcript_path`:
   route needed, since that endpoint is already scoped the right way.
 - `:admin` sessions point at
   `GET /api/v1/app/admin/agent_activity/sessions/:run_id/artifacts`, a new
-  admin-gated route returning the same JSON shape (`job_id`, `workflow_id`,
-  `run_id`, `base_ref`/`head_ref`, `agent_diff`, `logs`), because the admin
-  feed can list sessions on repositories the admin has no membership on and
-  so cannot reuse the ownership-scoped Jobs route.
+  admin-gated route, because the admin feed can list sessions on
+  repositories the admin has no membership on and so cannot reuse the
+  ownership-scoped Jobs route. Both routes render their JSON through the
+  shared `App::RunArtifactsPayload.build(run:)` (`app/services/app/`), so
+  the payload shape (`job_id`, `workflow_id`, `run_id`, `base_ref`/
+  `head_ref`, `agent_diff`, `logs`) can't drift between the two routes --
+  only the authorization/lookup path differs.
 
 ## Frontend
 

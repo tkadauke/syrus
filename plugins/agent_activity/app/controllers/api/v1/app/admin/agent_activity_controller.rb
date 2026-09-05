@@ -7,8 +7,10 @@ module Api
         # exists because the admin surface can list sessions on repositories
         # the admin has no membership on, so it can't reuse the
         # repository-ownership-scoped `jobs#run_artifacts` route the way the
-        # operator surface does -- same transcript-log JSON shape (feeds the
-        # same RunTranscriptLogs component), gated by admin instead.
+        # operator surface does. It shares ::App::RunArtifactsPayload with
+        # that route so the two payload shapes (feeding the same
+        # RunTranscriptLogs component) can't silently drift apart -- only the
+        # authorization/lookup path differs, not the JSON shape.
         class AgentActivityController < BaseController
           def sessions
             filter = ::AgentActivity::Filter.from_params(params, user: Current.user)
@@ -38,28 +40,7 @@ module Api
               return
             end
 
-            logs = run.job_logs.order(:sequence).map do |log|
-              {
-                id: log.id,
-                sequence: log.sequence,
-                kind: log.kind,
-                chunk: log.chunk,
-                created_at: log.created_at&.iso8601
-              }
-            end
-
-            render json: {
-              job_id: run.job_id,
-              workflow_id: run.step&.workflow_id,
-              run_id: run.id,
-              base_ref: run.base_sha,
-              head_ref: run.head_sha,
-              agent_diff: run.agent_diff,
-              agent_diff_bytes: run.agent_diff&.bytesize || 0,
-              step_agent_diff: run.step_agent_diff,
-              logs_count: logs.size,
-              logs: logs
-            }
+            render json: ::App::RunArtifactsPayload.build(run: run)
           end
 
           private
