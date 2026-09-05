@@ -1485,6 +1485,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_041717) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
+  create_table "kubernetes_clusters", force: :cascade do |t|
+    t.boolean "agentic_access_enabled", default: false, null: false
+    t.boolean "allow_writes", default: false, null: false
+    t.string "api_server_url", null: false
+    t.datetime "created_at", null: false
+    t.text "credentials"
+    t.boolean "insecure_skip_tls_verify", default: false, null: false
+    t.string "label", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "landed_commits", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "kind", null: false
