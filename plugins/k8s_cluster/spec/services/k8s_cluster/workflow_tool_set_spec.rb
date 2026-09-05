@@ -41,7 +41,11 @@ RSpec.describe K8sCluster::WorkflowToolSet do
       "k8s_cluster_events",
       "k8s_cluster_pvcs",
       "k8s_cluster_cronjobs",
-      "k8s_cluster_overview"
+      "k8s_cluster_overview",
+      "k8s_cluster_restart_rollout",
+      "k8s_cluster_scale_deployment",
+      "k8s_cluster_delete_pod",
+      "k8s_cluster_set_node_cordon"
     )
   end
 

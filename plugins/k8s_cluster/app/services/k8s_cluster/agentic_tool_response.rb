@@ -13,8 +13,10 @@ module K8sCluster
     RESCUABLE_ERRORS = [
       AgenticAccess::ClusterNotFound,
       AgenticAccess::AccessDisabled,
+      AgenticAccess::WriteAccessDisabled,
       ResourceService::Unavailable,
       ResourceService::NotFound,
+      ResourceService::InvalidArgument,
       MissingNamespace
     ].freeze
 

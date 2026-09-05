@@ -41,6 +41,28 @@ module K8sCluster
       end
     end
 
+    # Force-reschedule via delete: with no direct "restart pod" verb in the
+    # Kubernetes API, deleting a pod owned by a controller (Deployment,
+    # ReplicaSet, StatefulSet, DaemonSet) causes that controller to
+    # recreate it, mirroring `kubectl delete pod <name>`. A bare, unowned
+    # pod is simply gone - the caller is expected to already know that from
+    # `describe`/`list` before calling this.
+    def delete(name, namespace:)
+      with_client(api_client.core) do |client|
+        before = client.get_pod(name, namespace)
+        client.delete_pod(name, namespace)
+
+        {
+          available: true,
+          generated_at: Time.current.iso8601,
+          pod: name,
+          namespace: namespace,
+          before: { phase: before.dig("status", "phase") },
+          after: { deleted: true }
+        }
+      end
+    end
+
     private
 
     def summary(item)

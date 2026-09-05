@@ -11,6 +11,7 @@ module K8sCluster
   class ResourceService
     class Unavailable < StandardError; end
     class NotFound < StandardError; end
+    class InvalidArgument < StandardError; end
 
     CONNECTION_ERRORS = [
       RestClient::Exceptions::Timeout,

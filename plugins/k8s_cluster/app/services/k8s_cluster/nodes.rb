@@ -23,7 +23,30 @@ module K8sCluster
       end
     end
 
+    # Mirrors `kubectl cordon`/`kubectl uncordon <node>`: a strategic-merge
+    # patch on `spec.unschedulable`. Cordoning does not evict or move
+    # already-running pods - it only stops the scheduler from placing new
+    # ones there.
+    def set_cordon(name, cordoned:)
+      with_client(api_client.core) do |client|
+        before = client.get_node(name)
+        after = client.patch_node(name, { spec: { unschedulable: cordoned } })
+
+        {
+          available: true,
+          generated_at: Time.current.iso8601,
+          node: name,
+          before: { unschedulable: unschedulable?(before) },
+          after: { unschedulable: unschedulable?(after) }
+        }
+      end
+    end
+
     private
+
+    def unschedulable?(item)
+      !!item.dig("spec", "unschedulable")
+    end
 
     def summary(item)
       conditions = item.dig("status", "conditions") || []

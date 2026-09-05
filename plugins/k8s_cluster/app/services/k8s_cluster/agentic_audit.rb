@@ -9,7 +9,12 @@ module K8sCluster
   # to keep an auditable record of - only which tool ran with which
   # arguments. Deliberately never logs the raw result payload (pod logs,
   # full manifests) - only its size - so this audit trail can't become a
-  # second, un-redacted copy of cluster data sitting in the Rails log.
+  # second, un-redacted copy of cluster data sitting in the Rails log. The
+  # one exception is the small, curated `before`/`after` summary a write
+  # tool's result carries (replica counts, restart timestamps, schedulable
+  # state) - never a full object - which write resource-service methods
+  # (Deployments#scale, #restart_rollout, Pods#delete, Nodes#set_cordon)
+  # include precisely so this line can show the mutation's effect.
   class AgenticAudit
     def self.log!(cluster_id:, tool_name:, params:, result: nil, error: nil)
       entry = {
@@ -25,6 +30,10 @@ module K8sCluster
       else
         entry[:outcome] = "success"
         entry[:result_bytesize] = result.to_json.bytesize
+        if result.is_a?(Hash) && (result.key?(:before) || result.key?(:after))
+          entry[:before] = result[:before]
+          entry[:after] = result[:after]
+        end
       end
 
       Rails.logger.info("[K8sCluster::AgenticAudit] #{entry.to_json}")

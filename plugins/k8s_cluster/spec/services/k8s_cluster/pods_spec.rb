@@ -99,4 +99,28 @@ RSpec.describe K8sCluster::Pods do
       expect { described_class.new(cluster).logs("web-1", namespace: "default") }.to raise_error(K8sCluster::ResourceService::Unavailable)
     end
   end
+
+  describe "#delete" do
+    it "deletes the pod and reports its phase before deletion" do
+      stub_core_discovery(base)
+      stub_kube_get("#{base}/api/v1/namespaces/default/pods/web-1", pod(phase: "Running"))
+      stub_request(:delete, "#{base}/api/v1/namespaces/default/pods/web-1").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" }, body: { "status" => "Success" }.to_json
+      )
+
+      payload = described_class.new(cluster).delete("web-1", namespace: "default")
+
+      expect(payload[:before][:phase]).to eq("Running")
+      expect(payload[:after][:deleted]).to be(true)
+    end
+
+    it "raises NotFound when the pod does not exist" do
+      stub_core_discovery(base)
+      stub_kube_error("#{base}/api/v1/namespaces/default/pods/missing", 404)
+
+      expect {
+        described_class.new(cluster).delete("missing", namespace: "default")
+      }.to raise_error(K8sCluster::ResourceService::NotFound)
+    end
+  end
 end

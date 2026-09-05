@@ -65,4 +65,32 @@ RSpec.describe K8sCluster::Nodes do
       expect(payload[:node]["metadata"]["name"]).to eq("node-1")
     end
   end
+
+  describe "#set_cordon" do
+    it "cordons a schedulable node and reports before/after" do
+      stub_core_discovery(base)
+      url = "#{base}/api/v1/nodes/node-1"
+      stub_kube_get(url, node)
+      cordoned = node.deep_merge("spec" => { "unschedulable" => true })
+      stub_request(:patch, url).to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: cordoned.to_json)
+
+      payload = described_class.new(cluster).set_cordon("node-1", cordoned: true)
+
+      expect(payload[:before][:unschedulable]).to be(false)
+      expect(payload[:after][:unschedulable]).to be(true)
+    end
+
+    it "uncordons a cordoned node" do
+      stub_core_discovery(base)
+      url = "#{base}/api/v1/nodes/node-1"
+      stub_kube_get(url, node.deep_merge("spec" => { "unschedulable" => true }))
+      uncordoned = node.deep_merge("spec" => { "unschedulable" => false })
+      stub_request(:patch, url).to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: uncordoned.to_json)
+
+      payload = described_class.new(cluster).set_cordon("node-1", cordoned: false)
+
+      expect(payload[:before][:unschedulable]).to be(true)
+      expect(payload[:after][:unschedulable]).to be(false)
+    end
+  end
 end

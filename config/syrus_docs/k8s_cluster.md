@@ -16,10 +16,13 @@ the JSON API endpoints those services back: namespaces, pods (including
 per-container log tail), deployments, services, events,
 PersistentVolumeClaims, nodes, CronJobs, and a cluster overview backed by
 the `metrics.k8s.io` API. A follow-up Job added the tabbed cluster-browsing
-UI that consumes those endpoints - see "Cluster-browsing UI" below. This Job
-adds gated, read-only agentic access (MCP tools) - see "Agentic access"
-below. Write-capable agentic tools are still follow-up work per EPIC-306 /
-DOC-21 - see "What's not here yet".
+UI that consumes those endpoints - see "Cluster-browsing UI" below, then a
+further Job added gated, read-only agentic access (MCP tools) - see "Agentic
+access" below. This Job adds a short, explicit allowlist of write/mutating
+MCP tools - restart a deployment rollout, scale a deployment, delete a pod,
+cordon/uncordon a node - gated by a separate, stricter `allow_writes` opt-in
+per DOC-21 phase 2; see "Write-capable agentic tools" and "Minimal RBAC for
+agentic access" below.
 
 ## Clusters (`KubernetesCluster`)
 
@@ -283,7 +286,8 @@ Each `KubernetesCluster` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set, that
 specific cluster becomes browsable read-only by workflow and chat agents
-through eleven MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
+through eleven read-only MCP tools (plus four write tools gated separately -
+see "Write-capable agentic tools" below) exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
 `plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
 mirroring `mysql_db_browser`'s own MCP tool sets:
@@ -339,6 +343,61 @@ a missing-namespace validation error are all normalized into an
 `MCP::Tool::Response` with `error: true` rather than raising out of the MCP
 sidecar process.
 
+## Write-capable agentic tools
+
+A cluster with `agentic_access_enabled` on is browsable, but read-only.
+Turning on the cluster's separate `allow_writes` flag (also a checkbox on
+the connection form, default `false`, independent of `agentic_access_enabled`)
+additionally exposes a short, explicit allowlist of four mutating MCP tools -
+not a general kubectl proxy. Expanding this allowlist is deliberately a
+separate, explicitly-scoped follow-up, never an implicit consequence of
+turning `allow_writes` on:
+
+- `k8s_cluster_restart_rollout` - restarts a deployment's rollout
+  (`Deployments#restart_rollout`), equivalent to `kubectl rollout restart`: a
+  strategic-merge patch stamping the pod template with a
+  `kubectl.kubernetes.io/restartedAt` annotation, which rolls every pod even
+  though no real spec content changed. Requires `cluster_id`, `namespace`,
+  `name`.
+- `k8s_cluster_scale_deployment` - scales a deployment's replica count
+  (`Deployments#scale`), equivalent to `kubectl scale --replicas=N`.
+  Requires `cluster_id`, `namespace`, `name`, `replicas` (a non-negative
+  integer - validated before any API call, raising
+  `K8sCluster::ResourceService::InvalidArgument` otherwise).
+- `k8s_cluster_delete_pod` - deletes a pod to force it to be rescheduled
+  (`Pods#delete`), equivalent to `kubectl delete pod <name>`. A pod owned by
+  a Deployment/ReplicaSet/StatefulSet/DaemonSet is recreated by its
+  controller; a bare unowned pod is simply removed. Requires `cluster_id`,
+  `namespace`, `name`.
+- `k8s_cluster_set_node_cordon` - cordons (`cordoned: true`) or uncordons
+  (`cordoned: false`) a node (`Nodes#set_cordon`), equivalent to `kubectl
+  cordon`/`kubectl uncordon`: a strategic-merge patch on
+  `spec.unschedulable`. Cordoning only stops new pods from being scheduled
+  onto the node - it never evicts pods already running there. Requires
+  `cluster_id`, `name`, `cordoned`.
+
+Deliberately excluded, and out of scope for this allowlist entirely:
+namespace deletion, any CRD/RBAC mutation, arbitrary manifest `apply`, and
+`kubectl exec` into a pod - anything irreversible or with a broad blast
+radius.
+
+**Gating is a strict superset of the read gate.** Each write tool calls
+`K8sCluster::AgenticAccess.cluster_with_write_access!(cluster_id)` instead of
+the read tools' `.cluster!(cluster_id)`. That method first runs the same
+`agentic_access_enabled` check as `.cluster!` (raising `AccessDisabled` with
+the existing read-access wording if that's off), then additionally requires
+`allow_writes?`, raising a distinct `K8sCluster::AgenticAccess::WriteAccessDisabled`
+with its own actionable message ("An admin must enable \"Allow writes\" for
+this cluster...") when read access is on but writes are not - so an agent
+gets a clear, specific reason rather than a generic auth failure that reads
+like the cluster isn't accessible at all.
+
+All four write tools are registered in the same `ChatToolSet::TOOL_CLASSES` /
+`WorkflowToolSet` list as the read-only tools (there is no separate write
+tool set) - the per-cluster `allow_writes` check inside each tool's `#call`
+is the only gate, the same "no manifest-build-time hook sees per-call
+params" reasoning that applies to the read tools' per-cluster gate above.
+
 ## Audit logging
 
 Every agentic tool call - successful or not - is logged by
@@ -353,9 +412,116 @@ behind, but logged rather than persisted to a DB table: `JobLog` itself
 requires a `Run`, while agentic k8s calls can equally come from a chat
 session that has no Run at all.
 
+The four write tools are the one exception to "never logs the resolved
+result": each write resource-service method (`Deployments#restart_rollout`,
+`Deployments#scale`, `Pods#delete`, `Nodes#set_cordon`) returns a result hash
+with curated `before:`/`after:` keys - a small structured summary (a replica
+count, a restart timestamp, a schedulable flag), never a full object -
+and `AgenticAudit.log!` includes those two keys verbatim in the audit line
+when present, so the log line itself shows the mutation's effect (e.g.
+`"before":{"replicas":2},"after":{"replicas":4}`) without becoming a copy of
+full pod/deployment/node manifests.
+
+## Minimal RBAC for agentic access
+
+The credential pasted into a cluster's kubeconfig should be scoped to the
+minimum the plugin actually needs, via a dedicated ServiceAccount and
+RBAC binding rather than a cluster-admin token:
+
+**Read-only clusters** (`agentic_access_enabled` on, `allow_writes` off) only
+need a `view`-equivalent `ClusterRole`:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: syrus-k8s-cluster-viewer
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, pods, pods/log, services, endpoints, events, persistentvolumeclaims, nodes]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [cronjobs]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes, pods]
+    verbs: [get, list]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: syrus-k8s-cluster-viewer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: syrus-k8s-cluster-viewer
+subjects:
+  - kind: ServiceAccount
+    name: syrus-k8s-cluster-viewer
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: syrus-k8s-cluster-viewer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+**Write-enabled clusters** (`allow_writes` also on) additionally need
+`patch`/`delete` scoped to exactly the resources/verbs the four write tools
+use - deployment rollout restart/scale (`patch` on `deployments`), pod
+deletion (`delete` on `pods`), and node cordon/uncordon (`patch` on `nodes`).
+Grant this as an additional `ClusterRole` bound to the same ServiceAccount,
+not by widening the read role above:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: syrus-k8s-cluster-writer
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [patch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [delete]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: syrus-k8s-cluster-writer
+subjects:
+  - kind: ServiceAccount
+    name: syrus-k8s-cluster-viewer
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: syrus-k8s-cluster-writer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Generate the ServiceAccount's bearer token (e.g. a long-lived Secret of type
+`kubernetes.io/service-account-token`, or `kubectl create token
+syrus-k8s-cluster-viewer --duration=...` for a short-lived one) and paste a
+kubeconfig built from it - see "Kubeconfig parsing" above. There is no
+token rotation/expiry handling in v1 (a known gap - see DOC-21); an expired
+token needs the operator to re-paste an updated kubeconfig.
+
 ## What's not here yet
 
-Write-capable agentic tools (rollout restart, scale a deployment, delete a
-pod, cordon/uncordon a node) are follow-up work per EPIC-306 / DOC-21, gated
-by `agentic_access_enabled? && allow_writes?` rather than
-`agentic_access_enabled?` alone.
+Per DOC-21's explicit out-of-scope list: per-repository cluster association
+or auto-detection of "which cluster does this repo deploy to," an in-cluster
+relay agent for clusters Syrus can't reach directly (NAT/firewalled), any
+general-purpose `kubectl exec` or arbitrary manifest `apply` via the agent,
+cluster provisioning/teardown, and watch-API streaming (v1 uses 10s polling
+for the Live tab; only worth building if that proves insufficient in
+practice). Expanding the write tool allowlist itself beyond the four actions
+above is also explicitly deferred to a future, separately-scoped Job rather
+than an implicit consequence of this one.
