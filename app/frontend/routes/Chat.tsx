@@ -117,7 +117,8 @@ import { Compose } from "./chat/Compose"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
-import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey } from "./chat/messageStreamItems"
+import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey, replaceProposalInMessages } from "./chat/messageStreamItems"
+import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
@@ -426,6 +427,23 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       setHasMoreOlder(page.has_more_older)
     }
   })
+
+  useEffect(() => {
+    // A confirmed/rejected/edited proposal only patches the React Query cache
+    // (payload.messages, the latest tail); a card scrolled above that tail
+    // lives in olderMessages instead and would otherwise never see the
+    // update. Listen for the same event dispatched next to that cache patch
+    // and apply it here too, regardless of which tab or user acted.
+    function onProposalUpdated(event: Event) {
+      const detail = (event as CustomEvent<ProposalUpdatedDetail>).detail
+      if (!detail || detail.chatSessionId !== String(payload.chat.id)) return
+      setOlderMessages((current) => replaceProposalInMessages(current, detail.proposal))
+    }
+
+    window.addEventListener(PROPOSAL_UPDATED_EVENT, onProposalUpdated)
+    return () => window.removeEventListener(PROPOSAL_UPDATED_EVENT, onProposalUpdated)
+  }, [payload.chat.id])
+
   const retryTurn = useMutation({
     mutationFn: (messageText: string) => agentActive
       ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)

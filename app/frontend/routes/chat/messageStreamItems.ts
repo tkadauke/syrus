@@ -3,7 +3,7 @@
 // Pure operations over the render-stream item list: dedupe/merge message
 // groups by id, compute a stable React key per stream item, build a cheap
 // change signature for memoization, and find the oldest/newest message id.
-import type { ChatMessageItem } from "../../api/chats"
+import type { ChatMessageItem, ChatProposal } from "../../api/chats"
 import type { ChatStreamItem } from "./streamTypes"
 
 export function mergeChatMessages(...groups: ChatMessageItem[][]) {
@@ -62,4 +62,13 @@ export function oldestMessageId(messages: ChatMessageItem[]) {
 export function maxMessageId(messages: ChatMessageItem[]) {
   const ids = messages.map((message) => message.id)
   return ids.length > 0 ? Math.max(...ids) : null
+}
+
+// Patches the message carrying this proposal wherever it appears in a message
+// list. Proposal cards can live in either the React Query-cached tail
+// (`ChatPayload.messages`) or the paginated-older-history state a chat view
+// keeps outside that cache — this helper is applied to both so an
+// accept/reject reaches a card regardless of scroll position.
+export function replaceProposalInMessages(messages: ChatMessageItem[], proposal: ChatProposal) {
+  return messages.map((message) => message.proposal?.id === proposal.id ? { ...message, proposal } : message)
 }
