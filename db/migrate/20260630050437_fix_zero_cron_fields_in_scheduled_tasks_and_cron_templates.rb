@@ -1,7 +1,7 @@
 class FixZeroCronFieldsInScheduledTasksAndCronTemplates < ActiveRecord::Migration[8.1]
   def up
-    fix_zero_cron_fields("ScheduledTask", ScheduledTask)
-    fix_zero_cron_fields("CronTemplate", CronTemplate)
+    fix_zero_cron_fields("ScheduledTasks::Task", ScheduledTasks::Task)
+    fix_zero_cron_fields("ScheduledTasks::CronTemplate", ScheduledTasks::CronTemplate)
   end
 
   def down

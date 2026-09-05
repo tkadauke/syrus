@@ -410,11 +410,11 @@ describe("JobDetailView", () => {
         ...baseJob(),
         kind: "cron",
         issue_title: null,
-        scheduled_task_id: 12,
-        scheduled_task: {
-          id: 12,
-          name: "Update architecture",
-          scheduled_task_path: "/scheduled_tasks/12"
+        origin: {
+          key: "scheduled_tasks",
+          id: "12",
+          label: "Update architecture",
+          url: "/scheduled_tasks/12"
         }
       }
     }))

@@ -27,7 +27,6 @@ class User < ApplicationRecord
   has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :chat_pending_actions, dependent: :destroy
-  has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
@@ -213,7 +212,7 @@ class User < ApplicationRecord
   before_create :promote_first_user_to_admin
   before_create :generate_webauthn_id
   before_create :seed_default_color_theme
-  after_create :seed_default_cron_templates
+  after_create :publish_user_created_event
 
   def admin?
     unless has_attribute?(:global_role)
@@ -975,8 +974,10 @@ class User < ApplicationRecord
   # Templates rather than an empty list. Seeded only for the very first
   # user (the installation's bootstrap admin) so later signups don't
   # each accumulate their own copies.
-  def seed_default_cron_templates
-    CronTemplate.seed_defaults_for(self) if @first_user
+  # The bootstrap admin gets seeded defaults from whichever plugins offer
+  # them. Core publishes; it does not know what a cron template is.
+  def publish_user_created_event
+    Syrus::Events.publish("user.created", user_id: id, first_user: !!@first_user)
   end
 
   def provider_availability_pause_thresholds_valid

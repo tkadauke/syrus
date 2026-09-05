@@ -130,10 +130,10 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     expect(commit.dig("origin", "issue_number")).to eq(12)
   end
 
-  it "attributes a syrus_landed commit to its originating cron ScheduledTask" do
+  it "attributes a syrus_landed commit to its originating cron ScheduledTasks::Task" do
     sha = commit!("nightly sweep")
     bare_clone!
-    scheduled_task = ScheduledTask.create!(
+    scheduled_task = ScheduledTasks::Task.create!(
       user: owner, repository: repository,
       name: "Nightly sweep", prompt: "Do the thing",
       kind: "cron", cron_expression: "0 * * * *",
@@ -141,7 +141,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     )
     Factories.job_record(
       repository: repository, user: owner, kind: "cron", landed_sha: sha,
-      issue_number: nil, scheduled_task: scheduled_task
+      issue_number: nil, scheduled_task_id: scheduled_task.id
     )
 
     sign_in_as(owner)

@@ -76,10 +76,10 @@ module Prompts
             Epics reconcile sibling work inside the Epic merge-train
             workflow after the integration branch is built; do not
             recommend creating standalone reconciliation Jobs.
-          - **ScheduledTask** — a recurring-cadence or one-shot prompt
+          - **Scheduled task** — a recurring-cadence or one-shot prompt
             attached to a repository. Fires Jobs of kind `cron` at the
             scheduled time, optionally backed by a reusable
-            `CronTemplate`.
+            `cron template`.
 
         ## Syrus feature documentation
 

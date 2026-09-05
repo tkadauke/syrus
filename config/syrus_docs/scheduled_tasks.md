@@ -1,6 +1,18 @@
 # Scheduled Tasks
 
-`ScheduledTask` lets operators attach recurring or one-shot agent prompts to a repository. The agent runs on schedule without requiring a GitHub issue.
+Ships as the bundled `scheduled_tasks` plugin, enabled by default. Disabling it
+from Admin -> Plugins stops schedules firing and removes the Schedules pages,
+nav entries, repository tab, and chat tools; the schedules an operator already
+configured are kept, and come back when it is re-enabled.
+
+`ScheduledTasks::Task` lets operators attach recurring or one-shot agent prompts
+to a repository. The agent runs on schedule without requiring a GitHub issue.
+
+A fired Job records where it came from through the generic `jobs.origin` /
+`jobs.origin_id` columns (`origin: "scheduled_tasks"`) rather than a
+`scheduled_task_id` foreign key, so core can render and link the origin without
+knowing what a schedule is -- and degrades to plain text when the plugin is
+disabled.
 
 ## Creating tasks
 

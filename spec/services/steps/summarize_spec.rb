@@ -414,7 +414,7 @@ RSpec.describe Steps::Summarize, :ci_only do
     end
 
     it "does not add 'Closes #N' for cron jobs (no issue_number)" do
-      cron_task = ScheduledTask.create!(
+      cron_task = ScheduledTasks::Task.create!(
         user: job.user, repository: job.repository,
         name: "Sweep dead code", prompt: "Look for dead code.",
         kind: "cron", cron_expression: "0 9 * * 1", pr_pileup_policy: "skip"

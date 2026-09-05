@@ -433,7 +433,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
 
     it "is false for a cron job even with no active runs" do
-      scheduled_task = ScheduledTask.create!(
+      scheduled_task = ScheduledTasks::Task.create!(
         user: user,
         repository: repo,
         name: "Nightly check",
@@ -443,7 +443,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         pr_pileup_policy: "skip"
       )
       job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil,
-                                 scheduled_task: scheduled_task)
+                                 scheduled_task_id: scheduled_task.id)
 
       expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
     end

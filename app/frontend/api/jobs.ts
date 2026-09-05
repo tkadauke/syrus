@@ -116,8 +116,7 @@ export type JobRecord = {
   invalidation_evidence?: string[] | null
   landing_blocker_override_requested_at?: string | null
   landing_blocker_override_requested_by?: JobUserReference | null
-  scheduled_task_id?: number | null
-  scheduled_task?: JobScheduledTask | null
+  origin?: JobOrigin | null
   goal_provenance?: GoalProvenance | null
   total_cost_usd: number | null
   billed_runs_count: number
@@ -311,10 +310,13 @@ export type JobSourceChat = {
   label: string
 }
 
-export type JobScheduledTask = {
-  id: number
-  name: string
-  scheduled_task_path: string
+// Where a Job came from, resolved by whichever plugin owns the origin. `url`
+// is null when nothing claims it, so the label renders as plain text.
+export type JobOrigin = {
+  key: string
+  id: string
+  label: string
+  url: string | null
 }
 
 export type JobOriginChat = {

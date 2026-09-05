@@ -155,7 +155,7 @@ module AgentInsights
           transcripts, worker health, code inspection, or multiple occurrences
           before filing a finding. Do not submit insights from one-off benign log
           lines or isolated noise without supporting context.
-        - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
+        - A `suggested_prompt` for a Job or scheduled task that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
         - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`, or
           `informational`). Use the explicit field for new suggestions.

@@ -145,7 +145,7 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     admin = Factories.user(admin: true)
     job = Factories.job(
       repository: repository,
-      approval_evidence: { "rule" => "if_graders_pass", "source" => "ScheduledTask#7", "grader_step_id" => 99 },
+      approval_evidence: { "rule" => "if_graders_pass", "source" => "ScheduledTasks::Task#7", "grader_step_id" => 99 },
       invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ],
       landing_blocker_override_key: "landing_paused",
       landing_blocker_override_reason: "Verified queue pause was stale.",
@@ -158,7 +158,7 @@ RSpec.describe Mcp::Tools::ReadJobTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:job]).to include(
-      approval_evidence: { rule: "if_graders_pass", source: "ScheduledTask#7", grader_step_id: 99 },
+      approval_evidence: { rule: "if_graders_pass", source: "ScheduledTasks::Task#7", grader_step_id: 99 },
       invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ],
       landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
       landing_blocker_override_requested_by: { id: admin.id, display_name: admin.display_name, email_address: admin.email_address }
@@ -221,7 +221,7 @@ RSpec.describe Mcp::Tools::ReadJobTool do
   end
 
   it "includes scheduled_task_id for cron jobs" do
-    task = repository.scheduled_tasks.create!(
+    task = ScheduledTasks::Task.create!(repository: repository,
       user: user,
       kind: "cron",
       name: "Nightly task",
@@ -229,7 +229,7 @@ RSpec.describe Mcp::Tools::ReadJobTool do
       cron_expression: "0 3 * * *",
       pr_pileup_policy: "skip"
     )
-    job = Factories.job(repository: repository, kind: "cron", issue_number: nil, scheduled_task: task)
+    job = Factories.job(repository: repository, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
 
     response = call_tool(job_id: job.id)
     payload = response_payload(response)

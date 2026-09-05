@@ -50,7 +50,7 @@ module AgentInsights
           },
           suggested_prompt: {
             type: "string",
-            description: "Optional prompt text for a Job or ScheduledTask that would address the finding."
+            description: "Optional prompt text for a Job or scheduled task that would address the finding."
           },
           memory_suggestion: {
             type: "string",

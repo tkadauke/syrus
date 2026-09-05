@@ -62,7 +62,6 @@ class Repository < ApplicationRecord
   has_many :run_resource_summaries, dependent: :destroy
   has_many :workflow_step_resource_profiles, dependent: :destroy
   has_many :epics, dependent: :destroy
-  has_many :scheduled_tasks, dependent: :destroy
   has_many :input_sources, class_name: "InputSource", dependent: :destroy
   has_one :github_input_source, class_name: "InputSources::Github"
   has_one :linear_input_source, class_name: "InputSources::Linear"

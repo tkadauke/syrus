@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_120835) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_122427) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -752,24 +752,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_120835) do
     t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
     t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
-  end
-
-  create_table "cron_templates", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "cron_expression"
-    t.text "description"
-    t.boolean "enabled", default: true, null: false
-    t.string "legacy_cron_expression"
-    t.string "name", null: false
-    t.string "pr_pileup_policy", default: "skip", null: false
-    t.text "prompt", null: false
-    t.text "schedule_expression"
-    t.string "schedule_format", default: "rrule", null: false
-    t.string "schedule_input"
-    t.string "schedule_timezone", default: "UTC", null: false
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.index ["user_id"], name: "index_cron_templates_on_user_id"
   end
 
   create_table "decisions", force: :cascade do |t|
@@ -2285,6 +2267,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_120835) do
     t.index ["chat_session_id"], name: "index_scheduled_chat_messages_on_chat_session_id"
     t.index ["sent_at", "fire_at"], name: "index_scheduled_chat_messages_on_sent_at_and_fire_at"
     t.index ["user_id"], name: "index_scheduled_chat_messages_on_user_id"
+  end
+
+  create_table "scheduled_task_cron_templates", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "cron_expression"
+    t.text "description"
+    t.boolean "enabled", default: true, null: false
+    t.string "legacy_cron_expression"
+    t.string "name", null: false
+    t.string "pr_pileup_policy", default: "skip", null: false
+    t.text "prompt", null: false
+    t.text "schedule_expression"
+    t.string "schedule_format", default: "rrule", null: false
+    t.string "schedule_input"
+    t.string "schedule_timezone", default: "UTC", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id"], name: "index_scheduled_task_cron_templates_on_user_id"
   end
 
   create_table "scheduled_tasks", force: :cascade do |t|

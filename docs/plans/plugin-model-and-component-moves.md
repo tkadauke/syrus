@@ -1264,15 +1264,32 @@ the AASM callback (→ `job.closed` subscriber), the `replaced_by_scheduled_task
 closure reason (→ G3), and `AutoApprovalRule`'s candidate chain (needs an
 auto-approval-source contribution point).
 
-**Status: the only listed prerequisite still open is G8.** G1, G2, G3 and G4
-have landed, and the `job_kinds` registry built for `agent_insights` covers the
-`Job::KINDS` half of the schema inversion. G8 remains an unanswered design
-question — the CLI has no plugin story, and `scheduled_tasks` owns a whole
-`syrus schedule` command family, so extracting it either strands those commands
-or forces the answer. That makes G8, not the code, the gate. Recommended shape
-when it is taken up: server-described commands (the instance advertises the
-command surface, the CLI renders it), with `syrus-<name>` binaries on `PATH` as
-an escape hatch for anything that needs real client-side behaviour.
+**Status: extracted.** G8 was answered for bundled plugins by giving a plugin
+its own Go module under `plugins/<name>/cli`, compiled into the one binary via
+`go.work` (Go has no usable dynamic loading for a static binary). No runtime
+gating: a disabled plugin's routes already answer `plugin_disabled`.
+
+The extraction then hit a prerequisite this entry did not record: `McpToolPolicy`
+names 59 tool classes in hardcoded lists, five of them scheduled-task tools, and
+a plugin had no way to join. Moving them out would have started offering
+`schedule_recurring` and `fire_scheduled_task_now` in Supervisor chats and
+silently dropped the two read-only tools from the scoped-event evaluator. Chat
+tool sets can now declare `supervisor_excluded` / `evaluator` on a definition.
+
+What shipped: `ScheduledTasks::Task` and `::CronTemplate` (table
+`cron_templates` renamed to `scheduled_task_cron_templates`), the poll job on a
+plugin `tick_interval` rather than the host's recurring.yml, the schedules
+layer, nine MCP tools, two pending actions, two controllers, the React pages,
+the repository tab, and both nav entries. Core keeps the SPA shell paths, as it
+does for `/search`.
+
+The Job Origin work landed first and did the heavy lifting: `jobs.origin` /
+`jobs.origin_id` plus a `job_origin` extension point, with `synthetic_issue`,
+auto-approval and the PR title asking the origin instead of reaching into
+ScheduledTask. Outcome propagation, the runaway-failure path and cron-template
+seeding became `job.closed`, `job.runaway_stopped` and `user.created`
+subscribers. `jobs.scheduled_task_id` survives as a compatibility column
+(Job Origin step 4).
 
 **`agent_insights`** — extracted. `AgentInsights::Suggestion`/`ScheduleConfig`/
 `AuditEvent` (tables `agent_insight_suggestions`,

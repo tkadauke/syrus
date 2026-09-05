@@ -25,6 +25,9 @@ module Syrus
       "job.upserted"          => :async,
       "job.state_changed"     => :async,
       "job.closed"            => :async,
+      # Runaway protection fails a Job without closing it, so an origin that
+      # keeps a failure budget would never hear about it on job.closed.
+      "job.runaway_stopped"   => :async,
       "job.approved"          => :async,
       "workflow.started"      => :async,
       "workflow.finished"     => :async,
@@ -32,6 +35,9 @@ module Syrus
       "step.grader.completed" => :inline,
       "step.command.completed" => :inline,
       "epic.upserted"         => :async,
+      # Lets a plugin seed defaults for the installation's bootstrap admin
+      # without core knowing what it is seeding.
+      "user.created"          => :async,
       "repository.created"    => :async,
       "repository.archived"   => :async,
       "repository.destroyed"  => :async

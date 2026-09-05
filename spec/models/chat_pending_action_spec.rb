@@ -384,14 +384,14 @@ RSpec.describe ChatPendingAction, :ci_only do
     )
   end
 
-  it "confirms a schedule_recurring action into a ScheduledTask" do
+  it "confirms a schedule_recurring action into a ScheduledTasks::Task" do
     action = pending_action
 
     expect {
       action.confirm!(user: user)
-    }.to change { ScheduledTask.count }.by(1)
+    }.to change { ScheduledTasks::Task.count }.by(1)
 
-    task = ScheduledTask.last
+    task = ScheduledTasks::Task.last
     expect(task).to have_attributes(
       user: user,
       repository: repository,
@@ -409,21 +409,21 @@ RSpec.describe ChatPendingAction, :ci_only do
     action.confirm!(user: user)
     task = action.result
 
-    result = ScheduledTaskFire.new(task).call
+    result = ScheduledTasks::Fire.new(task).call
 
     expect(result).to be_fired
     expect(result.job).to have_attributes(
       kind: "cron",
-      scheduled_task: task,
+      scheduled_task_id: task.id,
       issue_number: nil
     )
     expect(result.job.runs.first.prompt).to include("scheduled maintenance task")
   end
 
-  it "does not create the ScheduledTask before confirmation" do
+  it "does not create the ScheduledTasks::Task before confirmation" do
     expect {
       pending_action
-    }.not_to change { ScheduledTask.count }
+    }.not_to change { ScheduledTasks::Task.count }
   end
 
   it "confirms admin kill process by requesting a process kill" do

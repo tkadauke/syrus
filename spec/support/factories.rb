@@ -51,7 +51,7 @@ module Factories
   end
 
   def cron_template(**attrs)
-    CronTemplate.create!({
+    ScheduledTasks::CronTemplate.create!({
       user: attrs[:user] || user,
       name: "Weekly maintenance",
       prompt: "Keep things tidy.",

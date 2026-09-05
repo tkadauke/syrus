@@ -194,9 +194,9 @@ RSpec.describe GitHistory::CommitAttributor do
       expect(job.input_source_id).to eq(repository.github_input_source.id)
     end
 
-    it "attributes origin to the cron ScheduledTask via scheduled_task_id" do
+    it "attributes origin to the cron ScheduledTasks::Task via scheduled_task_id" do
       sha = "1" + "a" * 39
-      scheduled_task = ScheduledTask.create!(
+      scheduled_task = ScheduledTasks::Task.create!(
         user: viewer, repository: repository,
         name: "Nightly sweep", prompt: "Do the thing",
         kind: "cron", cron_expression: "0 * * * *",
@@ -204,12 +204,12 @@ RSpec.describe GitHistory::CommitAttributor do
       )
       job = Factories.job_record(
         repository: repository, user: viewer, kind: "cron", landed_sha: sha,
-        issue_number: nil, scheduled_task: scheduled_task
+        issue_number: nil, scheduled_task_id: scheduled_task.id
       )
 
       result = attributor.attribute(entry(sha: sha))
 
-      expect(result[:origin]).to eq(type: "cron", scheduled_task: { id: scheduled_task.id, name: "Nightly sweep" })
+      expect(result[:origin]).to eq(type: "cron", scheduled_task: { id: scheduled_task.id.to_s, name: "Nightly sweep" })
       expect(job.scheduled_task_id).to eq(scheduled_task.id)
     end
 

@@ -443,6 +443,10 @@ Jobs are landing as one unit.
 
 ## Schedules
 
+Schedules ship as a bundled plugin, enabled by default. Turning it off from
+Admin -> Plugins stops schedules firing and hides the Schedules pages; the
+schedules you configured are kept and return when it is re-enabled.
+
 Scheduled tasks attach a recurring or one-shot prompt to a repository.
 When a task fires, Syrus creates a normal `cron` Job and runs the standard
 issue-to-PR pipeline on a scheduled branch.

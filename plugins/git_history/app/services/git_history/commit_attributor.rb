@@ -185,8 +185,8 @@ module GitHistory
     def origin_payload(job)
       if (chat_attachment = chat_attachment_for(job))
         chat_origin_payload(chat_attachment)
-      elsif job.scheduled_task_id.present? && job.scheduled_task
-        cron_origin_payload(job.scheduled_task)
+      elsif job.cron?
+        cron_origin_payload(job)
       elsif job.input_source_id.present?
         issue_origin_payload(job)
       else
@@ -216,10 +216,13 @@ module GitHistory
       }
     end
 
-    def cron_origin_payload(scheduled_task)
+    # Resolved through Job::Origin rather than a scheduled_task association:
+    # this plugin does not depend on scheduled_tasks, and asking the origin
+    # keeps it working (as plain text) when that plugin is gone.
+    def cron_origin_payload(job)
       {
         type: "cron",
-        scheduled_task: { id: scheduled_task.id, name: scheduled_task.name }
+        scheduled_task: { id: job.origin_id, name: Job::Origin.label(job) }
       }
     end
 

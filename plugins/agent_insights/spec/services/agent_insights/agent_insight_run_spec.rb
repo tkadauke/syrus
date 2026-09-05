@@ -213,7 +213,7 @@ RSpec.describe AgentInsights::RunStep do
         cron = completed_job(
           kind: "cron",
           issue_number: nil,
-          scheduled_task: scheduled_task,
+          scheduled_task_id: scheduled_task.id,
           issue_title: "Scheduled dependency sweep",
           completed_at: Time.utc(2026, 7, 23, 9, 0, 0)
         )
@@ -279,7 +279,7 @@ RSpec.describe AgentInsights::RunStep do
   end
 
   def scheduled_task
-    ScheduledTask.create!(
+    ScheduledTasks::Task.create!(
       user: user,
       repository: repository,
       name: "Nightly dependency sweep",
@@ -289,14 +289,14 @@ RSpec.describe AgentInsights::RunStep do
     )
   end
 
-  def completed_job(kind:, issue_number:, issue_title:, completed_at:, created_at: completed_at, scheduled_task: nil, trigger_kind: "initial", step_kind: "implement")
+  def completed_job(kind:, issue_number:, issue_title:, completed_at:, created_at: completed_at, scheduled_task_id: nil, trigger_kind: "initial", step_kind: "implement")
     created = Factories.job_record(
       user: user,
       repository: repository,
       kind: kind,
       issue_number: issue_number,
       issue_title: issue_title,
-      scheduled_task: scheduled_task,
+      scheduled_task_id: scheduled_task_id,
       state: "queued",
       created_at: created_at
     )

@@ -141,7 +141,7 @@ per-user/private:
   - app/controllers/concerns/performance_logging_context.rb
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/credentials/documents_controller.rb
-  - app/controllers/api/v1/app/cron_templates_controller.rb
+  - plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
   - app/controllers/api/v1/app/diff_review_comments_controller.rb
@@ -176,7 +176,7 @@ per-user/private:
   - app/controllers/api/v1/app/repository_preview_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
-  - app/controllers/api/v1/app/scheduled_tasks_controller.rb
+  - plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - plugins/global_search/app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
   - app/controllers/api/v1/app/sidebar_nav_order_controller.rb
@@ -339,7 +339,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
-| `app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
+| `plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
 | `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update paths use `Current.user.epics`; repository choices come from the same user. Index/find/dependency-target lookups go through `EpicPolicy` (`policy_scope(Epic)`, exactly `Epic.accessible_to(Current.user)` — see [Policy layer](#policy-layer-repositoryjobepic)); unclaim, reassign, and state-advancement checks are `EpicPolicy` predicates. |
@@ -378,7 +378,7 @@ instead of broader model scopes.
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private | Job-less repository preview show/logs/create/destroy find the repository through `Current.user.repositories`, so only the repository owner can start, inspect, or stop it. |
-| `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
+| `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `plugins/global_search/app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
 | `app/controllers/api/v1/app/skills_controller.rb` | per-user/private | The skill picker/launch endpoints find the parent repository through `Current.user.repositories` and create skill Jobs via `SkillJobs::Creator` scoped to `Current.user`, so only the repository owner can list or launch skills. |

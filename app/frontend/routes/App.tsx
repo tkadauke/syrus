@@ -38,7 +38,6 @@ import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } fr
 import { ChatSearchRoute } from "./ChatSearch"
 import { ChatRoute, SharedChatRoute } from "./Chat"
 import { CredentialsRoute } from "./Credentials"
-import { CronTemplateDetailRoute, CronTemplateFormRoute, CronTemplatesIndex } from "./CronTemplates"
 import { DashboardRoute } from "./Dashboard"
 import { DesignSystemRoute } from "./DesignSystem"
 import { DirectJobNewRoute } from "./DirectJobNew"
@@ -57,9 +56,7 @@ import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryMembersRoute } from "./RepositoryMembers"
-import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
-import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { Tags } from "./Tags"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { ThemesSettingsRoute } from "./ThemesSettings"
@@ -136,16 +133,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/memories", element: <SettingsSectionRoute><PluginSidebarPageRoute /></SettingsSectionRoute> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
   { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
-  { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },
-  { path: "/cron_templates/new", element: <SettingsSectionRoute><CronTemplateFormRoute mode="new" /></SettingsSectionRoute> },
-  { path: "/cron_templates/:id", element: <SettingsSectionRoute><CronTemplateDetailRoute /></SettingsSectionRoute> },
-  { path: "/cron_templates/:id/edit", element: <SettingsSectionRoute><CronTemplateFormRoute mode="edit" /></SettingsSectionRoute> },
-  { path: "/scheduled_tasks", element: <ScheduledTasksIndex /> },
-  { path: "/scheduled_tasks/new", element: <ScheduledTaskFormRoute mode="new" /> },
-  { path: "/scheduled_tasks/:id", element: <ScheduledTaskDetailRoute /> },
-  { path: "/scheduled_tasks/:id/edit", element: <ScheduledTaskFormRoute mode="edit" /> },
-  { path: "/repositories/:repositoryId/scheduled_tasks", element: <RepositoryScheduledTasksRoute /> },
-  { path: "/repositories/:repositoryId/scheduled_tasks/new", element: <ScheduledTaskFormRoute mode="new" /> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
@@ -488,16 +475,6 @@ const SIMPLE_MODE_HIDDEN_PATHS = [
   "/jobs/new",
   "/jobs/:id",
   "/jobs/:id/source",
-  "/cron_templates",
-  "/cron_templates/new",
-  "/cron_templates/:id",
-  "/cron_templates/:id/edit",
-  "/scheduled_tasks",
-  "/scheduled_tasks/new",
-  "/scheduled_tasks/:id",
-  "/scheduled_tasks/:id/edit",
-  "/repositories/:repositoryId/scheduled_tasks",
-  "/repositories/:repositoryId/scheduled_tasks/new",
   "/repositories/:repositoryId/skills/new"
 ]
 
@@ -605,7 +582,6 @@ function settingsNavigationItems(
     { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes" },
     { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
-    { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
     { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
   ]

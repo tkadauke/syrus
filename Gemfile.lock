@@ -128,6 +128,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/scheduled_tasks
+  specs:
+    scheduled_tasks (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/spending_insights
   specs:
     spending_insights (0.1.0)
@@ -770,6 +776,7 @@ DEPENDENCIES
   ruby!
   ruby-vips (~> 2.0)
   rubyzip
+  scheduled_tasks!
   selenium-webdriver
   simplecov
   simplecov-lcov
@@ -984,6 +991,7 @@ CHECKSUMS
   rubyzip (3.6.0) sha256=268994d44d62282d1cfd99bf10eae48d7267199158ad7ea3e1fee2da9458b695
   safety_net_attestation (0.5.0) sha256=c8cd01dd550dbe8553862918af6355a04672db11d218ec96104ce3955293f2aa
   sawyer (0.9.3) sha256=0d0f19298408047037638639fe62f4794483fb04320269169bd41af2bdcf5e41
+  scheduled_tasks (0.1.0)
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
   selenium-webdriver (4.48.0) sha256=0c8376ebc8a0a4879343fe6fe6eccdcea76748611cd25de370b33eded2077a94
   simplecov (1.1.1) sha256=25825ef13f0b2e74694d769817dad6ab8e90131dabdaa666e522fea105521e78

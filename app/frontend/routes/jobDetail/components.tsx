@@ -455,9 +455,11 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
 export function JobSourceLink({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const { t } = useT("jobs")
   const label = jobSourceLabel(payload, t)
-  if (payload.job.scheduled_task) {
+  // The origin's own plugin supplies the link; without one (plugin disabled or
+  // uninstalled) the label still renders, just not as a link.
+  if (payload.job.origin?.url) {
     return (
-      <Link className="hover:underline" to={withRoutePrefix(payload.job.scheduled_task.scheduled_task_path, prefix)}>
+      <Link className="hover:underline" to={withRoutePrefix(payload.job.origin.url, prefix)}>
         {label}
       </Link>
     )

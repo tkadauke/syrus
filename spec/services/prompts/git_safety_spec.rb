@@ -54,14 +54,14 @@ RSpec.describe "primary-agent prompts include GitSafety::TEXT" do
     ).to include(Prompts::GitSafety::TEXT)
   end
 
-  it "ScheduledTask" do
+  it "ScheduledTasks::Task" do
     user = Factories.user
     repo = Factories.repository(user: user)
-    task = ScheduledTask.create!(
+    task = ScheduledTasks::Task.create!(
       user: user, repository: repo,
       name: "t", prompt: "do a thing",
       kind: "cron", cron_expression: "0 9 * * 1", pr_pileup_policy: "skip"
     )
-    expect(Prompts::ScheduledTask.new(scheduled_task: task).to_s).to include(Prompts::GitSafety::TEXT)
+    expect(ScheduledTasks::Prompt.new(scheduled_task: task).to_s).to include(Prompts::GitSafety::TEXT)
   end
 end

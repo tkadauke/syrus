@@ -61,11 +61,6 @@ Rails.application.routes.draw do
           end
         end
         resources :smart_folders, only: %i[ create update destroy ]
-        resources :cron_templates, only: %i[ index show create update destroy ] do
-          collection do
-            post :preview_schedule
-          end
-        end
         get "notifications", to: "notifications#index"
         post "notifications/mark_all_read", to: "notifications#mark_all_read"
         patch "notifications/:id/mark_read", to: "notifications#mark_read", constraints: { id: /\d+/ }
@@ -326,22 +321,6 @@ Rails.application.routes.draw do
         delete "repository_documents/:id", to: "repository_documents#destroy"
         get "repositories/:repository_id/skills", to: "skills#index"
         post "repositories/:repository_id/skills", to: "skills#create"
-        get "repositories/:repository_id/scheduled_tasks/new", to: "scheduled_tasks#new"
-        get "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#repository_index"
-        post "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#create"
-        patch "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_update"
-        delete "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_destroy"
-        get "scheduled_tasks/new", to: "scheduled_tasks#new_repository_options"
-        resources :scheduled_tasks, only: %i[ index show update destroy ] do
-          collection do
-            post :preview_schedule
-          end
-          member do
-            post :pause
-            post :resume
-            post :fire_now
-          end
-        end
 
         namespace :admin do
           get "overview", to: "overview#show"
@@ -533,10 +512,8 @@ Rails.application.routes.draw do
     # The repository chat home (no tab, no UI entry point) is gone;
     # the per-repo controller was pure duplication of the top-level chat flow.
     get "documents", to: "spa#show", as: :documents
-    get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
     get "memberships", to: "spa#show", as: :memberships
   end
-  get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
   get "repositories/:repository_id/plugin/*path", to: "spa#show", as: :repository_plugin_spa, constraints: lambda { |request|
     PluginRouteResolver.spa_route_declared?(request.path) ||
@@ -547,16 +524,22 @@ Rails.application.routes.draw do
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }
 
-  get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "documents", to: "spa#show", as: :documents
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
   get "search", to: "spa#show", as: :search
-  get "profiles", to: "spa#show", as: :profiles
-  get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
+  get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   get "scheduled_tasks/new", to: "spa#show", as: :new_scheduled_task
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id/edit", to: "spa#show", as: :edit_scheduled_task, constraints: { id: /\d+/ }
+  get "repositories/:repository_id/scheduled_tasks", to: "spa#show", as: :repository_scheduled_tasks
+  get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
+  get "cron_templates", to: "spa#show", as: :cron_templates
+  get "cron_templates/new", to: "spa#show", as: :new_cron_template
+  get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }
+  get "cron_templates/:id/edit", to: "spa#show", as: :edit_cron_template, constraints: { id: /\d+/ }
+  get "profiles", to: "spa#show", as: :profiles
+  get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
   get "onboarding", to: "spa#show", as: :onboarding
   get "app-shell", to: "spa#show", as: :app_shell
   get "app-shell/*path", to: "spa#show", as: :app_shell_route
@@ -587,10 +570,6 @@ Rails.application.routes.draw do
   get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "tags", to: "spa#show", as: :tags
   get "design_system", to: "spa#show", as: :design_system
-  get "cron_templates", to: "spa#show", as: :cron_templates
-  get "cron_templates/new", to: "spa#show", as: :new_cron_template
-  get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }
-  get "cron_templates/:id/edit", to: "spa#show", as: :edit_cron_template, constraints: { id: /\d+/ }
   get "invitations", to: "spa#show", as: :invitations
   # Legacy compatibility: the account menu's `/settings` entry is the
   # per-user credentials page. App-wide settings live at `/settings/edit`

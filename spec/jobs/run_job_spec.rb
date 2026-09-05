@@ -324,7 +324,7 @@ RSpec.describe RunJob, :ci_only do
 
   describe "Cron Job (scheduled task fire)" do
     let(:scheduled_task) do
-      ScheduledTask.create!(
+      ScheduledTasks::Task.create!(
         user: user, repository: repository,
         name: "Sweep dead code", prompt: "Look for dead code.",
         kind: "cron", cron_expression: "0 9 * * 1", pr_pileup_policy: "skip"
@@ -332,7 +332,7 @@ RSpec.describe RunJob, :ci_only do
     end
 
     it "runs implement → summarize → pr_open with a pre-rendered prompt and opens a PR" do
-      result = ScheduledTaskFire.new(scheduled_task).call
+      result = ScheduledTasks::Fire.new(scheduled_task).call
       job = result.job
 
       drain_workflow!(job)
@@ -345,7 +345,7 @@ RSpec.describe RunJob, :ci_only do
     end
 
     it "does not add a Co-Authored-By trailer for cron jobs" do
-      result = ScheduledTaskFire.new(scheduled_task).call
+      result = ScheduledTasks::Fire.new(scheduled_task).call
       job = result.job
 
       drain_workflow!(job)
@@ -359,7 +359,7 @@ RSpec.describe RunJob, :ci_only do
         # Don't write anything — no diff.
         AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
       }
-      result = ScheduledTaskFire.new(scheduled_task).call
+      result = ScheduledTasks::Fire.new(scheduled_task).call
       job = result.job
 
       drain_workflow!(job)

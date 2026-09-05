@@ -14,7 +14,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
       name: "syrus-chat-sidecar",
       tools: [
         Mcp::Tools::ReopenJobTool,
-        Mcp::Tools::FireScheduledTaskNowTool,
+        ScheduledTasks::McpTools::FireScheduledTaskNowTool,
         Mcp::Tools::CreateRepoDocumentTool,
         Mcp::Tools::DeleteRepoDocumentTool,
         Mcp::Tools::PollJobFeedbackTool,
@@ -46,7 +46,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
   end
 
   def scheduled_task(attrs = {})
-    repository.scheduled_tasks.create!({
+    ScheduledTasks::Task.create!({ repository: repository,
       user: user,
       kind: "cron",
       name: "Daily review",
@@ -72,15 +72,15 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
 
   it "creates and confirms a fire_scheduled_task_now action" do
     task = scheduled_task
-    result = ScheduledTaskFire::Result.new(job: Factories.job_record(user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil), skipped: false, reason: nil)
-    service = instance_double(ScheduledTaskFire, call: result)
-    allow(ScheduledTaskFire).to receive(:new).with(task).and_return(service)
+    result = ScheduledTasks::Fire::Result.new(job: Factories.job_record(user: user, repository: repository, kind: "cron", scheduled_task_id: task.id, issue_number: nil), skipped: false, reason: nil)
+    service = instance_double(ScheduledTasks::Fire, call: result)
+    allow(ScheduledTasks::Fire).to receive(:new).with(task).and_return(service)
 
     action = pending_action_from(call_tool("fire_scheduled_task_now", scheduled_task_id: task.id))
 
     expect(action).to have_attributes(action: "fire_scheduled_task_now", payload: { "scheduled_task_id" => task.id })
     expect(action.confirm!).to be true
-    expect(ScheduledTaskFire).to have_received(:new).with(task)
+    expect(ScheduledTasks::Fire).to have_received(:new).with(task)
   end
 
   it "creates and confirms a create_repo_document action" do
@@ -214,7 +214,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
   it "rejects cross-user scheduled tasks at tool call time" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
-    other_task = other_repo.scheduled_tasks.create!(
+    other_task = ScheduledTasks::Task.create!(repository: other_repo,
       user: other_user,
       kind: "cron",
       name: "Other task",

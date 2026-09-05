@@ -980,23 +980,23 @@ describe("AppChromeV2 primary nav reordering", () => {
 
   it("applies the operator's saved order, appending items missing from it at the end", () => {
     const bootstrap = bootstrapPayload({ team_user_count: 2 })
-    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: [ "repositories", "dashboard" ] }
+    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: [ "dashboard" ] }
 
     renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"], bootstrap })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
     const labels = within(primaryNav).getAllByRole("link").map((link) => link.textContent)
 
-    // "repositories" and "dashboard" follow the saved order; "schedules" is
-    // absent from it, so it's appended at the end.
-    expect(labels).toEqual(["Repositories", "Dashboard", "Schedules"])
+    // "dashboard" follows the saved order; "repositories" is absent from it,
+    // so it's appended at the end.
+    expect(labels).toEqual(["Dashboard", "Repositories"])
   })
 
   it("persists a new order after dragging a nav item and refetches bootstrap", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
-        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories"] }))
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["repositories", "dashboard"] }))
       }
       if (path === "/api/v1/app/bootstrap") {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
@@ -1010,19 +1010,19 @@ describe("AppChromeV2 primary nav reordering", () => {
     })
 
     const primaryNav = screen.getByRole("navigation", { name: "Primary" })
-    const scheduleRow = within(primaryNav).getByRole("link", { name: "Schedules" }).parentElement!
+    const repositoriesRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
     const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
 
-    fireEvent.dragStart(scheduleRow, { dataTransfer })
+    fireEvent.dragStart(repositoriesRow, { dataTransfer })
     fireEvent.dragOver(dashboardRow, { dataTransfer })
     fireEvent.drop(dashboardRow)
-    fireEvent.dragEnd(scheduleRow)
+    fireEvent.dragEnd(repositoriesRow)
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories"] })
+        body: JSON.stringify({ order: ["repositories", "dashboard"] })
       }))
     })
   })
@@ -1036,7 +1036,7 @@ describe("AppChromeV2 primary nav reordering", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
-        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["schedules", "dashboard", "repositories", "badged.page"] }))
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["repositories", "dashboard", "badged.page"] }))
       }
       if (path === "/api/v1/app/bootstrap") {
         return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
@@ -1064,7 +1064,7 @@ describe("AppChromeV2 primary nav reordering", () => {
       expect(queryClient.getQueryState(["sidebar_badge", "badged.page"])?.status).toBe("success")
     })
 
-    const scheduleRow = within(primaryNav).getByRole("link", { name: "Schedules" }).parentElement!
+    const scheduleRow = within(primaryNav).getByRole("link", { name: "Repositories" }).parentElement!
     const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
     const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
 
@@ -1090,7 +1090,7 @@ describe("AppChromeV2 primary nav reordering", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ order: ["schedules", "dashboard", "repositories", "badged.page"] })
+        body: JSON.stringify({ order: ["repositories", "dashboard", "badged.page"] })
       }))
     })
   })

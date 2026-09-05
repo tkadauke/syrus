@@ -22,6 +22,12 @@ module ChatPendingActions
     return "Pending action queued." if action.confirming?
 
     record = action.result
+
+    # The action names its own result. Core used to `case` over the models a
+    # confirmation could produce, which meant naming a plugin's model here.
+    supplied = handler_confirmed_notice(action, record)
+    return supplied if supplied.present?
+
     case record
     when Workflow
       if record.trigger_kind == "chat_feedback"
@@ -29,10 +35,18 @@ module ChatPendingActions
       else
         "Pending action confirmed."
       end
-    when ScheduledTask
-      "Scheduled task created: #{record.name}."
     else
       "Pending action confirmed."
     end
+  end
+
+  def handler_confirmed_notice(action, record)
+    handler = PendingActions.for(action.action_key)
+    return nil unless handler.respond_to?(:confirmed_notice)
+
+    handler.confirmed_notice(record)
+  rescue StandardError => e
+    Rails.logger.warn("[ChatPendingActions] confirmation notice failed for #{action.action_key}: #{e.class}: #{e.message}")
+    nil
   end
 end

@@ -41,7 +41,7 @@ RSpec.describe Job do
       expect(job.errors[:skill_name]).to be_empty
     end
 
-    it "allows a valid skill_name on a cron Job (ScheduledTask skill launch)" do
+    it "allows a valid skill_name on a cron Job (ScheduledTasks::Task skill launch)" do
       job = Job.new(user: user, repository: repository, kind: "cron", issue_number: nil, skill_name: "investigate")
       job.valid?
       expect(job.errors[:skill_name]).to be_empty

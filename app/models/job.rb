@@ -12,12 +12,6 @@ class Job < ApplicationRecord
 
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
-  SCHEDULED_TASK_OUTCOMES = {
-    "too_many_failures"          => :record_failure!,
-    "too_many_failed_workflows"  => :record_failure!,
-    "too_many_workflows"         => :record_failure!,
-    "replaced_by_scheduled_task" => nil              # bookkeeping only; no counter update
-  }.freeze
   SYSTEM_KIND_MAIN_BRANCH_REPAIR = "main_branch_repair".freeze
   SYSTEM_KINDS = [ SYSTEM_KIND_MAIN_BRANCH_REPAIR ].freeze
   MAIN_BRANCH_REPAIR_TITLE = "Fix broken main branch".freeze
@@ -59,7 +53,6 @@ class Job < ApplicationRecord
   belongs_to :owner_user, class_name: "User", optional: true
   belongs_to :repository
   belongs_to :input_source, optional: true
-  belongs_to :scheduled_task, optional: true
   belongs_to :epic, optional: true
   belongs_to :chat_goal, optional: true
   belongs_to :parent_job, class_name: "Job", optional: true
@@ -131,7 +124,6 @@ class Job < ApplicationRecord
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
             if: -> { issue? && (input_source.nil? || input_source.type == "InputSources::Github") }
-  validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_issueless_kind
   validate  :external_pr_starts_implemented, if: :external_pr?, on: :create
   validates :external_pr_number, presence: true, if: :external_pr?
@@ -605,7 +597,6 @@ class Job < ApplicationRecord
       transitions from: [ :backlog, :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :no_change_needed, :approved, :landing, :coding ], to: :closed, after: -> {
         self.finished_at = Time.current
         self.commits_behind_base = nil
-        record_outcome_to_scheduled_task! if cron?
         notify_pr_merged
         refresh_epic_auto_state
       }
@@ -1135,9 +1126,10 @@ class Job < ApplicationRecord
       runaway_protection_at: Time.current
     )
 
-    # For cron jobs record the failure toward the task's consecutive-failure cap
-    # (previously handled by the close event's record_outcome_to_scheduled_task!).
-    scheduled_task.record_failure! if cron? && scheduled_task
+    # Runaway protection fails a Job without closing it, so job.closed never
+    # fires here -- an origin that keeps a failure budget still has to hear
+    # about it.
+    Syrus::Events.publish("job.runaway_stopped", **domain_event_payload.merge(runaway_reason: reason))
 
     NotificationService.create_for(
       user: user,
@@ -1154,18 +1146,6 @@ class Job < ApplicationRecord
       kind: "system",
       chunk: "job stopped: #{reason} (#{total} total workflows, #{failed_streak} consecutive failed workflows)"
     )
-  end
-
-  # When a cron Job reaches a terminal state, propagate the outcome
-  # to its parent ScheduledTask. Only `too_many_failures` counts as
-  # a failure (consumes the consecutive_failure cap that may pause
-  # the schedule). The "replaced_by_scheduled_task" reason is just
-  # bookkeeping for pile-replace policy and is neither a success nor
-  # a failure for the parent.
-  def record_outcome_to_scheduled_task!
-    return unless scheduled_task
-    outcome = SCHEDULED_TASK_OUTCOMES.fetch(closure_reason, :record_success!)
-    scheduled_task.public_send(outcome) if outcome
   end
 
   # Derives origin/origin_id from whichever column is authoritative today, so

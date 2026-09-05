@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::ScheduleRecurringTool do
+RSpec.describe ScheduledTasks::McpTools::ScheduleRecurringTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -26,7 +26,7 @@ RSpec.describe Mcp::Tools::ScheduleRecurringTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "creates a pending confirmation instead of a ScheduledTask" do
+  it "creates a pending confirmation instead of a ScheduledTasks::Task" do
     response = nil
     expect {
       response = call_tool(
@@ -34,7 +34,7 @@ RSpec.describe Mcp::Tools::ScheduleRecurringTool do
         label: "Daily review",
         prompt: "Review the repository."
       )
-    }.not_to change { ScheduledTask.count }
+    }.not_to change { ScheduledTasks::Task.count }
 
     expect(response[:result][:isError]).to be_falsey
     payload = response_payload(response)

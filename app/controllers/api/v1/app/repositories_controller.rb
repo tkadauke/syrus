@@ -386,7 +386,7 @@ module Api
                 app_check_ci_now_repository_path: "/api/v1/app/repositories/#{repository.id}/check_ci_now",
                 repositories_path: repositories_path,
                 repository_documents_path: repository_documents_path(repository),
-                repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository),
+                repository_scheduled_tasks_path: "/repositories/#{repository.id}/scheduled_tasks",
                 app_preview_path: "/api/v1/app/repositories/#{repository.id}/preview",
                 app_preview_logs_path: "/api/v1/app/repositories/#{repository.id}/preview/logs"
               }
@@ -1023,7 +1023,7 @@ module Api
 
           jobs_by_id = Job
             .where(id: job_ids)
-            .includes(:repository, :scheduled_task)
+            .includes(:repository)
             .index_by(&:id)
           job_ids.filter_map { |id| jobs_by_id[id] }
         end

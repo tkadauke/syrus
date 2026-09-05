@@ -1,7 +1,16 @@
 require "rails_helper"
 
-RSpec.describe PluginTickSchedulerJob do
+# :reset_plugin_registry so these examples see only the plugin they register.
+# Against the live registry the assertions depended on how many bundled plugins
+# declare a tick_interval, which core specs must not enumerate.
+RSpec.describe PluginTickSchedulerJob, :reset_plugin_registry do
   include ActiveJob::TestHelper
+
+  around do |ex|
+    Syrus::PluginRegistry.reset!
+    ex.run
+    Syrus::PluginRegistry.reset!
+  end
 
   def callbacks_provider
     Class.new do

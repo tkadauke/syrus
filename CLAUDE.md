@@ -504,7 +504,8 @@ and missed worker-death auto-retries.
 
 ### Scheduled tasks
 
-`ScheduledTask` lets the operator attach recurring or one-shot agent
+`ScheduledTasks::Task` (the bundled `scheduled_tasks` plugin, on by default)
+lets the operator attach recurring or one-shot agent
 prompts to a repository — no GitHub issue required. `kind=cron` uses a
 5-field cron expression (validated to fire at most once per hour);
 `kind=one_shot` uses a `fire_at` datetime. Cron tasks honor the entered
@@ -956,6 +957,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   input sources, and source-control providers are registered as plugin gems
   via `Syrus::PluginRegistry`. Bundled plugins live under `plugins/` (e.g.
   `plugins/claude_agent`, `plugins/codex_agent`, `plugins/github_source`,
+  `plugins/scheduled_tasks` — recurring/one-shot prompts,
   `plugins/syrus_dev` — development diagnostics/tooling, including the admin
   Performance UI's SQL explain and request/phase drilldowns).
   `AgentProviders.for(provider)` resolves providers from the registry.

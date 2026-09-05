@@ -79,9 +79,7 @@ class McpToolPolicy
     Mcp::Tools::DeleteProposalTool,
     Mcp::Tools::SubmitChatFeedbackTool,
     Mcp::Tools::DelegateIssueTool,
-    Mcp::Tools::ListChatMediaTool,
-    Mcp::Tools::ScheduleRecurringTool,
-    Mcp::Tools::FireScheduledTaskNowTool
+    Mcp::Tools::ListChatMediaTool
   ].freeze
 
 
@@ -185,8 +183,6 @@ class McpToolPolicy
       Mcp::Tools::ReadRepoDocumentTool,
       Mcp::Tools::ListChatMediaTool,
       Mcp::Tools::ListWakeupsTool,
-      Mcp::Tools::ListScheduledTasksTool,
-      Mcp::Tools::ReadScheduledTaskTool,
       Mcp::Tools::ReadQueueTool,
       Mcp::Tools::SearchSyrusDocsTool,
       Mcp::Tools::SubmitScopedEventDecisionTool

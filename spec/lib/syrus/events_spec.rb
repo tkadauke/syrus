@@ -1,7 +1,17 @@
 require "rails_helper"
 
-RSpec.describe Syrus::Events do
+# :reset_plugin_registry so these examples see only the subscriber they
+# register. Counting DomainEventJob enqueues against the live registry made the
+# assertions depend on how many bundled plugins happen to subscribe to
+# job.closed, which is exactly what core specs must not enumerate.
+RSpec.describe Syrus::Events, :reset_plugin_registry do
   include ActiveJob::TestHelper
+
+  around do |ex|
+    Syrus::PluginRegistry.reset!
+    ex.run
+    Syrus::PluginRegistry.reset!
+  end
 
   def subscriber(subscriptions, &block)
     Class.new do

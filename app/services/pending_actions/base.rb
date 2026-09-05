@@ -81,10 +81,6 @@ module PendingActions
       user.jobs.find(payload.fetch("job_id"))
     end
 
-    def action_scheduled_task
-      ScheduledTask.alive.where(user: user).find(payload.fetch("scheduled_task_id"))
-    end
-
     def action_user_repository
       user.repositories.active.find(payload.fetch("repository_id"))
     end

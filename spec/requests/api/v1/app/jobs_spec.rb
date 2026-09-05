@@ -739,14 +739,14 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
   end
 
   it "links cron job details back to their scheduled task" do
-    task = repo.scheduled_tasks.create!(
+    task = ScheduledTasks::Task.create!(repository: repo,
       user: user,
       name: "Update architecture",
       prompt: "Update ARCHITECTURE.md.",
       kind: "cron",
       cron_expression: "0 12 * * *"
     )
-    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil, scheduled_task: task)
+    cron_job = Factories.job_record(user: user, repository: repo, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
 
     get "/api/v1/app/jobs/#{cron_job.id}"
 

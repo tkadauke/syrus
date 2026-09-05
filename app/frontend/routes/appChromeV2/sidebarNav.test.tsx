@@ -10,8 +10,7 @@ describe("CORE_NAV_ITEMS", () => {
   it("covers the built-in nav entries, excluding the plugin-provided ones and setup", () => {
     expect(CORE_NAV_ITEMS.map((item) => item.id)).toEqual([
       "dashboard",
-      "repositories",
-      "schedules"
+      "repositories"
     ])
   })
 })
@@ -20,7 +19,7 @@ describe("buildSidebarNavItems", () => {
   it("includes all core items in order when every visibility condition is met", () => {
     const items = buildSidebarNavItems(baseContext, [], translate)
 
-    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules"])
+    expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories"])
   })
 
   it("routes dashboard to the jobs board in simple mode", () => {
@@ -35,11 +34,6 @@ describe("buildSidebarNavItems", () => {
     expect(items.find((item) => item.id === "dashboard")?.to).toBe("/dashboard/jobs")
   })
 
-  it("hides schedules in simple mode", () => {
-    const items = buildSidebarNavItems({ ...baseContext, simpleMode: true }, [], translate)
-
-    expect(items.map((item) => item.id)).not.toContain("schedules")
-  })
 
 
   it("appends enabled plugin-provided pages after the core items, preserving their given order", () => {
@@ -53,7 +47,6 @@ describe("buildSidebarNavItems", () => {
     expect(items.map((item) => item.id)).toEqual([
       "dashboard",
       "repositories",
-      "schedules",
       "spending.dashboard",
       "extra.page"
     ])

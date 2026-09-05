@@ -1546,14 +1546,14 @@ describe "running / failed lifecycle (new in this commit)" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
     let(:task) do
-      ScheduledTask.create!(
+      ScheduledTasks::Task.create!(
         user: user, repository: repository,
         name: "Hourly sweep", prompt: "do the thing",
         kind: "cron", cron_expression: "0 * * * *"
       )
     end
     let(:cron_job) do
-      Job.create!(user: user, repository: repository, kind: "cron", scheduled_task: task)
+      Job.create!(user: user, repository: repository, kind: "cron", scheduled_task_id: task.id)
     end
 
     it "calls record_success! on the scheduled_task for normal closure reasons" do
@@ -1761,12 +1761,12 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "does not create a workflow for cron jobs (those are seeded by PollScheduledTasksJob)" do
-      task = ScheduledTask.create!(
+      task = ScheduledTasks::Task.create!(
         user: user, repository: repository, kind: "one_shot",
         name: "smoke test", fire_at: 1.hour.from_now, prompt: "do the thing"
       )
       job = Job.create!(user: user, repository: repository, kind: "cron",
-                        scheduled_task: task)
+                        scheduled_task_id: task.id)
 
       expect { job.advance_after_triage! }
         .to change { job.reload.state }.from("triaging").to("queued")
@@ -1920,15 +1920,15 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
     let(:task) do
-      ScheduledTask.create!(
+      ScheduledTasks::Task.create!(
         user: user, repository: repository,
         name: "Weekly maintenance", prompt: "Survey the repo.",
         kind: "cron", cron_expression: "0 9 * * 1"
       )
     end
 
-    it "synthetic_issue uses the parent ScheduledTask's prompt for a freeform cron Job" do
-      job = Job.create!(user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil)
+    it "synthetic_issue uses the parent ScheduledTasks::Task's prompt for a freeform cron Job" do
+      job = Job.create!(user: user, repository: repository, kind: "cron", scheduled_task_id: task.id, issue_number: nil)
       si = job.synthetic_issue
       expect(si.body).to eq("Survey the repo.")
     end
@@ -1936,7 +1936,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     it "synthetic_issue uses the Job's own issue_body (not the blank scheduled_task prompt) for a skill-based cron Job" do
       task.update!(prompt: nil, skill_name: "investigate", skill_args: { "question" => "What changed?" })
       job = Job.create!(
-        user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil,
+        user: user, repository: repository, kind: "cron", scheduled_task_id: task.id, issue_number: nil,
         skill_name: "investigate", skill_args: { "question" => "What changed?" },
         issue_body: "Skill: investigate\n\nWhat changed?"
       )
@@ -2346,7 +2346,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "does not seed parsed dependencies for cron jobs" do
-      task = ScheduledTask.create!(
+      task = ScheduledTasks::Task.create!(
         user: user,
         repository: repository,
         name: "Hourly maintenance",
@@ -2359,7 +2359,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         user: user,
         repository: repository,
         kind: "cron",
-        scheduled_task: task,
+        scheduled_task_id: task.id,
         issue_number: nil,
         issue_body: "Depends-on: #123"
       )

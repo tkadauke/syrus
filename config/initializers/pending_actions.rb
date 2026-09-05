@@ -13,7 +13,6 @@ Rails.application.config.to_prepare do
     "pending_actions/restack_epic",
     "pending_actions/reopen_job",
     "pending_actions/force_fail_job",
-    "pending_actions/fire_scheduled_task_now",
     "pending_actions/create_repo_document",
     "pending_actions/delete_repo_document",
     "pending_actions/poll_job_feedback",
@@ -53,7 +52,6 @@ Rails.application.config.to_prepare do
     "pending_actions/wake_landing_queue",
     "pending_actions/repair_provider_circuit_evidence",
     "pending_actions/clear_provider_circuit",
-    "pending_actions/wake_provider_admission",
-    "pending_actions/schedule_recurring"
+    "pending_actions/wake_provider_admission"
   ].each { |path| require_dependency path }
 end

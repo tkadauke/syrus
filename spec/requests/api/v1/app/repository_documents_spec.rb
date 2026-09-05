@@ -37,7 +37,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_source.issues", "documents", "scheduled_tasks")
+    expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_source.issues", "documents", "scheduled_tasks.repository")
     expect(body["tabs"].map { |t| t["key"] }).not_to include("context")
     expect(body["documents"]).to contain_exactly(
       include(

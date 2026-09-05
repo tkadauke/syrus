@@ -225,8 +225,7 @@ module App
         invalidation_evidence: @job.invalidation_evidence,
         landing_blocker_override_requested_at: iso8601(@job.landing_blocker_override_requested_at),
         landing_blocker_override_requested_by: user_reference_json(@job.landing_blocker_override_requested_by_user),
-        scheduled_task_id: @job.scheduled_task_id,
-        scheduled_task: scheduled_task_json(@job.scheduled_task),
+        origin: origin_json,
         goal_provenance: App::GoalProvenancePayload.for(@job),
         epic_id: @job.epic_id,
         total_cost_usd: cost_snapshot.fetch(:total_cost_usd)&.to_f,
@@ -429,13 +428,18 @@ module App
       }
     end
 
-    def scheduled_task_json(task)
-      return unless task
+    # Where the Job came from, resolved through whichever plugin owns the
+    # origin. Core used to render a ScheduledTask here by name; now it does not
+    # know what kind of thing it is linking to, and an origin whose plugin is
+    # gone degrades to the raw identifier with no link.
+    def origin_json
+      return nil if @job.origin_id.blank?
 
       {
-        id: task.id,
-        name: task.name,
-        scheduled_task_path: scheduled_task_path(task)
+        key: @job.origin,
+        id: @job.origin_id,
+        label: Job::Origin.label(@job),
+        url: Job::Origin.url(@job)
       }
     end
 

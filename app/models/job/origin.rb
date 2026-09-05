@@ -12,9 +12,10 @@ class Job
     CORE = "core".freeze
 
     # Core seeds its own origins through the same lookup plugins use, so
-    # "core" is not a special case in the rendering path and moving one of
-    # these into a plugin changes no caller.
-    BUILT_IN_PROVIDERS = [ "JobOrigins::ScheduledTasks" ].freeze
+    # "core" is not a special case in the rendering path. Empty today: the
+    # scheduled-task origin that lived here moved into its plugin, which is
+    # exactly the move this indirection existed to make free.
+    BUILT_IN_PROVIDERS = [].freeze
 
     module_function
 

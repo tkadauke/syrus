@@ -82,8 +82,8 @@ RSpec.describe AutoApprovalRule do
     expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
   end
 
-  it "auto-approves cron jobs from the originating ScheduledTask rule" do
-    task = ScheduledTask.create!(
+  it "auto-approves cron jobs from the originating ScheduledTasks::Task rule" do
+    task = ScheduledTasks::Task.create!(
       user: user,
       repository: repository,
       name: "Daily intake",
@@ -93,7 +93,7 @@ RSpec.describe AutoApprovalRule do
       pr_pileup_policy: "skip",
       auto_approve_mode: "if_graders_pass"
     )
-    job = approvable_job(kind: "cron", issue_number: nil, scheduled_task: task)
+    job = approvable_job(kind: "cron", issue_number: nil, scheduled_task_id: task.id)
     step = build_grade_context(job)
 
     described_class.for(job).apply_after_grader_success!(step)
@@ -110,7 +110,7 @@ RSpec.describe AutoApprovalRule do
           required:
             owner: true
     YAML
-    task = ScheduledTask.create!(
+    task = ScheduledTasks::Task.create!(
       user: user,
       repository: repository,
       name: "Log sift",
@@ -120,7 +120,7 @@ RSpec.describe AutoApprovalRule do
       pr_pileup_policy: "skip",
       auto_approve_mode: "if_graders_pass"
     )
-    job = approvable_job(kind: "cron", issue_number: nil, scheduled_task: task)
+    job = approvable_job(kind: "cron", issue_number: nil, scheduled_task_id: task.id)
     step = build_grade_context(job)
 
     result = described_class.for(job).apply_after_grader_success!(step)
@@ -132,9 +132,9 @@ RSpec.describe AutoApprovalRule do
     expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(1)
   end
 
-  it "resolves ScheduledTask before Epic before repository before user before never" do
+  it "resolves ScheduledTasks::Task before Epic before repository before user before never" do
     epic = Factories.epic(user: user, repository: repository, auto_approve_mode: "if_graders_pass")
-    task = ScheduledTask.create!(
+    task = ScheduledTasks::Task.create!(
       user: user,
       repository: repository,
       name: "Daily intake",
@@ -147,7 +147,7 @@ RSpec.describe AutoApprovalRule do
     user.update!(auto_approve_mode: "if_graders_pass")
     repository.update!(auto_approve_mode: "if_graders_pass_and_tagged_safe")
 
-    cron_job = approvable_job(kind: "cron", issue_number: nil, scheduled_task: task, epic: epic)
+    cron_job = approvable_job(kind: "cron", issue_number: nil, scheduled_task_id: task.id, epic: epic)
     expect(described_class.for(cron_job).resolved_mode).to eq([ "if_graders_pass_and_tagged_safe", "scheduled_tasks##{task.id}" ])
 
     epic_job = approvable_job(issue_number: 43, epic: epic)

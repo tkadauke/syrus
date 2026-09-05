@@ -391,7 +391,6 @@ module Api
                     .includes(
                       :repository,
                       :epic,
-                      :scheduled_task,
                       :owner_user,
                       :claimed_by_user,
                       :tags,

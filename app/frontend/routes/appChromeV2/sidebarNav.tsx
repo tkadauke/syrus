@@ -35,7 +35,6 @@ export type MergedNavItem = {
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "dashboard", labelKey: "nav:dashboard", to: () => "/dashboard/jobs", icon: <DashboardIcon />, order: 10 },
   { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
-  { id: "schedules", labelKey: "nav:schedules", to: () => "/scheduled_tasks", icon: <ScheduleIcon />, order: 30, visible: (ctx) => !ctx.simpleMode },
 ]
 
 // Known icon references a sidebar_page plugin may declare. Anything else

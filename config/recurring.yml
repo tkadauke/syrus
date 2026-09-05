@@ -47,10 +47,6 @@ default: &default
     queue: control_plane
     schedule: every minute
 
-  poll_scheduled_tasks:
-    class: PollScheduledTasksJob
-    queue: control_plane
-    schedule: every minute
   poll_scheduled_chat_messages:
     class: PollScheduledChatMessagesJob
     queue: control_plane
