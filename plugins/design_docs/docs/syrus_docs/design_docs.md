@@ -192,13 +192,19 @@ false }` instead of an error — enough for the popup to render a minimal
 "Not accessible" state without leaking whether the doc exists, its title, or
 any other field.
 
-The frontend card (`plugins/design_docs/app/frontend/slugPreviewCards/DesignDocPreviewCard.tsx`)
-is discovered by core's generic `kind -> plugin component` glob lookup
+The frontend card
+(`plugins/design_docs/app/frontend/slugPreviewCards/DOC.DesignDocPreviewCard.tsx`)
+is discovered by core's generic filename-convention glob lookup
 (`app/frontend/pluginSlugPreviewCards.tsx`, the same `import.meta.glob`
-convention `workspace_tab`/`ui_slot` use) so `SlugHoverCard.tsx` never imports
-plugin code directly; core only carries the `"doc"` kind's component key
-string. The card renders a condensed collaborator list (first three names,
-then `+N`) when there are many collaborators.
+convention `workspace_tab`/`ui_slot` use): the leading `DOC.` segment of the
+filename is what registers this component for `DOC-<id>` slugs — core does
+not name `design_docs` or `"doc"` anywhere. `linkifySlugs.tsx` derives the
+prefix directly from the matched slug text and passes it to `SlugHoverCard`
+as `kind="plugin" prefix="DOC"`, which resolves the component via
+`pluginSlugPreviewCardComponentForPrefix(prefix)` without `SlugHoverCard.tsx`
+ever importing plugin code or hardcoding a plugin-owned kind. The card
+renders a condensed collaborator list (first three names, then `+N`) when
+there are many collaborators.
 
 ## Agent Tooling
 

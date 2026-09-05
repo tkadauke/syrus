@@ -1532,18 +1532,27 @@ resolution or per-record visibility — the mapping is a fixed part of core's
 linkification grammar, not something a plugin registers at runtime.
 
 - The plugin drops its card component at
-  `plugins/<name>/app/frontend/slugPreviewCards/<Component>.tsx`, discovered
-  by `app/frontend/pluginSlugPreviewCards.tsx`'s
-  `import.meta.glob("../../plugins/*/app/frontend/slugPreviewCards/*.tsx")` —
-  the same convention `pluginWorkspaceTabs.tsx`/`pluginUiSlots.tsx` use — so
-  core never imports plugin code directly and the plugin stays physically
-  deletable (an absent component key just resolves to `null`, rendering
+  `plugins/<name>/app/frontend/slugPreviewCards/<PREFIX>.<Component>.tsx` —
+  the leading `<PREFIX>` segment (e.g. `DOC`) *is* the registration: it names
+  the slug prefix the card handles. The file is discovered by
+  `app/frontend/pluginSlugPreviewCards.tsx`'s
+  `import.meta.glob("../../plugins/*/app/frontend/slugPreviewCards/*.tsx")`,
+  which parses the prefix back out of each matched path with a regex (and
+  correctly ignores `*.test.tsx` siblings, since a dotted `.test` segment
+  doesn't match the single-segment-then-`.tsx` shape) — the same
+  `import.meta.glob` convention `pluginWorkspaceTabs.tsx`/`pluginUiSlots.tsx`
+  use — so core never imports plugin code directly and the plugin stays
+  physically deletable (an absent prefix just resolves to `null`, rendering
   nothing extra).
-- `SlugHoverCard.tsx` carries one small `kind -> component key` string map
-  (e.g. `{ doc: "design_docs/DesignDocPreviewCard" }`) — the only place core
-  names a plugin-owned slug kind. Everything else (data fetching, the
-  lightweight preview endpoint/payload, the card's own loading/empty/
-  inaccessible states) is owned entirely by the plugin. See
+- `SlugHoverCard.tsx` carries **no** plugin- or prefix-specific knowledge at
+  all: its `kind` prop is `"job" | "epic" | "plugin"`, and for `kind:
+  "plugin"` it takes a generic `prefix` string that the caller (`linkifySlugs.tsx`)
+  derives directly from the matched slug text (e.g. the `DOC` in `DOC-20`),
+  then resolves via `pluginSlugPreviewCardComponentForPrefix(prefix)`. Core
+  does not name `design_docs`, `DOC`, or any other plugin-owned prefix
+  anywhere — the filename convention above is the only registration point.
+  Data fetching, the lightweight preview endpoint/payload, and the card's own
+  loading/empty/inaccessible states are owned entirely by the plugin. See
   `design_docs.md`'s "Slug Hover Preview" section for the concrete example.
 
 ## `grader_augmentor`
