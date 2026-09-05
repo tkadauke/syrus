@@ -72,20 +72,35 @@ counts, selecting one scrolls the page to that file's section. The "Review
 artifacts" panel starts collapsed (summary stays visible) and expands on
 demand. The right-hand "Diff comments" sidebar is a sticky, viewport-height
 column: it scrolls with the page until its top reaches the top of the
-viewport, then pins there with its own internal scroll, and lists every
-comment for the surface (line-anchored and whole-review). A "Comment on this
-review" button starts a whole-review comment. Line-anchored (code) comments
-are only editable inline, at their anchor in the diff (a "View in diff" sidebar
-button scrolls to it) — the sidebar no longer offers an inline-comment Edit
-control for those, only Resolve; whole-review comments remain editable from
-the sidebar since they have no code anchor to edit at.
+viewport, then pins there with its own internal scroll.
+
+Both writing and editing a line-anchored (code) comment happen inline, at
+their anchor in the diff, not in the sidebar — clicking the gutter "+" opens a
+full-width composer row right under that line (`onCommentLine` sets a pending
+`composingSelection`; the row renders with `data-testid="diff-review-composer"`
+and disappears once the comment saves or is cancelled), and an existing draft
+thread edits the same way in place (`onStartEditThread`/`editingThreadId`).
+The sidebar instead renders each comment as a compact review-story card: its
+state pill, a short `DiffHunkSnippet` of the surrounding diff context (a few
+lines above and below, pulled from the comment's stored `diff_hunk`, with the
+exact commented line highlighted), then the comment body, then actions
+("View in diff" to scroll to the anchor, "Resolve"). Only whole-review
+comments (`anchor_kind: "review"`) get an inline sidebar Edit control, since
+they have no code anchor to edit at; a "Comment on this review" button starts
+one. The sidebar's job is to read like a concise review story — enough
+context to follow along without re-deriving it from the full diff.
 
 `ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
 shared diff renderer behind the review workspace, source-browser diff mode,
-and run artifact diff panels; the natural-height/popup/inline-edit behaviors
-above are opt-in via its `scroll`, `changedFilesPopup`, and
-`onStartEditThread`/`editingThreadId` props so the other surfaces keep their
-existing bounded-height, permanent file list, sidebar-only-edit behavior
-unless they explicitly opt in. The add-comment affordance is a small "+" in
-the left gutter beside the line number, shown on row hover (GitHub-style),
-not a right-edge column.
+and run artifact diff panels; the natural-height and changed-files-popup
+behaviors above are opt-in per surface via its `scroll` and `changedFilesPopup`
+props, but inline composing and inline thread editing
+(`composingSelection`/`onSaveComposing`/`onCancelComposing`/
+`onChangeComposingBody` and `onStartEditThread`/`editingThreadId`) are wired
+into all three surfaces (`useDiffReviewFeedback` returns the same props
+regardless of surface) so writing and editing a code comment always happens
+at its anchor, never in a separate sidebar form. The add-comment affordance is
+a small "+" in the left gutter beside the line number, shown on row hover
+(GitHub-style), not a right-edge column. `DiffHunkSnippet` is exported from
+`ReviewableDiff.tsx` so the sidebar can render the same diff-line coloring
+used inside the diff itself for its compact context snippets.

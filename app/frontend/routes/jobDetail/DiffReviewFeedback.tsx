@@ -13,7 +13,7 @@ import {
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind
 } from "../../api/jobs"
-import type { DiffLineSelection, DiffReviewThread } from "../../components/diff/ReviewableDiff"
+import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
@@ -182,7 +182,7 @@ export function useDiffReviewFeedback({
       createPending={createComment.isPending}
       editing={editing}
       handledComments={handledComments}
-      isComposing={Boolean(selection || editing || addingGlobal)}
+      isComposing={Boolean(editing || addingGlobal)}
       onAddGlobalComment={startGlobalComment}
       onBodyChange={setBody}
       onCancel={cancelComposer}
@@ -192,7 +192,6 @@ export function useDiffReviewFeedback({
       onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
       onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
       resolvePending={resolveComment.isPending}
-      selection={selection}
       submitError={submitError}
       submitPending={submitComments.isPending}
       supportsGlobalComments={supportsGlobalComments}
@@ -205,12 +204,19 @@ export function useDiffReviewFeedback({
   return {
     commentCounts: counts,
     commentsQuery: comments,
+    composingBody: body,
+    composingError: createComment.error,
+    composingPending: createComment.isPending,
+    composingSelection: selection,
     diffThreads,
     editingThreadBody,
     editingThreadId,
+    onCancelComposing: cancelComposer,
     onCancelEditThread: cancelEditThread,
+    onChangeComposingBody: setBody,
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
+    onSaveComposing: saveComment,
     onSaveEditThread: saveEditThread,
     onStartEditThread: startEditThread,
     panel,
@@ -236,7 +242,6 @@ function DiffReviewFeedbackPanel({
   onSubmit,
   onViewInDiff,
   resolvePending,
-  selection,
   submitError,
   submitPending,
   supportsGlobalComments,
@@ -261,7 +266,6 @@ function DiffReviewFeedbackPanel({
   onSubmit: () => void
   onViewInDiff: (comment: DiffReviewComment) => void
   resolvePending: boolean
-  selection: DiffLineSelection | null
   submitError: string | null
   submitPending: boolean
   supportsGlobalComments: boolean
@@ -288,7 +292,6 @@ function DiffReviewFeedbackPanel({
       <div className="mt-3 space-y-3">
         {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
           const isGlobal = comment.anchor_kind === "review"
-          const canEditHere = supportsGlobalComments ? isGlobal : true
           return (
           <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -297,9 +300,14 @@ function DiffReviewFeedbackPanel({
               </span>
               <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
             </div>
+            {!isGlobal && comment.diff_hunk ? (
+              <div className="mt-2">
+                <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
+              </div>
+            ) : null}
             <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {comment.state === "draft" && canEditHere ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+              {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
             </div>
@@ -310,13 +318,7 @@ function DiffReviewFeedbackPanel({
 
       {isComposing ? (
         <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
-          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">
-            {editing
-              ? (editing.anchor_kind === "review" ? t("review_global_comment_label") : `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}`)
-              : selection
-                ? `${selection.file.path}:${selection.side === "old" ? selection.line.oldLine : selection.line.newLine}`
-                : t("review_global_comment_label")}
-          </p>
+          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">{t("review_global_comment_label")}</p>
           <textarea
             aria-label={t("review_comment_body")}
             className="mt-2 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -414,6 +416,15 @@ function commentInputForGlobal({
     ...(workflowId ? { workflow_id: workflowId } : {}),
     ...(runId ? { run_id: runId } : {})
   }
+}
+
+function diffContextHighlightLine(comment: DiffReviewComment): string | null {
+  const lineText = comment.context?.line_text
+  if (typeof lineText !== "string") return null
+  const lineKind = comment.context?.line_kind
+  if (lineKind === "add") return `+${lineText}`
+  if (lineKind === "delete") return `-${lineText}`
+  return ` ${lineText}`
 }
 
 function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
