@@ -125,6 +125,7 @@
   "col_type": "Typ",
   "col_cluster_ip": "Cluster-IP",
   "col_ports": "Ports",
+  "col_endpoints": "Endpoints",
   "col_capacity": "Kapazität",
   "col_storage_class": "Storage-Klasse",
   "col_conditions": "Zustand",
@@ -136,6 +137,7 @@
   "services_loading": "Services werden geladen…",
   "services_error_loading": "Services konnten nicht geladen werden.",
   "services_empty": "Keine Services gefunden.",
+  "services_endpoints_ready": "{{ready}}/{{total}} bereit",
 
   "storage_loading": "Persistent Volume Claims werden geladen…",
   "storage_error_loading": "Persistent Volume Claims konnten nicht geladen werden.",

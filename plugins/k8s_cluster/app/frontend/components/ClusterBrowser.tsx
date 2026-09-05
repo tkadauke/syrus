@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { Button } from "@app/components/Button"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNamespaces } from "../api/kubernetesResources"
 import { Dropdown } from "./Dropdown"
-import { Panel } from "./Panel"
 import { EventsTab } from "./tabs/EventsTab"
 import { LiveTab } from "./tabs/LiveTab"
 import { LogsTab } from "./tabs/LogsTab"
@@ -87,8 +87,8 @@ function NamespacePicker({
     queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
 
-  if (namespaces.isPending) return <Panel>{t("namespace_loading")}</Panel>
-  if (namespaces.isError) return <Panel tone="error">{errorMessage(namespaces.error, t("namespace_error_loading"))}</Panel>
+  if (namespaces.isPending) return <PanelMessage>{t("namespace_loading")}</PanelMessage>
+  if (namespaces.isError) return <PanelMessage tone="error">{errorMessage(namespaces.error, t("namespace_error_loading"))}</PanelMessage>
 
   const options = [
     { value: ALL_NAMESPACES, label: t("all_namespaces") },

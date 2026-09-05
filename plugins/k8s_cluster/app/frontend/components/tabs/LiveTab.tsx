@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents, fetchKubernetesPods } from "../../api/kubernetesResources"
-import { Panel, StatusBadge } from "../Panel"
+import { StatusBadge } from "../StatusBadge"
 
 // Canned polling queries, directly mirroring
 // plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx: a fixed
@@ -55,9 +56,9 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
     refetchInterval: 10_000
   })
 
-  if (pods.isPending) return <Panel>{t("live_loading_pods")}</Panel>
-  if (pods.isError) return <Panel tone="error">{errorMessage(pods.error, t("live_error_loading_pods"))}</Panel>
-  if (pods.data.pods.length === 0) return <Panel>{t("workloads_empty_pods")}</Panel>
+  if (pods.isPending) return <PanelMessage>{t("live_loading_pods")}</PanelMessage>
+  if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("live_error_loading_pods"))}</PanelMessage>
+  if (pods.data.pods.length === 0) return <PanelMessage>{t("workloads_empty_pods")}</PanelMessage>
 
   return (
     <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -79,9 +80,9 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
     refetchInterval: 10_000
   })
 
-  if (events.isPending) return <Panel>{t("live_loading_events")}</Panel>
-  if (events.isError) return <Panel tone="error">{errorMessage(events.error, t("live_error_loading_events"))}</Panel>
-  if (events.data.events.length === 0) return <Panel>{t("events_empty")}</Panel>
+  if (events.isPending) return <PanelMessage>{t("live_loading_events")}</PanelMessage>
+  if (events.isError) return <PanelMessage tone="error">{errorMessage(events.error, t("live_error_loading_events"))}</PanelMessage>
+  if (events.data.events.length === 0) return <PanelMessage>{t("events_empty")}</PanelMessage>
 
   return (
     <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">

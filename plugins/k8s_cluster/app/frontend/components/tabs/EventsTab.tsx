@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesEvents } from "../../api/kubernetesResources"
-import { Panel, StatusBadge } from "../Panel"
+import { StatusBadge } from "../StatusBadge"
 
 export function EventsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
@@ -13,11 +14,11 @@ export function EventsTab({ clusterId, namespace }: { clusterId: number; namespa
 
   return (
     <div aria-label={t("aria_events_tab")}>
-      {events.isPending ? <Panel>{t("events_loading")}</Panel> : null}
-      {events.isError ? <Panel tone="error">{errorMessage(events.error, t("events_error_loading"))}</Panel> : null}
+      {events.isPending ? <PanelMessage>{t("events_loading")}</PanelMessage> : null}
+      {events.isError ? <PanelMessage tone="error">{errorMessage(events.error, t("events_error_loading"))}</PanelMessage> : null}
       {events.isSuccess ? (
         events.data.events.length === 0 ? (
-          <Panel>{t("events_empty")}</Panel>
+          <PanelMessage>{t("events_empty")}</PanelMessage>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-900 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
             {events.data.events.map((event, index) => (

@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { Button } from "@app/components/Button"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesPodLogs, fetchKubernetesPods } from "../../api/kubernetesResources"
 import { Dropdown } from "../Dropdown"
-import { Panel } from "../Panel"
 
 export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace: string | null }) {
   const { t } = useT("k8s_cluster")
@@ -36,11 +36,11 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
     enabled: !!selectedPod
   })
 
-  if (pods.isPending) return <Panel>{t("logs_loading_pods")}</Panel>
-  if (pods.isError) return <Panel tone="error">{errorMessage(pods.error, t("logs_error_loading_pods"))}</Panel>
+  if (pods.isPending) return <PanelMessage>{t("logs_loading_pods")}</PanelMessage>
+  if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("logs_error_loading_pods"))}</PanelMessage>
 
   if (pods.data.pods.length === 0) {
-    return <Panel>{t("logs_no_pods")}</Panel>
+    return <PanelMessage>{t("logs_no_pods")}</PanelMessage>
   }
 
   const podOptions = pods.data.pods.map((pod) => ({ value: `${pod.namespace}/${pod.name}`, label: `${pod.namespace}/${pod.name}` }))
@@ -71,9 +71,9 @@ export function LogsTab({ clusterId, namespace }: { clusterId: number; namespace
         ) : null}
       </div>
 
-      {!selectedPod ? <Panel>{t("logs_select_pod")}</Panel> : null}
-      {selectedPod && logs.isPending ? <Panel>{t("logs_loading")}</Panel> : null}
-      {selectedPod && logs.isError ? <Panel tone="error">{errorMessage(logs.error, t("logs_error_loading"))}</Panel> : null}
+      {!selectedPod ? <PanelMessage>{t("logs_select_pod")}</PanelMessage> : null}
+      {selectedPod && logs.isPending ? <PanelMessage>{t("logs_loading")}</PanelMessage> : null}
+      {selectedPod && logs.isError ? <PanelMessage tone="error">{errorMessage(logs.error, t("logs_error_loading"))}</PanelMessage> : null}
       {selectedPod && logs.isSuccess ? (
         <pre className="max-h-[32rem] overflow-auto rounded border border-gray-200 dark:border-gray-800 bg-gray-950 p-3 text-xs text-gray-100">
           {logs.data.log || t("logs_empty")}
