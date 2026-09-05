@@ -3666,8 +3666,17 @@ describe("App", () => {
     expect(within(chatJobCell!).getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/44")
 
     const copyChatSlugButton = within(chatJobCell!).getByRole("button", { name: "Copy CHAT-9 to clipboard" })
-    expect(copyChatSlugButton.closest("a")).toHaveAttribute("href", "/app-shell/chats/9")
-    fireEvent.click(copyChatSlugButton)
+    const chatSlugLink = copyChatSlugButton.closest("a")
+    expect(chatSlugLink).toHaveAttribute("href", "/app-shell/chats/9")
+    // Regression test for a real-browser-only bug: jsdom doesn't implement
+    // anchor-click navigation, so a plain fireEvent.click can't tell "the
+    // native default action was prevented" apart from "propagation to the
+    // Link's own onClick (which calls preventDefault) was merely stopped".
+    // Dispatching a real, cancelable MouseEvent and asserting
+    // defaultPrevented catches the case where only stopPropagation runs.
+    const chatSlugClickEvent = new MouseEvent("click", { bubbles: true, cancelable: true })
+    copyChatSlugButton.dispatchEvent(chatSlugClickEvent)
+    expect(chatSlugClickEvent.defaultPrevented).toBe(true)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("CHAT-9"))
 
     const copySlugButton = within(chatJobCell!).getByRole("button", { name: "Copy JOB-602 to clipboard" })

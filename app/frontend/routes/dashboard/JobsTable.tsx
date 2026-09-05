@@ -1137,9 +1137,16 @@ function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: str
   return (
     <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.source_chat.path, prefix)}>
       <SlugHoverCard id={job.source_chat.chat_id} kind="chat">
-        {/* Copy is a button nested inside this Link; stop the click from
-            bubbling so it doesn't also trigger navigation. */}
-        <span onClick={(event) => event.stopPropagation()}>
+        {/* Copy is a button nested inside this Link; preventDefault stops
+            the anchor's native navigation (stopPropagation alone only
+            blocks the Link's own onClick, which is what calls
+            preventDefault — skip it and the native <a> still navigates). */}
+        <span
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+        >
           <CopyableSlug slug={`CHAT-${job.source_chat.chat_id}`} />
         </span>
       </SlugHoverCard>
