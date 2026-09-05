@@ -3,7 +3,7 @@ module Whiteboard
     self.table_name = "whiteboard_boards"
 
     MAX_ELEMENTS = 1000
-    ELEMENT_LIMIT_MESSAGE = "Whiteboard::Board at element limit (1000). Operator must clear or remove some shapes before adding more."
+    ELEMENT_LIMIT_MESSAGE = "Whiteboard at element limit (1000). Operator must clear or remove some shapes before adding more."
     EMPTY_SCENE = { "elements" => [], "appState" => {}, "files" => {} }.freeze
     TRANSIENT_APP_STATE_KEYS = %w[
       activeTool

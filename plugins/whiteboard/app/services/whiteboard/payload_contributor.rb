@@ -44,7 +44,7 @@ module Whiteboard
       scope = Whiteboard::Board.where(chat_session_id: chat_session_id)
       return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
 
-      scope.from(Arel.sql("#{Whiteboard::Board.quoted_table_name} FORCE INDEX (index_whiteboard_boards_on_chat_session_id)"))
+      scope.from(Arel.sql("#{Whiteboard.quoted_table_name} FORCE INDEX (index_whiteboard_boards_on_chat_session_id)"))
     end
   end
 end

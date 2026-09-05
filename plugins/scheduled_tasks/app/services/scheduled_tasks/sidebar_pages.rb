@@ -22,6 +22,7 @@ module ScheduledTasks
             "/repositories/:repository_id/scheduled_tasks/new"
           ],
           component: COMPONENT,
+          icon: "schedule",
           section: "primary",
           order: 30
         },

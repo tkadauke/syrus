@@ -17,7 +17,7 @@ module Whiteboard
 
       job.job_attachments.create!(
         kind: "pending_snapshot",
-        title: snapshot.name.presence || "Whiteboard::Board Snapshot",
+        title: snapshot.name.presence || "Whiteboard Snapshot",
         content_cache: snapshot.scene_json.to_json,
         source_url: ref
       )

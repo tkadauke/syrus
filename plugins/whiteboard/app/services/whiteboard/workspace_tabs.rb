@@ -8,7 +8,7 @@ module Whiteboard
       [
         {
           id: "whiteboard.canvas",
-          label: "Whiteboard::Board",
+          label: "Whiteboard",
           label_key: "whiteboard:tab_whiteboard",
           component: "whiteboard/WhiteboardTab",
           order: 0

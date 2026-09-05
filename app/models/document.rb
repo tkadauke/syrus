@@ -134,7 +134,7 @@ class Document < ApplicationRecord
     self.title = title.to_s.strip
     self.title = filename if title.blank? && file?
     self.title = "Google Doc" if title.blank? && google_doc?
-    self.title = "Whiteboard::Board Snapshot" if title.blank? && pending_snapshot?
+    self.title = "Whiteboard Snapshot" if title.blank? && pending_snapshot?
   end
 
   def file_document_has_valid_file
