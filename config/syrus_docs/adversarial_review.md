@@ -4,22 +4,32 @@ Adversarial review adds an independent critic agent to the implementation loop. 
 
 ## How it works
 
-When adversarial review is enabled (rounds > 0), Syrus inserts a bounded loop before the grader step chain. In the `initial` workflow, `implement` always runs first as a top-level step — implementation happens regardless of whether adversarial review or a grade loop are configured — so the loop itself is `review_first`:
+When adversarial review is enabled (rounds > 0), Syrus inserts a bounded, review-first loop before the grader step chain. Every workflow that has this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`) leads with a bare top-level `implement`/`respond` step — implementation or feedback-response happens regardless of whether adversarial review or a grade loop are configured — so the loop itself always starts with the reviewer, never a redundant repeat of that work:
 
 ```
-implement → adversarial_review → implement → adversarial_review → ... → implement → graders
-            ^ iteration 1         ^ iteration 2 (repair + review) ...   ^ final iteration (repair only)
+adversarial_review(1)
+  approved         → exits the loop, findings carry forward but no repair needed
+  needs_work       → implement/respond (repair), then, if rounds allow another
+                      review after it, adversarial_review(2) → repeat the same decision
 ```
 
-- **Iteration 1** is `adversarial_review` alone, reviewing the top-level `implement`'s diff directly — there's no need to re-implement before the very first look.
-- **Iterations 2 through (rounds − 1)** pair a repair `implement` with another `adversarial_review`, same as before.
-- **The final iteration** (iteration `rounds`, reached only if the review budget runs out) is a repair `implement` with no trailing review. There's no iteration left to act on further feedback, so running the reviewer again would just be a no-op — the loop exits straight to grading once that last repair finishes.
+- **A `needs_work` verdict always gets a repair reaction** — the corresponding `implement`/`respond` step is inserted unconditionally, regardless of remaining review budget. This is the fix for a defect where a `needs_work` verdict at `rounds: 1` used to produce zero repair attempts.
+- **The repair pairs with another review whenever budget remains** — iteration N's repair is followed by review N+1 as long as N was not the last round `rounds` allows.
+- **Once the review that just ran was the last one `rounds` allows**, its `needs_work` repair runs alone, with no trailing review — there's no budget left to act on further feedback, so the loop exits straight to grading once that last repair finishes.
 
-Each `adversarial_review` call: a fresh agent (in a new session) reads the issue and the diff from the last `implement` step, then calls `submit_adversarial_review` with a verdict and findings. Any workspace changes the reviewer makes are discarded — the reviewer is read-only.
+`rounds: N` means exactly N review opinions get sought; every one of them — including the last — gets exactly one repair reaction. The loop never ends on an unreacted-to `needs_work`, and it never fails the workflow on its own (unlike the grader retry loop, which genuinely can exhaust its budget and fail).
 
-The loop runs for at most the configured number of rounds. After it exits (by approval or by exhausting the budget), the grader chain runs on the final committed state. In `initial` that grader chain is itself check-first — see [`workflow_steps.md`](workflow_steps.md) — so it doesn't re-implement again before grading; it only adds a repair `implement` back in if a grader iteration actually fails.
+Worked out for `rounds: 1, 2, 3` (worst case: every review says `needs_work`):
 
-In `retry`, the agent step (`implement`) has no separate top-level run before the loop, so it uses the uniform shape instead: `implement → adversarial_review → implement → adversarial_review → ...`, with `implement` on every iteration including the first. The feedback workflows (`pr_comment`, `chat_feedback`, `external_pr_feedback`) use the same uniform loop shape with `respond` in place of `implement`.
+| rounds | materialized sequence |
+| --- | --- |
+| 1 | `review(1)` → `implement` → stop |
+| 2 | `review(1)` → `implement` → `review(2)` → `implement` → stop |
+| 3 | `review(1)` → `implement` → `review(2)` → `implement` → `review(3)` → `implement` → stop |
+
+Each `adversarial_review` call: a fresh agent (in a new session) reads the issue and the diff from the last `implement`/`respond` step, then calls `submit_adversarial_review` with a verdict and findings. Any workspace changes the reviewer makes are discarded — the reviewer is read-only.
+
+After the loop exits (by approval or by exhausting the budget), the grader chain runs on the final committed state. In `initial`, `retry`, `pr_comment`, and `chat_feedback` that grader chain is itself check-first — see [`workflow_steps.md`](workflow_steps.md) — so it doesn't re-run `implement`/`respond` again before grading; it only adds a repair step back in if a grader iteration actually fails. `external_pr_feedback`'s grader chain is check-first too, for the same reason, even though it has no `.syrus.yml`-driven format/generate config to apply.
 
 ## Verdicts
 
@@ -47,7 +57,7 @@ AppSetting.current.update!(adversarial_review_rounds: 2)
 
 Rounds range: 0–10. Default is 0 (disabled).
 
-In `initial`, `rounds: 1` reviews the top-level `implement` exactly once. If that review comes back `needs_work`, there's no budget left for a repair iteration — the workflow proceeds to grading with the reviewer's feedback recorded but unaddressed. Set `rounds: 2` or higher to guarantee at least one repair pass.
+`rounds: 1` seeks exactly one review opinion. If that review comes back `needs_work`, it still gets a repair reaction — the reviewer's feedback is always addressed by a repair `implement`/`respond`, it just doesn't get reviewed a second time since the budget is exhausted after one opinion. Set `rounds: 2` or higher to have the repair reviewed again before grading.
 
 ### Per-repo (.syrus.yml)
 
@@ -80,20 +90,18 @@ Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, an
 
 ### Retry workflow
 
-When adversarial review is enabled for a retry workflow, the loop runs before visual review and the grader retry chain:
+`retry` has the same shape as `initial`: a bare top-level `implement` step, then, when enabled, the review-first adversarial review loop before visual review and the grader retry chain:
 
 ```
-implement → adversarial_review → ... → visual_review? → graders
+implement → adversarial_review(1) → [implement → adversarial_review(2) → ...] → visual_review? → graders
 ```
-
-Unlike `initial`, retry has no top-level `implement` step before the adversarial review loop. The first loop iteration therefore starts with `implement`, then runs `adversarial_review` against that diff.
 
 ### Feedback workflows (pr_comment, chat_feedback, external_pr_feedback)
 
-When adversarial review is enabled for a feedback workflow, the loop runs before the grader retry chain:
+These workflows lead with a bare top-level `respond` step, the same way `initial`/`retry` lead with `implement`. When adversarial review is enabled, the loop runs before the grader retry chain, review-first:
 
 ```
-respond → adversarial_review → ... → graders
+respond → adversarial_review(1) → [respond → adversarial_review(2) → ...] → graders
 ```
 
 The reviewer prompt includes:

@@ -48,12 +48,13 @@ RSpec.describe Workflows::Retry do
       )
     end
 
-    it "inserts an implement/visual_review loop before the grader retry chain" do
+    it "inserts a review-first visual_review loop before the grader retry chain, with no redundant implement" do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
       )
+      expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
   end
 
@@ -64,23 +65,23 @@ RSpec.describe Workflows::Retry do
       )
     end
 
-    it "inserts an implement/adversarial_review loop before the grader retry chain" do
+    it "inserts a review-first adversarial_review loop before the grader retry chain, with no redundant implement" do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
       )
+      expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
 
-    it "puts the adversarial_review loop steps in the same loop_id" do
+    it "gives the adversarial_review loop its own loop_id, separate from the bare leading implement" do
       workflow = described_class.instantiate(job: job)
 
+      bare_implement = workflow.steps.find_by!(kind: "implement")
       review_step = workflow.steps.find_by!(kind: "adversarial_review")
-      review_implement = workflow.steps.order(:position).find do |step|
-        step.kind == "implement" && step.loop_id == review_step.loop_id
-      end
 
-      expect(review_implement).not_to be_nil
+      expect(bare_implement.loop_id).to be_nil
+      expect(review_step.loop_id).to be_present
     end
   end
 
@@ -94,12 +95,13 @@ RSpec.describe Workflows::Retry do
       )
     end
 
-    it "places adversarial review before visual review and the grader retry chain" do
+    it "places adversarial review before visual review and the grader retry chain, with no redundant implement" do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review implement visual_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
       )
+      expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
 
     it "uses distinct loop_ids for adversarial review, visual review, and the grader retry chain" do

@@ -10,9 +10,10 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
+        :respond,
         adversarial_review_loop(job, agent_step: :respond),
         visual_review_loop(job, agent_step: :respond),
-        grader_retry_loop(job, :respond, autofix: true),
+        grader_retry_loop(job, :respond, autofix: true, repair_first: false),
         feedback_finish_steps
       )
     end
