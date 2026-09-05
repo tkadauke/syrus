@@ -560,6 +560,7 @@ Rails.application.routes.draw do
   get "design_docs", to: "spa#show", as: :design_docs
   get "design_docs/:id", to: "spa#show", as: :design_doc, constraints: { id: /\d+/ }
   get "db_browser", to: "spa#show", as: :db_browser
+  get "k8s_clusters", to: "spa#show", as: :k8s_clusters
   get "worker_timeline", to: "spa#show", as: :worker_timeline
   get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
   get "terminal", to: "spa#show", as: :terminal
