@@ -1208,10 +1208,20 @@ container picker for multi-container pods), and **Live** (a 10-second
 polling view over pod status and recent events). A namespace filter scopes
 the namespace-aware tabs to one namespace or all of them.
 
-This is a direct-connectivity, read-only viewer for now — no relay agent,
-and no gated agentic access for the Syrus agent yet. The connection form's
-`agentic_access_enabled`/`allow_writes` toggles are reserved for that
-follow-up work and have no effect yet.
+This is a direct-connectivity viewer — no relay agent for clusters Syrus
+can't reach directly. Each cluster also has two independent, per-cluster
+opt-ins for the Syrus agent, both off by default: `agentic_access_enabled`
+exposes read-only MCP tools (list/describe namespaces, pods, deployments,
+services, events, PVCs, nodes, CronJobs, pod logs, and the metrics
+overview) so agents can inspect a cluster the same way the Browse viewer
+does. `allow_writes` — a stricter, separate opt-in that requires
+`agentic_access_enabled` too — additionally exposes a short, fixed
+allowlist of four mutating tools: restart a deployment's rollout, scale a
+deployment, delete a pod to force a reschedule, and cordon/uncordon a
+node. There's deliberately nothing broader than that — no namespace
+deletion, no CRD/RBAC changes, no arbitrary manifest `apply`, no
+exec-into-pod — and every write call is audit-logged with a before/after
+summary of what changed.
 
 ## GitHub App And PAT Behavior
 
