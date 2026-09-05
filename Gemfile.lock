@@ -91,6 +91,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/k8s_cluster
+  specs:
+    k8s_cluster (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/linear_source
   specs:
     linear_source (0.1.0)
@@ -749,6 +755,7 @@ DEPENDENCIES
   image_processing (~> 2.1)
   javascript!
   jbuilder
+  k8s_cluster!
   kamal
   linear_source!
   mcp
@@ -899,6 +906,7 @@ CHECKSUMS
   json (2.21.2) sha256=1f1d3b7cf2b3ba1a69beca0bb6db13d5438b80bff3cd54cdaaa620b9b07c1c6a
   json_schemer (2.5.0) sha256=2f01fb4cce721a4e08dd068fc2030cffd0702a7f333f1ea2be6e8991f00ae396
   jwt (3.2.0) sha256=5419b1fe37b1da0982bd07051f573a8b8789ab724c2aa7e785e4784a3ed217d7
+  k8s_cluster (0.1.0)
   kamal (2.12.0) sha256=c51d1ab085e515470f98d0c0f043637122b5ebf76e8b610cb1fbbed0b7f9b8fa
   language_server-protocol (3.17.0.6) sha256=5ef2c0c138f8267e1bc631d3328347d354f96724b0af22f2c79516120443b7f0
   linear_source (0.1.0)
