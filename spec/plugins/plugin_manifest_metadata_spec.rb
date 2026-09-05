@@ -9,10 +9,25 @@ require "rails_helper"
 # spec's registry state.
 RSpec.describe "Bundled plugin manifest metadata" do
   plugin_root = Rails.root.join("plugins")
-  plugin_dirs = plugin_root.children.select(&:directory?).sort_by(&:to_s)
+  all_dirs = plugin_root.children.select(&:directory?).sort_by(&:to_s)
+
+  # A plugin is a Ruby gem, and the gemspec is what makes it one. A directory
+  # may also carry only a Go CLI module (plugins/<name>/cli) ahead of the Ruby
+  # extraction -- that is not a gem and has no manifest to check.
+  plugin_dirs = all_dirs.select { |dir| Dir.glob(dir.join("*.gemspec").to_s).any? }
+  cli_only_dirs = all_dirs - plugin_dirs
 
   it "has bundled plugins to check" do
     expect(plugin_dirs).not_to be_empty
+  end
+
+  # Without this, a plugin whose gemspec went missing would silently drop out
+  # of every example above instead of failing.
+  it "has no directory that is neither a gem nor a plugin-owned CLI module" do
+    strays = cli_only_dirs.reject { |dir| dir.join("cli/go.mod").exist? }
+
+    expect(strays.map { |dir| dir.basename.to_s }).to be_empty,
+      "plugins/ entries with no gemspec and no cli/go.mod: #{strays.map(&:to_s).join(', ')}"
   end
 
   plugin_dirs.each do |dir|

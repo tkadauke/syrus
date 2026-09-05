@@ -19,9 +19,9 @@ func TestProfileFromArgv0(t *testing.T) {
 		// non-Windows CI host — filepath.Base wouldn't split the backslashes, so
 		// this case is the regression guard for that portability bug.
 		"C:\\Users\\Ada\\AppData\\Local\\Syrus Test\\bin\\syrus-test.exe": "test",
-		"SYRUS-TEST":  "test", // case-insensitive
-		"config.test": "",     // a `go test` binary must not trip it
-		"cmd.test":    "",
+		"SYRUS-TEST":   "test", // case-insensitive
+		"config.test":  "",     // a `go test` binary must not trip it
+		"cmd.test":     "",
 		"syrus-canary": "", // only the exact test name maps today
 	}
 	for argv0, want := range cases {

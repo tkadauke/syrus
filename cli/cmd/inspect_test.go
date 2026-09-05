@@ -3,28 +3,12 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestParseGitHubSlug(t *testing.T) {
-	tests := map[string]string{
-		"https://github.com/tkadauke/syrus.git": "tkadauke/syrus",
-		"git@github.com:tkadauke/syrus.git":     "tkadauke/syrus",
-		"https://github.com/acme/my.repo":       "acme/my.repo",
-		"https://example.com/acme/my.repo":      "",
-	}
-
-	for remote, want := range tests {
-		if got := parseGitHubSlug(remote); got != want {
-			t.Fatalf("parseGitHubSlug(%q) = %q, want %q", remote, got, want)
-		}
-	}
-}
 
 func TestLast4(t *testing.T) {
 	if got := last4("secret-token"); got != "oken" {
@@ -229,20 +213,10 @@ func TestEpicOpenUsesConfiguredInstanceURL(t *testing.T) {
 
 func withCredentials(t *testing.T, url string, token string) {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	path := filepath.Join(home, ".syrus", "credentials")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("url="+url+"\ntoken="+token+"\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	cliplugintest.WithCredentials(t, url, token)
 }
 
 func withRepoSlug(t *testing.T, slug string) {
 	t.Helper()
-	oldDetect := detectCurrentRepoSlug
-	detectCurrentRepoSlug = func() string { return slug }
-	t.Cleanup(func() { detectCurrentRepoSlug = oldDetect })
+	cliplugintest.WithRepoSlug(t, slug)
 }

@@ -235,13 +235,18 @@ grade:
       release/desktop packaging paths that ship the CLI binary. This
       catches CLI regressions before release builds invoke
       `bin/release-cli`.
-    run: cd cli && mise exec go@1.26.5 -- go test ./...
+    # Every module in go.work, so a plugin that contributes CLI commands is
+    # covered without editing this grader.
+    run: mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'
     phases: [review, landing, ci]
     when_files_changed:
       - "cli/**/*.go"
       - "cli/go.mod"
       - "cli/go.sum"
       - "cli/Makefile"
+      - "go.work"
+      - "plugins/*/cli/**/*.go"
+      - "plugins/*/cli/go.mod"
       - "bin/release-cli"
       - "bin/release-desktop"
       - ".github/workflows/_build-app.yml"

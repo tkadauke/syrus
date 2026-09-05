@@ -63,6 +63,15 @@ func (c *Client) newRequest(ctx context.Context, method string, path string, bod
 	return req, nil
 }
 
+// Do performs an authenticated JSON request against the Syrus instance.
+//
+// Exported because plugin CLI modules live outside this module and cannot
+// reach unexported helpers: it is the whole request surface a plugin command
+// needs, so a plugin does not reimplement auth, profiles, or error decoding.
+func (c *Client) Do(ctx context.Context, method string, path string, input any, output any) error {
+	return c.do(ctx, method, path, input, output)
+}
+
 func (c *Client) do(ctx context.Context, method string, path string, input any, output any) error {
 	var body io.Reader
 	if input != nil {

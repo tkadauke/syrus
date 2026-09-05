@@ -4,9 +4,14 @@ RSpec.describe "Plugin source boundaries" do
   subject(:audit) { Admin::PluginSourceBoundaryAudit.new }
 
   it "finds every bundled plugin manifest" do
-    plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }
+    # A plugin is a Ruby gem; the gemspec is what makes it one. A directory may
+    # instead hold only a Go CLI module (plugins/<name>/cli) ahead of the Ruby
+    # extraction, which has no manifest for the audit to find.
+    gem_dirs = Rails.root.join("plugins").children.select(&:directory?).select do |dir|
+      Dir.glob(dir.join("*.gemspec").to_s).any?
+    end.map { |dir| dir.basename.to_s }
 
-    expect(audit.bundled_manifests.map(&:dir_name)).to match_array(plugin_dirs - [ "README.md" ])
+    expect(audit.bundled_manifests.map(&:dir_name)).to match_array(gem_dirs)
   end
 
   it "declares only installed bundled plugin dependencies" do

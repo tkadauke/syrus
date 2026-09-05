@@ -15,8 +15,11 @@ RSpec.describe "Syrus grader configuration" do
 
     grader = config.grade.steps.find { |step| step.name == "cli-go-tests" }
 
+    # Enumerating go.work rather than testing `./...` inside cli/: a plugin
+    # contributes its CLI commands from its own module, and those tests have to
+    # run without anyone remembering to extend this command.
     expect(grader).to have_attributes(
-      run: "cd cli && mise exec go@1.26.5 -- go test ./...",
+      run: %(mise exec go@1.26.5 -- sh -c 'go test $(go list -m -f "{{.Dir}}/...")'),
       phases: %w[review landing ci],
       required: true,
       timeout_minutes: 5
@@ -26,6 +29,9 @@ RSpec.describe "Syrus grader configuration" do
       "cli/go.mod",
       "cli/go.sum",
       "cli/Makefile",
+      "go.work",
+      "plugins/*/cli/**/*.go",
+      "plugins/*/cli/go.mod",
       "bin/release-cli",
       "desktop/scripts/stage-cli.mjs"
     )

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
 type fakeInboxClient struct {

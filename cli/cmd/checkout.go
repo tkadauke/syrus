@@ -14,7 +14,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
 	"go.yaml.in/yaml/v3"
 )
 

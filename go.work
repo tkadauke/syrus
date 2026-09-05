@@ -1,0 +1,17 @@
+go 1.25.0
+
+// The CLI and the command sets that bundled plugins contribute to it.
+//
+// Go has no usable dynamic plugin loading for a single static binary
+// (`plugin.Open` demands an identical toolchain and identical versions of
+// every shared dependency, and does not support Windows), so a plugin's
+// commands are compiled in from its own module here instead. `plugins/*/cli`
+// is where a plugin owns its CLI surface, which keeps it deletable with the
+// rest of the plugin.
+//
+// The module graph is intentionally cyclic -- the CLI imports the plugin to
+// register its commands, the plugin imports cli/pkg/api to talk to the
+// instance. Go allows that; only the *package* graph has to be acyclic, and
+// it is.
+use ./cli
+use ./plugins/scheduled_tasks/cli

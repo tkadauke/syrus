@@ -1,10 +1,12 @@
-package cmd
+package scheduledtasks
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 	"strings"
 	"testing"
 )
@@ -19,8 +21,8 @@ func TestScheduleListScopesToCurrentRepositoryWhenPresent(t *testing.T) {
 		w.Write([]byte(`{"active_tasks":[{"id":1,"name":"Local","cron_expression":"0 9 * * 1","next_fire_at":"2026-06-15T09:00:00Z","repository":{"slug":"acme/widgets"}},{"id":2,"name":"Other","cron_expression":"0 8 * * 1","repository":{"slug":"acme/other"}}]}`))
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
-	withRepoSlug(t, "acme/widgets")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithRepoSlug(t, "acme/widgets")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}
@@ -44,8 +46,8 @@ func TestScheduleListFallsBackToAllSchedules(t *testing.T) {
 		w.Write([]byte(`{"active_tasks":[{"id":2,"name":"Other","cron_expression":"0 8 * * 1","repository":{"slug":"acme/other"}}]}`))
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
-	withRepoSlug(t, "acme/widgets")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithRepoSlug(t, "acme/widgets")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}
@@ -97,8 +99,8 @@ func TestScheduleCreatePostsToCurrentRepository(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
-	withRepoSlug(t, "acme/widgets")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithRepoSlug(t, "acme/widgets")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}
@@ -126,7 +128,7 @@ func TestScheduleShowPrintsLastFiveJobs(t *testing.T) {
 		w.Write([]byte(`{"task":{"id":42,"name":"Weekly tests","state":"scheduled","repository":{"slug":"acme/widgets"},"cron_expression":"0 9 * * 1","next_fire_at":"2026-06-15T09:00:00Z","pr_pileup_policy":"skip","auto_approve_mode":"never","prompt":"Write missing tests."},"recent_jobs":[{"id":1,"state":"closed"},{"id":2,"state":"closed"},{"id":3,"state":"closed"},{"id":4,"state":"closed"},{"id":5,"state":"closed"},{"id":6,"state":"closed"}]}`))
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}
@@ -160,7 +162,7 @@ func TestScheduleDeleteRequiresConfirmation(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}
@@ -188,7 +190,7 @@ func TestScheduleRunPrintsCreatedJob(t *testing.T) {
 		w.Write([]byte(`{"message":"Fired (JOB-99).","fire_result":{"fired":true,"job_id":99}}`))
 	}))
 	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
+	cliplugintest.WithCredentials(t, server.URL, "secret-token")
 
 	command := NewScheduleCommand()
 	output := &bytes.Buffer{}

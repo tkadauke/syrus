@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
+	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
@@ -47,7 +48,12 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewEpicCommand())
 	rootCmd.AddCommand(NewRepoCommand())
 	rootCmd.AddCommand(NewWhoamiCommand())
-	rootCmd.AddCommand(NewScheduleCommand())
+	// Contributed by a bundled plugin. Its commands live in the plugin's own
+	// module (plugins/scheduled_tasks/cli) so they are deleted with it; Go has
+	// no usable dynamic loading for a single static binary, so they are
+	// compiled in here. No runtime gating: when the plugin is disabled the
+	// instance already answers its routes with a "plugin_disabled" error.
+	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
 	rootCmd.AddCommand(NewSkillCommand())
 	rootCmd.AddCommand(NewLocalCommand())
 	return rootCmd

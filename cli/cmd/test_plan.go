@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
 var jobSlugPattern = regexp.MustCompile(`(?i)^JOB-(\d+)$`)

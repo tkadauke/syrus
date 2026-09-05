@@ -49,8 +49,8 @@ type CreateEpicResponse struct {
 }
 
 type RepositoryList struct {
-	Repositories        []RepositoryItem `json:"repositories"`
-	ActiveRepositories  []RepositoryItem `json:"active_repositories"`
+	Repositories         []RepositoryItem `json:"repositories"`
+	ActiveRepositories   []RepositoryItem `json:"active_repositories"`
 	ArchivedRepositories []RepositoryItem `json:"archived_repositories"`
 }
 
@@ -111,4 +111,11 @@ func (c *Client) Whoami(ctx context.Context) (Bootstrap, error) {
 	var out Bootstrap
 	err := c.do(ctx, http.MethodGet, "/api/v1/app/bootstrap", nil, &out)
 	return out, err
+}
+
+func (l RepositoryList) AvailableRepositories() []RepositoryItem {
+	if len(l.ActiveRepositories) > 0 {
+		return l.ActiveRepositories
+	}
+	return l.Repositories
 }

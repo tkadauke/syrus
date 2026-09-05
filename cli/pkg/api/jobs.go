@@ -57,8 +57,8 @@ type JobDetail struct {
 	Repository struct {
 		Slug string `json:"slug"`
 	} `json:"repository"`
-	Summary   *JobSummary  `json:"summary"`
-	TestPlan  *JobTestPlan `json:"test_plan"`
+	Summary   *JobSummary     `json:"summary"`
+	TestPlan  *JobTestPlan    `json:"test_plan"`
 	Workflows []WorkflowBrief `json:"workflows"`
 }
 

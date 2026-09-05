@@ -2,27 +2,25 @@ package cmd
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
 	"github.com/tkadauke/syrus/cli/internal/config"
+	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
 
 var (
-	detectCurrentRepoSlug = currentRepoSlug
-	openURL               = openBrowser
+	openURL = openBrowser
 )
 
 func NewJobCommand() *cobra.Command {
@@ -345,7 +343,7 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string) error
 	filters := url.Values{}
 	filters.Set("state", state)
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := detectCurrentRepoSlug(); repo != "" {
+	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListJobs(cmd.Context(), filters)
@@ -370,7 +368,7 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 	}
 	filters := url.Values{}
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := detectCurrentRepoSlug(); repo != "" {
+	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListEpics(cmd.Context(), filters)
@@ -389,7 +387,7 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 }
 
 func runEpicCreate(cmd *cobra.Command, yes bool) error {
-	repo := detectCurrentRepoSlug()
+	repo := cliplugin.DetectCurrentRepoSlug()
 	if repo == "" {
 		return errors.New("syrus epic create requires a GitHub repository remote")
 	}
@@ -449,12 +447,7 @@ func runEpicCreate(cmd *cobra.Command, yes bool) error {
 }
 
 func repositoryIDForSlug(repositories []api.RepositoryItem, slug string) (int64, bool) {
-	for _, repository := range repositories {
-		if repository.Slug == slug {
-			return repository.ID, true
-		}
-	}
-	return 0, false
+	return cliplugin.RepositoryIDForSlug(repositories, slug)
 }
 
 func apiClient() (*api.Client, config.Credentials, error) {
@@ -478,32 +471,10 @@ func loadCredentials() (config.Credentials, error) {
 }
 
 func readMultiline(reader *bufio.Reader) (string, error) {
-	var lines []string
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return "", err
-		}
-		line = strings.TrimSuffix(line, "\n")
-		line = strings.TrimSuffix(line, "\r")
-		if line == "" {
-			return strings.Join(lines, "\n"), nil
-		}
-		lines = append(lines, line)
-		if err == io.EOF {
-			return strings.Join(lines, "\n"), nil
-		}
-	}
+	return cliplugin.ReadMultiline(reader)
 }
 
-func confirmed(answer string) bool {
-	switch strings.ToLower(strings.TrimSpace(answer)) {
-	case "y", "yes":
-		return true
-	default:
-		return false
-	}
-}
+func confirmed(answer string) bool { return cliplugin.Confirmed(answer) }
 
 func appURL(base string, path string) string {
 	parsed, err := url.Parse(strings.TrimRight(base, "/") + "/")
@@ -515,27 +486,6 @@ func appURL(base string, path string) string {
 		return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
 	}
 	return parsed.ResolveReference(relative).String()
-}
-
-func currentRepoSlug() string {
-	out, err := exec.CommandContext(context.Background(), "git", "config", "--get", "remote.origin.url").Output()
-	if err != nil {
-		return ""
-	}
-	return parseGitHubSlug(strings.TrimSpace(string(out)))
-}
-
-func parseGitHubSlug(remote string) string {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$`),
-	}
-	for _, pattern := range patterns {
-		match := pattern.FindStringSubmatch(remote)
-		if len(match) == 3 {
-			return match[1] + "/" + match[2]
-		}
-	}
-	return ""
 }
 
 func renderJobWatch(out io.Writer, job api.JobDetail) {

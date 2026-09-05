@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
 
 func NewLoginCommand() *cobra.Command {
@@ -94,10 +95,5 @@ func maskToken(token string) string {
 }
 
 func prompt(reader *bufio.Reader, out io.Writer, label string) (string, error) {
-	fmt.Fprint(out, label)
-	value, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	return strings.TrimSpace(value), nil
+	return cliplugin.Prompt(reader, out, label)
 }

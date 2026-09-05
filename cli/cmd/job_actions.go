@@ -9,7 +9,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
 
 var openBrowser = defaultOpenBrowser
@@ -110,7 +111,7 @@ func newJobOpenCommand() *cobra.Command {
 func runJobCreate(cmd *cobra.Command, repo string, yes bool) error {
 	repo = strings.TrimSpace(repo)
 	if repo == "" {
-		repo = currentRepoSlug()
+		repo = cliplugin.DetectCurrentRepoSlug()
 	}
 	if repo == "" {
 		return errors.New("run from a GitHub checkout or pass --repo owner/name")
@@ -214,7 +215,7 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 	if repo == "" {
 		repo = job.Job.RepositorySlug
 	}
-	current := currentRepoSlug()
+	current := cliplugin.DetectCurrentRepoSlug()
 	if current == "" {
 		return errors.New("run from the matching GitHub checkout")
 	}
@@ -262,9 +263,7 @@ func renderTestPlan(out io.Writer, plan any) {
 	}
 }
 
-func jobSlug(id any) string {
-	return fmt.Sprintf("JOB-%v", id)
-}
+func jobSlug(id any) string { return cliplugin.JobSlug(id) }
 
 func epicSlug(number any) string {
 	return fmt.Sprintf("EPIC-%v", number)

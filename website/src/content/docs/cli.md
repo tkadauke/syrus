@@ -377,7 +377,8 @@ to one repository.
 
 ## Schedules
 
-Schedule commands use the app scheduled-task API:
+Schedule commands are contributed by the bundled `scheduled_tasks` plugin
+rather than built into the CLI core, and use the app scheduled-task API:
 
 ```bash
 syrus schedule list

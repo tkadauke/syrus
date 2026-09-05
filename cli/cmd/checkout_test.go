@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
 func TestCheckoutCommandFetchesAndChecksOutJobBranch(t *testing.T) {

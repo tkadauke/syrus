@@ -1,4 +1,4 @@
-package cmd
+package scheduledtasks
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
 
 func NewScheduleCommand() *cobra.Command {
@@ -23,11 +23,11 @@ func newScheduleListCommand() *cobra.Command {
 		Short: "List schedules",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
+			client, err := cliplugin.Client()
 			if err != nil {
 				return err
 			}
-			list, err := client.ListScheduledTasks(cmd.Context())
+			list, err := ListScheduledTasks(cmd.Context(), client)
 			if err != nil {
 				return err
 			}
@@ -62,11 +62,11 @@ func newScheduleShowCommand() *cobra.Command {
 		Short: "Show a schedule",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
+			client, err := cliplugin.Client()
 			if err != nil {
 				return err
 			}
-			payload, err := client.GetScheduledTask(cmd.Context(), args[0])
+			payload, err := GetScheduledTask(cmd.Context(), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -102,24 +102,24 @@ func newScheduleDeleteCommand() *cobra.Command {
 		Short: "Delete a schedule",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
+			client, err := cliplugin.Client()
 			if err != nil {
 				return err
 			}
-			payload, err := client.GetScheduledTask(cmd.Context(), args[0])
+			payload, err := GetScheduledTask(cmd.Context(), client, args[0])
 			if err != nil {
 				return err
 			}
 			reader := bufio.NewReader(cmd.InOrStdin())
-			answer, err := prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Delete schedule '%s'? [y/N] ", payload.Task.Name))
+			answer, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Delete schedule '%s'? [y/N] ", payload.Task.Name))
 			if err != nil {
 				return err
 			}
-			if !confirmed(answer) {
+			if !cliplugin.Confirmed(answer) {
 				fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
 				return nil
 			}
-			if err := client.DeleteScheduledTask(cmd.Context(), args[0]); err != nil {
+			if err := DeleteScheduledTask(cmd.Context(), client, args[0]); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Deleted schedule #%s\n", args[0])
@@ -134,11 +134,11 @@ func newScheduleRunCommand() *cobra.Command {
 		Short: "Run a schedule now",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := apiClient()
+			client, err := cliplugin.Client()
 			if err != nil {
 				return err
 			}
-			payload, err := client.FireScheduledTask(cmd.Context(), args[0])
+			payload, err := FireScheduledTask(cmd.Context(), client, args[0])
 			if err != nil {
 				return err
 			}
@@ -148,18 +148,18 @@ func newScheduleRunCommand() *cobra.Command {
 				}
 				return errors.New("schedule run did not create a job")
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", jobSlug(payload.FireResult.JobID))
+			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", cliplugin.JobSlug(payload.FireResult.JobID))
 			return nil
 		},
 	}
 }
 
 func runScheduleCreate(cmd *cobra.Command, yes bool) error {
-	repo := detectCurrentRepoSlug()
+	repo := cliplugin.DetectCurrentRepoSlug()
 	if repo == "" {
 		return errors.New("syrus schedule create requires a GitHub repository checkout")
 	}
-	client, _, err := apiClient()
+	client, err := cliplugin.Client()
 	if err != nil {
 		return err
 	}
@@ -167,26 +167,26 @@ func runScheduleCreate(cmd *cobra.Command, yes bool) error {
 	if err != nil {
 		return err
 	}
-	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
+	repositoryID, ok := cliplugin.RepositoryIDForSlug(repositories.AvailableRepositories(), repo)
 	if !ok {
 		return fmt.Errorf("repository %s is not configured in Syrus", repo)
 	}
 
 	reader := bufio.NewReader(cmd.InOrStdin())
-	name, err := prompt(reader, cmd.OutOrStdout(), "Label: ")
+	name, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), "Label: ")
 	if err != nil {
 		return err
 	}
-	cron, err := prompt(reader, cmd.OutOrStdout(), `Cron expression (e.g. 0 9 * * 1 = every Monday at 9am UTC): `)
+	cron, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), `Cron expression (e.g. 0 9 * * 1 = every Monday at 9am UTC): `)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "Prompt (blank line to finish):")
-	body, err := readMultiline(reader)
+	body, err := cliplugin.ReadMultiline(reader)
 	if err != nil {
 		return err
 	}
-	params := api.CreateScheduleParams{
+	params := CreateScheduleParams{
 		Name:           strings.TrimSpace(name),
 		Kind:           "cron",
 		CronExpression: strings.TrimSpace(cron),
@@ -203,17 +203,17 @@ func runScheduleCreate(cmd *cobra.Command, yes bool) error {
 		return errors.New("prompt is required")
 	}
 	if !yes {
-		answer, err := prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Create schedule '%s' for %s? [y/N] ", params.Name, repo))
+		answer, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), fmt.Sprintf("Create schedule '%s' for %s? [y/N] ", params.Name, repo))
 		if err != nil {
 			return err
 		}
-		if !confirmed(answer) {
+		if !cliplugin.Confirmed(answer) {
 			fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
 			return nil
 		}
 	}
 
-	created, err := client.CreateScheduledTask(cmd.Context(), repositoryID, params)
+	created, err := CreateScheduledTask(cmd.Context(), client, repositoryID, params)
 	if err != nil {
 		return err
 	}
@@ -221,12 +221,12 @@ func runScheduleCreate(cmd *cobra.Command, yes bool) error {
 	return nil
 }
 
-func tasksForCurrentRepo(tasks []api.ScheduledTask) []api.ScheduledTask {
-	repo := detectCurrentRepoSlug()
+func tasksForCurrentRepo(tasks []ScheduledTask) []ScheduledTask {
+	repo := cliplugin.DetectCurrentRepoSlug()
 	if repo == "" {
 		return tasks
 	}
-	var scoped []api.ScheduledTask
+	var scoped []ScheduledTask
 	for _, task := range tasks {
 		if task.Repository.Slug == repo {
 			scoped = append(scoped, task)

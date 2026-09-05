@@ -15,7 +15,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	"github.com/tkadauke/syrus/cli/internal/api"
+	"github.com/tkadauke/syrus/cli/pkg/api"
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
 
 const inboxRefreshInterval = 30 * time.Second
@@ -98,7 +99,7 @@ func NewInboxCommand() *cobra.Command {
 				return err
 			}
 			if repo == "" {
-				repo = currentRepoSlug()
+				repo = cliplugin.DetectCurrentRepoSlug()
 			}
 			options := inboxOptions{watch: watch, repo: repo, appURL: creds.URL}
 			jobs, err := fetchInboxJobs(cmd.Context(), client, repo)
@@ -610,7 +611,7 @@ func checkoutJobCmd(client inboxAPI, jobID int64) tea.Cmd {
 		if branch == "" {
 			return inboxActionMsg{jobID: jobID, kind: "checkout", err: fmt.Errorf("JOB-%d has no branch", jobID)}
 		}
-		repo := currentRepoSlug()
+		repo := cliplugin.DetectCurrentRepoSlug()
 		if repo == "" || repo != detail.Repository.Slug {
 			return inboxActionMsg{jobID: jobID, kind: "checkout", err: fmt.Errorf("checkout requires $PWD to be %s", detail.Repository.Slug)}
 		}
