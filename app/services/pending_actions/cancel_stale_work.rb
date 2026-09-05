@@ -13,7 +13,7 @@ module PendingActions
       progress!("Recording repair audit...")
       audit!(
         "cancelled stale work workflows=#{cancelled[:workflows].inspect} runs=#{cancelled[:runs].inspect}",
-        run: job.runs.order(created_at: :desc, id: :desc).first
+        run: job.runs.reorder(created_at: :desc, id: :desc).first
       )
       job.reload
     end

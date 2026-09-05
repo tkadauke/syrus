@@ -61,7 +61,7 @@ class JobStateRepair
     end
 
     def audit!(message)
-      run = job.runs.order(created_at: :desc, id: :desc).first
+      run = job.runs.reorder(created_at: :desc, id: :desc).first
       JobLog.append!(run: run, chunk: "[operator repair] #{message}; reason=#{reason}", kind: "system") if run
     rescue StandardError => e
       Rails.logger.warn("[JobStateRepair] audit failed for #{job.slug}: #{e.class}: #{e.message}")
@@ -181,7 +181,7 @@ class JobStateRepair
     attr_reader :job, :event, :reason
 
     def audit!(from_state)
-      run = job.runs.order(created_at: :desc, id: :desc).first
+      run = job.runs.reorder(created_at: :desc, id: :desc).first
       return unless run
 
       JobLog.append!(
