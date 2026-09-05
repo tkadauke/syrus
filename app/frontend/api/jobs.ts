@@ -1015,6 +1015,11 @@ export type DiffReviewCommentsSubmitPayload = {
   comments: DiffReviewComment[]
 }
 
+export type DiffReviewCommentDeletePayload = {
+  job_id: number
+  deleted_id: number
+}
+
 export type JobCommandPayload = {
   message?: string | null
   redirect_to?: string
@@ -1084,6 +1089,10 @@ export function updateDiffReviewComment(jobId: string | number, commentId: numbe
 
 export function resolveDiffReviewComment(jobId: string | number, commentId: number) {
   return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}/resolve`)
+}
+
+export function deleteDiffReviewComment(jobId: string | number, commentId: number) {
+  return deleteJson<DiffReviewCommentDeletePayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}`)
 }
 
 export function submitDiffReviewComments(jobId: string | number, commentIds: number[]) {
