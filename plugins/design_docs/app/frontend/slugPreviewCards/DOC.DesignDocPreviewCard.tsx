@@ -21,11 +21,12 @@ function collaboratorSummary(collaborators: DesignDocUser[]) {
   return `${shown.join(", ")} +${names.length - MAX_COLLABORATOR_NAMES}`
 }
 
-// Rendered by core's SlugHoverCard for `kind: "doc"` (see
-// app/frontend/pluginSlugPreviewCards.tsx) whenever a DOC-<id> slug is
-// linkified anywhere in the app -- chat messages, job/epic bodies, design
-// doc comments, etc. Fetches the lightweight `/preview` payload rather than
-// the full DesignDocDetail, since a single page can reference many docs.
+// Registered for the "DOC" slug prefix purely by this filename convention
+// (see app/frontend/pluginSlugPreviewCards.tsx) -- core never references
+// design_docs directly. Rendered by core's SlugHoverCard whenever a DOC-<id>
+// slug is linkified anywhere in the app -- chat messages, job/epic bodies,
+// design doc comments, etc. Fetches the lightweight `/preview` payload rather
+// than the full DesignDocDetail, since a single page can reference many docs.
 export function DesignDocPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("design_docs")
   const { data, isPending } = useQuery({

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { DesignDocPreviewCard } from "./DesignDocPreviewCard"
+import { DesignDocPreviewCard } from "./DOC.DesignDocPreviewCard"
 
 function renderCard(id: number, compact = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

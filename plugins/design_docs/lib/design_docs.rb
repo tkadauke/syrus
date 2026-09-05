@@ -42,7 +42,7 @@ module DesignDocs
           "design_docs/WorkspaceDesignDocs" => "app/frontend/workspaceTabs/WorkspaceDesignDocs.tsx"
         },
         slug_preview_cards: {
-          "design_docs/DesignDocPreviewCard" => "app/frontend/slugPreviewCards/DesignDocPreviewCard.tsx"
+          "DOC" => "app/frontend/slugPreviewCards/DOC.DesignDocPreviewCard.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/design_docs.json" ]
 
