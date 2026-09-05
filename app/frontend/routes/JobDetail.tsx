@@ -9,6 +9,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
 import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
@@ -242,8 +243,11 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
             {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
             {payload.job.source_chat ? (
-              <span>
-                · <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
+              <span className="inline-flex items-center gap-1">
+                · <SlugHoverCard id={payload.job.source_chat.chat_id} kind="chat">
+                  <CopyableSlug className="text-xs" slug={`CHAT-${payload.job.source_chat.chat_id}`} />
+                </SlugHoverCard>
+                <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.chat_title || t("chat:new_title")}</Link>
               </span>
             ) : null}
             {payload.job.goal_provenance ? <span title={payload.job.goal_provenance.prompt_snapshot.prompt || undefined}>· Goal #{payload.job.goal_provenance.chat_goal_id}</span> : null}
