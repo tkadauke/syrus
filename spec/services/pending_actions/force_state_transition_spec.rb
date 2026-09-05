@@ -68,11 +68,11 @@ RSpec.describe PendingActions::ForceStateTransition do
     expect(JobLog.where(run: older)).to be_empty
   end
 
-  it "raises when the event cannot be applied from the Job's current state" do
+  it "rejects an event that cannot be applied from the Job's current state at validation time" do
     job = build_job("queued")
-    action = pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "approve")
 
-    expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /cannot apply approve from queued/)
+    expect { pending_action_for(admin, admin_repository, "job_id" => job.id, "event" => "approve") }
+      .to raise_error(ActiveRecord::RecordInvalid, /cannot apply approve from queued/)
   end
 
   it "applies close from failed to closed" do
