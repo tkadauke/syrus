@@ -45,7 +45,7 @@ function renderWorkspace(payload = jobPayload()) {
 }
 
 describe("ReviewWorkspace", () => {
-  it("creates anchored comments from continuous diff lines", async () => {
+  it("creates anchored comments from continuous diff lines, composed inline in the diff rather than the sidebar", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([comment()]))
@@ -53,8 +53,14 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+
+    const composer = screen.getByTestId("diff-review-composer")
+    const sidebar = screen.getByText("Diff comments").closest("section") as HTMLElement
+    expect(sidebar.contains(composer)).toBe(false)
+    expect(within(composer).getByLabelText("Comment")).toBeInTheDocument()
+
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
+    fireEvent.click(within(composer).getByRole("button", { name: "Create comment" }))
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -185,6 +191,27 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(updateDiffReviewComment).toHaveBeenCalledWith(42, 1, { body: "Updated body." })
     })
+  })
+
+  it("shows a little surrounding diff context above and below a code-anchored comment in the sidebar", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
+      comment({
+        new_line: 1,
+        anchor_key: "right::1",
+        diff_hunk: "@@ -1,2 +1,2 @@\n-old\n+new",
+        context: { line_kind: "add", line_text: "new" }
+      })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    await waitFor(() => expect(screen.queryByText("No diff comments.")).not.toBeInTheDocument())
+    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    expect(sidebar.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument()
+    expect(sidebar.getByText("-old")).toBeInTheDocument()
+    expect(sidebar.getByText("+new")).toHaveClass("ring-brand")
   })
 
   it("submits actionable comments as chat feedback", async () => {
