@@ -6,7 +6,7 @@
 // systemMessages parsers), and the small grouping/anchor predicates. Pure over
 // the shared utils, systemMessages, and chat types; imported back by the
 // MessageStream components.
-import type { ChatMessageItem, ChatPendingAction, ChatPendingActionInline, ChatRenderItem, ChatToolGroupCall, ChatToolGroupItem } from "../../api/chats"
+import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPendingActionInline, ChatRenderItem, ChatToolGroupCall, ChatToolGroupItem } from "../../api/chats"
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
@@ -203,25 +203,27 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
   return null
 }
 
-export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[]): ChatStreamItem[] {
-  if (pendingActions.length === 0) return items
+export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions: ChatPendingAction[], pendingActionGroups: ChatPendingActionGroup[] = []): ChatStreamItem[] {
+  if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
 
-  const actionsByMessageId = new Map<number, ChatPendingAction[]>()
-  const unanchoredActions: ChatPendingAction[] = []
+  const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
+  const unanchoredItems: ChatStreamItem[] = []
   const renderedMessageIds = new Set<number>()
   const result: ChatStreamItem[] = []
 
-  for (const action of pendingActions) {
-    const messageId = action.chat_message_id
+  const anchor = (messageId: number | null | undefined, streamItem: ChatStreamItem) => {
     if (messageId == null) {
-      unanchoredActions.push(action)
-      continue
+      unanchoredItems.push(streamItem)
+      return
     }
 
-    const actions = actionsByMessageId.get(messageId) || []
-    actions.push(action)
-    actionsByMessageId.set(messageId, actions)
+    const bucket = anchoredByMessageId.get(messageId) || []
+    bucket.push(streamItem)
+    anchoredByMessageId.set(messageId, bucket)
   }
+
+  for (const action of pendingActions) anchor(action.chat_message_id, { type: "pending_action", pendingAction: action })
+  for (const group of pendingActionGroups) anchor(group.chat_message_id, { type: "pending_action_group", pendingActionGroup: group })
 
   for (const item of items) {
     result.push(item)
@@ -229,21 +231,16 @@ export function buildMessageStreamItems(items: ChatRenderItem[], pendingActions:
     const messageIds = streamItemMessageIds(item)
     for (const messageId of messageIds) {
       renderedMessageIds.add(messageId)
-      const actions = actionsByMessageId.get(messageId) || []
-      for (const action of actions) {
-        result.push({ type: "pending_action", pendingAction: action })
-      }
+      result.push(...(anchoredByMessageId.get(messageId) || []))
     }
   }
 
-  for (const [messageId, actions] of actionsByMessageId) {
+  for (const [messageId, anchoredItems] of anchoredByMessageId) {
     if (renderedMessageIds.has(messageId)) continue
-    unanchoredActions.push(...actions)
+    unanchoredItems.push(...anchoredItems)
   }
 
-  for (const action of unanchoredActions) {
-    result.push({ type: "pending_action", pendingAction: action })
-  }
+  result.push(...unanchoredItems)
 
   return result
 }
