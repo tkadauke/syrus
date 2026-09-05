@@ -18,7 +18,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, parseJsonText, typedToolResult, type ChatMediaImage, type ChatMediaSnapshot, type TypedToolResult } from "./toolRendering"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
 import { pluginToolCardExpandedBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
@@ -454,8 +454,6 @@ function ToolResultBody({ call, groupTool }: { call: ChatToolGroupItem["calls"][
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
   switch (result.type) {
-    case "chat_media_gallery":
-      return <ChatMediaGallery result={result} />
     case "success_row":
       return (
         <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
@@ -484,119 +482,6 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
         </div>
       )
   }
-}
-
-function ChatMediaGallery({ result }: { result: Extract<TypedToolResult, { type: "chat_media_gallery" }> }) {
-  const [preview, setPreview] = useState<ChatMediaSnapshot | ChatMediaImage | null>(null)
-  const items = [...result.images, ...result.snapshots]
-
-  return (
-    <>
-      <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{items.length} media {items.length === 1 ? "item" : "items"}</span>
-          {result.whiteboard_element_count != null ? <span>{result.whiteboard_element_count} whiteboard elements</span> : null}
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {items.map((item) => {
-            const thumbnailSrc = mediaThumbnailSrc(item)
-            return (
-              <button
-                aria-label={`Open ${mediaTitle(item)}`}
-                className="group/media aspect-square overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-brand/40 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-950"
-                key={item.id}
-                onClick={() => setPreview(item)}
-                title={mediaTooltip(item)}
-                type="button"
-              >
-                {thumbnailSrc ? (
-                  <img alt={mediaTitle(item)} className="h-full w-full object-cover transition group-hover/media:scale-105" src={thumbnailSrc} />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-semibold uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-                    {item.kind === "chat_image" ? imageTypeLabel(item.content_type) : "Snapshot"}
-                  </div>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      {preview ? <ChatMediaPreview item={preview} onClose={() => setPreview(null)} /> : null}
-    </>
-  )
-}
-
-function ChatMediaPreview({ item, onClose }: { item: ChatMediaSnapshot | ChatMediaImage; onClose: () => void }) {
-  const thumbnailSrc = mediaThumbnailSrc(item)
-
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-label={mediaTitle(item)} aria-modal="true" className="relative max-h-full max-w-full rounded bg-white p-4 shadow-lg dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
-        <button
-          aria-label="Close media preview"
-          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={onClose}
-          type="button"
-        >
-          <CloseIcon className="h-4 w-4" />
-        </button>
-        {thumbnailSrc ? (
-          <img alt={mediaTitle(item)} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900" src={thumbnailSrc} />
-        ) : (
-          <>
-            <h3 className="pr-8 text-sm font-semibold text-gray-900 dark:text-gray-100">{mediaTitle(item)}</h3>
-            <dl className="mt-3 space-y-2 text-xs">
-              <PreviewRow label="ID" value={item.id} />
-              <PreviewRow label="Type" value={item.kind === "chat_image" ? item.content_type : "whiteboard snapshot"} />
-              {"element_count" in item && item.element_count != null ? <PreviewRow label="Elements" value={String(item.element_count)} /> : null}
-              {"created_at" in item && item.created_at ? <PreviewRow label="Created" value={item.created_at} /> : null}
-            </dl>
-          </>
-        )}
-      </section>
-    </div>
-  )
-}
-
-function PreviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="break-words font-mono text-gray-800 dark:text-gray-200">{value}</dd>
-    </div>
-  )
-}
-
-function mediaTitle(item: ChatMediaSnapshot | ChatMediaImage) {
-  return item.kind === "chat_image" ? item.filename : item.name
-}
-
-function mediaSubtitle(item: ChatMediaSnapshot | ChatMediaImage) {
-  if (item.kind === "chat_image") return item.content_type
-  return item.element_count == null ? "whiteboard snapshot" : `${item.element_count} ${item.element_count === 1 ? "element" : "elements"}`
-}
-
-function mediaTooltip(item: ChatMediaSnapshot | ChatMediaImage) {
-  return [mediaTitle(item), item.id, mediaSubtitle(item)].filter(Boolean).join("\n")
-}
-
-function mediaThumbnailSrc(item: ChatMediaSnapshot | ChatMediaImage) {
-  if (item.kind !== "chat_image" || !item.file_path) return null
-  return item.file_path.startsWith("/") || item.file_path.startsWith("data:image/") ? item.file_path : null
-}
-
-function imageTypeLabel(contentType: string) {
-  const suffix = contentType.split("/").pop()
-  return suffix ? suffix.toUpperCase() : "Image"
 }
 
 function RawToolDetails({ payload }: { payload: unknown }) {
