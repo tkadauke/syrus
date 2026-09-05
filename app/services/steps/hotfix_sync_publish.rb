@@ -173,7 +173,7 @@ module Steps
     end
 
     def close_job!(reason)
-      job.close_with_reason!(reason) if job.open?
+      job.close_with_reason!(reason) if job.may_close?
     end
   end
 end
