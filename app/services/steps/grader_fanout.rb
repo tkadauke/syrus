@@ -208,12 +208,12 @@ module Steps
     end
 
     def apply_loop_max_iterations!(max_iterations)
-      template = Array(workflow.chain_template).map(&:dup)
-      loop_node = template.find { |node| loop_node_for_current_step?(node) }
+      loop_node = Array(workflow.chain_template).find { |node| loop_node_for_current_step?(node) }
       return unless loop_node
 
-      loop_node["max_iterations"] = max_iterations
-      workflow.update!(chain_template: template)
+      workflow.extend_chain! do |template|
+        template.find { |node| loop_node_for_current_step?(node) }["max_iterations"] = max_iterations
+      end
     end
 
     def loop_node_for_current_step?(node)

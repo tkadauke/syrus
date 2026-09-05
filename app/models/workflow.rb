@@ -454,6 +454,17 @@ class Workflow < ApplicationRecord
     save!
   end
 
+  # Single call site for mutating chain_template at runtime (e.g. bumping a
+  # loop/retry_until node's max_iterations from Steps::GraderFanout). Yields a
+  # deep-duped copy of the current template array for the caller to mutate in
+  # place, then persists it in the same JSON format the dispatcher's own
+  # materialization logic reads.
+  def extend_chain!
+    template = Array(chain_template).map(&:dup)
+    yield template
+    update!(chain_template: template)
+  end
+
   # Plugin names detected in this Run's workspace by Steps::Prepare (see
   # RepoPluginDetector), e.g. ["ruby", "syrus-rails", "javascript"]. Empty
   # array if Steps::Prepare hasn't run yet or found no matches; never nil.
