@@ -192,7 +192,9 @@ class SmartRetryEnqueuer
   end
 
   def retry_auto_merge_landing
-    job.approve!(via: "bulk", by_user: by_user)
+    result = Jobs::BulkApprover.call([ job ], via: "bulk", by_user: by_user)
+    return skipped(:not_retryable, "Job is no longer eligible for approval.") unless result.success?
+
     LandingQueueProcessorJob.perform_later
     succeeded(:landing, workflow: latest_workflow)
   end
