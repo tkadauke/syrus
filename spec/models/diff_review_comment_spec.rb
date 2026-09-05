@@ -121,4 +121,36 @@ RSpec.describe DiffReviewComment do
     }.to change { comment.reload.resolved_at }.from(nil)
     expect(comment.state).to eq("resolved")
   end
+
+  it "builds a reply that inherits the parent's anchor and diff context" do
+    comment = build_comment.tap(&:save!)
+    replier = Factories.user
+
+    reply = comment.build_reply(user: replier, body: "Addressed in the latest commit.")
+
+    expect(reply.save).to be true
+    expect(reply.parent).to eq(comment)
+    expect(reply.user).to eq(replier)
+    expect(reply.body).to eq("Addressed in the latest commit.")
+    expect(reply).to have_attributes(
+      surface: comment.surface,
+      base_ref: comment.base_ref,
+      head_ref: comment.head_ref,
+      path: comment.path,
+      side: comment.side,
+      new_line: comment.new_line,
+      anchor_key: comment.anchor_key,
+      state: "draft"
+    )
+    expect(comment.replies).to include(reply)
+  end
+
+  it "requires an optional parent to belong to the same job" do
+    other_job = Factories.job_record(repository: repo, issue_number: 44)
+    other_comment = build_comment(job: other_job).tap(&:save!)
+    comment = build_comment(parent: other_comment)
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:parent]).to include("must belong to the same job")
+  end
 end

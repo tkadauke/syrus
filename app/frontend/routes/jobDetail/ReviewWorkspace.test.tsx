@@ -6,6 +6,7 @@ import {
   createDiffReviewComment,
   fetchDiffReviewComments,
   fetchJobSourceDiff,
+  replyToDiffReviewComment,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
@@ -21,6 +22,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     createDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
+    replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
     submitDiffReviewComments: vi.fn(),
     updateDiffReviewComment: vi.fn()
@@ -31,6 +33,7 @@ beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
+  vi.mocked(replyToDiffReviewComment).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
   Element.prototype.scrollIntoView = vi.fn()
@@ -236,6 +239,25 @@ describe("ReviewWorkspace", () => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2])
     })
   })
+
+  it("lets any eligible user reply to an existing comment", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, parent_id: 1, body: "Fixed in the follow-up commit." })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
+    fireEvent.change(screen.getByLabelText("Reply"), { target: { value: "Fixed in the follow-up commit." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }))
+
+    await waitFor(() => {
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.")
+    })
+  })
 })
 
 function sourceDiffPayload(): JobSourceDiffPayload {
@@ -289,6 +311,7 @@ function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment 
   return {
     id: 1,
     job_id: 42,
+    parent_id: null,
     user_id: 5,
     user: { id: 5, display_name: "Ada", email_address: "ada@example.com", avatar_url: null },
     workflow_id: null,

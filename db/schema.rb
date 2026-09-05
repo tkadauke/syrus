@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_173259) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -967,6 +966,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.integer "job_id", null: false
     t.integer "new_line"
     t.integer "old_line"
+    t.integer "parent_id"
     t.string "path"
     t.datetime "resolved_at"
     t.integer "run_id"
@@ -981,6 +981,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.index ["job_id", "path", "side", "old_line", "new_line"], name: "idx_diff_review_comments_line_anchor"
     t.index ["job_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_job_surface_path_state"
     t.index ["job_id"], name: "index_diff_review_comments_on_job_id"
+    t.index ["parent_id"], name: "index_diff_review_comments_on_parent_id"
     t.index ["run_id"], name: "index_diff_review_comments_on_run_id"
     t.index ["user_id"], name: "index_diff_review_comments_on_user_id"
     t.index ["workflow_id"], name: "index_diff_review_comments_on_workflow_id"

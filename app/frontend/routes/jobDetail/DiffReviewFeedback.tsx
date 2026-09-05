@@ -6,6 +6,7 @@ import { useT } from "../../hooks/useT"
 import {
   createDiffReviewComment,
   fetchDiffReviewComments,
+  replyToDiffReviewComment,
   resolveDiffReviewComment,
   submitDiffReviewComments,
   updateDiffReviewComment,
@@ -54,6 +55,8 @@ export function useDiffReviewFeedback({
   const [addingGlobal, setAddingGlobal] = useState(false)
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null)
   const [editingThreadBody, setEditingThreadBody] = useState("")
+  const [replyingId, setReplyingId] = useState<number | null>(null)
+  const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
   const search = diffReviewCommentsSearch({ surface, baseRef, headRef, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
@@ -93,6 +96,14 @@ export function useDiffReviewFeedback({
   const resolveComment = useMutation({
     mutationFn: (id: number) => resolveDiffReviewComment(jobId, id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+  })
+  const replyToComment = useMutation({
+    mutationFn: ({ id, body: replyText }: { id: number; body: string }) => replyToDiffReviewComment(jobId, id, replyText),
+    onSuccess: () => {
+      setReplyingId(null)
+      setReplyBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
   })
   const submitComments = useMutation({
     mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids),
@@ -173,6 +184,22 @@ export function useDiffReviewFeedback({
     setEditingThreadBody("")
   }
 
+  function startReply(commentId: number) {
+    setReplyingId(commentId)
+    setReplyBody("")
+  }
+
+  function saveReply() {
+    const trimmed = replyBody.trim()
+    if (!trimmed || replyingId == null) return
+    replyToComment.mutate({ id: replyingId, body: trimmed })
+  }
+
+  function cancelReply() {
+    setReplyingId(null)
+    setReplyBody("")
+  }
+
   const panel = enabled ? (
     <DiffReviewFeedbackPanel
       actionableComments={actionableComments}
@@ -186,11 +213,19 @@ export function useDiffReviewFeedback({
       onAddGlobalComment={startGlobalComment}
       onBodyChange={setBody}
       onCancel={cancelComposer}
+      onCancelReply={cancelReply}
+      onChangeReplyBody={setReplyBody}
       onEdit={editComment}
+      onReply={saveReply}
       onResolve={(comment) => resolveComment.mutate(comment.id)}
       onSave={saveComment}
+      onStartReply={startReply}
       onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
       onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
+      replyBody={replyBody}
+      replyError={replyToComment.error}
+      replyPending={replyToComment.isPending}
+      replyingId={replyingId}
       resolvePending={resolveComment.isPending}
       selection={selection}
       submitError={submitError}
@@ -230,11 +265,19 @@ function DiffReviewFeedbackPanel({
   onAddGlobalComment,
   onBodyChange,
   onCancel,
+  onCancelReply,
+  onChangeReplyBody,
   onEdit,
+  onReply,
   onResolve,
   onSave,
+  onStartReply,
   onSubmit,
   onViewInDiff,
+  replyBody,
+  replyError,
+  replyPending,
+  replyingId,
   resolvePending,
   selection,
   submitError,
@@ -255,11 +298,19 @@ function DiffReviewFeedbackPanel({
   onAddGlobalComment: () => void
   onBodyChange: (body: string) => void
   onCancel: () => void
+  onCancelReply: () => void
+  onChangeReplyBody: (body: string) => void
   onEdit: (comment: DiffReviewComment) => void
+  onReply: () => void
   onResolve: (comment: DiffReviewComment) => void
   onSave: () => void
+  onStartReply: (commentId: number) => void
   onSubmit: () => void
   onViewInDiff: (comment: DiffReviewComment) => void
+  replyBody: string
+  replyError: Error | null
+  replyPending: boolean
+  replyingId: number | null
   resolvePending: boolean
   selection: DiffLineSelection | null
   submitError: string | null
@@ -302,7 +353,23 @@ function DiffReviewFeedbackPanel({
               {comment.state === "draft" && canEditHere ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
+              {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
             </div>
+            {replyingId === comment.id ? (
+              <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+                <textarea
+                  aria-label={t("review_reply_comment")}
+                  className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  onChange={(event) => onChangeReplyBody(event.target.value)}
+                  value={replyBody}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
+                  <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+                </div>
+                {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+              </div>
+            ) : null}
           </div>
           )
         })}
