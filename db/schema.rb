@@ -2764,6 +2764,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
   end
 
   create_table "work_units", force: :cascade do |t|
+    t.string "active_dedup_key", limit: 512
     t.bigint "blocked_by_user_id"
     t.json "blocked_details"
     t.string "blocked_reason", limit: 64
@@ -2790,6 +2791,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_144806) do
     t.datetime "updated_at", null: false
     t.bigint "work_intent_id", null: false
     t.bigint "workflow_id"
+    t.index ["active_dedup_key"], name: "idx_work_units_active_dedup_key_unique", unique: true
     t.index ["blocked_reason", "blocked_until"], name: "idx_work_units_blocked_wakeup"
     t.index ["kind", "state", "repository_id"], name: "idx_work_units_kind_state_repo"
     t.index ["parent_work_unit_id"], name: "idx_work_units_parent"

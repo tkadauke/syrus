@@ -1164,7 +1164,11 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       actor: job.user,
       source_type: "spec"
     )
-    unit = WorkUnit.create!(
+    # bypass_dedup: `job` (Factories.job) already owns a real active
+    # "initial" WorkUnit; this deliberately constructs a second one
+    # (never attached to a Workflow) to simulate an orphan row, which
+    # active_dedup_key uniqueness (JOB-4235) would otherwise reject.
+    unit = WorkUnit.new(
       work_intent: intent,
       kind: "initial",
       state: "queued",
@@ -1172,6 +1176,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       scope_type: "job",
       scope_id: job.id
     )
+    unit.save!(validate: false)
     member = unit.work_unit_members.create!(job: job, role: "primary")
     lock = unit.work_unit_locks.create!(lock_key: "spec:orphan-unit:#{unit.id}")
 
@@ -1303,7 +1308,10 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       source_type: "spec"
     )
     intent.wait!(reason: "dependency", details: { "blocked_by_job_ids" => [ 123 ] })
-    unit = WorkUnit.create!(
+    # bypass_dedup: see the comment above — `workflow` already has a real
+    # active WorkUnit under a different intent; this simulates a second
+    # active unit under `intent` specifically.
+    unit = WorkUnit.new(
       work_intent: intent,
       kind: "initial",
       state: "queued",
@@ -1312,6 +1320,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       scope_id: job.id,
       workflow: workflow
     )
+    unit.save!(validate: false)
     unit.work_unit_members.create!(job: job, role: "primary")
 
     result = reconcile_and_execute(work_intent_id: intent.id)
@@ -1507,7 +1516,10 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    unit.update_columns(state: "succeeded", finished_at: 5.minutes.ago)
+    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # via the model callback — otherwise it would collide with the
+    # still-active sibling unit created below.
+    unit.update!(state: "succeeded", finished_at: 5.minutes.ago)
     WorkUnit.create!(
       work_intent: intent,
       kind: "initial",
@@ -1553,7 +1565,10 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    unit.update_columns(
+    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # via the model callback — otherwise it would collide with the
+    # still-active sibling unit created below.
+    unit.update!(
       state: "cancelled",
       preemption_reason: Workflow::SUPERSEDED_BY_REBASE_REASON,
       finished_at: 5.minutes.ago
@@ -1599,7 +1614,10 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    unit.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # via the model callback — otherwise it would collide with the
+    # still-active sibling unit created below.
+    unit.update!(state: "failed", finished_at: 5.minutes.ago)
     WorkUnit.create!(
       work_intent: intent,
       kind: "initial",

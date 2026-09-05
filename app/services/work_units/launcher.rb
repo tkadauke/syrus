@@ -249,6 +249,12 @@ module WorkUnits
         parent_work_unit: parent_work_unit,
         **unit_ref_metadata_attributes(intent)
       )
+    rescue ActiveRecord::RecordNotUnique
+      dedup_key = "#{scope_type}:#{scope_id}:#{definition.kind}"
+      owner = Ownership.active_unit_for_dedup_key(dedup_key)
+      raise LockConflict.new(lock_key: dedup_key, work_unit: owner) if owner
+
+      raise
     end
 
     def unit_ref_metadata_attributes(intent)
@@ -280,10 +286,20 @@ module WorkUnits
       end
     end
 
+    # "epic_feedback:<epic_id>" is a deliberate cross-job serialization
+    # queue (SerializesEpicFeedback): a sibling job's feedback workflow is
+    # meant to materialize now, sit blocked, and run for real once its
+    # turn comes (the operator gets an "epic_feedback_queued" notification
+    # promising exactly that). Every other lock key represents "is this
+    # same job/scope already doing conflicting work" — for those, letting
+    # a second WorkUnit materialize and later run unattended is the
+    # duplicate-workflow bug (JOB-4235), so it must be rejected outright.
+    ADVISORY_LOCK_KEY_PREFIX = "epic_feedback:".freeze
+
     def create_lock!(unit, lock_key)
       if (owner = Ownership.active_unit_for_lock_key(lock_key))
         return if Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
-        raise LockConflict.new(lock_key: lock_key, work_unit: owner) if definition.landing_lock?
+        raise LockConflict.new(lock_key: lock_key, work_unit: owner) if enforce_lock_conflict?(lock_key)
 
         return
       end
@@ -292,10 +308,16 @@ module WorkUnits
     rescue ActiveRecord::RecordNotUnique
       owner = Ownership.active_unit_for_lock_key(lock_key)
       if owner &&
-          definition.landing_lock? &&
+          enforce_lock_conflict?(lock_key) &&
           !Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
         raise LockConflict.new(lock_key: lock_key, work_unit: owner)
       end
+    end
+
+    def enforce_lock_conflict?(lock_key)
+      return false unless definition.lock_conflicts_enforced?
+
+      !lock_key.to_s.start_with?(ADVISORY_LOCK_KEY_PREFIX)
     end
 
     def preempt_superseded_ci_repairs!(unit)

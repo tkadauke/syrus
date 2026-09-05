@@ -43,7 +43,12 @@ RSpec.describe "Filters::Chips" do
     unit
   end
 
-  def create_running_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial")
+  # bypass_dedup: true simulates a legacy WorkUnit row that predates the
+  # active_dedup_key uniqueness guarantee (JOB-4235), for specs that
+  # deliberately construct multiple active units for one (job, kind) to
+  # exercise "pick the latest" filter/query logic. The app's own launch
+  # path can no longer produce that state.
+  def create_running_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial", bypass_dedup: false)
     workflow = Workflow.create!(job: primary_job, trigger_kind: kind, state: "running")
     intent = WorkIntent.create!(
       kind: kind,
@@ -52,7 +57,7 @@ RSpec.describe "Filters::Chips" do
       scope_type: "job",
       scope_id: primary_job.id
     )
-    unit = WorkUnit.create!(
+    unit = WorkUnit.new(
       work_intent: intent,
       kind: kind,
       state: "running",
@@ -61,13 +66,14 @@ RSpec.describe "Filters::Chips" do
       scope_id: primary_job.id,
       workflow: workflow
     )
+    bypass_dedup ? unit.save!(validate: false) : unit.save!
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
     end
     unit
   end
 
-  def create_queued_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial")
+  def create_queued_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial", bypass_dedup: false)
     workflow = Workflow.create!(job: primary_job, trigger_kind: kind, state: "queued")
     intent = WorkIntent.create!(
       kind: kind,
@@ -76,7 +82,7 @@ RSpec.describe "Filters::Chips" do
       scope_type: "job",
       scope_id: primary_job.id
     )
-    unit = WorkUnit.create!(
+    unit = WorkUnit.new(
       work_intent: intent,
       kind: kind,
       state: "queued",
@@ -85,6 +91,7 @@ RSpec.describe "Filters::Chips" do
       scope_id: primary_job.id,
       workflow: workflow
     )
+    bypass_dedup ? unit.save!(validate: false) : unit.save!
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
     end
@@ -291,7 +298,7 @@ RSpec.describe "Filters::Chips" do
       Workflow.create!(job: queued_landing, trigger_kind: "auto_merge", state: "queued")
       create_running_work_unit_for(running_rebase, kind: "rebase")
       create_queued_work_unit_for(superseded_queue, kind: "rebase")
-      create_running_work_unit_for(superseded_queue, kind: "rebase")
+      create_running_work_unit_for(superseded_queue, kind: "rebase", bypass_dedup: true)
 
       expect(run(field: "attention", op: "is", value: "queued")).to contain_exactly(
         queued,
