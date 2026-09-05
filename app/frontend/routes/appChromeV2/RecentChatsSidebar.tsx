@@ -9,6 +9,7 @@ import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChats
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
+import { CopyableSlug } from "../../components/CopyableSlug"
 import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -542,6 +543,10 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       </button>
       {open ? (
         <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
+          <div className="px-3 py-1.5">
+            <CopyableSlug slug={`CHAT-${chat.id}`} />
+          </div>
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           {loadingBookmarks ? (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
           ) : bookmarks.length > 0 ? (
