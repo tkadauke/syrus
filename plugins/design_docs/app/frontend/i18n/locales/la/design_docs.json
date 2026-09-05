@@ -1,3 +1,11 @@
 {
-  "tab_design_docs": "Documenta consilii"
+  "tab_design_docs": "Documenta consilii",
+  "preview_see_more": "Vide amplius",
+  "preview_not_accessible": "Non accessibile",
+  "preview_owner": "Dominus: {{name}}",
+  "preview_unknown_owner": "Ignotus",
+  "preview_collaborators": "Collaboratores: {{names}}",
+  "preview_comment_count_one": "{{count}} commentarium",
+  "preview_comment_count_other": "{{count}} commentaria",
+  "preview_version": "v{{number}}"
 }

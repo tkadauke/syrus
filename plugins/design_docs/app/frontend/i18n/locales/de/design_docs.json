@@ -1,3 +1,11 @@
 {
-  "tab_design_docs": "Design Docs"
+  "tab_design_docs": "Design Docs",
+  "preview_see_more": "Mehr anzeigen",
+  "preview_not_accessible": "Nicht zugänglich",
+  "preview_owner": "Besitzer: {{name}}",
+  "preview_unknown_owner": "Unbekannt",
+  "preview_collaborators": "Mitarbeiter: {{names}}",
+  "preview_comment_count_one": "{{count}} Kommentar",
+  "preview_comment_count_other": "{{count}} Kommentare",
+  "preview_version": "v{{number}}"
 }
