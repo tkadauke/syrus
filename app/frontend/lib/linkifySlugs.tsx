@@ -39,11 +39,11 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
       )
     }
 
-    const doc = part.match(/^DOC-(\d+)$/)
+    const doc = part.match(/^(DOC)-(\d+)$/)
     if (doc) {
       return (
-        <SlugHoverCard key={index} kind="doc" id={Number(doc[1])}>
-          <Link className={slugLinkClassName} to={`/design_docs/${doc[1]}`}>
+        <SlugHoverCard key={index} kind="plugin" prefix={doc[1]} id={Number(doc[2])}>
+          <Link className={slugLinkClassName} to={`/design_docs/${doc[2]}`}>
             {part}
           </Link>
         </SlugHoverCard>
