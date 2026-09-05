@@ -14,7 +14,7 @@ content).
 Sessions only, deliberately: no checks (graders/format/generate) and no
 external triggers (chat/PR feedback, CI failures) appear here -- those are
 covered by a separate per-Job "Agent Conversation" causal graph from the
-same Epic (EPIC-307), not by this feed.
+same Epic (EPIC-307), not by this feed. See `agent_conversation.md`.
 
 ## Role and outcome, never inferred from transcript text
 
