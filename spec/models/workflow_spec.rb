@@ -1547,5 +1547,22 @@ RSpec.describe Workflow, :ci_only do
         workflow.schedule_auto_retry!
       }.not_to have_enqueued_job(WorkEngine::ReconcileJob)
     end
+
+    it "swallows a transient SolidQueue enqueue failure instead of raising" do
+      workflow.update_columns(state: "failed", finished_at: Time.current)
+      allow(WorkEngine::Reconciler).to receive(:request).and_raise(
+        SolidQueue::Job::EnqueueError, "Can't connect to server on 'syrus-mysql' (115)"
+      )
+
+      expect { workflow.schedule_auto_retry! }.not_to raise_error
+    end
+
+    it "does not crash the caller when the after_update_commit callback fires during a failure cascade" do
+      allow(WorkEngine::Reconciler).to receive(:request).and_raise(
+        SolidQueue::Job::EnqueueError, "Can't connect to server on 'syrus-mysql' (115)"
+      )
+
+      expect { workflow.update!(state: "failed", finished_at: Time.current) }.not_to raise_error
+    end
   end
 end

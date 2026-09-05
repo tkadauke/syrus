@@ -65,7 +65,7 @@ Syrus then runs the required grader suite on the integration branch (same as `au
 `merge_train_land`:
 1. Pushes the integration branch to GitHub.
 2. Merges the integration PR into the base branch via the GitHub API.
-3. Comments on and closes each member PR with a note that it was included in the train.
+3. For each member, verifies that its rebased commits (recorded during the build phase as `LandedCommit` rows) are actually reachable from the merged SHA before touching it. A member that verifies is commented on, its PR closed with a note that it was included in the train, and its Job closed `pr_merged` with the merge SHA recorded as `landed_sha`. A member that does **not** verify — for example a stale `MergeTrainMember` carried over from an earlier failed/rebuilt train whose branch was never actually rebased into *this* train's integration branch — is left open (PR untouched, branch not deleted) and routed through the normal landing-failure path instead of being closed against a landing it was never part of.
 
 If the base branch advances between build and land (GitHub returns a
 base-moved error), Syrus inserts a `merge_train_rebase` →
@@ -84,8 +84,9 @@ and keeps the older Epic-wide workflow running.
 
 ## Failure behavior
 
-If the train fails at any phase:
-- All member Jobs revert from `landing` back to `approved`.
+If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket-revert every member — reverting a member requires positive evidence its work did not land, not just "the workflow step failed":
+- Members with no evidence their commits are on base go through `LandingFailureHandler`, which reverts them out of `landing`: transient blockers defer them back to `approved` (auto-retried once the blocker clears), while genuine failures fail them to `implemented`, clearing approval and requiring an operator to re-approve.
+- A member whose commits are already verifiably on base when the train fails — e.g. GitHub reported the integration merge before a crash partway through closing member PRs — is instead completed retroactively: closed `pr_merged` with the landed SHA recorded, the same as the happy path. Its PR/branch may still need manual GitHub cleanup since the usual comment/close/delete-branch steps did not get to run for it.
 - A 30-minute retry cooldown prevents the landing queue from immediately re-attempting an unrepaired integration conflict.
 - Transient landing-start blockers, such as dependency readiness or admission pressure, do not use that failed-train cooldown. Once the blocker clears, the approved Epic children re-enter the landing queue and Syrus can dispatch a fresh train automatically.
 - After the cooldown, `LandingQueueProcessor` can assemble a new train.

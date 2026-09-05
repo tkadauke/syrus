@@ -366,6 +366,33 @@ RSpec.describe PollRebaseJob, :ci_only do
     end
   end
 
+  describe ".enqueue_manual_check" do
+    it "does not raise when enqueuing with bypass_cache: true (regression: concurrency key lambda arity)" do
+      expect { described_class.enqueue_manual_check(job.id) }.not_to raise_error
+    end
+
+    it "enqueues PollRebaseJob with bypass_cache: true" do
+      expect { described_class.enqueue_manual_check(job.id) }
+        .to have_enqueued_job(described_class).with(job.id, bypass_cache: true)
+    end
+  end
+
+  describe "concurrency key" do
+    it "computes a stable per-job key when enqueued with only job_id (autonomous poller path)" do
+      instance = described_class.new(job.id)
+      expect(instance.concurrency_key).to include("rebase_poll:#{job.id}")
+    end
+
+    it "computes the same per-job key when enqueued with bypass_cache: true (manual check path)" do
+      # Regression: the concurrency key lambda used to be a strict single-arg
+      # lambda, which raised ArgumentError when Solid Queue invoked it with
+      # the extra bypass_cache keyword argument added by enqueue_manual_check.
+      instance = described_class.new(job.id, bypass_cache: true)
+      expect { instance.concurrency_key }.not_to raise_error
+      expect(instance.concurrency_key).to eq(described_class.new(job.id).concurrency_key)
+    end
+  end
+
   describe "per-repo concurrent-rebase cap" do
     # Defends the schema.rb-conflict scenario: many PRs become
     # unmergeable in the same poll cycle, autopoll mustn't fan out

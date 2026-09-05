@@ -190,6 +190,29 @@ describe("PendingActionCard", () => {
 
     expect(screen.queryByRole("button", { name: "Dismiss failed action" })).not.toBeInTheDocument()
   })
+
+  it("shows the agent's reason alongside the argument detail and target link", () => {
+    renderCard(pendingAction({
+      state: "pending",
+      execution_error: undefined,
+      label: "Reconcile state for JOB-2325 (mark_implemented_from_ready_pr)",
+      detail: "Mode: mark_implemented_from_ready_pr",
+      reason: "Job is stuck ready with a merged PR.",
+      resource_title: "Fix flaky spec",
+      resource_url: "/jobs/2325"
+    }))
+
+    expect(screen.getByText("Mode: mark_implemented_from_ready_pr")).toBeInTheDocument()
+    expect(screen.getByText("Reason:")).toBeInTheDocument()
+    expect(screen.getByText("Job is stuck ready with a merged PR.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Fix flaky spec" })).toHaveAttribute("href", "/jobs/2325")
+  })
+
+  it("does not render a reason line when the action has none", () => {
+    renderCard(pendingAction({ state: "pending", execution_error: undefined, reason: undefined }))
+
+    expect(screen.queryByText("Reason:")).not.toBeInTheDocument()
+  })
 })
 
 describe("ProposalCard media", () => {

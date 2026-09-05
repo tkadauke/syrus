@@ -49,7 +49,12 @@ visual_review:
     and chat are seeded. Live-updating panels (Job/Workflow progress,
     streaming transcripts) render as a static snapshot in preview because
     no background worker runs there by design — do not flag static
-    progress as a defect.
+    progress as a defect. The "Inspect preview dashboard states" Job's
+    Review tab has real fixture file/patch data (via Job#diff_fixture,
+    development-only) even though the demo repo has no GitHub
+    credentials — exercise the diff-review workspace there. The Source
+    tab on that same Job still shows the "GitHub token not configured"
+    empty state; that surface has no fixture yet.
 
 hooks:
   post_checkout:

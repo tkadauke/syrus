@@ -44,6 +44,7 @@ module App
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
           provider_failover: provider_failover_for(job),
+          provider_mismatch: provider_mismatch_for(job, workflow_agent_provider, owner_user),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),
@@ -254,6 +255,38 @@ module App
         return nil unless workflow
 
         App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: job.workflow_agent_provider)
+      end
+
+      # Compares the Job's effective provider against its repository's effective
+      # provider (for the job's owner) so the dashboard can flag jobs pinned away
+      # from what the repository would otherwise use. Reads repository membership
+      # from the batched @job_runtime_repository_memberships_by_repo_and_user map
+      # (see DashboardPayload#repository_memberships_by_repo_and_user_for) instead
+      # of calling Repository#effective_agent_provider, which would issue one
+      # RepositoryMembership query per job row.
+      def provider_mismatch_for(job, job_provider, owner_user)
+        repository = job.repository
+        return nil if repository.nil? || job_provider.blank?
+
+        repository_provider = effective_repository_agent_provider(repository, owner_user)
+        return nil if repository_provider.blank? || repository_provider == job_provider
+
+        {
+          job_provider: job_provider,
+          job_provider_label: App::Presentation.agent_provider_label(job_provider),
+          repository_provider: repository_provider,
+          repository_provider_label: App::Presentation.agent_provider_label(repository_provider)
+        }
+      end
+
+      def effective_repository_agent_provider(repository, owner_user)
+        if owner_user
+          membership = @job_runtime_repository_memberships_by_repo_and_user&.dig([ repository.id, owner_user.id ])
+          membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
+          return membership_provider if membership_provider
+        end
+
+        repository.agent_provider.presence || (owner_user || repository.user)&.agent_provider
       end
 
       def deployment_stages_for(repository)
