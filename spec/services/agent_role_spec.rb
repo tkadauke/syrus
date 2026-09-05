@@ -71,4 +71,36 @@ RSpec.describe AgentRole do
       expect(described_class::ALL_ROLES.uniq).to eq(described_class::ALL_ROLES)
     end
   end
+
+  describe ".for_step_kind" do
+    it "maps rebase-conflict step kinds to WORKFLOW_REBASE_CONFLICT" do
+      %w[agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase].each do |kind|
+        expect(described_class.for_step_kind(kind)).to eq(described_class::WORKFLOW_REBASE_CONFLICT)
+      end
+    end
+
+    it "maps summary/test-plan step kinds to WORKFLOW_SUMMARY_TEST_PLAN" do
+      %w[summarize summarize_amend test_plan refresh_job_metadata review_plan].each do |kind|
+        expect(described_class.for_step_kind(kind)).to eq(described_class::WORKFLOW_SUMMARY_TEST_PLAN)
+      end
+    end
+
+    it "maps adversarial_review to WORKFLOW_ADVERSARIAL_REVIEWER" do
+      expect(described_class.for_step_kind("adversarial_review")).to eq(described_class::WORKFLOW_ADVERSARIAL_REVIEWER)
+    end
+
+    it "maps visual_review to WORKFLOW_VISUAL_REVIEWER" do
+      expect(described_class.for_step_kind("visual_review")).to eq(described_class::WORKFLOW_VISUAL_REVIEWER)
+    end
+
+    it "falls back to WORKFLOW_IMPLEMENT for an ordinary agentic step kind" do
+      expect(described_class.for_step_kind("implement")).to eq(described_class::WORKFLOW_IMPLEMENT)
+    end
+
+    it "uses the Step::Kind entry's declared agent_role when present" do
+      PluginRecord.find_by!(name: "agent_insights").update!(enabled: true)
+
+      expect(described_class.for_step_kind("agent_insight_run")).to eq(described_class::AGENT_INSIGHT)
+    end
+  end
 end

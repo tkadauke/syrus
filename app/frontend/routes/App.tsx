@@ -107,6 +107,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
   { path: "/admin/github_app/confirm", element: <AdminGithubAppConfirm /> },
   { path: "/admin/features", element: <AdminFeatures /> },
+  { path: "/admin/agent_activity", element: <PluginSidebarPageRoute /> },
   { path: "/admin/*", element: <PluginAdminPageRoute /> },
   { path: "/invitations", element: <AdminInvitations /> },
   { path: "/settings/edit", element: <AdminSettings /> },
