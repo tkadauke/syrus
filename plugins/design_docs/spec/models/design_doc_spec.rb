@@ -90,4 +90,57 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
     expect(described_class.visible_to(member)).not_to include(owned)
     expect(described_class.visible_to(outsider)).to be_empty
   end
+
+  describe "#comments_count" do
+    it "counts comments across all threads on the document" do
+      doc = described_class.create!(owner_user: owner, title: "Threaded", markdown: "Alpha beta gamma")
+      first_result = ::DesignDocs::CreateComment.call(
+        design_doc: doc,
+        user: owner,
+        attributes: { body: "First", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+      )
+      ::DesignDocs::CreateComment.call(design_doc: doc.reload, user: owner, attributes: { body: "Reply", thread_id: first_result.thread.id })
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc.reload,
+        user: owner,
+        attributes: { body: "Second thread", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+      )
+
+      expect(doc.comments_count).to eq(3)
+    end
+
+    it "is zero for a document with no threads" do
+      doc = described_class.create!(owner_user: owner, title: "Untouched", markdown: "Nothing here")
+
+      expect(doc.comments_count).to eq(0)
+    end
+  end
+
+  describe "#preview_text" do
+    it "returns the markdown unchanged when within the word limit" do
+      doc = described_class.create!(owner_user: owner, title: "Short", markdown: "Alpha beta gamma")
+
+      expect(doc.preview_text).to eq("Alpha beta gamma")
+    end
+
+    it "clamps to the word limit and appends an ellipsis" do
+      doc = described_class.create!(owner_user: owner, title: "Long", markdown: (["word"] * 150).join(" "))
+
+      preview = doc.preview_text
+
+      expect(preview).to eq("#{(["word"] * 100).join(' ')}…")
+    end
+
+    it "strips hidden Syrus anchor markers before clamping" do
+      doc = described_class.create!(owner_user: owner, title: "Anchored", markdown: "Alpha beta gamma")
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc,
+        user: owner,
+        attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+      )
+
+      expect(doc.reload.markdown).to include("syrus:range-start")
+      expect(doc.preview_text).to eq("Alpha beta gamma")
+    end
+  end
 end

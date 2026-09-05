@@ -104,6 +104,31 @@ export type DesignDocSuggestion = {
   created_at: string
 }
 
+// Minimal payload for the DOC-<id> hover/click preview popup -- deliberately
+// not DesignDocDetail, so a page with many DOC references never has to fetch
+// the full editor payload (markdown, threads, suggestions) just to preview a
+// slug. `accessible: false` means the current viewer can't see this doc (or
+// it doesn't exist); every field beyond id/display_id/accessible is omitted
+// in that case, not just hidden client-side.
+export type DesignDocPreview = {
+  id: number
+  display_id: string
+  accessible: boolean
+  title?: string
+  visibility?: "private" | "public"
+  state?: "draft" | "accepted" | "archived"
+  owner?: DesignDocUser | null
+  collaborators?: DesignDocUser[]
+  comments_count?: number
+  latest_version_number?: number | null
+  updated_at?: string
+  preview_text?: string
+}
+
+export type DesignDocPreviewPayload = {
+  design_doc: DesignDocPreview
+}
+
 export type DesignDocDetail = DesignDocSummary & {
   markdown: string
   rendered_markdown: string
@@ -191,6 +216,10 @@ export function fetchRepositoryDesignDocs(repositoryId: string | number, search 
 
 export function fetchDesignDoc(id: string | number) {
   return getJson<DesignDocDetailPayload>(`/api/v1/app/design_docs/${id}`)
+}
+
+export function fetchDesignDocPreview(id: string | number) {
+  return getJson<DesignDocPreviewPayload>(`/api/v1/app/design_docs/${id}/preview`)
 }
 
 export function createDesignDoc(input: DesignDocInput) {
