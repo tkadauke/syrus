@@ -106,7 +106,7 @@ RSpec.describe CredentialProbe do
   describe "CREDENTIAL_PROBE_METHODS registry" do
     it "covers the credential types owned by core" do
       expect(described_class::CREDENTIAL_PROBE_METHODS.keys).to match_array(
-        %w[github_token gemini_api_key]
+        %w[github_token]
       )
     end
   end

@@ -10825,7 +10825,7 @@ describe("App", () => {
 
   it("renders a chat attachment add button in the composer", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ...chatPayload(), walkthroughs_enabled: true }), { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ ...chatPayload(), paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 
     render(
@@ -10844,7 +10844,8 @@ describe("App", () => {
   })
 
   it("gates video intake behind the walkthroughs labs flag", async () => {
-    // chatPayload() carries no walkthroughs_enabled — the flag-off default.
+    // chatPayload() contributes no app_video_walkthroughs_path — which is
+    // what a disabled video_walkthroughs plugin looks like to the composer.
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
@@ -10878,7 +10879,7 @@ describe("App", () => {
     // Gemini must be configured or the drop opens the setup sheet instead of
     // creating a walkthrough draft (chatPayload defaults gemini_configured off).
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, walkthroughs_enabled: true }), { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     // jsdom implements neither media metadata nor URL.createObjectURL, so the
     // real measureVideoDuration would hang the intake await; resolve it here.
@@ -10919,7 +10920,7 @@ describe("App", () => {
 
   it("blocks dropping a second walkthrough while the first is uploading", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, walkthroughs_enabled: true }), { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ ...chatPayload(), gemini_configured: true, paths: { ...chatPayload().paths, app_video_walkthroughs_path: "/api/v1/app/chats/8/video_walkthroughs", app_video_walkthrough_retry_path: "/api/v1/app/video_walkthroughs/:id/retry" } }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     vi.spyOn(videoWalkthroughs, "measureVideoDuration").mockResolvedValue(30)
     // Hold the upload in-flight so the draft stays "uploading" — a settled

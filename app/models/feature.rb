@@ -68,10 +68,6 @@ class Feature < ApplicationRecord
     end
   end
 
-  def self.video_walkthroughs_enabled?
-    enabled?(:video_walkthroughs)
-  end
-
   def self.chat_speech_to_text_enabled?
     enabled?(:chat_speech_to_text)
   end

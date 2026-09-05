@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_184937) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -668,28 +668,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_184937) do
     t.index ["user_id", "system_kind"], name: "index_chat_sessions_on_user_id_and_system_kind", unique: true
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
-  end
-
-  create_table "chat_video_walkthroughs", force: :cascade do |t|
-    t.json "analysis"
-    t.datetime "analyzed_at"
-    t.bigint "byte_size"
-    t.integer "chat_session_id", null: false
-    t.string "content_type"
-    t.datetime "created_at", null: false
-    t.integer "duration_seconds"
-    t.text "error_message"
-    t.datetime "gemini_file_active_at"
-    t.string "gemini_file_content_type"
-    t.string "gemini_file_uri"
-    t.text "note"
-    t.string "state", default: "uploaded", null: false
-    t.string "title"
-    t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
-    t.index ["chat_session_id"], name: "index_chat_video_walkthroughs_on_chat_session_id"
-    t.index ["state"], name: "index_chat_video_walkthroughs_on_state"
-    t.index ["user_id"], name: "index_chat_video_walkthroughs_on_user_id"
   end
 
   create_table "chat_wakeups", force: :cascade do |t|
@@ -2667,6 +2645,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_184937) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["landing_paused"], name: "index_users_on_landing_paused"
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
+  end
+
+  create_table "video_walkthroughs", force: :cascade do |t|
+    t.json "analysis"
+    t.datetime "analyzed_at"
+    t.bigint "byte_size"
+    t.integer "chat_session_id", null: false
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.datetime "gemini_file_active_at"
+    t.string "gemini_file_content_type"
+    t.string "gemini_file_uri"
+    t.text "note"
+    t.string "state", default: "uploaded", null: false
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id"], name: "index_video_walkthroughs_on_chat_session_id"
+    t.index ["state"], name: "index_video_walkthroughs_on_state"
+    t.index ["user_id"], name: "index_video_walkthroughs_on_user_id"
   end
 
   create_table "whiteboard_boards", force: :cascade do |t|

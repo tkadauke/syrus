@@ -139,10 +139,6 @@ default: &default
     class: WorkflowWorkspacePruneJob
     queue: cleanup
     schedule: every 2 hours
-  prune_video_walkthroughs:
-    class: VideoWalkthroughPruneJob
-    queue: cleanup
-    schedule: every day at 3:40am
   prune_coverage_hit_map_ttl:
     class: CoverageHitMapTtlPruneJob
     queue: cleanup

@@ -1,11 +1,4 @@
 features:
-  - slug: video_walkthroughs
-    category: "Labs"
-    name: "Walkthrough videos"
-    name_i18n_key: "features.slugs.video_walkthroughs.name"
-    description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."
-    description_i18n_key: "features.slugs.video_walkthroughs.description"
-    default: false
   - slug: chat_speech_to_text
     category: "Labs"
     name: "Chat speech-to-text"

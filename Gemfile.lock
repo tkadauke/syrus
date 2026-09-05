@@ -189,6 +189,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/video_walkthroughs
+  specs:
+    video_walkthroughs (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/whiteboard
   specs:
     whiteboard (0.1.0)
@@ -841,6 +847,7 @@ DEPENDENCIES
   thruster
   tzinfo-data
   vcr
+  video_walkthroughs!
   web-console
   webauthn (~> 3.0)
   webmock
@@ -1102,6 +1109,7 @@ CHECKSUMS
   uri (1.1.1) sha256=379fa58d27ffb1387eaada68c749d1426738bd0f654d812fcc07e7568f5c57c6
   useragent (0.16.11) sha256=700e6413ad4bb954bb63547fa098dddf7b0ebe75b40cc6f93b8d54255b173844
   vcr (6.4.0) sha256=077ac92cc16efc5904eb90492a18153b5e6ca5398046d8a249a7c96a9ea24ae6
+  video_walkthroughs (0.1.0)
   web-console (4.3.0) sha256=e13b71301cdfc2093f155b5aa3a622db80b4672d1f2f713119cc7ec7ac6a6da4
   webauthn (3.4.3) sha256=9be6f5f838f3405b0226e560aa40b67cc8c15ec9154509b997caa7ec9a05e1fc
   webmock (3.26.4) sha256=8d8da206d217ebe6968cfb09c77f4533c23074e1432bad865f3994eacbaad50d

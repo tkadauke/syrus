@@ -318,7 +318,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_scratchpad_reorder_path: ""
     },
     gemini_configured: false,
-    walkthroughs_enabled: false,
     coding_mode_enabled: false,
     local_mode_enabled: false,
     local_tunnel_connected: false

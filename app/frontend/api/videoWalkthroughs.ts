@@ -96,8 +96,11 @@ export function uploadVideoWalkthrough(input: {
   })
 }
 
-export function retryVideoWalkthrough(id: number): Promise<{ video_walkthrough: VideoWalkthrough }> {
+// The template comes from the chat payload, contributed by the plugin that
+// owns the route -- core does not know the URL, which is what keeps this file
+// on the right side of the plugin boundary.
+export function retryVideoWalkthrough(pathTemplate: string, id: number): Promise<{ video_walkthrough: VideoWalkthrough }> {
   return postJson<{ video_walkthrough: VideoWalkthrough }>(
-    `/api/v1/app/video_walkthroughs/${encodeURIComponent(String(id))}/retry`
+    pathTemplate.replace(":id", encodeURIComponent(String(id)))
   )
 }

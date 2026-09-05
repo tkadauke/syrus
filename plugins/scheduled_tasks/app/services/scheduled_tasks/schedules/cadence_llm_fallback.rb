@@ -32,7 +32,24 @@ module ScheduledTasks
         attr_writer :client_factory
 
         def client_factory
-          @client_factory ||= ->(user) { user&.gemini_api_key.present? ? Gemini::Client.new(api_key: user.gemini_api_key) : nil }
+          @client_factory ||= ->(user) { user&.gemini_api_key.present? ? gemini_client_class&.new(api_key: user.gemini_api_key) : nil }
+        end
+
+        # The only LLM client on hand belongs to the video_walkthroughs plugin,
+        # which is an optional dependency rather than a hard one: this is the
+        # third tier of the cadence parser and it already fails closed for
+        # every user without a Gemini key, so "the plugin is not installed" is
+        # a case the caller handles identically. safe_constantize rather than
+        # an enabled? check, because the class either resolves or it does not
+        # -- and a disabled plugin's endpoints are what actually gate use.
+        def gemini_client_class
+          "VideoWalkthroughs::Gemini::Client".safe_constantize
+        end
+
+        # Resolved the same guarded way, so a rescue clause cannot be the thing
+        # that raises NameError when the plugin is absent.
+        def client_error_class
+          gemini_client_class&.const_get(:Error) || Class.new(StandardError)
         end
 
         def call(text, user:)
@@ -56,7 +73,9 @@ module ScheduledTasks
         return unusable("The assistant could not confidently interpret this schedule") unless usable_intent?(intent)
 
         Result.new(usable?: true, structured_intent: intent, error: nil)
-      rescue Gemini::Client::Error => e
+      rescue StandardError => e
+        raise unless e.is_a?(self.class.client_error_class)
+
         unusable("Could not reach the scheduling assistant: #{e.message}")
       end
 

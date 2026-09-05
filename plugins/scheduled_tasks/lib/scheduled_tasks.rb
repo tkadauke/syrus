@@ -12,6 +12,10 @@ module ScheduledTasks
     author "Thomas Kadauke"
     category "input_source"
     default_enabled true
+    # Only for CadenceLlmFallback, the third tier of the cadence parser, which
+    # borrows that plugin's Gemini client. It already fails closed for every
+    # user without a Gemini API key, so an absent plugin is a case it handles.
+    optionally_depends_on "video_walkthroughs"
     disableable true
     # Due schedules are polled once a minute, the cadence the host's
     # recurring.yml used before this moved.

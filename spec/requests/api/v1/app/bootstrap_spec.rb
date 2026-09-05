@@ -145,7 +145,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "operational_log_indexing" => false,
       "performance_logging" => false,
       "persistent_mcp_sidecar" => false,
-      "video_walkthroughs" => false,
       "visual_review" => false
     )
   end

@@ -187,9 +187,7 @@ class McpToolPolicy
       Mcp::Tools::SearchSyrusDocsTool,
       Mcp::Tools::SubmitScopedEventDecisionTool
     ]
-    tools = apply_admin_filter(tools)
-    tools = apply_walkthrough_filter(tools)
-    tools
+    apply_admin_filter(tools)
   end
 
   def chat_base_tools
@@ -201,13 +199,6 @@ class McpToolPolicy
     return tools if @context.user.admin?
 
     tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
-  end
-
-
-  def apply_walkthrough_filter(tools)
-    return tools if Feature.video_walkthroughs_enabled?
-
-    tools.reject { |tool| Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS.include?(tool) }
   end
 
   def apply_coding_filter(tools)

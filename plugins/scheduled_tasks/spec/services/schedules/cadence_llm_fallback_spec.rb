@@ -4,7 +4,7 @@ RSpec.describe ScheduledTasks::Schedules::CadenceLlmFallback do
   let(:user) { Factories.user(gemini_api_key: "AIza-test-key") }
 
   def stub_client(&block)
-    client = instance_double(Gemini::Client)
+    client = instance_double(VideoWalkthroughs::Gemini::Client)
     allow(client).to receive(:generate_text, &block)
     described_class.client_factory = ->(_user) { client }
   end
@@ -72,7 +72,7 @@ RSpec.describe ScheduledTasks::Schedules::CadenceLlmFallback do
   end
 
   it "fails closed when the client raises a Gemini error" do
-    stub_client { raise Gemini::Client::RateLimited, "busy" }
+    stub_client { raise VideoWalkthroughs::Gemini::Client::RateLimited, "busy" }
 
     result = described_class.call("moday at 9am", user: user)
 

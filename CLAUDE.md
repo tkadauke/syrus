@@ -631,26 +631,28 @@ and drag-in (`handlePaste` → `handleAttachmentChange` in Chat.tsx), so
 validation, the walkthrough-video split, and the one-at-a-time guard all
 apply.
 
-**Walkthrough videos (video → Epic)** — a labs feature behind the
-`video_walkthroughs` Feature flag (default OFF; declared in
-`config/features.yml`, toggled in the app's Features tab). When the flag is
-off: the composer hides recording/video intake (`payload.walkthroughs_enabled`),
-the upload/retry endpoints 404, `VideoWalkthroughAnalysisJob` fails the row
-terminally, `ChatTurnJob` skips walkthrough orientation, and the three
-walkthrough MCP tools vanish from the sidecar's advertised set
-(`Sidecar::WALKTHROUGH_TOOLS`) — while already-analyzed threads keep their
-history (media panel + message cards render read-only) and
-`VideoWalkthroughPruneJob` keeps enforcing retention. When ON — chats accept
+**Walkthrough videos (video → Epic)** — the bundled `video_walkthroughs`
+plugin, off by default (Admin -> Plugins). The plugin is its own feature flag;
+the old `video_walkthroughs` Labs entry is gone. When it is off: the composer
+hides recording/video intake (the plugin stops contributing
+`paths.app_video_walkthroughs_path`), the upload/retry endpoints answer
+`plugin_disabled`, `VideoWalkthroughs::AnalysisJob` fails the row terminally,
+a walkthrough chat message no longer claims the turn (the plugin's
+`chat_turn_orientation` provider is withheld), and the three walkthrough MCP
+tools are not advertised because `VideoWalkthroughs::ChatToolSet` is withheld
+— while already-analyzed threads keep their history (media panel + message
+cards render read-only) and `VideoWalkthroughs::PruneJob` keeps enforcing
+retention on the plugin's own daily tick. When ON — chats accept
 narrated screen
 recordings (composer `+ → Record a walkthrough`, drag-in, or file picker;
-webm/mp4/mov, ≤15 min, ≤500 MB). `ChatVideoWalkthrough` (Active Storage)
+webm/mp4/mov, ≤15 min, ≤500 MB). `VideoWalkthroughs::Walkthrough` (Active Storage)
 uploads via multipart `POST /api/v1/app/chats/:chat_id/video_walkthroughs`;
-`VideoWalkthroughAnalysisJob` (queue `videos`, low-concurrency) runs Gemini —
+`VideoWalkthroughs::AnalysisJob` (queue `videos`, low-concurrency) runs Gemini —
 Files API resumable upload → poll ACTIVE → one `generateContent` with a JSON
-`responseSchema` (`Prompts::VideoWalkthroughAnalysis`) at FULL
+`responseSchema` (`VideoWalkthroughs::Prompts::Analysis`) at FULL
 `media_resolution` (LOW measurably garbles small on-screen text; the job
 retries at LOW only if a ≥12-min video's full-res attempt is actually
-rate-limited — graceful degradation, `Gemini::Client::LOW_RESOLUTION_FALLBACK_SECONDS`).
+rate-limited — graceful degradation, `VideoWalkthroughs::Gemini::Client::LOW_RESOLUTION_FALLBACK_SECONDS`).
 The schema is engineered for Flash's strengths: a timestamped `transcript`
 FIRST (Flash is excellent at ASR; it anchors the rest and curbs hallucination),
 then `sections` (topical ranges — the handles for later "zoom in"), then
@@ -664,7 +666,7 @@ reads that same text perfectly off a STILL frame. So the analysis prompt tells
 Gemini NOT to guess such text: it sets `needs_closer_look=true` and describes
 what/where in a new optional `unreadable_text` field instead of fabricating a
 value. The chat agent then pulls a crisp still itself (via `get_walkthrough_analysis`
-or `read_walkthrough_frame`, below) and `Prompts::VideoWalkthroughReport` steers it
+or `read_walkthrough_frame`, below) and `VideoWalkthroughs::Prompts::Report` steers it
 to READ the exact characters off the screenshot and never invent one it can't
 read. Flagged issues (`needs_closer_look` or a non-empty `unreadable_text`) are
 captured at top OCR-grade `HIGH_JPEG_QUALITY` and prioritized to survive the
@@ -673,13 +675,13 @@ upload ~48h, so `Gemini::Client#analyze_segment` re-analyzes a CLIP of the SAME
 file at full resolution with no re-upload (a `video_metadata` `{ start_offset:
 "12s", end_offset: "30s" }` sibling of `file_data`). The chat MCP tool
 `analyze_walkthrough_segment(walkthrough_id, start, end, focus)`
-(`SyrusChatMcp::AnalyzeWalkthroughSegmentTool`, deferred, `Prompts::VideoWalkthroughSegment`)
+(`VideoWalkthroughs::AnalyzeWalkthroughSegmentTool`, deferred, `VideoWalkthroughs::Prompts::Segment`)
 lets the chat agent get finer detail (exact error text, click sequence) on
 `needs_closer_look` moments or on request; it re-uploads the stored blob when
 the file is past retention, and reports "video expired" only when the blob is
-also pruned. Test seam `AnalyzeWalkthroughSegmentTool.client_factory`.
+also pruned. Test seam `VideoWalkthroughs::AnalyzeWalkthroughSegmentTool.client_factory`.
 **On-demand still (`read_walkthrough_frame`, deferred)** —
-`SyrusChatMcp::ReadWalkthroughFrameTool` lets the chat agent pull a crisp
+`VideoWalkthroughs::ReadWalkthroughFrameTool` lets the chat agent pull a crisp
 screenshot from the stored video at ANY timestamp (beyond the ones
 `get_walkthrough_analysis` returns) so it can OCR a moment it decides matters. It runs `Gemini::FrameExtractor`
 locally (no Gemini call/key needed), clamps the timestamp to the video, and
@@ -696,7 +698,7 @@ enough for Claude to OCR, so this tool extracts at the default width.
 The job downloads the video once locally and runs the media flow off it: Gemini
 analysis (oriented to the repo — slug + pinned chat context — and guardrailed
 against inventing user-flagged issues when narration is silent and no mark is
-visible) → `Gemini::VideoTranscoder` transcodes the source to a compact 720p mp4
+visible) → `VideoWalkthroughs::Gemini::VideoTranscoder` transcodes the source to a compact 720p mp4
 that REPLACES the stored blob (empirically Gemini analyzes the compact mp4 as
 well as the original — the narration carries the context — best-effort, keeps the
 original on failure).
@@ -704,23 +706,23 @@ original on failure).
 VIDEO itself as a chat message (`video_walkthrough_id` + the operator's note),
 shown in the thread as a walkthrough card and in the media panel. `ChatTurnJob`
 detects that message and orients the agent with the SHORT
-`Prompts::VideoWalkthroughContext` (names the tools, does not dump the analysis);
+`VideoWalkthroughs::Prompts::Context` (names the tools, does not dump the analysis);
 the agent then calls `get_walkthrough_analysis` (returns the report +
 on-demand crisp stills as MCP image blocks) and works autonomously toward an Epic
 — every step a real `tool_use`/`tool_result` chat event you can trace. Gemini is
 the eyes, the chat agent stays the brain. Auth is an AI Studio API key only
 (`User#gemini_api_key`, encrypted; validated via free `models.list` —
 `CredentialProbe.gemini_key`, model resolved at analysis time by
-`Gemini::Client#resolve_video_model!` against `VIDEO_MODELS`): the gemini-cli
+`VideoWalkthroughs::Gemini::Client#resolve_video_model!` against `VIDEO_MODELS`): the gemini-cli
 OAuth path has no Files API and reusing its OAuth client violates Google ToS.
 Videos are Active Storage blobs on Disk/S3 (NOT inlined in SQLite — only the
-metadata row is). `VideoWalkthroughPruneJob` (daily) enforces both a time
+metadata row is). `VideoWalkthroughs::PruneJob` (daily) enforces both a time
 ceiling (`AppSetting.video_retention_days`, default 7) and an instance-wide
 size budget (`AppSetting.video_storage_budget_bytes`, LRU eviction, default
 2 GB, 0 = unlimited) on the stored video blobs — the analysis + screenshots
-always persist. Test seams: `VideoWalkthroughAnalysisJob.client_factory`,
-`CredentialProbe.gemini_client_factory`, `Gemini::FrameExtractor.runner`,
-`Gemini::VideoTranscoder.runner`.
+always persist. Test seams: `VideoWalkthroughs::AnalysisJob.client_factory`,
+`CredentialProbe.gemini_client_factory`, `VideoWalkthroughs::Gemini::FrameExtractor.runner`,
+`VideoWalkthroughs::Gemini::VideoTranscoder.runner`.
 Progress streams as `video_walkthrough.*` app events. **Desktop capture**:
 `screenCapture.ts` FORCES full-screen capture (`useSystemPicker: false`, the
 cursor's display) so the red-pen annotation overlay is always recorded — a
@@ -763,6 +765,14 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
+- **`chat_turn_orientation` vs `chat_prompt_injector`.** An injector adds a
+  section to the chat *session's* system prompt and is asked once per turn
+  whatever arrived. `chat_turn_orientation` is asked about a *specific incoming
+  message* and may replace the user's text as the turn's final section — first
+  non-nil wins. A walkthrough video is the motivating case: the video is posted
+  as a real chat message, and the plugin that owns that message says how the
+  agent should open the turn. A provider that claims a message is taking
+  responsibility for telling the agent what to do with it.
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,
@@ -806,8 +816,8 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
   `Prompts::Skill`,
-  `Prompts::VideoWalkthroughAnalysis`, `Prompts::VideoWalkthroughContext`,
-  `Prompts::VideoWalkthroughReport`, `Prompts::VideoWalkthroughSegment`).
+  `VideoWalkthroughs::Prompts::Analysis`, `VideoWalkthroughs::Prompts::Context`,
+  `VideoWalkthroughs::Prompts::Report`, `VideoWalkthroughs::Prompts::Segment`).
   Each has a `to_s`. Compose by appending; never inline prompt text in
   jobs/services. Epic-aware prompts append `Prompts::EpicContext` as
   orientation only; it must not expand the current Job's implementation scope.
@@ -996,7 +1006,9 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   `plugins/claude_agent`, `plugins/codex_agent`, `plugins/github_source`,
   `plugins/scheduled_tasks` — recurring/one-shot prompts,
   `plugins/syrus_dev` — development diagnostics/tooling, including the admin
-  Performance UI's SQL explain and request/phase drilldowns).
+  Performance UI's SQL explain and request/phase drilldowns,
+  `plugins/video_walkthroughs` — narrated-screen-recording intake, Gemini
+  analysis, and the chat handoff).
   `AgentProviders.for(provider)` resolves providers from the registry.
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;

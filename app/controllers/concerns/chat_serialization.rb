@@ -1,28 +1,13 @@
 # Chat JSON serializers extracted from Api::V1::App::ChatsController.
 #
 # Assemble the wire payloads for a chat and its parts: the full chat_payload
-# (messages, proposals, pending actions, attachments, walkthroughs), the
+# (messages, proposals, pending actions, attachments), the
 # bookmark / hidden-chat / pending-action / attachment-group / document JSON,
 # and the unread predicate. Pure controller helpers (reading `Current.user`
 # and delegating to sibling helpers like chat_json), so they mix straight
 # back in with no behavior change. Kept private on include.
 module ChatSerialization
   private
-
-  def video_walkthroughs_json(chat_session)
-    chat_session.video_walkthroughs.with_attached_file.newest_first.map do |walkthrough|
-      {
-        id: walkthrough.id,
-        title: walkthrough.display_title,
-        state: walkthrough.state,
-        duration_seconds: walkthrough.duration_seconds,
-        byte_size: walkthrough.byte_size,
-        error_message: walkthrough.error_message,
-        has_video: walkthrough.file.attached?,
-        created_at: walkthrough.created_at.iso8601
-      }
-    end
-  end
 
   def workspace_tabs_json(chat_session)
     WorkspaceTabsPayload.new(chat_session).as_json
@@ -64,7 +49,6 @@ module ChatSerialization
         queued_messages: PerformanceLogging.phase("chat_payload.queued_messages", chat_id: chat_session.id) { chat_session.queued_messages_payload },
         active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_chat_goal(chat_session)) },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
-        video_walkthroughs: PerformanceLogging.phase("chat_payload.video_walkthroughs", chat_id: chat_session.id) { video_walkthroughs_json(chat_session) },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
@@ -89,7 +73,6 @@ module ChatSerialization
           app_context_path: "/api/v1/app/chats/#{chat_session.id}/context",
           app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
-          app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
           app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
           app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
           app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
@@ -100,12 +83,7 @@ module ChatSerialization
           app_source_file_path: "/api/v1/app/chats/#{chat_session.id}/source_file",
           app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
         },
-        gemini_configured: Current.user.gemini_configured?,
         speech_to_text: speech_to_text,
-        # Labs flag: gates the composer's record/drag/upload intake. The
-        # video_walkthroughs media list stays in the payload regardless so
-        # already-analyzed threads keep their history when the flag is off.
-        walkthroughs_enabled: Feature.video_walkthroughs_enabled?,
         coding_mode_enabled: Feature.coding_mode_enabled?,
         local_mode_enabled: Feature.local_mode_enabled?,
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)

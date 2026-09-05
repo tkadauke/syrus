@@ -205,7 +205,8 @@ mode, and computes the session/tier/role/feature-flag-scoped allowed tool set
 exactly mirroring `Mcp::Sidecar.chat_tools_for`). A call to a tool outside
 that set is denied (`not_authorized`) regardless of what the daemon's static
 tool list contains — so tiering, admin/supervisor exclusion, and feature
-flags (coding mode, local mode, video walkthroughs, agent insights) stay
+flags (coding mode, local mode) and plugin state (video walkthroughs,
+agent insights) stay
 enforced identically to stdio mode.
 
 **Usage logging is authoritative at this boundary.** `ChatToolDispatch` wraps

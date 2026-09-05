@@ -181,17 +181,22 @@ Exception message from the latest failed installation sync attempt, cleared afte
 
 ## Video walkthroughs
 
+These two settings belong to the bundled `video_walkthroughs` plugin and only
+do anything while it is enabled. They live in the core settings registry
+alongside the Discord plugin's token, because plugin-owned `AppSetting`
+definitions do not have a home of their own yet.
+
 ### video_retention_days
 
 **Type:** integer · **Default:** 7 · **Min:** 1
 
-How long to retain walkthrough video blobs before `VideoWalkthroughPruneJob` deletes them. The analysis and screenshots persist indefinitely; only the raw video blob is pruned.
+How long to retain walkthrough video blobs before `VideoWalkthroughs::PruneJob` deletes them. The analysis and screenshots persist indefinitely; only the raw video blob is pruned.
 
 ### video_storage_budget_mb
 
 **Type:** integer · **Default:** 2048 (2 GB) · `0` = unlimited
 
-Instance-wide storage budget for walkthrough video blobs, measured in megabytes. When the budget is exceeded, `VideoWalkthroughPruneJob` evicts the oldest blobs first (LRU). The class method `AppSetting.video_storage_budget_bytes` converts this to bytes for internal use.
+Instance-wide storage budget for walkthrough video blobs, measured in megabytes. When the budget is exceeded, `VideoWalkthroughs::PruneJob` evicts the oldest blobs first (LRU). The class method `AppSetting.video_storage_budget_bytes` converts this to bytes for internal use.
 
 ## External platform integrations
 

@@ -58,6 +58,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
+  // The video_walkthroughs plugin is its own feature flag: it contributes the
+  // upload path only while enabled, so its absence is what hides every video
+  // intake path (drag-in, picker, recorder) without core knowing why.
+  const walkthroughsEnabled = Boolean(payload.paths.app_video_walkthroughs_path)
   const [text, setText] = useState(() => {
     try {
       return window.localStorage.getItem(CHAT_DRAFT_KEY_PREFIX + chatId) || ""
@@ -822,9 +826,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     file: File,
     options: { knownDuration?: number | null; assumeConfigured?: boolean } = {}
   ) {
-    // Labs flag: every video intake path (drag-in, file picker, recorder)
-    // funnels through here, so one check gates them all.
-    if (!payload.walkthroughs_enabled) {
+    // Every video intake path (drag-in, file picker, recorder) funnels
+    // through here, so one check gates them all.
+    if (!walkthroughsEnabled) {
       setAttachmentError(t("walkthrough_disabled"))
       return
     }
@@ -870,7 +874,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
   function startWalkthroughRecording() {
     setAttachmentPopoverOpen(false)
-    if (!payload.walkthroughs_enabled) {
+    if (!walkthroughsEnabled) {
       setAttachmentError(t("walkthrough_disabled"))
       return
     }
@@ -996,9 +1000,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   }
 
   function retryWalkthroughAnalysis() {
-    if (!walkthrough?.id) return
+    const retryPath = payload.paths.app_video_walkthrough_retry_path
+    if (!walkthrough?.id || !retryPath) return
     setWalkthrough((current) => (current ? { ...current, status: "analyzing", error: undefined } : current))
-    retryVideoWalkthrough(walkthrough.id).catch((error: unknown) => {
+    retryVideoWalkthrough(retryPath, walkthrough.id).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : t("walkthrough_failed_generic")
       setWalkthrough((current) => (current ? { ...current, status: "failed", error: message } : current))
     })
@@ -1034,7 +1039,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     // Videos take the walkthrough path (real upload + Gemini analysis) —
     // never the base64 message-attachment path.
-    const video = payload.walkthroughs_enabled ? selectedFiles.find(isWalkthroughVideoFile) : undefined
+    const video = walkthroughsEnabled ? selectedFiles.find(isWalkthroughVideoFile) : undefined
     if (video) {
       void intakeWalkthroughVideo(video)
       selectedFiles = selectedFiles.filter((file) => !isWalkthroughVideoFile(file))
@@ -1672,7 +1677,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <Input
-          accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
+          accept={walkthroughsEnabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
           aria-label={t("chat_attachments")}
           className="hidden"
           disabled={send.isPending || systemAction.isPending}
@@ -1793,7 +1798,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                 <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
                 {t("upload_file")}
               </button>
-              {payload.walkthroughs_enabled ? (
+              {walkthroughsEnabled ? (
                 <button
                   className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                   onClick={startWalkthroughRecording}

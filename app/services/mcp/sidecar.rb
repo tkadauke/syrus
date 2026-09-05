@@ -9,7 +9,6 @@ module Mcp
     CHAT_ESSENTIAL_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
     CHAT_DEFERRED_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
     CHAT_ADMIN_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.admin_only }.map(&:tool).freeze
-    CHAT_WALKTHROUGH_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.feature_flag == :video_walkthroughs }.map(&:tool).freeze
     CHAT_CODING_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
     CHAT_LOCAL_MODE_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
 

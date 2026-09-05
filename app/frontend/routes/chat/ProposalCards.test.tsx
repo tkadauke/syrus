@@ -104,7 +104,6 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
     preview_panels: [],
     workspace_tabs: [],
     gemini_configured: false,
-    walkthroughs_enabled: false,
     coding_mode_enabled: false,
     local_mode_enabled: false,
     local_tunnel_connected: false,

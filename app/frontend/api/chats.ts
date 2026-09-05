@@ -676,7 +676,9 @@ export type ChatPayload = {
   agent_questions: ChatAgentQuestion[]
   queued_messages: ChatQueuedMessage[]
   scratchpad_items: ChatScratchpadItem[]
-  video_walkthroughs: ChatWalkthroughMedia[]
+  // Contributed by the video_walkthroughs plugin; absent when it is off, which
+  // is what hides the composer's video intake.
+  video_walkthroughs?: ChatWalkthroughMedia[]
   preview_panels: ChatPreviewPanel[]
   workspace_tabs: ChatWorkspaceTab[]
   attachment_groups?: {
@@ -714,7 +716,8 @@ export type ChatPayload = {
     app_bookmarks_index_path?: string
     app_context_path?: string
     app_attachments_path: string
-    app_video_walkthroughs_path: string
+    app_video_walkthroughs_path?: string
+    app_video_walkthrough_retry_path?: string
     app_speech_to_text_batch_path?: string
     app_speech_to_text_stream_path?: string
     app_whiteboard_path: string
@@ -727,8 +730,7 @@ export type ChatPayload = {
     app_source_file_path?: string
     app_source_file_raw_path?: string
   }
-  gemini_configured: boolean
-  walkthroughs_enabled: boolean
+  gemini_configured?: boolean
   coding_mode_enabled: boolean
   local_mode_enabled: boolean
   local_tunnel_connected: boolean

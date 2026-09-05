@@ -152,7 +152,7 @@ class AppSetting < ApplicationRecord
 
   # Walkthrough-video media management. The analysis + screenshots persist
   # forever (they're the value); only the heavy video is time- and
-  # size-bounded by VideoWalkthroughPruneJob.
+  # size-bounded by VideoWalkthroughs::PruneJob.
   def self.video_retention_days
     current.video_retention_days
   end

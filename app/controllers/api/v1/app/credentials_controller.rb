@@ -62,10 +62,14 @@ module Api
         end
 
         # Validate a pasted-but-unsaved Gemini API key (the video-walkthrough
-        # setup sheet). Free models.list ping; confirms a video-capable flash
-        # model is available before the operator commits the key.
+        # setup sheet), through whichever plugin registered that credential's
+        # probe. 404s when nothing did -- the key belongs to a plugin that is
+        # not installed or not enabled, so there is nothing to validate against.
         def test_gemini_key
-          result = CredentialProbe.gemini_key(key: params[:gemini_api_key].to_s)
+          probe = CredentialProbe.key_probe_for("gemini_api_key")
+          return render_error("credential_probe_unavailable", "Gemini keys cannot be validated on this instance.", status: :not_found) unless probe
+
+          result = probe.key(key: params[:gemini_api_key].to_s)
           render json: {
             credential_test: result.as_json,
             message: result.message

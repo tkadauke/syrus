@@ -309,7 +309,7 @@ RSpec.describe ChatTurnJob, :ci_only do
 
   it "orients the agent to its walkthrough tools (not an analysis dump) for a walkthrough message" do
     enable_walkthroughs!
-    walkthrough = ChatVideoWalkthrough.new(
+    walkthrough = VideoWalkthroughs::Walkthrough.new(
       chat_session: chat, user: user, content_type: "video/mp4", byte_size: 10,
       duration_seconds: 101, title: "run", state: "analyzed",
       analysis: { "summary" => "s", "issues" => [], "open_questions" => [] }
@@ -339,7 +339,7 @@ RSpec.describe ChatTurnJob, :ci_only do
 
   it "treats a walkthrough message as a plain note when the labs flag is off" do
     enable_walkthroughs!(enabled: false)
-    walkthrough = ChatVideoWalkthrough.new(
+    walkthrough = VideoWalkthroughs::Walkthrough.new(
       chat_session: chat, user: user, content_type: "video/mp4", byte_size: 10,
       duration_seconds: 101, title: "run", state: "analyzed",
       analysis: { "summary" => "s", "issues" => [], "open_questions" => [] }

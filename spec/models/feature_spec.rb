@@ -70,18 +70,6 @@ RSpec.describe Feature, type: :model do
     end
   end
 
-  describe ".video_walkthroughs_enabled?" do
-    it "is false when the row is absent and follows the row when present" do
-      Feature.where(slug: "video_walkthroughs").delete_all
-      expect(Feature.video_walkthroughs_enabled?).to eq(false)
-
-      feature = Feature.create!(slug: "video_walkthroughs", category: "Labs", name: "Walkthrough videos", enabled: true)
-      expect(Feature.video_walkthroughs_enabled?).to eq(true)
-
-      feature.update!(enabled: false)
-      expect(Feature.video_walkthroughs_enabled?).to eq(false)
-    end
-  end
 
   describe ".chat_speech_to_text_enabled?" do
     it "is false when the row is absent and follows the row when present" do
@@ -169,10 +157,6 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
-    it "declares the video_walkthroughs labs flag default-off in config/features.yml" do
-      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "video_walkthroughs" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
-    end
 
     it "declares the chat_speech_to_text labs flag default-off in config/features.yml" do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
@@ -195,7 +179,6 @@ RSpec.describe Feature, type: :model do
                         .find { |f| f["slug"] == "admin_supervisor_chat" }
       expect(declaration).to include("category" => "Operations", "default" => false)
     end
-
   end
 
   describe "seed data" do

@@ -41,7 +41,9 @@ to be blocked, both for reasons the inventory missed:
   which is exactly the Tier 3 blocker `visual_review` has. Moved to Tier 3; it
   needs the workflow-composition extension point, not more plumbing.
 
-Remaining and unblocked: `video_walkthroughs`, and `terminal` once G7 lands.
+**Both are now done.** `terminal` shipped once G7 landed, and
+`video_walkthroughs` is extracted -- see its entry. Nothing outside Tier 3
+remains.
 
 **The registry model itself is changing (G13).** Registration becomes an
 *effect* — a plugin installs its contributions and hands back the teardown,
@@ -112,6 +114,15 @@ split the result cleanly:
   and its transitive dependents physically deleted from a `git archive` copy.
   The dependency graph resolves correctly (selecting `agent_memory` also
   removes `agent_insights`).
+- **The suite run is currently broken harness-wide** (found 2026-09-05).
+  `bin/plugin-boundary-audit <name> --command bin/rspec-fast` fails in the
+  temporary copy with `ActiveRecord::PendingMigrationError` before any example
+  runs. It is not a boundary problem and not plugin-specific: it reproduces
+  for `throughput`, which owns no migrations at all, and for `mockups`. The
+  boot check (`plugin_boundary_boot_ok`) still works and still proves the
+  runtime boundary. Until this is fixed, "removes with 0 failures" below is a
+  claim about the last time it was verified, not about today.
+
 - **The suite did not.** Running the actual suite in the copy failed for every
   plugin, because core specs enumerate the bundled set — so "deletable" meant
   "deletable with a red suite." Now fixed and re-verified: **all 26 optional
@@ -1193,7 +1204,8 @@ by introducing generic source artifacts.
 Also note `SourceControl::Providers` is a dead extension point — referenced only
 by its own spec. Either wire it or delete it.
 
-**`terminal`** — `TerminalSession`, `TerminalRelay`, `TerminalChannel`,
+**`terminal`** — **done**, once G7 landed. Original assessment, for the
+record: `TerminalSession`, `TerminalRelay`, `TerminalChannel`,
 `TerminalSessionJob`. Self-contained and already gated. Per "a plugin is its own feature flag", the
 existing `terminal` feature flag is replaced by the plugin's own enabled state.
 
@@ -1215,7 +1227,48 @@ the `initial`, `retry`, and feedback chains. That is the same problem
 `visual_review` has, and it wants the same answer: a workflow-composition
 extension point, not more plumbing.
 
-**`video_walkthroughs`** — `ChatVideoWalkthrough`, the Gemini client and
+**`video_walkthroughs`** — **done.** `VideoWalkthroughs::Walkthrough` (table
+`chat_video_walkthroughs` renamed to `video_walkthroughs`), the three Gemini
+services, both jobs, three MCP tools, four prompts, the controller and routes,
+the migrations, and the docs. The Labs flag is gone -- a plugin is its own
+feature flag -- and it ships `default_enabled false` to match the flag's old
+default. Retention moved from `recurring.yml` onto the plugin's own daily
+`tick_interval`.
+
+The recorded blocker was half right. `chat_prompt_injector` had landed but is
+*session*-scoped, and a walkthrough is a specific incoming message whose turn
+should orient the agent toward its own tools -- so the gap was real but
+narrower than "no chat-turn injection point". `chat_turn_orientation` is the
+new point: asked about one message, may replace the user's text as the turn's
+final section, first non-nil wins. Everything else reused an existing seam,
+and `ChatPayloadContributor`'s own comment already named `video_walkthroughs`
+as its third intended customer.
+
+Two things stayed, both deliberately. **The frontend**: `GeminiSetupSheet` is
+credential UI and core's `CredentialCard` already owns exactly this for Claude
+and Codex, while the composer intake is woven through `Compose.tsx` at six
+call sites with no slot to move into -- that is G5, not something to fake.
+Core no longer hardcodes the plugin's URLs, though: both paths are contributed
+through the chat payload, which the boundary audit enforces. **The desktop
+recorder**: `screenCapture`, `recorderHud`, and the annotation overlay are
+Electron main-process code and there is no plugin seam into the desktop app at
+all. They also work independently of the backend feature, so the honest split
+is that the plugin owns intake, analysis, and the chat handoff while the
+desktop app owns recording.
+
+`app_settings.video_retention_days` / `video_storage_budget_mb` stay in the
+core registry, matching what the Discord plugin's token already does; see the
+Schema Inversion Backlog. `users.gemini_api_key` stays for the same reason
+`claude_oauth_token` and `codex_api_key` do.
+
+**What the extraction turned up that this plan did not record**:
+`scheduled_tasks` was using `Gemini::Client`. `CadenceLlmFallback` is tier
+three of the schedule cadence parser and has always failed closed on instances
+without a per-user Gemini key. It now resolves the client through
+`optionally_depends_on` + `safe_constantize`. Whether that tier should exist
+at all is a separate question.
+
+Original assessment, for the record: `ChatVideoWalkthrough`, the Gemini client and
 transcoder, `VideoWalkthroughAnalysisJob`, `VideoWalkthroughPruneJob`, three
 chat MCP tools, four prompts, the `videos` queue, and the composer/media-panel
 UI. Still the strongest candidate on value: it is the only thing dragging a

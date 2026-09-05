@@ -69,8 +69,7 @@ class CredentialProbe
   end
 
   CREDENTIAL_PROBE_METHODS = {
-    "github_token"       => :probe_github,
-    "gemini_api_key"     => :probe_gemini
+    "github_token"       => :probe_github
   }.freeze
   @registered_probe_handlers = {}
   @registered_secret_extractors = []
@@ -78,6 +77,17 @@ class CredentialProbe
   # Both return the teardown that removes exactly this registration again, so
   # a disabled plugin stops contributing probes rather than leaving a handler
   # pointing at code that may no longer be loaded (see Syrus::Installer).
+  # A handler may also expose `.key(key:) => Result` for the paste-and-test
+  # flow, where the operator is validating a key they have not saved yet.
+  # Optional: a credential with no such flow simply does not define it, and
+  # `key_probe_for` answers nil.
+  def self.key_probe_for(credential)
+    handler = probe_handler_for(credential)
+    return nil unless handler.respond_to?(:key)
+
+    handler
+  end
+
   def self.register_probe(credential, handler)
     key = credential.to_s
     previous = @registered_probe_handlers[key]
@@ -87,7 +97,7 @@ class CredentialProbe
   end
 
   def self.register_secret_extractor(extractor)
-    return -> {} if @registered_secret_extractors.include?(extractor)
+    return -> { } if @registered_secret_extractors.include?(extractor)
 
     @registered_secret_extractors << extractor
     -> { @registered_secret_extractors.delete(extractor) }
@@ -105,71 +115,9 @@ class CredentialProbe
     probe_handler.is_a?(Symbol) ? send(probe_handler) : probe_handler.call(self)
   end
 
-  # Validate a pasted-but-unsaved Gemini API key (the setup sheet's
-  # paste-and-test flow). models.list is free and requires a working key;
-  # the details carry whether a video-capable flash model is actually
-  # available to this key's project — the whole point of configuring Gemini.
-  def self.gemini_key(key:)
-    key = key.to_s.strip
-    if key.blank?
-      return Result.new(credential: "gemini_api_key", ok: false, message: "Paste a key to test it.", details: {})
-    end
-
-    models = gemini_client_factory.call(api_key: key).list_models
-    video_model = preferred_gemini_model(models)
-    if video_model
-      Result.new(
-        credential: "gemini_api_key",
-        ok: true,
-        message: "Gemini key is valid — #{video_model} is available for video analysis.",
-        details: { model: video_model, models_available: models.size }
-      )
-    else
-      Result.new(
-        credential: "gemini_api_key",
-        ok: false,
-        message: "The key works, but no video-capable Gemini flash model is available to this project.",
-        details: { models_available: models.size }
-      )
-    end
-  rescue Gemini::Client::AuthError
-    Result.new(credential: "gemini_api_key", ok: false,
-               message: "Google rejected this key. Check that you copied the whole value from aistudio.google.com/apikey.", details: {})
-  rescue Gemini::Client::RateLimited
-    Result.new(credential: "gemini_api_key", ok: false,
-               message: "The key looks throttled right now (free-tier quota). Try again in a minute.", details: {})
-  rescue Gemini::Client::Error, SocketError, Timeout::Error, Errno::ECONNREFUSED, OpenSSL::SSL::SSLError
-    Result.new(credential: "gemini_api_key", ok: false,
-               message: "Could not reach Google to verify the key. Try again in a moment.", details: {})
-  end
-
-  # Delegates to Gemini::Client::VIDEO_MODELS — the SAME list the analysis
-  # job resolves against (resolve_video_model!), so a key that validates
-  # green against a fallback model also analyzes with that model.
-  def self.preferred_gemini_model(models)
-    Gemini::Client::VIDEO_MODELS.find { |candidate| models.any? { |name| name.start_with?(candidate) } }
-  end
-
-  # Test seam: specs swap the factory instead of stubbing HTTP.
-  class << self
-    attr_writer :gemini_client_factory
-
-    def gemini_client_factory
-      @gemini_client_factory ||= ->(api_key:) { Gemini::Client.new(api_key: api_key) }
-    end
-  end
-
   private
 
   attr_reader :user, :credential
-
-  # Saved-credential test (the /credentials "Test" button) — same probe as
-  # the paste-and-test path, against the stored key.
-  def probe_gemini
-    return missing("Gemini API key is not configured.") if user.gemini_api_key.blank?
-
-    self.class.gemini_key(key: user.gemini_api_key)
-  end
 
   def probe_github
     return missing("GitHub token is not configured.") if user.github_token.blank?

@@ -565,18 +565,6 @@ RSpec.describe Mcp::Sidecar do
     end
   end
 
-  describe "walkthrough labs flag" do
-    it "advertises the walkthrough tools only while the feature is enabled" do
-      names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
-      expect(names).to include("get_walkthrough_analysis", "analyze_walkthrough_segment", "read_walkthrough_frame")
-
-      Feature.find_by!(slug: "video_walkthroughs").update!(enabled: false)
-
-      names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
-      expect(names).not_to include("get_walkthrough_analysis", "analyze_walkthrough_segment", "read_walkthrough_frame")
-      expect(described_class.chat_tool_names(chat_session, tier: :deferred)).not_to include("get_walkthrough_analysis")
-    end
-  end
 
   describe "local mode labs flag" do
     let(:local_mode_tools) { %w[read_file write_file list_files run_command git_diff git_status complete_implement_step] }

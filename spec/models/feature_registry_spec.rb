@@ -7,7 +7,6 @@ RSpec.describe FeatureRegistry do
     expect(declarations).to all(have_attributes(type: :boolean))
     expect(declarations.map(&:slug)).to include(
       "coding_mode",
-      "video_walkthroughs",
       "local_mode",
       "landing_validation_prefetch",
       "visual_review"
@@ -18,7 +17,6 @@ RSpec.describe FeatureRegistry do
     defaults = described_class.declarations.index_by(&:slug).transform_values(&:default_enabled)
 
     expect(defaults).to include(
-      "video_walkthroughs" => false,
       "coding_mode" => false,
       "performance_logging" => false,
       "local_mode" => false,

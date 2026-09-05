@@ -292,26 +292,6 @@ RSpec.describe McpToolPolicy do
 
       expect(tools & Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS).to be_empty
     end
-
-    it "excludes walkthrough tools when the feature is disabled" do
-      Feature.find_or_create_by!(slug: "video_walkthroughs") { |f| f.category = "Labs"; f.name = "Walkthrough videos" }
-             .update!(enabled: false)
-
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to be_empty
-    end
-
-    it "includes walkthrough tools when the feature is enabled" do
-      Feature.find_or_create_by!(slug: "video_walkthroughs") { |f| f.category = "Labs"; f.name = "Walkthrough videos" }
-             .update!(enabled: true)
-
-      context = context_for(chat_session)
-      tools = described_class.for(context)
-
-      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to eq(Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS)
-    end
   end
 
   describe "chat admin role" do

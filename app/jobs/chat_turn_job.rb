@@ -219,9 +219,9 @@ class ChatTurnJob < ApplicationJob
         .compact.join("\n\n---\n\n")
     end
 
-    walkthrough_text = walkthrough_orientation(user_note: user_text)
-    if walkthrough_text
-      return [ snapshot, system_guidance(parent_session_id), goal_context, chat_history_fallback, walkthrough_text ]
+    plugin_orientation = plugin_turn_orientation(user_note: user_text)
+    if plugin_orientation
+      return [ snapshot, system_guidance(parent_session_id), goal_context, chat_history_fallback, plugin_orientation ]
         .compact.join("\n\n---\n\n")
     end
 
@@ -233,24 +233,26 @@ class ChatTurnJob < ApplicationJob
     [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
   end
 
-  # A walkthrough-video message triggers the FIRST-CLASS handoff: rather than
-  # dumping the analysis in as a fake user message, orient the agent to pull it
-  # with its tools (get_walkthrough_analysis / read_walkthrough_frame) and work
-  # autonomously toward an Epic. Returns nil for a normal message. If the row
-  # vanished, fall through to a normal turn on whatever note was typed.
-  def walkthrough_orientation(user_note:)
-    # Labs flag off → historic walkthrough messages read as plain notes; the
-    # agent is not oriented toward tools it can no longer see.
-    return nil unless Feature.video_walkthroughs_enabled?
-    return nil unless @user_message.content.is_a?(Hash)
+  # Some messages are not really "the user said this" -- a walkthrough video is
+  # posted as a real chat message, and the turn it triggers should orient the
+  # agent to pull the analysis with its own tools rather than paste it in as a
+  # fake user message. The plugin that owns such a message says so here.
+  #
+  # First non-nil wins and replaces the user's text for this turn. Nearly every
+  # message is claimed by nobody, which is the fast path.
+  def plugin_turn_orientation(user_note:)
+    Syrus::PluginRegistry.providers_for(:chat_turn_orientation).each do |provider|
+      text = PerformanceLogging.plugin_call(extension_point: :chat_turn_orientation, provider: provider, operation: :chat_turn_orientation) do
+        provider.chat_turn_orientation(chat_session: @chat, message: @user_message, user_note: user_note)
+      end
+      return text if text.present?
+    rescue StandardError => e
+      # A provider that cannot orient the turn must not cost the user their
+      # turn: fall through to a normal one on whatever they typed.
+      Rails.logger.warn("[ChatTurnJob] chat_turn_orientation #{provider}: #{e.class}: #{e.message}")
+    end
 
-    walkthrough_id = @user_message.content["video_walkthrough_id"]
-    return nil if walkthrough_id.blank?
-
-    walkthrough = ChatVideoWalkthrough.find_by(id: walkthrough_id)
-    return nil unless walkthrough
-
-    Prompts::VideoWalkthroughContext.new(walkthrough: walkthrough, user_note: user_note).to_s
+    nil
   end
 
   # Full system prompt for a fresh session; the compact elaboration guidance when

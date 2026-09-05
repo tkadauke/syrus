@@ -2,7 +2,7 @@ class AddVideoStorageSettingsToAppSettings < ActiveRecord::Migration[8.1]
   # Walkthrough-video media management. retention_days bounds how long the
   # stored (transcoded) video is kept for retry; storage_budget_mb is the
   # instance-wide ceiling on total walkthrough video bytes, enforced LRU by
-  # VideoWalkthroughPruneJob (0 = unlimited). The analysis + screenshots
+  # VideoWalkthroughs::PruneJob (0 = unlimited). The analysis + screenshots
   # always persist — only the heavy video is subject to these.
   def up
     unless column_exists?(:app_settings, :video_retention_days)
