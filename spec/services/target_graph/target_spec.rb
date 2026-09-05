@@ -15,6 +15,7 @@ RSpec.describe TargetGraph::Target do
       expect(target.required).to be(false)
       expect(target.timeout_minutes).to be_nil
       expect(target.owner_config_path).to be_nil
+      expect(target.metadata).to eq({})
       expect(target).not_to be_executable
     end
 
@@ -29,7 +30,8 @@ RSpec.describe TargetGraph::Target do
         phases: %w[review landing ci],
         required: true,
         timeout_minutes: 15,
-        owner_config_path: "cli/.syrus.yml"
+        owner_config_path: "cli/.syrus.yml",
+        metadata: { "junit_output" => "tmp/junit.xml" }
       )
 
       expect(target.kind).to eq("grader")
@@ -41,7 +43,13 @@ RSpec.describe TargetGraph::Target do
       expect(target.required).to be(true)
       expect(target.timeout_minutes).to eq(15)
       expect(target.owner_config_path).to eq("cli/.syrus.yml")
+      expect(target.metadata).to eq({ "junit_output" => "tmp/junit.xml" })
       expect(target).to be_executable
+    end
+
+    it "rejects non-Hash metadata" do
+      expect { described_class.new(label: label, kind: "grader", project_id: "cli", metadata: "bogus") }
+        .to raise_error(ArgumentError, /metadata/)
     end
 
     it "rejects a non-Label label" do
