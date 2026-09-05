@@ -60,6 +60,7 @@ module ChatSerialization
         bookmarks: preload_bookmarks_in_chat_payload?(chat_session) ? PerformanceLogging.phase("chat_payload.bookmarks", chat_id: chat_session.id) { bookmarks_json(chat_session) } : [],
         recent_chats: [],
         pending_actions: PerformanceLogging.phase("chat_payload.pending_actions", chat_id: chat_session.id) { pending_actions_json(chat_session) },
+        pending_action_groups: PerformanceLogging.phase("chat_payload.pending_action_groups", chat_id: chat_session.id) { pending_action_groups_json(chat_session) },
         agent_questions: PerformanceLogging.phase("chat_payload.agent_questions", chat_id: chat_session.id) { chat_session.agent_questions_payload },
         queued_messages: PerformanceLogging.phase("chat_payload.queued_messages", chat_id: chat_session.id) { chat_session.queued_messages_payload },
         active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_chat_goal(chat_session)) },
@@ -340,11 +341,56 @@ module ChatSerialization
   end
 
   def pending_actions_for_payload(chat_session)
-    base_scope = chat_session.pending_actions.includes(:tool_call_message, :message)
+    # Grouped members render only inside their PendingActionGroup card
+    # (pending_action_groups_json below), never as their own standalone card.
+    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil).includes(:tool_call_message, :message)
     active_scope = base_scope.where(state: %w[queued pending confirming failed])
     recent_confirmed_scope = base_scope.where(state: "confirmed").where("confirmed_at >= ?", ChatPendingAction::CONFIRMED_VISIBLE_FOR.ago)
 
     active_scope.or(recent_confirmed_scope).order(:created_at, :id)
+  end
+
+  # Unlike individual pending actions (which vanish shortly after they
+  # confirm -- see CONFIRMED_VISIBLE_FOR above -- because a separate
+  # per-member chat notification announces the outcome), a group's card
+  # is the only place the partial-failure breakdown across its members is
+  # visible, so it stays in the payload for every group state.
+  def pending_action_groups_json(chat_session)
+    chat_session.pending_action_groups.includes(chat_pending_actions: [ :tool_call_message, :message ]).order(:created_at, :id).map do |group|
+      pending_action_group_json(group)
+    end
+  end
+
+  def pending_action_group_json(group)
+    members = group.chat_pending_actions.to_a.sort_by { |member| [ member.created_at || Time.at(0), member.id ] }
+
+    {
+      id: group.id,
+      label: pending_action_group_label(members),
+      state: group.state,
+      reason: group.reason,
+      chat_message_id: pending_action_group_anchor_message_id(members),
+      members: members.map { |member| pending_action_group_member_json(member) },
+      app_confirm_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}/confirm",
+      app_reject_path: "/api/v1/app/chats/#{group.chat_session_id}/pending_action_groups/#{group.id}/reject"
+    }
+  end
+
+  def pending_action_group_member_json(member)
+    {
+      id: member.id,
+      label: pending_action_label(member),
+      state: member.state,
+      execution_error: member.execution_error
+    }
+  end
+
+  def pending_action_group_anchor_message_id(members)
+    members.filter_map(&:anchor_message).min_by(&:id)&.id
+  end
+
+  def pending_action_group_label(members)
+    ::App::Presentation.pending_action_group_label(members)
   end
 
   def pending_action_resource(action)

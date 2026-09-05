@@ -38,6 +38,7 @@ export function renderItemKey(item: ChatStreamItem) {
   if (item.type === "timestamp") return `timestamp-${item.fullDatetime}`
   if (item.type === "day_divider") return `day-divider-${item.date}`
   if (item.type === "pending_action") return `pending-action-${item.pendingAction.id}`
+  if (item.type === "pending_action_group") return `pending-action-group-${item.pendingActionGroup.id}`
   if (item.type === "message") return `message-${item.id}`
 
   return `tool-${item.calls.map((call) => call.message_id).join("-")}`
@@ -48,6 +49,7 @@ export function chatStreamItemsSignature(items: ChatStreamItem[]) {
     if (item.type === "timestamp") return `${renderItemKey(item)}:${item.time}`
     if (item.type === "day_divider") return `${renderItemKey(item)}:${item.label}`
     if (item.type === "pending_action") return `${renderItemKey(item)}:${item.pendingAction.state}:${item.pendingAction.label.length}:${item.pendingAction.detail?.length || 0}`
+    if (item.type === "pending_action_group") return `${renderItemKey(item)}:${item.pendingActionGroup.state}:${item.pendingActionGroup.members.map((member) => member.state).join(",")}`
     if (item.type === "message") return `${renderItemKey(item)}:${item.text.length}`
 
     return `${renderItemKey(item)}:${item.calls.map((call) => `${call.message_id}:${call.result_body.length}`).join(",")}`

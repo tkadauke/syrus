@@ -278,6 +278,8 @@ Rails.application.routes.draw do
         post "chats/:id/pending_actions/:pending_action_id/confirm", to: "chats#confirm_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/reject", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         delete "chats/:id/pending_actions/:pending_action_id", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
+        post "chats/:id/pending_action_groups/:pending_action_group_id/confirm", to: "chats#confirm_pending_action_group", constraints: { id: /\d+/, pending_action_group_id: /\d+/ }
+        post "chats/:id/pending_action_groups/:pending_action_group_id/reject", to: "chats#reject_pending_action_group", constraints: { id: /\d+/, pending_action_group_id: /\d+/ }
         delete "chats/:id/coding_checkout", to: "chats#cancel_coding_checkout", constraints: { id: /\d+/ }
         get "chats/:id/coding_files", to: "chats#coding_files", constraints: { id: /\d+/ }
         get "chats/:id/coding_commits", to: "chats#coding_commits", constraints: { id: /\d+/ }

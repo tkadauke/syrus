@@ -108,7 +108,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
 import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, isSupervisorChat, withRoutePrefix } from "./chat/utils"
-import { PendingActionCard } from "./chat/ProposalCards"
+import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
@@ -413,7 +413,8 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const hiddenSystemMessageCount = useMemo(() => displayedItems.filter(isLowPrioritySystemMessage).length, [displayedItems])
   const visibleItems = useMemo(() => showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item)), [displayedItems, showSystemMessages])
   const pendingActionIds = useMemo(() => new Set(payload.pending_actions.map((action) => action.id)), [payload.pending_actions])
-  const streamItems = useMemo(() => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions)), [visibleItems, payload.pending_actions])
+  const pendingActionGroups = payload.pending_action_groups || []
+  const streamItems = useMemo(() => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)), [visibleItems, payload.pending_actions, pendingActionGroups])
   const agentActive = isAgentActive(payload)
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
@@ -568,7 +569,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     loadOlder.mutate(oldestId)
   }, [activeBookmarkTarget, hasMoreOlder, loadOlder.isPending, oldestId, visibleItemsSignature])
 
-  if (displayedItems.length === 0 && payload.pending_actions.length === 0) {
+  if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400" data-testid="chat-message-stream">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -604,6 +605,8 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
           <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
         ) : item.type === "pending_action" ? (
           <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
+        ) : item.type === "pending_action_group" ? (
+          <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
         ) : item.type === "tool_group" ? (
           <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
         ) : (

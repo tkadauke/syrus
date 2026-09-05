@@ -2,13 +2,19 @@
 //
 // Pure label/title/url/key derivations over a pending action (inline or full),
 // used by the pending-action cards and badges. Only touch the chat API types.
-import type { ChatPendingAction, ChatPendingActionInline } from "../../api/chats"
+import type { ChatPendingAction, ChatPendingActionGroup, ChatPendingActionInline } from "../../api/chats"
 
 export function pendingActionTerminalLabel(state: ChatPendingAction["state"] | ChatPendingActionInline["state"]) {
   if (state === "confirmed") return "Confirmed"
   if (state === "rejected") return "Rejected"
   if (state === "cancelled") return "Cancelled"
   if (state === "failed") return "Failed"
+  return null
+}
+
+export function pendingActionGroupTerminalLabel(state: ChatPendingActionGroup["state"]) {
+  if (state === "confirmed") return "Confirmed"
+  if (state === "rejected") return "Rejected"
   return null
 }
 

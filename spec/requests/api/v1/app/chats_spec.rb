@@ -5160,6 +5160,92 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(job_to_keep.reload).to be_open
   end
 
+  it "renders a pending action group as a single card and confirms every member, reporting partial failure" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    succeeding_job = Factories.job_record(repository: repository, state: "closed")
+    failing_job = Factories.job_record(repository: repository, issue_number: 43, state: "queued")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        { action: "reopen_job", payload: { "job_id" => succeeding_job.id } },
+        { action: "reopen_job", payload: { "job_id" => failing_job.id } }
+      ]
+    )
+    member_ids = group.chat_pending_actions.pluck(:id)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to be_empty
+    expect(parse_body["pending_action_groups"]).to contain_exactly(
+      include(
+        "id" => group.id,
+        "label" => "Reopen job (2)",
+        "state" => "pending",
+        "app_confirm_path" => "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/confirm",
+        "app_reject_path" => "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/reject",
+        "members" => contain_exactly(
+          include("id" => member_ids.first, "label" => "Reopen #{succeeding_job.slug}", "state" => "pending"),
+          include("id" => member_ids.second, "label" => "Reopen #{failing_job.slug}", "state" => "pending")
+        )
+      )
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/confirm"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Confirmed 1 of 2 pending actions; 1 failed.")
+    expect(group.reload).to be_confirmed
+    expect(succeeding_job.reload).to be_open
+    expect(failing_job.reload.state).to eq("queued")
+
+    members = parse_body["pending_action_groups"].first["members"]
+    expect(members.find { |member| member["id"] == member_ids.first }).to include("state" => "confirmed")
+    failing_member = members.find { |member| member["id"] == member_ids.second }
+    expect(failing_member["state"]).to eq("failed")
+    expect(failing_member["execution_error"]).to include("isn't closed")
+  end
+
+  it "rejects every member of a pending action group through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job_one = Factories.job_record(repository: repository, state: "closed")
+    job_two = Factories.job_record(repository: repository, issue_number: 43, state: "closed")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [
+        { action: "reopen_job", payload: { "job_id" => job_one.id } },
+        { action: "reopen_job", payload: { "job_id" => job_two.id } }
+      ]
+    )
+
+    post "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/reject"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Rejected 2 pending actions.")
+    expect(group.reload).to be_rejected
+    expect(job_one.reload).to be_closed
+    expect(job_two.reload).to be_closed
+    expect(parse_body["pending_action_groups"]).to contain_exactly(include("id" => group.id, "state" => "rejected"))
+  end
+
+  it "422s when confirming or rejecting an already-resolved pending action group" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository, state: "closed")
+    group = PendingActionGroup.create_with_members!(
+      chat_session: chat,
+      member_attributes: [ { action: "reopen_job", payload: { "job_id" => job.id } } ]
+    )
+    group.reject_all!
+
+    post "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/confirm"
+    expect(response).to have_http_status(:unprocessable_content)
+
+    post "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/reject"
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
   it "lets the operator dismiss a failed pending action through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
