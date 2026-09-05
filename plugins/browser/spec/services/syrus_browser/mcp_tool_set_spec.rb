@@ -18,10 +18,10 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".tool_definitions" do
     subject(:defs) { described_class.tool_definitions }
 
-    it "exposes seven granular browser tools" do
+    it "exposes eight granular browser tools" do
       names = defs.map { |d| d[:name] }
       expect(names).to contain_exactly(
-        "browser_navigate", "browser_click", "browser_fill", "browser_snapshot",
+        "browser_navigate", "browser_click", "browser_fill", "browser_hover", "browser_snapshot",
         "browser_screenshot", "browser_wait_for", "browser_close"
       )
     end
@@ -127,6 +127,36 @@ RSpec.describe SyrusBrowser::McpToolSet do
       expect(response).to be_error
       expect(response.content.first[:text]).to include("requires target")
       expect(response.content.first[:text]).to include("browser_snapshot")
+      expect(session).not_to have_received(:call_tool)
+    end
+  end
+
+  describe "#handle browser_hover" do
+    it "forwards element and target to the upstream browser_hover tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_hover", { "element" => "Slug link", "target" => "e5" }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_hover", arguments: { "element" => "Slug link", "target" => "e5" }
+      )
+    end
+
+    it "accepts legacy ref as a target alias" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_hover", { "element" => "Slug link", "ref" => "e5" }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_hover", arguments: { "element" => "Slug link", "target" => "e5" }
+      )
+    end
+
+    it "rejects missing snapshot targets before calling the upstream browser" do
+      response = tool_set.handle("browser_hover", { "element" => "Slug link" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires target")
       expect(session).not_to have_received(:call_tool)
     end
   end
