@@ -28,6 +28,7 @@ API endpoints live under the user-scoped app API:
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit`
 - `PATCH /api/v1/app/jobs/:job_id/diff_review_comments/:id`
+- `DELETE /api/v1/app/jobs/:job_id/diff_review_comments/:id`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve`
 
 Listing follows normal Job visibility. Mutations use the existing Job write
@@ -36,6 +37,13 @@ member. The list endpoint accepts `surface`, `base_ref`, `head_ref`, `path`,
 `state`, `workflow_id`, and `run_id` filters and returns both a flat
 `comments` array and `by_path`, keyed as `by_path[path][anchor_key]`, where
 anchor keys are `side:old:new` with blank coordinates left empty.
+
+`DELETE` hard-deletes a comment (no `deleted`/`superseded` state, a real row
+removal) and only accepts comments still in `draft` — once a comment has been
+`submitted`, `resolved`, or `superseded` it is part of the review history and
+the endpoint responds `422 unprocessable_content` instead. On success it
+returns `{ job_id, deleted_id }` rather than the usual comments payload, since
+the deleted comment no longer exists to serialize.
 
 Current UI surfaces use these `surface` values:
 
@@ -78,14 +86,19 @@ review" button starts a whole-review comment. Line-anchored (code) comments
 are only editable inline, at their anchor in the diff (a "View in diff" sidebar
 button scrolls to it) — the sidebar no longer offers an inline-comment Edit
 control for those, only Resolve; whole-review comments remain editable from
-the sidebar since they have no code anchor to edit at.
+the sidebar since they have no code anchor to edit at. Draft comments (both
+whole-review, from the sidebar, and line-anchored, inline in the diff) also
+get a "Delete" action next to Edit; it opens a shared confirmation dialog
+(`useConfirm`) before hard-deleting, since the action cannot be undone. A
+comment that has already been submitted, resolved, or superseded has no
+Delete affordance — the record is review history at that point, not a draft.
 
 `ReviewableDiff` (`app/frontend/components/diff/ReviewableDiff.tsx`) is the
 shared diff renderer behind the review workspace, source-browser diff mode,
 and run artifact diff panels; the natural-height/popup/inline-edit behaviors
 above are opt-in via its `scroll`, `changedFilesPopup`, and
-`onStartEditThread`/`editingThreadId` props so the other surfaces keep their
-existing bounded-height, permanent file list, sidebar-only-edit behavior
-unless they explicitly opt in. The add-comment affordance is a small "+" in
-the left gutter beside the line number, shown on row hover (GitHub-style),
-not a right-edge column.
+`onStartEditThread`/`editingThreadId`/`onDeleteThread` props so the other
+surfaces keep their existing bounded-height, permanent file list,
+sidebar-only-edit behavior unless they explicitly opt in. The add-comment
+affordance is a small "+" in the left gutter beside the line number, shown on
+row hover (GitHub-style), not a right-edge column.
