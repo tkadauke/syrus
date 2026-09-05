@@ -20,7 +20,7 @@ RSpec.describe SmartFolder do
     expect(described_class::SPAWNED_PROCESS_BUILTINS).to eq(described_class::SPAWNED_PROCESS_BUILTIN_DEFINITIONS)
     expect(described_class.builtins.pluck(:name)).to eq([
       "All jobs",
-      "Backlogged jobs",
+      "Backlog",
       "Pinned",
       "In progress",
       "Paused",
