@@ -79,19 +79,7 @@ class McpToolContext
   end
 
   private_class_method def self.role_for_run(run)
-    case run.step&.kind
-    when "agent_rebase", "stack_agent_rebase", "push_agent_rebase", "merge_train_agent_rebase"
-      AgentRole::WORKFLOW_REBASE_CONFLICT
-    when "summarize", "summarize_amend", "test_plan", "refresh_job_metadata", "review_plan"
-      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
-    when "adversarial_review"
-      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-    when "visual_review"
-      AgentRole::WORKFLOW_VISUAL_REVIEWER
-    else
-      # Plugin-owned agentic steps declare their role on the Step::Kind entry.
-      Step::Kind.by_kind[run.step&.kind]&.agent_role || AgentRole::WORKFLOW_IMPLEMENT
-    end
+    AgentRole.for_step_kind(run.step&.kind)
   end
 
   private_class_method def self.role_for_chat(chat_session)
