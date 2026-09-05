@@ -67,13 +67,29 @@ module DesignDocs
 
     # A short, hover-preview-sized excerpt of the body: hidden Syrus anchor
     # markers stripped, clamped to roughly PREVIEW_WORD_LIMIT words so a
-    # popup never has to render (or fetch) the whole document.
+    # popup never has to render (or fetch) the whole document. Paragraph
+    # boundaries (blank lines, and the line break after a heading) are kept
+    # intact rather than collapsed to spaces -- otherwise a leading "#
+    # Heading" has no newline left to end it, and the whole clamped excerpt
+    # renders as one giant heading instead of a heading followed by text.
     def preview_text(word_limit: PREVIEW_WORD_LIMIT)
       visible = DesignDocs::AnchorMarkers.strip(markdown).strip
-      words = visible.split(/\s+/)
-      return visible if words.length <= word_limit
+      normalized = visible.gsub(/^(#+\s[^\n]*)\n(?!\n)/, "\\1\n\n")
+      paragraphs = normalized.split(/\n{2,}/).map { |block| block.split(/\s+/).reject(&:empty?) }.reject(&:empty?)
 
-      "#{words.first(word_limit).join(' ')}…"
+      total_words = paragraphs.sum(&:length)
+      return visible if total_words <= word_limit
+
+      remaining = word_limit
+      clamped = []
+      paragraphs.each do |words|
+        break if remaining <= 0
+
+        take = words.first(remaining)
+        clamped << take.join(" ")
+        remaining -= take.length
+      end
+      "#{clamped.join("\n\n")}…"
     end
 
     private
