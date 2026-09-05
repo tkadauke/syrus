@@ -64,6 +64,45 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:diff_error]).to eq("GitHub unavailable")
   end
 
+  it "diffs a stacked Epic child Job against its parent Job's branch, not the repository default branch" do
+    epic = Factories.epic(repository: repo, user: user)
+    parent_job = Factories.job(repository: repo, user: user, epic: epic, branch_name: "syrus/job-41", pr_number: 41)
+    child_job = Factories.job(repository: repo, user: user, epic: epic, parent_job: parent_job, branch_name: "syrus/job-42")
+
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "syrus/job-41", "syrus/job-42")
+      .and_return(
+        commits: [
+          { sha: "cafef00d12345678", short_sha: "cafef00", message: "Only this Job's change", date: Time.zone.parse("2026-05-02T12:00:00Z") }
+        ],
+        merge_base_sha: "11223344aabbccd"
+      )
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "11223344aabbccd", "cafef00d12345678")
+      .and_return(
+        files: [
+          { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
+        ],
+        truncated: false
+      )
+
+    payload = described_class.build(job: child_job, user: user)
+
+    expect(payload).to include(
+      base_ref: "11223344aabbccd",
+      head_ref: "cafef00d12345678",
+      merge_base_sha: "11223344aabbccd",
+      diff_error: nil
+    )
+    expect(payload[:files]).to contain_exactly(
+      path: "app/models/widget.rb",
+      status: "modified",
+      additions: 2,
+      deletions: 0,
+      patch: "@@ -1 +1,2 @@\n+new"
+    )
+  end
+
   it "defaults base and head to the default branch when the job has no branch" do
     job.update!(branch_name: nil)
     expect(github).not_to receive(:compare_commits)
