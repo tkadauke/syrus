@@ -270,6 +270,26 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".pending_action_group_label" do
+    it "names the shared action and the member count when every member matches" do
+      members = [ ChatPendingAction.new(action: "reopen_job"), ChatPendingAction.new(action: "reopen_job") ]
+
+      expect(described_class.pending_action_group_label(members)).to eq("Reopen job (2)")
+    end
+
+    it "falls back to a generic label when members don't share one action" do
+      members = [ ChatPendingAction.new(action: "reopen_job"), ChatPendingAction.new(action: "cancel_job") ]
+
+      expect(described_class.pending_action_group_label(members)).to eq("Batch action (2)")
+    end
+
+    it "falls back to action_type when action is blank" do
+      members = [ ChatPendingAction.new(action_type: "schedule_recurring") ]
+
+      expect(described_class.pending_action_group_label(members)).to eq("Schedule recurring (1)")
+    end
+  end
+
   def attach_active_work_unit!(job, workflow)
     intent = WorkIntent.create!(
       kind: workflow.trigger_kind,
