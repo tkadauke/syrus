@@ -80,7 +80,7 @@ pin.
 
 Agentic. The primary coding step: the agent reads the issue, explores the repo, writes code, and commits. Used in initial and retry workflows.
 
-In `initial`, `implement` is always a top-level step — it runs exactly once, unconditionally, regardless of whether adversarial review or a grade loop are configured for the repository. The `adversarial_review` and grader retry loops that follow only decide whether (and how) that work gets revised; see the `adversarial_review` step and the `format`/`generate` section below.
+In `initial` and `retry` (and `respond` in the feedback workflows), the agent step is always a bare top-level step — it runs exactly once, unconditionally, regardless of whether adversarial review, visual review, or a grade loop are configured for the repository. The `adversarial_review`, `visual_review`, and grader retry loops that follow only decide whether (and how) that work gets revised; see the `adversarial_review` step and the `format`/`generate` section below.
 
 **No-change outcome:** When the agent runs successfully but produces no diff
 (it correctly determined the requested work was already done), the step raises
@@ -301,24 +301,24 @@ repair loops.
 
 Agentic. An independent reviewer agent critiques the implementation, calls the available `submit_adversarial_review` MCP tool name with a verdict and findings, and any workspace changes it makes are discarded. Runs in a bounded loop before graders when `adversarial_review.rounds > 0`.
 
-In `initial`, `implement` is always a top-level step that runs regardless of
-whether adversarial review is configured, so the loop is `review_first`:
-iteration 1 is `adversarial_review` alone, reviewing that top-level
-`implement`'s diff directly. Iterations 2 through (rounds − 1) pair a repair
-`implement` with another review. The final iteration (once the review budget
-is exhausted) is a repair `implement` only, with no trailing review — there's
-no iteration left to act on further feedback, so running the reviewer again
-would just be a no-op. In `retry`, the loop keeps the uniform `[implement,
-adversarial_review]` shape instead, since retry has no separate top-level
-`implement` step before adversarial review. Feedback workflows (`pr_comment`,
-`chat_feedback`, `external_pr_feedback`) use the same uniform shape with
-`respond` in place of `implement`.
+Every workflow that has this loop (`initial`, `retry`, `pr_comment`,
+`chat_feedback`, `external_pr_feedback`) leads with a bare top-level
+`implement`/`respond` step that runs regardless of whether adversarial review
+is configured, so the loop is always review-first: iteration 1 is
+`adversarial_review` alone, reviewing that top-level step's diff directly.
+A `needs_work` verdict always inserts a repair `implement`/`respond`,
+unconditionally, regardless of remaining review budget; the repair pairs with
+another review whenever budget remains. Once the review that just ran was the
+last one `rounds` allows, its `needs_work` repair runs alone, with no trailing
+review — there's no budget left to act on further feedback. `rounds: N` seeks
+exactly N review opinions, each reacted to with exactly one repair; the loop
+never fails the workflow on its own. See [`adversarial_review.md`](adversarial_review.md).
 
 ### visual_review
 
-Agentic. An independent reviewer agent drives a headless browser against its own `start_preview` instance to catch visible defects, then calls the available `submit_visual_review` MCP tool name with a verdict (`approved`, `needs_work`, or `skipped`) and findings; any workspace changes it makes are discarded. Runs in a bounded `[implement, visual_review]` (or `[respond, visual_review]` in feedback workflows) loop immediately after the `adversarial_review` loop and before the grader retry loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows, gated by `visual_review.enabled` in `.syrus.yml` or the instance-wide `Feature.visual_review_enabled?` default (see [`syrus_yml.md`](syrus_yml.md) and [`visual_review.md`](visual_review.md)). Unlike `adversarial_review` in `initial`, this loop is not `review_first` — its own leading `implement` runs on iteration 1 regardless of the top-level `implement` that already ran before it.
+Agentic. An independent reviewer agent drives a headless browser against its own `start_preview` instance to catch visible defects, then calls the available `submit_visual_review` MCP tool name with a verdict (`approved`, `needs_work`, or `skipped`) and findings; any workspace changes it makes are discarded. Runs in a bounded, review-first loop immediately after the `adversarial_review` loop and before the grader retry loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows, gated by `visual_review.enabled` in `.syrus.yml` or the instance-wide `Feature.visual_review_enabled?` default (see [`syrus_yml.md`](syrus_yml.md) and [`visual_review.md`](visual_review.md)). Like `adversarial_review`, iteration 1 is `visual_review` alone, reviewing whatever `implement`/`respond` step (or the tail of a preceding `adversarial_review` loop) already ran before it — there is no redundant leading `implement`/`respond` inside this loop's own iteration 1.
 
-Before spending an agent turn, the step applies `visual_review.when_files_changed` as a deterministic pre-filter — same glob semantics as a grader's `when_files_changed` — and skips immediately (verdict `skipped`, no agent turn) when configured and no changed file matches. When the agent does run, it reads the `submit_test_plan` artifact's `visual_review_recommended`/`visual_review_reason` fields (set by the implementing agent) as a hint, but makes its own independent go/no-go call before ever starting a preview. `needs_work` feeds the loop back into another `implement`/`respond` iteration, the same way `adversarial_review`'s does; `approved` and `skipped` both exit the loop early.
+Before spending an agent turn, the step applies `visual_review.when_files_changed` as a deterministic pre-filter — same glob semantics as a grader's `when_files_changed` — and skips immediately (verdict `skipped`, no agent turn) when configured and no changed file matches. When the agent does run, it reads the `submit_test_plan` artifact's `visual_review_recommended`/`visual_review_reason` fields (set by the implementing agent) as a hint, but makes its own independent go/no-go call before ever starting a preview. `needs_work` always inserts a repair `implement`/`respond` iteration, the same way `adversarial_review`'s does; `approved` and `skipped` both exit the loop early.
 
 If the reviewer agent finishes without calling its required MCP tool (`submit_adversarial_review` / `submit_visual_review`), the step raises and `RunFailureClassifier` records `missing_required_tool_call` (confidence 0.85, retryable). Both steps discard the reviewer's workspace changes before this failure is raised, so there is no partial state a retry could compound — `WorkEngine::RepairExecutor` picks it up on the normal 5m/20m/1h auto-retry backoff instead of surfacing as an operator-action-required stuck-job alarm.
 

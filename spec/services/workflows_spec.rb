@@ -91,8 +91,7 @@ RSpec.describe Workflows do
         {
           "type" => "loop",
           "max_iterations" => 2,
-          "steps" => %w[ implement adversarial_review ],
-          "review_first" => true
+          "steps" => %w[ implement adversarial_review ]
         },
         {
           "type" => "retry_until",
@@ -182,8 +181,7 @@ RSpec.describe Workflows do
         {
           "type" => "loop",
           "max_iterations" => 1,
-          "steps" => %w[ implement adversarial_review ],
-          "review_first" => true
+          "steps" => %w[ implement adversarial_review ]
         }
       )
     end
@@ -199,8 +197,7 @@ RSpec.describe Workflows do
         {
           "type" => "loop",
           "max_iterations" => 2,
-          "steps" => %w[ implement adversarial_review ],
-          "review_first" => true
+          "steps" => %w[ implement adversarial_review ]
         }
       )
     end
@@ -214,6 +211,45 @@ RSpec.describe Workflows do
         [ "prepare", 0 ], [ "implement", 1 ], [ "format", 2 ], [ "generate", 3 ], [ "grader_fanout", 4 ], [ "grader_collect", 5 ],
         [ "coverage_analyze", 6 ], [ "dependency_audit", 7 ], [ "summarize", 8 ], [ "test_plan", 9 ], [ "pr_open", 10 ], [ "review_plan", 11 ]
       ])
+    end
+
+    it "gives Retry a bare leading implement step and a check-first grade loop, matching Initial's shape" do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
+
+      wf = Workflows::Retry.instantiate(job: job)
+
+      expect(wf.steps.where(kind: "implement").sole.loop_id).to be_nil
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
+      expect(wf.chain_template).to include(
+        { "type" => "step", "kind" => "implement" },
+        {
+          "type" => "retry_until",
+          "max_iterations" => AppSetting.grade_max_iterations,
+          "repair" => %w[ implement ],
+          "check" => %w[ format generate grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      )
+    end
+
+    it "inserts a review-first adversarial review loop after the leading implement for Retry when enabled" do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
+
+      wf = Workflows::Retry.instantiate(job: job)
+      review = wf.steps.find_by!(kind: "adversarial_review", iteration: 1)
+
+      expect(wf.steps.where(loop_id: review.loop_id, iteration: 1).pluck(:kind)).to eq(%w[ adversarial_review ])
+      expect(wf.chain_template).to include(
+        {
+          "type" => "loop",
+          "max_iterations" => 2,
+          "steps" => %w[ implement adversarial_review ]
+        }
+      )
     end
 
     it "creates the workflow + chain for a manual agentic run" do
@@ -252,7 +288,7 @@ RSpec.describe Workflows do
       wf = Workflows::Retry.instantiate(job: job)
 
       expect(wf.steps.pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ])
-      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.trigger_kind).to eq("retry")
     end
 
@@ -326,7 +362,7 @@ RSpec.describe Workflows do
       expect(l.next_step).to be_nil
     end
 
-    it "materializes the first iteration of a loop node inside the chain" do
+    it "materializes only the review step for iteration 1 of a loop node inside the chain" do
       workflow_class = Class.new(Workflows::Base) do
         steps :prepare,
               Workflows::Loop.new(max_iterations: 5, steps: [ :implement, :summarize ]),
@@ -341,24 +377,22 @@ RSpec.describe Workflows do
 
       expect(steps.map { |step| [ step.kind, step.position, step.iteration ] }).to eq([
         [ "prepare", 0, 1 ],
-        [ "implement", 1, 1 ],
-        [ "summarize", 2, 1 ],
-        [ "pr_open", 3, 1 ]
+        [ "summarize", 1, 1 ],
+        [ "pr_open", 2, 1 ]
       ])
       expect(loop_ids[0]).to be_nil
       expect(loop_ids[1]).to be_present
-      expect(loop_ids[2]).to eq(loop_ids[1])
-      expect(loop_ids[3]).to be_nil
+      expect(loop_ids[2]).to be_nil
 
       next_wf = workflow_class.instantiate(job: job)
-      expect(next_wf.steps.where(kind: "implement").pick(:loop_id)).not_to eq(loop_ids[1])
+      expect(next_wf.steps.where(kind: "summarize").pick(:loop_id)).not_to eq(loop_ids[1])
     end
 
     it "allows two non-nested loop nodes in one chain with distinct loop ids" do
       workflow_class = Class.new(Workflows::Base) do
         steps :prepare,
-              Workflows::Loop.new(steps: [ :implement ]),
-              Workflows::Loop.new(steps: [ :summarize ]),
+              Workflows::Loop.new(steps: [ :respond, :implement ]),
+              Workflows::Loop.new(steps: [ :respond, :summarize ]),
               :pr_open
 
         def self.trigger_kind = "manual"
@@ -376,7 +410,7 @@ RSpec.describe Workflows do
         Class.new(Workflows::Base) do
           steps Workflows::Loop.new(
             max_iterations: 3,
-            steps: [ Workflows::Loop.new(max_iterations: 2, steps: [ :implement ]) ]
+            steps: [ :implement, Workflows::Loop.new(max_iterations: 2, steps: [ :implement, :adversarial_review ]) ]
           )
         end
       end.to raise_error(ArgumentError, /nested workflow control nodes/)
@@ -388,6 +422,7 @@ RSpec.describe Workflows do
           steps Workflows::Loop.new(
             max_iterations: 3,
             steps: [
+              :implement,
               Workflows::RetryUntil.new(
                 repair: [ :implement ],
                 check: [ :grade ]
@@ -396,6 +431,11 @@ RSpec.describe Workflows do
           )
         end
       end.to raise_error(ArgumentError, /nested workflow control nodes/)
+    end
+
+    it "rejects a loop that isn't exactly an [agent_step, review_step] pair" do
+      expect { Workflows::Loop.new(max_iterations: 3, steps: [ :implement ]) }
+        .to raise_error(ArgumentError, "loop requires exactly 2 steps: [agent_step, review_step]")
     end
 
     it "materializes a RetryUntil node with repair first by default" do
@@ -509,7 +549,7 @@ RSpec.describe Workflows do
 
       expect(wf.chain_template).to eq([
         { "type" => "step", "kind" => "prepare" },
-        { "type" => "loop", "max_iterations" => 5, "steps" => %w[ implement summarize ], "review_first" => false },
+        { "type" => "loop", "max_iterations" => 5, "steps" => %w[ implement summarize ] },
         { "type" => "step", "kind" => "pr_open" }
       ])
     end
@@ -519,14 +559,14 @@ RSpec.describe Workflows do
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       wf = Workflows::PrFeedback.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
-      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond format generate grader_fanout grader_collect ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {
           "type" => "retry_until",
           "max_iterations" => AppSetting.grade_max_iterations,
-          "repair" => %w[ respond format generate ],
-          "check" => %w[ grader_fanout grader_collect ],
-          "repair_first" => true
+          "repair" => %w[ respond ],
+          "check" => %w[ format generate grader_fanout grader_collect ],
+          "repair_first" => false
         }
       )
       expect_follow_up_push_template(wf)
@@ -545,14 +585,14 @@ RSpec.describe Workflows do
       expect(wf.agent_provider).to eq("codex")
       expect(wf.artifact("chat_feedback")).to eq("Please tighten the dashboard copy.")
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ])
-      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond format generate grader_fanout grader_collect ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ format generate grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {
           "type" => "retry_until",
           "max_iterations" => AppSetting.grade_max_iterations,
-          "repair" => %w[ respond format generate ],
-          "check" => %w[ grader_fanout grader_collect ],
-          "repair_first" => true
+          "repair" => %w[ respond ],
+          "check" => %w[ format generate grader_fanout grader_collect ],
+          "repair_first" => false
         }
       )
       expect_follow_up_push_template(wf)

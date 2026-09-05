@@ -70,39 +70,35 @@ RSpec.describe Workflows::PrFeedback do
       )
     end
 
-    it "inserts respond/adversarial_review loop before the grader retry chain" do
+    it "inserts a review-first respond/adversarial_review loop before the grader retry chain, with no redundant respond" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond adversarial_review format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
+      expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
-    it "puts the adversarial_review loop steps in the same loop_id" do
+    it "gives the adversarial_review loop its own loop_id, separate from the bare leading respond" do
       workflow = described_class.instantiate(job: job)
 
-      review_step = workflow.steps.find_by!(kind: "adversarial_review")
-      # The respond step in the adversarial loop shares the reviewer's loop_id
-      ar_loop_respond = workflow.steps.order(:position).find do |s|
-        s.kind == "respond" && s.loop_id == review_step.loop_id
-      end
+      bare_respond = workflow.steps.find_by!(kind: "respond")
+      review_step  = workflow.steps.find_by!(kind: "adversarial_review")
 
-      expect(ar_loop_respond).not_to be_nil
+      expect(bare_respond.loop_id).to be_nil
+      expect(review_step.loop_id).to be_present
     end
 
     it "uses a different loop_id for the adversarial loop vs the grader retry chain" do
       workflow = described_class.instantiate(job: job)
 
-      respond_steps = workflow.steps.order(:position).select { |s| s.kind == "respond" }
-      review_step   = workflow.steps.find_by!(kind: "adversarial_review")
+      review_step = workflow.steps.find_by!(kind: "adversarial_review")
+      grader_step = workflow.steps.find_by!(kind: "grader_collect")
 
-      ar_respond    = respond_steps.find { |s| s.loop_id == review_step.loop_id }
-      retry_respond = respond_steps.find { |s| s.loop_id != review_step.loop_id }
-
-      expect(ar_respond).not_to be_nil
-      expect(retry_respond).not_to be_nil
-      expect(ar_respond.position).to be < retry_respond.position
+      expect(review_step.loop_id).to be_present
+      expect(grader_step.loop_id).to be_present
+      expect(review_step.loop_id).not_to eq(grader_step.loop_id)
     end
   end
 
@@ -113,27 +109,25 @@ RSpec.describe Workflows::PrFeedback do
       )
     end
 
-    it "inserts a respond/visual_review loop before the grader retry chain" do
+    it "inserts a review-first respond/visual_review loop before the grader retry chain, with no redundant respond" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond visual_review respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond visual_review format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
+      expect(workflow.steps.where(kind: "respond").count).to eq(1)
     end
 
     it "uses a different loop_id for the visual review loop vs the grader retry chain" do
       workflow = described_class.instantiate(job: job)
 
-      respond_steps = workflow.steps.order(:position).select { |s| s.kind == "respond" }
-      review_step   = workflow.steps.find_by!(kind: "visual_review")
+      review_step = workflow.steps.find_by!(kind: "visual_review")
+      grader_step = workflow.steps.find_by!(kind: "grader_collect")
 
-      vr_respond    = respond_steps.find { |s| s.loop_id == review_step.loop_id }
-      retry_respond = respond_steps.find { |s| s.loop_id != review_step.loop_id }
-
-      expect(vr_respond).not_to be_nil
-      expect(retry_respond).not_to be_nil
-      expect(vr_respond.position).to be < retry_respond.position
+      expect(review_step.loop_id).to be_present
+      expect(grader_step.loop_id).to be_present
+      expect(review_step.loop_id).not_to eq(grader_step.loop_id)
     end
   end
 end
