@@ -399,6 +399,7 @@
     "aria": "Acta operationalia administrativa"
   },
   "plugins": {
+    "suggested": "Huic instantiae commendatum:",
     "heading": "Plugin",
     "loading": "Plugin onerantur...",
     "error_load": "Plugin onerari non potuerunt.",

@@ -15,6 +15,11 @@ module AdminMysql
     category "observability"
     default_enabled false
     disableable true
+
+    suggests_enabling "This instance is configured against MySQL, so live process list, connection pressure, and statement digests are available without shelling into the database." do |signals|
+      signals.database_adapters.grep(/mysql/i).presence
+    end
+
     provides admin_page: "AdminMysql::AdminPages",
              mcp_tool_set: "AdminMysql::WorkflowToolSet",
              chat_mcp_tool_set: "AdminMysql::ChatToolSet"

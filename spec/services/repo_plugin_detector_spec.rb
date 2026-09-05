@@ -82,5 +82,35 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
       expect(described_class.for(@dir)).to eq([])
     end
+
+    # The whole point of the widened pass: a disabled plugin is exactly the one
+    # that needs a way to say "this repository looks like me".
+    it "still observes a disabled plugin whose files match, so it can be recommended" do
+      detector = Class.new { include Syrus::Plugin::PrepareDetector }
+      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "go.mod")) }
+      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ "go mod download" ] }
+
+      Syrus::PluginRegistry.register(name: "test_go", version: "1.0.0", provides: { prepare_detector: detector })
+      write("go.mod", "")
+      PluginRecord.find_by!(name: "test_go").update!(enabled: false)
+
+      expect(described_class.observed_for(@dir)).to eq([ "test_go" ])
+    end
+
+    it "keeps a raising detector from taking the rest of the pass with it" do
+      exploding = Class.new { include Syrus::Plugin::PrepareDetector }
+      exploding.define_singleton_method(:detect?) { |_repo_path| raise "boom" }
+      exploding.define_singleton_method(:prepare_commands) { |_repo_path| [] }
+
+      working = Class.new { include Syrus::Plugin::PrepareDetector }
+      working.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "go.mod")) }
+      working.define_singleton_method(:prepare_commands) { |_repo_path| [] }
+
+      Syrus::PluginRegistry.register(name: "test_boom", version: "1.0.0", provides: { prepare_detector: exploding })
+      Syrus::PluginRegistry.register(name: "test_go", version: "1.0.0", provides: { prepare_detector: working })
+      write("go.mod", "")
+
+      expect(described_class.observed_for(@dir)).to eq([ "test_go" ])
+    end
   end
 end

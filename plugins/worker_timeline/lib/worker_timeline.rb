@@ -28,6 +28,12 @@ module WorkerTimeline
         },
         i18n: [ "app/frontend/i18n/locales/*/worker_timeline.json" ]
 
+
+    suggests_enabling "More than one worker host is running, which is when a per-lane view of overlapping activity starts telling you something a single log cannot." do |signals|
+      hosts = signals.worker_hostnames
+      hosts if hosts.length > 1
+    end
+
     while_enabled do |scope|
       scope.effect("worker_timeline filter subject") do
         Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)

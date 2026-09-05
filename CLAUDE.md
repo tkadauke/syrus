@@ -772,6 +772,16 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   never-enabled-here runs neither. `plugin_records.ever_enabled` is stamped by
   the model on any save while enabled and never cleared. Plugin migrations run
   at deploy time regardless of enabled state -- never from a runtime toggle.
+- **A plugin can suggest itself.** `suggests_enabling(reason) { |signals| ... }`
+  in the manifest is evaluated even for a plugin that is disabled and was never
+  enabled -- the one tier that reaches an admin who does not know it exists. It
+  returns evidence (a count, repo slugs) or falsy; no evidence, no nudge, and
+  enabled plugins are never recommended. The block may only reach the plugin's
+  `lib/` (required by the gem regardless of state), never its `app/` tree
+  (not eager loaded while disabled). `Syrus::PluginSignals` supplies the facts;
+  `repositories.plugin_signals` is stamped by `Steps::Prepare` from
+  `RepoPluginDetector.observed_for`, which widens detection to installed-but-
+  disabled plugins. Nudge-only -- it never gates a Step.
 - **A plugin's docs live in the plugin.** Full documentation for a bundled
   plugin belongs at `plugins/<name>/docs/syrus_docs/*.md`, not in
   `config/syrus_docs/`, so deleting the plugin directory removes its docs too.

@@ -19,6 +19,11 @@ module Python
     author "Thomas Kadauke"
     category "language"
     prepare_priority 30
+
+    suggests_enabling "Python repositories get uv/Poetry/pip prepare detection, pytest grader detail, ruff/black autofix, and dependency scanning." do |signals|
+      signals.repositories_detecting("python")
+    end
+
     provides prepare_detector: "Python::PrepareDetector",
              grader_augmentor: "Python::GraderAugmentor",
              prompt_injector: "Python::PromptContext",

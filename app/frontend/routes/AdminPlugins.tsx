@@ -130,6 +130,13 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {dependsOn.length > 0 ? <span>{t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span></span> : null}
             {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
           </div>
+          {plugin.recommendation ? (
+            <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+              <span className="font-medium">{t("plugins.suggested")}</span>{" "}
+              {plugin.recommendation.reason}{" "}
+              <span className="font-mono text-xs">({plugin.recommendation.evidence})</span>
+            </p>
+          ) : null}
           {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">

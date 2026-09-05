@@ -399,6 +399,7 @@
     "aria": "Admin-Betriebslogs"
   },
   "plugins": {
+    "suggested": "Für diese Instanz empfohlen:",
     "heading": "Plugins",
     "loading": "Plugins werden geladen...",
     "error_load": "Plugins konnten nicht geladen werden.",

@@ -23,6 +23,11 @@ module Ruby
     category "language"
     prepare_priority 10
     optionally_depends_on [ "test_insights" ]
+
+    suggests_enabling "Ruby repositories get Bundler prepare, RSpec and RuboCop grader detail, SimpleCov coverage analysis, and autofix commands." do |signals|
+      signals.repositories_detecting("ruby")
+    end
+
     provides coverage_analyzer: "Ruby::SimpleCovAnalyzer",
              grader_augmentor: [ "Ruby::GraderAugmentor", "Ruby::RubocopGraderAugmentor" ],
              prepare_detector: "Ruby::PrepareDetector",

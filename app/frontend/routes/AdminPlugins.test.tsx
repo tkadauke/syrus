@@ -589,6 +589,51 @@ describe("AdminPlugins", () => {
 
     await waitFor(() => expect(reloadMock).toHaveBeenCalled())
   })
+
+  it("shows why a disabled plugin is worth enabling, with the evidence behind it", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "python",
+          display_name: "Python",
+          disable_blockers: [],
+          disableable: true,
+          version: "1.0.0",
+          enabled: false,
+          description: "Python support",
+          extension_points: [],
+          recommendation: { reason: "Python repositories get pytest grader detail.", evidence: "acme/api, acme/tools" }
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText(/Python repositories get pytest grader detail/)).toBeInTheDocument()
+    expect(screen.getByText("(acme/api, acme/tools)")).toBeInTheDocument()
+  })
+
+  it("says nothing extra about a plugin with no recommendation", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "python",
+          display_name: "Python",
+          disable_blockers: [],
+          disableable: true,
+          version: "1.0.0",
+          enabled: false,
+          description: "Python support",
+          extension_points: []
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    await screen.findByText("Python support")
+    expect(screen.queryByText(/Suggested for this instance/)).not.toBeInTheDocument()
+  })
 })
 
 function renderRoute(children: ReactNode) {

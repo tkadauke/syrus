@@ -17,6 +17,11 @@ module JavaScript
     author "Thomas Kadauke"
     category "language"
     prepare_priority 20
+
+    suggests_enabling "Node, JavaScript, and TypeScript repositories get lockfile-aware prepare, dev-server previews, ESLint grader detail, and audit scanning." do |signals|
+      signals.repositories_detecting("javascript")
+    end
+
     provides prepare_detector: "JavaScript::PrepareDetector",
              preview_provider: "JavaScript::PreviewProvider",
              grader_augmentor: "JavaScript::EslintGraderAugmentor",

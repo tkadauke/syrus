@@ -14,6 +14,11 @@ module Go
     author "Thomas Kadauke"
     category "language"
     prepare_priority 40
+
+    suggests_enabling "Go repositories get `go mod download` prepare, gofmt autofix, and govulncheck dependency scanning." do |signals|
+      signals.repositories_detecting("go")
+    end
+
     provides prepare_detector: "Go::PrepareDetector",
              review_criteria_provider: "Go::ReviewCriteriaProvider",
              autofix_command: "Go::GofmtAutofix",

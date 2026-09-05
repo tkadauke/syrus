@@ -42,6 +42,30 @@ repositories or users that need it.
 Some plugins may be non-disableable because they provide core surfaces for a
 given distribution. Most should be disableable.
 
+A disabled plugin is not loaded. Its code stays resolvable, so enabling it
+takes effect immediately without a restart, but Syrus does not pay to load
+features nobody can reach. Migrations are the exception and always run at
+deploy time regardless of enabled state, so enabling a plugin finds its tables
+ready.
+
+Disabling a plugin stops it doing work; it does not throw away the data it
+already wrote. That data is still cleaned up when its owner is -- deleting a
+repository still takes its plugin rows with it, whether the plugin is on or
+off.
+
+## Suggested Plugins
+
+Syrus can tell you a plugin is worth turning on before you go looking for it.
+A plugin can declare what its own signal looks like, and Admin -> Plugins shows
+the ones this instance appears to want, with the evidence behind each: how many
+of your repositories are Python, whether you are running more than one worker
+host, whether you are on MySQL. Plugins you have already enabled are never
+suggested, and a suggestion with no evidence behind it is not shown at all.
+
+The repository side of this is observed while Syrus already has a clone in
+hand, during a normal run, so a repository Syrus has never worked on produces
+no suggestion.
+
 ## Plugin Data
 
 Plugins can own database tables. When they do, table names and model

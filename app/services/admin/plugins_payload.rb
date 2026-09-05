@@ -96,8 +96,28 @@ module Admin
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest),
+          recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
+      end
+    end
+
+    # Why this instance might want a plugin it currently has off. Present only
+    # for disabled plugins with a signal that actually fired -- an enabled
+    # plugin needs no introduction, and a nudge without evidence is noise.
+    def recommendation_payload(manifest)
+      recommendation = recommendations[manifest.name]
+      return nil unless recommendation
+
+      { reason: recommendation.reason, evidence: recommendation.evidence_summary }
+    end
+
+    # Evaluated once for the whole payload: the signals behind it are
+    # instance-wide, and re-deriving them per plugin would turn one set of
+    # counts into thirty.
+    def recommendations
+      @recommendations ||= PerformanceLogging.phase("admin_plugins_payload.recommendations") do
+        Syrus::PluginRecommendations.call.index_by(&:plugin)
       end
     end
 

@@ -494,6 +494,7 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "required": "Required",
+    "suggested": "Suggested for this instance:",
     "enable": "Enable",
     "disable": "Disable",
     "saving": "Saving...",

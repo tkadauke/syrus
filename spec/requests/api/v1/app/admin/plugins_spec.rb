@@ -637,4 +637,36 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(entry["health"]["reasons"]).to include("requires absent_plugin, which is not installed")
     end
   end
+
+  describe "enable-me recommendations" do
+    after { Syrus::PluginRecommendations.deregister("suggestible") }
+
+    def register_suggestible!(enabled:)
+      Syrus::PluginRegistry.register(name: "suggestible", version: "1.0.0", provides: {})
+      PluginRecord.find_by!(name: "suggestible").update!(enabled: enabled)
+      Syrus::PluginRecommendations.register(
+        plugin: "suggestible", reason: "Two of your repositories look like this.", block: ->(_s) { %w[a/b c/d] }
+      )
+    end
+
+    def suggestible_entry
+      sign_in_as(admin)
+      get "/api/v1/app/admin/plugins"
+      response.parsed_body["plugins"].find { |plugin| plugin["name"] == "suggestible" }
+    end
+
+    it "tells the admin why a disabled plugin might be worth turning on" do
+      register_suggestible!(enabled: false)
+
+      expect(suggestible_entry["recommendation"]).to eq(
+        "reason" => "Two of your repositories look like this.", "evidence" => "a/b, c/d"
+      )
+    end
+
+    it "says nothing about a plugin the admin has already enabled" do
+      register_suggestible!(enabled: true)
+
+      expect(suggestible_entry["recommendation"]).to be_nil
+    end
+  end
 end

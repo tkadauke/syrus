@@ -94,6 +94,7 @@ module Syrus
         @frontend = {}
         @effects = []
         @boot_blocks = []
+        @suggestion = nil
       end
 
       SCALARS.each do |field|
@@ -146,6 +147,23 @@ module Syrus
         @effects << { scoped: false, label: label, block: block }
       end
 
+      # A reason this instance might want the plugin turned on, evaluated even
+      # when it is disabled and has never been enabled -- the one tier that can
+      # reach an admin who does not know the plugin exists.
+      #
+      # The block receives `Syrus::PluginSignals` and returns evidence (a
+      # count, a list of repository slugs) or something falsy for "no". It may
+      # only reach code under the plugin's `lib/`, which the gem requires at
+      # load time; the plugin's `app/` tree is not eager loaded while it is
+      # disabled, and a suggestion that woke it would defeat its own purpose.
+      def suggests_enabling(reason, &block)
+        raise Error, "suggests_enabling requires a block" unless block
+
+        @suggestion = { reason: reason, block: block }
+      end
+
+      def suggestion = @suggestion
+
       # The escape hatch for process-level work that is not a registration at
       # all -- a daemon a worker process owns, say. Runs on every to_prepare
       # like everything else, so the block must be safe to re-enter; there is
@@ -182,6 +200,7 @@ module Syrus
       # plugin on the developer's first file save.
       def install!
         Syrus::PluginRegistry.register(**manifest_arguments)
+        install_suggestion!
         install_effects!
         @boot_blocks.each(&:call)
       end
@@ -234,6 +253,17 @@ module Syrus
         module_ = interface.call
         klass.include(module_) unless klass.include?(module_)
         klass
+      end
+
+      # Registered unconditionally, unlike effects: the whole point is to reach
+      # an instance where the plugin is off. Registering a closure is not
+      # running it -- nothing here touches the plugin until an admin asks.
+      def install_suggestion!
+        return if @suggestion.nil?
+
+        Syrus::PluginRecommendations.register(
+          plugin: name, reason: @suggestion[:reason], block: @suggestion[:block]
+        )
       end
 
       def install_effects!

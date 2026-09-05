@@ -219,6 +219,27 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
       expect(chunks).to include("[prepare] detected: none")
     end
+
+    it "stamps the widened observation on the repository so disabled plugins can be recommended" do
+      File.write(@ws_path.join("Gemfile"), "")
+      allow(handler).to receive(:run_shell).and_return(true)
+      allow(RepoPluginDetector).to receive(:observed_for).and_return(%w[ruby some_disabled_plugin])
+
+      handler.call
+
+      repository = run.job.repository.reload
+      expect(repository.plugin_signals).to eq(%w[ruby some_disabled_plugin])
+      expect(repository.plugin_signals_observed_at).to be_within(1.minute).of(Time.current)
+    end
+
+    it "does not fail prepare when the observation cannot be stamped" do
+      allow(RepoPluginDetector).to receive(:observed_for).and_raise("boom")
+
+      expect { handler.call }.not_to raise_error
+
+      expect(workflow.reload.artifact("detected_plugins")).to eq([])
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("plugin signal observation skipped")
+    end
   end
 
   describe "mise install" do

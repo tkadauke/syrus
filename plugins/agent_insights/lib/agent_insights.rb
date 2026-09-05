@@ -14,6 +14,12 @@ module AgentInsights
     default_enabled false
     disableable true
     depends_on [ "agent_memory" ]
+
+    suggests_enabling "There is enough completed workflow history here for a read-only survey to have something to say." do |signals|
+      runs = signals.completed_runs
+      runs if runs >= 50
+    end
+
     provides workflow_kinds: "AgentInsights::WorkflowKinds",
              domain_subscriber: "AgentInsights::Subscribers",
              repo_page_tab: "AgentInsights::RepoPageTabs",

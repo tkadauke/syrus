@@ -14,6 +14,7 @@ export type AdminPluginExtensionPoint = {
 
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
+  recommendation?: { reason: string; evidence: string } | null
   name: string
   display_name: string
   version: string

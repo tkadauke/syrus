@@ -314,6 +314,22 @@ module Steps
       detected = RepoPluginDetector.for(workspace.path)
       workflow.set_artifact!("detected_plugins", detected)
       log("[prepare] detected: #{detected.any? ? detected.join(', ') : 'none'}")
+      record_plugin_signals!
+    end
+
+    # The same pass widened to installed-but-disabled plugins, stamped on the
+    # Repository so `Syrus::PluginSignals` can answer "which repos look like
+    # Python?" without a clone. Purely a nudge input -- it never gates a Step,
+    # which is why a failure here is logged and dropped rather than failing
+    # prepare over a suggestion nobody asked for yet.
+    def record_plugin_signals!
+      observed = RepoPluginDetector.observed_for(workspace.path)
+      repository&.update_columns(
+        plugin_signals: observed,
+        plugin_signals_observed_at: Time.current
+      )
+    rescue StandardError => e
+      log("[prepare] plugin signal observation skipped: #{e.class}: #{e.message}")
     end
   end
 end

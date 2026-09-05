@@ -116,6 +116,60 @@ migrations from a runtime toggle would mean choosing which of several processes
 runs them while the others serve traffic against a changing schema, with no
 rollout gate -- the deploy path exists precisely to avoid that.
 
+## Telling an admin a plugin exists
+
+The three states above all assume somebody already knows the plugin is there.
+A plugin nobody has ever enabled is exactly the one that needs to introduce
+itself, so there is a fourth thing a manifest can declare, evaluated whatever
+the plugin's state:
+
+```ruby
+suggests_enabling "Python repositories get uv/Poetry/pip prepare detection, " \
+                  "pytest grader detail, ruff/black autofix, and dependency scanning." do |signals|
+  signals.repositories_detecting("python")
+end
+```
+
+The block receives `Syrus::PluginSignals` and returns **evidence** -- a count,
+a list of repository slugs -- or anything falsy for "no". Evidence is the
+point: "3 of your repositories are Python" is actionable, "you might like this"
+is noise, and a suggestion with nothing behind it does not render. Enabled
+plugins are never recommended, however loud the signal; the admin has already
+answered the question.
+
+### The placement rule that keeps this cheap
+
+A recommendation may only reach code under the plugin's **`lib/`**, which the
+gem requires at load time regardless of enabled state. It may **not** touch the
+plugin's `app/` tree, which Zeitwerk manages and which is deliberately not
+eager loaded while the plugin is disabled. A suggestion that woke the plugin up
+to ask whether it should be woken up would defeat its own purpose.
+
+This is why the language plugins' detectors already live in `lib/` -- the
+existing `:prepare_detector` classes are reused as-is, so the language
+suggestions cost nothing beyond a closure.
+
+### The signals available
+
+| Signal | Answers |
+|---|---|
+| `repositories_detecting(name)` | Repositories whose file layout matched that plugin |
+| `worker_hostnames` | Distinct worker hosts seen in the last 30 days |
+| `database_adapters` | Every configured adapter, across all four databases |
+| `agent_spend_usd` / `completed_runs` | Recent agent activity |
+| `repository_count` | Active repositories |
+
+`repositories_detecting` is fed by `Steps::Prepare`, which runs the detectors
+against every fresh clone anyway and stamps the widened result -- installed
+plugins, not just enabled ones -- on `repositories.plugin_signals`. That makes
+it a lagging indicator: a repository Syrus has never run on has no observation,
+and produces no suggestion. Silence rather than a guess is the right failure
+direction for a nudge.
+
+Signals fail open. An unreadable table yields an empty answer, an empty answer
+suppresses the suggestion, and one plugin's raising block costs only its own
+recommendation.
+
 ## Where a plugin's documentation lives
 
 A plugin's own full documentation lives in the plugin, at
