@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { cancelPendingAction, confirmChatProposal, confirmPendingAction, fetchChatMedia, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMediaPayload, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatPreviewPanel, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
+import { cancelPendingAction, confirmChatProposal, confirmPendingAction, fetchChatMedia, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMediaPayload, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionGroup, type ChatPendingActionInline, type ChatPayload, type ChatPreviewPanel, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -20,7 +20,7 @@ import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
-import { pendingActionBadgeLabel, pendingActionKey, pendingActionResourceTitle, pendingActionResourceUrl, pendingActionTerminalLabel } from "./pendingActionDisplay"
+import { pendingActionBadgeLabel, pendingActionGroupTerminalLabel, pendingActionKey, pendingActionResourceTitle, pendingActionResourceUrl, pendingActionTerminalLabel } from "./pendingActionDisplay"
 import type { DependencyPill, EditableProposal } from "./proposalDisplay"
 import { PencilIcon } from "./icons"
 import { editableChildProposal, initialProposalDependencyPills, proposalConfirmAriaLabel, proposalConfirmLabel } from "./proposalDisplay"
@@ -837,6 +837,109 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
               {rejectLabel}
             </button>
             {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Pending action failed.")}</div> : null}
+          </div>
+        ) : null
+      }
+    />
+  )
+}
+
+export function PendingActionGroupCard({ pendingActionGroup, queryKey, onNotice }: { pendingActionGroup: ChatPendingActionGroup; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const [expanded, setExpanded] = useState(false)
+  const action = useMutation({
+    mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
+      const path = appendSearch(input.path, search)
+      return input.action === "confirm" ? confirmPendingAction(path) : rejectPendingAction(path)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
+
+  const members = pendingActionGroup.members
+  const isPending = pendingActionGroup.state === "pending"
+  const isConfirming = pendingActionGroup.state === "confirming"
+  const terminalLabel = pendingActionGroupTerminalLabel(pendingActionGroup.state)
+  const succeededCount = members.filter((member) => member.state === "confirmed").length
+  const failedMembers = members.filter((member) => member.state === "failed")
+
+  useEffect(() => {
+    if (pendingActionGroup.state === "confirmed" && failedMembers.length > 0) setExpanded(true)
+  }, [pendingActionGroup.state, failedMembers.length])
+
+  return (
+    <ConfirmationCard
+      muted={Boolean(terminalLabel)}
+      header={
+        <>
+          <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">Batch</span>
+          <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{terminalLabel ? pendingActionGroup.label : linkifySlugs(pendingActionGroup.label)}</h3>
+        </>
+      }
+      body={
+        <>
+          <button
+            className="text-xs font-medium text-brand hover:underline"
+            onClick={() => setExpanded((value) => !value)}
+            type="button"
+          >
+            {expanded ? "Hide targets" : `Show ${members.length} target${members.length === 1 ? "" : "s"}`}
+          </button>
+          {expanded ? (
+            <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+              {members.map((member) => (
+                <li className="flex flex-wrap items-start justify-between gap-2" key={member.id}>
+                  <span className="text-gray-700 dark:text-gray-300">{linkifySlugs(member.label)}</span>
+                  {member.state === "confirmed" ? (
+                    <span className="text-green-700 dark:text-green-300">Succeeded</span>
+                  ) : member.state === "failed" ? (
+                    <span className="break-words text-red-700 dark:text-red-300">{member.execution_error ? `Failed: ${member.execution_error}` : "Failed"}</span>
+                  ) : member.state === "cancelled" ? (
+                    <span className="text-gray-500 dark:text-gray-400">Cancelled</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {pendingActionGroup.state === "confirmed" ? (
+            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+              {failedMembers.length > 0 ? `${succeededCount} of ${members.length} succeeded, ${failedMembers.length} failed.` : `All ${members.length} succeeded.`}
+            </p>
+          ) : null}
+        </>
+      }
+      footer={
+        terminalLabel ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+            <span className={`rounded px-2 py-0.5 font-medium ${pendingActionGroup.state === "confirmed" ? (failedMembers.length > 0 ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200") : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+          </div>
+        ) : isConfirming ? (
+          <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+            <span>Working...</span>
+          </div>
+        ) : isPending ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={primaryButton()}
+              disabled={action.isPending}
+              onClick={() => action.mutate({ action: "confirm", path: pendingActionGroup.app_confirm_path })}
+              type="button"
+            >
+              Confirm all
+            </button>
+            <button
+              className={secondaryButton()}
+              disabled={action.isPending}
+              onClick={() => action.mutate({ action: "reject", path: pendingActionGroup.app_reject_path })}
+              type="button"
+            >
+              Reject all
+            </button>
+            {action.isError ? <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, "Batch action failed.")}</div> : null}
           </div>
         ) : null
       }

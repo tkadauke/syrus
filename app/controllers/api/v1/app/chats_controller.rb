@@ -895,6 +895,28 @@ module Api
           end
         end
 
+        def confirm_pending_action_group
+          chat_session = find_chat_session
+          group = find_pending_action_group(chat_session)
+
+          if group.confirm_all!(user: Current.user)
+            render json: chat_payload(chat_session.reload, message: pending_action_group_confirmed_notice(group))
+          else
+            render_error("validation_failed", "Pending action group is no longer active.", status: :unprocessable_content)
+          end
+        end
+
+        def reject_pending_action_group
+          chat_session = find_chat_session
+          group = find_pending_action_group(chat_session)
+
+          if group.reject_all!
+            render json: chat_payload(chat_session.reload, message: pending_action_group_rejected_notice(group))
+          else
+            render_error("validation_failed", "Pending action group is no longer active.", status: :unprocessable_content)
+          end
+        end
+
         def confirm_proposal
           chat_session = find_chat_session
           proposal = find_proposal(chat_session)
@@ -1624,6 +1646,10 @@ module Api
 
         def find_pending_action(chat_session)
           chat_session.pending_actions.find(params[:pending_action_id])
+        end
+
+        def find_pending_action_group(chat_session)
+          chat_session.pending_action_groups.find(params[:pending_action_group_id])
         end
 
         def find_proposal(chat_session)

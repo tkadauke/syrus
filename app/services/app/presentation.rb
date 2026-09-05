@@ -219,6 +219,17 @@ module App
       end
     end
 
+    # Groups are homogeneous by construction (see PendingActionGroup) so a
+    # single shared action/action_type covers every member in practice; the
+    # mixed-action fallback only guards against a future caller that doesn't
+    # honor that convention.
+    def pending_action_group_label(members)
+      action_keys = members.map { |member| member.action.presence || member.action_type }.uniq
+      return "Batch action (#{members.size})" if action_keys.size != 1 || action_keys.first.blank?
+
+      "#{action_keys.first.to_s.humanize} (#{members.size})"
+    end
+
     def pending_action_detail(action)
       payload = action.payload || {}
       case action.action.presence || action.action_type
