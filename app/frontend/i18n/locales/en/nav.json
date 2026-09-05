@@ -80,6 +80,7 @@
     "all_items_workflow": "All workflows",
     "names": {
       "all_jobs": "All jobs",
+      "backlogged_jobs": "Backlogged jobs",
       "pinned": "Pinned",
       "in_progress": "In progress",
       "paused": "Paused",
