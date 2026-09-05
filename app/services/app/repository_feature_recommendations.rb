@@ -87,11 +87,12 @@ module App
         main_branch_repair,
         auto_merge,
         external_pr_ingestion,
-        scheduled_coverage,
         fork_auto_sync,
         delivery_tracks,
         pr_cost_footer
-      ].compact.sort_by { |entry| entry.fetch(:order) }.map { |entry| entry.except(:order) }
+      ].compact.concat(plugin_candidates)
+       .sort_by { |entry| entry.fetch(:order) }
+       .map { |entry| entry.except(:order) }
     end
 
     def visual_review
@@ -237,23 +238,6 @@ module App
       )
     end
 
-    def scheduled_coverage
-      return if current_scheduled_tasks?
-      return unless health_signals? || parsed_config&.coverage.present?
-
-      template = user.cron_templates.find_by(name: "Increase test coverage")
-      path = new_repository_scheduled_task_path(repository, from_template: template&.id)
-      recommendation(
-        id: "scheduled_coverage",
-        title: "Schedule coverage upkeep",
-        body: "Run periodic maintenance before test debt turns into review friction.",
-        tone: "gray",
-        category: "maintenance",
-        order: 90,
-        cta: link_cta("Create schedule", path),
-        secondary_path: repository_scheduled_tasks_path(repository)
-      )
-    end
 
     def fork_auto_sync
       return unless repository.fork_syncable?
@@ -300,6 +284,23 @@ module App
         cta: toggle_cta("Enable", "enable_pr_cost_footer"),
         secondary_path: edit_repository_path(repository, anchor: "automation")
       )
+    end
+
+    # A plugin recommending its own feature. Core supplies the dismissal key
+    # so the shape stays consistent, and skips a provider that raises rather
+    # than failing the whole repository page over one suggestion.
+    def plugin_candidates
+      Syrus::PluginRegistry.providers_for(:repository_recommendation).flat_map do |provider|
+        Array(provider.repository_recommendations(repository: repository, user: user)).map do |entry|
+          entry = entry.to_h.symbolize_keys
+          next if entry[:id].blank? || entry[:order].blank?
+
+          entry.merge(dismissal_key: "repository:#{repository.id}:feature_recommendation:#{entry[:id]}:v#{VERSION}")
+        end.compact
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[RepositoryFeatureRecommendations] plugin recommendations failed: #{e.class}: #{e.message}")
+      []
     end
 
     def recommendation(id:, title:, body:, tone:, category:, order:, cta:, secondary_path:)
@@ -441,9 +442,6 @@ module App
       repository.jobs.where.not(external_pr_number: nil).exists?
     end
 
-    def current_scheduled_tasks?
-      repository.scheduled_tasks.alive.where(state: %w[scheduled paused auto_paused]).exists?
-    end
 
     def delivery_configured?
       parsed_config&.raw_delivery.present?

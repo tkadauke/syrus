@@ -22,7 +22,8 @@ module ScheduledTasks
              domain_subscriber: "ScheduledTasks::Subscribers",
              chat_mcp_tool_set: "ScheduledTasks::ChatToolSet",
              sidebar_page: "ScheduledTasks::SidebarPages",
-             repo_page_tab: "ScheduledTasks::RepoPageTabs"
+             repo_page_tab: "ScheduledTasks::RepoPageTabs",
+             repository_recommendation: "ScheduledTasks::Recommendations"
 
     route :get,    "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#index"
     route :post,   "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#create"

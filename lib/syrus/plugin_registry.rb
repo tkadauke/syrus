@@ -34,6 +34,7 @@ module Syrus
       workflow_kinds
       job_origin
       preview_panel_viewer
+      repository_recommendation
       memory_store
       test_evidence
     ].freeze
@@ -73,6 +74,7 @@ module Syrus
       workflow_kinds:          -> { Syrus::Plugin::WorkflowKinds },
       job_origin:              -> { Syrus::Plugin::JobOrigin },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
+      repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
       memory_store:            -> { Syrus::Plugin::MemoryStore }
     }.freeze
