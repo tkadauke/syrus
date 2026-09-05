@@ -535,6 +535,32 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
 
+  it "renders a scheduled-task source for cron jobs via Job::Origin, without a scheduled_task association" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    task = ScheduledTasks::Task.create!(
+      user: user, repository: repository,
+      name: "Nightly sweep", prompt: "Survey the repo.",
+      kind: "cron", cron_expression: "0 9 * * *"
+    )
+    cron_job = Factories.job_record(user: user, repository: repository, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["jobs"]).to include(
+      include(
+        "id" => cron_job.id,
+        "source" => include(
+          "label" => "scheduled: Nightly sweep",
+          "path" => "/scheduled_tasks/#{task.id}",
+          "external" => false
+        )
+      )
+    )
+  end
+
   it "returns repository job failover payloads without per-job latest workflow lookups" do
     sign_in_as(user)
     repository = Factories.repository(user: user, agent_provider: "claude")
