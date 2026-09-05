@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode, useState } from "react"
 import { Button } from "../Button"
-import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff, type DiffLine, type LineAnnotation } from "./diffRendering"
+import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff, type DiffLine, type DiffLineKind, type LineAnnotation } from "./diffRendering"
 
 export type ReviewableDiffFile = {
   path: string
@@ -28,15 +28,22 @@ export type ReviewableDiffProps = {
   annotations?: Record<string, Record<string, LineAnnotation>> | Record<string, LineAnnotation> | null
   changedFilesPopup?: boolean
   comments?: Record<string, Record<string, DiffReviewThread[]>> | null
+  composingBody?: string
+  composingError?: Error | null
+  composingPending?: boolean
+  composingSelection?: DiffLineSelection | null
   editingThreadBody?: string
   editingThreadId?: number | null
   emptyState?: ReactNode
   fileCommentCounts?: Record<string, number>
   files?: ReviewableDiffFile[]
   mode?: "single-file" | "continuous"
+  onCancelComposing?: () => void
   onCancelEditThread?: () => void
+  onChangeComposingBody?: (body: string) => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onSelectFile?: (path: string) => void
   onStartEditThread?: (thread: DiffReviewThread) => void
@@ -54,15 +61,22 @@ export function ReviewableDiff({
   annotations,
   changedFilesPopup = false,
   comments,
+  composingBody,
+  composingError,
+  composingPending,
+  composingSelection,
   editingThreadBody,
   editingThreadId,
   emptyState = null,
   fileCommentCounts,
   files = [],
   mode = "single-file",
+  onCancelComposing,
   onCancelEditThread,
+  onChangeComposingBody,
   onChangeEditingThreadBody,
   onCommentLine,
+  onSaveComposing,
   onSaveEditThread,
   onSelectFile,
   onStartEditThread,
@@ -104,12 +118,19 @@ export function ReviewableDiff({
               <UnifiedDiffTable
                 annotations={annotationsForFile(annotations, file.path)}
                 comments={comments?.[file.path]}
+                composingBody={composingBody}
+                composingError={composingError}
+                composingPending={composingPending}
+                composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
                 editingThreadBody={editingThreadBody}
                 editingThreadId={editingThreadId}
                 file={file}
+                onCancelComposing={onCancelComposing}
                 onCancelEditThread={onCancelEditThread}
+                onChangeComposingBody={onChangeComposingBody}
                 onChangeEditingThreadBody={onChangeEditingThreadBody}
                 onCommentLine={onCommentLine}
+                onSaveComposing={onSaveComposing}
                 onSaveEditThread={onSaveEditThread}
                 onStartEditThread={onStartEditThread}
               />
@@ -179,29 +200,44 @@ function ChangedFilesPopup({
 export function UnifiedDiffTable({
   annotations,
   comments,
+  composingBody,
+  composingError,
+  composingPending,
+  composingSelection,
   editingThreadBody,
   editingThreadId,
   file,
+  onCancelComposing,
   onCancelEditThread,
+  onChangeComposingBody,
   onChangeEditingThreadBody,
   onCommentLine,
+  onSaveComposing,
   onSaveEditThread,
   onStartEditThread,
   testId
 }: {
   annotations?: Record<string, LineAnnotation>
   comments?: Record<string, DiffReviewThread[]>
+  composingBody?: string
+  composingError?: Error | null
+  composingPending?: boolean
+  composingSelection?: DiffLineSelection | null
   editingThreadBody?: string
   editingThreadId?: number | null
   file: ReviewableDiffFile
+  onCancelComposing?: () => void
   onCancelEditThread?: () => void
+  onChangeComposingBody?: (body: string) => void
   onChangeEditingThreadBody?: (body: string) => void
   onCommentLine?: (selection: DiffLineSelection) => void
+  onSaveComposing?: () => void
   onSaveEditThread?: () => void
   onStartEditThread?: (thread: DiffReviewThread) => void
   testId?: string
 }) {
   const lines = parseUnifiedDiff(file.patch || "")
+  const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
 
   return (
     <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
@@ -211,6 +247,7 @@ export function UnifiedDiffTable({
           const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
           const canComment = Boolean(onCommentLine && commentSide)
           const threads = commentSide ? comments?.[anchorKeyForLine(line, commentSide)] || [] : []
+          const isComposingHere = Boolean(commentSide && composingKey && composingKey === anchorKeyForLine(line, commentSide))
           return (
             <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
             <tr
@@ -284,12 +321,57 @@ export function UnifiedDiffTable({
                 </td>
               </tr>
             ) : null}
+            {isComposingHere ? (
+              <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
+                <td className="border-r border-brand/20" colSpan={2} />
+                <td className="text-brand">*</td>
+                <td className="px-3 py-2" colSpan={2}>
+                  <div className="space-y-2">
+                    <textarea
+                      aria-label="Comment"
+                      autoFocus
+                      className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                      onChange={(event) => onChangeComposingBody?.(event.target.value)}
+                      value={composingBody ?? ""}
+                    />
+                    <div className="flex gap-2">
+                      <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
+                      <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                    </div>
+                    {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                  </div>
+                </td>
+              </tr>
+            ) : null}
             </Fragment>
           )
         })}
       </tbody>
     </table>
   )
+}
+
+export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
+  const lines = hunk.replace(/\r\n/g, "\n").split("\n")
+  return (
+    <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-800">
+      {lines.map((line, index) => (
+        <div
+          className={`whitespace-pre px-2 py-0.5 font-mono text-2xs ${diffLineClass(hunkLineKind(line))} ${highlightLine != null && line === highlightLine ? "ring-1 ring-inset ring-brand" : ""}`}
+          key={index}
+        >
+          {line || " "}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function hunkLineKind(line: string): DiffLineKind {
+  if (line.startsWith("@@")) return "hunk"
+  if (line.startsWith("+") && !line.startsWith("+++")) return "add"
+  if (line.startsWith("-") && !line.startsWith("---")) return "delete"
+  return "context"
 }
 
 function GutterCommentButton({

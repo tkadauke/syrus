@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { AgentDiff, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
+import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 const files = [
   {
@@ -142,6 +142,53 @@ describe("ReviewableDiff", () => {
     expect(onSaveEditThread).toHaveBeenCalled()
   })
 
+  it("composes a new comment inline in the diff, full width, instead of a separate sidebar form", () => {
+    const onChangeComposingBody = vi.fn()
+    const onSaveComposing = vi.fn()
+    const onCancelComposing = vi.fn()
+
+    render(
+      <ReviewableDiff
+        composingBody="Please add a regression spec."
+        composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+" }, side: "new" }}
+        files={files}
+        mode="single-file"
+        onCancelComposing={onCancelComposing}
+        onChangeComposingBody={onChangeComposingBody}
+        onCommentLine={vi.fn()}
+        onSaveComposing={onSaveComposing}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const composer = screen.getByTestId("diff-review-composer")
+    expect(within(composer).getByLabelText("Comment")).toHaveValue("Please add a regression spec.")
+
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Updated body." } })
+    expect(onChangeComposingBody).toHaveBeenCalledWith("Updated body.")
+
+    fireEvent.click(within(composer).getByRole("button", { name: "Create comment" }))
+    expect(onSaveComposing).toHaveBeenCalled()
+
+    fireEvent.click(within(composer).getByRole("button", { name: "Cancel" }))
+    expect(onCancelComposing).toHaveBeenCalled()
+  })
+
+  it("does not show an inline composer on lines that don't match the active composing selection", () => {
+    render(
+      <ReviewableDiff
+        composingBody="Please add a regression spec."
+        composingSelection={{ file: files[0], line: { code: "unrelated", kind: "add", newLine: 999, oldLine: null, marker: "+" }, side: "new" }}
+        files={files}
+        mode="single-file"
+        onCommentLine={vi.fn()}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
+  })
+
   it("bounds the diff height by default but grows naturally when scroll is set to natural", () => {
     const { rerender } = render(<ReviewableDiff files={files} mode="continuous" />)
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).toBeInTheDocument()
@@ -199,5 +246,18 @@ describe("ReviewableDiff", () => {
 
     expect(screen.getByTitle("app/models/job.rb")).toBeInTheDocument()
     expect(screen.getByTitle("app/models/run.rb")).toBeInTheDocument()
+  })
+})
+
+describe("DiffHunkSnippet", () => {
+  it("renders the surrounding diff context around a comment, above and below the commented line", () => {
+    const hunk = ["@@ -1,2 +1,2 @@", "-old", "+new"].join("\n")
+    render(<DiffHunkSnippet highlightLine="+new" hunk={hunk} />)
+
+    expect(screen.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument()
+    expect(screen.getByText("-old")).toBeInTheDocument()
+    const highlighted = screen.getByText("+new")
+    expect(highlighted).toHaveClass("ring-brand")
+    expect(screen.getByText("-old")).not.toHaveClass("ring-brand")
   })
 })
