@@ -1651,7 +1651,7 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
   return highlights.find((highlight) => {
-    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.kind !== "suggestion" || highlight.renderMode === "block" || context.renderedSuggestionIds.has(highlight.id)) return false
     if (highlight.start > offset || highlight.end <= offset) return false
 
     const original = highlight.originalMarkdown ?? ""
@@ -2167,7 +2167,7 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
           const className = focused
             ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
             : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
-          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceText}</mark>`
+          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceSpan(segment.text, baseOffset + segment.start)}</mark>`
         }
 
         const className = focused
