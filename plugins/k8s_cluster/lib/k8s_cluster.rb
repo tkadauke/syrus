@@ -18,6 +18,16 @@ module K8sCluster
     route :delete, "/api/v1/app/admin/kubernetes_clusters/:id", to: "api/v1/app/admin/kubernetes_clusters#destroy"
     route :post, "/api/v1/app/admin/kubernetes_clusters/test", to: "api/v1/app/admin/kubernetes_clusters#test_connection"
     route :post, "/api/v1/app/admin/kubernetes_clusters/:id/test", to: "api/v1/app/admin/kubernetes_clusters#test_connection"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/namespaces", to: "api/v1/app/admin/kubernetes_resources#namespaces"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pods", to: "api/v1/app/admin/kubernetes_resources#pods"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pods/:name/logs", to: "api/v1/app/admin/kubernetes_resources#pod_logs"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/deployments", to: "api/v1/app/admin/kubernetes_resources#deployments"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/services", to: "api/v1/app/admin/kubernetes_resources#services"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/events", to: "api/v1/app/admin/kubernetes_resources#events"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/pvcs", to: "api/v1/app/admin/kubernetes_resources#pvcs"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/nodes", to: "api/v1/app/admin/kubernetes_resources#nodes"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/cronjobs", to: "api/v1/app/admin/kubernetes_resources#cronjobs"
+    route :get, "/api/v1/app/admin/kubernetes_clusters/:id/overview", to: "api/v1/app/admin/kubernetes_resources#overview"
     frontend routes: {
           "k8s_cluster/KubernetesClusters" => "app/frontend/routes/KubernetesClusters.tsx"
         },
