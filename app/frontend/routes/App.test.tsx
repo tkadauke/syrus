@@ -3658,9 +3658,13 @@ describe("App", () => {
     )
 
     const chatJobCell = (await screen.findByRole("link", { name: "Direct chat repair" })).closest("td")
-    expect(chatJobCell).toHaveTextContent("JOB-602·PR #44·Chat")
+    expect(chatJobCell).toHaveTextContent("JOB-602·PR #44·CHAT-9")
     expect(within(chatJobCell!).getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/44")
-    expect(within(chatJobCell!).getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/9")
+
+    const copyChatSlugButton = within(chatJobCell!).getByRole("button", { name: "Copy CHAT-9 to clipboard" })
+    expect(copyChatSlugButton.closest("a")).toHaveAttribute("href", "/app-shell/chats/9")
+    fireEvent.click(copyChatSlugButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("CHAT-9"))
 
     const copySlugButton = within(chatJobCell!).getByRole("button", { name: "Copy JOB-602 to clipboard" })
     fireEvent.click(copySlugButton)
@@ -3673,6 +3677,61 @@ describe("App", () => {
     const pausedCell = screen.getByRole("link", { name: "Paused direct" }).closest("td")
     expect(pausedCell).toHaveTextContent("JOB-604·Manually paused·Unpause")
     expect(within(pausedCell!).getByRole("button", { name: "Unpause" })).toBeEnabled()
+  })
+
+  it("shows a chat preview card on hover for the dashboard source chat slug", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    try {
+      mockDashboardFetchWithChatPreview(dashboardPayload({
+        subject: "job",
+        view: "list",
+        items: [
+          dashboardJobItem({
+            id: 610,
+            kind: "direct",
+            title: "Chat-originated repair",
+            issue_number: null,
+            issue_url: null,
+            pr_number: null,
+            pr_url: null,
+            tags: [],
+            source_chat: {
+              chat_id: 11,
+              chat_title: "Roadmap sync",
+              proposal_id: 8,
+              proposal_kind: "job",
+              message_id: 4,
+              path: "/chats/11#message-4",
+              label: "Job proposal in Roadmap sync"
+            }
+          })
+        ]
+      }), {
+        id: 11,
+        chat_slug: "CHAT-11",
+        title: "Roadmap sync",
+        title_pending: false,
+        participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
+        pending_proposal_count: 0,
+        pending_actions_count: 0
+      })
+
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const copyChatSlugButton = await screen.findByRole("button", { name: "Copy CHAT-11 to clipboard" })
+      expect(copyChatSlugButton.closest("a")).toHaveAttribute("href", "/app-shell/chats/11#message-4")
+
+      fireEvent.mouseEnter(copyChatSlugButton.parentElement!.parentElement!)
+      expect(await screen.findByText("Roadmap sync")).toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
   })
 
   it("surfaces readiness failures on the dashboard", async () => {
@@ -15392,6 +15451,16 @@ function dashboardResponse(payload: ReturnType<typeof dashboardPayload>, input: 
 
 function mockDashboardFetch(payload: ReturnType<typeof dashboardPayload>) {
   return vi.spyOn(window, "fetch").mockImplementation((input) => Promise.resolve(dashboardResponse(payload, input)))
+}
+
+function mockDashboardFetchWithChatPreview(payload: ReturnType<typeof dashboardPayload>, chatPreview: Record<string, unknown>) {
+  return vi.spyOn(window, "fetch").mockImplementation((input) => {
+    if (typeof input === "string" && input.includes("/preview")) {
+      return Promise.resolve(jsonResponse(chatPreview))
+    }
+
+    return Promise.resolve(dashboardResponse(payload, input))
+  })
 }
 
 function decodeFilterQueryParam(q: string) {
