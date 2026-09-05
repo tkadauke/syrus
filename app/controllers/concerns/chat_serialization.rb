@@ -347,16 +347,58 @@ module ChatSerialization
     active_scope.or(recent_confirmed_scope).order(:created_at, :id)
   end
 
+  # Mirrors App::ChatMessagePayload#pending_action_json's resource case: kept
+  # in sync deliberately (see ChatPendingAction::JOB_RESOURCE_ACTIONS) so the
+  # live/unanchored pending-actions list shows the same target link as the
+  # message-anchored card once a pending action gets anchored to a tool call.
   def pending_action_resource(action)
     payload = action.payload || {}
 
     case action.action
+    when *ChatPendingAction::JOB_RESOURCE_ACTIONS
+      job = pending_action_scoped_job(action, payload["job_id"])
+      return nil unless job
+
+      { resource_title: job.issue_title, resource_url: job_path(job) }
+    when "restack_epic"
+      epic = pending_action_scoped_epic(action, payload["epic_id"])
+      return nil unless epic
+
+      { resource_title: epic.title, resource_url: epic_path(epic) }
+    when "reopen_epic_and_attach_job"
+      return nil unless action.repository
+
+      epic = action.repository.epics.find_by(id: payload["epic_id"])
+      return nil unless epic
+
+      { resource_title: epic.title, resource_url: epic_path(epic) }
+    when "create_repo_document", "delete_repo_document"
+      document = Document.find_by(id: payload["document_id"])
+      return nil unless document
+
+      { resource_title: document.title }
     when "submit_coding_changes"
       repository = action.user.repositories.active.find_by(id: payload["repository_id"])
       return nil unless repository
 
       { resource_title: repository.slug, resource_url: repository_path(repository) }
     end
+  end
+
+  def pending_action_scoped_job(action, id)
+    id = id.to_i
+    return nil if id <= 0
+
+    scope = action.user.admin? ? Job.all : action.user.jobs
+    scope.find_by(id: id)
+  end
+
+  def pending_action_scoped_epic(action, id)
+    id = id.to_i
+    return nil if id <= 0
+
+    scope = action.user.admin? ? Epic.all : action.user.epics
+    scope.find_by(id: id)
   end
 
   def attachment_groups_json(groups)

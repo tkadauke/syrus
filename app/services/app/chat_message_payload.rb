@@ -120,7 +120,7 @@ module App
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
 
       case action.action.presence || action.action_type
-      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "force_rebase", "reopen_job", "poll_job_feedback", "run_visual_review", "check_job_mergeability", "submit_chat_feedback", "force_landing_recheck", "override_landing_blocker_once"
+      when *ChatPendingAction::JOB_RESOURCE_ACTIONS
         if (job = cached_action_job(action, payload["job_id"]))
           base.merge(resource_title: job.issue_title, resource_url: job_path(job))
         else

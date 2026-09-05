@@ -5230,6 +5230,32 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(detail).not_to include("coding_handoff")
   end
 
+  it "labels an unanchored reconcile_job_state repair action and links its target Job instead of rendering a blank card" do
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin, owner: "acme", name: "ops")
+    job = Factories.job_record(user: admin, repository: admin_repository)
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "reconcile_job_state",
+      reason: "Job is stuck ready with a merged PR.",
+      payload: { "job_id" => job.id, "mode" => "mark_implemented_from_ready_pr" }
+    )
+
+    sign_in_as(admin)
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Reconcile state for JOB-#{job.id} (mark_implemented_from_ready_pr)",
+        "detail" => "Mode: mark_implemented_from_ready_pr",
+        "reason" => "Job is stuck ready with a merged PR.",
+        "resource_title" => job.issue_title,
+        "resource_url" => "/jobs/#{job.id}"
+      )
+    )
+  end
+
   it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "supervised")
