@@ -387,7 +387,7 @@
   "review_delete_error": "Commentarius diff deleri non potuit.",
   "review_artifacts_show": "Monstra",
   "review_artifacts_hide": "Occulta",
-  "review_add_global_comment": "Commentare de tota recensione",
+  "review_comment_button": "Commentarium",
   "review_global_comment_label": "Commentarius totius recensionis",
   "review_view_in_diff": "Vide in diff",
   "attachment_add_title": "Adiunctum adde",
