@@ -875,7 +875,7 @@ module App
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
           ),
-        can_cancel: writable && mutable_runtime_job,
+        can_cancel: writable && @job.open?,
         can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user) && !simple_epic_child?,
         can_unapprove: writable && @job.may_unapprove?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,

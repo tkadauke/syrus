@@ -1003,6 +1003,35 @@ describe("JobDetailView", () => {
     })
   })
 
+  it("offers a backlog-worded cancel action for a backlogged job and dispatches it to the cancel endpoint", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Cancellation requested.", job: { id: 1, state: "closed" } })
+    )
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "backlog", summary_state: "backlog", kind: "direct" }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_start: false, can_release_from_backlog: true, can_move_to_backlog: true, can_cancel: true }
+    })
+
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from backlog" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/cancel",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } })
