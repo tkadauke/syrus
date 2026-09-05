@@ -205,6 +205,48 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(direct.reload).to be_backlog
   end
 
+  it "cancels a backlogged job without creating a Workflow/Run and closes it with the cancelled reason" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Planned repair",
+      issue_body: "Repair the forum."
+    )
+
+    expect {
+      post app_job_path(direct, "cancel"), as: :json
+    }.not_to change { direct.reload.workflows.count }
+    expect(direct.runs.count).to eq(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(direct.reload).to be_closed
+    expect(direct.closure_reason).to eq("cancelled")
+    expect(parse_body).to include("message" => "Cancellation requested.")
+  end
+
+  it "rejects cancel for a backlogged job from a read-tier repository member" do
+    reader = Factories.user
+    RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      state: "backlog",
+      issue_number: nil,
+      issue_title: "Planned repair",
+      issue_body: "Repair the forum."
+    )
+    sign_in_as(reader)
+
+    post app_job_path(direct, "cancel"), as: :json
+
+    expect(response).to have_http_status(:forbidden)
+    expect(direct.reload).to be_backlog
+  end
+
   it "moves early jobs with no runtime or PR back to backlog" do
     early = Factories.job_record(repository: repo, issue_number: 60, state: "needs_triage")
 

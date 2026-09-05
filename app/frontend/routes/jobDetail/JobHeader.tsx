@@ -243,7 +243,15 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
   if (actions.can_open_in_local_mode) available.push({ key: "open_in_local_mode", label: t("open_in_local_mode"), input: { method: "post", path: paths.app_open_in_local_mode_path }, tone: "secondary" })
   if (actions.can_cancel_local_mode) available.push({ key: "cancel_local_mode", label: t("cancel_local_mode"), input: { method: "post", path: paths.app_cancel_local_mode_path, confirm: t("confirm_cancel_local_mode") }, tone: "danger" })
-  if (actions.can_cancel) available.push({ key: "cancel", label: t("cancel"), input: { method: "post", path: paths.app_cancel_path, confirm: t("confirm_cancel") }, tone: "danger" })
+  if (actions.can_cancel) {
+    const backlogged = payload.job.state === "backlog"
+    available.push({
+      key: "cancel",
+      label: backlogged ? t("remove_from_backlog") : t("cancel"),
+      input: { method: "post", path: paths.app_cancel_path, confirm: backlogged ? t("confirm_remove_from_backlog") : t("confirm_cancel") },
+      tone: "danger"
+    })
+  }
   if (actions.can_reopen) available.push({ key: "reopen", label: t("reopen"), input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
   if (actions.can_mark_valid) available.push({ key: "mark_valid", label: t("mark_valid"), input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
   if (actions.can_open_in_coding_mode) available.push({ key: "open_in_coding_mode", label: t("open_in_coding_mode"), input: { method: "post", path: paths.app_open_in_coding_mode_path }, tone: "secondary" })
