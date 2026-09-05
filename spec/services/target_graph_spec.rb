@@ -83,6 +83,29 @@ RSpec.describe TargetGraph do
       expect { graph.validate! }.to raise_error(TargetGraph::ValidationError, /unknown target/)
     end
 
+    it "names the owning .syrus.yml path alongside the target label in a missing-dependency error" do
+      default_label = TargetGraph::Label.parse("//cli:default")
+      missing_dep = TargetGraph::Label.parse("//cli:prepare/deps")
+      graph.add_target(
+        TargetGraph::Target.new(
+          label: default_label, kind: "default", project_id: "cli",
+          dependencies: [ missing_dep ], owner_config_path: "cli/.syrus.yml"
+        )
+      )
+
+      expect { graph.validate! }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//cli:default").and include("cli/.syrus.yml").and include("//cli:prepare/deps")
+      end
+    end
+
+    it "falls back to a plain 'no owning .syrus.yml' description when a target has none" do
+      default_label = TargetGraph::Label.parse("//cli:default")
+      missing_dep = TargetGraph::Label.parse("//cli:prepare/deps")
+      graph.add_target(TargetGraph::Target.new(label: default_label, kind: "default", project_id: "cli", dependencies: [ missing_dep ]))
+
+      expect { graph.validate! }.to raise_error(TargetGraph::ValidationError, /no owning \.syrus\.yml/)
+    end
+
     it "passes when every dependency resolves to a declared target" do
       default_label = TargetGraph::Label.parse("//cli:default")
       grade_label = TargetGraph::Label.parse("//cli:grade/tests")

@@ -221,6 +221,58 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     end
   end
 
+  describe "target graph diagnostics" do
+    it "logs a single low-noise summary line and artifact for an ordinary root-only repo" do
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("[prepare] target graph: source=none targets=1 (//:repo)")
+
+      diagnostics = workflow.reload.artifact("target_graph_diagnostics")
+      expect(diagnostics).to include(
+        "source" => "none",
+        "target_labels" => [ "//:repo" ],
+        "target_count" => 1,
+        "error" => nil
+      )
+    end
+
+    it "shows compiled target labels for root legacy grade config" do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+      YAML
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("[prepare] target graph: source=.syrus.yml targets=2 (//:grade/tests, //:repo)")
+
+      diagnostics = workflow.reload.artifact("target_graph_diagnostics")
+      expect(diagnostics["target_labels"]).to contain_exactly("//:repo", "//:grade/tests")
+      expect(diagnostics["error"]).to be_nil
+    end
+
+    it "shows a compilation failure clearly, naming the owning .syrus.yml path" do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        formatters:
+          not_an_array: true
+      YAML
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("[prepare] target graph compilation failed: .syrus.yml:")
+
+      diagnostics = workflow.reload.artifact("target_graph_diagnostics")
+      expect(diagnostics["error"]).to include(".syrus.yml:")
+      # A compile failure degrades to just the implicit root -- never a
+      # workflow-failing StepFailed; the agent still gets a workspace.
+      expect(diagnostics["target_labels"]).to eq([ "//:repo" ])
+    end
+  end
+
   describe "mise install" do
     let(:success_result) do
       ProcessRunner::Result.new(

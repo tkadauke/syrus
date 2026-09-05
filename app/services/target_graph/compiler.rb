@@ -18,8 +18,36 @@ class TargetGraph
   # defaulting apply here as they do for real grader runs -- this compiler
   # does not reimplement that logic.
   class Compiler
+    # Low-noise summary of one compilation, meant for workflow/run log
+    # output and the `target_graph_diagnostics` workflow artifact (see
+    # Steps::Prepare). `source` mirrors the RepoPrepPlan/RepoGradePlan
+    # convention (".syrus.yml" or "none" — no config file present at all).
+    # `error`, when present, is a human-readable message naming the owning
+    # `.syrus.yml` path (and target label, for validation failures) so an
+    # operator can find the offending config without reading source.
+    Diagnostics = Data.define(:source, :owner_config_path, :target_labels, :project_count, :error) do
+      def error?
+        !error.nil?
+      end
+
+      def to_h
+        {
+          "source" => source,
+          "owner_config_path" => owner_config_path,
+          "target_labels" => target_labels,
+          "target_count" => target_labels.size,
+          "project_count" => project_count,
+          "error" => error
+        }
+      end
+    end
+
     def self.compile(workspace_path)
       new(workspace_path).compile
+    end
+
+    def self.diagnose(workspace_path)
+      new(workspace_path).diagnose
     end
 
     def initialize(workspace_path)
@@ -36,15 +64,39 @@ class TargetGraph
       graph
     end
 
+    # Never raises -- callers such as Steps::Prepare use this for
+    # low-stakes diagnostics and must not fail a workflow over a
+    # diagnostics-only read. A parse or validation failure is reported
+    # through `Diagnostics#error` instead of propagating.
+    def diagnose
+      graph = compile
+      Diagnostics.new(
+        source: config_present? ? owner_config_path : "none",
+        owner_config_path: owner_config_path,
+        target_labels: graph.targets.keys.sort,
+        project_count: graph.projects.size,
+        error: parse_error && "#{owner_config_path}: #{parse_error.message}"
+      )
+    rescue TargetGraph::Error => e
+      Diagnostics.new(
+        source: owner_config_path,
+        owner_config_path: owner_config_path,
+        target_labels: [],
+        project_count: nil,
+        error: "#{owner_config_path}: #{e.message}"
+      )
+    end
+
     private
 
-    attr_reader :workspace_path
+    attr_reader :workspace_path, :parse_error
 
     def config
       return @config if defined?(@config)
 
       @config = config_present? ? SyrusYml.load_repo(workspace_path) : nil
-    rescue SyrusYml::ParseError
+    rescue SyrusYml::ParseError => e
+      @parse_error = e
       @config = nil
     end
 

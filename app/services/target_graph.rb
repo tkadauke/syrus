@@ -88,8 +88,12 @@ class TargetGraph
   def missing_dependency_errors
     @targets.each_value.flat_map do |declared_target|
       declared_target.dependencies.reject { |dependency| @targets.key?(dependency.to_s) }
-        .map { |dependency| "target #{declared_target.label} depends on unknown target #{dependency}" }
+        .map { |dependency| "target #{declared_target.label} (#{owner_description(declared_target)}) depends on unknown target #{dependency}" }
     end
+  end
+
+  def owner_description(target)
+    target.owner_config_path || "no owning .syrus.yml"
   end
 
   def cycle_errors
