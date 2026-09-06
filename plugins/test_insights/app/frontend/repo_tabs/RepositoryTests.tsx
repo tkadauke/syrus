@@ -1,5 +1,5 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
-import { RepositoryTabs } from "@app/components/RepositoryTabs"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
 import { Input } from "@app/components/Input"
 import { withRoutePrefix } from "@app/lib/routing"
@@ -34,54 +34,49 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
 
   const shell = testDetail.data || tests.data
 
-  if (tests.isPending && !shell) {
-    return <PanelMessage>Loading tests...</PanelMessage>
-  }
-
-  if (tests.isError && !tests.data) {
-    return <PanelMessage tone="error">{errorMessage(tests.error, "Unable to load tests.")}</PanelMessage>
-  }
-
-  if (!shell) return null
-
   return (
-    <>
-      <header>
+    <RepositoryPageShell
+      activeTab="test_insights.tests"
+      heading={shell ? (
         <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
           <a className="hover:underline" href={shell.repository.github_url} rel="noopener" target="_blank">{shell.repository.slug}</a>
         </h1>
-      </header>
+      ) : null}
+      prefix={prefix}
+      tabs={shell?.tabs ?? []}
+    >
+      {tests.isPending && !shell ? <PanelMessage>Loading tests...</PanelMessage> : null}
+      {tests.isError && !tests.data ? <PanelMessage tone="error">{errorMessage(tests.error, "Unable to load tests.")}</PanelMessage> : null}
+      {shell ? (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Search tests
+              <Input
+                className="mt-1"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="name, suite, or file"
+                value={query}
+              />
+            </label>
+            {selectedTestId ? (
+              <Button
+                onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}?tab=tests`, prefix))}
+                variant="secondary"
+              >
+                Back to tests
+              </Button>
+            ) : null}
+          </div>
 
-      <RepositoryTabs active="tests" prefix={prefix} tabs={shell.tabs} />
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-            Search tests
-            <Input
-              className="mt-1"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="name, suite, or file"
-              value={query}
-            />
-          </label>
           {selectedTestId ? (
-            <Button
-              onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}?tab=tests`, prefix))}
-              variant="secondary"
-            >
-              Back to tests
-            </Button>
-          ) : null}
-        </div>
-
-        {selectedTestId ? (
-          <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} />
-        ) : (
-          <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
-        )}
-      </section>
-    </>
+            <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} />
+          ) : (
+            <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
+          )}
+        </section>
+      ) : null}
+    </RepositoryPageShell>
   )
 }
 

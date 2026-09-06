@@ -14,7 +14,7 @@ import {
   type RepositoryDocumentInput,
   type RepositoryDocumentsPayload
 } from "../api/repositoryDocuments"
-import { RepositoryTabs } from "../components/RepositoryTabs"
+import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
@@ -28,20 +28,32 @@ export function RepositoryDocumentsRoute() {
   const location = useLocation()
   const params = useParams()
   const repositoryId = params.repositoryId || ""
+  const prefix = routePrefix(location.pathname)
   const documents = useQuery({
     queryKey: ["repositories", repositoryId, "documents"],
     queryFn: () => fetchRepositoryDocuments(repositoryId),
     enabled: repositoryId.length > 0
   })
+  const payload = documents.data
 
   return (
-    <main aria-label={t("aria_repo_documents")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <RepositoryPageShell
+      activeTab="documents"
+      ariaLabel={t("aria_repo_documents")}
+      heading={payload ? (
+        <PageHeading mono>
+          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
+        </PageHeading>
+      ) : null}
+      prefix={prefix}
+      tabs={payload?.tabs ?? []}
+    >
       {documents.isPending ? <PanelMessage>
         {t('repository_documents.loading')}
       </PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}
-      {documents.isSuccess ? <RepositoryDocumentsView payload={documents.data} prefix={routePrefix(location.pathname)} /> : null}
-    </main>
+      {payload ? <RepositoryDocumentsView payload={payload} prefix={prefix} /> : null}
+    </RepositoryPageShell>
   )
 }
 
@@ -75,13 +87,6 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
 
   return (
     <>
-      <header>
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      </header>
-
-      <RepositoryTabs active="documents" prefix={prefix} tabs={payload.tabs} />
       <p className="text-sm text-gray-600 dark:text-gray-400">
         {t('repository_documents.description')}
       </p>
