@@ -78,7 +78,7 @@ export function ReviewableDiff({
 
   const containerClass = scroll === "natural"
     ? "bg-white font-mono text-xs dark:bg-gray-950"
-    : "max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
+    : "max-h-[32rem] overflow-y-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
 
   function selectFileFromPopup(path: string) {
     onSelectFile?.(path)
@@ -204,91 +204,93 @@ export function UnifiedDiffTable({
   const lines = parseUnifiedDiff(file.patch || "")
 
   return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
-      <tbody>
-        {lines.map((line, index) => {
-          const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
-          const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
-          const canComment = Boolean(onCommentLine && commentSide)
-          const threads = commentSide ? comments?.[anchorKeyForLine(line, commentSide)] || [] : []
-          return (
-            <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-            <tr
-              className={`group ${diffLineClass(line.kind)}`}
-              data-coverage={annotation}
-              data-diff-kind={line.kind}
-            >
-              <td className={`relative ${diffGutterClass(line.kind)}`}>
-                {commentSide === "old" && canComment ? (
-                  <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
-                ) : null}
-                {line.oldLine ?? ""}
-              </td>
-              <td className={`relative ${diffGutterClass(line.kind)}`}>
-                {commentSide === "new" && canComment ? (
-                  <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
-                ) : null}
-                {line.newLine ?? ""}
-              </td>
-              <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-              <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
-              <td className="w-4 select-none px-1 text-center">
-                {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                  : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
-                  : null}
-              </td>
-            </tr>
-            {threads.length > 0 ? (
-              <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-                <td className="border-r border-amber-200 dark:border-amber-900" colSpan={2} />
-                <td className="text-amber-700 dark:text-amber-300">*</td>
-                <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
-                  <div className="space-y-2">
-                    {threads.map((thread) => (
-                      <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
-                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {thread.author ? <span>{thread.author}</span> : null}
-                            <span>{thread.state}</span>
-                            {thread.workflowState ? <span>{thread.workflowState}</span> : null}
-                          </div>
-                          {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
-                            <button
-                              className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
-                              onClick={() => onStartEditThread(thread)}
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                          ) : null}
-                        </div>
-                        {editingThreadId === thread.id ? (
-                          <div className="space-y-2">
-                            <textarea
-                              aria-label={`Edit comment ${thread.id}`}
-                              className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                              onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
-                              value={editingThreadBody ?? ""}
-                            />
-                            <div className="flex gap-2">
-                              <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">Save</Button>
-                              <Button onClick={onCancelEditThread} size="sm" variant="secondary">Cancel</Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+    <div className="overflow-x-auto" data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
+      <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
+        <tbody>
+          {lines.map((line, index) => {
+            const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
+            const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
+            const canComment = Boolean(onCommentLine && commentSide)
+            const threads = commentSide ? comments?.[anchorKeyForLine(line, commentSide)] || [] : []
+            return (
+              <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
+              <tr
+                className={`group ${diffLineClass(line.kind)}`}
+                data-coverage={annotation}
+                data-diff-kind={line.kind}
+              >
+                <td className={`relative ${diffGutterClass(line.kind)}`}>
+                  {commentSide === "old" && canComment ? (
+                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                  ) : null}
+                  {line.oldLine ?? ""}
+                </td>
+                <td className={`relative ${diffGutterClass(line.kind)}`}>
+                  {commentSide === "new" && canComment ? (
+                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
+                  ) : null}
+                  {line.newLine ?? ""}
+                </td>
+                <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
+                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
+                <td className="w-4 select-none px-1 text-center">
+                  {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                    : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
+                    : null}
                 </td>
               </tr>
-            ) : null}
-            </Fragment>
-          )
-        })}
-      </tbody>
-    </table>
+              {threads.length > 0 ? (
+                <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
+                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={2} />
+                  <td className="text-amber-700 dark:text-amber-300">*</td>
+                  <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
+                    <div className="space-y-2">
+                      {threads.map((thread) => (
+                        <div className="rounded border border-amber-200 bg-white px-3 py-2 dark:border-amber-900 dark:bg-gray-950" key={thread.id}>
+                          <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-2xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {thread.author ? <span>{thread.author}</span> : null}
+                              <span>{thread.state}</span>
+                              {thread.workflowState ? <span>{thread.workflowState}</span> : null}
+                            </div>
+                            {thread.state === "draft" && onStartEditThread && editingThreadId !== thread.id ? (
+                              <button
+                                className="normal-case tracking-normal text-amber-700 underline hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                                onClick={() => onStartEditThread(thread)}
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                          </div>
+                          {editingThreadId === thread.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                aria-label={`Edit comment ${thread.id}`}
+                                className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                onChange={(event) => onChangeEditingThreadBody?.(event.target.value)}
+                                value={editingThreadBody ?? ""}
+                              />
+                              <div className="flex gap-2">
+                                <Button disabled={!editingThreadBody?.trim()} onClick={onSaveEditThread} size="sm">Save</Button>
+                                <Button onClick={onCancelEditThread} size="sm" variant="secondary">Cancel</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words text-sm normal-case tracking-normal text-gray-800 dark:text-gray-200">{thread.body}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

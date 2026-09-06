@@ -348,7 +348,7 @@ function SourceDiffBrowser({
             </button>
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div>
-        <div className="min-w-0 overflow-auto">
+        <div className="min-w-0 overflow-y-auto">
           {renderMode === "continuous" || selectedFile ? (
             <ReviewableDiff
               annotations={diffAnnotations}
