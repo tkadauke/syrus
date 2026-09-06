@@ -121,6 +121,97 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe ".for_authorship" do
+    let(:installation) do
+      Factories.installation(
+        user: user,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+    end
+
+    before do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      repository.update!(installation: installation)
+    end
+
+    it "uses the owner's PAT for an ordinary Job even though the App installation is active" do
+      job = Factories.job(repository: repository, user: user, kind: "direct", issue_number: nil)
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "PAT path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "uses the App installation for an ordinary Job when the owner has no connected PAT" do
+      owner = Factories.user(github_token: nil)
+      job = Factories.job(repository: repository, user: owner, kind: "direct", issue_number: nil)
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "Bot path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "uses the App installation for an infrastructure-kind Job even though the owner has a connected PAT" do
+      job = repository.jobs.create!(user: user, kind: "main_grader")
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "Bot path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "uses the App installation for a system_kind-tagged Job even though the owner has a connected PAT" do
+      job = repository.jobs.create!(
+        user: user,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch"
+      )
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "Bot path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "falls back to the owner's PAT for an infrastructure-kind Job when the App installation is inactive" do
+      installation.update!(removed_at: Time.current)
+      job = repository.jobs.create!(user: user, kind: "main_grader")
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "PAT fallback path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "raises a clear error for an infrastructure-kind Job when neither the App installation nor a PAT is available" do
+      installation.update!(removed_at: Time.current)
+      owner = Factories.user(github_token: nil)
+      repo = Factories.repository(user: owner)
+      job = repo.jobs.create!(user: owner, kind: "main_grader")
+
+      expect { GithubClient.for_authorship(repository: repo, job: job) }.to raise_error(ArgumentError, /github_token/)
+    end
+  end
+
   describe "HTTP cache store" do
     it "keeps GitHub response cache entries out of Rails.cache" do
       cache = described_class::ScopedCache.new("u#{user.id}")

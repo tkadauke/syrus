@@ -389,8 +389,25 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(email).to eq("ada@example.com")
       end
 
-      it "configures the repository-local Git author as the App bot when installation auth is active" do
+      it "prefers the owner's own PAT over the App bot even when installation auth is active" do
         AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
+        installation = Factories.installation(user: user, account_login: "acme")
+        repository.update!(installation: installation)
+        allow_any_instance_of(Installation).to receive(:fresh_token).and_return("ghs_installation")
+
+        ws = described_class.new(workflow)
+        ws.setup
+
+        name = `git -C #{ws.path} config --local user.name`.strip
+        email = `git -C #{ws.path} config --local user.email`.strip
+
+        expect(name).to eq("Ada Lovelace")
+        expect(email).to eq("ada@example.com")
+      end
+
+      it "configures the repository-local Git author as the App bot when installation auth is active and the owner has no PAT" do
+        AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
+        user.update!(github_token: nil)
         installation = Factories.installation(user: user, account_login: "acme")
         repository.update!(installation: installation)
         allow_any_instance_of(Installation).to receive(:fresh_token).and_return("ghs_installation")

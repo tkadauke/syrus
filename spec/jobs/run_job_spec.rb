@@ -171,7 +171,7 @@ RSpec.describe RunJob, :ci_only do
 
       full = `git --git-dir=#{bare_remote_dir} log -1 --format='%B' #{job.branch_name}`.strip
       expect(full).to include("Closes #42")
-      expect(full).to include("Co-Authored-By: Ada Lovelace <ada@example.com>")
+      expect(full).not_to include("Co-Authored-By:")
 
       author = `git --git-dir=#{bare_remote_dir} log -1 --format='%an <%ae>' #{job.branch_name}`.strip
       expect(author).to eq("Ada Lovelace <ada@example.com>")
@@ -179,7 +179,7 @@ RSpec.describe RunJob, :ci_only do
       expect(WorkflowWorkspace.path_for(wf)).not_to exist
     end
 
-    it "authors commits as the App bot when the App is registered and installed" do
+    it "authors commits as the owner's own PAT identity even when the App is registered and installed" do
       AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
       installation = Factories.installation(user: user, account_login: "acme")
       repository.update!(installation: installation)
@@ -189,7 +189,29 @@ RSpec.describe RunJob, :ci_only do
 
       author = `git --git-dir=#{bare_remote_dir} log -1 --format='%an <%ae>' #{job.branch_name}`.strip
 
+      expect(author).to eq("Ada Lovelace <ada@example.com>")
+      expect(
+        a_request(:post, "https://api.github.com/repos/acme/widgets/pulls")
+          .with(headers: { "Authorization" => "token ghp_test_token" })
+      ).to have_been_made
+    end
+
+    it "authors commits as the App bot when the App is registered and installed and the owner has no PAT" do
+      AppSetting.current.update!(github_app_id: 12_345, github_app_slug: "tkadauke-syrus")
+      user.update!(github_token: nil)
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository.update!(installation: installation)
+      allow_any_instance_of(Installation).to receive(:fresh_token).and_return("ghs_installation")
+
+      job; drain_workflow!(job)
+
+      author = `git --git-dir=#{bare_remote_dir} log -1 --format='%an <%ae>' #{job.branch_name}`.strip
+
       expect(author).to eq("tkadauke-syrus[bot] <tkadauke-syrus[bot]@users.noreply.github.com>")
+      expect(
+        a_request(:post, "https://api.github.com/repos/acme/widgets/pulls")
+          .with(headers: { "Authorization" => "token ghs_installation" })
+      ).to have_been_made
     end
 
     it "workspace stays on disk when the Workflow fails (retry-from-failed-step needs it)" do

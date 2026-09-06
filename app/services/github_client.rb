@@ -53,6 +53,18 @@ class GithubClient
     for_user(actor, repository: repository)
   end
 
+  # Resolves the GitHub identity that should author API-side actions (PR
+  # creation) for a Job, mirroring BotIdentity's precedence for git commit
+  # authorship: the owner's own connected PAT wins over the shared App
+  # installation, unless the Job has no real human requester
+  # (infrastructure/system-kind) or the owner has no PAT connected — see
+  # Job#bot_authored_pull_request?.
+  def self.for_authorship(repository:, job:)
+    return self.for(repository: repository, user: job.user) if job.bot_authored_pull_request?
+
+    for_user(job.user, repository: repository)
+  end
+
   def self.for_user(user, repository: nil)
     raise ArgumentError, "user must have a github_token" if user.blank? || user.github_token.blank?
 

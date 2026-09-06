@@ -338,6 +338,36 @@ class Job < ApplicationRecord
       (system_kind.blank? && direct? && issue_title == MAIN_BRANCH_REPAIR_TITLE)
   end
 
+  # Infrastructure-kind Jobs (main_grader, deploy, ...) and system_kind-tagged
+  # Jobs (main_branch_repair) never had a real human requester — `user` is
+  # only populated because Job#user is a required column, not because that
+  # human wrote or requested the work. Git/PR authorship for these must
+  # always use the shared App/bot identity, never the nominal owner's PAT.
+  def infrastructure_or_system_authored?
+    infrastructure_job? || system_kind.present?
+  end
+
+  # True when the shared GitHub App/bot identity should be preferred over
+  # the owner's own PAT for this Job's commits and PR, mirrored by
+  # BotIdentity for git authorship and GithubClient.for_authorship for PR
+  # creation. The owner's own connected PAT wins whenever one exists,
+  # except for infrastructure_or_system_authored? Jobs, which always
+  # prefer the bot regardless of the nominal owner's PAT status — even
+  # when this repository's App installation happens to be inactive right
+  # now, since git commit identity is cosmetic and needs no live
+  # credential. When no bot credential is actually available,
+  # GithubClient.for_authorship still falls through to GithubClient.for's
+  # normal installation-or-PAT resolution for the real API credential
+  # instead of forcing a human identity ahead of an infrastructure Job's
+  # bot preference; see #default_credential_mode for what identity
+  # actually ends up authoring the PR in that case.
+  def bot_authored_pull_request?
+    return true if infrastructure_or_system_authored?
+    return false unless repository&.app_credential_active?
+
+    user.blank? || user.github_token.blank?
+  end
+
   # A direct Job launched from a named Skills:: instruction set
   # (`skill_name` + `skill_args`, see SkillJobs::Creator) rather than a
   # free-form prompt. Drives Workflows::Skill instead of Workflows::Initial
@@ -1703,8 +1733,15 @@ class Job < ApplicationRecord
     self.agent_provider ||= repository&.effective_agent_provider(user: effective_user) || effective_user&.agent_provider
   end
 
+  # Unlike #bot_authored_pull_request? (a preference that holds even without
+  # a live App credential for infrastructure/system-kind Jobs), this must
+  # reflect which identity actually ends up authoring the PR: "app" only
+  # when a bot credential is both preferred AND actually usable right now,
+  # "pat" whenever GithubClient.for_authorship would fall through to a PAT
+  # instead (including an infrastructure Job whose App installation is
+  # currently inactive).
   def default_credential_mode
-    self.credential_mode = repository&.credential_mode || "pat"
+    self.credential_mode = (bot_authored_pull_request? && repository&.app_credential_active?) ? "app" : "pat"
   end
 
   def default_lifecycle_metadata
