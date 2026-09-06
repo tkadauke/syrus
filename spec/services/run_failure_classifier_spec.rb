@@ -81,6 +81,55 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
+  # A rolling deploy drains workers with SIGTERM and spikes CPU/IO across every
+  # node at the same time, so it both kills the run and manufactures the
+  # "critical" reading that used to downgrade a retryable worker death into a
+  # permanent one. JOB-4377 and JOB-4381 were stranded exactly that way.
+  describe "a worker death during a rolling deploy" do
+    def rollout!(at:, versions: %w[oldsha1 newsha2])
+      versions.each_with_index do |version, index|
+        InstanceVersion.create!(
+          hostname: "worker-#{index}", role: "worker", version: version,
+          started_at: at, last_heartbeat_at: at
+        )
+      end
+    end
+
+    it "stays retryable even when the host reads critical" do
+      run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+      create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "cpu 100.0% >= 98%" ])
+      rollout!(at: run.finished_at - 1.minute)
+
+      result = classification
+
+      expect(result.classification).to eq("worker_died")
+      expect(result.retryable).to eq(true)
+      expect(result.classifier_inputs).to include("deploy_rollover_near_failure" => true)
+    end
+
+    # One version running is steady state, however bad the host looks -- that
+    # is a genuine resource casualty and must stay non-retryable.
+    it "still reports resource pressure when no rollout was in flight" do
+      run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+      create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "cpu 100.0% >= 98%" ])
+      rollout!(at: run.finished_at - 1.minute, versions: %w[samesha samesha])
+
+      result = classification
+
+      expect(result.classification).to eq("worker_died_under_resource_pressure")
+      expect(result.retryable).to eq(false)
+      expect(result.classifier_inputs).to include("deploy_rollover_near_failure" => false)
+    end
+
+    it "ignores a rollout that happened well outside the failure window" do
+      run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+      create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "cpu 100.0% >= 98%" ])
+      rollout!(at: run.finished_at - 2.hours)
+
+      expect(classification.classification).to eq("worker_died_under_resource_pressure")
+    end
+  end
+
   it "refreshes resource summaries before classifying a worker_died transition" do
     allow(SyrusVersion).to receive(:hostname).and_return("worker-1")
     run.workflow.update!(worker_hostname: "worker-1")

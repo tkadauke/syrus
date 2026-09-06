@@ -11,6 +11,10 @@ class RunFailureClassifier
   end
 
   RECENT_LOG_LIMIT = 25
+  # How far either side of a run's death to look for a rollout. Wide enough to
+  # cover a drain that starts before the run dies and a node still churning
+  # after -- JOB-4381 died 5.5 minutes after the last new pod came up.
+  DEPLOY_ROLLOVER_WINDOW = 10.minutes
   OCTOKIT_TRANSIENT_ERROR_CLASS = /\AOctokit::(?:ServiceUnavailable|BadGateway|InternalServerError|TooManyRequests)\z/
 
   def self.classify(run)
@@ -199,8 +203,55 @@ class RunFailureClassifier
       spawned_processes.any? { |process| %w[aliveness_failed stopped operator_killed].include?(process.outcome) }
   end
 
+  # Deliberately excludes a run that died during a rolling deploy, even when
+  # the host genuinely was at 100% CPU.
+  #
+  # A deploy does both halves of this at once: it drains workers with SIGTERM,
+  # killing whatever they were running, and it spikes CPU and IO across every
+  # node while images pull and pods start and die. So the run dies *because* of
+  # the deploy, and the deploy's own load is what makes host_pressure_level
+  # read "critical" -- which downgrades a retryable `worker_died` into a
+  # non-retryable resource casualty and strands the Job for good. It is
+  # self-reinforcing: the heavier the rollout, the more runs it kills and the
+  # more of them it marks unretryable.
+  #
+  # JOB-4377 and JOB-4381 both died that way in the 08:25-08:27 Eastern
+  # rollout on 2026-09-06, recorded as `cpu 100.0% >= 98%` and
+  # `IO pressure 72.66% >= 50%`.
+  #
+  # Erring toward retryable is the safe direction: a retry is bounded by the
+  # attempt budget, where a wrong "not retryable" is permanent.
   def process_died_under_resource_pressure?
-    process_died? && run.run_resource_summary&.host_pressure_level == "critical"
+    process_died? &&
+      run.run_resource_summary&.host_pressure_level == "critical" &&
+      !deploy_rollover_near_failure?
+  end
+
+  # Two distinct worker versions with pods starting around the failure means a
+  # rollout was in flight; steady state only ever has one. Cheaper and less
+  # brittle than reasoning about which pod the run was on and whether its exit
+  # was graceful -- the reaper stamps finished_at for SIGKILLs too, so that
+  # signal cannot tell a deploy from an OOM.
+  def deploy_rollover_near_failure?
+    return @deploy_rollover_near_failure if defined?(@deploy_rollover_near_failure)
+
+    moment = run.finished_at || run.updated_at
+    @deploy_rollover_near_failure =
+      if moment.blank?
+        false
+      else
+        InstanceVersion
+          .where(role: "worker")
+          .where(started_at: (moment - DEPLOY_ROLLOVER_WINDOW)..(moment + DEPLOY_ROLLOVER_WINDOW))
+          .distinct
+          .pluck(:version)
+          .compact
+          .uniq
+          .size > 1
+      end
+  rescue StandardError => e
+    Rails.logger.warn("[RunFailureClassifier] could not check for a deploy rollover: #{e.class}: #{e.message}")
+    @deploy_rollover_near_failure = false
   end
 
   def grader_failure?
@@ -381,6 +432,7 @@ class RunFailureClassifier
       "workflow_failure_reason" => run.workflow&.failure_reason,
       "host_pressure_level" => run.run_resource_summary&.host_pressure_level,
       "host_pressure_reasons" => run.run_resource_summary&.host_pressure_reasons,
+      "deploy_rollover_near_failure" => deploy_rollover_near_failure?,
       "diagnostic_id" => diagnostic&.id,
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),

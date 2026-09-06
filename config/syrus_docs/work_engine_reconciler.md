@@ -157,6 +157,18 @@ Planner examples:
   That classification is non-retryable so Syrus does not spend automatic
   repair iterations on a run that likely died because its worker host was
   already under critical CPU, memory, disk, or IO pressure.
+  **Unless a rolling deploy was in flight.** A deploy does both halves of this
+  at once — it drains workers with SIGTERM, killing whatever they were running,
+  and it spikes CPU and IO across every node while images pull and pods start
+  and die. So the run dies *because* of the deploy, and the deploy's own load is
+  what makes the host read "critical", turning a retryable worker death into a
+  permanent one. It is self-reinforcing: the heavier the rollout, the more runs
+  it kills and the more of them it marks unretryable. The classifier detects a
+  rollout as two distinct worker `InstanceVersion` versions with pods starting
+  within `DEPLOY_ROLLOVER_WINDOW` (10 minutes) of the failure — steady state
+  only ever has one — and falls back to plain retryable `worker_died`. Erring
+  toward retryable is the safe direction: a retry is bounded by the attempt
+  budget, where a wrong "not retryable" strands the Job for good.
 - A detached running Run can become repairable sooner: if the Run is older than
   the normal orphan grace, has no active SolidQueue RunJob (or only a
   `ProcessPrunedError` failed execution), has no live `SpawnedProcess`, and has

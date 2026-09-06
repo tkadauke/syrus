@@ -1452,6 +1452,15 @@ scrubbing, write a redaction script (regex
 `%r{(https://x-access-token:)[^@\s]+(@)}`) and run it in-process via
 `kubectl cp` + `bin/rails runner` — same pattern as diagnostics.
 
+**Deploys SIGKILL in-flight Runs — and used to get blamed on the host.** A
+rollout drains workers with SIGTERM *and* spikes CPU/IO across every node
+(image pulls, pods starting and dying), so `RunFailureClassifier` saw a dead
+process on a "critical" host and recorded the non-retryable
+`worker_died_under_resource_pressure` instead of retryable `worker_died`,
+stranding the Job. It now treats two distinct worker `InstanceVersion` versions
+starting within `DEPLOY_ROLLOVER_WINDOW` of the failure as a rollout and stays
+retryable.
+
 **Deploys SIGKILL in-flight Runs.** Every `bin/deploy` rolling
 restart kills any active RunJob mid-perform after the K8s grace
 period (~30s). RunJob's `ensure` cleanup may not finish; orphan
