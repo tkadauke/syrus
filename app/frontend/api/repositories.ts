@@ -5,6 +5,8 @@ import type { ProviderAvailability, ProviderFailover } from "./providerAvailabil
 
 export type RepositoryEpicDependencyPolicy = "linear" | "nonlinear"
 
+export type RepositoryReviewPolicy = "self" | "two_person" | "final_say"
+
 export type RepositoryRow = {
   id: number
   slug: string
@@ -64,6 +66,7 @@ export type RepositoryFormRecord = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
+  review_policy: RepositoryReviewPolicy
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: number | null
   github_repository_id: number | null
@@ -127,6 +130,7 @@ export type RepositoryInput = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
+  review_policy: RepositoryReviewPolicy
   epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: string
   github_repository_id: string
