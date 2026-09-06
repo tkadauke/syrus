@@ -86,4 +86,22 @@ RSpec.describe Workflow::TriggerKind do
       expect(ChatFeedbackSubmission::ACTIVE_STATES).to equal(described_class::ACTIVE_STATES)
     end
   end
+
+  describe ".non_approval_blocking?" do
+    it "is true for maintenance/QA kinds that never change the diff under review" do
+      %w[rebase stack_rebase manual_visual_review visual_diff].each do |kind|
+        expect(described_class.non_approval_blocking?(kind)).to be(true)
+      end
+    end
+
+    it "is false for implementation kinds whose diff isn't settled yet" do
+      %w[initial retry pr_comment chat_feedback ci_failure coding_handoff].each do |kind|
+        expect(described_class.non_approval_blocking?(kind)).to be(false)
+      end
+    end
+
+    it "is false for an unknown kind" do
+      expect(described_class.non_approval_blocking?("unknown_kind")).to be(false)
+    end
+  end
 end
