@@ -90,6 +90,7 @@ module Steps
       # (ForkSyncService / SyncForkJob), not something prepare does.
       run_mise_install if mise_version_file?
       record_detected_plugins!
+      log_target_graph_diagnostics!
       plan = RepoPrepPlan.for(workspace.path)
 
       log("[prepare] source: #{plan.source}")
@@ -330,6 +331,25 @@ module Steps
       )
     rescue StandardError => e
       log("[prepare] plugin signal observation skipped: #{e.class}: #{e.message}")
+    end
+
+    # Internal TargetGraph diagnostics (DOC-20): compiles the same root
+    # `.syrus.yml` legacy sections Steps::Format/Steps::Generate/grader_fanout
+    # already read into a TargetGraph and logs a one-line summary, so the
+    # graph's source and compiled target labels are debuggable without
+    # reading source. Never affects prepare/format/generate/grader behavior --
+    # TargetGraph::Compiler#diagnose is diagnostics-only and cannot fail this
+    # step.
+    def log_target_graph_diagnostics!
+      diagnostics = TargetGraph::Compiler.diagnose(workspace.path)
+      workflow.set_artifact!("target_graph_diagnostics", diagnostics.to_h)
+
+      if diagnostics.error?
+        log("[prepare] target graph compilation failed: #{diagnostics.error}")
+      else
+        log("[prepare] target graph: source=#{diagnostics.source} " \
+            "targets=#{diagnostics.target_labels.size} (#{diagnostics.target_labels.join(', ')})")
+      end
     end
   end
 end
