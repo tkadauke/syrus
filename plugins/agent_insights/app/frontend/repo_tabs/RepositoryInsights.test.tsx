@@ -98,7 +98,7 @@ function renderRepositoryInsightsRoute() {
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
           <Routes>
-            <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+            <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -744,7 +744,7 @@ describe("RepositoryInsightsRoute", () => {
           <QueryClientProvider client={client}>
             <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
               <Routes>
-                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
               </Routes>
             </MemoryRouter>
           </QueryClientProvider>
@@ -786,7 +786,7 @@ describe("RepositoryInsightsRoute", () => {
           <QueryClientProvider client={client}>
             <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
               <Routes>
-                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:repositoryId/insights" />
               </Routes>
             </MemoryRouter>
           </QueryClientProvider>
