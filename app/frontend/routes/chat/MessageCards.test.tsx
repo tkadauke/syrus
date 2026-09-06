@@ -17,14 +17,6 @@ vi.mock("../../api/chats", async (importOriginal) => {
   }
 })
 
-vi.mock("../../lib/syntaxHighlight", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/syntaxHighlight")>()
-  return {
-    ...actual,
-    highlightCode: vi.fn((code: string) => <span data-testid="highlighted-code">{code}</span>)
-  }
-})
-
 function makePayload(): ChatPayload {
   return {
     chat: {
@@ -504,8 +496,38 @@ describe("tool result rendering", () => {
     details.open = true
     fireEvent(details, new Event("toggle"))
 
-    expect(screen.queryByTestId("highlighted-code")).not.toBeInTheDocument()
-    expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
+    const body = screen.getByText("a".repeat(2_000))
+    expect(body.tagName).toBe("PRE")
+    expect(body.querySelector("span")).toBeNull()
+  })
+
+  it("syntax-highlights tool results for tools other than Read", async () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Edit",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Edit",
+          raw_name: "Edit",
+          detail: "app/models/job.rb",
+          display_label: "Edit",
+          progress_label: "Editing",
+          raw_payload: {},
+          result_body: "class Job\nend\n",
+          result_error: false,
+          result_kind: "text",
+          result_summary: "summary"
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("Edit")
+
+    const keyword = await screen.findByText("class")
+    expect(keyword.tagName).toBe("SPAN")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
   })
 
   it("renders list_chat_media results as a compact dark-mode-safe gallery with stable IDs, filenames, kind, and content type", () => {

@@ -3,7 +3,8 @@ import { buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Markdown } from "../lib/Markdown"
 import { Modal } from "./Modal"
-import { highlightCode, inferToolResultLanguage } from "../lib/syntaxHighlight"
+import { renderCodeLine, useHighlightedLines } from "./CodeBlock"
+import { detectHighlighterLanguage } from "../lib/highlighter"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
 
@@ -103,12 +104,13 @@ function FilePreviewState({ message, tone = "neutral" }: { message: string; tone
   return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
 }
 
-function SourceCodeTable({ content, path, targetLine }: { content: string; path: string; targetLine: number | null }) {
-  const language = inferToolResultLanguage(path, "Read")
+export function SourceCodeTable({ content, path, targetLine, testId = "source-preview-code" }: { content: string; path: string; targetLine: number | null; testId?: string }) {
+  const language = detectHighlighterLanguage(path)
   const lines = content.split("\n")
+  const tokenLines = useHighlightedLines(content, language)
 
   return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="source-preview-code">
+    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
       <tbody>
         {lines.map((line, index) => {
           const lineNum = index + 1
@@ -117,7 +119,7 @@ function SourceCodeTable({ content, path, targetLine }: { content: string; path:
             <tr className={targeted ? "bg-yellow-100 dark:bg-yellow-950/50" : "bg-white dark:bg-gray-950"} data-source-line={lineNum} key={lineNum}>
               <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">{lineNum}</td>
               <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {language ? highlightCode(line || " ", language) : line || " "}
+                {renderCodeLine(tokenLines?.[index], line || " ")}
               </td>
             </tr>
           )

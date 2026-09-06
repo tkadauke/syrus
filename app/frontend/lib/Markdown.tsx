@@ -2,6 +2,8 @@ import { Fragment, type MouseEvent, type ReactNode } from "react"
 import katex from "katex"
 import "katex/dist/katex.min.css"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
+import { CodeBlock } from "../components/CodeBlock"
+import { detectFenceLanguage } from "./highlighter"
 
 type InlineToken = string | ReactNode
 export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
@@ -45,11 +47,10 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
         index += 1
       }
       if (index < lines.length) index += 1
+      const lang = fence[1] ? detectFenceLanguage(fence[1]) : null
       blocks.push(
-        <div key={`block-${key++}`} className="overflow-x-auto">
-          <pre>
-            <code>{code.join("\n")}</code>
-          </pre>
+        <div className="overflow-x-auto" key={`block-${key++}`}>
+          <CodeBlock code={code.join("\n")} lang={lang} />
         </div>
       )
       continue

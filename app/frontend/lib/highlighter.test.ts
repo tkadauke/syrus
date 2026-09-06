@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectHighlighterLanguage, tokenizeLines } from "./highlighter"
+import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, tokenizeLines } from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
@@ -124,5 +124,25 @@ describe("detectHighlighterLanguage", () => {
     expect(detectHighlighterLanguage("")).toBeNull()
     expect(detectHighlighterLanguage("LICENSE")).toBeNull()
     expect(detectHighlighterLanguage("app/frontend/lib/foo.unknownext")).toBeNull()
+  })
+})
+
+describe("detectFenceLanguage", () => {
+  it("accepts canonical highlighter language ids directly", () => {
+    expect(detectFenceLanguage("ruby")).toBe("ruby")
+    expect(detectFenceLanguage("typescript")).toBe("typescript")
+    expect(detectFenceLanguage("TSX")).toBe("tsx")
+  })
+
+  it("accepts the same extension aliases detectHighlighterLanguage understands", () => {
+    expect(detectFenceLanguage("rb")).toBe("ruby")
+    expect(detectFenceLanguage("js")).toBe("javascript")
+    expect(detectFenceLanguage("yml")).toBe("yaml")
+    expect(detectFenceLanguage("sh")).toBe("shellscript")
+  })
+
+  it("returns null for an empty or unrecognized hint", () => {
+    expect(detectFenceLanguage("")).toBeNull()
+    expect(detectFenceLanguage("python")).toBeNull()
   })
 })
