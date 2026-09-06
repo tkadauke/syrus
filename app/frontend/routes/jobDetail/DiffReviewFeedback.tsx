@@ -290,14 +290,14 @@ function DiffReviewFeedbackPanel({
           const isGlobal = comment.anchor_kind === "review"
           const canEditHere = supportsGlobalComments ? isGlobal : true
           return (
-          <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
+          <div className="min-w-0 rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
                 {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
               </span>
               <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {comment.state === "draft" && canEditHere ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
@@ -309,8 +309,8 @@ function DiffReviewFeedbackPanel({
       </div>
 
       {isComposing ? (
-        <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
-          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">
+        <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="break-words font-mono text-xs text-gray-600 dark:text-gray-300">
             {editing
               ? (editing.anchor_kind === "review" ? t("review_global_comment_label") : `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}`)
               : selection

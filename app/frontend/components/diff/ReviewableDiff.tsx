@@ -77,7 +77,7 @@ export function ReviewableDiff({
   if (renderFiles.length === 0) return <>{emptyState}</>
 
   const containerClass = scroll === "natural"
-    ? "bg-white font-mono text-xs dark:bg-gray-950"
+    ? "overflow-x-auto bg-white font-mono text-xs dark:bg-gray-950"
     : "max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950"
 
   function selectFileFromPopup(path: string) {

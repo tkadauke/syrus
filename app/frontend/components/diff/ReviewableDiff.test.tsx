@@ -150,6 +150,11 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".max-h-\\[32rem\\]")).not.toBeInTheDocument()
   })
 
+  it("keeps natural-scroll diffs horizontally scrollable within themselves instead of overflowing the page", () => {
+    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" />)
+    expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
+  })
+
   it("renders the add-comment affordance in the left gutter, not the right edge", () => {
     render(<ReviewableDiff files={files} mode="single-file" onCommentLine={vi.fn()} selectedPath="app/models/job.rb" />)
 
