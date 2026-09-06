@@ -34,3 +34,11 @@ maintenance, fork auto-sync, and delivery-track configuration. Eligibility is
 intentionally conservative and relies on existing repository columns,
 scheduled-task rows, recent preview state, and the cached bare clone's
 `.syrus.yml`/file list when available.
+
+The "already enabled" check for visual review is the one exception: it uses
+`RepoVisualReviewPlan` (the same GitHub-API-backed resolver the Initial
+workflow uses to decide whether the visual_review step runs) instead of the
+cached bare clone. This page is served from the web tier, which does not
+share the worker's on-disk bare clone, so a repo that has genuinely enabled
+visual review in `.syrus.yml` would otherwise never resolve as
+already-configured and would keep recommending a feature it already uses.
