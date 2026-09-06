@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  CONTEXT_EXPAND_LINE_INCREMENT,
+  DEFAULT_LARGE_FILE_ROW_THRESHOLD,
+  DEFAULT_MAX_VISIBLE_FILES,
   contextGapsForHunks,
   countDiffRows,
   fullyRevealedGapStates,
@@ -10,6 +13,14 @@ import {
   remainingInGap,
   tokenizeCode
 } from "./diffRendering"
+
+describe("large-diff defaults", () => {
+  it("uses a ~300-row default large-file threshold, a 100-file cap, and 20-line context increments", () => {
+    expect(DEFAULT_LARGE_FILE_ROW_THRESHOLD).toBe(300)
+    expect(DEFAULT_MAX_VISIBLE_FILES).toBe(100)
+    expect(CONTEXT_EXPAND_LINE_INCREMENT).toBe(20)
+  })
+})
 
 const SAMPLE_PATCH = [
   "diff --git a/app/models/job.rb b/app/models/job.rb",
