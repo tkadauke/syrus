@@ -73,10 +73,16 @@ module WorkerTimeline
       end
     end
 
+    # Clamps a future end bound to now: a "between" chip persisted in a
+    # bookmark/URL can name an end time that has since fallen in the
+    # future relative to whichever moment this query actually runs, and
+    # there is never any data past "now" to show.
     def to
       return now unless window_chip
+      return now unless window_chip.op == "between"
 
-      window_chip.op == "between" ? (parse_time(Array(window_chip.value).last) || now) : now
+      parsed = parse_time(Array(window_chip.value).last) || now
+      [ parsed, now ].min
     end
 
     private
