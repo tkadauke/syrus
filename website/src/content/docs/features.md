@@ -1247,11 +1247,24 @@ summary of what changed.
 
 ## GitHub App And PAT Behavior
 
-Repositories prefer an active GitHub App installation when one is linked
-for the repository owner. If no active installation is available, Syrus
-falls back to the user's PAT. Jobs persist the selected `credential_mode`
-as `app` or `pat` so operators can tell which credential path was used for
-that run.
+For most API operations (reading issues, checking CI status, listing PRs,
+etc.), repositories prefer an active GitHub App installation when one is
+linked for the repository owner. If no active installation is available,
+Syrus falls back to the user's PAT.
+
+Commit and pull request **authorship** is different: for an ordinary Job
+that belongs to a real person, the Job owner's own connected GitHub PAT
+wins over the shared App installation whenever one is connected, so
+commits and PRs are attributed to the actual human rather than the shared
+bot. The App identity is used only when the owner has no PAT connected, or
+for infrastructure/system-initiated Jobs (main-branch grading and repair,
+deploys, and similar) that have no real human requester — those always
+stay bot-authored, regardless of what PAT the nominal Job owner happens to
+have connected. A commit authored by the shared bot on behalf of a human
+gets a `Co-Authored-By:` trailer naming that human; a commit authored
+directly as the human owner does not need one. Jobs persist the selected
+`credential_mode` as `app` or `pat` so operators can tell which identity
+authored that run's commits and PR.
 
 The admin **Installations** page includes a lightweight GitHub App
 diagnostic. It shows recent installation sync status, repository-to-

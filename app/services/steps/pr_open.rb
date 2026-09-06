@@ -154,7 +154,7 @@ module Steps
     def open_pr
       title, body = pr_title_and_body
       target_repo = job.effective_target_repository
-      opener_client = GithubClient.for(repository: target_repo, user: job.user)
+      opener_client = GithubClient.for_authorship(repository: target_repo, job: job)
       pr_number = PullRequestOpener.new(
         target_repo,
         client: opener_client

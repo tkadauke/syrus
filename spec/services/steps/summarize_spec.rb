@@ -391,7 +391,16 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message.scan(/Closes ##{job.issue_number}/).size).to eq(1)
     end
 
-    it "uses the title plus human co-author trailer when pr_body is blank" do
+    it "uses just the title when pr_body is blank and the owner is the actual commit author" do
+      stub_agent(title: "Add greeting helper", body: nil)
+      handler.call
+      expect(commit_message).to eq("Add greeting helper")
+    end
+
+    it "appends the human co-author trailer when the App bot is the actual commit author" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      installation = Factories.installation(user: job.user, account_login: repository.owner)
+      repository.update!(installation: installation)
       stub_agent(title: "Add greeting helper", body: nil)
       handler.call
       expect(commit_message).to eq("Add greeting helper\n\nCo-Authored-By: Ada Lovelace <ada@example.com>")

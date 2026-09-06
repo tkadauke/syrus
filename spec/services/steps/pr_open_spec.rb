@@ -93,6 +93,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).and_return(fake_client)
+    allow(GithubClient).to receive(:for_authorship).and_return(fake_client)
     opener = instance_double(PullRequestOpener, open: 100)
     allow(PullRequestOpener).to receive(:new).and_return(opener)
 
@@ -146,6 +147,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
     opener = instance_double(PullRequestOpener, open: 100)
     allow(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
     allow(git).to receive(:run)
@@ -230,6 +232,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "Local handoff", "Green local-mode work" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
     allow(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
     allow(git).to receive(:run)
       .with("push", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s)
@@ -437,6 +440,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(handler).to receive(:pr_title_and_body).and_return([ "Retry title", "Retry body" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
     allow(git).to receive(:run).with(
       "fetch",
       fetch_url,
@@ -523,6 +527,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
     expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
     expect(opener).to receive(:open).with(
       branch: "syrus/issue-42-#{job.id}",
@@ -607,6 +612,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(false)
     allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
     allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(GithubClient).to receive(:for_authorship).with(repository: repository, job: job).and_return(client)
     expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
     expect(opener).to receive(:open).with(
       branch: "syrus/issue-42-#{job.id}",
@@ -863,6 +869,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       allow(handler).to receive(:push_branch)
       allow(handler).to receive(:pr_title_and_body).and_return([ "Captured title", "Captured body" ])
       allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "tok"))
+      allow(GithubClient).to receive(:for_authorship).and_return(instance_double(GithubClient, access_token: "tok"))
       allow(PullRequestOpener).to receive(:new)
         .and_return(instance_double(PullRequestOpener, open: 123))
 

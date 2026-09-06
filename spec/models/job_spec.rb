@@ -3537,6 +3537,71 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "#bot_authored_pull_request? / default_credential_mode" do
+    let(:owner) { Factories.user(github_token: nil) }
+    let(:installation) { Factories.installation(user: owner, account_login: "acme") }
+    let(:repo) { Factories.repository(user: owner, owner: "acme", installation: installation) }
+
+    around do |example|
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      example.run
+    end
+
+    context "when the App is active and the owner has no connected PAT" do
+      it "is bot-authored with credential_mode app" do
+        job = owner.jobs.create!(repository: repo, kind: "direct", issue_title: "Fix")
+
+        expect(job.bot_authored_pull_request?).to be true
+        expect(job.credential_mode).to eq("app")
+      end
+    end
+
+    context "when the App is active and the owner has a connected PAT" do
+      it "prefers the owner's PAT with credential_mode pat" do
+        owner.update!(github_token: "ghp_test")
+        job = owner.jobs.create!(repository: repo, kind: "direct", issue_title: "Fix")
+
+        expect(job.bot_authored_pull_request?).to be false
+        expect(job.credential_mode).to eq("pat")
+      end
+    end
+
+    context "when the Job is infrastructure-kind" do
+      it "stays bot-authored even when the owner has a connected PAT" do
+        owner.update!(github_token: "ghp_test")
+        job = repo.jobs.create!(user: owner, kind: "main_grader")
+
+        expect(job.bot_authored_pull_request?).to be true
+        expect(job.credential_mode).to eq("app")
+      end
+    end
+
+    context "when the Job has a system_kind" do
+      it "stays bot-authored even when the owner has a connected PAT" do
+        owner.update!(github_token: "ghp_test")
+        job = repo.jobs.create!(
+          user: owner,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "Fix broken main branch"
+        )
+
+        expect(job.bot_authored_pull_request?).to be true
+        expect(job.credential_mode).to eq("app")
+      end
+    end
+
+    context "when the App has no active installation" do
+      it "falls back to pat regardless of the owner's PAT status" do
+        installation.update!(removed_at: Time.current)
+        job = owner.jobs.create!(repository: repo, kind: "direct", issue_title: "Fix")
+
+        expect(job.bot_authored_pull_request?).to be false
+        expect(job.credential_mode).to eq("pat")
+      end
+    end
+  end
+
   describe "simple-mode epic automation defaults" do
     let(:owner) { Factories.user }
 

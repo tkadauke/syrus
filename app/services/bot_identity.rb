@@ -34,7 +34,6 @@ class BotIdentity
 
   def initialize(job)
     @job = job
-    @repository = job.repository
     @user = job.user
   end
 
@@ -55,6 +54,7 @@ class BotIdentity
   end
 
   def co_authored_by_trailer
+    return nil unless app_author?
     return nil if @job.cron?
     return nil if @user.blank? || @user.email_address.blank?
 
@@ -71,7 +71,7 @@ class BotIdentity
   private
 
   def app_author?
-    app_slug.present? && AppSetting.github_app_registered? && @repository.installation&.active?
+    app_slug.present? && @job.bot_authored_pull_request?
   end
 
   def app_slug
