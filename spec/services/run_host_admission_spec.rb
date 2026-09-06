@@ -157,4 +157,65 @@ RSpec.describe RunHostAdmission do
       profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
     )
   end
+
+  # `grader` and `preflight_grader` used to be guarded on sight alongside
+  # agentic steps. With one slot per host that made admission a strict mutex:
+  # one grader excluded every agent AND every other grader on the pod, and
+  # production ran three compute tasks across three pods with capacity spare.
+  # Graders are judged by predicted cost now.
+  describe "graders are admitted on cost, not on being graders" do
+    CHEAP = { cpu_pressure: 1.0, process_attributed_cpu_percent: 1.0, duration_seconds: 10 }.freeze
+
+    def grader_run(kind: "grader")
+      step = Step.create!(workflow: workflow, kind: kind, position: rand(100..999))
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+    end
+
+    it "no longer guards grader kinds on sight" do
+      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader")
+      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
+    end
+
+    it "admits a cheap grader while another cheap grader is running" do
+      worker_sample(cpu_pressure_some: 1.0)
+      allow_any_instance_of(described_class).to receive(:prediction_for).and_return(CHEAP)
+      running = grader_run
+      running.start!
+      running.save!
+
+      decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("resource_guard_not_needed")
+    end
+
+    # No profile yet predicts conservatively, which is expensive by
+    # construction, so a brand-new grader still takes a slot until it has been
+    # observed. That is the safe direction for an unknown cost.
+    it "still guards a grader whose cost is unknown" do
+      worker_sample(cpu_pressure_some: 1.0)
+      running = grader_run
+      running.start!
+      running.save!
+
+      decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+    end
+
+    it "still lets an agentic run hold the host slot against a cheap grader" do
+      worker_sample(cpu_pressure_some: 1.0)
+      allow_any_instance_of(described_class).to receive(:prediction_for).and_return(CHEAP)
+      agentic = Step.create!(workflow: workflow, kind: "implement", position: 60)
+        .runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      agentic.start!
+      agentic.save!
+
+      decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("resource_guard_not_needed")
+    end
+  end
 end

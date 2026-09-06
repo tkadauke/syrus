@@ -7,10 +7,20 @@ class RunHostAdmission
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
   RETRY_DELAY = 30.seconds
   GUARDED_RUNS_PER_HOST = 1
-  HEAVY_STEP_KINDS = %w[grader preflight_grader].freeze
   CPU_HEAVY_PRESSURE = 50.0
   CPU_HEAVY_PROCESS_PERCENT = 75.0
-  ALWAYS_GUARDED_STEP_KINDS = (Step::AGENTIC_KINDS + HEAVY_STEP_KINDS).uniq.freeze
+
+  # Only agentic steps are guarded on sight.
+  #
+  # `grader` and `preflight_grader` used to be here too, which made this a
+  # strict mutex: with one slot per host, a single grader excluded every agent
+  # AND every other grader on that pod. Production ran three compute tasks
+  # across three pods while Kubernetes had capacity to spare.
+  #
+  # Graders are now judged by what they actually cost (see #resource_guarded?),
+  # so a cheap check runs alongside other work and an expensive one -- or one
+  # with no profile yet, which predicts conservatively -- still takes a slot.
+  ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
 
   def self.call(...) = new(...).call
 
@@ -111,7 +121,6 @@ class RunHostAdmission
     candidate_step = candidate.step
     return false unless candidate_step
     return true if candidate_step.agentic?
-    return true if HEAVY_STEP_KINDS.include?(candidate_step.kind)
 
     prediction = prediction_for(candidate)
     prediction.fetch(:cpu_pressure).to_f >= CPU_HEAVY_PRESSURE ||

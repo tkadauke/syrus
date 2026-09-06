@@ -216,8 +216,16 @@ RSpec.describe "Work engine resilience regression matrix" do
         queued_run!(workflow, step, run)
         other_job = matrix_job
         other_workflow = other_job.latest_workflow
-        other_step = other_workflow.first_step
-        other_run = other_step.runs.first
+        # Congestion is about agent SESSIONS, so the competing run has to sit on
+        # an agentic step. first_step is `prepare`, which no longer counts --
+        # the budget used to key on the workflow's trigger kind and so counted
+        # every run in it, graders included.
+        other_step = other_workflow.steps.find_by(kind: "implement") ||
+                     Step.create!(workflow: other_workflow, kind: "implement", position: 90)
+        other_run = other_step.runs.first ||
+                    other_step.runs.create!(job: other_job, user: other_job.user,
+                                            trigger_kind: other_workflow.trigger_kind,
+                                            agent_provider: other_job.agent_provider)
         age_active_run!(other_workflow, other_step, other_run, heartbeat_age: 1.minute)
         allow(AppSetting).to receive(:max_concurrent_agent_runs).and_return(1)
         { run_id: run.id }

@@ -45,7 +45,7 @@ class Run < ApplicationRecord
 
   # See Workflow#trigger_kind: resolved per validation so a plugin-contributed
   # trigger kind is honoured while its plugin is enabled.
-  validates :trigger_kind, presence: true, inclusion: { in: -> (_) { Workflow::TriggerKind.values } }
+  validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
@@ -91,10 +91,16 @@ class Run < ApplicationRecord
   # Currently-executing agent Runs across the cluster — the `:runs`-queue
   # workflows subject to the global agent-concurrency cap. App-DB counted, so
   # it holds across worker pods and is testable without SolidQueue tables.
+  # Runs that hold an agent session right now.
+  #
+  # This used to filter on the WORKFLOW's trigger kind, which meant every run
+  # in a runs-queue workflow counted -- including all nine of an initial
+  # workflow's graders. One workflow could exhaust
+  # AppSetting.max_concurrent_agent_runs by itself while no agent was waiting
+  # on anything. The budget exists to protect provider sessions, rate limits
+  # and spend, and a grader consumes none of those.
   scope :running_agent_runs, -> {
-    where(state: "running")
-      .joins(step: :workflow)
-      .where(workflows: { trigger_kind: Workflow.runs_queue_trigger_kinds })
+    where(state: "running").joins(:step).where(steps: { kind: Step::AGENTIC_KINDS })
   }
   scope :stale, -> {
     t = STALE_HEARTBEAT_THRESHOLD.ago
@@ -219,6 +225,13 @@ class Run < ApplicationRecord
   # Landing/merge runs are not capped.
   def agent_queue?
     workflow_template_class.queue_name == :runs
+  end
+
+  # Whether this run occupies an agent session. The agent budgets gate on this
+  # rather than on agent_queue?, which is a queue-routing question and answers
+  # true for a grader that never talks to a provider.
+  def agentic_step?
+    step&.agentic? || false
   end
 
   # Sanctioned re-dispatch for a non-terminal Run that lost its

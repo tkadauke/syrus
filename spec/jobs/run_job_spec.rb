@@ -1136,10 +1136,27 @@ RSpec.describe RunJob, :ci_only do
     include ActiveJob::TestHelper
 
     let(:other_job) { Factories.job(repository: repository, issue_number: 43) }
-    let!(:queued_run) { job.initial_run }
+    # The budget counts runs that hold an agent SESSION, so these have to sit on
+    # an agentic step. They used to use Job#initial_run, which is the `prepare`
+    # run -- non-agentic, and only counted because the old scope keyed on the
+    # workflow's trigger kind rather than the step.
+    let!(:queued_run) { agentic_run_for(job) }
+
+    def agentic_run_for(target_job)
+      workflow = target_job.latest_workflow
+      step = workflow.steps.find_by(kind: "implement") ||
+             Step.create!(workflow: workflow, kind: "implement", position: 99)
+      Run.create!(
+        job: target_job,
+        step: step,
+        user: target_job.user,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: target_job.agent_provider
+      )
+    end
 
     def running_agent_run!
-      run = other_job.initial_run
+      run = agentic_run_for(other_job)
       run.start!
       run.save!
       run

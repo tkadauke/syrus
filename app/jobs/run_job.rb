@@ -152,7 +152,7 @@ class RunJob < ApplicationJob
     return false if limit <= 0
 
     run = ::Run.find_by(id: run_id)
-    return false unless run && !run.terminal? && run.agent_queue?
+    return false unless run && !run.terminal? && run.agentic_step?
     return false if work_definition_for_run(run).agent_concurrency_exempt?
 
     active = ::Run.running_agent_runs.where.not(id: run_id).count
@@ -173,7 +173,7 @@ class RunJob < ApplicationJob
   # clears.
   def defer_for_actor_share?(run_id)
     run = ::Run.find_by(id: run_id)
-    return false unless run && !run.terminal? && run.agent_queue?
+    return false unless run && !run.terminal? && run.agentic_step?
     return false if work_definition_for_run(run).agent_concurrency_exempt?
 
     share = Admission::FairShare.for(user: run.user, excluding_run_id: run_id)
