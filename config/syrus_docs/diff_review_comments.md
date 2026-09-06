@@ -89,3 +89,54 @@ existing bounded-height, permanent file list, sidebar-only-edit behavior
 unless they explicitly opt in. The add-comment affordance is a small "+" in
 the left gutter beside the line number, shown on row hover (GitHub-style),
 not a right-edge column.
+
+### Scalable diff loading and navigation
+
+`ReviewableDiff` guards against huge diffs without dropping any data:
+
+- **Per-file large-diff gating** — a file whose *parsed* diff row count
+  (`countDiffRows` in `diffRendering.ts`, not raw source file size) exceeds
+  `largeFileRowThreshold` (default `DEFAULT_LARGE_FILE_ROW_THRESHOLD` = 300)
+  renders a placeholder with the path, additions/deletions, and estimated row
+  count instead of the full table, plus a "Load diff for this file" action.
+  Gating and loading are independent per file — loading one large file never
+  auto-loads another.
+- **File-count cap** — only the first `maxVisibleFiles` files (default
+  `DEFAULT_MAX_VISIBLE_FILES` = 100) render up front; a "Load N more files"
+  control reveals the rest in further batches. Picking a file from the
+  Files popup that's beyond the current cap raises the cap to include it
+  before scrolling.
+- **Hidden-context expansion** — clicking a hunk marker row's up/down
+  triangle reveals `CONTEXT_EXPAND_LINE_INCREMENT` (20) more lines of real
+  file content in that direction, fetched via the `onLoadFileContext` prop
+  (a `(file) => Promise<string | null>` callback each call site wires to its
+  own source-fetching endpoint — reusing the existing job source-browser
+  file-content endpoint, not a dedicated one). A direction's control is
+  hidden once nothing is left to reveal there: deterministically without a
+  fetch when the boundary is provable from hunk headers alone (e.g. a hunk
+  starting at line 1 has no "up" direction), and reactively once a fetch
+  resolves the file's real length (e.g. the last hunk's "down" direction at
+  EOF). A file's header also gets a "Load whole file" action that reveals
+  all hidden context at once. Expansion only ever *inserts* new context
+  rows around existing hunk lines — the original lines keep their exact
+  old/new line numbers, so existing line-comment anchors stay correct.
+  `onLoadFileContext` is optional; omitting it hides all context-expansion
+  UI (used by contexts with no ref to fetch from, like the raw single-patch
+  chat workspace diff view).
+- **Sticky file headers** — each file's title bar sticks to the top of its
+  scroll container (the natural page scroll in the review workspace, or the
+  bounded internal scroll elsewhere) while its section is in view.
+- **Word-occurrence highlighting** — clicking an identifier or number token
+  in a diff line highlights every occurrence of that exact token across all
+  currently rendered files in the same `ReviewableDiff`; clicking it again,
+  clicking a different token, or using the "Clear highlight" affordance that
+  appears while a highlight is active clears/changes it. Punctuation-only
+  and whitespace-run tokens are never clickable. Controlled via the
+  `wordHighlighting` prop (default on); `UnifiedDiffTable` used standalone
+  (no `ReviewableDiff` wrapper) falls back to uncontrolled per-table state.
+- **Changed-files menu placement** — on desktop, the Files button opens a
+  dropdown positioned below or above the button (whichever has more room),
+  capped by height with its own internal scroll, and aligned to the diff
+  area's own width — not the comments sidebar. On mobile (`max-width:
+  767px`, matched via `window.matchMedia`), the same trigger opens a
+  fullscreen modal instead.

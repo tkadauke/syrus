@@ -5,7 +5,7 @@ import { Button } from "../../components/Button"
 import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
 import { highlightCode } from "../../lib/syntaxHighlight"
-import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
+import { fetchJobSource, fetchJobSourceDiff, fetchJobSourceFileContent, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
@@ -357,6 +357,7 @@ function SourceDiffBrowser({
               files={payload.files}
               mode={renderMode}
               onCommentLine={feedback.onCommentLine}
+              onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
               onSelectFile={setSelectedPath}
               selectedPath={selectedPath}
               showFileHeaders

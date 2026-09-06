@@ -12,7 +12,7 @@ import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { Button, buttonClasses } from "../../components/Button"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
@@ -1078,7 +1078,7 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
         {feedback.panel}
         {payload.agent_diff ? (
-          <AgentDiff comments={feedback.diffThreads} diff={payload.agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
+          <AgentDiff comments={feedback.diffThreads} diff={payload.agent_diff} onCommentLine={feedback.onCommentLine} onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined} showFileHeaders />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )
@@ -1090,7 +1090,7 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
         {feedback.panel}
         {payload.step_agent_diff ? (
-          <AgentDiff comments={feedback.diffThreads} diff={payload.step_agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
+          <AgentDiff comments={feedback.diffThreads} diff={payload.step_agent_diff} onCommentLine={feedback.onCommentLine} onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined} showFileHeaders />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )

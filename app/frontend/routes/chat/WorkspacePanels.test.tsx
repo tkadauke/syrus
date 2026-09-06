@@ -349,8 +349,12 @@ describe("ChatWorkspacePanel coding files", () => {
     fireEvent.click(secondFile)
 
     expect(await screen.findByTestId("coding-diff-viewer")).toBeInTheDocument()
-    expect(screen.getByText("export const b = 2")).toBeInTheDocument()
-    expect(screen.queryByText("export const a = 2")).not.toBeInTheDocument()
+    // Word highlighting wraps each token in its own <span>, so a multi-token
+    // line's text is spread across siblings; match on the code cell's full
+    // textContent instead of getByText's direct-text-node-only default.
+    const codeCellText = (text: string) => screen.queryByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
+    expect(codeCellText("export const b = 2")).toBeInTheDocument()
+    expect(codeCellText("export const a = 2")).not.toBeInTheDocument()
   })
 
   it("renders a commit selector and passes ref to file and diff fetches", async () => {
