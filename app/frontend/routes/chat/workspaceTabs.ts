@@ -21,10 +21,11 @@ import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible } from "./ut
 // rather than a fixed name.
 export type PreviewTab = `preview:${number}`
 
-// chat_image_count reflects the chat's full attachment history (see
-// chat_image_attachment_count on ChatsController), not just the currently
-// loaded message window — a chat whose only image attachment scrolled out
-// of the loaded tail must still show the media tab.
+// chat_image_count is really a 0/1 existence flag (see
+// ChatMediaLibrary.any_inline_images?) over the chat's full attachment
+// history, not just the currently loaded message window — a chat whose only
+// image attachment scrolled out of the loaded tail must still show the media
+// tab.
 export function mediaTabVisible(payload: ChatPayload): boolean {
   return (payload.chat.chat_image_count ?? 0) > 0 ||
     (payload.video_walkthroughs?.length ?? 0) > 0 ||
