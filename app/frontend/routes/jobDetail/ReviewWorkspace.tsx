@@ -94,7 +94,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           />
         </section>
       </div>
-      <div className="lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
+      <div className="min-w-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
         {feedback.panel}
       </div>
     </div>
@@ -120,22 +120,22 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
       {hasArtifacts && expanded ? (
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {payload.test_plan ? (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800">
+            <div className="min-w-0 rounded border border-gray-200 p-3 dark:border-gray-800">
               <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
-                {payload.test_plan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+                {payload.test_plan.steps.map((step, index) => <li className="break-words" key={`${index}-${step}`}>{step}</li>)}
               </ul>
             </div>
           ) : null}
           {reviewArtifacts.map((artifact) => (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact}>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{artifact}</p>
+            <div className="min-w-0 rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact}>
+              <p className="break-words text-sm text-gray-700 dark:text-gray-300">{artifact}</p>
             </div>
           ))}
           {payload.typed_artifacts.slice(0, 4).map((artifact) => (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact.type}>
-              <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{artifact.title}</p>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{artifact.renderer_type}</p>
+            <div className="min-w-0 rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact.type}>
+              <p className="break-words text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{artifact.title}</p>
+              <p className="mt-1 break-words text-sm text-gray-700 dark:text-gray-300">{artifact.renderer_type}</p>
             </div>
           ))}
         </div>

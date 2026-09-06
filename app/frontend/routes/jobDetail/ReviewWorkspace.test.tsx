@@ -191,6 +191,45 @@ describe("ReviewWorkspace", () => {
     expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
   })
 
+  it("keeps the sidebar column from stretching the mobile grid track past the viewport", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const sidebarSection = await screen.findByText("Diff comments")
+    const stickyWrapper = sidebarSection.closest("section")?.parentElement
+    expect(stickyWrapper).toHaveClass("min-w-0")
+  })
+
+  it("wraps long review artifact and test plan text instead of letting it overflow", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show" }))
+    const step = screen.getByText("Review the diff")
+    expect(step.tagName).toBe("LI")
+    expect(step).toHaveClass("break-words")
+  })
+
+  it("wraps long comment bodies and paths instead of letting them overflow the sidebar", async () => {
+    const longPathComment = comment({
+      body: "A very long comment body with no natural wrap points: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      path: "app/services/some/deeply/nested/module/with/a/very/long/unbroken/file_name_that_could_overflow_a_narrow_sidebar.rb"
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([longPathComment]))
+
+    renderWorkspace()
+
+    const body = await screen.findByText(longPathComment.body)
+    expect(body).toHaveClass("break-words")
+    const pathLabel = screen.getByText(`${longPathComment.path}:2`)
+    expect(pathLabel).toHaveClass("break-words")
+  })
+
   it("shows both code-anchored and whole-review comments together in the sidebar", async () => {
     const lineComment = comment({ id: 1, new_line: 1, anchor_key: "right::1", body: "Please add a regression spec." })
     const globalComment = comment({

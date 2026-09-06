@@ -393,9 +393,9 @@ function DiffReviewFeedbackPanel({
         {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
           const isGlobal = comment.anchor_kind === "review"
           return (
-          <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
+          <div className="min-w-0 rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
                 {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
               </span>
               <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
@@ -405,7 +405,7 @@ function DiffReviewFeedbackPanel({
                 <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
               </div>
             ) : null}
-            <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
@@ -435,8 +435,8 @@ function DiffReviewFeedbackPanel({
       {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
       {isComposing ? (
-        <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
-          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">{t("review_global_comment_label")}</p>
+        <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="break-words font-mono text-xs text-gray-600 dark:text-gray-300">{t("review_global_comment_label")}</p>
           <textarea
             aria-label={t("review_comment_body")}
             className="mt-2 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
