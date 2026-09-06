@@ -4,9 +4,10 @@ RSpec.describe JobBundleAssembler do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def approved(issue_number:, priority: "medium", pr_number: nil, parent_job: nil, kind: "issue")
+  def approved(issue_number:, priority: "medium", pr_number: nil, parent_job: nil, kind: "issue", owner_user: user)
     Factories.job_record(
       user: user,
+      owner_user: owner_user,
       repository: repository,
       issue_number: issue_number,
       state: "approved",
@@ -78,6 +79,38 @@ RSpec.describe JobBundleAssembler do
 
     expect(result.priority).to eq("urgent")
     expect(result.job_ids).to contain_exactly(urgent_a.id, urgent_b.id)
+  end
+
+  it "does not bundle same-tier Jobs from different owners together" do
+    other_owner = Factories.user
+    approved(issue_number: 1, owner_user: user)
+    approved(issue_number: 2, owner_user: other_owner)
+
+    result = described_class.call(repository)
+
+    expect(result).not_to be_ready
+  end
+
+  it "still bundles same-tier Jobs that share one owner" do
+    a = approved(issue_number: 1, owner_user: user)
+    b = approved(issue_number: 2, owner_user: user)
+
+    result = described_class.call(repository)
+
+    expect(result).to be_ready
+    expect(result.job_ids).to contain_exactly(a.id, b.id)
+  end
+
+  it "bundles the owner-partition that reaches the minimum, ignoring a lone Job from another owner" do
+    other_owner = Factories.user
+    a = approved(issue_number: 1, owner_user: user)
+    b = approved(issue_number: 2, owner_user: user)
+    approved(issue_number: 3, owner_user: other_owner)
+
+    result = described_class.call(repository)
+
+    expect(result).to be_ready
+    expect(result.job_ids).to contain_exactly(a.id, b.id)
   end
 
   it "excludes Jobs that belong to an Epic" do
@@ -180,6 +213,14 @@ RSpec.describe JobBundleAssembler do
       b = approved(issue_number: 2)
       c = approved(issue_number: 3)
       JobDependency.create!(job: c, depends_on_job: b, source: "manual")
+
+      expect(described_class.ready_for_priority?(repository, "medium")).to be false
+    end
+
+    it "returns false when same-tier candidates exist but belong to different owners" do
+      other_owner = Factories.user
+      approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: other_owner)
 
       expect(described_class.ready_for_priority?(repository, "medium")).to be false
     end
