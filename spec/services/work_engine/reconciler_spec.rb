@@ -2882,6 +2882,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
     issue = kind(result, :running_run_without_live_worker_evidence)
     execution = result.repair_executions.find { |entry| entry.action == "mark_worker_died_and_retry_failed_step" }
+    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
     event = WorkEngineReconcilerActivityEvent.find_by!(
       event_type: "repair_executed",
       issue_kind: "running_run_without_live_worker_evidence",
