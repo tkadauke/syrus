@@ -3216,6 +3216,74 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "epic_children_share_one_effective_owner validation" do
+    let(:user) { Factories.user }
+    let(:other_user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "is valid when the epic has no existing open children yet" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 60, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "is valid when the incoming job's effective owner matches existing open children" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      job = Job.new(user: user, owner_user: user, repository: repository, epic: epic, issue_number: 61, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "rejects assigning a job with a different effective owner into a populated epic" do
+      epic = Factories.epic(user: user, repository: repository)
+      existing = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 62, kind: "issue")
+
+      expect(job).not_to be_valid
+      expect(job.errors[:epic]).to include("already has an open child Job (#{existing.slug}) owned by a different user")
+    end
+
+    it "ignores closed children when checking for owner conflicts" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "closed")
+
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 63, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "falls back to the creating user when owner_user_id is unset for either side" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user_id: nil, state: "queued")
+
+      job = Job.new(user: other_user, repository: repository, epic: epic, issue_number: 64, kind: "issue")
+
+      expect(job).not_to be_valid
+      expect(job.errors[:epic]).to include(a_string_matching(/owned by a different user/))
+    end
+
+    it "does not re-check unrelated updates on an existing epic child" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      Factories.job_record(user: user, repository: repository, owner_user_id: nil, state: "queued").update_column(:epic_id, epic.id)
+
+      expect { job.update!(issue_title: "renamed") }.not_to raise_error
+    end
+
+    it "does not block the existing owner-correction cascade, which bypasses validations" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      mismatched = Factories.job_record(user: user, repository: repository, owner_user: other_user, state: "queued")
+      mismatched.update_column(:epic_id, epic.id)
+
+      expect { epic.reassign_child_jobs_to_owner!(user) }.not_to raise_error
+      expect(mismatched.reload.owner_user_id).to eq(user.id)
+    end
+  end
+
   describe "Coding Mode lock" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

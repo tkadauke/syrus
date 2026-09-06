@@ -671,7 +671,12 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     epic = Factories.epic(user: user, repository: repository, owner_user: nil)
     unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
     existing_owner = Factories.user(email_address: "already-owned@example.com")
-    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: existing_owner)
+    # A mismatched owner can no longer be assigned into a populated Epic
+    # through the normal create/update path (Job's
+    # epic_children_share_one_effective_owner validation); simulate this
+    # legacy multi-owner state by flipping the owner directly after create.
+    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: user)
+    owned_child.update_column(:owner_user_id, existing_owner.id)
 
     patch "/api/v1/app/epics/#{epic.id}/claim"
 
@@ -772,7 +777,12 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     epic = Factories.epic(user: admin, repository: admin_repo, owner_user: nil)
     unowned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, owner_user: nil)
     previous_child_owner = Factories.user(email_address: "previous-child@example.com")
-    owned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, issue_number: 43, owner_user: previous_child_owner)
+    # A mismatched owner can no longer be assigned into a populated Epic
+    # through the normal create/update path (Job's
+    # epic_children_share_one_effective_owner validation); simulate this
+    # legacy multi-owner state by flipping the owner directly after create.
+    owned_child = Factories.job_record(user: admin, repository: admin_repo, epic: epic, issue_number: 43, owner_user: admin)
+    owned_child.update_column(:owner_user_id, previous_child_owner.id)
     sign_in_as(admin)
 
     patch "/api/v1/app/epics/#{epic.id}/reassign", params: { owner_user_id: new_owner.id }
@@ -1008,7 +1018,12 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: nil)
     unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
     existing_owner = Factories.user(email_address: "already-owned@example.com")
-    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: existing_owner)
+    # A mismatched owner can no longer be assigned into a populated Epic
+    # through the normal create/update path (Job's
+    # epic_children_share_one_effective_owner validation); simulate this
+    # legacy multi-owner state by flipping the owner directly after create.
+    owned_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, owner_user: user)
+    owned_child.update_column(:owner_user_id, existing_owner.id)
 
     patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
 
