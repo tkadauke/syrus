@@ -5,6 +5,11 @@ export type DiffLine = {
   newLine: number | null
   marker: string
   code: string
+  // Groups "add"/"delete"/"context" lines that came from the same @@ hunk,
+  // so a caller can tokenize each hunk's visible lines as one contiguous
+  // blob (see UnifiedDiffTable). -1 for lines outside any hunk body
+  // ("file"/"meta"/the "hunk" header line itself).
+  hunkId: number
 }
 
 export type LineAnnotation = "covered" | "uncovered" | "not_executable"
@@ -22,12 +27,14 @@ export function parseUnifiedDiff(diff: string) {
   const lines: DiffLine[] = []
   let oldLine: number | null = null
   let newLine: number | null = null
+  let hunkId = -1
 
   for (const rawLine of rawLines) {
     const hunk = rawLine.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
     if (hunk) {
       oldLine = Number(hunk[1])
       newLine = Number(hunk[2])
+      hunkId += 1
       lines.push(diffLine("hunk", rawLine))
       continue
     }
@@ -35,13 +42,13 @@ export function parseUnifiedDiff(diff: string) {
     if (rawLine.startsWith("diff --git ")) {
       lines.push(diffLine("file", rawLine))
     } else if (rawLine.startsWith("+") && !rawLine.startsWith("+++")) {
-      lines.push(diffLine("add", rawLine.slice(1), null, newLine, "+"))
+      lines.push(diffLine("add", rawLine.slice(1), null, newLine, "+", hunkId))
       if (newLine !== null) newLine += 1
     } else if (rawLine.startsWith("-") && !rawLine.startsWith("---")) {
-      lines.push(diffLine("delete", rawLine.slice(1), oldLine, null, "-"))
+      lines.push(diffLine("delete", rawLine.slice(1), oldLine, null, "-", hunkId))
       if (oldLine !== null) oldLine += 1
     } else if (rawLine.startsWith(" ") && oldLine !== null && newLine !== null) {
-      lines.push(diffLine("context", rawLine.slice(1), oldLine, newLine))
+      lines.push(diffLine("context", rawLine.slice(1), oldLine, newLine, "", hunkId))
       oldLine += 1
       newLine += 1
     } else {
@@ -52,8 +59,8 @@ export function parseUnifiedDiff(diff: string) {
   return lines
 }
 
-export function diffLine(kind: DiffLineKind, code: string, oldLine: number | null = null, newLine: number | null = null, marker = "") {
-  return { kind, oldLine, newLine, marker, code }
+export function diffLine(kind: DiffLineKind, code: string, oldLine: number | null = null, newLine: number | null = null, marker = "", hunkId = -1) {
+  return { kind, oldLine, newLine, marker, code, hunkId }
 }
 
 export function diffLineClass(kind: DiffLineKind) {

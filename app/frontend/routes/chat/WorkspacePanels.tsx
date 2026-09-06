@@ -1515,7 +1515,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
                       <span>+{selectedDiff.additions}</span>
                       <span>-{selectedDiff.deletions}</span>
                     </div>
-                    <UnifiedDiffViewer diff={selectedDiff.patch} testId="coding-diff-viewer" />
+                    <UnifiedDiffViewer diff={selectedDiff.patch} path={selectedDiff.path} testId="coding-diff-viewer" />
                   </>
                 ) : (
                   <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>
@@ -1545,8 +1545,8 @@ function isCodingRelayUnavailable(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === "relay_unavailable"
 }
 
-function UnifiedDiffViewer({ diff, testId }: { diff: string; testId?: string }) {
-  return <UnifiedDiffTable file={{ path: "diff", patch: diff }} testId={testId} />
+function UnifiedDiffViewer({ diff, path, testId }: { diff: string; path?: string; testId?: string }) {
+  return <UnifiedDiffTable file={{ path: path ?? "diff", patch: diff }} testId={testId} />
 }
 
 function CodingDiffStatusBadge({ status }: { status: CodingDiffFile["status"] }) {

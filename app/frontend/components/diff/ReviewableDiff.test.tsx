@@ -200,4 +200,33 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/job.rb")).toBeInTheDocument()
     expect(screen.getByTitle("app/models/run.rb")).toBeInTheDocument()
   })
+
+  it("layers Shiki syntax tokens on top of the diff add/remove background classes", async () => {
+    const highlightedFiles = [
+      {
+        additions: 1,
+        deletions: 0,
+        patch: [
+          "diff --git a/app/models/job.rb b/app/models/job.rb",
+          "--- a/app/models/job.rb",
+          "+++ b/app/models/job.rb",
+          "@@ -1,1 +1,2 @@",
+          " class Job",
+          "+  def call; end"
+        ].join("\n"),
+        path: "app/models/job.rb",
+        status: "modified"
+      }
+    ]
+
+    render(<ReviewableDiff files={highlightedFiles} mode="single-file" selectedPath="app/models/job.rb" />)
+
+    const contextKeyword = await screen.findByText("class")
+    expect(contextKeyword.tagName).toBe("SPAN")
+    expect(contextKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+
+    const addedKeyword = await screen.findByText("def")
+    expect(addedKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
 })
