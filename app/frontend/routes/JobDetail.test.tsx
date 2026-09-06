@@ -1,7 +1,7 @@
 import { jsonResponse } from "../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter, useLocation } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
@@ -9,7 +9,7 @@ import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow }
 import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
-import { ArtifactsTab, FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
+import { ArtifactsTab, FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
@@ -1721,6 +1721,71 @@ describe("JobDetailView", () => {
     renderJobDetail(jobPayload({ job: baseJob() }))
 
     expect(screen.queryByText("Landing blocker override")).not.toBeInTheDocument()
+  })
+})
+
+describe("JobDetailRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // Regression test for a plugin registering a `.tab` ui_slot whose key isn't
+  // in JobDetail's hardcoded tab literal (e.g. a future "coverage" tab, only
+  // "tests" happened to be pre-whitelisted). tabFromLocation must accept any
+  // key present in the payload's ui_tabs, not just the hardcoded core set.
+  it("keeps a plugin-contributed tab selected on a direct visit instead of resetting to Summary", async () => {
+    const payload = jobPayload({
+      ui_tabs: [
+        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/jobs/1?tab=coverage"]}>
+          <Routes>
+            <Route element={<JobDetailRoute />} path="/jobs/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const coverageTab = await screen.findByRole("button", { name: "Coverage" })
+    expect(coverageTab).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Summary" })).not.toHaveClass("border-brand")
+  })
+
+  it("selects and deep-links a plugin-contributed tab when clicked", async () => {
+    const payload = jobPayload({
+      ui_tabs: [
+        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/jobs/1"]}>
+          <LocationProbe />
+          <Routes>
+            <Route element={<JobDetailRoute />} path="/jobs/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const coverageTab = await screen.findByRole("button", { name: "Coverage" })
+    fireEvent.click(coverageTab)
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/1?tab=coverage"))
+    expect(await screen.findByRole("button", { name: "Coverage" })).toHaveClass("border-brand")
   })
 })
 
