@@ -800,7 +800,9 @@ RSpec.describe ChatPendingAction, :ci_only do
     end
 
     it "includes expected action keys in the registry" do
-      %w[cancel_job close_job_successfully retry_job rebase_job schedule_recurring admin_kill_process pause_landing_queue].each do |key|
+      # schedule_recurring is deliberately absent: it belongs to the
+      # scheduled_tasks plugin, and core must not require a plugin's handler.
+      %w[cancel_job close_job_successfully retry_job rebase_job admin_kill_process pause_landing_queue].each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "expected registry to include '#{key}'"
       end
     end
@@ -811,7 +813,17 @@ RSpec.describe ChatPendingAction, :ci_only do
       PendingActions::CompleteImplementStep
       PendingActions::SubmitCodingChanges
       PendingActions::RunVisualReview
-      all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
+      # ACTIONS/ACTION_TYPES still name actions that plugins own, so the set
+      # core can assert on is what remains once a disabled plugin's are
+      # subtracted. Handlers under plugins/ are the plugin's to guarantee --
+      # pinning them here makes the plugin undeletable, and made this spec fail
+      # the moment scheduled_tasks was extracted.
+      plugin_owned = Dir[Rails.root.join("plugins/*/app/services/pending_actions/*.rb")]
+        .map { |path| File.basename(path, ".rb") }
+        .reject { |key| PendingActions::REGISTRY.key?(key) }
+
+      all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES - plugin_owned
+      expect(all_keys).to include("cancel_job")
       all_keys.each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
       end
