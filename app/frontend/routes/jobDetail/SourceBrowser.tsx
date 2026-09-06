@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
-import { highlightCode } from "../../lib/syntaxHighlight"
+import { CodeBlock, renderCodeLine, useHighlightedLines } from "../../components/CodeBlock"
+import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
@@ -14,7 +15,7 @@ import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
 import type { SourceTreeNode } from "./sourceTree"
-import { buildSourceTree, sourceLanguage } from "./sourceTree"
+import { buildSourceTree } from "./sourceTree"
 
 
 // Source-browser tab extracted from JobDetail.tsx: the SourceTab entry point and
@@ -99,7 +100,7 @@ function SourceBrowser({
   const visibleItems = useMemo(() => payload.tree_items.slice(0, 2000), [payload.tree_items])
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
-  const fileLanguage = payload.file ? sourceLanguage(payload.file.language) : null
+  const fileLanguage = payload.file ? detectHighlighterLanguage(payload.file.path) : null
   const selectedFilePath = payload.file?.path ?? null
 
   const hitMap = useQuery({
@@ -168,9 +169,7 @@ function SourceBrowser({
                   ) : hitMapAttached === false && coverageWorkflowId != null && selectedFilePath != null ? (
                     <p className="px-4 pt-2 text-xs text-gray-400 dark:text-gray-500">{t("source_coverage_expired")}</p>
                   ) : null}
-                  <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
-                    <code>{fileLanguage ? highlightCode(payload.file.content, fileLanguage) : payload.file.content}</code>
-                  </pre>
+                  <CodeBlock className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100" code={payload.file.content} lang={fileLanguage} />
                 </>
               )}
             </>
@@ -183,10 +182,11 @@ function SourceBrowser({
 
 function CoverageAnnotatedSource({ content, fileLanguage, hitLines }: {
   content: string
-  fileLanguage: ReturnType<typeof sourceLanguage>
+  fileLanguage: ReturnType<typeof detectHighlighterLanguage>
   hitLines: Record<string, number>
 }) {
   const lines = content.split("\n")
+  const tokenLines = useHighlightedLines(content, fileLanguage)
   return (
     <table className="min-w-full border-separate border-spacing-0 font-mono text-sm" data-testid="coverage-annotated-source">
       <tbody>
@@ -209,7 +209,7 @@ function CoverageAnnotatedSource({ content, fileLanguage, hitLines }: {
               </td>
               <td className="w-10 select-none px-2 text-right text-xs text-gray-400 dark:text-gray-600">{lineNum}</td>
               <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {fileLanguage ? highlightCode(line, fileLanguage) : line}
+                {renderCodeLine(tokenLines?.[i], line)}
               </td>
             </tr>
           )

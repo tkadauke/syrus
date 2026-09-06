@@ -2270,13 +2270,14 @@ describe("SourceTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "models" }))
     fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
 
-    expect(await screen.findByText("class")).toHaveClass("font-semibold", "text-brand")
-    expect(screen.getByText("User")).toHaveClass("text-cyan-700")
+    const keyword = await screen.findByText("class")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
+    expect(screen.getByText("User").style.color).toBe("var(--shiki-token-function)")
   })
 
   it("falls back to plain source text for unsupported languages", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobSourcePayload({
-      file: { path: "README.md", name: "README.md", size: 20, language: "markdown", content: "class User\n" }
+      file: { path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", content: "class User\n" }
     })))
     renderJobSource()
 
@@ -2284,6 +2285,29 @@ describe("SourceTab", () => {
 
     expect(code.tagName).toBe("CODE")
     expect(code.querySelector("span")).toBeNull()
+  })
+
+  it("keeps coverage hit indicators alongside highlighted tokens", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input)
+      if (url.includes("/coverage_hit_map")) {
+        return Promise.resolve(jsonResponse({ hit_map_attached: true, file: "app/models/user.rb", lines: { "1": 2, "2": 0 } }))
+      }
+      const withFile = url.includes("path=app%2Fmodels%2Fuser.rb") || url.includes("path=app/models/user.rb")
+      return Promise.resolve(jsonResponse(jobSourcePayload({ withFile })))
+    })
+
+    renderJobSource(jobPayload({ coverage: { workflow_id: 5, coverage: { hit_map_attached: true } } }))
+
+    fireEvent.click(await screen.findByRole("button", { name: "app" }))
+    fireEvent.click(screen.getByRole("button", { name: "models" }))
+    fireEvent.click(screen.getByRole("button", { name: "user.rb" }))
+
+    const table = await screen.findByTestId("coverage-annotated-source")
+    const keyword = await within(table).findByText("class")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
+    expect(within(table).getByTitle("2 hits")).toBeInTheDocument()
+    expect(within(table).getByTitle("not covered")).toBeInTheDocument()
   })
 
   it("uses a rotating chevron for directory toggles", async () => {
@@ -2469,7 +2493,7 @@ function mockMediaQuery(matches: boolean) {
   }
 }
 
-function renderJobSource() {
+function renderJobSource(payload: JobDetailPayload = jobPayload()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
@@ -2479,7 +2503,7 @@ function renderJobSource() {
         <JobDetailView
           activeTab="source"
           onSelectTab={() => {}}
-          payload={jobPayload()}
+          payload={payload}
           prefix="/app-shell"
           queryKey={["jobs", "1", "detail", ""]}
         />

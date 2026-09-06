@@ -1,8 +1,8 @@
-# Checked-in source of truth for the built-in Theme rows (EPIC-273 job 1).
-# Values are copied verbatim from the Epic description; do not re-derive
-# them. `db/seeds.rb` calls `Seeds::Themes.seed!` to upsert these into the
-# `themes` table, and `bin/generate-theme-css` compiles the resulting
-# `built_in: true` rows into scoped CSS custom-property blocks.
+# Checked-in source of truth for the built-in Theme rows (EPIC-273 job 1,
+# syntax tokens added EPIC-309). `db/seeds.rb` calls `Seeds::Themes.seed!`
+# to upsert these into the `themes` table, and `bin/generate-theme-css`
+# compiles the resulting `built_in: true` rows into scoped CSS
+# custom-property blocks.
 #
 # `on-brand` (the 13th token, alongside the 12 declared in
 # app/assets/tailwind/application.css) resolves this job's flagged open
@@ -14,7 +14,33 @@
 # Button.tsx and application.css for the consuming side.
 module Seeds
   module Themes
-    DEFINITIONS = [
+    # Maps each Theme::SYNTAX_TOKEN_KEYS entry to an existing UI token key
+    # whose value it borrows for every built-in theme (EPIC-309). Reusing
+    # the theme's own contrast-checked, theme-appropriate hues is a more
+    # reliable "sensible default" than hand-picking 13 new hex values per
+    # theme, and keeps the syntax palette visually consistent with each
+    # theme's semantic colors (e.g. inserted/deleted/changed reuse
+    # success/danger/warning, matching conventional diff coloring).
+    SYNTAX_TOKEN_ALIASES = {
+      "foreground" => "text-primary",
+      "token-keyword" => "brand-emphasis",
+      "token-string" => "success",
+      "token-string-expression" => "info",
+      "token-comment" => "text-secondary",
+      "token-constant" => "warning",
+      "token-function" => "brand",
+      "token-parameter" => "text-primary",
+      "token-punctuation" => "neutral",
+      "token-link" => "info",
+      "token-inserted" => "success",
+      "token-deleted" => "danger",
+      "token-changed" => "warning"
+    }.freeze
+
+    # Raw UI token values, copied verbatim from the Epic description; do not
+    # re-derive them. See DEFINITIONS below for the syntax-token-augmented
+    # version actually seeded.
+    BASE_DEFINITIONS = [
       {
         slug: "terracotta",
         name: "Terracotta",
@@ -664,6 +690,18 @@ module Seeds
         }
       }
     ].freeze
+
+    # BASE_DEFINITIONS with each mode's tokens hash augmented by
+    # Theme::SYNTAX_TOKEN_KEYS values (see SYNTAX_TOKEN_ALIASES above).
+    DEFINITIONS = BASE_DEFINITIONS.map do |definition|
+      tokens = definition.fetch(:tokens)
+      augmented_tokens = %w[light dark].index_with do |mode|
+        mode_tokens = tokens.fetch(mode)
+        syntax_tokens = SYNTAX_TOKEN_ALIASES.transform_values { |ui_key| mode_tokens.fetch(ui_key) }
+        mode_tokens.merge(syntax_tokens)
+      end
+      definition.merge(tokens: augmented_tokens)
+    end.freeze
 
     def self.seed!
       DEFINITIONS.each do |definition|
