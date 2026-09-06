@@ -21,7 +21,8 @@ function renderRoute(children: ReactNode, initialEntry = "/repositories/7/plugin
 
 function page(commits: GitHistoryCommit[], overrides: Partial<GitHistoryPage> = {}): GitHistoryPage {
   return {
-    repository: { id: 7, slug: "acme/widgets" },
+    repository: { id: 7, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" },
+    tabs: [{ key: "git_history.git_history", label: "Git History", path: "/repositories/7/plugin/git_history" }],
     available: true,
     commits,
     next_cursor: null,
