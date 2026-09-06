@@ -536,6 +536,24 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("toolbar", { name: "Formatting toolbar" })).toBeInTheDocument()
   })
 
+  it("uses the standard repo-page-tab container width, not compact mode's bare spacing", async () => {
+    mockFetch()
+    renderSurface()
+
+    const main = await screen.findByRole("main", { name: "Design docs" })
+    expect(main.className).toContain("max-w-[96rem]")
+    expect(main.className).not.toContain("max-w-[100rem]")
+  })
+
+  it("keeps the compact chat surface free of any page-container width class", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toBeInTheDocument()
+    const main = screen.getByRole("main", { name: "Design docs" })
+    expect(main.className).not.toContain("max-w-")
+  })
+
   it("loads the focused detail route without fetching or rendering list-page controls", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
