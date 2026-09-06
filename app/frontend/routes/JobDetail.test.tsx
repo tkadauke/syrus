@@ -658,22 +658,24 @@ describe("JobDetailView", () => {
     expect(link).toHaveAttribute("href", "/app-shell/repositories/2/edit#auto-merge")
   })
 
-  it("opens the overflow menu aligned to the right-0 edge when the menu fits within the scroll container", () => {
+  it("opens the overflow menu right-aligned to the button, portaled to the document body, when it fits within the viewport", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })
 
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
       right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
     } as DOMRect)
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1024)
 
     fireEvent.click(menuButton)
 
     const menu = screen.getByRole("menu")
-    expect(menu).toHaveClass("right-0")
-    expect(menu).not.toHaveClass("left-0")
+    expect(menu.parentElement).toBe(document.body)
+    expect(menu).toHaveClass("fixed", "z-20")
+    expect(menu).toHaveStyle({ top: "40px", right: "724px" })
   })
 
-  it("opens the overflow menu aligned to the left-0 edge when a left-open menu would be clipped", () => {
+  it("opens the overflow menu left-aligned to the button when right-aligning would clip off the viewport", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })
 
@@ -684,43 +686,59 @@ describe("JobDetailView", () => {
     fireEvent.click(menuButton)
 
     const menu = screen.getByRole("menu")
-    expect(menu).toHaveClass("left-0")
-    expect(menu).not.toHaveClass("right-0")
+    expect(menu.parentElement).toBe(document.body)
+    expect(menu).toHaveStyle({ top: "40px", left: "60px" })
   })
 
-  it("opens the overflow menu to the right when the scroll container's boundary would clip a left-open menu", () => {
+  it("dismisses the overflow menu on outside click, Escape, and re-toggling its own button", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })
-
     vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
-      right: 280, left: 240, top: 0, bottom: 36, width: 40, height: 36, x: 240, y: 0, toJSON: () => ({})
+      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
     } as DOMRect)
 
-    const parentEl = menuButton.parentElement!
-    const savedGetComputedStyle = window.getComputedStyle.bind(window)
-    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) => {
-      const original = savedGetComputedStyle(el, pseudo)
-      if (el === parentEl) {
-        return new Proxy(original, {
-          get(target, key: string | symbol) {
-            if (key === "overflowX") return "auto"
-            const val = Reflect.get(target, key)
-            return typeof val === "function" ? (val as CallableFunction).bind(target) : val
-          }
-        })
-      }
-      return original
-    })
-    vi.spyOn(parentEl, "getBoundingClientRect").mockReturnValue({
-      left: 200, right: 1000, top: 0, bottom: 800, width: 800, height: 800, x: 200, y: 0, toJSON: () => ({})
+    fireEvent.click(menuButton)
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+
+    fireEvent.click(menuButton)
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+
+    fireEvent.click(menuButton)
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+
+    fireEvent.click(menuButton)
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+  })
+
+  it("keeps the header actions menu layered above the review sidebar", async () => {
+    mockReviewWorkspaceRequests()
+    renderJobDetail(jobPayload(), { activeTab: "review" })
+
+    const sidebarHeading = await screen.findByText("Diff comments")
+    const sidebarSection = sidebarHeading.closest("section") as HTMLElement
+    expect(sidebarSection).toBeInTheDocument()
+
+    const menuButton = screen.getByRole("button", { name: "⋯" })
+    vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
+      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
     } as DOMRect)
 
     fireEvent.click(menuButton)
 
-    // button.right - 224 = 280 - 224 = 56 < containerLeft (200), so opens right
     const menu = screen.getByRole("menu")
-    expect(menu).toHaveClass("left-0")
-    expect(menu).not.toHaveClass("right-0")
+    // The sticky review sidebar forms its own stacking context; a menu
+    // merely absolutely-positioned inside the header can end up painted
+    // behind it. Portaling straight onto <body> with fixed positioning
+    // sidesteps that ancestor stacking context entirely.
+    expect(menu.parentElement).toBe(document.body)
+    expect(sidebarSection.contains(menu)).toBe(false)
+    expect(menu).toHaveClass("fixed", "z-20")
   })
 
   it("renders dependency blockers as copyable Job slugs with status pills", () => {
@@ -2304,7 +2322,7 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
@@ -2381,6 +2399,27 @@ function mockJobSourceRequests() {
     const withFile = url.includes("path=app%2Fmodels%2Fuser.rb") || url.includes("path=app/models/user.rb")
 
     return Promise.resolve(jsonResponse(jobSourcePayload({ withFile })))
+  })
+}
+
+function mockReviewWorkspaceRequests() {
+  return vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = requestUrl(input)
+    if (url.includes("/diff_review_comments")) {
+      return Promise.resolve(jsonResponse({ job_id: 1, comments: [], by_path: {} }))
+    }
+
+    return Promise.resolve(jsonResponse({
+      job_id: 1,
+      base_ref: "base-sha",
+      head_ref: "head-sha",
+      merge_base_sha: "base-sha",
+      default_ref: "main",
+      branch_commits: [],
+      truncated: false,
+      diff_error: null,
+      files: []
+    }))
   })
 }
 

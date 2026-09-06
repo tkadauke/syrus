@@ -473,7 +473,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
     middleware: [offset(4), flip(), shift({ padding: 8 })],
     placement: "top-end"
   })
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false), floatingRefs.floating)
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false), [floatingRefs.floating])
   const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const active = chat.id === activeChatIdFromPath(location.pathname)
