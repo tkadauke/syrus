@@ -2571,7 +2571,7 @@ Bundled plugins:
   both pages share one component (`AgentActivityFeed.tsx`, parameterized by
   `scope: "mine" | "admin"`) rendering a live, sessions-only feed: one card
   per agentic `Run`, headlined by whatever that session actually submitted
-  (never inferred from transcript text — see `config/syrus_docs/agent_activity.md`).
+  (never inferred from transcript text — see `plugins/agent_activity/docs/syrus_docs/agent_activity.md`).
   `AgentActivity::SessionsQuery` backs
   `GET /api/v1/app/agent_activity/sessions` (scope `:mine`: repositories the
   user belongs to plus Jobs they effectively own) and
@@ -2588,4 +2588,4 @@ Bundled plugins:
   repositories the admin has no membership on and so can't reuse the
   ownership-scoped Jobs transcript route the operator surface uses; both
   routes share `App::RunArtifactsPayload.build(run:)` for the JSON shape so
-  they can't drift apart — see `config/syrus_docs/agent_activity.md`.
+  they can't drift apart — see `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
