@@ -39,7 +39,7 @@ module ScheduledTasks
                               numericality: { only_integer: true, in: 0..59 }
     validates :consecutive_failure_count,
               presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-    validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
+    validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
 
     validates :schedule_expression, presence: true, if: :cron?
     validates :fire_at,         presence: true, if: :one_shot?
