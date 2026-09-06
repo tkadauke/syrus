@@ -1754,6 +1754,7 @@ module Api
             linked_direct_job_count: counts.fetch(:linked_direct_jobs),
             scratchpad_items_count: counts.fetch(:scratchpad_items),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
+            has_chat_images: PerformanceLogging.phase("chat_json.has_chat_images", chat_id: chat_session.id) { ChatMediaLibrary.any_inline_images?(chat_session) },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
             coding_relay_ready: chat_session.coding_relay_address.present? && chat_session.coding_relay_token.present?,

@@ -7,7 +7,7 @@ import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatRenderItem, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMediaImage, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -26,10 +26,8 @@ import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
 import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
-import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
-import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
 import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
@@ -181,7 +179,7 @@ export function ChatWorkspacePanel({
       <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
         {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
         {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
-        {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "media" ? <MediaGallery payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
@@ -871,13 +869,12 @@ function LocalDiffPanel({ chatId }: { chatId: number }) {
   )
 }
 
-function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: ChatRenderItem[]; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
-  const images = imageAttachments(messages)
   const walkthroughs = payload.video_walkthroughs || []
   const walkthroughStateLabel = (state: string) =>
     ({ uploaded: t("walkthrough_state_uploaded"), analyzing: t("walkthrough_state_analyzing"), analyzed: t("walkthrough_state_analyzed"), failed: t("walkthrough_state_failed") } as Record<string, string>)[state] || state
-  const [lightboxImage, setLightboxImage] = useState<ChatMessageImageAttachment | null>(null)
+  const [lightboxImage, setLightboxImage] = useState<ChatMediaImage | null>(null)
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
@@ -896,6 +893,12 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
   const artifactItems = media.data?.typed_artifacts || []
+  // Sourced from the chat's full history via GET /media (which also
+  // materializes any not-yet-materialized inline attachments into
+  // Documents), not payload.messages -- the currently loaded message window
+  // is paginated, so an older image would otherwise be invisible here even
+  // though the chat has media.
+  const images = media.data?.chat_images || []
 
   async function loadSnapshot(snapshot: WhiteboardSnapshot) {
     if (chatBusy || snapshotLoading) return
@@ -1067,17 +1070,17 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
-            {images.map(({ attachment, key }) => {
-              const src = attachmentDataUrl(attachment)
-              const name = attachment.name || "image attachment"
+            {images.map((image) => {
+              const src = image.image_url || image.file_path || ""
+              const name = image.title || image.filename || "image attachment"
 
               return (
-                <figure className="group/media min-w-0 space-y-1" key={key}>
+                <figure className="group/media min-w-0 space-y-1" key={image.id}>
                   <div className="relative aspect-square overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
                     <button
                       aria-label={`Open ${name}`}
                       className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand"
-                      onClick={() => setLightboxImage(attachment)}
+                      onClick={() => setLightboxImage(image)}
                       title={name}
                       type="button"
                     >
@@ -1086,7 +1089,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                     <a
                       aria-label={`Download ${name}`}
                       className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-                      download={attachment.name || "image"}
+                      download={image.filename || name}
                       href={src}
                     >
                       {t("image_download")}
@@ -1099,7 +1102,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
           </div>
         </section>
       ) : null}
-      {lightboxImage ? <ImageLightbox attachment={lightboxImage} onClose={() => setLightboxImage(null)} /> : null}
+      {lightboxImage ? <ImageLightbox name={lightboxImage.title || lightboxImage.filename || "Image attachment"} onClose={() => setLightboxImage(null)} src={lightboxImage.image_url || lightboxImage.file_path || ""} /> : null}
     </div>
   )
 }

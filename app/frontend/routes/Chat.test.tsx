@@ -557,6 +557,7 @@ describe("simple mode chat transcript", () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "context")
     mockChatRouteFetch(chatPayload({
+      chat: { has_chat_images: true },
       messages: [
         {
           type: "message",
@@ -2761,8 +2762,22 @@ describe("chat message image attachments", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
+      // The media tab sources its gallery from GET /media (the chat's full
+      // history), not from the currently loaded `messages` window.
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            { id: 1, title: "diagram.png", filename: "diagram.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" },
+            { id: 2, title: "mockup.jpg", filename: "mockup.jpg", content_type: "image/jpeg", image_url: "/api/v1/app/repository_documents/2/file" }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
 
       return Promise.resolve(jsonResponse(chatPayload({
+        chat: { has_chat_images: true },
         messages: [
           {
             type: "message",
@@ -2798,12 +2813,11 @@ describe("chat message image attachments", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Media" }))
 
     const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).getByText("diagram.png")).toBeInTheDocument()
+    expect(await within(workspace).findByText("diagram.png")).toBeInTheDocument()
     expect(within(workspace).getByText("mockup.jpg")).toBeInTheDocument()
-    expect(within(workspace).queryByText("notes.pdf")).not.toBeInTheDocument()
 
     const download = within(workspace).getByRole("link", { name: "Download diagram.png" })
-    expect(download).toHaveAttribute("href", "data:image/png;base64,cGl4ZWxz")
+    expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")
     expect(download).toHaveAttribute("download", "diagram.png")
 
     fireEvent.click(within(workspace).getByRole("button", { name: "Open mockup.jpg" }))
@@ -2839,6 +2853,7 @@ describe("chat message image attachments", () => {
       }
 
       return Promise.resolve(jsonResponse(chatPayload({
+        chat: { has_chat_images: true },
         messages: [
           {
             type: "message",
