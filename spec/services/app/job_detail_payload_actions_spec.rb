@@ -423,6 +423,47 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json can_approve" do
+    def implemented_job
+      Factories.job_record(user: user, repository: repo, state: "implemented")
+    end
+
+    it "is true for an implemented job with no active runtime work" do
+      expect(payload_for(implemented_job).dig(:actions, :can_approve)).to be(true)
+    end
+
+    it "stays true while a rebase workflow is queued or running against the job" do
+      job = implemented_job
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(true)
+    end
+
+    it "stays true while a manual visual review or visual diff workflow is active" do
+      job = implemented_job
+      workflow = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "queued")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
+
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(true)
+    end
+
+    it "stays true while a bare rebase Run is active, independent of any WorkUnit" do
+      job = implemented_job
+      Run.create!(job: job, trigger_kind: "rebase", state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(true)
+    end
+
+    it "is false while an implementation workflow is still active for the job" do
+      job = implemented_job
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_approve)).to be(false)
+    end
+  end
+
   describe "#actions_json can_start" do
     it "reuses the payload run count instead of issuing a second unscoped runs existence probe" do
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_body: "Investigate")
