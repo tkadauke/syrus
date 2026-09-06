@@ -127,7 +127,7 @@ function updateToolGroupState(group: ChatToolGroupItem) {
   const sideEffecting = calls.some((call) => sideEffectingTool(call.tool_name))
   group.prominent = failed || pendingSideEffect || sideEffecting
   group.collapsed_by_default = true
-  group.outcome_label = failed ? "Needs attention" : calls.some((call) => call.result_body === "") ? "Running" : "Done"
+  group.outcome_label = failed ? "Failed" : calls.some((call) => call.result_body === "") ? "Running" : "Done"
 
   if (calls.length > 1 && calls.every((call) => readOnlyTool(call.tool_name))) {
     group.tool = "Inspection"
