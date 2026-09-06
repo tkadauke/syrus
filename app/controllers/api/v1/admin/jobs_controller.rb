@@ -114,6 +114,8 @@ module Api
             message: I18n.t("api.direct_jobs.created"),
             job: serialize(job.reload)
           }, status: :created
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         private
