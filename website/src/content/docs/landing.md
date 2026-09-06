@@ -47,6 +47,21 @@ and lands the bundle as one operation. Bundles are intentionally conservative:
 they should reduce repeated grader work without hiding unrelated review or
 ownership boundaries.
 
+## Stopping a Landing Attempt
+
+While a Job is actively landing -- on its own or as part of an Epic merge
+train -- its Job detail page shows a **Stop Landing** button. Anyone who could
+otherwise act on the Job (its owner, an admin, or a repository member with
+write access) can use it.
+
+Stop Landing cancels the in-progress landing workflow and moves the Job back
+to implemented, clearing its approval. That's intentional: stopping a landing
+attempt is a deliberate decision, so Syrus asks for a fresh approval before it
+tries again rather than silently re-queuing. For an Epic merge train, stopping
+it reverts every member Job the same way any other train failure does. Unlike
+the general Cancel button, Stop Landing does not close the Job -- the PR and
+branch stay in place, ready to re-approve.
+
 ## What Can Block Landing
 
 Common blockers include:

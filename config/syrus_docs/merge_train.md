@@ -97,6 +97,14 @@ If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket
 
 Operators can also manually retry the train from the Epic detail page.
 
+An operator can also proactively stop a landing train from any member Job's
+detail page with the **Stop Landing** button (`Job#stop_landing!`, see
+`config/syrus_docs/landing_queue.md`). It cancels the train's `merge_train`
+Workflow, which routes through `MergeTrainFailureHandler` exactly as above
+(`cancelled: true`) — every member without positive landed evidence reverts
+to `implemented` with approval cleared, since an explicit stop should require
+re-approval before Syrus retries.
+
 ## Size limit
 
 `AppSetting.merge_train_max_size` (default: 20) caps the train size. Epics with more open approved Jobs than this limit require either splitting the Epic or increasing the limit.

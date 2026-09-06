@@ -38,6 +38,22 @@ module Workflows
       LandingFailureHandler.call(job: job, reason: failure_reason_for(workflow), run: latest_failed_run(workflow))
     end
 
+    # Without this hook, a cancelled auto_merge workflow (e.g. the operator
+    # clicking "Stop Landing") leaves the Job stuck in :landing forever --
+    # unlike merge_train, whose after_cancel already reverts members via
+    # MergeTrainFailureHandler. Mirrors after_fail's revert path; the
+    # generic "operator stopped landing" reason doesn't match any of
+    # LandingFailureHandler's transient-blocker patterns, so it always
+    # fail_landings (-> :implemented, approval cleared) rather than
+    # silently re-queueing.
+    def self.after_cancel(workflow)
+      job = workflow.job
+      cleanup_unrepaired_workspace(workflow)
+      return unless job&.landing?
+
+      LandingFailureHandler.call(job: job, reason: "operator stopped landing", run: nil)
+    end
+
     def self.cleanup_unrepaired_workspace(workflow)
       return if workflow.steps.where(kind: "landing_fix", state: "succeeded").exists?
 

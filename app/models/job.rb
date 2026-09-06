@@ -939,6 +939,37 @@ class Job < ApplicationRecord
     close_with_reason!(reason)
   end
 
+  # Stops an in-progress landing attempt without closing the Job, unlike
+  # cancel_active_runs_and_close!. Cancels the active landing workflow --
+  # a solo auto_merge/external_pr_merge Workflow owned by this Job, or the
+  # single Epic-wide merge_train Workflow when this Job is a train member
+  # (active_runtime_workflows resolves that through WorkUnitMember, not
+  # Workflow#job_id, so it works for any train member, not just the
+  # anchor). Each landing Workflow's after_cancel hook
+  # (LandingFailureHandler / MergeTrainFailureHandler) reverts the Job to
+  # :implemented and clears approval, same as a genuine landing failure --
+  # an explicit stop should require the operator to re-approve, not
+  # silently re-enter the landing queue. The trailing fail_landing! is a
+  # fallback for the (should-be-rare) case where no active landing
+  # workflow was found or its hook didn't move the Job out of :landing.
+  def stop_landing!
+    return unless landing?
+
+    active_runtime_workflows.select(&:landing_workflow?).each do |workflow|
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "operator_stopped_landing",
+        artifacts: {
+          "cancelled_reason" => "operator_stopped_landing",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
+    end
+
+    reload
+    fail_landing! if landing? && may_fail_landing?
+  end
+
   def cancel_active_execution!
     active_runtime_workflows.each do |workflow|
       WorkUnits::WorkflowCancellation.cancel!(
