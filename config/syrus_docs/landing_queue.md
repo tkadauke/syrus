@@ -35,6 +35,29 @@ same landing unit, such as a queued merge train blocked by `urgent_job_active`,
 an already-active merge train, or landing state drift where a Job is in
 `landing` with no active workflow or train.
 
+## Stopping a landing attempt
+
+While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part
+of an Epic merge train -- the Job detail page shows a **Stop Landing** button.
+It is available to the same operators who can otherwise mutate the Job (the
+owner, an admin, or a repository member with write access), via
+`POST /api/v1/app/jobs/:job_id/stop_landing` (`Job#stop_landing!`).
+
+Stop Landing cancels the Job's active landing Workflow -- the solo
+`auto_merge`/`external_pr_merge` Workflow, or the single Epic-wide
+`merge_train` Workflow when the Job is a train member -- and reverts the Job
+to `implemented`, clearing its approval the same way a genuine landing
+failure does (`LandingFailureHandler`/`MergeTrainFailureHandler`). This is
+deliberate: an explicit stop should require the operator to re-approve before
+Syrus attempts to land the Job again, not silently re-enter the landing
+queue. For a merge-train member, stopping the train reverts every member Job
+that hadn't already merged, the same as any other train failure or
+cancellation.
+
+Stop Landing does not close the Job (contrast with the general-purpose
+**Cancel** button, which cancels active work and closes the Job entirely) --
+the PR and branch stay intact for the operator to re-approve once ready.
+
 ## auto_merge workflow
 
 **Step chain:** `mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge`
