@@ -1003,6 +1003,44 @@ describe("JobDetailView", () => {
     })
   })
 
+  it("offers 'Chat about this' when the job has no chat origin", () => {
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+
+    expect(screen.getByRole("button", { name: "Chat about this" })).toBeInTheDocument()
+  })
+
+  it("hides 'Chat about this' once a discussion chat is linked, showing a link to it instead", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), discussion_chat: { chat_id: 9, chat_title: "Bug triage", path: "/chats/9" } },
+      actions: { ...jobPayload().actions, can_start_chat: false }
+    })
+
+    renderJobDetail(payload)
+
+    expect(screen.queryByRole("button", { name: "Chat about this" })).not.toBeInTheDocument()
+    const link = screen.getByRole("link", { name: /Bug triage/ })
+    expect(link).toHaveAttribute("href", "/app-shell/chats/9")
+  })
+
+  it("starts a discussion chat and navigates to it", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Chat started.", redirect_to: "/chats/9" })
+    )
+    const payload = jobPayload({ actions: { ...jobPayload().actions, can_start_chat: true } })
+
+    renderJobDetail(payload)
+    fireEvent.click(screen.getByRole("button", { name: "Chat about this" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/start_chat",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } })
@@ -2347,6 +2385,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_view_resource_admission_diagnostics: false,
       can_manage_tags: false,
       can_open_in_coding_mode: false,
+      can_start_chat: false,
       can_open_in_local_mode: false,
       can_cancel_local_mode: false,
       can_start_preview: false,
@@ -2387,6 +2426,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_stack_base_path: "/api/v1/app/jobs/1/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/1/mark_valid",
       app_attachments_path: "/api/v1/app/jobs/1/attachments",
+      app_start_chat_path: "/api/v1/app/jobs/1/start_chat",
       app_pin_path: "/api/v1/app/jobs/1/pin",
       app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback",
       app_open_in_coding_mode_path: "/api/v1/app/jobs/1/open_in_coding_mode",
@@ -2459,6 +2499,7 @@ function baseJob(): JobDetailPayload["job"] {
     total_cost_usd: null,
     billed_runs_count: 0,
     source_chat: null,
+    discussion_chat: null,
     workflows_count: 0,
     runs_count: 0,
     any_active_run: false,

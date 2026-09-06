@@ -17,6 +17,35 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe "#discussion_chat" do
+    it "returns nil when no chat has been attached" do
+      job = Factories.job_record
+
+      expect(job.discussion_chat).to be_nil
+    end
+
+    it "returns the earliest attached chat session" do
+      job = Factories.job_record
+      older_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      newer_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      job.chat_attachments.create!(chat_session: newer_chat)
+      job.chat_attachments.create!(chat_session: older_chat, attached_at: 1.hour.ago)
+
+      expect(job.discussion_chat).to eq(older_chat)
+    end
+
+    it "is destroyed along with the job" do
+      job = Factories.job_record
+      chat = ChatSession.create!(user: job.user, repository: job.repository)
+      attachment = job.chat_attachments.create!(chat_session: chat)
+
+      job.destroy!
+
+      expect(ChatAttachment.exists?(attachment.id)).to be(false)
+      expect(ChatSession.exists?(chat.id)).to be(true)
+    end
+  end
+
   describe "owner defaulting on create" do
     it "defaults owner_user to the creating user when none is given" do
       creator = Factories.user
