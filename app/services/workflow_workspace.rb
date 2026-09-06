@@ -587,14 +587,18 @@ class WorkflowWorkspace
     FileUtils.rm_rf(path)
   end
 
-  # Everything in the workspace except the lock sentinel. The lock lives INSIDE
-  # the directory it guards, so `acquire_exclusive_lock` creates the directory
-  # as a side effect of locking it -- which means "directory exists and is not
-  # empty" is the NORMAL state before a clone, not evidence of debris.
+  # Anything at all in the workspace is debris before a clone.
+  #
+  # This used to exclude the lock sentinel, back when the lock lived inside the
+  # directory it guarded and its presence was normal. The lock moved to
+  # workflows/.locks/<id>.lock, so an in-workspace `.workspace.lock` is now
+  # always a leftover from before that change -- and excluding it meant
+  # reclaim found "no debris", returned, and let the clone fail on the very
+  # directory it was supposed to clear.
   def debris
     return [] unless path.exist?
 
-    path.children.reject { |child| child.basename.to_s == LOCK_SENTINEL }
+    path.children
   end
 
   def recover_invalid_checkout_if_safe!

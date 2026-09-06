@@ -69,6 +69,20 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(ws.path).not_to exist
     end
 
+    # The lock moved to workflows/.locks/, so a sentinel still sitting inside a
+    # workspace is a leftover from before that change. Treating it as "not
+    # debris" left the directory in place and the clone failed on it -- which
+    # is what kept production colliding after the lock was moved out.
+    it "reclaims a stale in-workspace lock left over from the old lock location" do
+      ws = described_class.new(workflow)
+      FileUtils.mkdir_p(ws.path)
+      File.write(ws.path.join(described_class::LOCK_SENTINEL), "")
+
+      ws.send(:reclaim_partial_clone!)
+
+      expect(ws.path).not_to exist
+    end
+
     it "leaves an empty directory alone, since git clones into one happily" do
       ws = described_class.new(workflow)
       FileUtils.mkdir_p(ws.path)
