@@ -211,6 +211,27 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
   })
 
+  it("keeps the inline thread's Edit/Delete actions packed next to the author instead of pushed to the far edge of the wide code column", () => {
+    render(
+      <ReviewableDiff
+        comments={{
+          "app/models/job.rb": {
+            "right::1": [{ id: 1, author: "Ada", body: "Please cover this branch.", state: "draft" }]
+          }
+        }}
+        files={files}
+        mode="single-file"
+        onDeleteThread={vi.fn()}
+        onStartEditThread={vi.fn()}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const deleteButton = screen.getByRole("button", { name: "Delete" })
+    const actionRow = deleteButton.closest("div.mb-1")
+    expect(actionRow).not.toHaveClass("justify-between")
+  })
+
   it("does not show an inline composer on lines that don't match the active composing selection", () => {
     render(
       <ReviewableDiff
