@@ -70,6 +70,30 @@
   --color-info: #1d4ed8;
   --color-neutral: #374151;
   --color-on-brand: #ffffff;
+
+  /* Shiki `css-variables` theme fallbacks (EPIC-309). Built-in themes
+   * define their own literal `--shiki-*` values (see
+   * app/assets/tailwind/generated/themes.generated.css); these exist so a
+   * user-authored custom theme that skips Theme::SYNTAX_TOKEN_KEYS still
+   * renders tokenized code instead of transparent/invisible text. Each
+   * value is a `var(--color-*)` reference rather than a literal color so
+   * it resolves against whatever `--color-*` values are actually in
+   * effect for the current `data-theme`/`.dark` state, not just this
+   * unscoped fallback block's own literal values.
+   */
+  --shiki-foreground: var(--color-text-primary);
+  --shiki-token-keyword: var(--color-brand-emphasis);
+  --shiki-token-string: var(--color-success);
+  --shiki-token-string-expression: var(--color-info);
+  --shiki-token-comment: var(--color-text-secondary);
+  --shiki-token-constant: var(--color-warning);
+  --shiki-token-function: var(--color-brand);
+  --shiki-token-parameter: var(--color-text-primary);
+  --shiki-token-punctuation: var(--color-neutral);
+  --shiki-token-link: var(--color-info);
+  --shiki-token-inserted: var(--color-success);
+  --shiki-token-deleted: var(--color-danger);
+  --shiki-token-changed: var(--color-warning);
 }
 
 .dark {
@@ -86,6 +110,20 @@
   --color-info: #bfdbfe;
   --color-neutral: #e5e7eb;
   --color-on-brand: #ffffff;
+
+  --shiki-foreground: var(--color-text-primary);
+  --shiki-token-keyword: var(--color-brand-emphasis);
+  --shiki-token-string: var(--color-success);
+  --shiki-token-string-expression: var(--color-info);
+  --shiki-token-comment: var(--color-text-secondary);
+  --shiki-token-constant: var(--color-warning);
+  --shiki-token-function: var(--color-brand);
+  --shiki-token-parameter: var(--color-text-primary);
+  --shiki-token-punctuation: var(--color-neutral);
+  --shiki-token-link: var(--color-info);
+  --shiki-token-inserted: var(--color-success);
+  --shiki-token-deleted: var(--color-danger);
+  --shiki-token-changed: var(--color-warning);
 }
 
 @theme inline {

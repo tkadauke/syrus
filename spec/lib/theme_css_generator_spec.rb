@@ -20,6 +20,29 @@ RSpec.describe ThemeCssGenerator do
       end
     end
 
+    it "emits a --shiki-* custom property for every Theme::SYNTAX_TOKEN_KEYS entry, in both modes" do
+      theme = unsaved_theme(Seeds::Themes::DEFINITIONS.first)
+      css = described_class.css_for([ theme ])
+
+      Theme::SYNTAX_TOKEN_KEYS.each do |key|
+        expect(css).to include("--shiki-#{key}: #{theme.tokens.fetch('light').fetch(key)};")
+        expect(css).to include("--shiki-#{key}: #{theme.tokens.fetch('dark').fetch(key)};")
+      end
+    end
+
+    it "omits a --shiki-* property when a theme doesn't define that syntax token" do
+      definition = Seeds::Themes::DEFINITIONS.first
+      tokens = {
+        "light" => definition.fetch(:tokens).fetch("light").except("token-keyword"),
+        "dark" => definition.fetch(:tokens).fetch("dark").except("token-keyword")
+      }
+      theme = unsaved_theme(definition.merge(tokens: tokens))
+
+      css = described_class.css_for([ theme ])
+
+      expect(css).not_to include("--shiki-token-keyword:")
+    end
+
     it "includes a do-not-edit generated file header" do
       css = described_class.css_for([])
       expect(css).to include("GENERATED FILE. Do not edit by hand.")
