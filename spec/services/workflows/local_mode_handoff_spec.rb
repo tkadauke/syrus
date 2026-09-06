@@ -47,7 +47,7 @@ RSpec.describe Workflows::LocalModeHandoff do
       end
 
       it "appends review_plan after pr_open when configured" do
-        allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+        allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
           RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
         )
         kinds = described_class.steps_for(job)
