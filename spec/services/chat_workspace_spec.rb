@@ -568,6 +568,54 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result).to include("diff --git a/README.md b/README.md")
       expect(result).to include("+# Changed")
     end
+
+    it "includes untracked new files in the cumulative diff" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("new_file.rb").to_s, "puts 'hi'\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :cumulative)
+
+      expect(result).to include("diff --git a/new_file.rb b/new_file.rb")
+      expect(result).to include("new file mode")
+      expect(result).to include("+puts 'hi'")
+    end
+
+    it "includes untracked new files in the turn diff" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("new_file.rb").to_s, "puts 'hi'\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :turn)
+
+      expect(result).to include("diff --git a/new_file.rb b/new_file.rb")
+      expect(result).to include("new file mode")
+    end
+
+    it "includes both modified tracked files and untracked new files together" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "# Changed\n")
+      File.write(checkout_path.join("new_file.rb").to_s, "puts 'hi'\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :cumulative)
+
+      expect(result).to include("diff --git a/README.md b/README.md")
+      expect(result).to include("diff --git a/new_file.rb b/new_file.rb")
+    end
+
+    it "does not include gitignored untracked files" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join(".gitignore").to_s, "ignored_file.log\n")
+      sh("git -C #{checkout_path} add .gitignore")
+      sh("git -C #{checkout_path} commit -q -m 'add gitignore'")
+      File.write(checkout_path.join("ignored_file.log").to_s, "noise\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :cumulative)
+
+      expect(result).not_to include("diff --git a/ignored_file.log")
+    end
   end
 
   describe ".coding_commits" do
