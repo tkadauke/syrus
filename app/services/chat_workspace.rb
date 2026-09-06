@@ -649,15 +649,18 @@ class ChatWorkspace
 
     default_branch = repository.default_branch
 
-    if mode.to_sym == :turn
-      # Uncommitted changes vs last commit
-      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "HEAD", chdir: path.to_s)
-      status.success? ? out : ""
-    else
-      # All changes from remote base to current working tree
-      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "origin/#{default_branch}", chdir: path.to_s)
-      status.success? ? out : ""
-    end
+    tracked_diff =
+      if mode.to_sym == :turn
+        # Uncommitted changes vs last commit
+        out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "HEAD", chdir: path.to_s)
+        status.success? ? out : ""
+      else
+        # All changes from remote base to current working tree
+        out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "origin/#{default_branch}", chdir: path.to_s)
+        status.success? ? out : ""
+      end
+
+    tracked_diff + untracked_files_diff(path)
   rescue StandardError
     ""
   end
@@ -1008,5 +1011,29 @@ class ChatWorkspace
 
   def valid_commit_ref?(ref)
     ref.to_s.match?(self.class::COMMIT_SHA_PATTERN)
+  end
+
+  # Plain `git diff` never reports untracked files, no matter which ref it's
+  # compared against -- they aren't in the index or any tree yet. Synthesize
+  # a "new file" diff section per untracked path via `--no-index` so newly
+  # created files show up in the Coding Mode diff the same as modified ones.
+  def untracked_files_diff(path)
+    files_out, files_status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "ls-files", "--others", "--exclude-standard", "-z",
+      chdir: path.to_s
+    )
+    return "" unless files_status.success?
+
+    files_out.split("\x00").filter_map do |relative|
+      next if relative.blank?
+
+      diff_out, _status = Open3.capture2e(
+        { "GIT_TERMINAL_PROMPT" => "0" },
+        "git", "diff", "--no-index", "--", "/dev/null", relative,
+        chdir: path.to_s
+      )
+      diff_out.presence
+    end.join
   end
 end
