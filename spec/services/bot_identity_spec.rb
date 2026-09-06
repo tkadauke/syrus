@@ -44,9 +44,9 @@ RSpec.describe BotIdentity do
   end
 
   describe "git author identity" do
-    it "uses the GitHub App bot identity when the app is registered and the repository has an active installation" do
+    it "uses the GitHub App bot identity when the app is active and the owner has no connected PAT" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
-      user = Factories.user(name: "Human Operator", email_address: "human@example.com")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: nil)
       installation = Factories.installation(user: user, account_login: "acme")
       repository = Factories.repository(user: user, owner: "acme", installation: installation)
       job = Factories.job(repository: repository)
@@ -69,18 +69,78 @@ RSpec.describe BotIdentity do
       expect(identity.git_name).to eq("Human Operator")
       expect(identity.git_email).to eq("human@example.com")
     end
+
+    it "prefers the owner's own connected GitHub PAT over the App identity for ordinary Jobs" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+      job = Factories.job(repository: repository, kind: "direct", issue_number: nil)
+
+      identity = described_class.for(job)
+
+      expect(identity.git_name).to eq("Human Operator")
+      expect(identity.git_email).to eq("human@example.com")
+    end
+
+    it "keeps the App bot identity for infrastructure-kind Jobs even when the owner has a connected PAT" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+      job = repository.jobs.create!(
+        user: user,
+        kind: "main_grader",
+        state: "queued"
+      )
+
+      identity = described_class.for(job)
+
+      expect(identity.git_name).to eq("tkadauke-syrus[bot]")
+      expect(identity.git_email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
+    end
+
+    it "keeps the App bot identity for system_kind-tagged Jobs even when the owner has a connected PAT" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+      job = repository.jobs.create!(
+        user: user,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch",
+        state: "queued"
+      )
+
+      identity = described_class.for(job)
+
+      expect(identity.git_name).to eq("tkadauke-syrus[bot]")
+      expect(identity.git_email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
+    end
   end
 
   describe "#append_co_authored_by" do
-    it "appends the human co-author trailer once for issue jobs" do
-      user = Factories.user(name: "Human Operator", email_address: "human@example.com")
-      job = Factories.job(repository: Factories.repository(user: user))
+    it "appends the human co-author trailer when the App bot is the actual commit author" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: nil)
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+      job = Factories.job(repository: repository)
       identity = described_class.for(job)
 
       message = identity.append_co_authored_by("Implement the thing\n")
 
       expect(message).to eq("Implement the thing\n\nCo-Authored-By: Human Operator <human@example.com>")
       expect(identity.append_co_authored_by(message).scan("Co-Authored-By:").size).to eq(1)
+    end
+
+    it "omits the redundant co-author trailer once the owner is the actual commit author" do
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      job = Factories.job(repository: Factories.repository(user: user), kind: "direct", issue_number: nil)
+      identity = described_class.for(job)
+
+      expect(identity.append_co_authored_by("Implement the thing\n")).to eq("Implement the thing\n")
     end
   end
 end
