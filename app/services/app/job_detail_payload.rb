@@ -25,6 +25,14 @@ module App
       new(job: job, user: user).dependency_options_payload
     end
 
+    # Lean re-derivation of just the actions hash, for command endpoints
+    # (approve/unapprove/reopen/etc.) that need to hand the frontend a
+    # freshly computed set of available buttons in the same response as the
+    # state change, instead of waiting on the next full job-detail refetch.
+    def self.actions_payload(job:, user:)
+      new(job: job, user: user).actions_payload
+    end
+
     def initialize(job:, user:, params: {})
       @job = job
       @user = user
@@ -108,6 +116,10 @@ module App
           epic_dependency_target_options: PerformanceLogging.phase("job_dependency_options.epic_targets", job_id: @job.id) { epic_dependency_target_options }
         }
       end
+    end
+
+    def actions_payload
+      PerformanceLogging.phase("job_actions_payload", job_id: @job.id) { { actions: actions_json } }
     end
 
     private

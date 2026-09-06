@@ -1018,6 +1018,8 @@ export type DiffReviewCommentsSubmitPayload = {
 export type JobCommandPayload = {
   message?: string | null
   redirect_to?: string
+  job?: Partial<JobRecord> & { id: number }
+  actions?: JobActions
 }
 
 export type JobGradeLogPayload = {

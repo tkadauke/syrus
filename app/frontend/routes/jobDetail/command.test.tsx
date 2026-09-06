@@ -101,3 +101,53 @@ describe("useJobCommand confirm flow", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
+
+describe("useJobCommand cache sync", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("merges the command response's job/actions into the cache synchronously, before the invalidated refetch resolves", async () => {
+    function ApproveProbe() {
+      const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
+      return (
+        <button
+          onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/approve" })}
+          type="button"
+        >
+          approve
+        </button>
+      )
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const queryKey = ["jobs", "1", "detail", ""] as const
+    client.setQueryData(queryKey, {
+      job: { id: 1, state: "implemented" },
+      actions: { can_approve: true, can_unapprove: false }
+    })
+
+    // The refetch triggered by invalidateQueries never resolves in this test —
+    // it must not be what makes can_approve flip.
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      message: "Job approved.",
+      job: { id: 1, state: "approved" },
+      actions: { can_approve: false, can_unapprove: true }
+    }))
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ApproveProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await act(async () => screen.getByRole("button", { name: "approve" }).click())
+
+    await waitFor(() => {
+      const cached = client.getQueryData<{ job: { state: string }; actions: { can_approve: boolean; can_unapprove: boolean } }>(queryKey)
+      expect(cached?.job.state).toBe("approved")
+      expect(cached?.actions.can_approve).toBe(false)
+      expect(cached?.actions.can_unapprove).toBe(true)
+    })
+  })
+})
