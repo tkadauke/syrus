@@ -25,6 +25,71 @@ membership to find the durable conversation for a user's external account.
 and sets `trigger_policy` to `speak_when_spoken_to`; that is the only trigger
 policy value today, but the string enum leaves room for future policies.
 
+## Grouped pending actions
+
+A `PendingActionGroup` links several `ChatPendingAction` rows created
+together as one batch (e.g. reopening every Job a bad merge-train landing
+incorrectly closed) so the chat renders them as a single card instead of one
+per action. The card shows the shared action name plus member count (e.g.
+"Reopen job (11)"), an expandable list of the affected targets, and one
+Confirm all/Reject all control backed by
+`POST /api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm`
+and `.../reject`. A member of a group never renders its own standalone
+pending-action card — `pending_actions_json` filters out any
+`ChatPendingAction` with a `pending_action_group_id` — and the group card
+itself anchors to the chat message that created it the same way an
+individual pending action does, or appends at the end of the stream when
+unanchored.
+
+Confirming applies every still-pending member independently, in its own
+transaction, so one member failing (e.g. a Job that no longer meets the
+action's precondition) does not block the rest from applying. Each member's
+resulting state (`confirmed`/`failed`, with `execution_error` when failed) is
+what the card's expandable list renders per target, and unlike a lone
+pending action (which drops out of the payload shortly after it confirms —
+a separate per-action chat notification already announces that outcome) the
+group's card stays in the payload at every state, since it is the only place
+that per-item breakdown is visible. Rejecting discards every still-pending
+member without applying any.
+
+Eight chat-sidecar tools wire into this infrastructure: `reopen_job`,
+`retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
+`admin_kill_process`, `approve_job`, and `unapprove_job`. Each accepts either
+a singular id param (`job_id`/`process_id`) for the original single-target
+behavior, or a plural array param (`job_ids`/`process_ids`) that creates one
+`PendingActionGroup` instead of one pending action per id. Passing both or
+neither is rejected before anything is created. `close_job_successfully`
+takes one `closure_reason` for the whole call, applied identically to every
+member's payload -- targets that need different reasons require separate
+calls. `approve_job` and `unapprove_job` keep executing immediately and
+synchronously for a single `job_id` (unchanged behavior, no pending action
+at all), but a `job_ids` array now goes through the same grouped
+pending-confirmation path as the other six tools, since batching several
+approvals/unapprovals behind one operator confirmation is exactly the
+higher-risk case this infrastructure exists for.
+
+A second, higher-risk conditional tier reuses the same array-of-ids pattern
+for `force_fail_job`, `mark_ci_repair_noop`, `admin_retry_step`,
+`reconcile_job_state`, `clear_provider_circuit`,
+`repair_provider_circuit_evidence`, `force_rebase`,
+`admin_pause_user_scheduling`, and `admin_unpause_user_scheduling`. These
+tools already take (or now take) a `reason` param; for a plural-id call that
+`reason` doubles as the shared root-cause justification for the whole batch:
+it must be non-blank or the call is rejected before any `ChatPendingAction`
+or `PendingActionGroup` is created, and it is stored both on the group
+(`PendingActionGroup#reason`, rendered on the confirmation card) and on every
+member (for the per-item audit trail `PendingActions::Base#reason` reads at
+confirm time). `reconcile_job_state` additionally rejects a plural `job_ids`
+call up front unless `mode` is `auto` -- the constrained explicit
+reconciliation modes (`mark_implemented_from_ready_pr`, `mark_failed`,
+`mark_queued`) stay single-item. `force_rebase`'s `dry_run` (plan preview,
+no pending action) is likewise single-item only and is rejected when
+combined with `job_ids`. The remaining strong-tier-adjacent tools --
+`replace_pr_branch_with_workflow_output`, `retry_from_current_pr_branch`,
+`adopt_current_pr_head`, `manual_agentic_run`, `override_landing_blocker_once`,
+`force_state_transition`, `restack_epic`, and `submit_chat_feedback` --
+intentionally do not wire into this infrastructure and stay single-confirm.
+
 ## Deleting a chat
 
 `DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of

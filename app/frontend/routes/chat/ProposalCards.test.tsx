@@ -3,8 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { PendingActionCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
-import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatProposal } from "../../api/chats"
+import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
+import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
 
 function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
@@ -36,6 +36,107 @@ function renderCard(action: ChatPendingAction, onNotice = vi.fn()) {
   )
   return { onNotice }
 }
+
+function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): ChatPendingActionGroup {
+  return {
+    id: 7,
+    label: "Reopen job (2)",
+    state: "pending",
+    members: [
+      { id: 501, label: "Reopen JOB-4162", state: "pending" },
+      { id: 502, label: "Reopen JOB-4163", state: "pending" }
+    ],
+    app_confirm_path: "/api/v1/app/chats/122/pending_action_groups/7/confirm",
+    app_reject_path: "/api/v1/app/chats/122/pending_action_groups/7/reject",
+    ...overrides
+  }
+}
+
+function renderGroupCard(group: ChatPendingActionGroup, onNotice = vi.fn()) {
+  const queryKey: ChatQueryKey = ["chats", "122", ""]
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(queryKey, { pending_action_groups: [group] })
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <PendingActionGroupCard onNotice={onNotice} pendingActionGroup={group} queryKey={queryKey} />
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
+  return { onNotice }
+}
+
+describe("PendingActionGroupCard", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders the group label and reveals its member targets on expand", () => {
+    renderGroupCard(pendingActionGroup())
+
+    expect(screen.getByText("Reopen job (2)")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-4162" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 targets" }))
+
+    expect(screen.getByRole("link", { name: "JOB-4162" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-4163" })).toBeInTheDocument()
+  })
+
+  it("renders the shared justification when the group has a reason", () => {
+    renderGroupCard(pendingActionGroup({ reason: "Both jobs were closed by the same bad merge-train run." }))
+
+    expect(screen.getByText("Both jobs were closed by the same bad merge-train run.")).toBeInTheDocument()
+  })
+
+  it("omits the reason line when the group has no reason", () => {
+    renderGroupCard(pendingActionGroup())
+
+    expect(screen.queryByText("Reason:")).not.toBeInTheDocument()
+  })
+
+  it("confirms every member on Confirm all and surfaces the per-item outcome", async () => {
+    const confirmed = pendingActionGroup({
+      state: "confirmed",
+      members: [
+        { id: 501, label: "Reopen JOB-4162", state: "confirmed" },
+        { id: 502, label: "Reopen JOB-4163", state: "failed", execution_error: "Job isn't closed." }
+      ]
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_action_groups: [confirmed],
+      message: "Confirmed 1 of 2 pending actions; 1 failed."
+    }))
+    const { onNotice } = renderGroupCard(pendingActionGroup())
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm all" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Confirmed 1 of 2 pending actions; 1 failed."))
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/chats/122/pending_action_groups/7/confirm")
+    expect(init?.method).toBe("POST")
+  })
+
+  it("rejects every member on Reject all", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      pending_action_groups: [pendingActionGroup({ state: "rejected" })],
+      message: "Rejected 2 pending actions."
+    }))
+    const { onNotice } = renderGroupCard(pendingActionGroup())
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject all" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Rejected 2 pending actions."))
+    const [url] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/chats/122/pending_action_groups/7/reject")
+  })
+
+  it("does not show Confirm/Reject controls once the group is resolved", () => {
+    renderGroupCard(pendingActionGroup({ state: "rejected" }))
+
+    expect(screen.queryByRole("button", { name: "Confirm all" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject all" })).not.toBeInTheDocument()
+    expect(screen.getByText("Rejected")).toBeInTheDocument()
+  })
+})
 
 function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
   return {

@@ -676,7 +676,19 @@ polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
 documents, or pausing and resuming the landing queue, also render as inline
 confirmation cards in the message stream so operators can review the target
-before confirming or rejecting them.
+before confirming or rejecting them. When the agent acts on several Jobs at
+once with reopening, retrying, cancelling, closing successfully, forcing a
+landing recheck, killing a process, approving, or unapproving, Syrus renders
+one grouped card with a single Confirm all/Reject all control instead of a
+separate card per Job, and reports each Job's individual outcome once
+confirmed. A higher-risk set of admin repair actions -- force-failing a Job,
+marking a CI repair a no-op, retrying a failed step, reconciling Job state in
+auto mode, clearing or repairing provider-circuit evidence, forcing a rebase,
+and pausing or resuming a user's scheduling -- can also be batched the same
+way, but only once the agent supplies one shared justification explaining
+the root cause behind the whole batch; that justification is shown on the
+grouped confirmation card and kept in the audit trail alongside each item's
+outcome.
 Successful Job close is separate from cancellation: `close_job_successfully`
 records a successful closure reason such as `no_changes`, which satisfies
 dependencies and Epic progress, while `cancel_job` remains non-successful. When
@@ -922,7 +934,13 @@ State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending
 actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
-runs. Admins can also force-fail an open stuck Job from the stuck Jobs page,
+runs. When several related actions are proposed together as a batch, chat
+renders them as a single pending-action-group card instead of one card per
+action: the shared action name and target count, an expandable list of the
+affected targets, and one Confirm all/Reject all control. Confirming applies
+every target independently and shows which ones succeeded and which failed
+and why; rejecting discards the whole batch without applying any of it.
+Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
 without closing the Job. The stuck Jobs page and admin stuck APIs paginate
 results in 50-item pages, while the admin overview shows the first page and a

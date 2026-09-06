@@ -140,4 +140,50 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
     )
     expect(job.reload.landing_failure_reason).to include("ci_repair_noop")
   end
+
+  it "creates a grouped pending action for mark_ci_repair_noop workflow_ids sharing one reason" do
+    other_job = Factories.job_record(
+      user: admin,
+      repository: repository,
+      issue_number: 2266,
+      state: "implemented",
+      branch_name: "syrus/direct-2266",
+      pr_number: 2266,
+      last_ci_handled_sha: sha
+    )
+    workflow_one = Workflows::CiFailure.instantiate(job: job, artifacts: { "head_sha" => sha, "failed_checks" => [] })
+    workflow_two = Workflows::CiFailure.instantiate(job: other_job, artifacts: { "head_sha" => sha, "failed_checks" => [] })
+    other_pr = double("PullRequest", head: double("Head", sha: sha), base: double("Base", sha: base_sha))
+    allow(client).to receive(:pull_request).with("acme/widgets", 2266, bypass_cache: true).and_return(other_pr)
+
+    response = call_tool(
+      "mark_ci_repair_noop",
+      { workflow_ids: [ workflow_one.id, workflow_two.id ], reason: "Both repairs made no branch or check progress." }
+    )
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: "Mark 2 CI repairs as no-op?")
+    expect(group.reason).to eq("Both repairs made no branch or check progress.")
+    expect(group.chat_pending_actions.map { |a| a.payload["workflow_id"] }).to contain_exactly(workflow_one.id, workflow_two.id)
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job.id, other_job.id)
+
+    result = group.confirm_all!(user: admin)
+
+    expect(result).to be_all_succeeded
+    expect(workflow_one.reload.artifact("ci_repair_noop")).to include("reason" => "Both repairs made no branch or check progress.")
+    expect(workflow_two.reload.artifact("ci_repair_noop")).to include("reason" => "Both repairs made no branch or check progress.")
+  end
+
+  it "rejects mark_ci_repair_noop workflow_ids with a blank reason" do
+    workflow = Workflows::CiFailure.instantiate(job: job, artifacts: { "head_sha" => sha, "failed_checks" => [] })
+
+    response = call_tool("mark_ci_repair_noop", { workflow_ids: [ workflow.id ], reason: "   " })
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("reason is required")
+    expect(PendingActionGroup.count).to eq(0)
+    expect(ChatPendingAction.where(action: "mark_ci_repair_noop")).to be_empty
+  end
 end

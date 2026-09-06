@@ -157,6 +157,60 @@ RSpec.describe "Mcp::Tools admin tools" do
     end
   end
 
+  it "creates a grouped pending action for force_landing_recheck job_ids" do
+    job_one = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 101, branch_name: "syrus/direct-101")
+    job_two = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 102, branch_name: "syrus/direct-102")
+
+    response = call_tool(
+      admin_session,
+      "force_landing_recheck",
+      { job_ids: [ job_one.id, job_two.id ], reason: "Refresh stale landing metadata for both." }
+    )
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: a_string_matching(/\?/))
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "force_landing_recheck" ])
+    expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Refresh stale landing metadata for both." ])
+    expect(group.reason).to eq("Refresh stale landing metadata for both.")
+  end
+
+  it "rejects force_landing_recheck job_ids for non-admin users" do
+    job = Factories.job_record(user: user, repository: repository, state: "approved")
+
+    response = call_tool(user_session, "force_landing_recheck", { job_ids: [ job.id ], reason: "Refresh stale metadata." })
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(error_text(response)).to eq("Unauthorized: Admin access required")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
+  it "creates a grouped pending action for admin_kill_process process_ids" do
+    process_one = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-a", pid: 111, started_at: 2.minutes.ago)
+    process_two = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-b", pid: 222, started_at: 1.minute.ago)
+
+    response = call_tool(admin_session, "admin_kill_process", { process_ids: [ process_one.id, process_two.id ] })
+    body = payload_for(response)
+    group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(body).to include(state: "pending", member_count: 2, message: "Kill 2 processes?")
+    expect(group.chat_pending_actions.pluck(:action).uniq).to eq([ "admin_kill_process" ])
+    expect(group.chat_pending_actions.map { |a| a.payload["process_id"] }).to contain_exactly(process_one.id, process_two.id)
+  end
+
+  it "rejects admin_kill_process process_ids up front when any process id is unknown" do
+    process = SpawnedProcess.create!(kind: "agent", command: "codex exec", hostname: "worker-a", pid: 111, started_at: 2.minutes.ago)
+
+    response = call_tool(admin_session, "admin_kill_process", { process_ids: [ process.id, process.id + 1_000_000 ] })
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(error_text(response)).to include("process not found")
+    expect(PendingActionGroup.count).to eq(0)
+  end
+
   it "creates and confirms Job-scoped repair actions from repositoryless Supervisor chats" do
     supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
     job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
@@ -497,6 +551,328 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(user_response.dig(:result, :isError)).to be(true)
     expect(error_text(user_response)).to include("user not found: 999999")
     expect(ChatPendingAction.where(action: %w[admin_kill_process admin_pause_user_scheduling])).to be_empty
+  end
+
+  describe "conditional-tier bulk apply" do
+    it "creates a grouped pending action for force_fail_job job_ids sharing one reason" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "running")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 43, state: "running")
+
+      response = call_tool(
+        admin_session,
+        "force_fail_job",
+        { job_ids: [ job_one.id, job_two.id ], reason: "Both jobs were stuck behind the same dead worker." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2, message: "Force fail 2 Jobs?")
+      expect(group.reason).to eq("Both jobs were stuck behind the same dead worker.")
+      expect(group.chat_pending_actions.pluck(:reason).uniq).to eq([ "Both jobs were stuck behind the same dead worker." ])
+      expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+
+      result = group.confirm_all!(user: admin)
+
+      expect(result).to be_all_succeeded
+      expect(job_one.reload).to be_failed
+      expect(job_two.reload).to be_failed
+    end
+
+    it "rejects force_fail_job job_ids with a blank reason" do
+      job = Factories.job_record(user: admin, repository: repository, state: "running")
+
+      response = call_tool(admin_session, "force_fail_job", { job_ids: [ job.id ], reason: "  " })
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+    end
+
+    it "creates a grouped pending action for admin_retry_step workflow_ids sharing one step_slug/reason" do
+      workflow_one = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+      workflow_two = Factories.job(user: admin, repository: repository, issue_number: 44).initial_run.step.workflow
+      workflow_one.steps.find_by!(kind: "implement").update!(state: "failed")
+      workflow_two.steps.find_by!(kind: "implement").update!(state: "failed")
+
+      response = call_tool(
+        admin_session,
+        "admin_retry_step",
+        { workflow_ids: [ workflow_one.id, workflow_two.id ], step_slug: "implement", reason: "Provider outage repaired for both." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Provider outage repaired for both.")
+      expect(group.chat_pending_actions.map { |a| a.payload["workflow_id"] }).to contain_exactly(workflow_one.id, workflow_two.id)
+      expect(group.chat_pending_actions.map { |a| a.payload["step_slug"] }.uniq).to eq([ "implement" ])
+    end
+
+    it "rejects admin_retry_step workflow_ids with a blank reason" do
+      workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+      workflow.steps.find_by!(kind: "implement").update!(state: "failed")
+
+      response = call_tool(
+        admin_session,
+        "admin_retry_step",
+        { workflow_ids: [ workflow.id ], step_slug: "implement", reason: "  " }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+    end
+
+    it "creates a grouped pending action for reconcile_job_state job_ids in auto mode sharing one reason" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "open")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 45, state: "open")
+
+      response = call_tool(
+        admin_session,
+        "reconcile_job_state",
+        { job_ids: [ job_one.id, job_two.id ], mode: "auto", reason: "Both jobs share the same reconciler drift." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Both jobs share the same reconciler drift.")
+      expect(group.chat_pending_actions.map { |a| a.payload["mode"] }.uniq).to eq([ "auto" ])
+      expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+
+      allow(JobStateRepair).to receive(:reconcile!) { |job:, **| JobStateRepair::Result.new(job: job, message: "inspected") }
+      result = group.confirm_all!(user: admin)
+
+      expect(result).to be_all_succeeded
+      expect(JobStateRepair).to have_received(:reconcile!).with(job: job_one, mode: "auto", reason: "Both jobs share the same reconciler drift.")
+      expect(JobStateRepair).to have_received(:reconcile!).with(job: job_two, mode: "auto", reason: "Both jobs share the same reconciler drift.")
+    end
+
+    it "rejects reconcile_job_state job_ids when mode is not auto" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "open")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 46, state: "open")
+
+      response = call_tool(
+        admin_session,
+        "reconcile_job_state",
+        { job_ids: [ job_one.id, job_two.id ], mode: "mark_failed", reason: "Should be rejected." }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("mode: auto")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "reconcile_job_state")).to be_empty
+    end
+
+    it "rejects reconcile_job_state job_ids with a blank reason even in auto mode" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "open")
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 145, state: "open")
+
+      response = call_tool(
+        admin_session,
+        "reconcile_job_state",
+        { job_ids: [ job_one.id, job_two.id ], mode: "auto", reason: "   " }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "reconcile_job_state")).to be_empty
+    end
+
+    it "creates a grouped pending action for clear_provider_circuit user_ids sharing one provider/reason" do
+      user_one = Factories.user(email_address: "one@example.com")
+      user_two = Factories.user(email_address: "two@example.com")
+
+      response = call_tool(
+        admin_session,
+        "clear_provider_circuit",
+        {
+          user_ids: [ user_one.id, user_two.id ],
+          provider: "codex",
+          positive_evidence: "Provider incident resolved upstream.",
+          reason: "Shared provider incident resolved for both accounts."
+        }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Shared provider incident resolved for both accounts.")
+      expect(group.chat_pending_actions.map { |a| a.payload["user_id"] }).to contain_exactly(user_one.id, user_two.id)
+      expect(group.chat_pending_actions.map { |a| a.payload["provider"] }.uniq).to eq([ "codex" ])
+    end
+
+    it "rejects clear_provider_circuit user_ids with a blank reason" do
+      user_one = Factories.user(email_address: "blank-one@example.com")
+      user_two = Factories.user(email_address: "blank-two@example.com")
+
+      response = call_tool(
+        admin_session,
+        "clear_provider_circuit",
+        {
+          user_ids: [ user_one.id, user_two.id ],
+          provider: "codex",
+          positive_evidence: "Provider incident resolved upstream.",
+          reason: ""
+        }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "clear_provider_circuit")).to be_empty
+    end
+
+    it "creates a grouped pending action for repair_provider_circuit_evidence evidence_ids sharing one repair_status/reason" do
+      job = Factories.job(user: admin, repository: repository, agent_provider: "codex")
+      run = job.initial_run
+      classification_one = run.create_run_failure_classification!(
+        classification: "provider_usage_limit", confidence: 0.9, retryable: false, reason: "bad evidence one", classified_at: Time.current
+      )
+      other_job = Factories.job(user: admin, repository: repository, agent_provider: "codex", issue_number: 47)
+      classification_two = other_job.initial_run.create_run_failure_classification!(
+        classification: "provider_usage_limit", confidence: 0.9, retryable: false, reason: "bad evidence two", classified_at: Time.current
+      )
+
+      response = call_tool(
+        admin_session,
+        "repair_provider_circuit_evidence",
+        {
+          evidence_type: "run_failure_classification",
+          evidence_ids: [ classification_one.id, classification_two.id ],
+          repair_status: "false_positive",
+          reason: "Both classifications share the same misclassification root cause."
+        }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Both classifications share the same misclassification root cause.")
+      expect(group.chat_pending_actions.map { |a| a.payload["evidence_id"] }).to contain_exactly(classification_one.id, classification_two.id)
+    end
+
+    it "rejects repair_provider_circuit_evidence evidence_ids with a blank reason" do
+      job = Factories.job(user: admin, repository: repository, agent_provider: "codex")
+      classification = job.initial_run.create_run_failure_classification!(
+        classification: "provider_usage_limit", confidence: 0.9, retryable: false, reason: "bad evidence", classified_at: Time.current
+      )
+
+      response = call_tool(
+        admin_session,
+        "repair_provider_circuit_evidence",
+        {
+          evidence_type: "run_failure_classification",
+          evidence_ids: [ classification.id ],
+          repair_status: "false_positive",
+          reason: "   "
+        }
+      )
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required")
+      expect(PendingActionGroup.count).to eq(0)
+      expect(ChatPendingAction.where(action: "repair_provider_circuit_evidence")).to be_empty
+    end
+
+    it "creates a grouped pending action for force_rebase job_ids sharing one reason" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-201", pr_number: 201)
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 48, state: "approved", branch_name: "syrus/direct-202", pr_number: 202)
+
+      response = call_tool(
+        admin_session,
+        "force_rebase",
+        { job_ids: [ job_one.id, job_two.id ], reason: "Both branches drifted behind the same base rewrite." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2, message: "Force rebase for 2 Jobs?")
+      expect(group.reason).to eq("Both branches drifted behind the same base rewrite.")
+      expect(group.chat_pending_actions.map { |a| a.payload["job_id"] }).to contain_exactly(job_one.id, job_two.id)
+    end
+
+    it "rejects force_rebase dry_run combined with job_ids" do
+      job_one = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-203", pr_number: 203)
+      job_two = Factories.job_record(user: admin, repository: repository, issue_number: 49, state: "approved", branch_name: "syrus/direct-204", pr_number: 204)
+
+      response = call_tool(admin_session, "force_rebase", { job_ids: [ job_one.id, job_two.id ], dry_run: true })
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("dry_run is only supported for a single job_id")
+      expect(PendingActionGroup.count).to eq(0)
+    end
+
+    it "creates a grouped pending action for admin_pause_user_scheduling user_ids requiring a shared reason" do
+      user_one = Factories.user(email_address: "pause-one@example.com")
+      user_two = Factories.user(email_address: "pause-two@example.com")
+
+      response = call_tool(
+        admin_session,
+        "admin_pause_user_scheduling",
+        { user_ids: [ user_one.id, user_two.id ], reason: "Both accounts hit the same runaway schedule." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Both accounts hit the same runaway schedule.")
+      expect(group.chat_pending_actions.map { |a| a.payload["user_id"] }).to contain_exactly(user_one.id, user_two.id)
+
+      result = group.confirm_all!(user: admin)
+
+      expect(result).to be_all_succeeded
+      expect(user_one.reload.scheduling_paused).to be true
+      expect(user_two.reload.scheduling_paused).to be true
+    end
+
+    it "rejects admin_pause_user_scheduling user_ids without a reason" do
+      user_one = Factories.user(email_address: "no-reason-one@example.com")
+      user_two = Factories.user(email_address: "no-reason-two@example.com")
+
+      response = call_tool(admin_session, "admin_pause_user_scheduling", { user_ids: [ user_one.id, user_two.id ] })
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required for user_ids")
+      expect(PendingActionGroup.count).to eq(0)
+    end
+
+    it "creates a grouped pending action for admin_unpause_user_scheduling user_ids requiring a shared reason" do
+      user_one = Factories.user(email_address: "unpause-one@example.com")
+      user_two = Factories.user(email_address: "unpause-two@example.com")
+
+      response = call_tool(
+        admin_session,
+        "admin_unpause_user_scheduling",
+        { user_ids: [ user_one.id, user_two.id ], reason: "Both accounts cleared the same incident." }
+      )
+      body = payload_for(response)
+      group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(body).to include(state: "pending", member_count: 2)
+      expect(group.reason).to eq("Both accounts cleared the same incident.")
+      expect(group.chat_pending_actions.map { |a| a.payload["user_id"] }).to contain_exactly(user_one.id, user_two.id)
+    end
+
+    it "rejects admin_unpause_user_scheduling user_ids without a reason" do
+      user_one = Factories.user(email_address: "no-reason-three@example.com")
+      user_two = Factories.user(email_address: "no-reason-four@example.com")
+
+      response = call_tool(admin_session, "admin_unpause_user_scheduling", { user_ids: [ user_one.id, user_two.id ] })
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("reason is required for user_ids")
+      expect(PendingActionGroup.count).to eq(0)
+    end
   end
 
   it "returns the admin overview data shape" do

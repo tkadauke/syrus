@@ -10,6 +10,8 @@ class ChatPendingAction < ApplicationRecord
     force_rebase
     restack_epic
     reopen_job
+    approve_job
+    unapprove_job
     force_fail_job
     fire_scheduled_task_now
     create_repo_document
@@ -111,6 +113,7 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :user
   belongs_to :result, polymorphic: true, optional: true
   belongs_to :tool_call_message, class_name: "ChatMessage", foreign_key: :chat_message_id, optional: true
+  belongs_to :pending_action_group, optional: true, inverse_of: :chat_pending_actions
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
