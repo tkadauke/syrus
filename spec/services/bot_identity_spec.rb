@@ -118,6 +118,23 @@ RSpec.describe BotIdentity do
       expect(identity.git_name).to eq("tkadauke-syrus[bot]")
       expect(identity.git_email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
     end
+
+    it "keeps the App bot identity for infrastructure-kind Jobs even when this repository's installation is inactive" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
+      user = Factories.user(name: "Human Operator", email_address: "human@example.com", github_token: "ghp_test")
+      installation = Factories.installation(user: user, account_login: "acme", removed_at: Time.current)
+      repository = Factories.repository(user: user, owner: "acme", installation: installation)
+      job = repository.jobs.create!(
+        user: user,
+        kind: "main_grader",
+        state: "queued"
+      )
+
+      identity = described_class.for(job)
+
+      expect(identity.git_name).to eq("tkadauke-syrus[bot]")
+      expect(identity.git_email).to eq("tkadauke-syrus[bot]@users.noreply.github.com")
+    end
   end
 
   describe "#append_co_authored_by" do

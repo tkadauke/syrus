@@ -188,6 +188,28 @@ RSpec.describe GithubClient do
 
       expect(stub).to have_been_requested
     end
+
+    it "falls back to the owner's PAT for an infrastructure-kind Job when the App installation is inactive" do
+      installation.update!(removed_at: Time.current)
+      job = repository.jobs.create!(user: user, kind: "main_grader")
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "PAT fallback path" }.to_json)
+
+      GithubClient.for_authorship(repository: repository, job: job).fetch_issue(repository.slug, 42)
+
+      expect(stub).to have_been_requested
+    end
+
+    it "raises a clear error for an infrastructure-kind Job when neither the App installation nor a PAT is available" do
+      installation.update!(removed_at: Time.current)
+      owner = Factories.user(github_token: nil)
+      repo = Factories.repository(user: owner)
+      job = repo.jobs.create!(user: owner, kind: "main_grader")
+
+      expect { GithubClient.for_authorship(repository: repo, job: job) }.to raise_error(ArgumentError, /github_token/)
+    end
   end
 
   describe "HTTP cache store" do
