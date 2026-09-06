@@ -142,6 +142,7 @@
     "operator": "Operator",
     "or_alternative": "+ OR alternative",
     "or": "or",
+    "and": "and",
     "value": "Value",
     "nothing_selected": "Nothing selected yet",
     "search_by_name": "Search by name...",
@@ -208,7 +209,8 @@
   "filter_fields": {
     "queue_name": "Queue",
     "job_class": "Job class",
-    "failed_since": "Failed since"
+    "failed_since": "Failed since",
+    "window": "Time"
   },
   "filter_operators": {
     "is": "is",
