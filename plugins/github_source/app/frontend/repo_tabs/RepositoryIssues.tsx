@@ -9,7 +9,7 @@ import { useT } from "@app/hooks/useT"
 import { Checkbox } from "@app/components/Checkbox"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "@app/components/OnboardingEmptyState"
-import { RepositoryTabs } from "@app/components/RepositoryTabs"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { Button } from "@app/components/Button"
 import { bulkRepositoryIssues, closeRepositoryIssue, commentRepositoryIssue, delegateRepositoryIssue, fetchRepositoryIssues, type RepositoryIssue, type RepositoryIssuesPayload } from "../api/issues"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -68,14 +68,6 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
 
   return (
     <>
-      <header>
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
-          <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
-        </h1>
-      </header>
-
-      <RepositoryTabs active="github_issues" prefix={prefix} tabs={payload.tabs} />
-
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
         <span>
           {t('repository.trigger_label_prefix')} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
@@ -289,16 +281,29 @@ export default function RepositoryIssuesTab() {
     queryFn: () => fetchRepositoryIssues(repositoryId, state),
     enabled: repositoryId.length > 0
   })
-
-  if (issues.isPending) return <PanelMessage>Loading issues...</PanelMessage>
-  if (issues.isError || !issues.data) return <PanelMessage tone="error">Unable to load issues.</PanelMessage>
+  const payload = issues.data
 
   return (
-    <RepositoryIssues
-      isRefreshing={issues.isFetching}
-      onRefresh={() => issues.refetch()}
-      payload={issues.data}
+    <RepositoryPageShell
+      activeTab="github_source.issues"
+      heading={payload ? (
+        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
+        </h1>
+      ) : null}
       prefix={prefix}
-    />
+      tabs={payload?.tabs ?? []}
+    >
+      {issues.isPending ? <PanelMessage>Loading issues...</PanelMessage> : null}
+      {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">Unable to load issues.</PanelMessage> : null}
+      {payload ? (
+        <RepositoryIssues
+          isRefreshing={issues.isFetching}
+          onRefresh={() => issues.refetch()}
+          payload={payload}
+          prefix={prefix}
+        />
+      ) : null}
+    </RepositoryPageShell>
   )
 }

@@ -7,7 +7,7 @@ import { RepositoryTestsRoute } from "./RepositoryTests"
 import type { RepositoryTestDetailPayload, RepositoryTestsPayload } from "../api/tests"
 
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
-const TABS = [ { key: "tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
+const TABS = [ { key: "test_insights.tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
 
 function listPayload(): RepositoryTestsPayload {
   return {
@@ -116,6 +116,28 @@ function renderRoute() {
     </QueryClientProvider>
   )
 }
+
+describe("RepositoryTestsRoute tab bar", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("highlights the Tests tab using the real repo_page_tab id, not a mismatched literal", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(buildTestsPayload()))
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+          <Routes>
+            <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const testsLink = await screen.findByRole("link", { name: "Tests" })
+    expect(testsLink.className).toContain("border-brand")
+  })
+})
 
 describe("DurationChart", () => {
   afterEach(() => vi.restoreAllMocks())

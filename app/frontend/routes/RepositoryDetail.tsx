@@ -16,7 +16,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import { RepositoryTabs } from "../components/RepositoryTabs"
+import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
@@ -26,11 +26,9 @@ import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
 export function RepositoryDetailRoute() {
-  const { t } = useT("settings")
   const params = useParams()
   const location = useLocation()
   const id = params.id || ""
-  const query = new URLSearchParams(location.search)
   const tab = "overview" as const
   const search = pageSearch(location.search)
   const prefix = routePrefix(location.pathname)
@@ -42,66 +40,70 @@ export function RepositoryDetailRoute() {
   })
   usePageTitle(detail.data?.repository.slug)
 
-  return (
-    <main aria-label={t('repository.aria_repository')} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {detail.isPending ? (
-        <PanelMessage>
-          {t('repository.loading')}
-        </PanelMessage>
-      ) : null}
-      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
-      {detail.isSuccess ? <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} /> : null}
-    </main>
-  )
+  return <RepositoryDetail activeTab={tab} detail={detail} prefix={prefix} queryKey={detailQueryKey} />
 }
 
 function repositoryDetailQueryKey(id: string | number, search: string): RepositoryDetailQueryKey {
   return ["repositories", String(id), "detail", search] as const
 }
 
-function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: "overview"; detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: RepositoryDetailQueryKey }) {
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
-  const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const payload = detail.data
+  const [notice, setNotice] = useState<string | null>(payload?.message || null)
 
   return (
-    <>
-      <header>
+    <RepositoryPageShell
+      activeTab={activeTab}
+      ariaLabel={t('repository.aria_repository')}
+      heading={payload ? (
         <PageHeading mono>
           <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
         </PageHeading>
-      </header>
-
-      <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-      <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
-      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      <div className="grid gap-6 lg:grid-cols-[62%_38%]">
-        <div className="space-y-6">
-          <RepositorySummary payload={payload} />
-          <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-          <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-          {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
-          {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
-          <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
-          <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
-        </div>
-        <div className="space-y-6">
-          <RepositoryDetailsCard payload={payload} prefix={prefix} />
-          <PreviewPanel
-            canStart={!payload.repository.archived}
-            initialPreview={payload.preview}
-            queryKeyPrefix="repository"
-            entityId={payload.repository.id}
-            previewPath={payload.paths.app_preview_path}
-            previewLogsPath={payload.paths.app_preview_logs_path}
-            queryKey={queryKey}
-            repositoryId={payload.repository.id}
-          />
-          <CoverageSparkline repositoryId={payload.repository.id} />
-          <CredentialNotice payload={payload} />
-        </div>
-      </div>
-    </>
+      ) : null}
+      prefix={prefix}
+      tabs={payload?.tabs ?? []}
+      tipBanner={payload ? <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : undefined}
+    >
+      {detail.isPending ? (
+        <PanelMessage>
+          {t('repository.loading')}
+        </PanelMessage>
+      ) : null}
+      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
+      {payload ? (
+        <>
+          <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+          <div className="grid gap-6 lg:grid-cols-[62%_38%]">
+            <div className="space-y-6">
+              <RepositorySummary payload={payload} />
+              <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+              <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+              {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
+              {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
+              <PluginUiSlot panels={payload.ui_panels} props={{ repository: payload.repository }} />
+              <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
+            </div>
+            <div className="space-y-6">
+              <RepositoryDetailsCard payload={payload} prefix={prefix} />
+              <PreviewPanel
+                canStart={!payload.repository.archived}
+                initialPreview={payload.preview}
+                queryKeyPrefix="repository"
+                entityId={payload.repository.id}
+                previewPath={payload.paths.app_preview_path}
+                previewLogsPath={payload.paths.app_preview_logs_path}
+                queryKey={queryKey}
+                repositoryId={payload.repository.id}
+              />
+              <CoverageSparkline repositoryId={payload.repository.id} />
+              <CredentialNotice payload={payload} />
+            </div>
+          </div>
+        </>
+      ) : null}
+    </RepositoryPageShell>
   )
 }
 
@@ -129,7 +131,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   )
 }
 
-function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]

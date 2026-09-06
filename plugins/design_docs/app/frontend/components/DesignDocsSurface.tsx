@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
@@ -8,6 +8,7 @@ import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { NoticeToast } from "@app/components/NoticeToast"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
@@ -32,7 +33,8 @@ import {
   type DesignDocSuggestion,
   type DesignDocThread,
   type DesignDocSummary,
-  type DesignDocVersion
+  type DesignDocVersion,
+  type RepositoryDesignDocsPayload
 } from "../api/designDocs"
 import {
   applyDesignDocFormattingCommand,
@@ -91,6 +93,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
     queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search),
     enabled: showIndexControls
   })
+  const repositoryPayload = mode === "repository" ? (indexQuery.data as RepositoryDesignDocsPayload | undefined) : undefined
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
     queryFn: () => fetchDesignDoc(effectiveId || ""),
@@ -168,8 +171,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
     }
   })
 
-  return (
-    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
+  const content = (
+    <>
       {showPageHeader ? (
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -228,6 +231,30 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
           ) : null}
         </section>
       </div>
+    </>
+  )
+
+  if (mode === "repository") {
+    return (
+      <RepositoryPageShell
+        activeTab="design_docs.repository"
+        ariaLabel="Design docs"
+        heading={repositoryPayload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={`${prefix}${repositoryPayload.repository.repository_path}`}>{repositoryPayload.repository.slug}</Link>
+          </PageHeading>
+        ) : null}
+        prefix={prefix}
+        tabs={repositoryPayload?.tabs ?? []}
+      >
+        {content}
+      </RepositoryPageShell>
+    )
+  }
+
+  return (
+    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-6"}>
+      {content}
     </main>
   )
 }

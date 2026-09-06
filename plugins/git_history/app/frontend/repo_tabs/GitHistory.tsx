@@ -1,8 +1,12 @@
 import { useMemo } from "react"
 import { useInfiniteQuery } from "@tanstack/react-query"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
+import { PageHeading } from "@app/components/Heading"
+import { PanelMessage } from "@app/components/PanelMessage"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
+import { routePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchGitHistory, type GitHistoryCommit, type GitHistoryOrigin } from "../api/gitHistory"
@@ -18,6 +22,8 @@ import {
 export function GitHistory() {
   const { t } = useT("git_history")
   const { repositoryId } = useParams<{ repositoryId: string }>()
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   usePageTitle(t("title"))
 
   const history = useInfiniteQuery({
@@ -36,53 +42,51 @@ export function GitHistory() {
     [history.data]
   )
   const groups = useMemo(() => groupCommits(commits), [commits])
-
-  if (history.isPending) {
-    return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
-  }
-
-  if (history.isError) {
-    return (
-      <main aria-label={t("aria_label")} className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">{t("error")}</p>
-      </main>
-    )
-  }
-
-  const available = history.data.pages[0]?.available ?? false
+  const firstPage = history.data?.pages[0]
+  const available = firstPage?.available ?? false
 
   return (
-    <main aria-label={t("aria_label")} className="mx-auto max-w-5xl space-y-5 p-6">
-      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase tracking-wide text-brand dark:text-brand-emphasis">{t("eyebrow")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("title")}</h1>
-      </header>
+    <RepositoryPageShell
+      activeTab="git_history.git_history"
+      ariaLabel={t("aria_label")}
+      heading={firstPage ? (
+        <PageHeading mono>
+          <a className="hover:underline" href={firstPage.repository.github_url} rel="noopener" target="_blank">{firstPage.repository.slug}</a>
+        </PageHeading>
+      ) : null}
+      prefix={prefix}
+      tabs={firstPage?.tabs ?? []}
+    >
+      {history.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {history.isError ? <PanelMessage tone="error">{t("error")}</PanelMessage> : null}
 
-      {!available ? (
-        <EmptyPanel label={t("unavailable")} />
-      ) : commits.length === 0 ? (
-        <EmptyPanel label={t("empty")} />
-      ) : (
-        <>
-          <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
-            {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
-          </ul>
+      {firstPage ? (
+        !available ? (
+          <EmptyPanel label={t("unavailable")} />
+        ) : commits.length === 0 ? (
+          <EmptyPanel label={t("empty")} />
+        ) : (
+          <>
+            <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
+              {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
+            </ul>
 
-          {history.hasNextPage ? (
-            <div className="flex justify-center">
-              <button
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-                disabled={history.isFetchingNextPage}
-                onClick={() => void history.fetchNextPage()}
-                type="button"
-              >
-                {history.isFetchingNextPage ? t("loading_more") : t("load_more")}
-              </button>
-            </div>
-          ) : null}
-        </>
-      )}
-    </main>
+            {history.hasNextPage ? (
+              <div className="flex justify-center">
+                <button
+                  className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                  disabled={history.isFetchingNextPage}
+                  onClick={() => void history.fetchNextPage()}
+                  type="button"
+                >
+                  {history.isFetchingNextPage ? t("loading_more") : t("load_more")}
+                </button>
+              </div>
+            ) : null}
+          </>
+        )
+      ) : null}
+    </RepositoryPageShell>
   )
 }
 

@@ -189,6 +189,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).to eq([ "Repository plan" ])
+    expect(parse_body.fetch("tabs").map { |tab| tab.fetch("key") }).to include("overview", "design_docs.repository")
   end
 
   it "denies private docs to users who are neither owners nor collaborators" do

@@ -86,6 +86,16 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     expect(response).to have_http_status(:ok)
   end
 
+  it "includes the repository's tab bar and a github_url so the frontend can render RepositoryPageShell" do
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories/#{repository.id}/git_history/commits"
+
+    expect(parse_body["repository"]["github_url"]).to eq("https://github.com/#{repository.slug}")
+    tab_keys = parse_body["tabs"].map { |tab| tab["key"] }
+    expect(tab_keys).to include("overview", "git_history.git_history")
+  end
+
   it "reports available: false when the bare clone has not been synced yet (relay reachable, stale clone)" do
     sign_in_as(owner)
 
