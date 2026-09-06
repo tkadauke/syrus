@@ -137,6 +137,7 @@ class Job < ApplicationRecord
   validates :external_pr_number, presence: true, if: :external_pr?
   validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
   validate  :epic_belongs_to_same_user_and_repository
+  validate  :epic_children_share_one_effective_owner, if: -> { epic_id.present? && (new_record? || will_save_change_to_epic_id?) }
   before_validation :default_owner_user, on: :create
   before_validation :default_origin, on: :create
   before_validation :default_agent_provider, on: :create
@@ -948,8 +949,14 @@ class Job < ApplicationRecord
   def can_add_job_approval?(user)
     return false unless implemented?
 
-    effective_owner_id = owner_user_id.presence || user_id
     user.id == effective_owner_id || user.id != user_id
+  end
+
+  # owner_user_id when set, else the creating user. Mirrors the
+  # `effectively_owned_by` scope so a job with a NULL owner still
+  # resolves to its creator.
+  def effective_owner_id
+    owner_user_id.presence || user_id
   end
 
   def approve!(*args, **kwargs)
@@ -1856,6 +1863,29 @@ class Job < ApplicationRecord
     same_repo = epic.repository_id == repository_id
     fork_to_upstream = repository && repository.upstream_repository_id == epic.repository_id
     errors.add(:epic, "must belong to the same repository or its upstream") unless same_repo || fork_to_upstream
+  end
+
+  # Guards against a multi-owner Epic: all current + incoming open children
+  # must share one effective owner (owner_user_id.presence || user_id). An
+  # Epic with no open children yet imposes no constraint -- there's nothing
+  # to conflict with -- so a still-unclaimed Epic can freely take its first
+  # children regardless of who created them. This is enforced here (rather
+  # than in each call site -- the assign_job_to_epic MCP tool, epic-related
+  # controllers, chat proposal materialization) so it can't be bypassed by a
+  # new entry point. Bulk owner-correction paths (`claim_unowned_child_jobs!`,
+  # `reassign_child_jobs_to_owner!`) intentionally use `update_all`, which
+  # skips validations, so they remain free to fix up a mismatch after the
+  # fact.
+  def epic_children_share_one_effective_owner
+    return unless epic
+
+    conflicting = epic.jobs
+      .where.not(state: "closed")
+      .where.not(id: id)
+      .find { |sibling| sibling.effective_owner_id != effective_owner_id }
+    return unless conflicting
+
+    errors.add(:epic, "already has an open child Job (#{conflicting.slug}) owned by a different user")
   end
 
   def set_target_repository_from_epic

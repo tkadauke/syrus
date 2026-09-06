@@ -1572,7 +1572,12 @@ RSpec.describe App::DashboardPayload, :ci_only do
     it "reports jobs_count as the true epic total even when some jobs are excluded by the ownership filter" do
       job1 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 101)
       job2 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 102)
-      job3 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: other_user, issue_number: 103)
+      # A mismatched owner can no longer be assigned into a populated Epic
+      # through the normal create/update path (Job's
+      # epic_children_share_one_effective_owner validation) -- simulate a
+      # legacy/pre-existing multi-owner Epic by flipping the owner directly.
+      job3 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 103)
+      job3.update_column(:owner_user_id, other_user.id)
 
       result = call(subject: "job", scope: "mine")
 
