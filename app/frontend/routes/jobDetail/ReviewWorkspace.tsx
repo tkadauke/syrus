@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { Button } from "../../components/Button"
 import { SectionHeading } from "../../components/Heading"
+import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
 import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
 import { useT } from "../../hooks/useT"
@@ -110,26 +111,25 @@ function ReviewArtifactsPanel({ payload, reviewArtifacts }: { payload: JobDetail
       </div>
       {!hasArtifacts ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("section_no_artifacts")}</p> : null}
       {hasArtifacts && expanded ? (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {payload.test_plan ? (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800">
-              <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
-                {payload.test_plan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
-              </ul>
+        <div className="mt-3 space-y-4">
+          {payload.test_plan || reviewArtifacts.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {payload.test_plan ? (
+                <div className="rounded border border-gray-200 p-3 dark:border-gray-800">
+                  <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-gray-700 dark:text-gray-300">
+                    {payload.test_plan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+              {reviewArtifacts.map((artifact) => (
+                <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact}>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{artifact}</p>
+                </div>
+              ))}
             </div>
           ) : null}
-          {reviewArtifacts.map((artifact) => (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact}>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{artifact}</p>
-            </div>
-          ))}
-          {payload.typed_artifacts.slice(0, 4).map((artifact) => (
-            <div className="rounded border border-gray-200 p-3 dark:border-gray-800" key={artifact.type}>
-              <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{artifact.title}</p>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{artifact.renderer_type}</p>
-            </div>
-          ))}
+          <TypedArtifactPanel artifacts={payload.typed_artifacts} />
         </div>
       ) : null}
     </section>

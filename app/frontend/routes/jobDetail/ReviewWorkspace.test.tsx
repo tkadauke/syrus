@@ -109,6 +109,32 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
   })
 
+  it("renders typed artifacts inline instead of a bare renderer_type label", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Migration: add_name_to_users",
+          payload: { headers: ["Column", "Type"], rows: [["name", "string"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Migration: add_name_to_users")).toBeInTheDocument()
+    expect(screen.getByText("Column")).toBeInTheDocument()
+    expect(screen.getByText("name")).toBeInTheDocument()
+    expect(screen.queryByText("data_table")).not.toBeInTheDocument()
+  })
+
   it("creates a whole-review comment not anchored to any code line", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))

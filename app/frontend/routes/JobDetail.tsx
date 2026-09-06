@@ -34,8 +34,7 @@ import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } 
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
-import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
-import { pluginArtifactBodyFor } from "../pluginArtifactRenderers"
+import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
@@ -1319,147 +1318,11 @@ export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
         <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
           <SectionHeading>{artifact.title}</SectionHeading>
           <div className="mt-3">
-            <ArtifactRenderer artifact={artifact} />
+            <ArtifactBody artifact={artifact} />
           </div>
         </div>
       ))}
     </section>
-  )
-}
-
-function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
-  const pluginBody = pluginArtifactBodyFor(artifact)
-  if (pluginBody) return pluginBody
-
-  switch (artifact.renderer_type) {
-    case "data_table":
-      return <DataTableRenderer payload={artifact.payload} />
-    case "before_after_diff":
-      return <BeforeAfterDiffRenderer payload={artifact.payload} />
-    case "before_after_visual_diff":
-      return <BeforeAfterVisualDiffRenderer payload={artifact.payload} />
-    case "image_diff":
-      return <ImageDiffRenderer payload={artifact.payload} title={artifact.title} />
-    default:
-      return <RawArtifactRenderer payload={artifact.payload} />
-  }
-}
-
-function DataTableRenderer({ payload }: { payload: Record<string, unknown> }) {
-  const headers = Array.isArray(payload.headers) ? payload.headers as string[] : []
-  const rows = Array.isArray(payload.rows) ? payload.rows as unknown[][] : []
-
-  if (headers.length === 0 && rows.length === 0) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-xs">
-        {headers.length > 0 ? (
-          <thead>
-            <tr>
-              {headers.map((h, i) => (
-                <th className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={i}>{String(h)}</th>
-              ))}
-            </tr>
-          </thead>
-        ) : null}
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr className="even:bg-gray-50 dark:even:bg-gray-800/50" key={ri}>
-              {(Array.isArray(row) ? row : [row]).map((cell, ci) => (
-                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>{String(cell ?? "")}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function BeforeAfterDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
-  const { t } = useT("jobs")
-  const before = typeof payload.before === "string" ? payload.before : null
-  const after = typeof payload.after === "string" ? payload.after : null
-
-  if (before === null && after === null) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <div>
-        <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{before ?? "(empty)"}</pre>
-      </div>
-      <div>
-        <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
-        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
-      </div>
-    </div>
-  )
-}
-
-function BeforeAfterVisualDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
-  const pairs = Array.isArray(payload.pairs) ? payload.pairs as Array<{ title?: string; before?: Record<string, unknown>; after?: Record<string, unknown> }> : []
-  if (pairs.length === 0) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <div className="space-y-4">
-      {pairs.map((pair, index) => (
-        <div className="space-y-2" key={`${pair.title || "visual"}-${index}`}>
-          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{pair.title || `Screenshot ${index + 1}`}</p>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <VisualDiffImagePane label="Merge-base / before" image={pair.before} />
-            <VisualDiffImagePane label="PR / after" image={pair.after} />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function VisualDiffImagePane({ label, image }: { label: string; image?: Record<string, unknown> }) {
-  const imageUrl = typeof image?.image_url === "string" ? image.image_url : null
-  const title = typeof image?.title === "string" ? image.title : "screenshot"
-  if (!imageUrl) return null
-
-  return (
-    <div>
-      <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-      <a href={imageUrl} target="_blank" rel="noreferrer">
-        <img src={imageUrl} alt={`${label}: ${title}`} className="max-w-full rounded border border-gray-200 dark:border-gray-700" />
-      </a>
-    </div>
-  )
-}
-
-function ImageDiffRenderer({ payload, title }: { payload: Record<string, unknown>; title: string }) {
-  const { t } = useT("jobs")
-  const imageUrl = typeof payload.image_url === "string" ? payload.image_url : null
-
-  if (!imageUrl) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <a href={imageUrl} target="_blank" rel="noreferrer">
-      <img
-        src={imageUrl}
-        alt={title || t("artifact_image_alt")}
-        className="max-w-full rounded border border-gray-200 dark:border-gray-700"
-      />
-    </a>
-  )
-}
-
-function RawArtifactRenderer({ payload }: { payload: Record<string, unknown> }) {
-  return (
-    <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{JSON.stringify(payload, null, 2)}</pre>
   )
 }
 
