@@ -33,6 +33,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       agent_provider: "",
       auto_approve_mode: "manual",
       feedback_policy: "confirm",
+      review_policy: "self",
       epic_dependency_policy: "linear",
       github_owner_id: null,
       github_repository_id: null,
@@ -62,7 +63,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function mockFetch(repositoryOverrides: Record<string, unknown> = {}) {
+function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalApprovers: unknown[] = []) {
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const url = String(input)
     const method = init?.method || "GET"
@@ -88,6 +89,18 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}) {
       return Promise.resolve(jsonResponse({
         input_source: { id: 5, type: "InputSources::Linear", type_key: "linear", label: "Linear", polling_enabled: false, values: {}, last_poll_started_at: null, issues_ingested_count: 0 },
         message: "Linear settings saved."
+      }))
+    }
+    if (url === "/api/v1/app/repositories/1/final_approvers" && method === "GET") {
+      return Promise.resolve(jsonResponse({ final_approvers: finalApprovers }))
+    }
+    if (url === "/api/v1/app/repositories/1/final_approvers" && method === "POST") {
+      return Promise.resolve(jsonResponse({
+        final_approvers: [
+          ...finalApprovers,
+          { id: 99, created_at: "2026-01-01T00:00:00Z", user: { id: 5, name: "New Approver", email_address: "new-approver@example.com" } }
+        ],
+        message: "new-approver@example.com added as final approver."
       }))
     }
 
@@ -261,5 +274,56 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     await screen.findByRole("heading", { name: "Linear" })
 
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" }))
+  })
+
+  it("does not show the final approvers section for the default self review policy", async () => {
+    mockFetch({ review_policy: "self" })
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Linear" })
+
+    expect(screen.queryByRole("heading", { name: "Final approvers" })).not.toBeInTheDocument()
+  })
+
+  it("shows the final approvers section and lists existing approvers when review policy is final_say", async () => {
+    mockFetch({ review_policy: "final_say" }, [
+      { id: 1, created_at: "2026-01-01T00:00:00Z", user: { id: 2, name: "Ada Lovelace", email_address: "ada@example.com" } }
+    ])
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Final approvers" })
+    expect(await screen.findByText("ada@example.com")).toBeInTheDocument()
+  })
+
+  it("reveals the final approvers section after switching the review policy dropdown to final_say", async () => {
+    mockFetch({ review_policy: "self" })
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Linear" })
+    expect(screen.queryByRole("heading", { name: "Final approvers" })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Review policy"), { target: { value: "final_say" } })
+
+    await screen.findByRole("heading", { name: "Final approvers" })
+  })
+
+  it("adds a final approver by email", async () => {
+    const fetchSpy = mockFetch({ review_policy: "final_say" })
+    renderRoute()
+
+    await screen.findByRole("heading", { name: "Final approvers" })
+    expect(await screen.findByText("No final approvers yet.")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new-approver@example.com" } })
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/final_approvers",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+
+    expect(await screen.findByText("new-approver@example.com")).toBeInTheDocument()
   })
 })

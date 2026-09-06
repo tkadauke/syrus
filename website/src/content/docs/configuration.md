@@ -420,9 +420,14 @@ Approval rules:
 
 ### Final approvers
 
-To designate final approvers for a `final_say` repository, add `RepositoryFinalApprover`
-records via the admin console or API. A repository may have any number of
-final approvers; only one needs to approve a given Job.
+Set a repository's review policy from its settings page (**Repository ->
+Edit -> Automation -> Review policy**). Choosing `final_say` reveals a
+**Final approvers** section on the same page where a repo admin can add or
+remove final approvers by email. A repository may have any number of final
+approvers; only one needs to approve a given Job. Managing this list
+requires `admin`-tier access on the repository (the same tier required to
+edit repository members), and is also available through the
+`/api/v1/app/repositories/:id/final_approvers` endpoints.
 
 ### Auto-approval bypass
 

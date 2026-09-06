@@ -315,6 +315,7 @@ Rails.application.routes.draw do
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
+          resources :final_approvers, controller: "repository_final_approvers", only: %i[ index create destroy ]
         end
         resources :teams, only: %i[ index show create update destroy ] do
           resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]

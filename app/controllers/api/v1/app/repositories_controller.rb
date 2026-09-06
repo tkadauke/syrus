@@ -505,6 +505,7 @@ module Api
             agent_provider: repository.agent_provider.to_s,
             auto_approve_mode: repository.auto_approve_mode,
             feedback_policy: repository.feedback_policy,
+            review_policy: repository.review_policy,
             epic_dependency_policy: repository.epic_dependency_policy,
             github_owner_id: repository.github_owner_id,
             github_repository_id: repository.github_repository_id,
@@ -1194,6 +1195,7 @@ module Api
             :external_pr_ingestion_enabled,
             :auto_approve_mode,
             :feedback_policy,
+            :review_policy,
             :epic_dependency_policy,
             :github_repository_id,
             :github_owner_id
