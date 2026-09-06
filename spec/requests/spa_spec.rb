@@ -179,12 +179,49 @@ RSpec.describe "SPA shell", type: :request do
     user = Factories.user
     sign_in_as(user)
 
-    [ notifications_path, memories_path, search_chats_path, design_docs_path, design_doc_path(9) ].each do |path|
+    # design_docs is a plugin page and is covered by the plugin-route example
+    # below; core no longer hand-writes its URLs, so there are no named
+    # helpers for them here.
+    [ notifications_path, memories_path, search_chats_path ].each do |path|
       get path
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('id="syrus-spa-root"')
       expect(response.body).to include('id="syrus-bootstrap-data"')
+    end
+  end
+
+  # Every path a plugin's sidebar page declares has to reach spa#show, or a
+  # hard reload / direct navigation renders the bare bootstrap shell instead of
+  # the page -- which is what /design_docs/22 did, because the plugin declared
+  # only the index path while its component had always branched on params.id.
+  # Both sides derive from `paths`, so this one list is the thing to guard.
+  it "routes every declared plugin sidebar path through the SPA shell" do
+    paths = PluginRouteResolver.declared_sidebar_paths
+    expect(paths).to be_any
+
+    paths.each do |declared|
+      path = declared.split("/").map { |segment| segment.start_with?(":") ? "9" : segment }.join("/")
+      recognized = Rails.application.routes.recognize_path(path, method: :get)
+
+      expect(recognized).to include(controller: "spa", action: "show"),
+                            "expected sidebar path #{declared} (sample #{path}) to route to spa#show"
+    end
+  end
+
+  # And that it routes through the *derived* wildcard, not because core happens
+  # to hand-write the same URL. Several plugin pages still have hand-written
+  # entries in config/routes.rb (profiles, memories, scheduled_tasks and
+  # friends) because core generates their URL helpers, so the check above can
+  # pass for a page the resolver does not actually know about -- and then a
+  # plugin whose helper core does not use ships unreachable, which is how
+  # mockups and scheduled_tasks shipped unreachable in the first place.
+  it "recognizes every declared plugin sidebar path without a hand-written route" do
+    PluginRouteResolver.declared_sidebar_paths.each do |declared|
+      path = declared.split("/").map { |segment| segment.start_with?(":") ? "9" : segment }.join("/")
+
+      expect(PluginRouteResolver.sidebar_page_route?(path)).to be(true),
+                                                              "expected the plugin route resolver to recognize #{declared} (sample #{path})"
     end
   end
 

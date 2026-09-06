@@ -552,6 +552,11 @@ Rails.application.routes.draw do
   get "cron_templates/new", to: "spa#show", as: :new_cron_template
   get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }
   get "cron_templates/:id/edit", to: "spa#show", as: :edit_cron_template, constraints: { id: /\d+/ }
+  # Kept as named routes, unlike design_docs: core generates `profile_path` in
+  # six places (dashboard payloads, job claims, repository summaries), so the
+  # helper has to exist even though the page itself belongs to team_directory.
+  # The plugin's own `paths` is what makes the React route work; this is only
+  # the URL helper.
   get "profiles", to: "spa#show", as: :profiles
   get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
   get "onboarding", to: "spa#show", as: :onboarding
@@ -563,8 +568,6 @@ Rails.application.routes.draw do
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
   get "memories", to: "spa#show", as: :memories
-  get "design_docs", to: "spa#show", as: :design_docs
-  get "design_docs/:id", to: "spa#show", as: :design_doc, constraints: { id: /\d+/ }
   get "db_browser", to: "spa#show", as: :db_browser
   get "k8s_clusters", to: "spa#show", as: :k8s_clusters
   get "worker_timeline", to: "spa#show", as: :worker_timeline

@@ -14,4 +14,11 @@ RSpec.describe DesignDocs::SidebarPages do
       )
     )
   end
+
+  # `paths` is what Rails' SPA wildcard and the React router both derive from.
+  # Declaring only the index left /design_docs/22 rendering the bare bootstrap
+  # shell, even though DesignDocs.tsx already branched on params.id.
+  it "declares the detail path as well as the index" do
+    expect(described_class.sidebar_pages.first[:paths]).to eq([ "/design_docs", "/design_docs/:id" ])
+  end
 end

@@ -876,6 +876,19 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   history; in the YAML it becomes stale and misleading once the flag is widely
   deployed. Describe only what the flag does and any operator requirements
   (e.g. "Requires a Gemini API key.").
+- **A plugin sidebar page's `paths` is the whole contract.** Both sides derive
+  from it: React registers a route per entry, and `PluginRouteResolver` answers
+  Rails' SPA wildcard from the same list. A page whose component branches on
+  `useParams().id` must therefore declare the detail path
+  (`["/design_docs", "/design_docs/:id"]`), or direct navigation renders the
+  bare `BootstrapShell` instead of the page — the failure is silent, because
+  Rails still serves the shell. `spec/requests/spa_spec.rb` guards this both
+  ways: every declared path routes to `spa#show`, *and* the resolver
+  recognizes it without a hand-written route. Some plugin pages still have
+  hand-written entries in `config/routes.rb` because core generates their URL
+  helpers (`profile_path` in dashboard payloads, job claims, repository
+  summaries); those stay until the helper use moves, and they are why the
+  second assertion exists.
 - **SPA routes must be registered in Rails and React together.** Every path
   declared in `app/frontend/routes/App.tsx` (and any nested route file it
   references) needs a matching `get "...", to: "spa#show"` entry in
