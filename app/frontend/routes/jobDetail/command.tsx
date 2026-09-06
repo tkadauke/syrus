@@ -36,7 +36,12 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       // synchronously, so job state and the buttons that depend on it
       // (e.g. "Approve") update together instead of the button lingering
       // for one more round trip until the invalidated query below refetches.
-      if (payload.job || payload.actions) {
+      // Guard on the response's job id: `restart` returns the newly created
+      // replacement Job, not the one this hook/queryKey is bound to, so a
+      // payload naming a different job must never be merged into this
+      // Job's cache entry.
+      const respondsForThisJob = payload.job === undefined || payload.job.id === jobId
+      if (respondsForThisJob && (payload.job || payload.actions)) {
         queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && {
           ...old,
           job: payload.job ? { ...old.job, ...payload.job } : old.job,
