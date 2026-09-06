@@ -5,7 +5,18 @@ RSpec.describe Steps::ReviewPlan do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job(repository: repository) }
-  let(:workflow) { Workflows::Initial.instantiate(job: job) }
+  # This spec exercises Steps::ReviewPlan's own runtime `.syrus.yml` check
+  # directly, independent of whether the pre-clone RepoReviewPlanPlan gate
+  # would have materialized the step at all -- so force it materialized
+  # here regardless of the workspace content each example writes below.
+  # Stubbed inline (not in a `before` block) so it's guaranteed to run
+  # before this `let!(:implement_run)`-triggered instantiation below.
+  let(:workflow) do
+    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+      RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+    )
+    Workflows::Initial.instantiate(job: job)
+  end
   let(:implement_step) { workflow.steps.find_by!(kind: "implement") }
   let!(:implement_run) do
     Run.create!(job: job, step: implement_step, trigger_kind: "initial", state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)

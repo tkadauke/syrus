@@ -18,7 +18,7 @@ RSpec.describe Workflows::LocalModeHandoff do
         expect(kinds[1].repair_steps).to eq(%w[ local_mode_handoff_fix ])
         expect(kinds[1].check_steps).to eq(%w[ grader_fanout grader_collect ])
         expect(kinds[1].repair_first).to be(false)
-        expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
+        expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
       end
 
       it "materializes the new-PR chain template" do
@@ -26,7 +26,7 @@ RSpec.describe Workflows::LocalModeHandoff do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare grader_fanout grader_collect summarize test_plan pr_open review_plan ]
+          %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
         )
         expect(workflow.chain_template).to eq([
           { "type" => "step", "kind" => "prepare" },
@@ -34,8 +34,7 @@ RSpec.describe Workflows::LocalModeHandoff do
             "repair" => [ "local_mode_handoff_fix" ], "check" => [ "grader_fanout", "grader_collect" ] },
           { "type" => "step", "kind" => "summarize" },
           { "type" => "step", "kind" => "test_plan" },
-          { "type" => "step", "kind" => "pr_open" },
-          { "type" => "step", "kind" => "review_plan" }
+          { "type" => "step", "kind" => "pr_open" }
         ])
       end
 
@@ -44,7 +43,15 @@ RSpec.describe Workflows::LocalModeHandoff do
         kinds = described_class.steps_for(job)
         expect(kinds).not_to include("prepare")
         expect(kinds.first).to be_a(Workflows::RetryUntil)
-        expect(kinds.last).to eq("review_plan")
+        expect(kinds.last).to eq("pr_open")
+      end
+
+      it "appends review_plan after pr_open when configured" do
+        allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+          RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+        )
+        kinds = described_class.steps_for(job)
+        expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
       end
     end
 

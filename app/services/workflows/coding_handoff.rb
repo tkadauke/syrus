@@ -21,7 +21,7 @@ module Workflows
           repair: [ :coding_handoff_fix ],
           check: [ :grader_fanout, :grader_collect ]
         ),
-        initial_pr_finish_steps
+        initial_pr_finish_steps(job)
       )
     end
 
