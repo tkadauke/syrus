@@ -120,23 +120,27 @@ aliases for `system`.
 `/worker_timeline` (sidebar page `worker_timeline.macro`, icon `timeline`)
 renders `WorkerTimeline.tsx`: hand-rolled React+SVG bars per span (no
 charting library, consistent with `spending_insights`), `d3-scale` for the
-time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, row
-virtualization (only lanes within the current scroll viewport render their
-span rects), and the app-wide shared `FilterBar` (same component and
-query-tree wiring as `AdminQueue`/`AdminUsers`/`Dashboard`) for repository/
-epic/hostname/status/job-type/time-window filtering — the plugin no longer ships its
-own filter UI. Hovering a span shows a tooltip with the
-Job/Workflow id and title, duration, and the blocked-reason explanation (or
-a plain "no historical data" message when none survives). Clicking a
-Workflow span navigates to `/worker_timeline/workflow?id=<id>`.
+time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, and
+the app-wide shared `FilterBar` (same component and query-tree wiring as
+`AdminQueue`/`AdminUsers`/`Dashboard`) for repository/epic/hostname/status/
+job-type/time-window filtering — the plugin no longer ships its own filter
+UI. All lanes render up front (no row virtualization, no internal vertical
+scroll container) so the page itself scrolls to show every lane. Hovering a
+span shows a tooltip with the Job/Workflow id and title, duration, and the
+blocked-reason explanation (or a plain "no historical data" message when
+none survives). Clicking a Workflow span navigates to
+`/worker_timeline/workflow?id=<id>`.
 
 That route renders `WorkflowWaterfall.tsx`: one lane per Step (in position
 order), with that Step's Run attempt(s) drawn as spans within the lane so
 retries are visible as sequential bars. It reuses the macro view's
-rendering primitives (extracted under `components/timeline/`: the
-`useZoomableTimeScale`/`useVirtualizedRows` hooks, `TimeAxis`, `TimelineBar`,
-and the `formatDuration`/`blockedMessage` tooltip helpers) rather than
-reimplementing bar rendering, pan/zoom, or tooltip logic. A Step with no
+`useZoomableTimeScale` hook, `TimeAxis`, `TimelineBar`, and the
+`formatDuration`/`blockedMessage` tooltip helpers (extracted under
+`components/timeline/`) rather than reimplementing pan/zoom or tooltip
+logic, but — unlike the macro view — still virtualizes its Step rows via
+`useVirtualizedRows` inside a fixed-height, vertically scrollable container,
+since a single workflow's Step list is not expected to grow the way the
+macro view's worker lanes can. A Step with no
 started Run yet renders as a hoverable "not started" marker instead of a
 bar (there's no timestamp to place a bar at); its tooltip reuses the same
 blocked-reason explanation the macro view shows for a pending Workflow. If
