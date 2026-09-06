@@ -14,8 +14,17 @@ RSpec.describe WorkEngineReconcilerActivityEvent do
       details: { affected_ids: { job_ids: [ job.id ] } }
     )
 
-    expect(event).to be_persisted
-    expect(event.details).to eq("affected_ids" => { "job_ids" => [ job.id ] })
-    expect { event.update!(message: "changed") }.to raise_error(ActiveRecord::ReadOnlyRecord)
+    # record! buffers rather than writing through -- the reconciler emits tens
+    # of thousands of these a day and a per-event INSERT was the largest source
+    # of one-row writes in the system. It reports what it recorded; the row
+    # appears on the next flush, which is what readers do before querying.
+    expect(event["event_type"]).to eq("issues_detected")
+
+    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
+
+    persisted = described_class.recent_first.find_by!(source: "spec")
+    expect(persisted.details).to eq("affected_ids" => { "job_ids" => [ job.id ] })
+    expect(persisted.issue_kind).to eq("queued_run_without_queue_claim")
+    expect { persisted.update!(message: "changed") }.to raise_error(ActiveRecord::ReadOnlyRecord)
   end
 end

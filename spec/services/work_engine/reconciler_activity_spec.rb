@@ -55,6 +55,9 @@ RSpec.describe WorkEngine::ReconcilerActivity do
       result: result
     )
 
+    # record! buffers; a reader flushes before querying, so the spec does too.
+    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
+
     expect(WorkEngineReconcilerActivityEvent.order(:id).pluck(:event_type)).to eq(
       %w[issues_detected repair_planned repair_executed run_finished]
     )
@@ -85,6 +88,9 @@ RSpec.describe WorkEngine::ReconcilerActivity do
       execute_repairs: true,
       result: result
     )
+
+    # record! buffers; a reader flushes before querying, so the spec does too.
+    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
 
     expect(WorkEngineReconcilerActivityEvent.order(:id).pluck(:event_type)).to eq(
       %w[issues_detected repair_planned repair_executed run_finished]

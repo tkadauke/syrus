@@ -19,6 +19,48 @@ worker restart before the next database flush. Avoid using durable streams for
 high-cardinality debug noise unless the event is actionable and retention is
 bounded.
 
+## How writes are paced
+
+Every process runs its own flusher thread, so the sink's cost in database
+statements is (processes x kinds x flushes). Two settings bound it:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `SYRUS_OBSERVABILITY_FLUSH_THRESHOLD` | 200 | Flush as soon as a buffer holds this many events |
+| `SYRUS_OBSERVABILITY_FLUSH_INTERVAL_SECONDS` | 60 | Longest an event waits before being written |
+| `SYRUS_OBSERVABILITY_FLUSH_TICK_SECONDS` | 5 | How often the flusher checks whether either applies |
+| `SYRUS_OBSERVABILITY_RATE_LIMIT_PER_MINUTE` | 600 | Events accepted per kind per minute, per process |
+
+A busy kind flushes on size, so bursts arrive as large `insert_all` batches. A
+quiet kind costs one statement per interval rather than one per tick. The
+interval measures the age of the *oldest buffered event*, not time since the
+last flush, so it is a real bound on how long an event can wait.
+
+Production ran at a 15-second interval with no size trigger and wrote 9-row
+batches: the batching existed but the buffers never filled. Lower the interval
+only if you are prepared to pay for it in statements.
+
+### Rate limiting and the feedback loop
+
+Thresholds for what counts as "slow" are absolute, so a degraded instance
+crosses them constantly: a slower database produces more `slow_sql` and
+`slow_phase` events, whose writes make it slower still. The per-kind ceiling
+breaks that loop — past it, events are counted in `EventSink.stats[:dropped]`
+rather than written, so the signal degrades to a sample instead of amplifying
+the incident it is describing.
+
+Durable kinds are never rate limited. They are spooled to disk precisely
+because losing one is not acceptable.
+
+### Writing through
+
+`Observability::EventSink.flush!(kinds: [...])` forces a write. Readers do this
+before querying (see `Admin::OperationalLogsPayload`,
+`Admin::WorkflowActivityPayload`, `Admin::ReconcilerActivityPayload`) so recent
+events are visible. Do NOT flush on the write path to make a row immediately
+readable — that is a one-row INSERT per event, and it is what made reconciler
+activity the largest source of single-row writes in the system.
+
 ## Workflow Activity
 
 The `workflow_activity_events` stream is the broad Syrus activity timeline. It

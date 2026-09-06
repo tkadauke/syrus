@@ -16,6 +16,11 @@ module Admin
     end
 
     def as_json(*)
+      # Same contract as Admin::OperationalLogsPayload and
+      # WorkflowActivityPayload: the reader flushes so it sees the newest
+      # events, which is what lets the write path batch instead of persisting
+      # one row at a time.
+      Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
       rows = relation.offset((page - 1) * per_page).limit(per_page).to_a
       {
         events: rows.map { |event| event_json(event) },

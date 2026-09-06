@@ -226,4 +226,94 @@ RSpec.describe Observability::EventSink do
       described_class.flush!(kinds: [ :workflow_activity ])
     }.to change(WorkflowActivityEvent, :count).by(2)
   end
+
+  # Production wrote 9-row batches: the batching existed, the buffers never
+  # filled, because every process flushed every 15 seconds regardless of how
+  # little it held. These cover the two levers that fixed that -- flush on size
+  # OR interval -- and the rate cap that keeps a slow database from generating
+  # the writes that make it slower.
+  describe "flush scheduling" do
+    def buffer_performance(count)
+      count.times do |i|
+        described_class.append(kind: :performance, event: { "event" => "syrus.performance.slow_phase", "phase" => "p#{i}", "occurred_at" => Time.current.iso8601(6) })
+      end
+    end
+
+    it "does not write a barely-filled buffer that has not waited out the interval" do
+      buffer_performance(3)
+
+      expect(described_class.flush_due?(:performance, now: Time.current)).to be false
+    end
+
+    it "writes as soon as the buffer reaches the size threshold, without waiting" do
+      buffer_performance(Observability::EventSink::FLUSH_THRESHOLD)
+
+      expect(described_class.flush_due?(:performance, now: Time.current)).to be true
+    end
+
+    it "writes a small buffer once it has waited out the interval" do
+      buffer_performance(3)
+
+      overdue = Time.current + Observability::EventSink::FLUSH_INTERVAL + 1.second
+      expect(described_class.flush_due?(:performance, now: overdue)).to be true
+    end
+
+    it "never writes an empty buffer, however overdue" do
+      overdue = Time.current + 1.hour
+
+      expect(described_class.flush_due?(:performance, now: overdue)).to be false
+    end
+
+    it "stops treating a kind as overdue once it has been flushed" do
+      buffer_performance(3)
+      described_class.flush!(kinds: [ :performance ])
+
+      expect(described_class.flush_due?(:performance, now: Time.current)).to be false
+    end
+
+    it "flush_due! writes only the kinds that are actually due" do
+      buffer_performance(2)
+
+      expect { described_class.flush_due!(now: Time.current) }.not_to change(PerformanceLogEvent, :count)
+      expect { described_class.flush_due!(now: Time.current + Observability::EventSink::FLUSH_INTERVAL + 1.second) }
+        .to change(PerformanceLogEvent, :count).by(2)
+    end
+  end
+
+  describe "rate limiting" do
+    it "counts events past the per-minute ceiling as dropped instead of buffering them" do
+      stub_const("Observability::EventSink::RATE_LIMIT_PER_MINUTE", 5)
+
+      8.times do |i|
+        described_class.append(kind: :performance, event: { "event" => "syrus.performance.slow_sql", "phase" => "p#{i}", "occurred_at" => Time.current.iso8601(6) })
+      end
+
+      expect(described_class.stats[:buffered][:performance]).to eq(5)
+      expect(described_class.stats[:dropped][:performance]).to eq(3)
+    end
+
+    it "refills the allowance in the next window" do
+      stub_const("Observability::EventSink::RATE_LIMIT_PER_MINUTE", 2)
+      3.times { |i| described_class.append(kind: :performance, event: { "event" => "e", "phase" => "a#{i}", "occurred_at" => Time.current.iso8601(6) }) }
+
+      travel_to(61.seconds.from_now) do
+        described_class.append(kind: :performance, event: { "event" => "e", "phase" => "after", "occurred_at" => Time.current.iso8601(6) })
+      end
+
+      expect(described_class.stats[:buffered][:performance]).to eq(3)
+    end
+
+    # A durable kind is spooled to disk precisely because losing one is not
+    # acceptable; sampling it would defeat the point of the spool.
+    it "never drops a durable kind" do
+      stub_const("Observability::EventSink::RATE_LIMIT_PER_MINUTE", 1)
+
+      4.times do |i|
+        described_class.append(kind: :operational, event: { "event" => "op", "message" => "m#{i}", "occurred_at" => Time.current.iso8601(6) }, durable: true)
+      end
+
+      expect(described_class.stats[:buffered][:operational]).to eq(4)
+      expect(described_class.stats[:dropped][:operational]).to eq(0)
+    end
+  end
 end

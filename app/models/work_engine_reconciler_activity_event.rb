@@ -42,14 +42,13 @@ class WorkEngineReconcilerActivityEvent < ApplicationRecord
       "occurred_at" => occurred_at.iso8601(6)
     }.compact
 
+    # Buffered, not written through. The reconciler emits tens of thousands of
+    # these a day, and flushing per event meant one INSERT plus one SELECT
+    # apiece -- the single largest source of one-row writes in the system.
+    # Readers (Admin::ReconcilerActivityPayload) flush before querying, so
+    # nothing observable is lost; callers here ignore the return value.
     Observability::EventSink.append(kind: :work_engine_reconciler_activity, event: attrs)
-    Observability::EventSink.flush!(kinds: [ :work_engine_reconciler_activity ])
-    recent_first.find_by!(
-      event_type: attrs.fetch("event_type"),
-      source: attrs.fetch("source"),
-      message: attrs.fetch("message"),
-      occurred_at: parse_event_time(attrs.fetch("occurred_at"))
-    )
+    attrs
   rescue StandardError => e
     Rails.logger.warn("[WorkEngineReconcilerActivityEvent] record failed: #{e.class}: #{e.message}")
     nil
