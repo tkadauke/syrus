@@ -175,7 +175,16 @@ class LandingValidationPrefetcher
     return unless unit.jobs.all? { |member| ordinary_merge_train_member?(member) }
     return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("merge_train")).any?
 
-    result = MergeTrainAssembler.call(unit.jobs.first.epic)
+    # `unit.jobs.first` is not necessarily the Job carrying the Epic. The guard
+    # above only requires that the unit's *non-nil* epic_ids agree, so a unit
+    # mixing one Epic child with epicless Jobs passes it while the first Job
+    # has no Epic at all -- and `MergeTrainAssembler.call(nil)` then dies with
+    # "undefined method 'work_jobs' for nil", which failed 13 bundle trains in
+    # a single day. Ask the Job that actually has one.
+    epic = unit.jobs.filter_map(&:epic).first
+    return if epic.nil?
+
+    result = MergeTrainAssembler.call(epic)
     return unless result.ready?
     return unless result.job_ids == unit.job_ids
 

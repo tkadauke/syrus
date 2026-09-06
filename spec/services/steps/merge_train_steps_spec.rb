@@ -86,13 +86,37 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.integration_branch).to eq("syrus/merge-train-epic-#{epic.id}-#{train.id}")
     end
 
-    it "fails when a member is not in :landing" do
+    # The dispatcher locks members into :landing, but this step's Run can be
+    # claimed a while later and plenty can move one out in between. Failing the
+    # train outright routed through LandingFailureHandler's else branch and
+    # cleared every remaining member's approval -- seventeen trains, and an
+    # operator re-approving Jobs that were never the problem. Nothing is
+    # published at assemble time, so the honest outcome is "rebuild".
+    it "asks for a rebuild when a member is no longer in :landing" do
       a = member_job(issue_number: 1, state: "approved")
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
       MergeTrainMember.create!(merge_train: train, job: a, position: 0)
 
       expect { step_handler(described_class, "merge_train_assemble", train, a).call }
         .to raise_error(Steps::Base::StepFailed, /not in :landing/)
+    end
+
+    it "declares a rebuild-required problem so members keep their approval" do
+      a = member_job(issue_number: 1, state: "approved")
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+
+      error = begin
+        step_handler(described_class, "merge_train_assemble", train, a).call
+      rescue Steps::Base::StepFailed => e
+        e
+      end
+
+      expect(error.problem&.code).to eq("merge_train_rebuild_required")
+      # The prose form is not what carries this -- LandingFailureHandler reads
+      # the declared Problem, which is why the message does not need to match
+      # its legacy patterns.
+      expect(LandingFailureHandler.merge_train_rebuild_required?(error.message)).to be(false)
     end
 
     it "refuses to run against a terminal train" do
@@ -782,6 +806,62 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     # because the integration branch did not exist remotely until this push --
     # nothing to protect, so git allowed it. Publishing at build time removed
     # that accident and took four trains down with it.
+    # Epic #296 spent 01:59-03:38 Eastern across 26 consecutive single-member
+    # trains, every one of them failing with GitHub's 422 "No commits between",
+    # because the member's commit was already on main. Each failure reverted
+    # the member and queued another train that would be just as empty. It is
+    # the single largest cause of merge-train failure on this instance.
+    describe "an integration branch with nothing ahead of base" do
+      def empty_integration_train(issue_number:)
+        a = member_job(issue_number: issue_number)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        handler.workflow.set_artifact!(described_class::BASE_SHA_ARTIFACT, "basesha123")
+        git = stub_git(handler)
+        allow(git).to receive(:run)
+          .with("rev-list", "--count", "basesha123..HEAD", chdir: "/tmp/ws")
+          .and_return("0\n")
+        [ handler, a, train, git ]
+      end
+
+      it "settles the members instead of asking GitHub to open an empty PR" do
+        handler, a, train, _git = empty_integration_train(issue_number: 61)
+        record_landed_commit!(a, sha: "a-landed-1")
+
+        handler.call
+
+        expect(client).not_to have_received(:create_pull_request)
+        expect(train.reload.state).to eq("succeeded")
+      end
+
+      # The same per-member verification the normal path uses -- a member whose
+      # commits cannot be shown to be on base is still routed through
+      # handle_unverified_member! rather than closed on an assumption.
+      it "still verifies each member before closing it" do
+        handler, a, train, git = empty_integration_train(issue_number: 62)
+        record_landed_commit!(a, sha: "a-landed-1")
+        allow(git).to receive(:run)
+          .with("merge-base", "--is-ancestor", "a-landed-1", "basesha123", chdir: "/tmp/ws")
+          .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not an ancestor"))
+
+        handler.call
+
+        expect(a.reload.state).not_to eq("closed")
+      end
+
+      it "closes a member whose commits are on base" do
+        handler, a, train, _git = empty_integration_train(issue_number: 63)
+        record_landed_commit!(a, sha: "a-landed-1")
+
+        handler.call
+
+        expect(a.reload).to be_closed
+        expect(a.closure_reason).to eq("pr_merged")
+        expect(train.members.find_by(job: a).state).to eq("merged")
+      end
+    end
+
     describe "the integration push lease" do
       it "names the remote tip explicitly rather than leaning on a tracking ref" do
         a = member_job(issue_number: 51)

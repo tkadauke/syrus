@@ -20,6 +20,13 @@ class MergeTrainAssembler
   end
 
   def call
+    # Callers reach this from several directions (the dispatcher, the landing
+    # prefetcher, the stuck-Job explainer) and one of them used to pass nil,
+    # which crashed the whole landing attempt with a NoMethodError instead of
+    # reporting that there was nothing to assemble. "No Epic" is a legitimate
+    # not-ready answer, not an exception.
+    return not_ready("no Epic to assemble") if @epic.nil?
+
     open_children = @epic.work_jobs.where.not(state: "closed").to_a
     return not_ready("epic has no open child Jobs") if open_children.empty?
 

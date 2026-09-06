@@ -17,6 +17,18 @@ RSpec.describe MergeTrainAssembler do
     )
   end
 
+  # The landing prefetcher used to reach here with nil for a unit that mixed
+  # one Epic child with epicless Jobs, and the NoMethodError took down the
+  # whole landing attempt -- 13 bundle trains in one day. "No Epic" is a
+  # not-ready answer, not an exception.
+  it "reports not ready rather than raising when there is no Epic" do
+    result = described_class.call(nil)
+
+    expect(result).not_to be_ready
+    expect(result.reason).to match(/no Epic/i)
+    expect(result.members).to be_empty
+  end
+
   it "is ready when every open child is approved and has a PR" do
     a = child(issue_number: 1)
     b = child(issue_number: 2)

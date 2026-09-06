@@ -35,6 +35,12 @@ module Steps
       client = GithubClient.for(repository: repository, user: job.user)
 
       pre_merge_base_sha = ensure_base_unchanged!(train, client)
+
+      if (already_on_base = integration_branch_already_on_base?(train, pre_merge_base_sha))
+        settle_train_already_on_base!(train, client, already_on_base)
+        return
+      end
+
       integration_sha = push_integration_branch(train, client)
       train.update!(integration_sha: integration_sha, state: "landing")
 
@@ -122,6 +128,56 @@ module Steps
         }
       )
       fail_with!(:merge_train_rebuild_required, "#{MISSING_BASE_FAILURE_PREFIX}; rebuild required")
+    end
+
+    # An integration branch with nothing ahead of base means every commit the
+    # build put on it is already on base -- the members landed, typically
+    # through an earlier train whose member reconciliation could not verify
+    # them and so never closed their Jobs.
+    #
+    # Pushing that branch and asking GitHub to open a PR for it earns a 422
+    # "No commits between", which failed the train, reverted the members, and
+    # left them to be re-landed by another train that would be just as empty.
+    # Epic #296 spent from 01:59 to 03:38 Eastern in that loop across 26
+    # consecutive single-member trains before it escaped by accident. It is
+    # the single largest cause of merge-train failure on this instance.
+    #
+    # Returns the base SHA the members are already on, or nil.
+    def integration_branch_already_on_base?(train, base_sha)
+      return nil if base_sha.blank?
+
+      workspace.setup
+      chdir = workspace.path.to_s
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      ahead = git.run("rev-list", "--count", "#{base_sha}..HEAD", chdir: chdir).to_s.strip
+      return nil unless ahead == "0"
+
+      base_sha
+    rescue StandardError => e
+      # Unknowable reads as "not empty", and every failure mode is caught, not
+      # just git's: this is a measurement taken to avoid a bad outcome, so it
+      # must never itself become one. The normal path still verifies every
+      # member before closing it, so guessing wrong here costs an attempt
+      # rather than closing work that did not land.
+      log("merge_train: could not measure #{train.integration_branch} against base (#{e.class}: #{e.message.to_s.lines.first.to_s.strip})")
+      nil
+    end
+
+    # Same verification the normal landing path uses -- reconcile_members!
+    # checks each member's recorded commits against the SHA we claim it landed
+    # in, and routes anything it cannot verify through handle_unverified_member!
+    # exactly as before. The only difference is that the SHA is the existing
+    # base tip rather than a merge commit we just created.
+    def settle_train_already_on_base!(train, client, base_sha)
+      log(
+        "merge_train: #{train.integration_branch} has no commits ahead of #{train.base_branch}@#{base_sha.to_s.first(9)}; " \
+        "its members are already on base, so there is nothing to merge",
+        kind: "system"
+      )
+      train.update!(integration_sha: base_sha, state: "landing")
+      delete_branch_after_landing(client, train.integration_branch)
+      reconcile_members!(train, client, nil, integration_sha: base_sha)
+      train.update!(state: "succeeded", finished_at: Time.current)
     end
 
     def push_integration_branch(train, client)
@@ -438,6 +494,13 @@ module Steps
       LandingFailureHandler.call(job: member_job, reason: reason, run: run) if member_job.landing?
     end
 
+    # There is no integration PR when the branch turned out to already be on
+    # base -- nothing was merged this time, the work was merged earlier.
+    def landed_comment_for(member_job, integration_pr)
+      via = integration_pr ? " (integration PR ##{integration_pr.number})" : ""
+      "Landed via #{train_label(merge_train)} merge-train#{via}. #{member_job.slug}."
+    end
+
     def reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
       return if member_job.pr_number.blank?
 
@@ -445,7 +508,7 @@ module Steps
         client.add_issue_comment(
           repository.slug,
           member_job.pr_number,
-          "Landed via #{train_label(merge_train)} merge-train (integration PR ##{integration_pr.number}). #{member_job.slug}."
+          landed_comment_for(member_job, integration_pr)
         )
       end
       cleanup_after_landing("close PR ##{member_job.pr_number}") do

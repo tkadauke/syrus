@@ -24,6 +24,49 @@ RSpec.describe LandingFailureHandler do
     step.runs.create!(job: job, trigger_kind: "auto_merge", agent_provider: workflow.agent_provider)
   end
 
+  # A failure that says nothing about whether the work is landable used to be
+  # treated exactly like a grader rejection: revert to :implemented and clear
+  # the approval. So a five-second GitHub outage, or an MCP sidecar that did
+  # not come up, cost an operator a round of re-approving every member of a
+  # merge train.
+  describe "transient failures" do
+    [
+      "POST https://api.github.com/repos/acme/widgets/pulls: 502 - No server is currently available to service your request.",
+      "agent reported mcp_sidecar_failed",
+      "active WorkUnit #12 already owns lock landing:repository:3",
+      "Octokit::BadGateway: 502 Bad Gateway"
+    ].each do |reason|
+      it "keeps the approval and defers for: #{reason.truncate(48)}" do
+        job = landing_job
+        approved_at = job.approved_at
+
+        described_class.call(job: job, reason: reason)
+
+        expect(job.reload).to be_approved
+        expect(job.approved_at).to eq(approved_at)
+      end
+    end
+
+    # Deferral, not a pause: pausing landing instance-wide is the right answer
+    # to a full disk and far too heavy for a bad minute at GitHub.
+    it "does not pause landing for the user" do
+      job = landing_job
+
+      described_class.call(job: job, reason: "Octokit::ServiceUnavailable: 503")
+
+      expect(job.user.reload).not_to be_landing_paused
+    end
+
+    it "still fails a genuine grader rejection" do
+      job = landing_job
+
+      described_class.call(job: job, reason: "auto_merge: required grader rspec failed (exit 1)")
+
+      expect(job.reload).to be_implemented
+      expect(job.approved_at).to be_nil
+    end
+  end
+
   it "fails ordinary landing failures back to implemented and clears approval" do
     job = landing_job
     approved_at = job.approved_at

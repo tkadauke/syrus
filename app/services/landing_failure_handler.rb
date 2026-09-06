@@ -8,6 +8,33 @@ class LandingFailureHandler
     /not enough (?:disk|storage|space)/i
   ].freeze
 
+  # Conditions that say nothing about whether the work is landable -- GitHub
+  # having a bad minute, an MCP sidecar that did not come up, a worker that
+  # died, another WorkUnit holding the lock we wanted.
+  #
+  # These used to fall through to `fail_landing`, which reverts the Job to
+  # :implemented and clears its approval, so a five-second GitHub outage cost
+  # an operator a round of re-approving every member of a train. They are
+  # deferrals: the Job stays :approved and the landing queue tries again.
+  #
+  # Distinct from INFRASTRUCTURE_BLOCKER_PATTERNS, which additionally pause
+  # landing instance-wide -- right for a full disk, far too heavy for a 502.
+  TRANSIENT_BLOCKER_PATTERNS = [
+    /No server is currently available to service your request/i,
+    /\b50[0234]\b[^\n]*(?:Bad Gateway|Service Unavailable|Gateway Time-?out|Server Error)/i,
+    /Octokit::(?:BadGateway|ServiceUnavailable|InternalServerError)/,
+    /\bmcp_sidecar_failed\b/i,
+    /\bworker_died\b/i,
+    /already owns lock\b/i,
+    /\bECONNRESET\b|\bETIMEDOUT\b|\bEHOSTUNREACH\b/i,
+    /execution expired/i
+  ].freeze
+
+  def self.transient_blocker?(reason)
+    text = reason.to_s
+    TRANSIENT_BLOCKER_PATTERNS.any? { |pattern| text.match?(pattern) }
+  end
+
   def self.call(...) = new(...).call
 
   def self.infrastructure_blocker?(reason)
@@ -29,7 +56,7 @@ class LandingFailureHandler
     if infrastructure_blocker?
       pause_landing!
       job.defer_landing! if job.may_defer_landing?
-    elsif rebase_cap_blocker? || merge_train_rebuild_required? || landing_start_blocker?
+    elsif rebase_cap_blocker? || merge_train_rebuild_required? || landing_start_blocker? || transient_blocker?
       log_deferral!
       job.defer_landing! if job.may_defer_landing?
     else
@@ -81,6 +108,10 @@ class LandingFailureHandler
     reason.match?(/\Alanding start blocked: /i)
   end
 
+  def transient_blocker?
+    self.class.transient_blocker?(reason)
+  end
+
   def self.stale_merge_train_base?(reason)
     merge_train_rebuild_required?(reason)
   end
@@ -117,6 +148,8 @@ class LandingFailureHandler
 
     message = if landing_start_blocker?
       "landing_queue: deferred landing because the landing workflow could not start yet (#{reason.truncate(180)})"
+    elsif transient_blocker?
+      "landing_queue: deferred landing after a transient failure; the Job keeps its approval and the queue will try again (#{reason.truncate(180)})"
     elsif merge_train_rebuild_required?
       "landing_queue: deferred landing because the merge-train validation is stale or incomplete; Syrus will rebuild the train"
     else

@@ -51,6 +51,41 @@ The published branch is disposable bookkeeping: `merge_train_land` deletes it af
 
 Because the branch now exists on the remote before landing, `merge_train_land` states its `--force-with-lease` value explicitly (`--force-with-lease=refs/heads/<branch>:<remote tip from ls-remote>`). A bare `--force-with-lease` leases against the remote-tracking ref, and Syrus pushes to an authenticated URL rather than a named remote, so git has no tracking namespace to read and rejects the push with `stale info`. That only ever worked because the branch did not exist remotely until the landing push itself — with no ref to protect, git allowed it.
 
+## When a train does not land
+
+A merge train that fails routes every member through `LandingFailureHandler`,
+which decides between two very different outcomes:
+
+- **Deferral** — the Job stays `approved` and the landing queue tries again.
+  Used for conditions that say nothing about whether the work is landable: a
+  stale train that needs rebuilding, a landing-start blocker, the rebase cap,
+  and (via `TRANSIENT_BLOCKER_PATTERNS`) GitHub 5xx responses, MCP sidecar
+  failures, worker deaths, lock contention and connection timeouts.
+- **Failure** — the Job reverts to `implemented` and its approval is cleared,
+  requiring an operator to re-approve. This is for genuine rejections: graders
+  that failed, an integration the agent could not reconcile.
+
+Getting that split wrong is expensive in operator time rather than in
+correctness — a five-second GitHub outage used to cost a full round of
+re-approving every member of a train. When adding a new failure path, decide
+which side it belongs on before deciding what to log.
+
+Two cases are handled before they can fail at all:
+
+- **The integration branch has nothing ahead of base.** Every commit the build
+  put on it is already on base, so the members landed earlier — usually through
+  a train whose reconciliation could not verify them and so never closed their
+  Jobs. Syrus settles the members against the base tip using the same
+  per-member verification the normal path uses, instead of pushing an empty
+  branch and taking GitHub's 422 "No commits between". Before this, that 422
+  failed the train, reverted the members, and queued another train that would
+  be just as empty.
+- **A member is no longer in `:landing`** when assemble runs. The dispatcher
+  locked the members, but the train's first Run can be claimed much later, and
+  a sibling train, a poller, or an operator can move one out in between.
+  Nothing has been published at that point, so this asks for a rebuild rather
+  than failing the train and clearing every other member's approval.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.

@@ -440,7 +440,17 @@ blocked reason `waiting for Epic merge-train` until every open sibling is
 approved, then Syrus lands the Epic as an all-or-nothing `merge_train`
 Workflow. A failed train reverts members out of `landing` and observes a
 30-minute retry cooldown so an unrepaired integration conflict does not churn
-the landing queue.
+the landing queue. **`LandingFailureHandler` decides whether a member keeps its
+approval**: deferral (stays `approved`, queue retries) for rebuild-required,
+landing-start blockers, the rebase cap, and `TRANSIENT_BLOCKER_PATTERNS`
+(GitHub 5xx, sidecar failures, worker death, lock contention); failure (reverts
+to `implemented`, clears approval, needs an operator) only for genuine
+rejections like failed graders. Put a new failure path on the right side of
+that split — the wrong side costs an operator a round of re-approving a whole
+train. An integration branch with nothing ahead of base is settled against the
+base tip rather than pushed (GitHub answers 422 "No commits between"), and a
+member that has left `:landing` by assemble time asks for a rebuild rather than
+failing the train.
 
 **PR feedback watermarking** tracks both `last_seen_comment_at` and
 `last_feedback_addressed_at`; successful `pr_comment` workflows mark the
