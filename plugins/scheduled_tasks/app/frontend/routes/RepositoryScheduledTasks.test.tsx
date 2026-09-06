@@ -31,14 +31,30 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
+      {/* The real sidebar_pages route declares this segment as `:repository_id`
+          (snake_case) -- see sidebar_pages.rb. A `:repositoryId` route here would
+          hide the param-name mismatch bug instead of catching it. */}
       <MemoryRouter initialEntries={["/app-shell/repositories/1/scheduled_tasks"]}>
         <Routes>
-          <Route element={<RepositoryScheduledTasksRoute />} path="/app-shell/repositories/:repositoryId/scheduled_tasks" />
+          <Route element={<RepositoryScheduledTasksRoute />} path="/app-shell/repositories/:repository_id/scheduled_tasks" />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
 }
+
+describe("RepositoryScheduledTasksRoute loading", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("resolves past the loading state using the repository_id route param", async () => {
+    renderRoute()
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading scheduled tasks...")).not.toBeInTheDocument()
+    })
+    expect(await screen.findByText("Daily check")).toBeInTheDocument()
+  })
+})
 
 describe("RepositoryScheduledTasksRoute delete", () => {
   let mockConfirm: ReturnType<typeof vi.fn>
