@@ -67,7 +67,13 @@ tier has enough candidates:
   spinning up a merge-train-style pipeline for one member. `LandingQueueProcessor`
   only routes a Job to `JobBundleDispatcher` once `bundle_eligible_epicless_job?`
   finds at least `MIN_BUNDLE_SIZE` same-tier, same-owner, epicless, own-PR
-  approved siblings for the repository.
+  approved siblings for the repository. `bundle_eligible_epicless_job?` calls
+  `JobBundleAssembler.ready_for_job?(job)` — which checks readiness of that
+  specific Job's own effective-owner partition — rather than
+  `.ready_for_priority?(repository, priority)`, which only answers "is *some*
+  owner in this tier ready." Gating on the tier-wide query would block/misroute
+  a Job onto a bundle it can never actually join whenever a different owner's
+  Jobs in the same repository/priority tier happen to be bundle-ready.
 - **Dependency ordering and size cap** — candidates are topologically
   ordered by `LandingQueueProcessor.dependency_ordered` the same way Epic
   members are, then capped at `AppSetting.merge_train_max_size`, shrinking

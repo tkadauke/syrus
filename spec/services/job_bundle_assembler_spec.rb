@@ -225,4 +225,46 @@ RSpec.describe JobBundleAssembler do
       expect(described_class.ready_for_priority?(repository, "medium")).to be false
     end
   end
+
+  describe ".ready_for_job?" do
+    it "is true when the Job's own owner-partition is ready" do
+      a = approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(a)).to be true
+    end
+
+    it "is false for a solo owner even while a different owner's same-tier bundle is ready" do
+      other_owner = Factories.user
+      solo = approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: other_owner)
+      approved(issue_number: 3, owner_user: other_owner)
+
+      expect(described_class.ready_for_job?(solo)).to be false
+    end
+
+    it "is true for a member of the ready bundle even while a solo different-owner Job exists in the same tier" do
+      other_owner = Factories.user
+      approved(issue_number: 1, owner_user: other_owner)
+      b = approved(issue_number: 2, owner_user: user)
+      approved(issue_number: 3, owner_user: user)
+
+      expect(described_class.ready_for_job?(b)).to be true
+    end
+
+    it "is false for an Epic-backed Job" do
+      epic = Factories.epic(user: user, repository: repository)
+      member = Factories.job_record(user: user, owner_user: user, repository: repository, epic: epic, issue_number: 1, state: "approved", pr_number: 900)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(member)).to be false
+    end
+
+    it "is false for an external_pr Job" do
+      external = approved_external_pr(external_pr_number: 1)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(external)).to be false
+    end
+  end
 end

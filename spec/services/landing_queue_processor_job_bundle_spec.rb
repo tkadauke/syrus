@@ -4,9 +4,9 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def approved_job(issue_number, priority: "medium")
+  def approved_job(issue_number, priority: "medium", owner_user: user)
     Factories.job_record(
-      user: user, repository: repository,
+      user: user, owner_user: owner_user, repository: repository,
       issue_number: issue_number, state: "approved", priority: priority,
       pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}"
     )
@@ -75,6 +75,17 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       expect(entry.blocked_reason).not_to eq({ key: "waiting_epicless_bundle" })
     end
 
+    it "does not block a solo owner's Job over a different owner's ready same-tier bundle" do
+      enable_flag
+      other_owner = Factories.user
+      solo = approved_job(1, owner_user: user)
+      approved_job(2, owner_user: other_owner)
+      approved_job(3, owner_user: other_owner)
+
+      entry = described_class.entries(Job.where(id: solo.id)).first
+      expect(entry.blocked_reason).to be_blank
+    end
+
     it "excludes an external_pr Job from bundling even with other same-tier candidates" do
       enable_flag
       approved_job(1)
@@ -132,6 +143,20 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       described_class.new.try_land!(a)
 
       expect(JobBundleDispatcher).to have_received(:try_dispatch!).with(repository)
+    end
+
+    it "lands a solo owner's Job normally instead of routing it to the bundle dispatcher, even while a different owner's same-tier bundle is ready" do
+      enable_flag
+      other_owner = Factories.user
+      solo = approved_job(1, owner_user: user)
+      approved_job(2, owner_user: other_owner)
+      approved_job(3, owner_user: other_owner)
+      allow(JobBundleDispatcher).to receive(:try_dispatch!).and_return(Object.new)
+
+      described_class.new.try_land!(solo)
+
+      expect(JobBundleDispatcher).not_to have_received(:try_dispatch!)
+      expect(Workflow.where(job: solo, trigger_kind: "auto_merge").count).to eq(1)
     end
   end
 
