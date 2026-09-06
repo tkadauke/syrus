@@ -59,6 +59,14 @@ const filterSchema: FilterSchemaField[] = [
     operators: ["before", "after", "between", "within_last", "more_than_ago"],
     values: [],
     date_precision: "date"
+  },
+  {
+    field: "window",
+    label: "Time window",
+    bucket: "date",
+    operators: ["within_last", "between"],
+    values: [],
+    date_precision: "datetime"
   }
 ]
 
@@ -570,6 +578,73 @@ describe("FilterBar", () => {
     })
   })
 
+  it("collapses a same-day, non-today datetime range onto a single date", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-09-06T12:00:00"))
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "between", value: ["2026-08-31T00:00", "2026-08-31T23:59"] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    const chip = screen.getByRole("button", { name: "Created between 2026-08-31 00:00 - 23:59" })
+    expect((chip.textContent?.match(/2026-08-31/g) || []).length).toBe(1)
+
+    vi.useRealTimers()
+  })
+
+  it("drops the date entirely when a datetime range falls within today", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-09-06T12:00:00"))
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "between", value: ["2026-09-06T00:00", "2026-09-06T23:59"] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    const chip = screen.getByRole("button", { name: "Created between 00:00 - 23:59" })
+    expect(chip.textContent).not.toContain("2026-09-06")
+    expect(chip.textContent).toContain("between")
+    expect(chip.textContent).toContain("and")
+
+    vi.useRealTimers()
+  })
+
+  it("shortens the Time window filter label via the filter_fields i18n override", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-09-06T12:00:00"))
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "window", op: "between", value: ["2026-05-01T00:00", "2026-05-01T23:59"] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: "Time between 2026-05-01 00:00 - 23:59" })).toBeInTheDocument()
+
+    vi.useRealTimers()
+  })
+
   it("hydrates FK filter chip labels from saved filter ids", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = new URL(String(input), "http://example.test")
@@ -757,7 +832,7 @@ describe("FilterBar keyboard navigation", () => {
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
       fireEvent.keyDown(screen.getByPlaceholderText("Search filters..."), { key: "ArrowUp" })
 
-      expect(screen.getByRole("button", { name: "Due date" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+      expect(screen.getByRole("button", { name: "Time date" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
       expect(screen.getByRole("button", { name: "State list" })).not.toHaveClass("bg-gray-50")
     })
 

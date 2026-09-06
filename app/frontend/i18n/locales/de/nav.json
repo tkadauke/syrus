@@ -143,6 +143,7 @@
     "operator": "Operator",
     "or_alternative": "+ ODER Alternative",
     "or": "oder",
+    "and": "und",
     "value": "Wert",
     "nothing_selected": "Noch nichts ausgewählt",
     "search_by_name": "Nach Name suchen...",
@@ -209,7 +210,8 @@
   "filter_fields": {
     "queue_name": "Warteschlange",
     "job_class": "Aufgabenklasse",
-    "failed_since": "Fehlgeschlagen seit"
+    "failed_since": "Fehlgeschlagen seit",
+    "window": "Zeit"
   },
   "filter_operators": {
     "is": "ist",

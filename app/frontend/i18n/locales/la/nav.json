@@ -143,6 +143,7 @@
     "operator": "Operator",
     "or_alternative": "+ Alternativa AUT",
     "or": "aut",
+    "and": "et",
     "value": "Valor",
     "nothing_selected": "Nihil adhuc selectum",
     "search_by_name": "Quaere nomine...",
@@ -209,7 +210,8 @@
   "filter_fields": {
     "queue_name": "Nomen agminis",
     "job_class": "Classis operis",
-    "failed_since": "Defecta ab"
+    "failed_since": "Defecta ab",
+    "window": "Tempus"
   },
   "filter_operators": {
     "is": "est",
