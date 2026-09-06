@@ -36,4 +36,25 @@ RSpec.describe "Syrus grader configuration" do
       "desktop/scripts/stage-cli.mjs"
     )
   end
+
+  # migration-baselines ran `bin/rails db:create` with no bundle installed and
+  # died in two seconds with "Could not find rails-8.1.3.1, propshaft-...",
+  # i.e. the whole bundle missing. It is a REQUIRED grader in the landing and
+  # ci phases, so it held main red and blocked landing. It only ever passed
+  # when some earlier grader happened to install the bundle first -- an
+  # ordering dependency, not a contract.
+  it "makes every Rails-booting grader install its own bundle" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+
+    rails_booting = config.grade.steps.select do |step|
+      step.run.to_s.match?(%r{bin/check-primary-migration-baselines|bin/check-plugin-model-namespaces|bin/check-plugin-boundaries|bin/rails|bin/rspec})
+    end
+
+    expect(rails_booting).not_to be_empty
+    missing = rails_booting.reject { |step| step.run.include?("bundle check") || step.run.include?("bundle install") }
+
+    expect(missing.map(&:name)).to eq([]),
+      "these graders boot Rails but never install a bundle, so they depend on " \
+      "another grader having run first: #{missing.map(&:name).join(', ')}"
+  end
 end

@@ -144,7 +144,7 @@ grade:
       `production`, and `public` by default). This catches deleted or
       reordered migrations that are invisible on a fully migrated dev
       database but crash deploys when an environment is still behind.
-    run: bin/check-primary-migration-baselines
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-primary-migration-baselines
     phases: [landing, ci]
     timeout_minutes: 10
 
@@ -182,7 +182,7 @@ grade:
       their core superclass table, but new plugin tables must be clearly
       owned by the plugin to avoid collisions once engine migrations are
       installed into the host app.
-    run: bin/check-plugin-model-namespaces
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-model-namespaces
     phases: [review, landing, ci]
     required: true
     # Boots Rails before checking plugin-owned model classes. Under
@@ -198,7 +198,7 @@ grade:
       is acyclic. Core depending on a plugin is what makes a plugin
       undeletable, so this has to fail fast rather than surface as a
       mysterious boot error after someone removes a gem.
-    run: bin/check-plugin-boundaries
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-plugin-boundaries
     phases: [review, landing, ci]
     required: true
     # Boots Rails to read the plugin registry, same as the model-namespace
