@@ -40,6 +40,15 @@ class ChatAttachment < ApplicationRecord
       return if attachable.user_id == chat_session.user_id
     end
 
+    # A Job's "Chat about this" link is available to anyone with at least
+    # read access to its repository, not just the Job's creator -- matches
+    # the write-tier gate JobChatsController already enforces before this
+    # validation ever runs.
+    if attachable.is_a?(Job)
+      return if attachable.user_id == chat_session.user_id
+      return if attachable.repository.member_at_least?(chat_session.user, "read")
+    end
+
     errors.add(:attachable, "must belong to the chat session user") if attachable.user_id != chat_session.user_id
   end
 end

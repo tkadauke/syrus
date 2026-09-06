@@ -6,6 +6,7 @@
   "feedback_submitted": "Feedback submitted — a new workflow will start shortly.",
   "request_changes_submitted": "Created a new Job to track this feedback.",
   "view_in_chat": "View in chat",
+  "chat_about_this": "Chat about this",
   "prepare_skipped": "prepare skipped",
   "deployment_stages_label": "Deployment stages",
   "deployment_stage_pending": "Pending",

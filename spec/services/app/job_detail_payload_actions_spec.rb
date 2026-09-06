@@ -440,6 +440,49 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json can_start_chat" do
+    it "offers 'Chat about this' when the job has no chat origin and no discussion chat yet" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job).dig(:actions, :can_start_chat)).to be(true)
+    end
+
+    it "hides it once a discussion chat has been started" do
+      job = Factories.job_record(user: user, repository: repo)
+      chat = ChatSession.create!(user: user, repository: repo)
+      job.chat_attachments.create!(chat_session: chat)
+
+      expect(payload_for(job).dig(:actions, :can_start_chat)).to be(false)
+    end
+
+    it "hides it when the job already has a proposal-based origin chat" do
+      chat = ChatSession.create!(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
+      chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+
+      expect(payload_for(job).dig(:actions, :can_start_chat)).to be(false)
+    end
+
+    it "hides it from read-only repository members" do
+      user
+      reader = Factories.user(admin: false)
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      job = Factories.job_record(user: user, repository: repo)
+
+      reader_payload = App::JobDetailPayload.build(job: job, user: reader)
+
+      expect(reader_payload.dig(:actions, :can_start_chat)).to be(false)
+    end
+  end
+
   describe "#actions_json can_restart" do
     def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
       workflow = Workflow.create!(

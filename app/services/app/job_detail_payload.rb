@@ -232,6 +232,7 @@ module App
         total_cost_usd: cost_snapshot.fetch(:total_cost_usd)&.to_f,
         billed_runs_count: cost_snapshot.fetch(:billed_runs_count),
         source_chat: source_chat,
+        discussion_chat: discussion_chat_json,
         workflows_count: workflows_count,
         runs_count: runs_count,
         any_active_run: any_active_run,
@@ -725,6 +726,26 @@ module App
       @source_chat_payload ||= App::JobSourceChat.for(@job)
     end
 
+    # The "Chat about this" link (see JobChatsController), distinct from
+    # source_chat_payload's proposal-provenance chat. Present once a chat has
+    # been attached, whether or not the Job was itself proposed from a chat.
+    def discussion_chat_json
+      chat = discussion_chat
+      return nil unless chat
+
+      {
+        chat_id: chat.id,
+        chat_title: chat.title.presence,
+        path: chat_path(chat)
+      }
+    end
+
+    def discussion_chat
+      return @discussion_chat if defined?(@discussion_chat)
+
+      @discussion_chat = @job.discussion_chat
+    end
+
     def pending_feedback_json
       scope = @job.pr_review_comments.order(:comment_created_at, :id)
       scope = if @job.repository.feedback_policy_confirm?
@@ -888,6 +909,7 @@ module App
         can_unapprove: writable && @job.may_unapprove?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
         can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
+        can_start_chat: writable && source_chat_payload.nil? && discussion_chat.nil?,
         can_open_in_local_mode: writable && Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
         can_cancel_local_mode: writable && Feature.local_mode_enabled? && @job.coding?,
         linked_chat_id: @job.linked_chat_id,
@@ -967,6 +989,7 @@ module App
         app_stack_base_path: "/api/v1/app/jobs/#{@job.id}/stack_base",
         app_mark_valid_path: "/api/v1/app/jobs/#{@job.id}/mark_valid",
         app_attachments_path: "/api/v1/app/jobs/#{@job.id}/attachments",
+        app_start_chat_path: "/api/v1/app/jobs/#{@job.id}/start_chat",
         app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin",
         app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback",
         app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode",

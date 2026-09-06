@@ -606,6 +606,47 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#discussion_chat_json" do
+    it "returns nil when no chat has been attached (the 'Chat about this' link is offered instead)" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job).dig(:job, :discussion_chat)).to be_nil
+    end
+
+    it "returns the chat permanently linked via 'Chat about this'" do
+      job = Factories.job_record(user: user, repository: repo)
+      chat = ChatSession.create!(user: user, repository: repo, title: "Bug triage")
+      job.chat_attachments.create!(chat_session: chat)
+
+      expect(payload_for(job).dig(:job, :discussion_chat)).to eq(
+        chat_id: chat.id,
+        chat_title: "Bug triage",
+        path: "/chats/#{chat.id}"
+      )
+    end
+
+    it "is independent from the proposal-based source/origin chat" do
+      proposal_chat = ChatSession.create!(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
+      proposal_chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      discussion_chat = ChatSession.create!(user: user, repository: repo)
+      job.chat_attachments.create!(chat_session: discussion_chat)
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:job, :source_chat, :chat_id)).to eq(proposal_chat.id)
+      expect(payload.dig(:job, :discussion_chat, :chat_id)).to eq(discussion_chat.id)
+    end
+  end
+
   describe "#deployment_stages_json" do
     let(:stages) do
       [

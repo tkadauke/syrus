@@ -70,6 +70,7 @@ class Job < ApplicationRecord
   has_many :diff_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
+  has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   has_many :workflow_warnings, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -364,6 +365,15 @@ class Job < ApplicationRecord
 
   def title
     issue_title.presence || slug
+  end
+
+  # The chat permanently linked to this Job via "Chat about this" (see
+  # JobChatsController) -- distinct from linked_chat_id, which is Coding/Local
+  # Mode's exclusive-ownership link. Earliest attachment wins so the link
+  # stays stable once a discussion has started, even if the Job is later
+  # attached to additional chats as ordinary context elsewhere.
+  def discussion_chat
+    chat_attachments.order(:attached_at, :id).first&.chat_session
   end
 
   # Returns an "issue-shaped" object (responds to #title, #body) for
