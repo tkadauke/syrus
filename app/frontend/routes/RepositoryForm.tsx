@@ -1,6 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
@@ -21,11 +21,17 @@ import {
   type LinearTeam,
   type RepositoryFormPayload,
   type RepositoryInput,
+  type RepositoryReviewPolicy,
   saveInputSource,
   syncFork,
   updateInsightScheduleConfig,
   updateRepository
 } from "../api/repositories"
+import {
+  createRepositoryFinalApprover,
+  deleteRepositoryFinalApprover,
+  fetchRepositoryFinalApprovers
+} from "../api/repositoryFinalApprovers"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -34,6 +40,7 @@ import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
+import { useConfirm } from "../hooks/useConfirm"
 
 type OwnerOption = {
   login: string
@@ -517,6 +524,21 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </p>
           </Field>
 
+          <Field label={t('repository_form.label_review_policy')}>
+            <Select
+              aria-label={t('repository_form.label_review_policy')}
+              onChange={(event) => setValues({ ...values, review_policy: event.target.value as RepositoryReviewPolicy })}
+              value={values.review_policy}
+            >
+              <option value="self">{t('repository_form.review_policy_self')}</option>
+              <option value="two_person">{t('repository_form.review_policy_two_person')}</option>
+              <option value="final_say">{t('repository_form.review_policy_final_say')}</option>
+            </Select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t('repository_form.review_policy_hint')}
+            </p>
+          </Field>
+
         </section>
 
         <section className="space-y-3">
@@ -536,6 +558,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </div>
       </form>
 
+      {mode === "edit" && payload.repository.id && values.review_policy === "final_say" ? (
+        <FinalApproversSection repositoryId={payload.repository.id} />
+      ) : null}
+
       {mode === "edit" && payload.repository.id ? (payload.input_source_types || []).map((sourceType) => (
         <InputSourceSection key={sourceType.type} sourceType={sourceType} />
       )) : null}
@@ -547,6 +573,109 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         />
       ) : null}
     </>
+  )
+}
+
+function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
+  const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
+  const queryClient = useQueryClient()
+  const queryKey = ["repositories", repositoryId, "final_approvers"] as const
+  const [notice, setNotice] = useState<string | null>(null)
+  const [email, setEmail] = useState("")
+
+  const approvers = useQuery({
+    queryKey,
+    queryFn: () => fetchRepositoryFinalApprovers(repositoryId)
+  })
+
+  const create = useMutation({
+    mutationFn: () => createRepositoryFinalApprover(repositoryId, email),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setEmail("")
+      setNotice(updated.message || null)
+    }
+  })
+
+  const destroy = useMutation({
+    mutationFn: (finalApproverId: number) => deleteRepositoryFinalApprover(repositoryId, finalApproverId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setNotice(updated.message || null)
+    }
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setNotice(null)
+    create.mutate()
+  }
+
+  return (
+    <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div>
+        <SectionHeading>
+          {t('repository_form.final_approvers_heading')}
+        </SectionHeading>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t('repository_form.final_approvers_description')}
+        </p>
+      </div>
+
+      {notice ? <PanelMessage>{notice}</PanelMessage> : null}
+      {approvers.isError ? <PanelMessage tone="error">{errorMessage(approvers.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
+      {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
+      {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, t('repository_form.final_approvers_unable_to_load'))}</PanelMessage> : null}
+
+      {approvers.isPending ? (
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t('repository_form.final_approvers_loading')}</p>
+      ) : approvers.data && approvers.data.final_approvers.length === 0 ? (
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t('repository_form.final_approvers_empty')}</p>
+      ) : approvers.data ? (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          {approvers.data.final_approvers.map((approver) => (
+            <li className="flex items-center gap-3 py-2" key={approver.id}>
+              <div className="min-w-0 flex-1">
+                <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{approver.user.name}</div>
+                <div className="break-all text-xs text-gray-500 dark:text-gray-400">{approver.user.email_address}</div>
+              </div>
+              <button
+                className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
+                disabled={destroy.isPending}
+                onClick={async () => {
+                  if (await confirm({ message: t('repository_form.final_approvers_confirm_remove', { email: approver.user.email_address }), destructive: true })) {
+                    destroy.mutate(approver.id)
+                  }
+                }}
+                type="button"
+              >
+                {t('repository_form.final_approvers_remove')}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <form className="flex flex-wrap items-end gap-3" onSubmit={submit}>
+        <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t('repository_form.final_approvers_email_label')}
+          <div className="mt-1">
+            <Input
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder={t('repository_form.final_approvers_email_placeholder')}
+              required
+              type="email"
+              value={email}
+            />
+          </div>
+        </label>
+        <Button disabled={create.isPending} type="submit" variant="primary">
+          {create.isPending ? t('repository_form.final_approvers_adding') : t('repository_form.final_approvers_add_btn')}
+        </Button>
+      </form>
+      {dialog}
+    </section>
   )
 }
 
@@ -687,6 +816,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
     feedback_policy: payload.repository.feedback_policy,
+    review_policy: payload.repository.review_policy,
     epic_dependency_policy: payload.repository.epic_dependency_policy,
     github_owner_id: payload.repository.github_owner_id == null ? "" : String(payload.repository.github_owner_id),
     github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id)
