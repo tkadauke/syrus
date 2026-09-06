@@ -179,4 +179,14 @@ describe("KubernetesClusters", () => {
 
     expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
   })
+
+  it("lets the page scroll instead of clipping the list/edit form vertically", async () => {
+    setupFetchMock()
+    renderClusters()
+
+    const main = await screen.findByRole("main", { name: "Kubernetes Cluster Viewer" })
+
+    expect(main.className).not.toContain("overflow-hidden")
+    expect(main.className).not.toContain("h-full")
+  })
 })
