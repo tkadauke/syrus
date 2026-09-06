@@ -283,6 +283,16 @@ RSpec.describe TargetGraph::Compiler do
       expect(diagnostics.error).to include("//:grade/broken")
       expect(diagnostics.error).to include("//:missing")
     end
+
+    it "reports an unexpected non-TargetGraph::Error instead of raising, matching its documented never-raises contract" do
+      allow(RepoGradePlan).to receive(:for).and_raise(StandardError, "boom")
+
+      diagnostics = nil
+      expect { diagnostics = described_class.diagnose(@dir) }.not_to raise_error
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to eq(".syrus.yml: boom")
+    end
   end
 
   def write(rel, contents)
