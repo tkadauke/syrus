@@ -229,8 +229,14 @@ module Workflows
       [ "grader_fanout", "grader_collect" ]
     end
 
-    def self.initial_pr_finish_steps
-      [ "summarize", "test_plan", "pr_open", "review_plan" ]
+    # review_plan is opt-in per `.syrus.yml` (RepoReviewPlanPlan, read
+    # pre-clone the same way as the adversarial/visual review plans) -- a
+    # repo that hasn't configured it gets no review_plan Step at all rather
+    # than one that runs and immediately self-skips as a no-op.
+    def self.initial_pr_finish_steps(job)
+      steps = [ "summarize", "test_plan", "pr_open" ]
+      steps << "review_plan" if RepoReviewPlanPlan.for_job(job).enabled?
+      steps
     end
 
     def self.feedback_finish_steps

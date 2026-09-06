@@ -1590,6 +1590,9 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     )
+    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+      RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+    )
     user = Factories.user
     repository = Factories.repository(user: user)
     template_classes = Workflow::TriggerKind.entries.map(&:template_class).uniq

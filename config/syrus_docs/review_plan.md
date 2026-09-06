@@ -18,19 +18,27 @@ review_plan: true
 ```
 
 A bare boolean — not a nested block, unlike `adversarial_review` or
-`coverage`. Omitting the key (or setting it to `false`) leaves the step a
-no-op: `Steps::ReviewPlan` still runs but returns immediately without
-invoking the agent or posting anything. See [`syrus_yml.md`](syrus_yml.md).
+`coverage`. Omitting the key (or setting it to `false`) means no
+`review_plan` Step is created at all — a repository that hasn't opted in
+gets no trace of the step in its Workflow chain, not one that runs and
+immediately no-ops. See [`syrus_yml.md`](syrus_yml.md).
 
 ## How it works
 
-The `review_plan` step is inserted immediately after `pr_open` in workflows
+`RepoReviewPlanPlan` resolves whether `.syrus.yml` opts in by reading the
+repository's default-branch config through GitHub, the same pre-clone
+resolution `RepoAdversarialReviewPlan`/`RepoVisualReviewPlan` use — the
+chain shape is decided before the workflow workspace is cloned. When
+enabled, the `review_plan` step is appended after `pr_open` in workflows
 that end with `initial_pr_finish_steps` (`initial`, `retry`, and a few
 maintenance/handoff chains that share that terminal sequence) — it needs the
-PR to already exist so it has something to comment on.
+PR to already exist so it has something to comment on. When disabled, no
+`review_plan` Step is materialized in that Workflow's chain at all.
 
-1. Reads `.syrus.yml` from the already-cloned workspace. If `review_plan` is
-   not `true`, the step logs and returns without doing anything.
+1. As a safety net against the branch under implementation having changed
+   `.syrus.yml` since the pre-clone check, the step also reads `.syrus.yml`
+   from the already-cloned workspace when it does run; if `review_plan` is
+   not `true` there either, it logs and returns without doing anything.
 2. If a `review_plan` workflow artifact already exists (e.g. because a prior
    step called `submit_review_plan`), the step skips the agent call
    entirely, the same short-circuit `test_plan` uses.
