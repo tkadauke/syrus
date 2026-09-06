@@ -255,6 +255,21 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
                 </Link>
               </span>
             ) : null}
+            {payload.job.discussion_chat ? (
+              <span>
+                · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.discussion_chat.path, prefix)}>
+                  <ChatBubbleIcon />
+                  <span>{payload.job.discussion_chat.chat_title || t("chat_about_this")}</span>
+                </Link>
+              </span>
+            ) : payload.actions.can_start_chat ? (
+              <span>
+                · <button className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_start_chat_path })} type="button">
+                  <ChatBubbleIcon />
+                  <span>{t("chat_about_this")}</span>
+                </button>
+              </span>
+            ) : null}
           </div>
         </div>
       </header>

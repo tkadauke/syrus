@@ -121,6 +121,7 @@ export type JobRecord = {
   total_cost_usd: number | null
   billed_runs_count: number
   source_chat: JobSourceChat | null
+  discussion_chat: JobDiscussionChat | null
   workflows_count: number
   runs_count: number
   any_active_run: boolean
@@ -322,6 +323,14 @@ export type JobOrigin = {
 export type JobOriginChat = {
   chat_session_id: number
   message_id: number
+}
+
+// The chat permanently linked to this Job via "Chat about this" -- set once
+// the operator starts a discussion for a Job with no chat origin of its own.
+export type JobDiscussionChat = {
+  chat_id: number
+  chat_title: string | null
+  path: string
 }
 
 export type JobTag = {
@@ -703,6 +712,7 @@ export type JobActions = {
   can_unapprove: boolean
   can_reopen: boolean
   can_mark_valid: boolean
+  can_start_chat: boolean
   can_open_in_local_mode: boolean
   can_cancel_local_mode: boolean
   linked_chat_id: number | null
@@ -785,6 +795,7 @@ export type JobPaths = {
   app_stack_base_path: string
   app_mark_valid_path: string
   app_attachments_path: string
+  app_start_chat_path: string
   app_pin_path: string
   app_pending_feedback_path?: string
   app_open_in_coding_mode_path: string

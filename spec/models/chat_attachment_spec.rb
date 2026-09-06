@@ -55,6 +55,37 @@ RSpec.describe ChatAttachment do
     )
   end
 
+  describe "attaching a Job" do
+    let(:job) { Factories.job_record(user: user, repository: repository) }
+
+    it "allows the job's creator to attach it" do
+      attachment = described_class.new(chat_session: chat_session, attachable: job)
+
+      expect(attachment).to be_valid
+    end
+
+    it "allows a repository member who did not create the job" do
+      member = Factories.user
+      RepositoryMembership.create!(repository: repository, user: member, role: "read")
+      member_chat = ChatSession.create!(user: member)
+
+      attachment = described_class.new(chat_session: member_chat, attachable: job)
+
+      expect(attachment).to be_valid
+    end
+
+    it "rejects a user with no access to the job's repository" do
+      job # ensure the job's owner is created before the unrelated outsider,
+          # since the first User created in a test example is auto-admin
+      outsider_chat = ChatSession.create!(user: Factories.user)
+
+      attachment = described_class.new(chat_session: outsider_chat, attachable: job)
+
+      expect(attachment).not_to be_valid
+      expect(attachment.errors[:attachable]).to include("must belong to the chat session user")
+    end
+  end
+
   it "broadcasts the updated chat header after detaching a repository" do
     attachment = described_class.create!(chat_session: chat_session, attachable: repository)
     allow(AppEvents).to receive(:broadcast)

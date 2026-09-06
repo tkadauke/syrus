@@ -173,6 +173,31 @@ Workflows/Runs through their Job, and pull request numbers that map back to a
 Syrus Job. Ordinary chats do not receive events for unrelated Jobs or Epics, and
 generic chat attachments are not treated as origin evidence.
 
+## Chat about this
+
+A Job whose page shows no chat link at all -- a bug report or an externally
+ingested Job, neither of which was proposed from a chat -- offers a
+"Chat about this" action (`POST /api/v1/app/jobs/:job_id/start_chat`,
+`Api::V1::App::JobChatsController`). It is hidden once the Job already has
+either kind of chat link: the proposal-provenance `source_chat`/`origin_chat`
+above, or a discussion chat already started this way.
+
+Starting one creates an ordinary chat scoped to the Job's repository and
+attaches the Job to it via the same `ChatAttachment` polymorphic join that
+backs the sidebar attachment lists in this doc -- so the link is immediately
+visible both ways: the chat's Jobs attachment list includes the Job, and the
+Job detail page's chat link now points at this chat going forward
+(`Job#discussion_chat`, the earliest-attached chat session; see
+`App::JobDetailPayload#discussion_chat_json`). Re-running the action once a
+discussion chat exists reuses it instead of creating a second one. The
+endpoint itself requires write access to the Job (creator, write-tier
+repository member, or admin -- the same `authorize_job_mutation!` gate other
+Job actions use); `ChatAttachment`'s validation only requires read access to
+the Job's repository, matching the looser bar Repository attachments already
+use, so it never blocks the write-gated action above it. This link is plain
+conversation, not ownership: unlike Coding/Local Mode's `linked_chat_id`, it
+never blocks automation or takes over the Job's implement step.
+
 When the `chat_context_compaction` feature is enabled, long-running Supervisor
 chats keep their durable `ChatMessage` transcript but stop replaying all older
 raw messages into the provider session. `ChatTurnJob` stores
