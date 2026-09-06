@@ -1786,6 +1786,10 @@ class Job < ApplicationRecord
   def epic_children_share_one_effective_owner
     return unless epic
 
+    # "Open" here deliberately matches MergeTrainAssembler#open_children
+    # (state != "closed"), not the TERMINAL_STATES-based open_threads/open?
+    # used elsewhere on Job -- this validation exists specifically to keep
+    # MergeTrainAssembler's landing bundle single-owner.
     conflicting = epic.jobs
       .where.not(state: "closed")
       .where.not(id: id)

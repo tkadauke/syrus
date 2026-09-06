@@ -185,6 +185,31 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(created.runs).to be_empty
     end
 
+    it "rejects a mismatched-owner assignment into a populated Epic with a validation error, not a 500" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+      epic = Factories.epic(user: admin, repository: repo, title: "Marble administration")
+      existing_owner = Factories.user(email_address: "existing-owner@example.com")
+      Factories.job_record(user: admin, repository: repo, epic: epic, owner_user: existing_owner, state: "queued")
+      mismatched_owner = Factories.user(email_address: "mismatched-owner@example.com")
+
+      expect {
+        post "/api/v1/admin/jobs",
+             params: {
+               job: {
+                 repository_id: repo.id,
+                 epic_id: epic.id,
+                 owner_user_id: mismatched_owner.id,
+                 prompt: "Add a second piece to the Epic."
+               }
+             },
+             headers: auth(admin_token)
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to match(/owned by a different user/)
+    end
+
     it "marks the title pending and enqueues title generation when admin title is blank" do
       RunJob.agent_runner = ->(**_) { raise "blank direct job titles should not invoke the title agent inline" }
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
