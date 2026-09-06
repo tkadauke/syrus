@@ -1419,7 +1419,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "and" => [
           { "field" => "attention", "op" => "is", "value" => "inbox" },
           { "field" => "job_type", "op" => "is", "value" => "user" },
-          { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+          { "field" => "eligible_approver", "op" => "is", "value" => "me" }
         ]
       )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
