@@ -815,6 +815,26 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#authenticated_login" do
+    let(:client) { GithubClient.for_user(user) }
+
+    it "returns just the authenticated credential's own login" do
+      stub_request(:get, "https://api.github.com/user")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { login: "john" }.to_json)
+
+      expect(client.authenticated_login).to eq("john")
+    end
+
+    it "raises on rate limiting instead of swallowing it" do
+      stub_request(:get, "https://api.github.com/user")
+        .to_return(status: 403, headers: { "Content-Type" => "application/json", "x-ratelimit-remaining" => "0" },
+                   body: { message: "API rate limit exceeded" }.to_json)
+
+      expect { client.authenticated_login }.to raise_error(Octokit::TooManyRequests)
+    end
+  end
+
   describe "#create_issue" do
     let(:client) { GithubClient.for_user(user) }
 
