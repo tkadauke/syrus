@@ -310,9 +310,9 @@ describe("ChatWorkspacePanel coding files", () => {
 
     expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
     expect(screen.getByText("1")).toBeInTheDocument()
-    const keyword = screen.getByText("const")
+    const keyword = await screen.findByText("const")
     expect(keyword.tagName).toBe("SPAN")
-    expect(keyword).toHaveClass("font-semibold")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
     expect(container.querySelector("pre code")).not.toBeInTheDocument()
   })
 
