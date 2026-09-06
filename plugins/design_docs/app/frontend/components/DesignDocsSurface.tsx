@@ -169,7 +169,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, initi
   })
 
   return (
-    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[100rem] space-y-6 p-6"}>
+    <main aria-label="Design docs" className={compact ? "space-y-4" : "mx-auto max-w-[96rem] space-y-6 p-6"}>
       {showPageHeader ? (
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
