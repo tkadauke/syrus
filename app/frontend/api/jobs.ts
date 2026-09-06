@@ -703,6 +703,7 @@ export type JobActions = {
   retry_implementation_action?: JobRetryAction | null
   can_restart: boolean
   can_cancel: boolean
+  can_stop_landing: boolean
   can_approve: boolean
   can_unapprove: boolean
   can_reopen: boolean
@@ -773,6 +774,7 @@ export type JobPaths = {
   app_run_again_path: string
   app_restart_path: string
   app_cancel_path: string
+  app_stop_landing_path: string
   app_approve_path: string
   app_unapprove_path: string
   app_reopen_path: string

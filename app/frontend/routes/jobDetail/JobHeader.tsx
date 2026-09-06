@@ -247,6 +247,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
   if (actions.can_open_in_local_mode) available.push({ key: "open_in_local_mode", label: t("open_in_local_mode"), input: { method: "post", path: paths.app_open_in_local_mode_path }, tone: "secondary" })
   if (actions.can_cancel_local_mode) available.push({ key: "cancel_local_mode", label: t("cancel_local_mode"), input: { method: "post", path: paths.app_cancel_local_mode_path, confirm: t("confirm_cancel_local_mode") }, tone: "danger" })
+  if (actions.can_stop_landing) available.push({ key: "stop_landing", label: t("stop_landing"), input: { method: "post", path: paths.app_stop_landing_path, confirm: t("confirm_stop_landing") }, tone: "danger" })
   if (actions.can_cancel) {
     const backlogged = payload.job.state === "backlog"
     available.push({
@@ -273,7 +274,9 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     if (availableKeys.has(key) && keys.length < 2) keys.push(key)
   }
 
-  if (payload.job.any_active_run || jobState === "running") {
+  if (jobState === "landing") {
+    add("stop_landing")
+  } else if (payload.job.any_active_run || jobState === "running") {
     add("cancel")
   } else if (jobState === "coding") {
     add("cancel_local_mode")

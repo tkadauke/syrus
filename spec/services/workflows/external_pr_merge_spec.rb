@@ -84,6 +84,33 @@ RSpec.describe Workflows::ExternalPrMerge do
     expect(described_class.queue_name).to eq(:merges)
   end
 
+  describe "after_cancel" do
+    let(:workflow) do
+      job.approve!(via: "operator")
+      job.start_landing!
+      job.save!
+      described_class.instantiate(job: job).tap { |w| w.update!(state: "cancelled") }
+    end
+
+    it "calls LandingFailureHandler to revert the job to :implemented" do
+      expect(LandingFailureHandler).to receive(:call).with(
+        job: job, reason: "operator stopped landing", run: nil
+      )
+
+      described_class.after_cancel(workflow)
+    end
+
+    it "is a no-op when the job is not landing" do
+      job.update_columns(state: "approved")
+      non_landing_workflow = described_class.instantiate(job: job)
+      non_landing_workflow.update!(state: "cancelled")
+
+      expect(LandingFailureHandler).not_to receive(:call)
+
+      described_class.after_cancel(non_landing_workflow)
+    end
+  end
+
   describe "after_fail" do
     let(:workflow) do
       job.approve!(via: "operator")

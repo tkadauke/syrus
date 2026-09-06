@@ -40,4 +40,27 @@ RSpec.describe Workflows::AutoMerge do
       described_class.after_success(workflow)
     end
   end
+
+  describe ".after_cancel" do
+    it "reverts a landing job to :implemented via LandingFailureHandler" do
+      workflow = described_class.instantiate(job: job)
+      workflow.update!(state: "cancelled")
+
+      expect(LandingFailureHandler).to receive(:call).with(
+        job: job, reason: "operator stopped landing", run: nil
+      )
+
+      described_class.after_cancel(workflow)
+    end
+
+    it "is a no-op when the job is not landing" do
+      job.update_columns(state: "approved")
+      workflow = described_class.instantiate(job: job)
+      workflow.update!(state: "cancelled")
+
+      expect(LandingFailureHandler).not_to receive(:call)
+
+      described_class.after_cancel(workflow)
+    end
+  end
 end

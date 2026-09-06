@@ -882,7 +882,8 @@ module App
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
           ),
-        can_cancel: writable && @job.open?,
+        can_cancel: writable && mutable_runtime_job,
+        can_stop_landing: writable && @job.landing?,
         can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user) && !simple_epic_child?,
         can_unapprove: writable && @job.may_unapprove?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
@@ -947,6 +948,7 @@ module App
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
         app_cancel_path: "/api/v1/app/jobs/#{@job.id}/cancel",
+        app_stop_landing_path: "/api/v1/app/jobs/#{@job.id}/stop_landing",
         app_approve_path: "/api/v1/app/jobs/#{@job.id}/approve",
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",

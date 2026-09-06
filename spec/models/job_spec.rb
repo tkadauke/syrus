@@ -943,6 +943,68 @@ RSpec.describe Job, :ci_only do
       expect(job.active_runtime_workflows).to be_empty
     end
 
+    describe "#stop_landing!" do
+      it "cancels the active landing workflow and reverts the job to :implemented, clearing approval" do
+        job = Factories.job_record(state: "implemented")
+        job.approve!(via: "operator")
+        job.start_landing!
+        job.save!
+
+        workflow = Workflow.create!(
+          job: job,
+          trigger_kind: "auto_merge",
+          state: "running",
+          started_at: 5.minutes.ago
+        )
+        intent = WorkIntent.create!(
+          kind: "auto_merge",
+          state: "requested",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          actor: job.user,
+          source_type: "spec"
+        )
+        unit = WorkUnit.create!(
+          work_intent: intent,
+          kind: "auto_merge",
+          state: "running",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          workflow: workflow
+        )
+        unit.work_unit_members.create!(job: job, role: "primary")
+
+        job.stop_landing!
+
+        expect(job.reload).to be_implemented
+        expect(job.approved_at).to be_nil
+        expect(job.approved_via).to be_nil
+        expect(workflow.reload).to be_cancelled
+        expect(workflow.artifact("cancelled_reason")).to eq("operator_stopped_landing")
+        expect(unit.reload).to be_cancelled
+      end
+
+      it "does nothing when the job is not landing" do
+        job = Factories.job_record(state: "implemented")
+
+        expect { job.stop_landing! }.not_to change { job.reload.state }
+      end
+
+      it "falls back to fail_landing! when no active landing workflow is found" do
+        job = Factories.job_record(state: "implemented")
+        job.approve!(via: "operator")
+        job.start_landing!
+        job.save!
+
+        job.stop_landing!
+
+        expect(job.reload).to be_implemented
+        expect(job.approved_at).to be_nil
+      end
+    end
+
     it "ignores auxiliary visual diff workflows when reporting active primary runtime work" do
       job = Factories.job_record(state: "running")
       visual_diff = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "running")

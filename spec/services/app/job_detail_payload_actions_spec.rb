@@ -604,6 +604,23 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json can_stop_landing" do
+    it "offers stop_landing for a landing job owned by the current user" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing")
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_stop_landing)).to be(true)
+      expect(payload.dig(:paths, :app_stop_landing_path)).to eq("/api/v1/app/jobs/#{job.id}/stop_landing")
+    end
+
+    it "does not offer stop_landing for a non-landing job" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+
+      expect(payload_for(job).dig(:actions, :can_stop_landing)).to be(false)
+    end
+  end
+
   describe "#actions_json retry actions" do
     def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
       workflow = Workflow.create!(

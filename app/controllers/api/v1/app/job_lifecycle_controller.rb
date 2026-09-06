@@ -190,6 +190,19 @@ module Api
           render_job(job.reload, message: "Cancellation requested.", changed: [ "state", "runs" ])
         end
 
+        def stop_landing
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.landing?
+            render_error("validation_failed", "Job is not currently landing.", status: :unprocessable_content)
+            return
+          end
+
+          job.stop_landing!
+          render_job(job.reload, message: "Landing stopped.", changed: [ "state", "workflows", "runs" ])
+        end
+
         def force_fail
           unless Current.user.admin?
             render_error("forbidden", "Admin access required.", status: :forbidden)
