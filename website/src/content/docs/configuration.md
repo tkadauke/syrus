@@ -402,6 +402,12 @@ required before a Job can enter the landing queue.
 | `two_person` | The job owner **and** at least one other user must both approve |
 | `final_say` | The job owner must approve, plus one user from the repository's designated final-approvers list. If the owner is already a final approver, the policy collapses to `self`. |
 
+The Inbox smart folder on the dashboard follows this policy too: it surfaces
+a Job to any user whose approval would actually satisfy the job's review
+policy, not just the job's owner. Under `two_person` that means any other
+user; under `final_say` that means the owner plus the repository's
+designated final approvers.
+
 ### How approvals work
 
 When the repository's review policy is anything other than `self`, the

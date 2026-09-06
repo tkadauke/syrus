@@ -37,13 +37,15 @@ module Filters
           base + user_opts
         end
 
-        EFFECTIVE_OWNER_SQL = "(jobs.owner_user_id = :user_id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :user_id))"
-
+        # Reuses Job::EFFECTIVE_OWNER_SQL (bind name :id) instead of
+        # hand-rolling the ownership-fallback predicate a second time, so a
+        # future change to that rule can't silently drift between the two
+        # call sites.
         ELIGIBILITY_SQL = <<~SQL.squish.freeze
-          #{EFFECTIVE_OWNER_SQL}
-          OR (repositories.review_policy = 'two_person' AND jobs.user_id != :user_id)
+          (#{Job::EFFECTIVE_OWNER_SQL})
+          OR (repositories.review_policy = 'two_person' AND jobs.user_id != :id)
           OR (repositories.review_policy = 'final_say' AND jobs.repository_id IN (
-            SELECT repository_id FROM repository_final_approvers WHERE user_id = :user_id
+            SELECT repository_id FROM repository_final_approvers WHERE user_id = :id
           ))
         SQL
 
@@ -54,7 +56,7 @@ module Filters
         def self.eligible_for(base, user_id)
           return base.none if user_id.blank?
 
-          base.joins(:repository).where(ELIGIBILITY_SQL, user_id: user_id)
+          base.joins(:repository).where(ELIGIBILITY_SQL, id: user_id)
         end
 
         def apply
