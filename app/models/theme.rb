@@ -9,6 +9,28 @@ class Theme < ApplicationRecord
     brand brand-emphasis surface surface-raised border text-primary
     text-secondary success warning danger info neutral on-brand
   ].freeze
+
+  # Syntax-highlighting token keys for Shiki's `css-variables` theme mode
+  # (EPIC-309). Names mirror exactly what @shikijs/core's
+  # createCssVariablesTheme() looks up under `--shiki-<name>` (verified
+  # against its theme-css-variables.ts source and by inspecting real
+  # codeToTokensBase() output) -- `foreground` for otherwise-unstyled
+  # tokens/whitespace, the rest prefixed `token-` for actual syntax scopes
+  # (keyword, string, etc). app/frontend/lib/highlighter.ts's
+  # cssVariablesTheme must keep the default `--shiki-` prefix for these
+  # names to resolve with no translation layer.
+  #
+  # Deliberately NOT part of #tokens_has_required_shape like TOKEN_KEYS:
+  # a custom/agent-authored theme that skips these still renders reasonably
+  # via the `--shiki-*` fallback values in application.css, which resolve
+  # through that same custom theme's own TOKEN_KEYS values (see the
+  # fallback block's var(--color-*) indirection).
+  SYNTAX_TOKEN_KEYS = %w[
+    foreground token-keyword token-string token-string-expression
+    token-comment token-constant token-function token-parameter
+    token-punctuation token-link token-inserted token-deleted token-changed
+  ].freeze
+
   MODES = %w[light dark].freeze
   TERRACOTTA_SLUG = "terracotta".freeze
 

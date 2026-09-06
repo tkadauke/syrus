@@ -51,6 +51,10 @@ module ThemeCssGenerator
     mode_tokens = theme.tokens.fetch(mode)
     lines = ["#{selector} {"]
     Theme::TOKEN_KEYS.each { |key| lines << "  --color-#{key}: #{mode_tokens.fetch(key)};" }
+    Theme::SYNTAX_TOKEN_KEYS.each do |key|
+      value = mode_tokens[key]
+      lines << "  --shiki-#{key}: #{value};" if value
+    end
     lines << "}"
     lines
   end
