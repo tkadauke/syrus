@@ -47,6 +47,13 @@ class Job < ApplicationRecord
   # and low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "urgent" => -10, "high" => 0, "medium" => 10, "low" => 20 }.freeze
+  # Raw SQL predicate for "effectively owned by :id" — owner_user_id when
+  # set, else the creating user. Mirrors the `owner_user_id.presence ||
+  # user_id` convention so a job with a NULL owner still counts as its
+  # creator's for owner-scoped views. Shared with
+  # Filters::Chips::Jobs::EligibleApprover so the ownership-fallback rule
+  # lives in exactly one place.
+  EFFECTIVE_OWNER_SQL = "jobs.owner_user_id = :id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :id)"
   attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition, :releasing_from_backlog
 
   belongs_to :user
@@ -150,12 +157,10 @@ class Job < ApplicationRecord
   scope :closed_threads, -> { where(state: "closed") }
   scope :not_manually_paused, -> { where(manual_paused: false) }
   # Effective ownership: owner_user_id when set, else the creating user.
-  # Mirrors the `owner_user_id.presence || user_id` convention so a job
-  # with a NULL owner still counts as its creator's for owner-scoped
-  # views. Defensive against any residual NULL owners; new jobs default
+  # Defensive against any residual NULL owners; new jobs default
   # owner_user_id at creation (see default_owner_user).
   scope :effectively_owned_by, ->(user) {
-    where("jobs.owner_user_id = :id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :id)", id: user.id)
+    where(EFFECTIVE_OWNER_SQL, id: user.id)
   }
   # Jobs visible to a user: any job on a repository they're a member of
   # (directly or via a Team grant), plus jobs on upstream repositories of
