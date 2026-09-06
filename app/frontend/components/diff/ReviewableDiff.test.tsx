@@ -150,7 +150,7 @@ describe("ReviewableDiff", () => {
     render(
       <ReviewableDiff
         composingBody="Please add a regression spec."
-        composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+" }, side: "new" }}
+        composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+", hunkId: -1 }, side: "new" }}
         files={files}
         mode="single-file"
         onCancelComposing={onCancelComposing}
@@ -236,7 +236,7 @@ describe("ReviewableDiff", () => {
     render(
       <ReviewableDiff
         composingBody="Please add a regression spec."
-        composingSelection={{ file: files[0], line: { code: "unrelated", kind: "add", newLine: 999, oldLine: null, marker: "+" }, side: "new" }}
+        composingSelection={{ file: files[0], line: { code: "unrelated", kind: "add", newLine: 999, oldLine: null, marker: "+", hunkId: -1 }, side: "new" }}
         files={files}
         mode="single-file"
         onCommentLine={vi.fn()}
