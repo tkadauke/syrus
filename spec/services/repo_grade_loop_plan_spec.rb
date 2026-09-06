@@ -1,132 +1,100 @@
 require "rails_helper"
 
 RSpec.describe RepoGradeLoopPlan do
-  let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
-  let(:client) { instance_double(GithubClient) }
-
-  it "is unconfigured without touching GitHub when credentials are unavailable" do
-    user.update!(github_token: nil)
-    expect(GithubClient).not_to receive(:for)
-
-    result = described_class.new(repository: repository, user: user).resolve
-
-    expect(result).not_to be_any_configured
-    expect(result.note).to eq("no GitHub credentials")
+  def loaded(config: nil, source: "none", note: nil)
+    RepoDefaultBranchSyrusYml::Result.new(config: config, source: source, note: note)
   end
 
-  it "is unconfigured when .syrus.yml is absent" do
-    allow(client).to receive(:file_content_at).and_return(nil)
-
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result).not_to be_any_configured
-    expect(result.note).to eq("no .syrus.yml")
+  def parse(yaml)
+    SyrusYml.new(yaml).parse
   end
 
-  it "is unconfigured when none of formatters/generated/grade are declared" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: "prepare: []\n", size: 12)
+  describe ".from_syrus_yml" do
+    it "is unconfigured when the shared loader has no config" do
+      result = described_class.from_syrus_yml(loaded(note: "no GitHub credentials"))
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      expect(result).not_to be_any_configured
+      expect(result.note).to eq("no GitHub credentials")
+    end
 
-    expect(result.format_configured).to eq(false)
-    expect(result.generate_configured).to eq(false)
-    expect(result.graders_configured).to eq(false)
-    expect(result).not_to be_any_configured
-  end
+    it "is unconfigured when none of formatters/generated/grade are declared" do
+      config = parse("prepare: []\n")
 
-  it "reports format_configured when formatters is a non-empty array" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 60)
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
+
+      expect(result.format_configured).to eq(false)
+      expect(result.generate_configured).to eq(false)
+      expect(result.graders_configured).to eq(false)
+      expect(result).not_to be_any_configured
+    end
+
+    it "reports format_configured when formatters is a non-empty array" do
+      config = parse(<<~YAML)
         formatters:
           - command: rubocop -a
             files: "**/*.rb"
       YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-    expect(result.format_configured).to eq(true)
-    expect(result.generate_configured).to eq(false)
-    expect(result.graders_configured).to eq(false)
-    expect(result).to be_any_configured
-  end
+      expect(result.format_configured).to eq(true)
+      expect(result.generate_configured).to eq(false)
+      expect(result.graders_configured).to eq(false)
+      expect(result).to be_any_configured
+    end
 
-  it "reports generate_configured when generated is a non-empty array" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 80)
+    it "reports generate_configured when generated is a non-empty array" do
+      config = parse(<<~YAML)
         generated:
           - command: bin/rails db:schema:dump
             generates: "db/schema.rb"
       YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-    expect(result.generate_configured).to eq(true)
-    expect(result.format_configured).to eq(false)
-    expect(result.graders_configured).to eq(false)
-    expect(result).to be_any_configured
-  end
+      expect(result.generate_configured).to eq(true)
+      expect(result.format_configured).to eq(false)
+      expect(result.graders_configured).to eq(false)
+      expect(result).to be_any_configured
+    end
 
-  it "reports graders_configured when grade steps are declared" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 40)
+    it "reports graders_configured when grade steps are declared" do
+      config = parse(<<~YAML)
         grade:
           - name: tests
             run: bin/rspec
       YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-    expect(result.graders_configured).to eq(true)
-    expect(result.format_configured).to eq(false)
-    expect(result.generate_configured).to eq(false)
-    expect(result).to be_any_configured
-  end
+      expect(result.graders_configured).to eq(true)
+      expect(result.format_configured).to eq(false)
+      expect(result.generate_configured).to eq(false)
+      expect(result).to be_any_configured
+    end
 
-  it "is unconfigured when formatters/generated are explicitly disabled and grade has no steps" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 60)
+    it "is unconfigured when formatters/generated are explicitly disabled and grade has no steps" do
+      config = parse(<<~YAML)
         formatters: false
         generated: false
         grade: []
       YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-    expect(result).not_to be_any_configured
+      expect(result).not_to be_any_configured
+    end
   end
 
-  it "is unconfigured when the config is invalid" do
-    allow(client).to receive(:file_content_at).and_return(content: "grade:\n  max_iterations: many\n", size: 35)
+  describe ".for_job" do
+    it "resolves through RepoDefaultBranchSyrusYml.for_job" do
+      job = instance_double(Job)
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(loaded(note: "no .syrus.yml"))
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.for_job(job)
 
-    expect(result).not_to be_any_configured
-    expect(result.note).to match(/grade\.max_iterations: must be an integer/)
-  end
-
-  it "is unconfigured when the config cannot be fetched" do
-    allow(client).to receive(:file_content_at).and_raise(StandardError, "network unavailable")
-
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result).not_to be_any_configured
-    expect(result.note).to eq("network unavailable")
-  end
-
-  it "is unconfigured when workflow setup has an unrelated GithubClient test double" do
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    expect(client).not_to receive(:file_content_at)
-
-    result = described_class.new(repository: repository, user: user).resolve
-
-    expect(result).not_to be_any_configured
-    expect(result.note).to eq("GitHub client unavailable")
+      expect(result).not_to be_any_configured
+      expect(result.note).to eq("no .syrus.yml")
+    end
   end
 end

@@ -12,7 +12,7 @@ RSpec.describe Steps::ReviewPlan do
   # Stubbed inline (not in a `before` block) so it's guaranteed to run
   # before this `let!(:implement_run)`-triggered instantiation below.
   let(:workflow) do
-    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+    allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
       RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
     )
     Workflows::Initial.instantiate(job: job)

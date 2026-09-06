@@ -1587,12 +1587,12 @@ RSpec.describe "Work engine reconciler chaos simulation" do
   it "covers every registered workflow template and every registered step kind" do
     AppSetting.current.update!(adversarial_review_rounds: 1)
     allow(Feature).to receive(:visual_review_enabled?).and_return(true)
-    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
-      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
-    )
-    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
-      RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
-    )
+    grade_loop_plan = RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
+    allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)
+    review_plan_plan = RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(review_plan_plan)
+    allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(review_plan_plan)
     user = Factories.user
     repository = Factories.repository(user: user)
     template_classes = Workflow::TriggerKind.entries.map(&:template_class).uniq

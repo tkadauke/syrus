@@ -276,9 +276,13 @@ back as a repair step once a grader iteration actually fails.
 
 None of `format`, `generate`, or the `grader_fanout`/`grader_collect` check
 phase is materialized as a Step by default. `Workflows::Base.grader_retry_loop`
-resolves `RepoGradeLoopPlan.for_job(job)` before the workspace is cloned
-(mirrors `RepoAdversarialReviewPlan`/`RepoVisualReviewPlan` — reads
-`.syrus.yml` from the repository's default branch through GitHub) to decide
+resolves `RepoGradeLoopPlan` (via `.from_syrus_yml` for `initial`/`retry`,
+which fetch the repository's default-branch `.syrus.yml` through GitHub once
+per workflow instantiation via `RepoDefaultBranchSyrusYml` and share the
+parsed config across `RepoAdversarialReviewPlan`/`RepoVisualReviewPlan`/
+`RepoGradeLoopPlan`/`RepoReviewPlanPlan` instead of each plan fetching it
+independently; other call sites still resolve it standalone via
+`RepoGradeLoopPlan.for_job(job)`) before the workspace is cloned, to decide
 whether the repository's `.syrus.yml` actually configures `formatters:`,
 `generated:`, or `grade:`. A freshly onboarded repository with no
 `.syrus.yml` yet gets no grade loop at all — nothing to hide, since no Step

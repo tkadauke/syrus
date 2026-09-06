@@ -5,9 +5,9 @@ RSpec.describe Workflows do
   let(:job) { Factories.job }
 
   before do
-    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
-      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
-    )
+    grade_loop_plan = RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_loop_plan)
+    allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(grade_loop_plan)
   end
 
   describe ".for(trigger_kind:)" do
@@ -36,8 +36,7 @@ RSpec.describe Workflows do
 
   describe ".instantiate(job:)" do
     it "creates the workflow + chain for Initial in transaction" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)
@@ -62,8 +61,7 @@ RSpec.describe Workflows do
     end
 
     it "inserts the adversarial review loop before the grade loop for Initial when enabled" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)
@@ -110,8 +108,7 @@ RSpec.describe Workflows do
     end
 
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       AppSetting.current.update!(adversarial_review_rounds: 0)
 
@@ -149,8 +146,7 @@ RSpec.describe Workflows do
     end
 
     it "falls back to AppSetting adversarial review rounds when the repo has no plan" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       AppSetting.current.update!(adversarial_review_rounds: 1)
 
@@ -184,8 +180,7 @@ RSpec.describe Workflows do
     end
 
     it "records the configured adversarial review round budget in the chain template" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)

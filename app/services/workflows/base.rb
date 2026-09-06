@@ -129,6 +129,30 @@ module Workflows
       "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
     end
 
+    # Fetches and parses the repository's default-branch `.syrus.yml`
+    # exactly once. Callers that consult more than one Repo*Plan while
+    # building a chain (Initial, Retry, CodingHandoff, MainBranchRepair,
+    # LocalModeHandoff) should call this at the top of `steps_for` and pass
+    # the result to `adversarial_review_loop`/`visual_review_loop`/
+    # `grader_retry_loop`/`initial_pr_finish_steps`/`adversarial_review_rounds`
+    # via `syrus_yml:` -- otherwise each of those independently re-fetches
+    # the same file at the same ref. Call sites that only ever touch one
+    # Repo*Plan can omit `syrus_yml:` and let the helper resolve it itself.
+    def self.resolve_default_branch_syrus_yml(job)
+      RepoDefaultBranchSyrusYml.for_job(job)
+    end
+
+    # When the caller already resolved `syrus_yml:` (Initial, Retry,
+    # CodingHandoff, MainBranchRepair, LocalModeHandoff), reuse it via the
+    # thin `plan_class.from_syrus_yml` adapter. When it wasn't resolved
+    # (every other call site), fall back to `plan_class.for_job(job)` so
+    # those callers keep making their own independent fetch, unchanged --
+    # this also keeps them stubbable via `Repo*Plan.for_job` in specs that
+    # don't pass `syrus_yml:`.
+    def self.resolve_plan(plan_class, job, syrus_yml)
+      syrus_yml ? plan_class.from_syrus_yml(syrus_yml) : plan_class.for_job(job)
+    end
+
     def self.prepare_then(job, *nodes)
       chain = [ "prepare", *nodes.flatten ].compact
       without_skipped_prepare(job, chain)
@@ -145,15 +169,15 @@ module Workflows
     # step runs unconditionally before this loop is ever consulted, so
     # iteration 1 has something to review already. Other call sites (whose
     # agent_step only ever runs inside this loop) keep the default.
-    def self.adversarial_review_loop(job, agent_step:, review_first: false)
-      rounds = adversarial_review_rounds(job)
+    def self.adversarial_review_loop(job, agent_step:, review_first: false, syrus_yml: nil)
+      rounds = adversarial_review_rounds(job, syrus_yml: syrus_yml)
       return nil unless rounds.positive?
 
       Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ], review_first: review_first)
     end
 
-    def self.visual_review_loop(job, agent_step:)
-      plan = RepoVisualReviewPlan.for_job(job)
+    def self.visual_review_loop(job, agent_step:, syrus_yml: nil)
+      plan = resolve_plan(RepoVisualReviewPlan, job, syrus_yml)
       return nil unless plan.enabled? && plan.rounds.positive?
 
       Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :visual_review ])
@@ -188,10 +212,10 @@ module Workflows
     # fails. Other call sites have no guaranteed agent step before this loop
     # (e.g. PrFeedback's `respond` may only ever run here), so they keep
     # agent_step on iteration 1.
-    def self.grader_retry_loop(job, agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false, repair_first: true)
+    def self.grader_retry_loop(job, agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false, repair_first: true, syrus_yml: nil)
       return unconditional_grader_retry_loop(agent_step, max_iterations: max_iterations) unless autofix
 
-      plan = RepoGradeLoopPlan.for_job(job)
+      plan = resolve_plan(RepoGradeLoopPlan, job, syrus_yml)
       return (repair_first ? agent_step : nil) unless plan.any_configured?
 
       autofix_steps = []
@@ -233,9 +257,9 @@ module Workflows
     # pre-clone the same way as the adversarial/visual review plans) -- a
     # repo that hasn't configured it gets no review_plan Step at all rather
     # than one that runs and immediately self-skips as a no-op.
-    def self.initial_pr_finish_steps(job)
+    def self.initial_pr_finish_steps(job, syrus_yml: nil)
       steps = [ "summarize", "test_plan", "pr_open" ]
-      steps << "review_plan" if RepoReviewPlanPlan.for_job(job).enabled?
+      steps << "review_plan" if resolve_plan(RepoReviewPlanPlan, job, syrus_yml).enabled?
       steps
     end
 
@@ -251,8 +275,8 @@ module Workflows
       ]
     end
 
-    def self.adversarial_review_rounds(job)
-      plan = RepoAdversarialReviewPlan.for_job(job)
+    def self.adversarial_review_rounds(job, syrus_yml: nil)
+      plan = resolve_plan(RepoAdversarialReviewPlan, job, syrus_yml)
       return plan.rounds if plan.enabled?
       return plan.rounds if plan.source == ".syrus.yml" && plan.note.nil?
 

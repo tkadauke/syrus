@@ -1,72 +1,52 @@
 require "rails_helper"
 
 RSpec.describe RepoCoveragePlanReader do
-  let(:user) { Factories.user(github_token: "ghp_test") }
-  let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
-  let(:client) { instance_double(GithubClient) }
-
-  it "returns nil without touching GitHub when credentials are unavailable" do
-    user.update!(github_token: nil)
-    expect(GithubClient).not_to receive(:for)
-
-    result = described_class.new(repository: repository, user: user).resolve
-
-    expect(result).to be_nil
+  def loaded(config: nil, source: "none", note: nil)
+    RepoDefaultBranchSyrusYml::Result.new(config: config, source: source, note: note)
   end
 
-  it "returns the coverage plan from .syrus.yml" do
-    allow(client).to receive(:file_content_at)
-      .with("acme/widgets", ".syrus.yml", "main")
-      .and_return(content: <<~YAML, size: 50)
+  def parse(yaml)
+    SyrusYml.new(yaml).parse
+  end
+
+  describe ".from_syrus_yml" do
+    it "returns nil when the shared loader has no config" do
+      result = described_class.from_syrus_yml(loaded(note: "no GitHub credentials"))
+
+      expect(result).to be_nil
+    end
+
+    it "returns the coverage plan from the parsed config" do
+      config = parse(<<~YAML)
         coverage:
-          artifact: coverage/lcov.info
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
       YAML
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
 
-    expect(result).to be_a(RepoCoveragePlan)
-    expect(result.sources.first.artifact).to eq("coverage/lcov.info")
+      expect(result).to be_a(RepoCoveragePlan)
+      expect(result.sources.first.artifact).to eq("coverage/lcov.info")
+    end
+
+    it "returns nil when coverage is not configured" do
+      config = parse("prepare: []\n")
+
+      result = described_class.from_syrus_yml(loaded(config: config, source: ".syrus.yml"))
+
+      expect(result).to be_nil
+    end
   end
 
-  it "returns nil when .syrus.yml is absent" do
-    allow(client).to receive(:file_content_at).and_return(nil)
+  describe ".for_job" do
+    it "resolves through RepoDefaultBranchSyrusYml.for_job" do
+      job = instance_double(Job)
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(loaded(note: "no .syrus.yml"))
 
-    result = described_class.new(repository: repository, user: user, client: client).resolve
+      result = described_class.for_job(job)
 
-    expect(result).to be_nil
-  end
-
-  it "returns nil when coverage is not configured" do
-    allow(client).to receive(:file_content_at).and_return(content: "prepare: []\n", size: 12)
-
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result).to be_nil
-  end
-
-  it "returns nil when the config is invalid" do
-    allow(client).to receive(:file_content_at)
-      .and_return(content: "coverage:\n  on_miss: invalid\n", size: 35)
-
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result).to be_nil
-  end
-
-  it "returns nil when the config cannot be fetched" do
-    allow(client).to receive(:file_content_at).and_raise(StandardError, "network unavailable")
-
-    result = described_class.new(repository: repository, user: user, client: client).resolve
-
-    expect(result).to be_nil
-  end
-
-  it "returns nil when the GitHub client is not a GithubClient instance" do
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    expect(client).not_to receive(:file_content_at)
-
-    result = described_class.new(repository: repository, user: user).resolve
-
-    expect(result).to be_nil
+      expect(result).to be_nil
+    end
   end
 end

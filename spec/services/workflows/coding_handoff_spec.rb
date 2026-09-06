@@ -55,7 +55,7 @@ RSpec.describe Workflows::CodingHandoff do
 
     context "when review_plan is enabled" do
       before do
-        allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+        allow(RepoReviewPlanPlan).to receive(:from_syrus_yml).and_return(
           RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
         )
       end

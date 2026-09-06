@@ -1,11 +1,11 @@
 # Resolves the optional adversarial review loop configured in `.syrus.yml`.
 #
-# The Initial workflow chain is materialized before the workflow workspace is
-# cloned, so this resolver reads the repository's default-branch config through
-# GitHub. The later prepare/grade steps still read `.syrus.yml` from the clone.
+# Thin adapter over RepoDefaultBranchSyrusYml, which owns the actual GitHub
+# fetch and SyrusYml parse (shared with RepoVisualReviewPlan, RepoGradeLoopPlan,
+# RepoReviewPlanPlan, and RepoCoveragePlanReader so Workflows::Base resolves
+# the repository's default-branch config once per workflow instantiation
+# instead of each plan fetching it independently).
 class RepoAdversarialReviewPlan
-  CONFIG_FILE = SyrusYml::CONFIG_FILE
-
   Result = Data.define(:rounds, :source, :note, :criteria) do
     def enabled?
       rounds.to_i.positive?
@@ -13,52 +13,19 @@ class RepoAdversarialReviewPlan
   end
 
   def self.for_job(job)
-    new(repository: job.repository, user: job.user).resolve
+    from_syrus_yml(RepoDefaultBranchSyrusYml.for_job(job))
   end
 
-  def initialize(repository:, user:, client: nil)
-    @repository = repository
-    @user = user
-    @client = client
+  def self.from_syrus_yml(loaded)
+    return disabled(source: loaded.source, note: loaded.note) unless loaded.config
+
+    review = loaded.config.adversarial_review
+    return disabled(source: loaded.source, note: "no adversarial_review configured") unless review
+
+    Result.new(rounds: review.rounds, source: loaded.source, note: nil, criteria: review.criteria)
   end
 
-  def resolve
-    return disabled(source: "none", note: "no GitHub credentials") unless credentials_available?
-
-    client = github_client
-    return disabled(source: "none", note: "GitHub client unavailable") unless client
-
-    file = client.file_content_at(repository.slug, CONFIG_FILE, repository.default_branch)
-    return disabled(source: "none", note: "no .syrus.yml") unless file
-
-    config = SyrusYml.new(file.fetch(:content)).parse
-    review = config.adversarial_review
-    return disabled(source: ".syrus.yml", note: "no adversarial_review configured") unless review
-
-    Result.new(rounds: review.rounds, source: ".syrus.yml", note: nil, criteria: review.criteria)
-  rescue SyrusYml::ParseError => e
-    disabled(source: ".syrus.yml", note: e.message)
-  rescue StandardError => e
-    Rails.logger.warn("[RepoAdversarialReviewPlan] disabled for #{repository.slug}: #{e.class}: #{e.message}")
-    disabled(source: "none", note: e.message)
-  end
-
-  private
-
-  attr_reader :repository, :user
-
-  def github_client
-    return @client if @client
-
-    client = GithubClient.for(repository: repository, user: user)
-    client if client.is_a?(GithubClient)
-  end
-
-  def credentials_available?
-    repository.installation&.active? || user.github_token.present?
-  end
-
-  def disabled(source:, note:)
+  def self.disabled(source:, note:)
     Result.new(rounds: 0, source: source, note: note, criteria: [])
   end
 end

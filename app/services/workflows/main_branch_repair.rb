@@ -23,12 +23,13 @@ module Workflows
     def self.trigger_kind = "main_branch_repair"
 
     def self.steps_for(job)
+      syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
         job,
         "preflight_grader_fanout",
         "preflight_grader_collect",
-        grader_retry_loop(job, :implement),
-        initial_pr_finish_steps(job)
+        grader_retry_loop(job, :implement, syrus_yml: syrus_yml),
+        initial_pr_finish_steps(job, syrus_yml: syrus_yml)
       )
     end
 
