@@ -3600,6 +3600,33 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.credential_mode).to eq("pat")
       end
     end
+
+    context "when the Job is infrastructure-kind and the App has no active installation" do
+      it "still prefers the bot but reports credential_mode pat since no bot credential is usable" do
+        owner.update!(github_token: "ghp_test")
+        installation.update!(removed_at: Time.current)
+        job = repo.jobs.create!(user: owner, kind: "main_grader")
+
+        expect(job.bot_authored_pull_request?).to be true
+        expect(job.credential_mode).to eq("pat")
+      end
+    end
+
+    context "when the Job has a system_kind and the App has no active installation" do
+      it "still prefers the bot but reports credential_mode pat since no bot credential is usable" do
+        owner.update!(github_token: "ghp_test")
+        installation.update!(removed_at: Time.current)
+        job = repo.jobs.create!(
+          user: owner,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "Fix broken main branch"
+        )
+
+        expect(job.bot_authored_pull_request?).to be true
+        expect(job.credential_mode).to eq("pat")
+      end
+    end
   end
 
   describe "simple-mode epic automation defaults" do
