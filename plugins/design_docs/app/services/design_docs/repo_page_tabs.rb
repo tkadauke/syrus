@@ -14,6 +14,12 @@ module DesignDocs
           id: "design_docs.repository",
           label: "Design Docs",
           path: "/repositories/#{repository.id}/plugin/design_docs",
+          # PluginRouteResolver#repo_page_tab_route? matches on `paths`, and it
+          # is what gates the "repositories/:repository_id/plugin/*path"
+          # wildcard -- so a tab that declares only `path` 404s on hard
+          # reload. That is the exact bug this extension point was built to
+          # prevent, and this tab still had it.
+          paths: [ "/repositories/#{repository.id}/plugin/design_docs" ],
           component: "design_docs/RepositoryDesignDocs",
           order: 35,
           badge: count.positive? ? count : nil

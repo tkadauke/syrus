@@ -9,6 +9,12 @@ module GitHistory
           label: "Git History",
           label_key: "git_history:nav_git_history",
           path: "/repositories/#{repository.id}/plugin/git_history",
+          # PluginRouteResolver#repo_page_tab_route? matches on `paths`, and it
+          # is what gates the "repositories/:repository_id/plugin/*path"
+          # wildcard -- so a tab that declares only `path` 404s on hard
+          # reload. That is the exact bug this extension point was built to
+          # prevent, and this tab still had it.
+          paths: [ "/repositories/#{repository.id}/plugin/git_history" ],
           component: "git_history/GitHistory",
           order: 40
         }
