@@ -5,8 +5,9 @@ import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { useConfirm } from "@app/hooks/useConfirm"
-import { RepositoryTabs } from "@app/components/RepositoryTabs"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { PanelMessage } from "@app/components/PanelMessage"
 import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
@@ -28,7 +29,7 @@ export function RepositoryInsightsRoute() {
   const { t } = useT("agent_insights")
   const params = useParams()
   const location = useLocation()
-  const repositoryId = params.id || ""
+  const repositoryId = params.repositoryId || ""
   const prefix = routePrefix(location.pathname)
   const [page, setPage] = useState(1)
   const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
@@ -38,24 +39,7 @@ export function RepositoryInsightsRoute() {
     queryFn: () => fetchInsightSuggestions(repositoryId, page, 20, stateFilter),
     enabled: repositoryId.length > 0
   })
-
-  if (query.isPending) {
-    return (
-      <main aria-label={t("aria_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">
-        {t("loading")}
-      </main>
-    )
-  }
-
-  if (query.isError) {
-    return (
-      <main aria-label={t("aria_insights")} className="p-6">
-        <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(query.error, t("load_error"))}</p>
-      </main>
-    )
-  }
-
-  const { repository, tabs, suggestions, meta } = query.data
+  const payload = query.data
 
   function handleFilterChange(filter: StateFilter) {
     setStateFilter(filter)
@@ -63,27 +47,33 @@ export function RepositoryInsightsRoute() {
   }
 
   return (
-    <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
+    <RepositoryPageShell
+      activeTab="agent_insights.repository"
+      ariaLabel={t("aria_insights")}
+      heading={payload ? (
         <PageHeading mono>
-          <Link className="hover:underline" to={withRoutePrefix(repository.repository_path, prefix)}>
-            {repository.slug}
+          <Link className="hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+            {payload.repository.slug}
           </Link>
         </PageHeading>
-      </header>
-
-      <RepositoryTabs active="insights" prefix={prefix} tabs={tabs} />
-
-      <InsightSuggestionsList
-        repositoryId={repositoryId}
-        suggestions={suggestions}
-        meta={meta}
-        page={page}
-        stateFilter={stateFilter}
-        onFilterChange={handleFilterChange}
-        onPageChange={setPage}
-      />
-    </main>
+      ) : null}
+      prefix={prefix}
+      tabs={payload?.tabs ?? []}
+    >
+      {query.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, t("load_error"))}</PanelMessage> : null}
+      {payload ? (
+        <InsightSuggestionsList
+          repositoryId={repositoryId}
+          suggestions={payload.suggestions}
+          meta={payload.meta}
+          page={page}
+          stateFilter={stateFilter}
+          onFilterChange={handleFilterChange}
+          onPageChange={setPage}
+        />
+      ) : null}
+    </RepositoryPageShell>
   )
 }
 
