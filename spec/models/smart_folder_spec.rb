@@ -351,7 +351,10 @@ RSpec.describe SmartFolder do
   it "scopes attention-preset job built-ins to the current user by default" do
     described_class.ensure_builtins_for_subject!(:job)
 
-    attention_folders = described_class.builtins(:job).reject { |f| f.name == "All jobs" }
+    # Inbox is the sole exception: it scopes by review-policy eligibility
+    # (Filters::Chips::Jobs::EligibleApprover), not raw ownership. See the
+    # dedicated Inbox expectations below.
+    attention_folders = described_class.builtins(:job).reject { |f| [ "All jobs", "Inbox" ].include?(f.name) }
     owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
 
     attention_folders.each do |folder|
@@ -359,6 +362,18 @@ RSpec.describe SmartFolder do
       expect(chips).to include(owner_chip),
         "expected #{folder.name} filter to include owner_user_id=me chip, got: #{chips.inspect}"
     end
+  end
+
+  it "scopes the Inbox built-in by review-policy eligibility instead of raw ownership" do
+    described_class.ensure_builtins_for_subject!(:job)
+
+    inbox = described_class.builtins(:job).find_by!(name: "Inbox")
+    chips = Array(inbox.filter["and"])
+    eligible_approver_chip = { "field" => "eligible_approver", "op" => "is", "value" => "me" }
+    owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+
+    expect(chips).to include(eligible_approver_chip)
+    expect(chips).not_to include(owner_chip)
   end
 
   it "does not add owner filter chip to the All jobs built-in" do
