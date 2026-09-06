@@ -18,6 +18,13 @@ RSpec.describe App::RepositoryFeatureRecommendations do
   before do
     allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(false)
     allow(Feature).to receive(:visual_review_enabled?).and_return(false)
+    stub_visual_review_plan(enabled: false)
+  end
+
+  def stub_visual_review_plan(enabled:)
+    result = RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
+    plan = instance_double(RepoVisualReviewPlan, resolve: result)
+    allow(RepoVisualReviewPlan).to receive(:new).with(repository: repository, user: user).and_return(plan)
   end
 
   def write_bare_clone(files: {}, syrus_yml: nil)
@@ -61,6 +68,25 @@ RSpec.describe App::RepositoryFeatureRecommendations do
       files: { "package.json" => "{}\n" },
       syrus_yml: "preview:\n  start: npm run dev\nvisual_review:\n  enabled: true\n"
     )
+    # RepoVisualReviewPlan (not the local bare clone) is the source of truth
+    # for "already enabled" — it's the same resolver the Initial workflow
+    # uses, and unlike the bare clone it also works from the web tier, which
+    # does not share the worker's on-disk clone.
+    stub_visual_review_plan(enabled: true)
+
+    ids = described_class.for(repository: repository, user: user).map { |entry| entry.fetch(:id) }
+
+    expect(ids).not_to include("visual_review")
+  end
+
+  it "does not recommend visual review when RepoVisualReviewPlan reports enabled even if the local bare clone disagrees" do
+    # Regression: the recommendations service runs on the web tier, which does
+    # not share the worker's on-disk bare clone (see "Deploy target" in
+    # CLAUDE.md). A repo with visual review actually enabled must not keep
+    # advertising it just because this process can't see (or is behind on)
+    # the local clone's copy of `.syrus.yml`.
+    write_bare_clone(files: { "package.json" => "{}\n" }, syrus_yml: "preview:\n  start: npm run dev\n")
+    stub_visual_review_plan(enabled: true)
 
     ids = described_class.for(repository: repository, user: user).map { |entry| entry.fetch(:id) }
 

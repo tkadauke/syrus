@@ -398,10 +398,18 @@ module App
       @preview_configured ||= App::PreviewAvailability.configured?(repository)
     end
 
+    # Deliberately does not read `parsed_config` (the local bare clone): this
+    # recommendation is served from the web tier, which does not share the
+    # worker's on-disk bare clone (see "Deploy target" in CLAUDE.md), so a
+    # repo that has actually enabled visual review would otherwise never
+    # resolve as already-configured and would keep recommending itself.
+    # RepoVisualReviewPlan reads the same config over the GitHub API and is
+    # the same resolver the Initial workflow uses to decide whether the
+    # visual_review step runs at all, so "already onboarded" here matches
+    # what actually happens on the next Job.
     def visual_review_enabled?
-      review = parsed_config&.visual_review
-      enabled = review&.enabled
-      enabled.nil? ? Feature.visual_review_enabled? : enabled
+      @visual_review_enabled = RepoVisualReviewPlan.new(repository: repository, user: user).resolve.enabled? if @visual_review_enabled.nil?
+      @visual_review_enabled
     end
 
     def preview_seed_configured?
