@@ -26,7 +26,7 @@ import {
   updateRepositoryTeamGrantRole,
   type TeamRepositoryGrant
 } from "../api/repositoryTeamGrants"
-import { RepositoryTabs } from "../components/RepositoryTabs"
+import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
@@ -37,18 +37,30 @@ export function RepositoryMembersRoute() {
   const location = useLocation()
   const params = useParams()
   const repositoryId = params.repositoryId || ""
+  const prefix = routePrefix(location.pathname)
   const memberships = useQuery({
     queryKey: ["repositories", repositoryId, "memberships"],
     queryFn: () => fetchRepositoryMemberships(repositoryId),
     enabled: repositoryId.length > 0
   })
+  const payload = memberships.data
 
   return (
-    <main aria-label={t("aria_repo_memberships")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <RepositoryPageShell
+      activeTab="members"
+      ariaLabel={t("aria_repo_memberships")}
+      heading={payload ? (
+        <PageHeading mono>
+          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
+        </PageHeading>
+      ) : null}
+      prefix={prefix}
+      tabs={payload?.tabs ?? []}
+    >
       {memberships.isPending ? <PanelMessage>{t("repository_memberships.loading")}</PanelMessage> : null}
       {memberships.isError ? <PanelMessage tone="error">{errorMessage(memberships.error, t("repository_memberships.unable_to_load"))}</PanelMessage> : null}
-      {memberships.isSuccess ? <RepositoryMembersView payload={memberships.data} prefix={routePrefix(location.pathname)} /> : null}
-    </main>
+      {payload ? <RepositoryMembersView payload={payload} prefix={prefix} /> : null}
+    </RepositoryPageShell>
   )
 }
 
@@ -78,13 +90,6 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
 
   return (
     <>
-      <header>
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      </header>
-
-      <RepositoryTabs active="members" prefix={prefix} tabs={payload.tabs} />
       <p className="text-sm text-gray-600 dark:text-gray-400">{t("repository_memberships.description")}</p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
