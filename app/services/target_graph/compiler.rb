@@ -77,7 +77,7 @@ class TargetGraph
         project_count: graph.projects.size,
         error: parse_error && "#{owner_config_path}: #{parse_error.message}"
       )
-    rescue TargetGraph::Error => e
+    rescue StandardError => e
       Diagnostics.new(
         source: owner_config_path,
         owner_config_path: owner_config_path,
