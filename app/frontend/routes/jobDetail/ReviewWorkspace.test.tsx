@@ -165,6 +165,17 @@ describe("ReviewWorkspace", () => {
     expect(step).toHaveClass("break-words")
   })
 
+  it("falls back to horizontal scroll within each review artifact tile when wrapping isn't enough", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show" }))
+    const testPlanTile = screen.getByText("Test plan").closest("div")
+    expect(testPlanTile).toHaveClass("overflow-x-auto")
+  })
+
   it("wraps long comment bodies and paths instead of letting them overflow the sidebar", async () => {
     const longPathComment = comment({
       body: "A very long comment body with no natural wrap points: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
