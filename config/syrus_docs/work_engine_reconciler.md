@@ -176,6 +176,24 @@ Planner examples:
   `retry_after`; it does not consume the attempt as skipped.
 - Deterministic idempotent step failures, as declared by `Step::Kind`, may plan
   an in-place failed-step retry when the workspace and retry budget allow it.
+- **The retry budget is the loop's only termination condition.** A skipped
+  `AutoRetryAttempt` normally still counts against
+  `AutoRetryAttempt.budget_scope_for`, so a planner that keeps proposing
+  retries eventually runs out. `BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES` lists
+  the exceptions — reasons outside the Job's control that are expected to
+  clear, so charging the Job would spend its retries on the weather. **Every
+  entry in that list must describe something transient.** A permanent reason
+  there is unbounded recursion: the attempt is skipped, the budget does not
+  advance, the planner sees room and plans another, immediately. Production has
+  hit this twice — once through `"source workflow was already superseded"`
+  (~50 runs, 8,000–9,300 attempts each over eight days in August) and once
+  through `"failure classification changed"`, which `AutoRetryJob` wrote
+  whenever a fresh classification was non-retryable whether or not it had
+  changed (~460,000 attempts at two per second). Non-retryable skips now use
+  `AutoRetryAttempt::NOT_RETRYABLE_SKIP_PREFIX`, which is deliberately not
+  exempt, and that path no longer clears the backoff or re-requests
+  reconciliation — both of which belong to a genuine *transition*, not a
+  permanent verdict.
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not

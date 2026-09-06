@@ -98,6 +98,31 @@ RSpec.describe AutoRetryAttempt, type: :model do
       expect(scope).to be_empty
     end
 
+    # An exempt reason that is permanent rather than transient is unbounded
+    # recursion: the skip does not advance the budget, the planner still sees
+    # room, and it plans another. Runs 121870/121914 reached ~460,000 attempts
+    # that way, at two per second, because "failure classification changed" was
+    # written for a verdict that had not changed and never would.
+    it "counts a not-retryable skip against the budget so the loop terminates" do
+      attempt = described_class.create!(
+        valid_attrs(skipped_reason: "#{described_class::NOT_RETRYABLE_SKIP_PREFIX}: worker_died_under_resource_pressure")
+      )
+
+      scope = described_class.budget_scope_for(
+        job: job,
+        agent_provider: "claude",
+        failure_classification: "worker_died"
+      )
+
+      expect(scope).to include(attempt)
+    end
+
+    it "keeps the not-retryable prefix out of the budget exemptions" do
+      expect(described_class::BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES).not_to include(
+        a_string_starting_with(described_class::NOT_RETRYABLE_SKIP_PREFIX)
+      )
+    end
+
     it "counts retry launch rejections against retry budget accounting" do
       attempt = described_class.create!(
         valid_attrs(skipped_reason: "The initial workflow has not run yet - start or wait for it before retrying.")

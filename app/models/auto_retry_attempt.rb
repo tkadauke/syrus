@@ -5,6 +5,19 @@ class AutoRetryAttempt < ApplicationRecord
   MAX_ATTEMPTS = 3
   MAX_WORKER_DIED_ATTEMPTS = 20
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze
+  # Reasons a skipped attempt should NOT consume the retry budget: each names a
+  # condition outside the Job's control that is expected to clear, so charging
+  # the Job for it would spend its retries on the weather.
+  #
+  # Every entry must therefore describe something *transient*. A permanent
+  # reason listed here is unbounded recursion: the attempt is skipped, the
+  # budget does not advance, the planner sees budget available and plans
+  # another. "failure classification changed" used to be here, and
+  # `AutoRetryJob#skip_if_failure_no_longer_retryable` wrote a message with that
+  # prefix whenever the fresh classification was non-retryable -- whether or not
+  # anything had changed. Runs 121870/121914 produced ~460,000 attempts at two
+  # per second before anyone noticed. That skip now writes
+  # NOT_RETRYABLE_SKIP_PREFIX, which is deliberately absent from this list.
   BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES = [
     "That agent is not available",
     "Claude appears degraded",
@@ -14,6 +27,10 @@ class AutoRetryAttempt < ApplicationRecord
     "failure classification changed",
     "default provider changed"
   ].freeze
+
+  # A failure that is simply not retryable. Counts against the budget, so a
+  # planner that keeps proposing retries runs out instead of spinning.
+  NOT_RETRYABLE_SKIP_PREFIX = "failure is not retryable".freeze
 
   belongs_to :job
   belongs_to :workflow

@@ -95,6 +95,19 @@ class AutoRetryJob < ApplicationJob
     false
   end
 
+  # This fires whenever the fresh classification is non-retryable, which is not
+  # the same thing as "it changed" -- and when the failure was never retryable
+  # it fires on every attempt, forever. It used to report a change that had not
+  # happened ("changed from worker_died_under_resource_pressure to
+  # worker_died_under_resource_pressure"), write a budget-exempt reason, clear
+  # the backoff, and ask the reconciler to look again -- which planned another
+  # retry immediately, because a budget-exempt skip leaves attempt_number at 1.
+  # Runs 121870/121914 spun ~460,000 attempts at two per second that way.
+  #
+  # So: say what actually happened, charge the budget for it, and do not poke
+  # the reconciler. Clearing the backoff and re-requesting are what a genuine
+  # *transition* deserves (see skip_if_provider_delay_no_longer_matches); a
+  # permanent verdict deserves neither.
   def skip_if_failure_no_longer_retryable(attempt)
     return false unless attempt.run
 
@@ -102,16 +115,19 @@ class AutoRetryJob < ApplicationJob
     return false if fresh.retryable
     return false if PROVIDER_DELAYED_CLASSIFICATIONS.include?(fresh.classification)
 
-    attempt.update!(
-      skipped_reason: "failure classification changed from #{attempt.failure_classification} to #{fresh.classification}; #{fresh.classification} is not retryable"
-    )
-    WorkUnits::AutoRetryBackoff.clear!(attempt)
+    attempt.update!(skipped_reason: not_retryable_skip_reason(attempt, fresh))
     log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
-    WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)
     true
   rescue StandardError => e
     Rails.logger.warn("[AutoRetryJob] failed to refresh Run ##{attempt.run_id} failure classification: #{e.class}: #{e.message}")
     false
+  end
+
+  def not_retryable_skip_reason(attempt, fresh)
+    reason = "#{AutoRetryAttempt::NOT_RETRYABLE_SKIP_PREFIX}: #{fresh.classification}"
+    return reason if fresh.classification == attempt.failure_classification
+
+    "#{reason} (was #{attempt.failure_classification})"
   end
 
   def skip_if_default_provider_changed(attempt)

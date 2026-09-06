@@ -373,13 +373,75 @@ RSpec.describe AutoRetryJob do
       described_class.perform_now(attempt.id)
     }.not_to change { agent_step.runs.count }
 
-    expect(attempt.reload.skipped_reason).to eq("failure classification changed from turn_failed to provider_auth_expired; provider_auth_expired is not retryable")
+    expect(attempt.reload.skipped_reason).to eq("failure is not retryable: provider_auth_expired (was turn_failed)")
     expect(attempt.performed_at).to be_nil
     expect(agent_run.run_failure_classification.reload).to have_attributes(
       classification: "provider_auth_expired",
       retryable: false
     )
-    expect(WorkEngine::Reconciler).to have_received(:request).with(source: "AutoRetryJob", job: job)
+    # Deliberately NOT re-requested: a permanent verdict has nothing to
+    # reconcile toward, and asking planned another retry immediately.
+    expect(WorkEngine::Reconciler).not_to have_received(:request)
+  end
+
+  # Runs 121870/121914 produced ~460,000 attempts at two per second. The skip
+  # wrote a budget-exempt reason, so attempt_number never left 1, the planner
+  # always saw budget available, and the reconciler request at the end of the
+  # skip kicked off the next round immediately.
+  describe "a failure that was never retryable" do
+    it "charges the retry budget so the planner runs out instead of spinning" do
+      attempt, _agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+      attempt.update!(failure_classification: "turn_failed")
+      agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
+      RunDiagnostic.create!(
+        run: agent_run,
+        error_class: "CodexInvocation::Error",
+        error_message: "Failed to refresh token: auth error code: token_expired"
+      )
+
+      described_class.perform_now(attempt.id)
+
+      attempt.reload
+      counted = AutoRetryAttempt.budget_scope_for(
+        job: job,
+        agent_provider: attempt.agent_provider,
+        failure_classification: attempt.failure_classification
+      )
+      expect(counted).to include(attempt)
+    end
+
+    it "does not report a change that did not happen" do
+      attempt, _agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+      attempt.update!(failure_classification: "provider_auth_expired")
+      agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
+      RunDiagnostic.create!(
+        run: agent_run,
+        error_class: "CodexInvocation::Error",
+        error_message: "Failed to refresh token: auth error code: token_expired"
+      )
+
+      described_class.perform_now(attempt.id)
+
+      expect(attempt.reload.skipped_reason).to eq("failure is not retryable: provider_auth_expired")
+      expect(attempt.skipped_reason).not_to include("changed")
+    end
+
+    # The backoff is the only pacing left once the reconciler request is gone.
+    it "leaves the backoff in place" do
+      attempt, _agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+      attempt.update!(failure_classification: "provider_auth_expired")
+      agent_run.update_columns(agent_provider: "codex", agent_outcome: "turn_failed")
+      RunDiagnostic.create!(
+        run: agent_run,
+        error_class: "CodexInvocation::Error",
+        error_message: "Failed to refresh token: auth error code: token_expired"
+      )
+      allow(WorkUnits::AutoRetryBackoff).to receive(:clear!)
+
+      described_class.perform_now(attempt.id)
+
+      expect(WorkUnits::AutoRetryBackoff).not_to have_received(:clear!)
+    end
   end
 
   it "skips stale usage-limit attempts when a default-provider job now resolves to another provider" do

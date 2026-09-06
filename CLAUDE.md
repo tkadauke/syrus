@@ -520,7 +520,13 @@ from diagnostics, recent logs, spawned process outcomes, and agent outcome.
 `WorkEngine::RepairExecutor` schedules transient-failure retries through
 `AutoRetryAttempt` and `AutoRetryJob` — up to three attempts with 5m/20m/1h
 backoff, either from the failed Step while the workspace remains or as a fresh
-retry Workflow. Failed agentic runs with captured sessions can resume from the
+retry Workflow. **The retry budget is the only thing that terminates that
+loop**, so every prefix in `AutoRetryAttempt::BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES`
+must name a *transient* condition; a permanent one there means the skip never
+advances the budget, the planner keeps seeing room, and attempts accumulate at
+~2/second (production has hit this twice — see
+`config/syrus_docs/work_engine_reconciler.md`). Non-retryable skips use
+`AutoRetryAttempt::NOT_RETRYABLE_SKIP_PREFIX`, which is not exempt. Failed agentic runs with captured sessions can resume from the
 failed Step instead of starting over. `ProviderCircuitBreaker` suppresses
 automatic retries/CI repair during provider-wide transient outages.
 `ReapStaleRunsJob` and `ReconcileJobStatesJob` are thin delegators that call
