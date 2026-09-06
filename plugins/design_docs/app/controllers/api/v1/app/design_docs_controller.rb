@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class DesignDocsController < BaseController
+        include RepositoryTabsSerialization
+
         before_action :require_design_docs_enabled
 
         def index
@@ -15,6 +17,7 @@ module Api
 
           render json: design_docs_payload(design_docs).merge(
             repository: repository_json(repository),
+            tabs: repository_tabs_json(repository)
           )
         end
 

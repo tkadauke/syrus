@@ -364,7 +364,16 @@ function mockFetch(detail = docDetail) {
       return jsonResponse(indexPayload(detail))
     }
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse(indexPayload(detail))
+      return jsonResponse({
+        ...indexPayload(detail),
+        repository: { id: 10, slug: "acme/widgets", repository_path: "/repositories/10" },
+        tabs: [
+          { key: "overview", label: "Overview", path: "/repositories/10" },
+          { key: "documents", label: "Documents", path: "/repositories/10/documents" },
+          { key: "members", label: "Members", path: "/repositories/10/memberships" },
+          { key: "design_docs.repository", label: "Design Docs", path: "/repositories/10/plugin/design_docs" }
+        ]
+      })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: detail })
@@ -592,6 +601,16 @@ describe("DesignDocsSurface", () => {
     expect(within(folderNav).getByRole("link", { name: "My docs 1" })).toBeInTheDocument()
     expect(within(savedFolderNav).getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
+  })
+
+  it("always shows the repository tab bar on the repo-scoped design docs page", async () => {
+    mockFetch()
+    renderSurface("/repositories/10/design_docs")
+
+    await screen.findByRole("link", { name: "Design Docs" })
+    const tabs = screen.getByRole("navigation", { name: "Repository tabs" })
+    expect(within(tabs).getByRole("link", { name: "Overview" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "acme/widgets" })).toBeInTheDocument()
   })
 
   it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {
