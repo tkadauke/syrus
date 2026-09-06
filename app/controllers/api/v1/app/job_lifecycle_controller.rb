@@ -399,6 +399,7 @@ module Api
           {
             message: message,
             job: job_json(job),
+            actions: ::App::JobDetailPayload.actions_payload(job: job, user: Current.user)[:actions],
             paths: {
               job_path: tab ? job_path(job, tab: tab) : job_path(job)
             }

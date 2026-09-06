@@ -515,6 +515,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
   it "approves and unapproves an implemented job (self policy — owner is user)" do
     job.update!(state: "implemented")
+    job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
 
     post app_job_path(job, "approve"), as: :json
 
@@ -525,6 +527,11 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Job approved.")
     expect(parse_body.dig("job", "approved_by_user_id")).to eq(user.id)
     expect(job.job_approvals.where(user: user).count).to eq(1)
+    # can_approve/can_unapprove must flip in the same response as the state
+    # change so the frontend can update the button and the badge together,
+    # instead of the Approve button lingering until the next full refetch.
+    expect(parse_body.dig("actions", "can_approve")).to be(false)
+    expect(parse_body.dig("actions", "can_unapprove")).to be(true)
 
     post app_job_path(job, "unapprove"), as: :json
 
@@ -533,6 +540,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(job.approved_at).to be_nil
     expect(job.approved_via).to be_nil
     expect(parse_body).to include("message" => "Job unapproved.")
+    expect(parse_body.dig("actions", "can_approve")).to be(true)
+    expect(parse_body.dig("actions", "can_unapprove")).to be(false)
   end
 
   it "records an approval vote without transitioning when policy is not yet satisfied (two_person)" do
