@@ -50,7 +50,6 @@ export function JobDetailRoute() {
   const location = useLocation()
   const navigate = useNavigate()
   const id = params.id || ""
-  const activeTab = tabFromLocation(location.pathname, location.search)
   const initialDiff = diffRefsFromLocation(location.search)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const detailSearch = jobDetailSearch(location.search)
@@ -61,6 +60,8 @@ export function JobDetailRoute() {
     queryFn: () => fetchJobDetail(id, detailSearch),
     enabled: id.length > 0
   })
+  const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
+  const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
     queryFn: () => fetchJobWorkflows(id, detailSearch),
@@ -348,7 +349,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, plug
   // the built-ins; a plugin decides for itself whether a Job warrants one.
   for (const pluginTab of pluginTabs ?? []) {
     if (!pluginTab.key) continue
-    tabs.push({ id: pluginTab.key as JobTab, label: pluginTab.label_key ? t(pluginTab.label_key) : (pluginTab.label ?? pluginTab.key) })
+    tabs.push({ id: pluginTab.key, label: pluginTab.label_key ? t(pluginTab.label_key) : (pluginTab.label ?? pluginTab.key) })
   }
 
   return (
