@@ -16,7 +16,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
-import { RepositoryTabs } from "../components/RepositoryTabs"
+import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { PreviewPanel } from "../components/PreviewPanel"
@@ -42,6 +42,10 @@ export function RepositoryDetailRoute() {
   })
   usePageTitle(detail.data?.repository.slug)
 
+  if (detail.isSuccess) {
+    return <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} />
+  }
+
   return (
     <main aria-label={t('repository.aria_repository')} className="mx-auto max-w-[96rem] space-y-6 p-6">
       {detail.isPending ? (
@@ -50,7 +54,6 @@ export function RepositoryDetailRoute() {
         </PanelMessage>
       ) : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
-      {detail.isSuccess ? <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} /> : null}
     </main>
   )
 }
@@ -65,15 +68,18 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
   return (
-    <>
-      <header>
+    <RepositoryPageShell
+      activeTab={activeTab}
+      ariaLabel={t('repository.aria_repository')}
+      heading={
         <PageHeading mono>
           <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
         </PageHeading>
-      </header>
-
-      <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-      <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
+      }
+      prefix={prefix}
+      tabs={payload.tabs}
+      tipBanner={<RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />}
+    >
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">
@@ -101,7 +107,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <CredentialNotice payload={payload} />
         </div>
       </div>
-    </>
+    </RepositoryPageShell>
   )
 }
 
@@ -129,7 +135,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   )
 }
 
-function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+export function RecommendedActions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]
