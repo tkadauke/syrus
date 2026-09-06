@@ -8,7 +8,13 @@
 // JobDetail components that take them move out of the 3k-line file.
 import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
 
-export type JobTab = "summary" | "review" | "workflows" | "attachments" | "source" | "tests" | "artifacts"
+// The tabs JobDetailView itself knows how to render. Anything else selectable
+// (e.g. "tests") is a plugin-contributed tab whose validity comes from the
+// current payload's ui_tabs, not from a hardcoded list here — see
+// tabFromLocation.
+export const CORE_JOB_TABS = ["summary", "review", "workflows", "attachments", "source", "artifacts"] as const
+export type CoreJobTab = typeof CORE_JOB_TABS[number]
+export type JobTab = CoreJobTab | (string & {})
 export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 export type JobWorkflowsQueryKey = readonly ["jobs", string, "workflows", string]
 
@@ -44,9 +50,11 @@ export function jobDetailSearch(search: string) {
   return value ? `?${value}` : ""
 }
 
-export function tabFromLocation(pathname: string, search: string): JobTab {
+export function tabFromLocation(pathname: string, search: string, pluginTabKeys: readonly string[] = []): JobTab {
   if (pathname.endsWith("/source")) return "source"
 
   const value = new URLSearchParams(search).get("tab")
-  return value === "review" || value === "workflows" || value === "attachments" || value === "source" || value === "tests" || value === "artifacts" ? value : "summary"
+  if (!value) return "summary"
+
+  return (CORE_JOB_TABS as readonly string[]).includes(value) || pluginTabKeys.includes(value) ? value : "summary"
 }
