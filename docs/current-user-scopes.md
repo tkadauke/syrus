@@ -200,6 +200,7 @@ per-user/private:
   - plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
+  - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
   - plugins/git_history/app/controllers/api/v1/app/git_history_controller.rb
   - plugins/github_source/app/controllers/api/v1/app/repository_issues_controller.rb
@@ -380,6 +381,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb` | per-user/private | Agent insight suggestions are listed and acted on through `Current.user.repositories`, so only the repository owner sees or resolves a repository's backlog. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
+| `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private | Job-less repository preview show/logs/create/destroy find the repository through `Current.user.repositories`, so only the repository owner can start, inspect, or stop it. |
 | `plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
