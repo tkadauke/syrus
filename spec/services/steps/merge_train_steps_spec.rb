@@ -744,6 +744,81 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(client).to receive(:delete_branch).and_return(true)
     end
 
+    # Epic 294 landed its integration PR and then marked all 11 members failed,
+    # stranding their Jobs in `landing` and sending two more trains to re-land
+    # commits already on main. `ancestor_of_integration` rescued EVERY
+    # GitRunner::GitError as "not an ancestor", with workspace.setup inside the
+    # rescue -- so a workspace that would not clone read as "this work did not
+    # land". Only a clean exit 1 is an answer; every other status means git
+    # could not tell, whatever the message happens to say.
+    describe "verifying a member actually landed" do
+      def land_with_ancestry_error(status)
+        a = member_job(issue_number: 41)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        # Recorded after the workflow exists, the way merge_train_build does
+        # it: build-time evidence is only trusted when this workflow wrote it.
+        record_landed_commit!(a, sha: "a-landed-1")
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+        allow(git).to receive(:run).with("merge-base", "--is-ancestor", anything, anything, hash_including(:chdir))
+          .and_raise(GitRunner::GitError.new([ "merge-base" ], status, "boom"))
+        [ handler, a, train ]
+      end
+
+      it "treats a clean exit 1 as a genuine 'did not land' and does not close the member" do
+        handler, a, _train = land_with_ancestry_error(1)
+
+        handler.call
+
+        expect(a.reload.state).not_to eq("closed")
+      end
+
+      # The important half: an error that is not an answer must not be read as
+      # "did not land", because that silently discards merged work. The
+      # missing-object messages have their own coverage below; this is the
+      # general case -- any status other than 1, whatever git printed.
+      it "does not mark a member unlanded when the check could not run at all" do
+        handler, a, train = land_with_ancestry_error(128)
+
+        handler.call
+
+        expect(a.reload).to be_closed
+        expect(a.closure_reason).to eq("pr_merged")
+        expect(train.members.find_by(job: a).state).to eq("merged")
+      end
+
+      # Trust has a limit: build-time evidence is only trustworthy when *this*
+      # workflow wrote it. A row carried over from an earlier attempt proves
+      # nothing about this train, so an unanswerable check leaves it unclosed.
+      it "still fails a stale carryover member when the check could not run" do
+        handler, a, train = land_with_ancestry_error(128)
+        LandedCommit.where(landable: a).update_all(created_at: handler.workflow.created_at - 1.hour)
+
+        handler.call
+
+        expect(a.reload.state).not_to eq("closed")
+        expect(train.members.find_by(job: a).state).not_to eq("merged")
+      end
+
+      it "does not swallow a workspace that will not clone" do
+        a = member_job(issue_number: 42)
+        train = build_train([ a ])
+        record_landed_commit!(a, sha: "a-landed-1")
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        stub_git(handler)
+        allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+        failing_workspace = instance_double(WorkflowWorkspace, path: Pathname.new("/tmp/ws"), branch_name: "x")
+        allow(failing_workspace).to receive(:setup)
+          .and_raise(GitRunner::GitError.new([ "clone" ], 128, "destination path already exists"))
+        allow(handler).to receive(:workspace).and_return(failing_workspace)
+
+        expect { handler.call }.to raise_error(GitRunner::GitError, /destination path already exists/)
+      end
+    end
+
     it "opens + merges an integration PR atomically, closes member PRs, and marks Jobs merged" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)

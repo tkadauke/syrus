@@ -336,21 +336,39 @@ module Steps
       end
     end
 
-    # Returns :ancestor / :not_ancestor from a real git check, or
-    # :indeterminate when git can't answer the question at all because a SHA
-    # is missing from the local object database -- as opposed to a SHA that
-    # resolves fine but genuinely isn't reachable. A successfully merged
-    # integration PR must never be reported as a failed member reconciliation
-    # for a reason that boils down to "this workspace doesn't have the
-    # object," so the two cases route differently in member_landed?.
+    # `git merge-base --is-ancestor` answers through its exit status: 0 yes,
+    # 1 no, anything else (128) means it could not answer at all -- a missing
+    # object, a broken repository. Those are three outcomes, not two, and
+    # collapsing the third into "no" is what stranded Epic 294: every member
+    # of a train whose integration PR had already merged was marked failed,
+    # and two further trains spent hours re-landing commits already on main.
+    #
+    # `workspace.setup` stays outside the rescue on purpose. A workspace that
+    # will not clone is not an answer about ancestry, and classifying it as
+    # one is the same mistake in a different place.
+    NOT_AN_ANCESTOR_STATUS = 1
+
     def ancestor_of_integration(sha, integration_sha)
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      git.run("merge-base", "--is-ancestor", sha, integration_sha, chdir: chdir)
-      :ancestor
-    rescue GitRunner::GitError => e
-      missing_local_object?(e) ? :indeterminate : :not_ancestor
+
+      begin
+        git.run("merge-base", "--is-ancestor", sha, integration_sha, chdir: chdir)
+        :ancestor
+      rescue GitRunner::GitError => e
+        # A clean exit 1 is git saying "no". Anything else -- including the
+        # missing-object case, which is the common one when a Run resumes on a
+        # worker whose disk never held these objects -- is git saying it
+        # cannot tell, and must not be read as "did not land".
+        genuine_answer?(e) ? :not_ancestor : :indeterminate
+      end
+    end
+
+    def genuine_answer?(error)
+      return false if missing_local_object?(error)
+
+      error.exit_status == NOT_AN_ANCESTOR_STATUS
     end
 
     def missing_local_object?(error)
