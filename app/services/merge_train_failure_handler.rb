@@ -127,6 +127,7 @@ class MergeTrainFailureHandler
       @workflow.artifact("failure_reason").presence ||
       stale_base_artifact_reason ||
       failed_run_error_message ||
+      failed_run_classification_reason ||
       (@cancelled ? "merge_train cancelled" : "merge_train failed")).to_s
   end
 
@@ -145,7 +146,7 @@ class MergeTrainFailureHandler
                      .where(steps: { workflow_id: @workflow.id })
                      .where(state: "failed")
                      .order(id: :desc)
-                     .includes(:run_diagnostic)
+                     .includes(:run_diagnostic, :run_failure_classification)
                      .first
   end
 
@@ -170,6 +171,26 @@ class MergeTrainFailureHandler
   # workflow.failure_reason nor any workflow artifact carries the reason.
   def failed_run_error_message
     failed_run&.run_diagnostic&.error_message.presence
+  end
+
+  # A run whose worker died leaves no diagnostic -- CaptureRunDiagnostic runs
+  # inside the process that just disappeared -- so every fallback above comes
+  # back empty and the train was recorded with the literal string
+  # "merge_train failed". Twelve trains carry that and are unclassifiable after
+  # the fact; all of the ones still inspectable turned out to be worker deaths.
+  #
+  # RunFailureClassifier reaches the same conclusion from the outside, and its
+  # verdict is written whether or not the process survived. Using it here does
+  # two things: the operator sees what happened, and LandingFailureHandler's
+  # TRANSIENT_BLOCKER_PATTERNS can match `worker_died` and defer instead of
+  # clearing every member's approval for something that says nothing about the
+  # work.
+  def failed_run_classification_reason
+    classification = failed_run&.run_failure_classification
+    return nil if classification.nil?
+
+    detail = classification.reason.presence
+    [ "merge_train run failed: #{classification.classification}", detail ].compact.join(" — ")
   end
 
   def preserve_train_for_continuation_retry?

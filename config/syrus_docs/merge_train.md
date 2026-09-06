@@ -70,7 +70,14 @@ correctness — a five-second GitHub outage used to cost a full round of
 re-approving every member of a train. When adding a new failure path, decide
 which side it belongs on before deciding what to log.
 
-Two cases are handled before they can fail at all:
+A train whose failing Run left no diagnostic — a worker that died takes
+`CaptureRunDiagnostic` down with it — falls back to the Run's
+`RunFailureClassification` for its reason. Without that fallback the train was
+recorded as the bare string `merge_train failed`, which is both unclassifiable
+after the fact and unmatchable by the transient patterns, so a dead process
+cleared every member's approval.
+
+Three cases are handled before they can fail at all:
 
 - **The integration branch has nothing ahead of base.** Every commit the build
   put on it is already on base, so the members landed earlier — usually through

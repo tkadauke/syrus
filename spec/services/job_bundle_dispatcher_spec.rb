@@ -79,6 +79,27 @@ RSpec.describe JobBundleDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  # A failed train is terminal and does not block, so this reason almost always
+  # means a *replacement* bundle is already running -- often dispatched seconds
+  # after the failure that prompted a rebuild. The bare message read like a
+  # deadlock and sent an operator hunting for one; naming the train answers it.
+  it "names the train that is actually holding the repository" do
+    approved_job(1)
+    approved_job(2)
+    active_train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium", state: "grading")
+
+    expect(described_class.blocker_reason(repository))
+      .to eq("#{repository.slug} already has an active job bundle (train ##{active_train.id}, grading)")
+  end
+
+  it "is not blocked by a failed bundle train" do
+    approved_job(1)
+    approved_job(2)
+    MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium", state: "failed")
+
+    expect(described_class.blocker_reason(repository)).not_to match(/already has an active job bundle/)
+  end
+
   it "is unaffected by an active Epic-backed merge train in the same repository (blocked by the shared landing slot instead)" do
     epic = Factories.epic(user: user, repository: repository)
     epic_child = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 50, state: "landing", pr_number: 950)

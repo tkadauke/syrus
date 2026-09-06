@@ -57,6 +57,51 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload.state).to eq("failed")
     end
 
+    # A worker that dies takes CaptureRunDiagnostic with it, so every reason
+    # fallback came back empty and the train was recorded as the bare string
+    # "merge_train failed" -- twelve of them, unclassifiable after the fact.
+    # RunFailureClassifier reaches the same verdict from the outside.
+    it "names the failure classification when the run left no diagnostic" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(train.reload.failure_reason).to include("worker_died")
+      expect(train.failure_reason).not_to eq("merge_train failed")
+    end
+
+    # And because the reason now says worker_died, LandingFailureHandler's
+    # transient patterns match it: the member keeps its approval instead of
+    # costing an operator a re-approval for a dead process.
+    it "lets a worker death defer rather than clear the member's approval" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a)
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", state: "failed", position: 1)
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "failed")
+      RunFailureClassification.create!(
+        run: run, classification: "worker_died", retryable: true, confidence: 0.95,
+        reason: "The worker or agent process disappeared while the run was active.",
+        classified_at: Time.current
+      )
+
+      described_class.call(workflow: workflow)
+
+      expect(LandingFailureHandler.transient_blocker?(train.reload.failure_reason)).to be(true)
+      # `approved`, not `implemented`: defer_landing keeps whatever approval
+      # the Job had, where fail_landing would have cleared it.
+      expect(a.reload).to be_approved
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

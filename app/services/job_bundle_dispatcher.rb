@@ -69,6 +69,9 @@ class JobBundleDispatcher
 
   def blocker_reason
     return "epicless job bundling is disabled" unless Feature.epicless_job_bundling_enabled?
+    if (active = active_bundle_train)
+      return "#{@repository.slug} already has an active job bundle (train ##{active.id}, #{active.state})"
+    end
     return "#{@repository.slug} already has an active job bundle" if active_bundle_in_progress?
 
     if (landing_job = landing_job_in_progress)
@@ -106,7 +109,19 @@ class JobBundleDispatcher
     WorkUnits::Ownership.active_for_lock_key?(
       "landing:repository:#{@repository.id}",
       kinds: WorkDefinitions.family_kinds_for("job_bundle")
-    ) || MergeTrain.active.where(repository_id: @repository.id, epic_id: nil).exists?
+    ) || active_bundle_train.present?
+  end
+
+  # Named in the blocker reason because the bare message reads like a deadlock
+  # when it is usually the opposite: a failed train is terminal and does not
+  # block, so this fires when a *replacement* bundle is already running --
+  # frequently one dispatched seconds after the failure that prompted the
+  # rebuild. Saying which train is running turns "why is this stuck" into "it
+  # is not stuck" at a glance.
+  def active_bundle_train
+    return @active_bundle_train if defined?(@active_bundle_train)
+
+    @active_bundle_train = MergeTrain.active.where(repository_id: @repository.id, epic_id: nil).order(:id).last
   end
 
   def landing_job_in_progress
