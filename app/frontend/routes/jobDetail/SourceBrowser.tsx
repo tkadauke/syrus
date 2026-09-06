@@ -6,7 +6,7 @@ import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
 import { CodeBlock, renderCodeLine, useHighlightedLines } from "../../components/CodeBlock"
 import { detectHighlighterLanguage } from "../../lib/highlighter"
-import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
+import { fetchJobSource, fetchJobSourceDiff, fetchJobSourceFileContent, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import type { LineAnnotation } from "../../components/diff/diffRendering"
@@ -367,6 +367,7 @@ function SourceDiffBrowser({
               onChangeComposingBody={feedback.onChangeComposingBody}
               onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
               onCommentLine={feedback.onCommentLine}
+              onLoadFileContext={payload.head_ref ? (file) => fetchJobSourceFileContent(payload.job_id, payload.head_ref!, file.path) : undefined}
               onSaveComposing={feedback.onSaveComposing}
               onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
