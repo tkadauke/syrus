@@ -128,29 +128,40 @@ module Steps
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      # `merge_train_build` now publishes the integration branch, so by the
-      # time we land it usually exists on the remote. `--force-with-lease`
-      # needs a remote-tracking ref to lease against, and a workspace that was
-      # re-cloned on another worker fetched the branch without one -- so
-      # refresh it here rather than letting the lease fail as "stale info".
-      refresh_integration_tracking_ref(git, chdir, train.integration_branch)
+      branch = train.integration_branch
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_push", log: method(:log)) do |push_url|
-        git.run("push", "--force-with-lease", push_url, "HEAD:refs/heads/#{train.integration_branch}", chdir: chdir)
+        git.run("push", *push_lease_args(git, chdir, branch, push_url), push_url, "HEAD:refs/heads/#{branch}", chdir: chdir)
       end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
     end
 
-    # Best-effort: a branch that isn't on the remote yet (an older train, or a
-    # build that failed to publish) simply has no baseline, which is the state
-    # `--force-with-lease` already handles.
-    def refresh_integration_tracking_ref(git, chdir, branch)
-      return if branch.blank?
+    # A bare `--force-with-lease` leases against the remote-tracking ref -- and
+    # we push to a URL, not a named remote, so git has no tracking namespace to
+    # read and refuses the push outright with "stale info".
+    #
+    # That went unnoticed for as long as the integration branch did not exist
+    # on the remote until this very push: with no ref to protect, git allowed
+    # it. Once `merge_train_build` started publishing the branch at build time,
+    # every land had something to lease against and every land failed. Four
+    # trains died that way (5115, 5117, 5238, 5239), each one clearing its
+    # members' approvals on the way out.
+    #
+    # So state the lease explicitly, the way Steps::ForcePush already does.
+    # `ls-remote` is the source of truth for what we are overwriting; no remote
+    # branch means there is nothing to protect and a plain push creates it.
+    def push_lease_args(git, chdir, branch, push_url)
+      expected = remote_branch_sha(git, chdir, branch, push_url)
+      return [] if expected.blank?
 
-      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_fetch", log: method(:log)) do |url|
-        git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: chdir)
-      end
+      [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ]
+    end
+
+    def remote_branch_sha(git, chdir, branch, push_url)
+      output = git.run("ls-remote", "--heads", push_url, "refs/heads/#{branch}", chdir: chdir)
+      output.to_s.split(/\s+/).first.presence
     rescue GitRunner::GitError => e
-      log("merge_train: no remote baseline for #{branch} (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease baseline")
+      log("merge_train: could not read the remote tip of #{branch} (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease")
+      nil
     end
 
     # The integration merge commit represents the whole train landing, not

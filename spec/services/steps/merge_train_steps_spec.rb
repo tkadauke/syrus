@@ -776,6 +776,52 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     # rescue -- so a workspace that would not clone read as "this work did not
     # land". Only a clean exit 1 is an answer; every other status means git
     # could not tell, whatever the message happens to say.
+    # A bare `--force-with-lease` leases against the remote-tracking ref, and we
+    # push to a URL rather than a named remote, so git has no tracking
+    # namespace to read and rejects with "stale info". It only ever worked
+    # because the integration branch did not exist remotely until this push --
+    # nothing to protect, so git allowed it. Publishing at build time removed
+    # that accident and took four trains down with it.
+    describe "the integration push lease" do
+      it "names the remote tip explicitly rather than leaning on a tracking ref" do
+        a = member_job(issue_number: 51)
+        train = build_train([ a ])
+        record_landed_commit!(a, sha: "a-landed-1")
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(git).to receive(:run)
+          .with("ls-remote", "--heads", anything, "refs/heads/#{train.integration_branch}", hash_including(:chdir))
+          .and_return("remotetip123\trefs/heads/#{train.integration_branch}\n")
+
+        handler.call
+
+        expect(git).to have_received(:run).with(
+          "push", "--force-with-lease=refs/heads/#{train.integration_branch}:remotetip123",
+          anything, "HEAD:refs/heads/#{train.integration_branch}", hash_including(:chdir)
+        )
+      end
+
+      it "pushes without a lease when the branch is not on the remote yet" do
+        a = member_job(issue_number: 52)
+        train = build_train([ a ])
+        record_landed_commit!(a, sha: "a-landed-1")
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(git).to receive(:run)
+          .with("ls-remote", "--heads", anything, "refs/heads/#{train.integration_branch}", hash_including(:chdir))
+          .and_return("")
+
+        handler.call
+
+        expect(git).to have_received(:run).with(
+          "push", anything, "HEAD:refs/heads/#{train.integration_branch}", hash_including(:chdir)
+        )
+        expect(git).not_to have_received(:run).with("push", a_string_including("--force-with-lease"), any_args)
+      end
+    end
+
     describe "verifying a member actually landed" do
       def land_with_ancestry_error(status)
         a = member_job(issue_number: 41)

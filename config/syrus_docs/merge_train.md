@@ -49,6 +49,8 @@ Once the integration branch is assembled, `merge_train_build` immediately pushes
 
 The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
 
+Because the branch now exists on the remote before landing, `merge_train_land` states its `--force-with-lease` value explicitly (`--force-with-lease=refs/heads/<branch>:<remote tip from ls-remote>`). A bare `--force-with-lease` leases against the remote-tracking ref, and Syrus pushes to an authenticated URL rather than a named remote, so git has no tracking namespace to read and rejects the push with `stale info`. That only ever worked because the branch did not exist remotely until the landing push itself — with no ref to protect, git allowed it.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
