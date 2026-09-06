@@ -17,8 +17,17 @@ same priority. Dependency prerequisites still sort before their dependents,
 and Epic merge-train members stay grouped as one atomic landing unit.
 
 When repository approval propagation is enabled, Syrus mirrors eligible Job
-approvals as GitHub PR reviews. Jobs created with PAT credentials are skipped
-because those PRs were opened as the user, and GitHub rejects self-approval.
+approvals as GitHub PR reviews (`Job::ApprovalPropagator`). It compares the
+approving user's own GitHub login (resolved via their connected PAT) against
+the PR's actual author login: when they differ — the normal case — the
+review is posted authenticated as the approving user's own PAT, so it's
+genuinely attributed to them on GitHub. When they match — a true self-review,
+where the approver is the same GitHub identity as the PR's author — GitHub
+rejects same-identity self-approval, so the review is posted instead using
+the GitHub App's installation token, with the body still crediting the real
+approving human by name. Propagation is skipped only when no usable
+credential exists at all: the approving user has no connected PAT and the
+repository has no active App installation.
 
 Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
