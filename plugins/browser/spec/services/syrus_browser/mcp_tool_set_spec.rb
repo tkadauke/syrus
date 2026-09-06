@@ -18,11 +18,11 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".tool_definitions" do
     subject(:defs) { described_class.tool_definitions }
 
-    it "exposes seven granular browser tools" do
+    it "exposes eight granular browser tools" do
       names = defs.map { |d| d[:name] }
       expect(names).to contain_exactly(
         "browser_navigate", "browser_click", "browser_fill", "browser_snapshot",
-        "browser_screenshot", "browser_wait_for", "browser_close"
+        "browser_screenshot", "browser_wait_for", "browser_resize", "browser_close"
       )
     end
 
@@ -198,6 +198,26 @@ RSpec.describe SyrusBrowser::McpToolSet do
       expect(session).to have_received(:call_tool).with(
         name: "browser_wait_for", arguments: { "text" => "Done", "time" => 5 }
       )
+    end
+  end
+
+  describe "#handle browser_resize" do
+    it "forwards width and height to the upstream browser_resize tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_resize", { "width" => 390, "height" => 844 }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_resize", arguments: { "width" => 390, "height" => 844 }
+      )
+    end
+
+    it "rejects a call missing height before calling the upstream browser" do
+      response = tool_set.handle("browser_resize", { "width" => 390 }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires height")
+      expect(session).not_to have_received(:call_tool)
     end
   end
 
