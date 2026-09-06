@@ -29,11 +29,7 @@ RSpec.describe ChatTurnJob, :ci_only do
   end
 
   def enable_walkthroughs!(enabled: true)
-    feature = Feature.find_or_create_by!(slug: "video_walkthroughs") do |record|
-      record.category = "Labs"
-      record.name = "Walkthrough videos"
-    end
-    feature.update!(enabled: enabled)
+    PluginRecord.find_or_create_by!(name: "video_walkthroughs").update!(enabled: enabled, disableable: true)
   end
 
   def enable_coding_mode!(enabled: true)
