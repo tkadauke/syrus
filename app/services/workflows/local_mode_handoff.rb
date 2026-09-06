@@ -29,7 +29,7 @@ module Workflows
         ]
       else
         # No PR yet (new coding Job) — open one after graders pass
-        [ grader_loop, initial_pr_finish_steps(job) ]
+        [ grader_loop, initial_pr_finish_steps(job, syrus_yml: resolve_default_branch_syrus_yml(job)) ]
       end
 
       prepare_then(job, finish_steps)
