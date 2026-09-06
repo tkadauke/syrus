@@ -1,11 +1,33 @@
 import { describe, expect, it } from "vitest"
-import { detectHighlighterLanguage, tokenizeLines } from "./highlighter"
+import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectHighlighterLanguage, tokenizeLines } from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
 }
 
 describe("tokenizeLines", () => {
+  it("colors tokens with var(--shiki-*) custom properties, not literal colors", async () => {
+    const code = "def greeting\n  \"hi\" # comment\nend"
+    const lines = await tokenizeLines(code, "ruby")
+
+    const keywordToken = lines[0].find((token) => token.content === "def")
+    const stringToken = lines[1].find((token) => token.content.includes("hi"))
+    const commentToken = lines[1].find((token) => token.content.includes("comment"))
+
+    expect(keywordToken?.color).toBe(`var(${HIGHLIGHTER_CSS_VARIABLE_PREFIX}token-keyword)`)
+    expect(commentToken?.color).toBe(`var(${HIGHLIGHTER_CSS_VARIABLE_PREFIX}token-comment)`)
+    // Different scopes resolve to different --shiki-token-* variables, so
+    // theme-appropriate colors can differ per token category once the CSS
+    // custom properties are defined (Theme::SYNTAX_TOKEN_KEYS).
+    expect(stringToken?.color).not.toBe(keywordToken?.color)
+    expect(stringToken?.color).not.toBe(commentToken?.color)
+
+    const prefixPattern = new RegExp(`^var\\(${HIGHLIGHTER_CSS_VARIABLE_PREFIX}`)
+    for (const token of [ keywordToken, stringToken, commentToken ]) {
+      expect(token?.color).toMatch(prefixPattern)
+    }
+  })
+
   it("carries a multi-line ruby heredoc's string scope across every line it spans", async () => {
     const code = [
       "def greeting",

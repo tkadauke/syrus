@@ -57,6 +57,14 @@ RSpec.describe Theme do
       expect(invalid).not_to be_valid
       expect(invalid.errors[:tokens].join).to include("brand")
     end
+
+    it "does not require Theme::SYNTAX_TOKEN_KEYS to be present" do
+      # theme_tokens only fills in Theme::TOKEN_KEYS -- a custom/agent-authored
+      # theme without syntax-highlighting tokens must still be valid; it
+      # renders via the --shiki-* fallbacks in application.css instead.
+      expect(new_theme).to be_valid
+      expect(Theme::SYNTAX_TOKEN_KEYS & theme_tokens["light"].keys).to be_empty
+    end
   end
 
   describe ".terracotta" do

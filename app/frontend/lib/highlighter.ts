@@ -44,12 +44,23 @@ const LANGUAGE_LOADERS: Record<HighlighterLanguageId, LanguageInput> = {
   dockerfile: () => import("@shikijs/langs/dockerfile")
 }
 
-// Theme-tokens follow-up job (EPIC-309) maps these --shiki-token-* variables
-// to per-theme values in the generated theme CSS. This job only wires up the
-// css-variables theme mode itself; it does not define any variable values.
+// Shiki's css-variables theme mode emits token colors as
+// `var(${HIGHLIGHTER_CSS_VARIABLE_PREFIX}<name>)` -- e.g.
+// `var(--shiki-token-keyword)` -- instead of literal hex values, so
+// rendered tokens automatically follow whichever `--shiki-*` values are in
+// effect for the current theme/dark-mode state. Theme::SYNTAX_TOKEN_KEYS
+// (app/models/theme.rb) and ThemeCssGenerator define the matching
+// per-theme `--shiki-*` values (with application.css's `:root`/`.dark`
+// blocks as the fallback for themes that don't); the prefix is pinned
+// explicitly here, rather than left to createCssVariablesTheme()'s default,
+// so the two sides can't silently drift if that default ever changes.
 export const HIGHLIGHTER_THEME_NAME = "css-variables"
+export const HIGHLIGHTER_CSS_VARIABLE_PREFIX = "--shiki-"
 
-const cssVariablesTheme = createCssVariablesTheme({ name: HIGHLIGHTER_THEME_NAME })
+const cssVariablesTheme = createCssVariablesTheme({
+  name: HIGHLIGHTER_THEME_NAME,
+  variablePrefix: HIGHLIGHTER_CSS_VARIABLE_PREFIX
+})
 
 let highlighterPromise: Promise<HighlighterCore> | null = null
 
