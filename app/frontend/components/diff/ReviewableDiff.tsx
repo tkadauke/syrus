@@ -1,5 +1,8 @@
-import { Fragment, type ReactNode, useState } from "react"
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react"
+import type { ThemedToken } from "@shikijs/core"
 import { Button } from "../Button"
+import { renderCodeLine } from "../CodeBlock"
+import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import { diffCoverageBorderClass, diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff, type DiffLine, type DiffLineKind, type LineAnnotation } from "./diffRendering"
 
 export type ReviewableDiffFile = {
@@ -200,6 +203,57 @@ function ChangedFilesPopup({
   )
 }
 
+// Tokenizes each hunk's visible lines as one contiguous blob (grouped by
+// `hunkId`, see diffRendering.ts) rather than the full source file, since
+// only the diff payload -- not full before/after file content -- reaches
+// this component. This is a deliberate, documented limitation: a
+// multi-line construct (a heredoc, a block comment, a template literal)
+// whose opening line falls outside the visible hunk can highlight
+// incorrectly at the hunk boundary, because Shiki has no grammar state
+// from before the hunk to continue from.
+function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null): (ThemedToken[] | undefined)[] {
+  const [tokensByIndex, setTokensByIndex] = useState<(ThemedToken[] | undefined)[]>([])
+
+  useEffect(() => {
+    setTokensByIndex([])
+    if (!lang) return
+
+    const hunkLineIndexes = new Map<number, number[]>()
+    lines.forEach((line, index) => {
+      if (line.hunkId < 0 || !isDiffCodeLine(line.kind)) return
+      const indexes = hunkLineIndexes.get(line.hunkId) ?? []
+      indexes.push(index)
+      hunkLineIndexes.set(line.hunkId, indexes)
+    })
+
+    let cancelled = false
+    Promise.all(
+      Array.from(hunkLineIndexes.values()).map(async (indexes) => {
+        const code = indexes.map((index) => lines[index].code).join("\n")
+        const tokens = await tokenizeLines(code, lang)
+        return indexes.map((lineIndex, tokenIndex) => [lineIndex, tokens[tokenIndex]] as const)
+      })
+    ).then((groups) => {
+      if (cancelled) return
+      const result: (ThemedToken[] | undefined)[] = []
+      for (const group of groups) {
+        for (const [lineIndex, tokens] of group) result[lineIndex] = tokens
+      }
+      setTokensByIndex(result)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [lines, lang])
+
+  return tokensByIndex
+}
+
+function isDiffCodeLine(kind: DiffLine["kind"]) {
+  return kind === "add" || kind === "delete" || kind === "context"
+}
+
 export function UnifiedDiffTable({
   annotations,
   comments,
@@ -241,7 +295,9 @@ export function UnifiedDiffTable({
   onStartEditThread?: (thread: DiffReviewThread) => void
   testId?: string
 }) {
-  const lines = parseUnifiedDiff(file.patch || "")
+  const lines = useMemo(() => parseUnifiedDiff(file.patch || ""), [file.patch])
+  const lang = detectHighlighterLanguage(file.path)
+  const tokensByLine = useHighlightedDiffLines(lines, lang)
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
 
   return (
@@ -274,7 +330,7 @@ export function UnifiedDiffTable({
                   {line.newLine ?? ""}
                 </td>
                 <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
+                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{renderCodeLine(tokensByLine[index], line.code || " ")}</td>
                 <td className="w-4 select-none px-1 text-center">
                   {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                     : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
