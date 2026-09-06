@@ -1,23 +1,16 @@
 require "rails_helper"
-require "tmpdir"
-require "fileutils"
 
 RSpec.describe "API: repository recommendations", type: :request do
-  let!(:user) { Factories.user }
+  let!(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", ci_health: "not_configured") }
-
-  around do |example|
-    @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
-    previous_root = ENV["SYRUS_DATA_ROOT"]
-    ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
-    example.run
-    ENV["SYRUS_DATA_ROOT"] = previous_root
-    FileUtils.rm_rf(@data_root)
-  end
+  let(:client) { instance_double(GithubClient) }
 
   before do
-    allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(false)
+    allow(App::PreviewAvailability).to receive(:configured?).and_return(false)
     allow(Feature).to receive(:visual_review_enabled?).and_return(false)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:file_content_at).and_return(nil)
+    allow(client).to receive(:file_tree_at).and_return(items: [], truncated: false)
   end
 
   def parse_body
@@ -28,30 +21,17 @@ RSpec.describe "API: repository recommendations", type: :request do
     { "Authorization" => "Bearer #{user.generate_api_token!}" }
   end
 
-  def write_bare_clone(files: {}, syrus_yml: nil)
-    work_dir = Dir.mktmpdir("syrus-work")
-    system("git", "init", "-q", "-b", "main", work_dir, exception: true)
-    system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
-    system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
-    File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
-    files.each do |path, content|
-      full_path = File.join(work_dir, path)
-      FileUtils.mkdir_p(File.dirname(full_path))
-      File.write(full_path, content)
-    end
-    File.write(File.join(work_dir, "README.md"), "hi") if Dir.children(work_dir).reject { |name| name == ".git" }.empty?
-    system("git", "-C", work_dir, "add", ".", exception: true)
-    system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
-
-    clone_path = RepositoryBareClone.path_for(repository)
-    FileUtils.mkdir_p(clone_path.dirname)
-    system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
-  ensure
-    FileUtils.rm_rf(work_dir) if work_dir
+  # `.syrus.yml` and the repo file tree are read over the GitHub API, not the
+  # repository's local bare clone — the web tier that serves this request
+  # doesn't share the worker's on-disk clone.
+  def stub_repo_files(paths)
+    allow(client).to receive(:file_tree_at)
+      .with(repository.slug, repository.default_branch)
+      .and_return(items: paths.map { |path| { path: path, size: 0 } }, truncated: false)
   end
 
   it "includes recommended actions in the repository detail payload" do
-    write_bare_clone(files: { "Gemfile" => "source 'https://rubygems.org'\n" })
+    stub_repo_files(%w[Gemfile])
     sign_in_as(user)
 
     get "/api/v1/app/repositories/#{repository.id}"
@@ -64,7 +44,7 @@ RSpec.describe "API: repository recommendations", type: :request do
   end
 
   it "creates a direct Job from a currently applicable server-owned job CTA" do
-    write_bare_clone(files: { "Gemfile" => "source 'https://rubygems.org'\n" })
+    stub_repo_files(%w[Gemfile])
     sign_in_as(user)
 
     expect {
@@ -81,7 +61,7 @@ RSpec.describe "API: repository recommendations", type: :request do
   it "allows write-tier repository members to create recommendation jobs" do
     writer = Factories.user(global_role: "user")
     repository.repository_memberships.create!(user: writer, role: "write")
-    write_bare_clone(files: { "Gemfile" => "source 'https://rubygems.org'\n" })
+    stub_repo_files(%w[Gemfile])
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/recommendations/github_actions_ci", headers: bearer_headers(writer), as: :json
@@ -94,7 +74,7 @@ RSpec.describe "API: repository recommendations", type: :request do
   it "rejects recommendation jobs for read-only repository members" do
     reader = Factories.user(global_role: "user")
     repository.repository_memberships.create!(user: reader, role: "read")
-    write_bare_clone(files: { "Gemfile" => "source 'https://rubygems.org'\n" })
+    stub_repo_files(%w[Gemfile])
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/recommendations/github_actions_ci", headers: bearer_headers(reader), as: :json
@@ -106,7 +86,6 @@ RSpec.describe "API: repository recommendations", type: :request do
 
   it "applies a low-risk repository toggle and returns the updated detail payload" do
     repository.update!(prepare_enabled: false)
-    write_bare_clone(files: { "README.md" => "hi\n" })
     sign_in_as(user)
 
     post "/api/v1/app/repositories/#{repository.id}/recommendations/enable_prepare", as: :json
@@ -121,7 +100,6 @@ RSpec.describe "API: repository recommendations", type: :request do
     writer = Factories.user(global_role: "user")
     repository.repository_memberships.create!(user: writer, role: "write")
     repository.update!(prepare_enabled: false)
-    write_bare_clone(files: { "README.md" => "hi\n" })
 
     post "/api/v1/app/repositories/#{repository.id}/recommendations/enable_prepare", headers: bearer_headers(writer), as: :json
 
@@ -134,7 +112,6 @@ RSpec.describe "API: repository recommendations", type: :request do
     reader = Factories.user(global_role: "user")
     repository.repository_memberships.create!(user: reader, role: "read")
     repository.update!(prepare_enabled: false)
-    write_bare_clone(files: { "README.md" => "hi\n" })
 
     post "/api/v1/app/repositories/#{repository.id}/recommendations/enable_prepare", headers: bearer_headers(reader), as: :json
 
@@ -144,7 +121,7 @@ RSpec.describe "API: repository recommendations", type: :request do
   end
 
   it "rejects stale or inapplicable recommendation actions" do
-    write_bare_clone(files: { ".github/workflows/ci.yml" => "name: CI\n" })
+    stub_repo_files([".github/workflows/ci.yml"])
     sign_in_as(user)
 
     post "/api/v1/app/repositories/#{repository.id}/recommendations/github_actions_ci", as: :json
