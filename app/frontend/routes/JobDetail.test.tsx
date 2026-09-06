@@ -305,8 +305,67 @@ describe("JobDetailView", () => {
       }
     }))
 
-    expect(screen.getByRole("link", { name: "Job proposal in Roadmap chat" }))
+    expect(screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Roadmap chat" }))
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it("falls back to a generic title when the origin chat has no title", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        source_chat: {
+          chat_id: 4,
+          chat_title: null,
+          proposal_id: 9,
+          proposal_kind: "syrus_issue",
+          message_id: 12,
+          path: "/chats/4#message-12",
+          label: "Job proposal"
+        }
+      }
+    }))
+
+    expect(screen.getByRole("link", { name: "New chat" }))
+      .toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it("shows a chat preview card on hover for the origin chat slug", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    try {
+      vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+        id: 4,
+        chat_slug: "CHAT-4",
+        title: "Roadmap chat",
+        title_pending: false,
+        participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
+        pending_proposal_count: 0,
+        pending_actions_count: 0
+      }))
+
+      renderJobDetail(jobPayload({
+        job: {
+          ...baseJob(),
+          source_chat: {
+            chat_id: 4,
+            chat_title: "Roadmap chat",
+            proposal_id: 9,
+            proposal_kind: "syrus_issue",
+            message_id: 12,
+            path: "/chats/4#message-12",
+            label: "Job proposal in Roadmap chat"
+          }
+        }
+      }))
+
+      const copyChatSlugButton = screen.getByRole("button", { name: "Copy CHAT-4 to clipboard" })
+      expect(screen.getAllByText("Roadmap chat")).toHaveLength(1)
+
+      fireEvent.mouseEnter(copyChatSlugButton.parentElement!)
+      await waitFor(() => expect(screen.getAllByText("Roadmap chat")).toHaveLength(2))
+    } finally {
+      restoreMedia()
+    }
   })
 
   it("registers a recent workflow context bug-report attachment", async () => {
@@ -998,6 +1057,35 @@ describe("JobDetailView", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/1/release_from_backlog",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("offers a backlog-worded cancel action for a backlogged job and dispatches it to the cancel endpoint", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Cancellation requested.", job: { id: 1, state: "closed" } })
+    )
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "backlog", summary_state: "backlog", kind: "direct" }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_start: false, can_release_from_backlog: true, can_move_to_backlog: true, can_cancel: true }
+    })
+
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "⋯" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from backlog" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/cancel",
         expect.objectContaining({ method: "POST" })
       )
     })
@@ -2239,6 +2327,33 @@ function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summ
 function LocationProbe() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function mockMediaQuery(matches: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(window, "matchMedia", original)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
 }
 
 function renderJobSource() {

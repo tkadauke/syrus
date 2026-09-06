@@ -912,11 +912,11 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(implement → visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan` |
-| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → optional retry_until(respond → format → generate → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
-| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → optional retry_until(respond → format → generate → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan` |
+| `pr_comment` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
+| `chat_feedback` | `prepare → respond → optional loop(adversarial_review first, then respond ⇄ adversarial_review) → optional loop(visual_review first, then respond ⇄ visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
-| `retry` / `replay` | `initial`-like finish steps, but without the top-level `implement` special case: optional review loops and optional retry loop run the agent step on the first iteration, reusing the existing branch and PR if present |
+| `retry` / `replay` | Same shape as `initial`: `prepare → implement → ` optional review loops (review-first) `→` optional retry loop (check-first, `repair: implement`) `→` initial's finish steps, reusing the existing branch and PR if present |
 | `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
 | `manual` / `resume` | `manual` |
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
@@ -965,17 +965,23 @@ immediately: it posts or updates the coverage report as a PR comment
 using the body computed by `coverage_analyze`; a no-op when coverage is
 unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
 
-`initial` always materializes a top-level `implement` Step immediately
-after `prepare`. Optional review and grade loops revise that work; they
-do not decide whether implementation happens. When configured,
-`adversarial_review` uses a `review_first` loop: the first iteration
-reviews the already-produced top-level diff, middle iterations pair a
-repair `implement` with another review, and the final budgeted iteration
-is repair-only because there is no remaining review turn to act on.
-The initial grader retry loop likewise runs check-first: the first pass
-runs configured `format`, `generate`, and grader Steps against the
-existing implementation, and only adds another `implement` Step after a
-failed grader iteration.
+`initial`, `retry`, `pr_comment`, and `chat_feedback` all materialize a
+bare top-level `implement`/`respond` Step immediately after `prepare`.
+Optional review and grade loops revise that work; they do not decide
+whether implementation/response happens. When configured, both
+`adversarial_review` and `visual_review` are review-first loops: the
+first iteration reviews whatever agent step already ran before the loop
+(the bare top-level step, or the tail of a preceding review loop). A
+`needs_work` verdict always inserts a repair `implement`/`respond` Step,
+unconditionally, regardless of remaining review budget; the repair pairs
+with another review while budget remains. Once the review that just ran
+was the last one `rounds` allows, its `needs_work` repair runs alone,
+with no trailing review — there is no remaining review turn to act on.
+`rounds: N` seeks exactly N review opinions, each reacted to with exactly
+one repair. The grader retry loop in these four chains likewise runs
+check-first: the first pass runs configured `format`, `generate`, and
+grader Steps against the existing implementation, and only adds another
+`implement`/`respond` Step after a failed grader iteration.
 
 For Initial, Retry, `pr_comment`, and `chat_feedback`, the grade loop is
 materialized only when the repository's default-branch `.syrus.yml`
@@ -1023,23 +1029,27 @@ loop runs the same way
 `rounds`, and an optional `when_files_changed` glob pre-filter evaluated
 against the actual diff once the workspace is cloned), falling back to the
 instance-wide `visual_review` Labs feature flag (`Feature.visual_review_enabled?`)
-when the repository leaves `enabled` unset or has no config at all. Each
-iteration pairs the agentic step (`implement`/`respond`) with an independent
-`visual_review` Step: that reviewer agent calls `start_preview` (an MCP tool
+when the repository leaves `enabled` unset or has no config at all. Like
+`adversarial_review`, this loop is review-first: iteration 1 is
+`visual_review` alone, reviewing whatever `implement`/`respond` step (or the
+tail of a preceding `adversarial_review` loop) already ran before it. That
+reviewer agent calls `start_preview` (an MCP tool
 that resolves a `preview:` command from `.syrus.yml` or a registered
 `:preview_provider` plugin, runs setup/seed commands, spawns the app in the
 workflow runner container, and polls its health-check path) and then drives
 a headless Chromium browser against that preview through the `browser`
 plugin's MCP tool set (`browser_navigate` — hard-restricted to the
 worker's own loopback preview — `browser_snapshot`, `browser_click`,
-`browser_fill`, `browser_screenshot`, `browser_wait_for`, `browser_close`,
-proxying each call to a per-Run `@playwright/mcp` stdio subprocess). It
+`browser_fill`, `browser_hover`, `browser_screenshot`, `browser_wait_for`,
+`browser_close`, proxying each call to a per-Run `@playwright/mcp` stdio
+subprocess). It
 reads the implementing agent's `submit_test_plan` `visual_review_recommended`
 hint but makes its own go/no-go call, always calls `stop_preview` before
 exiting, and must call `submit_visual_review(verdict:, critique:)` with
-`approved` (looks correct), `needs_work` (loops back into another
-implement/respond iteration), or `skipped` (not visually testable — exits
-the loop like `approved`). The reviewer's workspace changes are discarded.
+`approved` (looks correct), `needs_work` (always inserts a repair
+`implement`/`respond` iteration, paired with another review while budget
+remains), or `skipped` (not visually testable — exits the loop like
+`approved`). The reviewer's workspace changes are discarded.
 An operator or chat can also trigger a standalone pass without the
 implement/respond pairing — see `manual_visual_review` in the trigger-kind
 table above.
@@ -1564,8 +1574,8 @@ agent at it over stdio. Today's tool surface:
   hosted preview described under [Preview hosting](#preview-hosting).
 
 The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
-/ `browser_click` / `browser_fill` / `browser_screenshot` / `browser_wait_for`
-/ `browser_close` MCP tool set, proxying each call to a per-Run
+/ `browser_click` / `browser_fill` / `browser_hover` / `browser_screenshot`
+/ `browser_wait_for` / `browser_close` MCP tool set, proxying each call to a per-Run
 `@playwright/mcp` stdio subprocess. `browser_navigate` is hard-restricted to
 loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
 steered at an arbitrary network destination.

@@ -1,12 +1,30 @@
 import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
-import { type ReactNode, useCallback, useRef, useState } from "react"
+import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
+import { pluginSlugPreviewCardComponentForPrefix } from "../pluginSlugPreviewCards"
+import { ChatPreviewCard } from "./ChatPreviewCard"
 import { EpicPreviewCard } from "./EpicPreviewCard"
 import { JobPreviewCard } from "./JobPreviewCard"
 
 interface SlugHoverCardProps {
-  kind: "job" | "epic"
+  kind: "job" | "epic" | "plugin" | "chat"
   id: number
+  // Slug prefix (e.g. "DOC"), derived directly from the slug text by the
+  // caller. Only meaningful when kind is "plugin": used to find whichever
+  // plugin registered a preview card for that prefix. Core never hardcodes
+  // which plugin owns which prefix -- see pluginSlugPreviewCards.tsx.
+  prefix?: string
   children: ReactNode
+}
+
+function PluginPreviewCard({ prefix, id }: { prefix: string; id: number }) {
+  const Component = pluginSlugPreviewCardComponentForPrefix(prefix)
+  if (!Component) return null
+
+  return (
+    <Suspense fallback={null}>
+      <Component id={id} />
+    </Suspense>
+  )
 }
 
 function detectPointerFine(): boolean {
@@ -17,7 +35,7 @@ function detectPointerFine(): boolean {
   )
 }
 
-export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
+export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -67,7 +85,15 @@ export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
             ref={refs.setFloating}
             style={{ ...floatingStyles, zIndex: 50 }}
           >
-            {kind === "job" ? <JobPreviewCard id={id} /> : <EpicPreviewCard id={id} />}
+            {kind === "job" ? (
+              <JobPreviewCard id={id} />
+            ) : kind === "epic" ? (
+              <EpicPreviewCard id={id} />
+            ) : kind === "chat" ? (
+              <ChatPreviewCard id={id} />
+            ) : prefix ? (
+              <PluginPreviewCard id={id} prefix={prefix} />
+            ) : null}
           </div>
         </FloatingPortal>
       )}

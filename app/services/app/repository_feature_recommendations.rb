@@ -1,5 +1,3 @@
-require "shellwords"
-
 module App
   class RepositoryFeatureRecommendations
     include Rails.application.routes.url_helpers
@@ -64,9 +62,10 @@ module App
       TOGGLE_ACTIONS[action_id.to_s]
     end
 
-    def initialize(repository:, user:)
+    def initialize(repository:, user:, client: nil)
       @repository = repository
       @user = user
+      @client = client
     end
 
     def recommendations
@@ -96,8 +95,8 @@ module App
     end
 
     def visual_review
-      return if visual_review_enabled?
       return unless preview_configured? || browser_app?
+      return if visual_review_enabled?
 
       recommendation(
         id: "visual_review",
@@ -350,6 +349,18 @@ module App
       "/docs/#{anchor}"
     end
 
+    # `.syrus.yml` and the file tree are fetched over the GitHub API rather
+    # than from the repository's local bare clone (`RepositoryBareClone`):
+    # this service is called from a repository-detail page load, which runs
+    # on the web tier, and the web tier does not mount the worker's on-disk
+    # bare clone (see "Deploy target" in CLAUDE.md — "Web pods don't need
+    # this volume"). Reading local disk here silently sees "no config" for
+    # every repo and makes every "already configured" check below always
+    # false, so already-onboarded repos keep recommending features they use.
+    # GithubClient reads the same default-branch content and works
+    # regardless of which pod serves the request — the same reasoning
+    # `RepoVisualReviewPlan`/`RepoGradeLoopPlan`/etc. already apply when
+    # resolving a repo's config ahead of a Job dispatch.
     def parsed_config
       return @parsed_config if defined?(@parsed_config)
 
@@ -361,37 +372,44 @@ module App
     end
 
     def config_missing?
-      bare_clone_path.exist? && syrus_yml_content.blank?
+      github_client.present? && syrus_yml_content.blank?
     end
 
     def syrus_yml_content
       return @syrus_yml_content if defined?(@syrus_yml_content)
-      return @syrus_yml_content = nil unless bare_clone_path.exist?
 
-      @syrus_yml_content = git_show("HEAD:.syrus.yml")
+      client = github_client
+      return @syrus_yml_content = nil unless client
+
+      file = client.file_content_at(repository.slug, SyrusYml::CONFIG_FILE, repository.default_branch)
+      @syrus_yml_content = file&.fetch(:content)
+    rescue StandardError => e
+      Rails.logger.warn("[RepositoryFeatureRecommendations] failed to fetch .syrus.yml for #{repository.slug}: #{e.class}: #{e.message}")
+      @syrus_yml_content = nil
     end
 
     def repo_files
       return @repo_files if defined?(@repo_files)
-      return @repo_files = [] unless bare_clone_path.exist?
 
-      output = git("ls-tree", "-r", "--name-only", "HEAD")
-      @repo_files = output.to_s.lines.map(&:strip).reject(&:blank?)
+      client = github_client
+      return @repo_files = [] unless client
+
+      result = client.file_tree_at(repository.slug, repository.default_branch)
+      @repo_files = Array(result[:items]).map { |item| item[:path] }
+    rescue StandardError => e
+      Rails.logger.warn("[RepositoryFeatureRecommendations] failed to fetch file tree for #{repository.slug}: #{e.class}: #{e.message}")
+      @repo_files = []
     end
 
-    def git_show(rev)
-      output = `git --git-dir #{bare_clone_path.to_s.shellescape} show #{rev.shellescape} 2>/dev/null`
-      $?.success? ? output : nil
-    end
+    def github_client
+      return @client if @client
+      return @github_client if defined?(@github_client)
+      return @github_client = nil unless repository.installation&.active? || user&.github_token.present?
 
-    def git(*args)
-      escaped = args.map { |arg| arg.to_s.shellescape }.join(" ")
-      output = `git --git-dir #{bare_clone_path.to_s.shellescape} #{escaped} 2>/dev/null`
-      $?.success? ? output : nil
-    end
-
-    def bare_clone_path
-      @bare_clone_path ||= RepositoryBareClone.path_for(repository)
+      @github_client = GithubClient.for(repository: repository, user: user)
+    rescue StandardError => e
+      Rails.logger.warn("[RepositoryFeatureRecommendations] GitHub client unavailable for #{repository.slug}: #{e.class}: #{e.message}")
+      @github_client = nil
     end
 
     def preview_configured?

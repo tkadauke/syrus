@@ -200,6 +200,61 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  describe "GET /api/v1/app/design_docs/:id/preview" do
+    it "returns a compact preview with owner, collaborators, counts, and clamped body text" do
+      doc = create_design_doc(title: "Checkout design", markdown: "# Checkout\n\n#{(['word'] * 150).join(' ')}")
+      doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc.reload,
+        user: owner,
+        attributes: { body: "Needs detail", start_offset: 0, end_offset: 9, selected_markdown: "# Checkout" }
+      )
+      sign_in_as(owner)
+
+      get "/api/v1/app/design_docs/#{doc.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body.fetch("design_doc")
+      expect(body).to include(
+        "id" => doc.id,
+        "display_id" => "DOC-#{doc.id}",
+        "accessible" => true,
+        "title" => "Checkout design",
+        "visibility" => "private",
+        "state" => "draft",
+        "comments_count" => 1,
+        "latest_version_number" => 2
+      )
+      expect(body.dig("owner", "id")).to eq(owner.id)
+      expect(body.fetch("collaborators").map { |user| user.fetch("id") }).to eq([ collaborator.id ])
+      expect(body.fetch("preview_text")).to end_with("…")
+      expect(body.fetch("preview_text")).not_to include("syrus:")
+      expect(body).not_to have_key("markdown")
+      expect(body).not_to have_key("threads")
+      expect(body).not_to have_key("suggestions")
+    end
+
+    it "does not leak title, owner, or content for docs the viewer cannot access" do
+      doc = create_design_doc(title: "Secret plan")
+      sign_in_as(outsider)
+
+      get "/api/v1/app/design_docs/#{doc.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body.fetch("design_doc")
+      expect(body).to eq("id" => doc.id, "display_id" => "DOC-#{doc.id}", "accessible" => false)
+    end
+
+    it "returns the same minimal unavailable shape for a nonexistent doc id" do
+      sign_in_as(owner)
+
+      get "/api/v1/app/design_docs/999999/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("design_doc")).to eq("id" => 999999, "display_id" => "DOC-999999", "accessible" => false)
+    end
+  end
+
   it "lets owners autosave canonical markdown without creating a new version" do
     doc = create_design_doc(markdown: "v1")
     sign_in_as(owner)

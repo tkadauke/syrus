@@ -1078,7 +1078,25 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
         {feedback.panel}
         {payload.agent_diff ? (
-          <AgentDiff comments={feedback.diffThreads} diff={payload.agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
+          <AgentDiff
+            comments={feedback.diffThreads}
+            composingBody={feedback.composingBody}
+            composingError={feedback.composingError}
+            composingPending={feedback.composingPending}
+            composingSelection={feedback.composingSelection}
+            diff={payload.agent_diff}
+            editingThreadBody={feedback.editingThreadBody}
+            editingThreadId={feedback.editingThreadId}
+            onCancelComposing={feedback.onCancelComposing}
+            onCancelEditThread={feedback.onCancelEditThread}
+            onChangeComposingBody={feedback.onChangeComposingBody}
+            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
+            onCommentLine={feedback.onCommentLine}
+            onSaveComposing={feedback.onSaveComposing}
+            onSaveEditThread={feedback.onSaveEditThread}
+            onStartEditThread={feedback.onStartEditThread}
+            showFileHeaders
+          />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )
@@ -1090,7 +1108,25 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
         {feedback.panel}
         {payload.step_agent_diff ? (
-          <AgentDiff comments={feedback.diffThreads} diff={payload.step_agent_diff} onCommentLine={feedback.onCommentLine} showFileHeaders />
+          <AgentDiff
+            comments={feedback.diffThreads}
+            composingBody={feedback.composingBody}
+            composingError={feedback.composingError}
+            composingPending={feedback.composingPending}
+            composingSelection={feedback.composingSelection}
+            diff={payload.step_agent_diff}
+            editingThreadBody={feedback.editingThreadBody}
+            editingThreadId={feedback.editingThreadId}
+            onCancelComposing={feedback.onCancelComposing}
+            onCancelEditThread={feedback.onCancelEditThread}
+            onChangeComposingBody={feedback.onChangeComposingBody}
+            onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
+            onCommentLine={feedback.onCommentLine}
+            onSaveComposing={feedback.onSaveComposing}
+            onSaveEditThread={feedback.onSaveEditThread}
+            onStartEditThread={feedback.onStartEditThread}
+            showFileHeaders
+          />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )

@@ -23,5 +23,13 @@ module BuildCache
     ].freeze
 
     def self.forwarded_env_keys = KEYS
+
+    # Values computed per Workflow rather than merely forwarded from the
+    # worker pod's own ENV -- see RuntimeEnv. Consumed by
+    # Steps::Prepare.prep_extra_env (the optional companion to
+    # #forwarded_env_keys on Syrus::Plugin::StepEnvironment).
+    def self.extra_env(workflow:, workspace_path:)
+      RuntimeEnv.for(workflow: workflow, workspace_path: workspace_path)
+    end
   end
 end

@@ -961,6 +961,7 @@ export type DiffReviewCommentAnchorKind = "line" | "review"
 export type DiffReviewComment = {
   id: number
   job_id: number
+  parent_id: number | null
   user_id: number
   user: { id: number; display_name: string; email_address: string; avatar_url: string | null } | null
   workflow_id: number | null
@@ -1013,6 +1014,11 @@ export type DiffReviewCommentsSubmitPayload = {
   message: string
   workflow: { id: number; trigger_kind: string; state: string }
   comments: DiffReviewComment[]
+}
+
+export type DiffReviewCommentDeletePayload = {
+  job_id: number
+  deleted_id: number
 }
 
 export type JobCommandPayload = {
@@ -1084,6 +1090,14 @@ export function updateDiffReviewComment(jobId: string | number, commentId: numbe
 
 export function resolveDiffReviewComment(jobId: string | number, commentId: number) {
   return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}/resolve`)
+}
+
+export function replyToDiffReviewComment(jobId: string | number, commentId: number, body: string) {
+  return postJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}/reply`, { body })
+}
+
+export function deleteDiffReviewComment(jobId: string | number, commentId: number) {
+  return deleteJson<DiffReviewCommentDeletePayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}`)
 }
 
 export function submitDiffReviewComments(jobId: string | number, commentIds: number[]) {

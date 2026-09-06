@@ -21,6 +21,7 @@ module DesignDocs
     route :get, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#index"
     route :post, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#create"
     route :get, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#show"
+    route :get, "/api/v1/app/design_docs/:id/preview", to: "api/v1/app/design_docs#preview"
     route :patch, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#update"
     route :put, "/api/v1/app/design_docs/:id", to: "api/v1/app/design_docs#update"
     route :get, "/api/v1/app/design_docs/:id/versions", to: "api/v1/app/design_docs#versions"
@@ -39,6 +40,9 @@ module DesignDocs
         },
         workspace_tabs: {
           "design_docs/WorkspaceDesignDocs" => "app/frontend/workspaceTabs/WorkspaceDesignDocs.tsx"
+        },
+        slug_preview_cards: {
+          "DOC" => "app/frontend/slugPreviewCards/DOC.DesignDocPreviewCard.tsx"
         },
         i18n: [ "app/frontend/i18n/locales/*/design_docs.json" ]
 

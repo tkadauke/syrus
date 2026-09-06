@@ -1773,11 +1773,14 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(recentNav).getByRole("link", { name: "Widgets active" }).className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
+      // The dropdown itself renders through a FloatingPortal (outside `recentNav`'s
+      // DOM subtree) so flip/shift can reposition it clear of the sidebar's clipping
+      // ancestor; query its content on `screen`, not `within(recentNav)`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
-      expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
-      fireEvent.click(within(recentNav).getByRole("link", { name: "Aqueducts" }))
-      expect(within(recentNav).queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
+      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(screen.getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
+      fireEvent.click(screen.getByRole("link", { name: "Aqueducts" }))
+      expect(screen.queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
       expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
       expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
 
@@ -1853,9 +1856,11 @@ describe("App", () => {
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
       expect(await within(recentNav).findByRole("link", { name: "Widgets two" })).toBeInTheDocument()
 
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets two" }))
-      expect(await within(recentNav).findByText("No bookmarks yet")).toBeInTheDocument()
-      fireEvent.click(within(recentNav).getByRole("button", { name: "Hide Chat" }))
+      expect(await screen.findByText("No bookmarks yet")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Hide Chat" }))
 
       expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument()
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11/hide", expect.objectContaining({ method: "PATCH" })))
@@ -3658,9 +3663,22 @@ describe("App", () => {
     )
 
     const chatJobCell = (await screen.findByRole("link", { name: "Direct chat repair" })).closest("td")
-    expect(chatJobCell).toHaveTextContent("JOB-602·PR #44·Chat")
+    expect(chatJobCell).toHaveTextContent("JOB-602·PR #44·CHAT-9")
     expect(within(chatJobCell!).getByRole("link", { name: "PR #44" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/44")
-    expect(within(chatJobCell!).getByRole("link", { name: "Chat" })).toHaveAttribute("href", "/app-shell/chats/9")
+
+    const copyChatSlugButton = within(chatJobCell!).getByRole("button", { name: "Copy CHAT-9 to clipboard" })
+    const chatSlugLink = copyChatSlugButton.closest("a")
+    expect(chatSlugLink).toHaveAttribute("href", "/app-shell/chats/9")
+    // Regression test for a real-browser-only bug: jsdom doesn't implement
+    // anchor-click navigation, so a plain fireEvent.click can't tell "the
+    // native default action was prevented" apart from "propagation to the
+    // Link's own onClick (which calls preventDefault) was merely stopped".
+    // Dispatching a real, cancelable MouseEvent and asserting
+    // defaultPrevented catches the case where only stopPropagation runs.
+    const chatSlugClickEvent = new MouseEvent("click", { bubbles: true, cancelable: true })
+    copyChatSlugButton.dispatchEvent(chatSlugClickEvent)
+    expect(chatSlugClickEvent.defaultPrevented).toBe(true)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("CHAT-9"))
 
     const copySlugButton = within(chatJobCell!).getByRole("button", { name: "Copy JOB-602 to clipboard" })
     fireEvent.click(copySlugButton)
@@ -3673,6 +3691,61 @@ describe("App", () => {
     const pausedCell = screen.getByRole("link", { name: "Paused direct" }).closest("td")
     expect(pausedCell).toHaveTextContent("JOB-604·Manually paused·Unpause")
     expect(within(pausedCell!).getByRole("button", { name: "Unpause" })).toBeEnabled()
+  })
+
+  it("shows a chat preview card on hover for the dashboard source chat slug", async () => {
+    const restoreMedia = mockMediaQuery(true)
+    try {
+      mockDashboardFetchWithChatPreview(dashboardPayload({
+        subject: "job",
+        view: "list",
+        items: [
+          dashboardJobItem({
+            id: 610,
+            kind: "direct",
+            title: "Chat-originated repair",
+            issue_number: null,
+            issue_url: null,
+            pr_number: null,
+            pr_url: null,
+            tags: [],
+            source_chat: {
+              chat_id: 11,
+              chat_title: "Roadmap sync",
+              proposal_id: 8,
+              proposal_kind: "job",
+              message_id: 4,
+              path: "/chats/11#message-4",
+              label: "Job proposal in Roadmap sync"
+            }
+          })
+        ]
+      }), {
+        id: 11,
+        chat_slug: "CHAT-11",
+        title: "Roadmap sync",
+        title_pending: false,
+        participants: [{ id: 1, name: "Ada Lovelace", avatar_url: null, role: "owner" }],
+        pending_proposal_count: 0,
+        pending_actions_count: 0
+      })
+
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const copyChatSlugButton = await screen.findByRole("button", { name: "Copy CHAT-11 to clipboard" })
+      expect(copyChatSlugButton.closest("a")).toHaveAttribute("href", "/app-shell/chats/11#message-4")
+
+      fireEvent.mouseEnter(copyChatSlugButton.parentElement!.parentElement!)
+      expect(await screen.findByText("Roadmap sync")).toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
   })
 
   it("surfaces readiness failures on the dashboard", async () => {
@@ -14159,10 +14232,12 @@ describe("App", () => {
       )
 
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
-      expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
-      expect(within(recentNav).queryByText("No bookmarks yet")).not.toBeInTheDocument()
-      expect(within(recentNav).getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+      expect(screen.getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(screen.queryByText("No bookmarks yet")).not.toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -14229,16 +14304,18 @@ describe("App", () => {
       )
 
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
+      // The dropdown renders through a FloatingPortal outside `recentNav`; query
+      // its content on `screen`.
       fireEvent.click(await within(recentNav).findByRole("button", { name: "Chat actions for Canal follow-up" }))
-      expect(within(recentNav).getByText("Loading bookmarks...")).toBeInTheDocument()
+      expect(screen.getByText("Loading bookmarks...")).toBeInTheDocument()
 
       await act(async () => {
         resolveInactiveChat(new Response(JSON.stringify(inactivePayload), { status: 200, headers: { "Content-Type": "application/json" } }))
         await inactiveChatRequest
       })
 
-      expect(await within(recentNav).findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
-      expect(within(recentNav).queryByText("Loading bookmarks...")).not.toBeInTheDocument()
+      expect(await screen.findByRole("link", { name: "Inactive aqueduct note" })).toHaveAttribute("href", "/app-shell/chats/11#message-13")
+      expect(screen.queryByText("Loading bookmarks...")).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/chats/11",
         expect.objectContaining({ credentials: "same-origin" })
@@ -15392,6 +15469,16 @@ function dashboardResponse(payload: ReturnType<typeof dashboardPayload>, input: 
 
 function mockDashboardFetch(payload: ReturnType<typeof dashboardPayload>) {
   return vi.spyOn(window, "fetch").mockImplementation((input) => Promise.resolve(dashboardResponse(payload, input)))
+}
+
+function mockDashboardFetchWithChatPreview(payload: ReturnType<typeof dashboardPayload>, chatPreview: Record<string, unknown>) {
+  return vi.spyOn(window, "fetch").mockImplementation((input) => {
+    if (typeof input === "string" && input.includes("/preview")) {
+      return Promise.resolve(jsonResponse(chatPreview))
+    }
+
+    return Promise.resolve(dashboardResponse(payload, input))
+  })
 }
 
 function decodeFilterQueryParam(q: string) {

@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 import {
   createDiffReviewComment,
+  deleteDiffReviewComment,
   fetchDiffReviewComments,
   fetchJobSourceDiff,
+  replyToDiffReviewComment,
   submitDiffReviewComments,
   updateDiffReviewComment,
   type DiffReviewComment,
@@ -19,8 +21,10 @@ vi.mock("../../api/jobs", async (importOriginal) => {
   return {
     ...actual,
     createDiffReviewComment: vi.fn(),
+    deleteDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
+    replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
     submitDiffReviewComments: vi.fn(),
     updateDiffReviewComment: vi.fn()
@@ -29,8 +33,10 @@ vi.mock("../../api/jobs", async (importOriginal) => {
 
 beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
+  vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
+  vi.mocked(replyToDiffReviewComment).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
   Element.prototype.scrollIntoView = vi.fn()
@@ -45,7 +51,7 @@ function renderWorkspace(payload = jobPayload()) {
 }
 
 describe("ReviewWorkspace", () => {
-  it("creates anchored comments from continuous diff lines", async () => {
+  it("creates anchored comments from continuous diff lines, composed inline in the diff rather than the sidebar", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([comment()]))
@@ -53,8 +59,14 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+
+    const composer = screen.getByTestId("diff-review-composer")
+    const sidebar = screen.getByText("Diff comments").closest("section") as HTMLElement
+    expect(sidebar.contains(composer)).toBe(false)
+    expect(within(composer).getByLabelText("Comment")).toBeInTheDocument()
+
+    fireEvent.change(within(composer).getByLabelText("Comment"), { target: { value: "Please add a regression spec." } })
+    fireEvent.click(within(composer).getByRole("button", { name: "Create comment" }))
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -109,7 +121,33 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByText("Review the diff")).not.toBeInTheDocument()
   })
 
-  it("creates a whole-review comment not anchored to any code line", async () => {
+  it("renders typed artifacts inline instead of a bare renderer_type label", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "rails_migration_diff",
+          title: "Migration: add_name_to_users",
+          payload: { headers: ["Column", "Type"], rows: [["name", "string"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table"
+        }
+      ]
+    })
+
+    await screen.findByText("Review artifacts")
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+
+    expect(screen.getByText("Migration: add_name_to_users")).toBeInTheDocument()
+    expect(screen.getByText("Column")).toBeInTheDocument()
+    expect(screen.getByText("name")).toBeInTheDocument()
+    expect(screen.queryByText("data_table")).not.toBeInTheDocument()
+  })
+
+  it("creates a whole-review comment from the permanent comment form", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
     vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
@@ -118,9 +156,13 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Comment on this review" }))
-    fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Looks great overall." } })
-    fireEvent.click(screen.getByRole("button", { name: "Create comment" }))
+    expect(screen.queryByRole("button", { name: "Comment on this review" })).not.toBeInTheDocument()
+    const commentButton = await screen.findByRole("button", { name: "Comment" })
+    expect(commentButton).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "Looks great overall." } })
+    expect(commentButton).not.toBeDisabled()
+    fireEvent.click(commentButton)
 
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -128,6 +170,39 @@ describe("ReviewWorkspace", () => {
         body: "Looks great overall.",
         surface: "job_review_workspace"
       }))
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText("Whole-review comment")).toHaveValue("")
+    })
+  })
+
+  it("creates a comment from non-empty text then submits the whole review when Submit feedback is clicked", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, anchor_kind: "review", path: null, side: null, new_line: null, anchor_key: "review", body: "One more thing." })
+    ]))
+    vi.mocked(submitDiffReviewComments).mockResolvedValue({
+      message: "Diff comments submitted as chat feedback.",
+      workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
+      comments: []
+    })
+
+    renderWorkspace()
+
+    await screen.findByText("Please add a regression spec.")
+    fireEvent.change(screen.getByLabelText("Whole-review comment"), { target: { value: "One more thing." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
+        anchor_kind: "review",
+        body: "One more thing.",
+        surface: "job_review_workspace"
+      }))
+    })
+    await waitFor(() => {
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2])
     })
   })
 
@@ -140,6 +215,56 @@ describe("ReviewWorkspace", () => {
     const sidebarSection = await screen.findByText("Diff comments")
     const stickyWrapper = sidebarSection.closest("section")?.parentElement
     expect(stickyWrapper).toHaveClass("lg:sticky", "lg:top-0", "lg:h-screen", "lg:overflow-y-auto")
+  })
+
+  it("keeps the sidebar column from stretching the mobile grid track past the viewport", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const sidebarSection = await screen.findByText("Diff comments")
+    const stickyWrapper = sidebarSection.closest("section")?.parentElement
+    expect(stickyWrapper).toHaveClass("min-w-0")
+  })
+
+  it("wraps long review artifact and test plan text instead of letting it overflow", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show" }))
+    const step = screen.getByText("Review the diff")
+    expect(step.tagName).toBe("LI")
+    expect(step).toHaveClass("break-words")
+  })
+
+  it("falls back to horizontal scroll within each review artifact tile when wrapping isn't enough", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show" }))
+    const testPlanTile = screen.getByText("Test plan").closest("div")
+    expect(testPlanTile).toHaveClass("overflow-x-auto")
+  })
+
+  it("wraps long comment bodies and paths instead of letting them overflow the sidebar", async () => {
+    const longPathComment = comment({
+      body: "A very long comment body with no natural wrap points: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      path: "app/services/some/deeply/nested/module/with/a/very/long/unbroken/file_name_that_could_overflow_a_narrow_sidebar.rb"
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([longPathComment]))
+
+    renderWorkspace()
+
+    const body = await screen.findByText(longPathComment.body)
+    expect(body).toHaveClass("break-words")
+    const pathLabel = screen.getByText(`${longPathComment.path}:2`)
+    expect(pathLabel).toHaveClass("break-words")
   })
 
   it("shows both code-anchored and whole-review comments together in the sidebar", async () => {
@@ -184,6 +309,96 @@ describe("ReviewWorkspace", () => {
 
     await waitFor(() => {
       expect(updateDiffReviewComment).toHaveBeenCalledWith(42, 1, { body: "Updated body." })
+    })
+  })
+
+  it("shows a little surrounding diff context above and below a code-anchored comment in the sidebar", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([
+      comment({
+        new_line: 1,
+        anchor_key: "right::1",
+        diff_hunk: "@@ -1,2 +1,2 @@\n-old\n+new",
+        context: { line_kind: "add", line_text: "new" }
+      })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findByText("Diff comments")
+    await waitFor(() => expect(screen.queryByText("No diff comments.")).not.toBeInTheDocument())
+    const sidebar = within(screen.getByText("Diff comments").closest("section") as HTMLElement)
+    expect(sidebar.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument()
+    expect(sidebar.getByText("-old")).toBeInTheDocument()
+    expect(sidebar.getByText("+new")).toHaveClass("ring-brand")
+  })
+
+  it("deletes a draft global comment from the sidebar after confirming", async () => {
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Looks great overall."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([globalComment]))
+    vi.mocked(deleteDiffReviewComment).mockResolvedValue({ job_id: 42, deleted_id: 2 })
+
+    renderWorkspace()
+
+    await screen.findByText("Looks great overall.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 2)
+    })
+  })
+
+  it("does not delete a comment when the confirmation dialog is cancelled", async () => {
+    const globalComment = comment({
+      id: 2,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      body: "Looks great overall."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([globalComment]))
+
+    renderWorkspace()
+
+    await screen.findByText("Looks great overall.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+
+    expect(deleteDiffReviewComment).not.toHaveBeenCalled()
+  })
+
+  it("deletes a draft code-anchored comment inline from the diff after confirming", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
+    vi.mocked(deleteDiffReviewComment).mockResolvedValue({ job_id: 42, deleted_id: 1 })
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = await screen.findByRole("dialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 1)
     })
   })
 
@@ -234,6 +449,25 @@ describe("ReviewWorkspace", () => {
 
     await waitFor(() => {
       expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2])
+    })
+  })
+
+  it("lets any eligible user reply to an existing comment", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment()]))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 2, parent_id: 1, body: "Fixed in the follow-up commit." })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findAllByText("Please add a regression spec.")
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
+    fireEvent.change(screen.getByLabelText("Reply"), { target: { value: "Fixed in the follow-up commit." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }))
+
+    await waitFor(() => {
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.")
     })
   })
 })
@@ -289,6 +523,7 @@ function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment 
   return {
     id: 1,
     job_id: 42,
+    parent_id: null,
     user_id: 5,
     user: { id: 5, display_name: "Ada", email_address: "ada@example.com", avatar_url: null },
     workflow_id: null,

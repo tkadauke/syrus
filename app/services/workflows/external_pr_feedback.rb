@@ -5,8 +5,17 @@ module Workflows
   # push access to the branch, so this behaves exactly like PrFeedback for
   # a Syrus-authored PR: address the feedback on the existing branch, push.
   #
-  #   prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders)
-  #     → summarize_amend → try(push)
+  #   prepare → respond → [loop(adversarial_review first, then respond ⇄ adversarial_review)]
+  #     → retry_until(graders; repair: respond) → summarize_amend → try(push)
+  #
+  # respond runs as a bare leading step (not inside the loop) so the
+  # adversarial review loop -- always review-first now, see Workflows::Loop
+  # -- has an actual diff to review on iteration 1 instead of reviewing
+  # nothing. The grader retry loop passes repair_first: false for the same
+  # reason initial/retry/pr_comment/chat_feedback do: respond already ran
+  # before it (as the bare leading step, or as the review loop's last
+  # repair), so the first grading pass grades that work directly instead of
+  # redundantly re-running respond first.
   #
   # No coverage_analyze/coverage_pr_comment/refresh_job_metadata — those
   # steps key off job.pr_number, which external_pr Jobs never set (they use
@@ -24,8 +33,9 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
+        :respond,
         adversarial_review_loop(job, agent_step: :respond),
-        grader_retry_loop(job, :respond),
+        grader_retry_loop(job, :respond, repair_first: false),
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
       )

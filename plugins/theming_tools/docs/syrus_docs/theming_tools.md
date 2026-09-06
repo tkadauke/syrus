@@ -56,10 +56,24 @@ the agent didn't supply that key), the row fails `Theme`'s validation and
 the tool returns an error without saving or broadcasting anything — safe to
 retry.
 
-`preview_theme` itself only checks that the token shape is complete, not
-that it is legible -- a preview is allowed to show an illegible palette so
-the user/agent can see the problem and iterate; the contrast gate lives on
-the tools that actually persist a theme (below).
+`preview_theme` checks that the token shape is complete (a validation
+failure blocks the save), but never blocks on legibility -- a draft is
+explicitly allowed to move through illegible intermediate states while the
+user/agent iterates on one token pair at a time. It does, however, run the
+same `Theme#contrast_issues` WCAG AA check `install_theme`/
+`update_user_theme` enforce and returns any failing pairs as a
+non-blocking `contrast_warnings` array in the tool response (empty when
+there are no issues), so the agent finds out about a bad pairing during
+iteration instead of only at install time. The `GET /api/v1/app/themes/:id`
+endpoint the Style Guide page's `?theme_id=` preview uses returns the same
+array (top-level `contrast_warnings`, sibling to `theme`), and
+`DesignSystemRoute` renders it as a non-blocking amber `PanelMessage`
+banner above the component gallery whenever the previewed theme has issues.
+Both callers go through `Theme#contrast_warning_messages` (not
+`#contrast_issues` directly) -- a thin wrapper that rescues and logs
+instead of raising, since a warning-only surface must never crash on a
+malformed/placeholder color value the way `#install_theme`'s hard-reject
+path is allowed to assume valid input for.
 
 ## Contrast validation (`Theme#contrast_issues`)
 
@@ -81,8 +95,11 @@ correctly yet -- that's `#tokens_has_required_shape`'s job to flag), or an
 array of issue hashes (`mode`, `foreground`, `background`,
 `foreground_color`, `background_color`, `ratio`, `required_ratio`,
 `message`) otherwise. It is a plain instance method, not an
-`ActiveRecord` validation, so `preview_theme` (and any other direct
-`Theme#save`) is unaffected -- only tools that gate on it explicitly reject.
+`ActiveRecord` validation, so it never blocks a bare `Theme#save` -- only
+tools that explicitly check it before saving (`install_theme`,
+`update_user_theme`) reject on failure. `preview_theme` and the Style Guide
+preview panel also call it (via `Theme#contrast_warning_messages`, see
+below) but only to surface warnings, never to block the save.
 
 ## `install_theme`
 

@@ -2,10 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
+import { useConfirm } from "../../hooks/useConfirm"
 import { useT } from "../../hooks/useT"
 import {
   createDiffReviewComment,
+  deleteDiffReviewComment,
   fetchDiffReviewComments,
+  replyToDiffReviewComment,
   resolveDiffReviewComment,
   submitDiffReviewComments,
   updateDiffReviewComment,
@@ -13,7 +16,7 @@ import {
   type DiffReviewCommentInput,
   type DiffReviewCommentAnchorKind
 } from "../../api/jobs"
-import type { DiffLineSelection, DiffReviewThread } from "../../components/diff/ReviewableDiff"
+import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "../../components/diff/ReviewableDiff"
 
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
@@ -48,12 +51,15 @@ export function useDiffReviewFeedback({
 }: DiffReviewFeedbackOptions) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [selection, setSelection] = useState<DiffLineSelection | null>(null)
   const [body, setBody] = useState("")
   const [editing, setEditing] = useState<DiffReviewComment | null>(null)
-  const [addingGlobal, setAddingGlobal] = useState(false)
+  const [reviewCommentBody, setReviewCommentBody] = useState("")
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null)
   const [editingThreadBody, setEditingThreadBody] = useState("")
+  const [replyingId, setReplyingId] = useState<number | null>(null)
+  const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
   const search = diffReviewCommentsSearch({ surface, baseRef, headRef, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
@@ -75,7 +81,6 @@ export function useDiffReviewFeedback({
     mutationFn: (input: DiffReviewCommentInput) => createDiffReviewComment(jobId, input),
     onSuccess: () => {
       setSelection(null)
-      setAddingGlobal(false)
       setBody("")
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     }
@@ -94,6 +99,28 @@ export function useDiffReviewFeedback({
     mutationFn: (id: number) => resolveDiffReviewComment(jobId, id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
   })
+  const replyToComment = useMutation({
+    mutationFn: ({ id, body: replyText }: { id: number; body: string }) => replyToDiffReviewComment(jobId, id, replyText),
+    onSuccess: () => {
+      setReplyingId(null)
+      setReplyBody("")
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
+  const deleteComment = useMutation({
+    mutationFn: (id: number) => deleteDiffReviewComment(jobId, id),
+    onSuccess: (_, id) => {
+      if (editing?.id === id) {
+        setEditing(null)
+        setBody("")
+      }
+      if (editingThreadId === id) {
+        setEditingThreadId(null)
+        setEditingThreadBody("")
+      }
+      void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+    }
+  })
   const submitComments = useMutation({
     mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids),
     onSuccess: () => {
@@ -107,15 +134,6 @@ export function useDiffReviewFeedback({
     if (!enabled) return
     setSelection(nextSelection)
     setEditing(null)
-    setAddingGlobal(false)
-    setBody("")
-  }
-
-  function startGlobalComment() {
-    if (!enabled) return
-    setSelection(null)
-    setEditing(null)
-    setAddingGlobal(true)
     setBody("")
   }
 
@@ -124,10 +142,6 @@ export function useDiffReviewFeedback({
     if (!trimmed) return
     if (editing) {
       updateComment.mutate({ id: editing.id, input: { body: trimmed } })
-      return
-    }
-    if (addingGlobal) {
-      createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }))
       return
     }
     if (!selection) return
@@ -145,7 +159,6 @@ export function useDiffReviewFeedback({
 
   function editComment(comment: DiffReviewComment) {
     setSelection(null)
-    setAddingGlobal(false)
     setEditing(comment)
     setBody(comment.body)
   }
@@ -153,8 +166,31 @@ export function useDiffReviewFeedback({
   function cancelComposer() {
     setSelection(null)
     setEditing(null)
-    setAddingGlobal(false)
     setBody("")
+  }
+
+  function commentOnReview() {
+    const trimmed = reviewCommentBody.trim()
+    if (!trimmed) return
+    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }), {
+      onSuccess: () => setReviewCommentBody("")
+    })
+  }
+
+  function submitFeedback() {
+    const trimmed = reviewCommentBody.trim()
+    if (!trimmed) {
+      submitComments.mutate(actionableComments.map((comment) => comment.id))
+      return
+    }
+    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }), {
+      onSuccess: (payload) => {
+        setReviewCommentBody("")
+        const newCommentId = payload.comments[0]?.id
+        const ids = actionableComments.map((comment) => comment.id)
+        submitComments.mutate(newCommentId ? [...ids, newCommentId] : ids)
+      }
+    })
   }
 
   function startEditThread(thread: DiffReviewThread) {
@@ -173,44 +209,93 @@ export function useDiffReviewFeedback({
     setEditingThreadBody("")
   }
 
+  function startReply(commentId: number) {
+    setReplyingId(commentId)
+    setReplyBody("")
+  }
+
+  function saveReply() {
+    const trimmed = replyBody.trim()
+    if (!trimmed || replyingId == null) return
+    replyToComment.mutate({ id: replyingId, body: trimmed })
+  }
+
+  function cancelReply() {
+    setReplyingId(null)
+    setReplyBody("")
+  }
+
+  async function requestDeleteComment(commentId: number) {
+    const confirmed = await confirm({
+      message: t("review_delete_comment_confirm"),
+      confirmLabel: t("review_delete_comment"),
+      destructive: true
+    })
+    if (!confirmed) return
+    deleteComment.mutate(commentId)
+  }
+
   const panel = enabled ? (
-    <DiffReviewFeedbackPanel
-      actionableComments={actionableComments}
-      body={body}
-      comments={commentList}
-      createError={createComment.error}
-      createPending={createComment.isPending}
-      editing={editing}
-      handledComments={handledComments}
-      isComposing={Boolean(selection || editing || addingGlobal)}
-      onAddGlobalComment={startGlobalComment}
-      onBodyChange={setBody}
-      onCancel={cancelComposer}
-      onEdit={editComment}
-      onResolve={(comment) => resolveComment.mutate(comment.id)}
-      onSave={saveComment}
-      onSubmit={() => submitComments.mutate(actionableComments.map((comment) => comment.id))}
-      onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
-      resolvePending={resolveComment.isPending}
-      selection={selection}
-      submitError={submitError}
-      submitPending={submitComments.isPending}
-      supportsGlobalComments={supportsGlobalComments}
-      updateError={updateComment.error}
-      updatePending={updateComment.isPending}
-      workflowActive={workflowActive}
-    />
+    <>
+      <DiffReviewFeedbackPanel
+        actionableComments={actionableComments}
+        body={body}
+        comments={commentList}
+        createError={createComment.error}
+        createPending={createComment.isPending}
+        deleteError={deleteComment.error}
+        deletePending={deleteComment.isPending}
+        editing={editing}
+        handledComments={handledComments}
+        isComposing={Boolean(editing)}
+        onBodyChange={setBody}
+        onCancel={cancelComposer}
+        onCancelReply={cancelReply}
+        onChangeReplyBody={setReplyBody}
+        onComment={commentOnReview}
+        onDelete={(comment) => requestDeleteComment(comment.id)}
+        onEdit={editComment}
+        onReply={saveReply}
+        onResolve={(comment) => resolveComment.mutate(comment.id)}
+        onReviewCommentBodyChange={setReviewCommentBody}
+        onSave={saveComment}
+        onStartReply={startReply}
+        onSubmit={submitFeedback}
+        onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
+        replyBody={replyBody}
+        replyError={replyToComment.error}
+        replyPending={replyToComment.isPending}
+        replyingId={replyingId}
+        resolvePending={resolveComment.isPending}
+        reviewCommentBody={reviewCommentBody}
+        submitError={submitError}
+        submitPending={submitComments.isPending}
+        supportsGlobalComments={supportsGlobalComments}
+        updateError={updateComment.error}
+        updatePending={updateComment.isPending}
+        workflowActive={workflowActive}
+      />
+      {confirmDialog}
+    </>
   ) : null
 
   return {
     commentCounts: counts,
     commentsQuery: comments,
+    composingBody: body,
+    composingError: createComment.error,
+    composingPending: createComment.isPending,
+    composingSelection: selection,
     diffThreads,
     editingThreadBody,
     editingThreadId,
+    onCancelComposing: cancelComposer,
     onCancelEditThread: cancelEditThread,
+    onChangeComposingBody: setBody,
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
+    onSaveComposing: saveComment,
+    onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id) : undefined,
     onSaveEditThread: saveEditThread,
     onStartEditThread: startEditThread,
     panel,
@@ -224,19 +309,31 @@ function DiffReviewFeedbackPanel({
   comments,
   createError,
   createPending,
+  deleteError,
+  deletePending,
   editing,
   handledComments,
   isComposing,
-  onAddGlobalComment,
   onBodyChange,
   onCancel,
+  onCancelReply,
+  onChangeReplyBody,
+  onComment,
+  onDelete,
   onEdit,
+  onReply,
   onResolve,
+  onReviewCommentBodyChange,
   onSave,
+  onStartReply,
   onSubmit,
   onViewInDiff,
+  replyBody,
+  replyError,
+  replyPending,
+  replyingId,
   resolvePending,
-  selection,
+  reviewCommentBody,
   submitError,
   submitPending,
   supportsGlobalComments,
@@ -249,19 +346,31 @@ function DiffReviewFeedbackPanel({
   comments: DiffReviewComment[]
   createError: Error | null
   createPending: boolean
+  deleteError: Error | null
+  deletePending: boolean
   editing: DiffReviewComment | null
   handledComments: DiffReviewComment[]
   isComposing: boolean
-  onAddGlobalComment: () => void
   onBodyChange: (body: string) => void
   onCancel: () => void
+  onCancelReply: () => void
+  onChangeReplyBody: (body: string) => void
+  onComment: () => void
+  onDelete: (comment: DiffReviewComment) => void
   onEdit: (comment: DiffReviewComment) => void
+  onReply: () => void
   onResolve: (comment: DiffReviewComment) => void
+  onReviewCommentBodyChange: (body: string) => void
   onSave: () => void
+  onStartReply: (commentId: number) => void
   onSubmit: () => void
   onViewInDiff: (comment: DiffReviewComment) => void
+  replyBody: string
+  replyError: Error | null
+  replyPending: boolean
+  replyingId: number | null
   resolvePending: boolean
-  selection: DiffLineSelection | null
+  reviewCommentBody: string
   submitError: string | null
   submitPending: boolean
   supportsGlobalComments: boolean
@@ -280,43 +389,54 @@ function DiffReviewFeedbackPanel({
           <ReviewStatePill label={workflowActive ? t("review_submitted_active") : t("review_handled_state", { count: handledComments.length })} tone={workflowActive ? "submitted" : "handled"} />
         </div>
       </div>
-      {supportsGlobalComments ? (
-        <div className="mt-3">
-          <Button onClick={onAddGlobalComment} size="sm" variant="secondary">{t("review_add_global_comment")}</Button>
-        </div>
-      ) : null}
       <div className="mt-3 space-y-3">
         {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
           const isGlobal = comment.anchor_kind === "review"
-          const canEditHere = supportsGlobalComments ? isGlobal : true
           return (
-          <div className="rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
+          <div className="min-w-0 rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
                 {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
               </span>
               <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-200">{comment.body}</p>
+            {!isGlobal && comment.diff_hunk ? (
+              <div className="mt-2">
+                <DiffHunkSnippet highlightLine={diffContextHighlightLine(comment)} hunk={comment.diff_hunk} />
+              </div>
+            ) : null}
+            <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {comment.state === "draft" && canEditHere ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
+              {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
               {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
+              {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
+              {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
             </div>
+            {replyingId === comment.id ? (
+              <div className="mt-3 rounded border border-brand/30 bg-brand/5 p-3">
+                <textarea
+                  aria-label={t("review_reply_comment")}
+                  className="min-h-16 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  onChange={(event) => onChangeReplyBody(event.target.value)}
+                  value={replyBody}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button disabled={!replyBody.trim() || replyPending} onClick={onReply} size="sm">{t("review_send_reply")}</Button>
+                  <Button onClick={onCancelReply} size="sm" variant="secondary">{t("tags_cancel")}</Button>
+                </div>
+                {replyError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(replyError, t("review_reply_error"))}</p> : null}
+              </div>
+            ) : null}
           </div>
           )
         })}
       </div>
+      {deleteError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(deleteError, t("review_delete_error"))}</p> : null}
 
       {isComposing ? (
-        <div className="mt-4 rounded border border-brand/30 bg-brand/5 p-3">
-          <p className="font-mono text-xs text-gray-600 dark:text-gray-300">
-            {editing
-              ? (editing.anchor_kind === "review" ? t("review_global_comment_label") : `${editing.path}:${editing.side === "left" ? editing.old_line : editing.new_line}`)
-              : selection
-                ? `${selection.file.path}:${selection.side === "old" ? selection.line.oldLine : selection.line.newLine}`
-                : t("review_global_comment_label")}
-          </p>
+        <div className="mt-4 min-w-0 rounded border border-brand/30 bg-brand/5 p-3">
+          <p className="break-words font-mono text-xs text-gray-600 dark:text-gray-300">{t("review_global_comment_label")}</p>
           <textarea
             aria-label={t("review_comment_body")}
             className="mt-2 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -333,9 +453,26 @@ function DiffReviewFeedbackPanel({
       ) : null}
 
       <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
-        <Button disabled={actionableComments.length === 0 || submitPending} onClick={onSubmit}>
-          {submitPending ? t("submitting") : t("review_submit_feedback")}
-        </Button>
+        {supportsGlobalComments ? (
+          <textarea
+            aria-label={t("review_global_comment_label")}
+            className="mb-2 min-h-20 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            onChange={(event) => onReviewCommentBodyChange(event.target.value)}
+            placeholder={t("review_global_comment_label")}
+            value={reviewCommentBody}
+          />
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {supportsGlobalComments ? (
+            <Button disabled={!reviewCommentBody.trim() || createPending} onClick={onComment} variant="secondary">
+              {t("review_comment_button")}
+            </Button>
+          ) : null}
+          <Button disabled={(actionableComments.length === 0 && !reviewCommentBody.trim()) || submitPending || createPending} onClick={onSubmit}>
+            {submitPending ? t("submitting") : t("review_submit_feedback")}
+          </Button>
+        </div>
+        {createError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{errorMessage(createError, t("review_create_error"))}</p> : null}
         {submitError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{submitError}</p> : null}
       </div>
     </section>
@@ -414,6 +551,15 @@ function commentInputForGlobal({
     ...(workflowId ? { workflow_id: workflowId } : {}),
     ...(runId ? { run_id: runId } : {})
   }
+}
+
+function diffContextHighlightLine(comment: DiffReviewComment): string | null {
+  const lineText = comment.context?.line_text
+  if (typeof lineText !== "string") return null
+  const lineKind = comment.context?.line_kind
+  if (lineKind === "add") return `+${lineText}`
+  if (lineKind === "delete") return `-${lineText}`
+  return ` ${lineText}`
 }
 
 function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {

@@ -833,6 +833,23 @@ export function fetchChat(id: string, search = "") {
   return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`)
 }
 
+// Slim payload for the CHAT-<id> hover preview card — mirrors fetchJobDetail
+// / fetchEpicDetail, but backed by a lightweight endpoint instead of the
+// heavy #show/chat_payload transcript fetch.
+export type ChatPreviewPayload = {
+  id: number
+  chat_slug: string
+  title: string | null
+  title_pending: boolean
+  participants: ChatParticipant[]
+  pending_proposal_count: number
+  pending_actions_count: number
+}
+
+export function fetchChatPreview(id: string) {
+  return getJson<ChatPreviewPayload>(`/api/v1/app/chats/${id}/preview`)
+}
+
 export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal } = {}) {
   return getJson<{ bookmarks: ChatBookmark[] }>(path, options)
 }

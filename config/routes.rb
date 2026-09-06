@@ -105,7 +105,9 @@ Rails.application.routes.draw do
         post "jobs/:job_id/diff_review_comments", to: "diff_review_comments#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/diff_review_comments/submit", to: "diff_review_comments#submit", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/diff_review_comments/:id", to: "diff_review_comments#update", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        delete "jobs/:job_id/diff_review_comments/:id", to: "diff_review_comments#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/diff_review_comments/:id/resolve", to: "diff_review_comments#resolve", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/diff_review_comments/:id/reply", to: "diff_review_comments#reply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         patch "jobs/:job_id/priority", to: "jobs#update_priority", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/provider_setting", to: "jobs#update_provider_setting", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id", to: "jobs#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
@@ -216,6 +218,7 @@ Rails.application.routes.draw do
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
         patch "chats/:id", to: "chats#update", constraints: { id: /\d+/ }
         delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
+        get "chats/:id/preview", to: "chats#preview", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }

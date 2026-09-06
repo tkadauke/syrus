@@ -115,6 +115,11 @@ comment resolved. Mutations use the same Job write policy as approve, retry,
 and feedback actions: the job owner, an admin, or a write-tier repository
 member.
 
+`DELETE /api/v1/app/jobs/:job_id/diff_review_comments/:id` hard-deletes a
+comment that is still in `draft` — once a comment has been submitted,
+resolved, or superseded it's part of the review history and the endpoint
+returns `422` instead. On success the response is `{ "job_id": ..., "deleted_id": ... }`.
+
 `POST /api/v1/app/jobs/:job_id/diff_review_comments/submit` accepts
 `comment_ids` and starts a `chat_feedback` workflow for the selected unresolved
 comments. The workflow receives both a readable feedback body and structured
@@ -385,7 +390,11 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
 
 `GET /api/v1/app/themes` lists built-in color themes plus custom,
 non-built-in themes owned by the authenticated user. `GET
-/api/v1/app/themes/:id` returns one selectable theme. Theme payloads include:
+/api/v1/app/themes/:id` returns one selectable theme, plus a top-level
+`contrast_warnings` array (empty when the theme has no WCAG AA issues) so a
+draft theme's preview can show the same non-blocking contrast warnings the
+`preview_theme` chat tool returns, without gating the fetch on it. Theme
+payloads include:
 
 Token hashes are abbreviated below; real create requests must include every
 theme token key for both modes.

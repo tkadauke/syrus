@@ -34,6 +34,11 @@ module App
       "EPIC-#{number}"
     end
 
+    def chat_slug(chat_or_id)
+      id = chat_or_id.respond_to?(:id) ? chat_or_id.id : chat_or_id
+      "CHAT-#{id}"
+    end
+
     # Generic install URL (operator picks repos in GitHub's UI). Used by
     # onboarding before any specific repository is selected.
     def github_app_generic_install_url

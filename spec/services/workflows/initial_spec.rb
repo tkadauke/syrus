@@ -80,30 +80,27 @@ RSpec.describe Workflows::Initial do
       )
     end
 
-    it "inserts an implement/visual_review loop before the grader retry chain" do
+    it "inserts a review-first visual_review loop before the grader retry chain, with no redundant implement" do
       workflow = described_class.instantiate(job: job)
 
-      # The first `implement` is the always-present top-level step; the
-      # second is the visual_review loop's own leading implement (untouched
-      # by this fix — see Workflows::Initial's class comment).
+      # visual_review is review-first too now (like adversarial_review): its
+      # own iteration 1 is review-only, reviewing the top-level implement
+      # directly, so there's only ever the one top-level implement.
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
       )
+      expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
 
-    it "gives the visual_review loop its own loop_id, distinct from the top-level implement" do
+    it "gives the visual_review loop its own loop_id, separate from the top-level implement" do
       workflow = described_class.instantiate(job: job)
 
-      review_step = workflow.steps.find_by!(kind: "visual_review")
-      implement_steps = workflow.steps.order(:position).select { |s| s.kind == "implement" }
+      top_level_implement = workflow.steps.find_by!(kind: "implement")
+      review_step         = workflow.steps.find_by!(kind: "visual_review")
 
-      top_level_implement = implement_steps.find { |s| s.loop_id.nil? }
-      vr_implement        = implement_steps.find { |s| s.loop_id == review_step.loop_id }
-
-      expect(top_level_implement).not_to be_nil
-      expect(vr_implement).not_to be_nil
-      expect(vr_implement.loop_id).not_to be_nil
-      expect(top_level_implement.position).to be < vr_implement.position
+      expect(top_level_implement.loop_id).to be_nil
+      expect(review_step.loop_id).to be_present
+      expect(top_level_implement.position).to be < review_step.position
     end
 
     context "and adversarial review is also enabled" do
@@ -117,8 +114,9 @@ RSpec.describe Workflows::Initial do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare implement adversarial_review implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+          %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
         )
+        expect(workflow.steps.where(kind: "implement").count).to eq(1)
       end
     end
   end

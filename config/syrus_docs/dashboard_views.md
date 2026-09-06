@@ -16,10 +16,13 @@ Kanban payloads are paginated per lane. Each lane includes `total_count`, `loade
 
 Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
 
+The built-in "Backlog" SmartFolder (`SmartFolder::JOB_BUILTINS` key `backlogged_jobs`) uses `:when_present` visibility: it appears automatically in the Jobs sidebar whenever the current user has at least one user-facing Job (`job_type: user`) in `state = backlog` within their effective ownership, and hides itself again once that count is zero, without requiring any kanban lane customization. Its filter is `SmartFolder.user_job_attention_preset_filter("backlog")`, matching the owner/kind scoping conventions the other attention-preset Job folders use.
+
 Single-Job lifecycle endpoints:
 
 - `POST /api/v1/app/jobs/:job_id/release_from_backlog` releases a backlogged Job into the normal admission flow. A valid, dependency-ready Job transitions to `queued` and creates initial Workflow work through the same path as post-triage startup. A dependency-blocked Job transitions to `blocked_by_epic` without starting a Run. A Job that still needs classifier/triage resolution moves to `triaging`.
 - `POST /api/v1/app/jobs/:job_id/move_to_backlog` moves only early, pre-runtime Jobs (`needs_triage`, `triaging`, `blocked_by_epic`, or `queued`) back to backlog. The guard rejects Jobs with queued/running Workflows, active Runs, local PRs, fork-review PRs, external PRs, review/landing states, and any post-PR work.
+- `POST /api/v1/app/jobs/:job_id/cancel` also accepts backlogged Jobs. A backlogged Job has no Workflow/Run to cancel, so this is a pure close-with-reason (`closure_reason: "cancelled"`) that skips the normal active-work cancellation entirely. The Job detail page's `can_cancel` action is available for any open Job, including `backlog`, and labels/confirms it as "Remove from backlog" rather than the runtime "Cancel" wording when the Job is currently backlogged.
 - `PATCH /api/v1/app/jobs/:job_id/owner` assigns or reassigns `owner_user_id`. The selected owner must be a repository member with read access. This does not claim the Job for active work.
 - `POST /api/v1/app/jobs/:job_id/claim` and `DELETE /api/v1/app/jobs/:job_id/claim` operate only on the work-claim overlay. A Job claimed by another user cannot be claimed, and only the current claimant can release their claim.
 

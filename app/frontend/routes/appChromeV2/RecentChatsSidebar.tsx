@@ -1,5 +1,6 @@
 import { ChevronDownIcon, HideIcon, TargetIcon, TeamIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
+import { FloatingPortal, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -9,6 +10,7 @@ import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChats
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
+import { CopyableSlug } from "../../components/CopyableSlug"
 import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -462,7 +464,17 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   const [open, setOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  // Dropdown opens upward by default (placement "top-end", matching the old
+  // fixed `bottom-full right-0`), but flip/shift reposition it within the
+  // viewport when a chat near the top of the sidebar leaves no room above
+  // the trigger — otherwise rows at the top of a tall menu render off-screen
+  // with no way to scroll back up to them.
+  const { floatingStyles, refs: floatingRefs } = useFloating({
+    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    placement: "top-end"
+  })
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false), floatingRefs.floating)
+  const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const active = chat.id === activeChatIdFromPath(location.pathname)
   const queryKey = chatQueryKey(String(chat.id), search)
@@ -530,7 +542,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   }
 
   return (
-    <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
+    <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={referenceRef}>
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
@@ -541,7 +553,12 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
         ...
       </button>
       {open ? (
-        <div className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950">
+        <FloatingPortal>
+          <div
+            className="z-20 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            ref={floatingRefs.setFloating}
+            style={floatingStyles}
+          >
           {loadingBookmarks ? (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:loading_bookmarks")}</div>
           ) : bookmarks.length > 0 ? (
@@ -608,6 +625,10 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             </button>
           ) : null}
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+          <div className="px-3 py-1.5">
+            <CopyableSlug slug={`CHAT-${chat.id}`} />
+          </div>
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
             disabled={disabled}
@@ -632,7 +653,8 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             <CloseIcon className="h-4 w-4 shrink-0" />
             <span>{t("chat:delete")}</span>
           </button>
-        </div>
+          </div>
+        </FloatingPortal>
       ) : null}
       {/* Both confirm dialogs render through a portal: this menu wrapper is
           `absolute … -translate-y-1/2`, and a CSS transform makes an ancestor

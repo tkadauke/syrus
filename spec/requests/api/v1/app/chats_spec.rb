@@ -83,6 +83,54 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id/preview" do
+    it "returns a slim preview payload with title, participants, and pending-work counts" do
+      sign_in_as(user)
+      other_user = Factories.user(claude_oauth_token: "oat-other")
+      chat = ChatSession.create!(user: user, title: "Launch planning", conversation_kind: "group")
+      chat.chat_participants.create!(user: other_user, role: "member")
+      job = Factories.job(repository: repository)
+      ChatProposal.create!(chat_session: chat, slug: "auth-map", title: "Map auth", body: "Trace auth.")
+      chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job.id })
+
+      get "/api/v1/app/chats/#{chat.id}/preview"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to eq(
+        "id" => chat.id,
+        "chat_slug" => "CHAT-#{chat.id}",
+        "title" => "Launch planning",
+        "title_pending" => false,
+        "participants" => [
+          { "id" => user.id, "name" => user.display_name, "avatar_url" => user.avatar_url, "role" => "owner" },
+          { "id" => other_user.id, "name" => other_user.display_name, "avatar_url" => other_user.avatar_url, "role" => "member" }
+        ],
+        "pending_proposal_count" => 1,
+        "pending_actions_count" => 1
+      )
+    end
+
+    it "404s for a chat the current user does not participate in" do
+      other_user = Factories.user(claude_oauth_token: "oat-other")
+      other_chat = ChatSession.create!(user: other_user)
+      sign_in_as(user)
+
+      get "/api/v1/app/chats/#{other_chat.id}/preview"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when the chat is soft-deleted" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.soft_delete_by!(user)
+
+      get "/api/v1/app/chats/#{chat.id}/preview"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "sharing" do
     let(:chat_session) { ChatSession.create!(user: user, title: "Launch planning") }
 
@@ -1080,10 +1128,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
-    # Signing in materializes `user`, whose creation publishes a "user.created"
-    # domain event (consumed by the scheduled_tasks plugin); drain that before
-    # asserting the chat-creation request itself enqueues nothing.
-    clear_enqueued_jobs
+    jobs_before_request = enqueued_jobs.count
 
     expect {
       post "/api/v1/app/chats"
@@ -1098,7 +1143,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.last_message_at).to be_nil
     expect(chat.messages).to be_empty
     expect(ChatMessage.count).to eq(0)
-    expect(enqueued_jobs).to be_empty
+    expect(enqueued_jobs.count).to eq(jobs_before_request)
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
   end
 

@@ -25,7 +25,7 @@ module Admin
     # Framework-level extension boundaries that must mention plugin paths or
     # component keys in order to discover installed plugin assets.
     CORE_PATH_EXCEPTIONS = [
-      %r{\Aapp/frontend/plugin(AdminPages|SidebarPages|WorkspaceTabs)\.tsx\z},
+      %r{\Aapp/frontend/plugin(AdminPages|SidebarPages|WorkspaceTabs|SlugPreviewCards)\.tsx\z},
       %r{\Aapp/frontend/pluginArtifactRenderers\.tsx\z},
       %r{\Aapp/frontend/routes/App\.tsx\z},
       %r{\Aapp/frontend/routes/chat/WorkspacePanels\.tsx\z},

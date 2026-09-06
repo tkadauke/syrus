@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
@@ -397,6 +397,77 @@ describe("RecentChatsSidebar bookmarks menu", () => {
 
     const pinButton = screen.getByRole("button", { name: /pin/i })
     expect(pinButton.previousElementSibling).toHaveClass("border-t")
+  })
+})
+
+describe("RecentChatsSidebar overflow menu slug", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("shows a copyable CHAT-<id> slug without a hover preview popup", async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: clipboardWrite } })
+    const fetchSpy = vi.spyOn(window, "fetch")
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Roadmap sync" })] })]
+    }))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <RecentChatsSidebar
+            featureFlags={{}}
+            onCloseDrawer={() => {}}
+            onNotice={() => {}}
+            prefix=""
+            userPresent
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Roadmap sync" }))
+
+    const copySlugButton = screen.getByRole("button", { name: "Copy CHAT-42 to clipboard" })
+    expect(copySlugButton).toHaveTextContent("CHAT-42")
+
+    fireEvent.click(copySlugButton)
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("CHAT-42"))
+
+    fireEvent.mouseEnter(copySlugButton)
+    fireEvent.mouseEnter(copySlugButton.parentElement!)
+    expect(screen.queryByText("See more")).not.toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => typeof input === "string" && input.includes("/preview"))).toBe(false)
+  })
+
+  it("renders the dropdown through a portal outside the sidebar navigation so flip/shift can escape its clipping ancestor", () => {
+    renderSidebar([chatNav({ id: 7, title: "Roadmap sync" })])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Roadmap sync" }))
+
+    const nav = screen.getByRole("navigation", { name: "Recent chats" })
+    expect(within(nav).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument()
+  })
+
+  it("does not close the dropdown when a pointerdown event targets its portaled content", () => {
+    renderSidebar([chatNav({ id: 7, title: "Roadmap sync" })])
+
+    const trigger = screen.getByRole("button", { name: "Chat actions for Roadmap sync" })
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+
+    // Regression guard: the dropdown now renders through a FloatingPortal, so
+    // a pointerdown on its content is outside the trigger's own DOM subtree.
+    // Without wiring that portal ref into the outside-pointer check, this
+    // would be (wrongly) treated as an outside click and close the menu.
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Copy CHAT-7 to clipboard" }))
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument()
   })
 })
 

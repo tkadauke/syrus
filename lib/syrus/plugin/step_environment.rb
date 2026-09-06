@@ -16,6 +16,16 @@ module Syrus
     #
     # Returning a name that is unset in the worker environment is harmless --
     # ProcessRunner simply does not forward it.
+    #
+    # A provider may optionally also implement `#extra_env`, the companion
+    # hook for values that don't already exist in the worker pod's own ENV --
+    # a value computed per Workflow (a per-Workflow daemon port, say),
+    # rather than a name to copy through:
+    #
+    #   def self.extra_env(workflow:, workspace_path:) = { "SCCACHE_SERVER_PORT" => "20123" }
+    #
+    # `#extra_env` is optional; a provider that only forwards static names
+    # from the worker environment does not need to define it.
     module StepEnvironment
     end
   end

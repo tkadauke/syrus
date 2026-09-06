@@ -29,10 +29,15 @@ module Api
         # Scoped to selectable_by so a user can't fetch another user's
         # custom (non-built-in) theme by guessing its id — same visibility
         # rule as #index, just for a single row (e.g. the Style Guide
-        # page's ?theme_id= preview).
+        # page's ?theme_id= preview). contrast_warnings mirrors preview_theme's
+        # non-blocking WCAG AA check so the live preview panel can show the
+        # same warnings the chat tool surfaced, without gating the fetch on it.
         def show
           theme = Theme.selectable_by(Current.user).find(params[:id])
-          render json: { theme: theme.public_payload }
+          render json: {
+            theme: theme.public_payload,
+            contrast_warnings: theme.contrast_warning_messages
+          }
         end
 
         def update

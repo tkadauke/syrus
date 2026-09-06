@@ -32,5 +32,17 @@ Syrus prepare commands, GitHub Actions CI, main branch health and repair,
 auto-merge review, PR cost footer, external PR ingestion, scheduled coverage
 maintenance, fork auto-sync, and delivery-track configuration. Eligibility is
 intentionally conservative and relies on existing repository columns,
-scheduled-task rows, recent preview state, and the cached bare clone's
-`.syrus.yml`/file list when available.
+scheduled-task rows, recent preview state, and the repository's `.syrus.yml`/
+default-branch file list.
+
+`.syrus.yml` and the file list are fetched over the GitHub API
+(`GithubClient#file_content_at` / `#file_tree_at`), not from the repository's
+local bare clone (`RepositoryBareClone`). This page is served from the web
+tier, which doesn't mount the worker's on-disk bare clone (see "Deploy
+target" in the top-level agent guide), so a bare-clone read here would always
+see "no config" and every "already configured" check (visual review, preview
+seed notes, pinned prepare commands, an existing CI workflow, configured
+delivery tracks) would keep recommending a feature the repo already uses.
+Reading through GitHub instead works regardless of which pod serves the
+request — the same reasoning `RepoVisualReviewPlan`/`RepoGradeLoopPlan`/etc.
+already apply when resolving a repo's config ahead of a Job dispatch.

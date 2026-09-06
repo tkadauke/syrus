@@ -334,6 +334,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.index ["user_id"], name: "index_build_cache_clear_requests_on_user_id"
   end
 
+  create_table "build_cache_repository_settings", force: :cascade do |t|
+    t.boolean "basedirs_safe", default: false, null: false
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_build_cache_repository_settings_on_repository_id", unique: true
+  end
+
   create_table "chat_agent_questions", force: :cascade do |t|
     t.datetime "answered_at"
     t.json "answers"
@@ -947,6 +955,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.integer "job_id", null: false
     t.integer "new_line"
     t.integer "old_line"
+    t.integer "parent_id"
     t.string "path"
     t.datetime "resolved_at"
     t.integer "run_id"
@@ -961,6 +970,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.index ["job_id", "path", "side", "old_line", "new_line"], name: "idx_diff_review_comments_line_anchor"
     t.index ["job_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_job_surface_path_state"
     t.index ["job_id"], name: "index_diff_review_comments_on_job_id"
+    t.index ["parent_id"], name: "index_diff_review_comments_on_parent_id"
     t.index ["run_id"], name: "index_diff_review_comments_on_run_id"
     t.index ["user_id"], name: "index_diff_review_comments_on_user_id"
     t.index ["workflow_id"], name: "index_diff_review_comments_on_workflow_id"

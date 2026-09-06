@@ -27,6 +27,8 @@ module BuildCache
         label: event[:label],
         stats: stats
       )
+
+      CacheMismatchDetector.check!(workflow: workflow, step: run.step, env: event[:env], stats: stats)
     end
   end
 end

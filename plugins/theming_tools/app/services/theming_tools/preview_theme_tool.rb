@@ -11,6 +11,13 @@ module ThemingTools
   # littering the themes table with one row per call. Any token key left out
   # of `light`/`dark` falls back to the user's currently active theme, so the
   # agent can tweak just a couple of values at a time.
+  #
+  # Runs the same Theme#contrast_issues WCAG AA check install_theme/
+  # update_user_theme enforce, but never blocks on it -- drafts are
+  # explicitly meant to support fast iteration through invalid intermediate
+  # states (e.g. mid-edit on one token pair). Any failing pairs come back as
+  # a non-blocking `contrast_warnings` array so the agent (and the live
+  # preview panel) can flag them early, before the user reaches install time.
   class PreviewThemeTool < MCP::Tool
     tool_name "preview_theme"
 
@@ -20,7 +27,9 @@ module ThemingTools
       "surface, surface-raised, border, text-primary, text-secondary, success, warning, danger, info, " \
       "neutral, on-brand) -- any token you omit defaults to the user's currently active theme, so you can " \
       "iterate on just a couple of values at a time. Safe to call repeatedly: each call updates the same " \
-      "draft theme in place instead of creating a new row."
+      "draft theme in place instead of creating a new row. Runs the same WCAG AA contrast check install_theme " \
+      "enforces and returns any failing pairs as a non-blocking `contrast_warnings` array -- the draft still " \
+      "saves either way."
 
     TOKEN_PROPERTIES = Theme::TOKEN_KEYS.index_with do |_key|
       { type: "string", description: "CSS color value, e.g. a hex code." }
@@ -52,7 +61,12 @@ module ThemingTools
 
         if theme.save
           broadcast_preview(chat_session, theme)
-          Mcp::Tools.success(theme_id: theme.id, name: theme.name, tokens: theme.tokens)
+          Mcp::Tools.success(
+            theme_id: theme.id,
+            name: theme.name,
+            tokens: theme.tokens,
+            contrast_warnings: theme.contrast_warning_messages
+          )
         else
           Mcp::Tools.invalid(theme.errors.full_messages.to_sentence)
         end

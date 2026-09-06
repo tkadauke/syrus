@@ -69,6 +69,19 @@ RSpec.describe WorkerTimeline::MacroQueryFilter do
       expect(filter.from).to be_within(1).of(Time.current - 3.hours)
       expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
     end
+
+    it "clamps a between chip's end bound to now when it names a future time" do
+      future = 2.days.from_now
+      filter = described_class.new({ "and" => [ { "field" => "window", "op" => "between", "value" => [ "2026-01-01", future.iso8601 ] } ] })
+
+      expect(filter.to).to be_within(1).of(Time.current)
+    end
+
+    it "leaves a between chip's end bound alone when it is in the past" do
+      filter = described_class.new({ "and" => [ { "field" => "window", "op" => "between", "value" => [ "2026-01-01", "2026-01-02" ] } ] })
+
+      expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
+    end
   end
 
   describe "#repository_id / #epic_id / #hostname / #status / #job_type" do

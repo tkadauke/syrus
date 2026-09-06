@@ -384,6 +384,31 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.getByRole("link", { name: "All workflows" })).toBeInTheDocument()
   })
 
+  it("renders a when_present builtin folder like Backlog outside the More disclosure", () => {
+    renderNav([
+      folder({ id: 7, name: "Backlog", key: "backlogged_jobs", kind: "builtin", visibility: "when_present", position: 0, count: 2, path: "/dashboard/jobs?smart_folder_id=7" }),
+      folder({ id: 8, name: "Stale", key: "stale", kind: "builtin", visibility: "on_demand", position: 1, count: 1, path: "/dashboard/jobs?smart_folder_id=8" })
+    ])
+
+    const foldersNav = screen.getByRole("navigation", { name: "Dashboard smart folders" })
+    expect(within(foldersNav).getByRole("link", { name: "Backlog 2" })).toBeInTheDocument()
+    expect(screen.getByText("More")).toBeInTheDocument()
+
+    const moreDisclosure = screen.getByText("More").closest("details")!
+    expect(within(moreDisclosure).queryByRole("link", { name: "Backlog 2" })).not.toBeInTheDocument()
+    expect(within(moreDisclosure).getByRole("link", { name: "Stale 1" })).toBeInTheDocument()
+  })
+
+  it("navigates to the backlog-filtered Job list when the Backlog folder is followed", () => {
+    const { currentLocation } = renderNav([
+      folder({ id: 7, name: "Backlog", key: "backlogged_jobs", kind: "builtin", visibility: "when_present", position: 0, count: 1, path: "/dashboard/jobs?smart_folder_id=7" })
+    ])
+
+    fireEvent.click(screen.getByRole("link", { name: "Backlog 1" }))
+
+    expect(currentLocation()).toBe("/dashboard/jobs?smart_folder_id=7")
+  })
+
   it("compares selected folder filters independent of object key order", () => {
     renderNav([
       folder({

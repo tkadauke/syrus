@@ -1,3 +1,5 @@
+require "build_cache/data_cleanup"
+
 module BuildCache
   extend Syrus::PluginApi
 
@@ -24,9 +26,17 @@ module BuildCache
     route :post, "/api/v1/app/admin/build_cache/clear_requests/:id/confirm", to: "api/v1/app/admin/build_cache#confirm_clear_request"
     route :post, "/api/v1/app/admin/build_cache/clear_requests/:id/cancel", to: "api/v1/app/admin/build_cache#cancel_clear_request"
     route :get, "/api/v1/admin/build_cache", to: "api/v1/admin/build_cache#show"
+    route :get, "/api/v1/app/repositories/:id/build_cache_settings", to: "api/v1/app/build_cache_repository_settings#show"
+    route :patch, "/api/v1/app/repositories/:id/build_cache_settings", to: "api/v1/app/build_cache_repository_settings#update"
     route :get, "/admin/build_cache", to: "spa#show"
     frontend routes: { "build_cache/AdminBuildCache" => "app/frontend/routes/AdminBuildCache.tsx" },
         ui_slots: { "build_cache/SccacheCard" => "app/frontend/ui_slots/SccacheCard.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/build_cache.json" ]
+
+    # The per-repository basedirs_safe row outlives the plugin being
+    # disabled, and still has to go when its repository does.
+    always do |scope|
+      BuildCache::DataCleanup.install_into(scope)
+    end
   end
 end

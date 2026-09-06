@@ -13,6 +13,12 @@ vi.mock("./EpicPreviewCard", () => ({
   EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-card">EPIC-{id}</div>,
   EpicPreviewSkeleton: () => <div data-testid="epic-skeleton" />,
 }))
+vi.mock("../pluginSlugPreviewCards", () => ({
+  pluginSlugPreviewCardComponentForPrefix: (prefix: string | null | undefined) =>
+    prefix === "DOC"
+      ? ({ id }: { id: number }) => <div data-testid="doc-card">DOC-{id}</div>
+      : null,
+}))
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -30,13 +36,14 @@ function mockMatchMedia(matches: boolean) {
   })
 }
 
-function renderCard(kind: "job" | "epic", id: number) {
+function renderCard(kind: "job" | "epic" | "plugin", id: number, prefix?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const label = kind === "plugin" ? prefix : kind.toUpperCase()
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <SlugHoverCard id={id} kind={kind}>
-          <a href={`/${kind}s/${id}`}>{kind.toUpperCase()}-{id}</a>
+        <SlugHoverCard id={id} kind={kind} prefix={prefix}>
+          <a href={`/${(prefix ?? kind).toLowerCase()}s/${id}`}>{label}-{id}</a>
         </SlugHoverCard>
       </MemoryRouter>
     </QueryClientProvider>
@@ -99,6 +106,17 @@ describe("SlugHoverCard on a pointer:fine device", () => {
 
     expect(screen.getByTestId("epic-card")).toBeInTheDocument()
     expect(screen.getByTestId("epic-card").textContent).toBe("EPIC-7")
+  })
+
+  it("shows the plugin-provided doc card for kind=plugin, prefix=DOC", async () => {
+    renderCard("plugin", 20, "DOC")
+    const span = screen.getByRole("link", { name: "DOC-20" }).parentElement!
+    fireEvent.mouseEnter(span)
+
+    await act(async () => { vi.advanceTimersByTime(300) })
+
+    expect(screen.getByTestId("doc-card")).toBeInTheDocument()
+    expect(screen.getByTestId("doc-card").textContent).toBe("DOC-20")
   })
 
   it("cancels open timer when mouse leaves before 300ms", async () => {

@@ -201,7 +201,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       )
     end
 
-    it "reviews the top-level implement once, then proceeds straight to grading once the (single-round) budget is exhausted" do
+    it "always reacts to a needs_work verdict with a repair, even with the (single-round) budget exhausted" do
       AppSetting.current.update!(adversarial_review_rounds: 1)
       review_job = Factories.job_record(issue_number: 77, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -214,16 +214,18 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
       expect(review_workflow.reload).to be_succeeded
       expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan
+        prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan
       ])
-      expect(review_workflow.steps.where(kind: "implement").count).to eq(1)
+      expect(review_workflow.steps.where(kind: "implement").count).to eq(2)
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
-        [ "adversarial_review", 1, nil ]
+        [ "adversarial_review", 1, nil ],
+        [ "implement_final", 2, "implement-1" ]
       )
     end
 
-    it "pairs a repair implement with a second review, then repairs once more with no further review once the budget runs out" do
+    it "seeks exactly the configured number of review opinions, each reacted to with a repair" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 78, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -240,6 +242,8 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "implement", 1 ],
         [ "adversarial_review", 1 ],
         [ "implement", 2 ],
+        [ "adversarial_review", 2 ],
+        [ "implement", 3 ],
         [ "format", 1 ],
         [ "generate", 1 ],
         [ "grader_fanout", 1 ],
@@ -251,13 +255,19 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "pr_open", 1 ],
         [ "review_plan", 1 ]
       ])
-      # Only one review ever runs (rounds - 1 = 1): the final iteration is a
-      # repair-only implement with no review budget left to spend on it.
-      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
+      # rounds: 2 seeks exactly two review opinions (JOB-4300 fix: no longer
+      # one review short) -- the third, budget-exhausted implement has no
+      # review left to react to.
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(2)
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],
-        [ "implement_final", 2, "implement-1" ]
+        [ "implement_review", 2, "implement-1" ],
+        # AdversarialReview#parent_session_id resumes from the *previous
+        # review's* own session (not the implement it's reviewing) once one
+        # exists, so review 2 resumes review 1 rather than starting fresh.
+        [ "adversarial_review", 2, "review-1" ],
+        [ "implement_final", 3, "implement-2" ]
       )
     end
 
@@ -348,8 +358,11 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       }.to raise_error(Steps::Base::StepFailed, "implement crashed")
 
       expect(review_workflow.reload).to be_failed
-      expect(review_workflow.steps.where(kind: "implement", iteration: 2).first.state).to eq("failed")
-      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
+      # rounds: 2 seeks two review opinions before going repair-only, so the
+      # budget-exhausted final repair is iteration 3 (implement 1, repair 2
+      # paired with review 2, then this final repair).
+      expect(review_workflow.steps.where(kind: "implement", iteration: 3).first.state).to eq("failed")
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(2)
     end
   end
 

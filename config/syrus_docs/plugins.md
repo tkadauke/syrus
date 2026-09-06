@@ -1518,6 +1518,43 @@ and renders it with `<PluginUiSlot panels={...} props={...} />`. A panel whose
 component is missing from the bundle is skipped rather than throwing, so a
 stale server-side registration cannot blank the page around it.
 
+## Slug hover preview cards
+
+Core's `SlugHoverCard` (`app/frontend/components/SlugHoverCard.tsx`) renders a
+rich hover/click preview popup for `JOB-<id>`/`EPIC-<id>`/etc. references
+linkified by `linkifySlugs.tsx`. `JOB`/`EPIC` are core concepts and render
+core components directly; a plugin-owned reference kind (`DOC-<id>`, owned by
+`design_docs`) instead resolves through a small, registry-free discovery
+convention deliberately simpler than `workspace_tab`/`ui_slot`: there is no
+`Syrus::Plugin::SlugPreviewCard` module or `Syrus::PluginRegistry` extension
+point, because there is nothing here that needs enabled/disabled-state
+resolution or per-record visibility — the mapping is a fixed part of core's
+linkification grammar, not something a plugin registers at runtime.
+
+- The plugin drops its card component at
+  `plugins/<name>/app/frontend/slugPreviewCards/<PREFIX>.<Component>.tsx` —
+  the leading `<PREFIX>` segment (e.g. `DOC`) *is* the registration: it names
+  the slug prefix the card handles. The file is discovered by
+  `app/frontend/pluginSlugPreviewCards.tsx`'s
+  `import.meta.glob("../../plugins/*/app/frontend/slugPreviewCards/*.tsx")`,
+  which parses the prefix back out of each matched path with a regex (and
+  correctly ignores `*.test.tsx` siblings, since a dotted `.test` segment
+  doesn't match the single-segment-then-`.tsx` shape) — the same
+  `import.meta.glob` convention `pluginWorkspaceTabs.tsx`/`pluginUiSlots.tsx`
+  use — so core never imports plugin code directly and the plugin stays
+  physically deletable (an absent prefix just resolves to `null`, rendering
+  nothing extra).
+- `SlugHoverCard.tsx` carries **no** plugin- or prefix-specific knowledge at
+  all: its `kind` prop is `"job" | "epic" | "plugin"`, and for `kind:
+  "plugin"` it takes a generic `prefix` string that the caller (`linkifySlugs.tsx`)
+  derives directly from the matched slug text (e.g. the `DOC` in `DOC-20`),
+  then resolves via `pluginSlugPreviewCardComponentForPrefix(prefix)`. Core
+  does not name `design_docs`, `DOC`, or any other plugin-owned prefix
+  anywhere — the filename convention above is the only registration point.
+  Data fetching, the lightweight preview endpoint/payload, and the card's own
+  loading/empty/inaccessible states are owned entirely by the plugin. See
+  `design_docs.md`'s "Slug Hover Preview" section for the concrete example.
+
 ## `grader_augmentor`
 
 Allows plugins to append additional diagnostic output to the grade log when a
@@ -2376,11 +2413,12 @@ Bundled plugins:
   `.syrus.yml`.
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools
-  (`browser_navigate`, `browser_click`, `browser_fill`, `browser_snapshot`,
-  `browser_screenshot`, `browser_wait_for`, `browser_close`) for workflow
-  agents, backed by a bundled `@playwright/mcp` stdio subprocess (Chromium
-  ships in the worker Docker image only — see `Dockerfile`'s `worker-deps`
-  stage). One browser session is spawned per Run and reused across every
+  (`browser_navigate`, `browser_click`, `browser_fill`, `browser_hover`,
+  `browser_snapshot`, `browser_screenshot`, `browser_wait_for`,
+  `browser_close`) for workflow agents, backed by a bundled `@playwright/mcp`
+  stdio subprocess (Chromium ships in the worker Docker image only — see
+  `Dockerfile`'s `worker-deps` stage). One browser session is spawned per Run
+  and reused across every
   `browser_*` call in that Run; it is killed when the workflow step's MCP
   sidecar exits. `browser_navigate` is hard-restricted to loopback URLs
   (`SyrusBrowser::LoopbackGuard`) — an agent driving a real browser can only

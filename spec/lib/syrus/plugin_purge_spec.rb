@@ -5,7 +5,7 @@ RSpec.describe Syrus::PluginPurge do
     it "lists the tables a bundled plugin's models declare", requires_plugin: "build_cache" do
       report = described_class.new("build_cache").report
 
-      expect(report.tables).to eq([ "build_cache_clear_requests" ])
+      expect(report.tables).to eq([ "build_cache_clear_requests", "build_cache_repository_settings" ])
       expect(report.row_counts).to have_key("build_cache_clear_requests")
     end
 
@@ -45,8 +45,9 @@ RSpec.describe Syrus::PluginPurge do
 
       dropped = described_class.new("build_cache").purge!(force: true)
 
-      expect(dropped).to eq([ "build_cache_clear_requests" ])
+      expect(dropped).to eq([ "build_cache_clear_requests", "build_cache_repository_settings" ])
       expect(ActiveRecord::Base.connection.table_exists?("build_cache_clear_requests")).to be(false)
+      expect(ActiveRecord::Base.connection.table_exists?("build_cache_repository_settings")).to be(false)
       expect(PluginRecord.exists?(name: "build_cache")).to be(false)
     ensure
       ActiveRecord::Migration.suppress_messages do
@@ -59,6 +60,12 @@ RSpec.describe Syrus::PluginPurge do
           t.string :scope, null: false
           t.string :state, default: "pending"
           t.integer :user_id
+          t.timestamps
+        end
+
+        ActiveRecord::Base.connection.create_table("build_cache_repository_settings") do |t|
+          t.references :repository, null: false, index: { unique: true }
+          t.boolean :basedirs_safe, null: false, default: false
           t.timestamps
         end
       end

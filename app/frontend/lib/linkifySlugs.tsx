@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 
-const slugPattern = /((?:JOB|EPIC|DOC)-\d+)/
+const slugPattern = /((?:JOB|EPIC|DOC|CHAT)-\d+)/
 const slugLinkClassName = "text-brand hover:underline dark:text-brand-emphasis"
 
 type LinkifySlugOptions = {
@@ -39,12 +39,23 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
       )
     }
 
-    const doc = part.match(/^DOC-(\d+)$/)
+    const doc = part.match(/^(DOC)-(\d+)$/)
     if (doc) {
       return (
-        <Link className={slugLinkClassName} key={index} to={`/design_docs/${doc[1]}`}>
-          {part}
-        </Link>
+        <SlugHoverCard key={index} kind="plugin" prefix={doc[1]} id={Number(doc[2])}>
+          <Link className={slugLinkClassName} to={`/design_docs/${doc[2]}`}>
+            {part}
+          </Link>
+        </SlugHoverCard>
+      )
+    }
+
+    const chat = part.match(/^CHAT-(\d+)$/)
+    if (chat) {
+      return (
+        <SlugHoverCard key={index} kind="chat" id={Number(chat[1])}>
+          <CopyableSlug className="text-xs" slug={part} />
+        </SlugHoverCard>
       )
     }
 
@@ -53,5 +64,5 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
 }
 
 export function containsSlug(text: string) {
-  return /(?:JOB|EPIC|DOC)-\d+/.test(text)
+  return /(?:JOB|EPIC|DOC|CHAT)-\d+/.test(text)
 }

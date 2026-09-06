@@ -348,16 +348,29 @@ function SourceDiffBrowser({
             </button>
           )) : <p className="p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</p>}
         </div>
-        <div className="min-w-0 overflow-auto">
+        <div className="min-w-0 overflow-y-auto">
           {renderMode === "continuous" || selectedFile ? (
             <ReviewableDiff
               annotations={diffAnnotations}
               comments={feedback.diffThreads}
+              composingBody={feedback.composingBody}
+              composingError={feedback.composingError}
+              composingPending={feedback.composingPending}
+              composingSelection={feedback.composingSelection}
+              editingThreadBody={feedback.editingThreadBody}
+              editingThreadId={feedback.editingThreadId}
               emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}
               files={payload.files}
               mode={renderMode}
+              onCancelComposing={feedback.onCancelComposing}
+              onCancelEditThread={feedback.onCancelEditThread}
+              onChangeComposingBody={feedback.onChangeComposingBody}
+              onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
               onCommentLine={feedback.onCommentLine}
+              onSaveComposing={feedback.onSaveComposing}
+              onSaveEditThread={feedback.onSaveEditThread}
               onSelectFile={setSelectedPath}
+              onStartEditThread={feedback.onStartEditThread}
               selectedPath={selectedPath}
               showFileHeaders
               unavailableState={t("source_diff_not_available")}
