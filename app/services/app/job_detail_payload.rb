@@ -336,20 +336,34 @@ module App
       end
     end
 
+    # Same signal as job_has_active_runtime_work?, but ignores runs/work units
+    # from maintenance/QA workflows (Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES
+    # — rebase, stack_rebase, manual_visual_review, visual_diff) that never
+    # change the diff under review. Used to gate the Approve button so a
+    # pending rebase or visual review doesn't hide it on an already-
+    # `implemented` Job.
+    def job_has_approval_blocking_runtime_work?
+      return @job_has_approval_blocking_runtime_work if defined?(@job_has_approval_blocking_runtime_work)
+
+      @job_has_approval_blocking_runtime_work = PerformanceLogging.phase("job_detail.job.approval_blocking_runtime_work", job_id: @job.id) do
+        job_active_run_states(exclude_non_approval_blocking: true).any? ||
+          active_work_units_for_job.any? { |unit| !Workflow::TriggerKind.non_approval_blocking?(unit.kind) }
+      end
+    end
+
     def job_has_active_run?
       return @job_has_active_run if defined?(@job_has_active_run)
 
       @job_has_active_run = job_active_run_states.any?
     end
 
-    def job_active_run_states
-      return @job_active_run_states if defined?(@job_active_run_states)
+    def job_active_run_states(exclude_non_approval_blocking: false)
+      cache_ivar = exclude_non_approval_blocking ? :@job_active_run_states_excluding_non_approval_blocking : :@job_active_run_states
+      return instance_variable_get(cache_ivar) if instance_variable_defined?(cache_ivar)
 
-      @job_active_run_states = @job.runs
-        .where(state: Run::ACTIVE_STATES)
-        .reorder(nil)
-        .distinct
-        .pluck(:state)
+      scope = @job.runs.where(state: Run::ACTIVE_STATES)
+      scope = scope.where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES) if exclude_non_approval_blocking
+      instance_variable_set(cache_ivar, scope.reorder(nil).distinct.pluck(:state))
     end
 
     def active_work_units_for_job
@@ -855,7 +869,7 @@ module App
       writable = JobPolicy.new(@user, @job).write?
       creator = @job.user_id == @user.id
       mutable_runtime_job = @job.open? && !@job.backlog?
-      reviewable_job = @job.implemented? && !active_runtime_work
+      reviewable_job = @job.implemented? && !job_has_approval_blocking_runtime_work?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       {
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
