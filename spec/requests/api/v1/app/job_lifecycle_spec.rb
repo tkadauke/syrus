@@ -393,6 +393,10 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("job", "id")).to eq(new_job.id)
     expect(parse_body.dig("old_job", "id")).to eq(original_id)
     expect(parse_body["redirect_to"]).to eq(job_path(new_job))
+    # job/actions in this response both describe the replacement job, not
+    # the one the request was made against — the frontend must key its
+    # cache merge off this id rather than assuming it matches the request.
+    expect(parse_body.dig("actions")).to be_present
   end
 
   it "restarts a direct job preserving kind, title, body, and agent_provider" do
