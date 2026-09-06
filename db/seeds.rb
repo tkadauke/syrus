@@ -61,7 +61,13 @@ if Rails.env.development?
   demo_chat.assign_attributes(
     mode: "planning",
     pinned: true,
-    last_message_at: Time.current
+    last_message_at: Time.current,
+    # Marks the "Meet Syrus in chat" onboarding step complete so a fresh
+    # preview reaches the real Dashboard instead of being stuck on the
+    # onboarding checklist (App::SetupStatus#chat_started? checks
+    # User#onboarding_chat_started?, which requires a ChatSession with
+    # onboarding: true).
+    onboarding: true
   )
   demo_chat.repository = demo_repo if demo_chat.new_record?
   demo_chat.save!
