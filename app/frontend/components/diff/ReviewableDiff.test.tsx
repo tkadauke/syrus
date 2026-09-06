@@ -283,6 +283,22 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("scrolls each file's table horizontally on its own instead of sharing one scroll region", () => {
+    render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
+
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    expect(viewer.querySelector(".max-h-\\[32rem\\]")).not.toHaveClass("overflow-x-auto")
+
+    const jobTable = screen.getByText("new").closest("table") as HTMLElement
+    const runTable = screen.getByText("added").closest("table") as HTMLElement
+    const jobScroller = jobTable.parentElement
+    const runScroller = runTable.parentElement
+
+    expect(jobScroller).toHaveClass("overflow-x-auto")
+    expect(runScroller).toHaveClass("overflow-x-auto")
+    expect(jobScroller).not.toBe(runScroller)
+  })
+
   it("splits stored unified diffs into real changed files for anchored artifact review", () => {
     const diff = [
       "diff --git a/app/models/job.rb b/app/models/job.rb",
