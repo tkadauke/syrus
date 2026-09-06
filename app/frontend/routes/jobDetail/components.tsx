@@ -249,6 +249,25 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
   )
 }
 
+// A Job the classifier could not place is not broken and nothing is retrying
+// it: it is waiting on a person. Saying so -- and saying why the classifier
+// gave up -- is what turns "stuck in triaging" into a decision someone can
+// actually make.
+export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) {
+  const { t } = useT("jobs")
+  if (job.triaging_reason !== "classifier_uncertain") return null
+
+  return (
+    <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+      <p className="font-medium">{t("triage_uncertain_title")}</p>
+      <p className="mt-1">{t("triage_uncertain_body")}</p>
+      {job.triaging_uncertainty_reason ? (
+        <p className="mt-2 font-mono text-xs text-amber-700 dark:text-amber-300">{job.triaging_uncertainty_reason}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export function FeedbackSourceBadge({ source }: { source: unknown }) {
   if (!source || typeof source !== "object") return null
 

@@ -440,6 +440,21 @@ class Job < ApplicationRecord
       }
     end
 
+    # Puts an uncertain Job back in the classifier's queue. Without this,
+    # `classifier_uncertain` was terminal by omission: IngestionClassifier and
+    # ClassifyIssueJob both require `classifier_pending`, the reconciler's
+    # stalled-intake detector only matched `classifier_pending`, and polling
+    # dedups on the existing Job -- so one transient provider error cost the
+    # Job forever (JOB-4348).
+    event :retry_classification do
+      transitions from: :triaging, to: :triaging,
+                  guard: :classifier_retry_available?,
+                  after: -> {
+                    self.triaging_reason = "classifier_pending"
+                    self.triaging_uncertainty_reason = nil
+                  }
+    end
+
     event :block_by_epic do
       transitions from: [ :triaging, :queued ], to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
     end
@@ -724,6 +739,38 @@ class Job < ApplicationRecord
       manual_paused_at: nil,
       manual_paused_by_user: nil
     )
+  end
+
+  # One automatic retry. A transient provider error should not cost a Job
+  # forever, but a classifier that is uncertain twice is telling us something
+  # about the issue rather than about the provider, and that is a person's
+  # call -- which is what the triage decision is for.
+  MAX_CLASSIFIER_ATTEMPTS = 2
+
+  def classifier_retry_available?
+    triaging_reason_classifier_uncertain? && classifier_attempts < MAX_CLASSIFIER_ATTEMPTS
+  end
+
+  # A person looked at the issue and said "yes, work on this". The classifier's
+  # opinion (or lack of one) stops mattering at that point, so the uncertainty
+  # is cleared rather than carried into execution.
+  def accept_triage!
+    return false unless triaging? && triaging_reason_classifier_uncertain?
+
+    update!(triaging_reason: "classifier_pending", triaging_uncertainty_reason: nil)
+    advance_after_triage! if may_advance_after_triage?
+    true
+  end
+
+  # And "no, this isn't something to work on". Closed as `cancelled` rather
+  # than one of the successful reasons: nothing was delivered, and recording it
+  # as a success would corrupt the same attribution that closure reasons exist
+  # to keep honest.
+  def reject_triage!
+    return false unless triaging? && triaging_reason_classifier_uncertain?
+
+    cancel_active_runs_and_close!("cancelled")
+    true
   end
 
   def ready_for_execution?

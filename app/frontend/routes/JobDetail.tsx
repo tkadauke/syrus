@@ -29,7 +29,7 @@ import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
 import { CommandButton, useJobCommand } from "./jobDetail/command"
-import { TagsPanel, NeedsAttentionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
+import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
@@ -358,6 +358,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
+      <TriageDecisionBanner job={payload.job} />
       {payload.merge_train_status ? <JobMergeTrainPanel payload={payload} /> : null}
       {payload.landing_queue_entry ? (
         <PanelMessage>

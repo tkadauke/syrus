@@ -35,6 +35,7 @@ class IngestionClassifier
   def call
     return failure("job is not awaiting classifier triage") unless classifier_pending_job?
 
+    record_attempt!
     result = invoke_classifier
     return mark_uncertain(result.error) unless result.success?
 
@@ -50,6 +51,13 @@ class IngestionClassifier
 
   def classifier_pending_job?
     job.triaging? && job.triaging_reason_classifier_pending?
+  end
+
+  # Every attempt counts, successful or not: the cap exists to stop a Job
+  # cycling through the classifier forever, and a run that ended in a decision
+  # consumed the same budget as one that ended in an error.
+  def record_attempt!
+    job.increment!(:classifier_attempts)
   end
 
   def invoke_classifier
@@ -126,10 +134,29 @@ class IngestionClassifier
     job.close! if job.may_close?
   end
 
+  # Uncertainty used to be recorded only in the process log, which meant that
+  # by the time anyone noticed the Job was stuck -- JOB-3184 sat for three
+  # weeks -- there was no way to tell a transient provider error from an issue
+  # that genuinely needs a person. The reason is now on the Job, and the Job is
+  # put in front of someone rather than left to be found.
   def mark_uncertain(reason)
     Rails.logger.warn("[IngestionClassifier] #{job.slug} uncertain: #{reason}")
-    job.mark_classifier_uncertain! if job.may_mark_classifier_uncertain?
+    if job.may_mark_classifier_uncertain?
+      job.mark_classifier_uncertain!
+      job.update_columns(triaging_uncertainty_reason: reason.to_s.truncate(1_000))
+    end
+    open_triage_decision!
     failure(reason)
+  end
+
+  # `Decisions::Triage` was written for exactly this and never had a caller, so
+  # the decisions table stayed empty while uncertain Jobs accumulated. It is
+  # advisory -- a decision we cannot open must not turn a soft "needs a human"
+  # into a hard failure.
+  def open_triage_decision!
+    Decisions::Triage.call(job: job.reload)
+  rescue StandardError => e
+    Rails.logger.warn("[IngestionClassifier] could not open a triage decision for #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def epic_index

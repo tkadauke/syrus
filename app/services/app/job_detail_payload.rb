@@ -176,6 +176,7 @@ module App
         priority: @job.priority,
         validity: @job.validity,
         triaging_reason: @job.triaging_reason,
+        triaging_uncertainty_reason: @job.triaging_uncertainty_reason,
         credential_mode: @job.credential_mode,
         agent_provider: workflow_agent_provider,
         job_provider_setting: @job.job_provider_setting,
@@ -859,7 +860,13 @@ module App
       {
         can_start: creator && writable && @job.direct? && mutable_runtime_job && job_runs_count.zero? && !active_runtime_work,
         can_release_from_backlog: writable && @job.backlog? && @job.open? && @job.may_release_from_backlog? && !active_runtime_work,
-        can_move_to_backlog: writable && @job.open? && @job.may_move_to_backlog? && !active_runtime_work,
+        # Not offered while a Job is still in triage: it has not been classified
+        # yet, and parking it in the backlog only moves it from one place
+        # nothing acts on to another. Accept or Reject is the decision that
+        # actually needs making.
+        can_move_to_backlog: writable && @job.open? && !@job.triaging? && @job.may_move_to_backlog? && !active_runtime_work,
+        can_accept_triage: writable && awaiting_triage_decision?,
+        can_reject_triage: writable && awaiting_triage_decision?,
         can_poll_feedback: writable && mutable_runtime_job && @job.pr_number.present?,
         can_rebase: writable && mutable_runtime_job && has_tracked_pr &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
@@ -909,6 +916,13 @@ module App
       AppSetting.simple? && @job.epic_id.present?
     end
 
+    # Only `classifier_uncertain` puts the decision in a person's hands.
+    # `classifier_pending` is still in flight and `pending_epic_ref` resolves
+    # itself when the Epic shows up, so neither wants an Accept/Reject prompt.
+    def awaiting_triage_decision?
+      @job.triaging? && @job.triaging_reason_classifier_uncertain?
+    end
+
     # Mirrors JobReviewFeedbackSubmission's own eligibility check: a closed
     # Job is only "already landed" (and thus safe to depend on) when it
     # closed for a successful reason. Depending on an unsuccessfully-closed
@@ -928,6 +942,8 @@ module App
         app_start_path: "/api/v1/app/jobs/#{@job.id}/start",
         app_release_from_backlog_path: "/api/v1/app/jobs/#{@job.id}/release_from_backlog",
         app_move_to_backlog_path: "/api/v1/app/jobs/#{@job.id}/move_to_backlog",
+        app_accept_triage_path: "/api/v1/app/jobs/#{@job.id}/accept_triage",
+        app_reject_triage_path: "/api/v1/app/jobs/#{@job.id}/reject_triage",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
         app_cancel_path: "/api/v1/app/jobs/#{@job.id}/cancel",

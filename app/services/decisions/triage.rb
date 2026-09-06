@@ -31,7 +31,7 @@ module Decisions
       Decisions::Opener.call(
         problem: problem,
         title: "Needs triage: #{@job.title.presence || @job.slug}",
-        summary: @job.triaging_reason.to_s.humanize,
+        summary: summary,
         queue: QUEUE,
         urgency: DEFAULT_URGENCY,
         actions: actions,
@@ -45,11 +45,19 @@ module Decisions
       @job&.state == "triaging" && @job.triaging_reason.to_s == "classifier_uncertain"
     end
 
+    # The reason the classifier gave up is the whole content of this decision:
+    # without it a person has to guess whether to retry or to read the issue.
+    def summary
+      [ @job.triaging_reason.to_s.humanize, @job.triaging_uncertainty_reason.presence ].compact.join(": ")
+    end
+
     # `validation_or_user_error` is the honest code: the request itself is
     # unclear, which is a problem with the input rather than with Syrus.
     def problem
       Problem[:validation_or_user_error, evidence: {
         triaging_reason: @job.triaging_reason.to_s,
+        uncertainty_reason: @job.triaging_uncertainty_reason.presence,
+        classifier_attempts: @job.classifier_attempts,
         repository: @job.repository&.slug,
         source_ref: @job.source_ref
       }.compact]
@@ -57,9 +65,15 @@ module Decisions
 
     # Triage actions are about *classifying*, not about repairing -- a
     # different set from the operator queue's, on the same mechanism.
+    # `cancel_job`, not `close_job_successfully`: the latter validates its
+    # `closure_reason` against Job::SUCCESSFUL_CLOSURE_REASONS and this decision
+    # supplied none, so the action would have been rejected at execution had
+    # anything ever opened one. And no successful reason fits -- rejecting an
+    # unclear request delivers nothing, so recording it as a success would
+    # corrupt the attribution closure reasons exist to keep honest.
     def actions
       [
-        { "action_key" => "close_job_successfully", "label" => "Not actionable",
+        { "action_key" => "cancel_job", "label" => "Not actionable",
           "payload" => { "job_id" => @job.id } }
       ].select { |action| known_action?(action["action_key"]) }
     end

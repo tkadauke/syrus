@@ -1038,6 +1038,63 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("Initial workflow enqueued.")).not.toBeInTheDocument()
   })
 
+  // A Job the classifier could not place waits on a person. Accept and Reject
+  // are the decision; Move to backlog just relocates it to another place
+  // nothing acts on, so it is not offered here.
+  it("offers Accept and Reject for a job the classifier could not place", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Job accepted.", job: { id: 1, state: "queued" } })
+    )
+    const payload = jobPayload({
+      job: {
+        ...baseJob(),
+        state: "triaging",
+        summary_state: "triaging",
+        triaging_reason: "classifier_uncertain",
+        triaging_uncertainty_reason: "invalid JSON: expected an object"
+      }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        can_approve: false,
+        can_move_to_backlog: false,
+        can_accept_triage: true,
+        can_reject_triage: true
+      },
+      paths: {
+        ...payload.paths,
+        app_accept_triage_path: "/api/v1/app/jobs/1/accept_triage",
+        app_reject_triage_path: "/api/v1/app/jobs/1/reject_triage"
+      }
+    })
+
+    expect(screen.getByText("Needs your decision")).toBeInTheDocument()
+    expect(screen.getByText("invalid JSON: expected an object")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Move to backlog" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/accept_triage",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("hides the triage decision for a job the classifier is still working on", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "triaging", summary_state: "triaging", triaging_reason: "classifier_pending" }
+    })
+    renderJobDetail(payload)
+
+    expect(screen.queryByText("Needs your decision")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+  })
+
   it("shows Release from backlog instead of Start Run for backlogged jobs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({ message: "Job released from backlog.", job: { id: 1, state: "queued" } })

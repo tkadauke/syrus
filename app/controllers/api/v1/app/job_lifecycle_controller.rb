@@ -78,6 +78,37 @@ module Api
           render_job(job.reload, message: "Job moved to backlog.", changed: [ "state" ])
         end
 
+        # A Job the classifier could not place needs a person to say what it is.
+        # Accept means "yes, work on this": the classifier's non-opinion stops
+        # mattering and the Job resumes the normal path out of triage.
+        def accept_triage
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.triaging? && job.triaging_reason_classifier_uncertain?
+            render_error("validation_failed", "#{job.slug} is not awaiting triage.", status: :unprocessable_content)
+            return
+          end
+
+          job.accept_triage!
+          render_job(job.reload, message: "Job accepted.", changed: [ "state", "runs" ])
+        end
+
+        # And reject means "no". Closed as `cancelled` rather than one of the
+        # successful reasons -- nothing was delivered.
+        def reject_triage
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          unless job.triaging? && job.triaging_reason_classifier_uncertain?
+            render_error("validation_failed", "#{job.slug} is not awaiting triage.", status: :unprocessable_content)
+            return
+          end
+
+          job.reject_triage!
+          render_job(job.reload, message: "Job rejected.", changed: [ "state" ])
+        end
+
         def run_again
           job = find_mutable_job
           return unless authorize_job_mutation!(job)

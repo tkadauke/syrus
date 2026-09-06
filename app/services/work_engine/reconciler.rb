@@ -2199,9 +2199,16 @@ module WorkEngine
 
     def classify_stalled_classifier_pending_jobs
       stalled = jobs.select do |job|
-        job.state == "triaging" &&
-          job.triaging_reason.to_s == "classifier_pending" &&
-          job.created_at.present? && job.created_at < now - CLASSIFIER_PENDING_STUCK_AFTER
+        next false unless job.state == "triaging"
+        next false unless job.created_at.present? && job.created_at < now - CLASSIFIER_PENDING_STUCK_AFTER
+
+        # `classifier_uncertain` belongs here too. It used to be terminal by
+        # omission -- nothing re-ran the classifier, nothing reaped it, nothing
+        # surfaced it -- so a single transient provider error stranded the Job
+        # for good. The attempt cap keeps this from becoming a loop: after the
+        # retry, an uncertain Job is a person's problem, and the triage
+        # decision opened alongside it is where that happens.
+        job.triaging_reason.to_s == "classifier_pending" || job.classifier_retry_available?
       end
       return [] if stalled.empty?
 
@@ -2213,7 +2220,7 @@ module WorkEngine
           safe_to_auto_repair: true,
           recommended_repair_action: "reclassify_stalled_intake",
           evidence: { stuck_after_minutes: CLASSIFIER_PENDING_STUCK_AFTER.to_i / 60, job_count: stalled.size },
-          explanation: "Jobs are waiting on intake classification that never completed."
+          explanation: "Jobs are waiting on intake classification that never completed or ended uncertain."
         )
       ]
     end

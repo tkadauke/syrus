@@ -77,6 +77,8 @@ export type JobRecord = {
   summary_state: string
   priority: string
   validity: string
+  triaging_reason?: string | null
+  triaging_uncertainty_reason?: string | null
   credential_mode: string | null
   agent_provider: string | null
   job_provider_setting?: string
@@ -689,6 +691,8 @@ export type JobActions = {
   can_start: boolean
   can_release_from_backlog: boolean
   can_move_to_backlog?: boolean
+  can_accept_triage?: boolean
+  can_reject_triage?: boolean
   can_poll_feedback: boolean
   can_rebase: boolean
   can_check_mergeability: boolean
@@ -764,6 +768,8 @@ export type JobPaths = {
   app_start_path: string
   app_release_from_backlog_path: string
   app_move_to_backlog_path?: string
+  app_accept_triage_path?: string
+  app_reject_triage_path?: string
   app_run_again_path: string
   app_restart_path: string
   app_cancel_path: string

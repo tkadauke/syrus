@@ -1452,6 +1452,14 @@ maps to a `product_owner` account, polling creates the Job in
 `needs_triage`. Developers and admins release those held Jobs from the
 repository overview before classifier triage or implementation can start.
 
+Triage itself is automatic: Syrus reads each new issue and decides whether it
+belongs to an Epic, duplicates existing work, or is ordinary new work. When it
+cannot tell — a vague report, or a request that could mean several things — it
+says so instead of guessing, and the Job page shows **Accept** and **Reject**
+alongside the reason it was unsure. Accept queues the work; Reject closes the
+Job. Syrus retries the classification once on its own first, so a passing
+provider error does not put an issue in front of you unnecessarily.
+
 When a repository is registered as a fork of an upstream that also lives in
 the instance, Jobs on the fork branch off — and open their pull request
 against — the upstream's default branch (head = the fork's branch, base =

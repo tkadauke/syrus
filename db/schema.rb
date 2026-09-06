@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_130422) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1313,6 +1313,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
+    t.integer "classifier_attempts", default: 0, null: false
     t.string "closure_reason"
     t.integer "commits_behind_base"
     t.datetime "created_at", null: false
@@ -1408,6 +1409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_194626) do
     t.bigint "target_repository_id"
     t.boolean "title_pending", default: false, null: false
     t.string "triaging_reason", default: "classifier_pending", null: false
+    t.text "triaging_uncertainty_reason"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "validity", default: "valid", null: false

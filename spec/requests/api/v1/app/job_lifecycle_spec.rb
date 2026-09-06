@@ -277,6 +277,53 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(active.reload).to be_queued
   end
 
+  # A Job the classifier could not place waits on a person, not on Syrus.
+  # Before these, `classifier_uncertain` had no exit at all: the classifier
+  # refused to re-run, the reconciler did not see it, and nothing surfaced it.
+  describe "triage decisions" do
+    let(:uncertain) do
+      Factories.job_record(repository: repo, issue_number: 70).tap do |record|
+        record.update_columns(state: "triaging", triaging_reason: "classifier_uncertain",
+                              triaging_uncertainty_reason: "invalid JSON: expected an object")
+      end
+    end
+
+    it "queues the job for work when accepted" do
+      post app_job_path(uncertain, "accept_triage"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(uncertain.reload).to be_queued
+      expect(uncertain.triaging_uncertainty_reason).to be_nil
+    end
+
+    # `cancelled`, not one of the successful reasons: rejecting an unclear
+    # request delivers nothing, and filing it as a success would corrupt the
+    # attribution closure reasons exist to keep honest.
+    it "closes the job as cancelled when rejected" do
+      post app_job_path(uncertain, "reject_triage"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(uncertain.reload).to be_closed
+      expect(uncertain.closure_reason).to eq("cancelled")
+    end
+
+    it "refuses either decision for a job that is not awaiting triage" do
+      post app_job_path(job, "accept_triage"), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    # Parking an unclassified Job in the backlog moves it from one place
+    # nothing acts on to another; Accept or Reject is the real decision.
+    it "does not offer Move to backlog while a job is in triage" do
+      payload = App::JobDetailPayload.new(job: uncertain, user: user).payload
+
+      expect(payload[:actions][:can_move_to_backlog]).to be_falsey
+      expect(payload[:actions][:can_accept_triage]).to be(true)
+      expect(payload[:actions][:can_reject_triage]).to be(true)
+    end
+  end
+
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
     finish_work_units_for(job)

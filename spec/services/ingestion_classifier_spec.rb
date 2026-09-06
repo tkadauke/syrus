@@ -152,6 +152,38 @@ RSpec.describe IngestionClassifier do
     expect(job.runs).to be_empty
   end
 
+  # The reason used to go to Rails.logger.warn and nowhere else, so by the time
+  # anyone noticed the Job was stuck the logs were gone and there was no way to
+  # tell a transient provider error from an issue that needs a person.
+  it "records why the classifier gave up" do
+    job = Job.create!(user: user, repository: repository, issue_number: 16)
+    stub_agent_text("not json")
+
+    described_class.call(job: job, github_client: github_client)
+
+    expect(job.reload.triaging_uncertainty_reason).to be_present
+    expect(job.classifier_attempts).to eq(1)
+  end
+
+  # Decisions::Triage was written for exactly this case and had no caller, so
+  # uncertain Jobs accumulated while the decisions table stayed empty.
+  it "opens a triage decision so a person sees the Job" do
+    job = Job.create!(user: user, repository: repository, issue_number: 17)
+    stub_agent_text("not json")
+
+    expect { described_class.call(job: job, github_client: github_client) }
+      .to change { Decision.where(queue: "triage").count }.by(1)
+  end
+
+  it "does not fail the classification when the decision cannot be opened" do
+    job = Job.create!(user: user, repository: repository, issue_number: 18)
+    stub_agent_text("not json")
+    allow(Decisions::Triage).to receive(:call).and_raise(StandardError, "decisions unavailable")
+
+    expect { described_class.call(job: job, github_client: github_client) }.not_to raise_error
+    expect(job.reload.triaging_reason).to eq("classifier_uncertain")
+  end
+
   it "bounds duplicate tokenization for huge issue bodies" do
     job = Job.create!(
       user: user,

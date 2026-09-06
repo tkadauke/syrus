@@ -489,9 +489,16 @@ module WorkEngine
           return skipped("no stalled intake Jobs") if job_ids.empty?
 
           reclassified = Job.where(id: job_ids).select do |job|
-            job.state == "triaging" && job.triaging_reason.to_s == "classifier_pending"
+            next false unless job.state == "triaging"
+            next true if job.triaging_reason.to_s == "classifier_pending"
+
+            # An uncertain Job has to be put back in the classifier's queue
+            # first: IngestionClassifier and ClassifyIssueJob both refuse to
+            # run against any reason but `classifier_pending`.
+            job.retry_classification! if job.may_retry_classification?
+            job.reload.triaging_reason.to_s == "classifier_pending"
           end
-          return skipped("intake Jobs are no longer classifier_pending") if reclassified.empty?
+          return skipped("intake Jobs are no longer awaiting classification") if reclassified.empty?
 
           # ClassifyIssueJob's concurrency lock keeps a duplicate from racing a
           # classify that is genuinely still in flight.

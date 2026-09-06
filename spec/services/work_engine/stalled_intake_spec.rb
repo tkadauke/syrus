@@ -46,6 +46,52 @@ RSpec.describe "Stalled intake reconciliation" do
     expect(issue(reconcile)).to be_nil
   end
 
+  # `classifier_uncertain` used to be terminal by omission: nothing re-ran the
+  # classifier, nothing reaped it, nothing surfaced it, and polling dedups on
+  # the existing Job -- so one transient provider error stranded the Job for
+  # good. JOB-3184 sat that way for three weeks.
+  describe "a Job the classifier gave up on" do
+    def uncertain!(attempts: 1, age: 30.minutes)
+      job.update_columns(
+        state: "triaging", triaging_reason: "classifier_uncertain",
+        classifier_attempts: attempts, created_at: age.ago
+      )
+    end
+
+    it "is detected so it can be classified once more" do
+      uncertain!
+
+      expect(issue(reconcile)&.affected_ids&.dig(:job_ids)).to include(job.id)
+    end
+
+    # The cap is what keeps the retry from becoming a loop. Past it, an
+    # uncertain Job is a person's call, which the triage decision carries.
+    it "is left alone once the retry budget is spent" do
+      uncertain!(attempts: Job::MAX_CLASSIFIER_ATTEMPTS)
+
+      expect(issue(reconcile)).to be_nil
+    end
+
+    it "is put back in the classifier's queue by the repair" do
+      uncertain!
+      plan = WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "stalled_classifier_pending_job", action: "reclassify_stalled_intake",
+        auto_executable: true, target_type: "job", target_id: job.id,
+        affected_ids: { job_ids: [ job.id ] }, execution_steps: [], preconditions: {},
+        reason: "test"
+      )
+
+      expect {
+        WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+      }.to have_enqueued_job(ClassifyIssueJob).with(job.id)
+
+      # IngestionClassifier and ClassifyIssueJob both refuse any reason but
+      # classifier_pending, so the flip has to happen for the retry to run.
+      expect(job.reload.triaging_reason).to eq("classifier_pending")
+      expect(job.triaging_uncertainty_reason).to be_nil
+    end
+  end
+
   describe "the repair" do
     it "re-enqueues classification" do
       stall!
