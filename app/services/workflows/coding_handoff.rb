@@ -22,6 +22,7 @@ module Workflows
     def self.trigger_kind = "coding_handoff"
 
     def self.steps_for(job)
+      syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
         job,
         adversarial_review_loop(job, agent_step: :coding_handoff_fix),
@@ -32,7 +33,7 @@ module Workflows
           repair: [ :coding_handoff_fix ],
           check: [ :grader_fanout, :grader_collect ]
         ),
-        initial_pr_finish_steps(job)
+        initial_pr_finish_steps(job, syrus_yml: syrus_yml)
       )
     end
 
