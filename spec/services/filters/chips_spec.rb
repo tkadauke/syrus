@@ -478,6 +478,55 @@ RSpec.describe "Filters::Chips" do
       expect(result).not_to include(theirs)
     end
 
+    it "inbox: includes jobs owned by others when the review policy makes the user an eligible approver" do
+      two_person_repo = Factories.repository(user: user, owner: "acme", name: "two-person-inbox", review_policy: "two_person")
+      other_user = Factories.user
+      not_mine_but_eligible = Factories.job_record(
+        repository: two_person_repo, issue_number: 61, state: "implemented",
+        user: other_user, owner_user: other_user
+      )
+
+      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      expect(result).to include(not_mine_but_eligible)
+    end
+
+    it "inbox: excludes a job the user raw-created but does not own under two_person (mirrors approval eligibility, not raw creation)" do
+      two_person_repo = Factories.repository(user: user, owner: "acme", name: "two-person-inbox-creator", review_policy: "two_person")
+      other_user = Factories.user
+      created_by_me_owned_by_other = Factories.job_record(
+        repository: two_person_repo, issue_number: 62, state: "implemented",
+        user: user, owner_user: other_user
+      )
+
+      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      expect(result).not_to include(created_by_me_owned_by_other)
+    end
+
+    it "inbox: includes jobs owned by others when the user is a repository final approver under final_say" do
+      final_say_repo = Factories.repository(user: user, owner: "acme", name: "final-say-inbox", review_policy: "final_say")
+      RepositoryFinalApprover.create!(repository: final_say_repo, user: user)
+      other_user = Factories.user
+      eligible_via_final_say = Factories.job_record(
+        repository: final_say_repo, issue_number: 63, state: "implemented",
+        user: other_user, owner_user: other_user
+      )
+
+      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      expect(result).to include(eligible_via_final_say)
+    end
+
+    it "inbox: excludes jobs owned by others under final_say when the user is not a final approver" do
+      final_say_repo = Factories.repository(user: user, owner: "acme", name: "final-say-inbox-ineligible", review_policy: "final_say")
+      other_user = Factories.user
+      not_eligible = Factories.job_record(
+        repository: final_say_repo, issue_number: 64, state: "implemented",
+        user: other_user, owner_user: other_user
+      )
+
+      result = run(field: "attention", op: "is", value: "inbox", scope: Job.all)
+      expect(result).not_to include(not_eligible)
+    end
+
     it "awaiting_approval: excludes jobs with any active workflows" do
       ready = Factories.job_record(repository: repo, issue_number: 31, state: "implemented")
       queued_feedback = Factories.job_record(repository: repo, issue_number: 32, state: "implemented")

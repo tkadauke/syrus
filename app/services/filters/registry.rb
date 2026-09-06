@@ -35,6 +35,7 @@ module Filters
   # finished_at                   column-named-after-job
   # last_seen_comment_at          column-named-after-job
   # owner_user_id                 job
+  # eligible_approver              job
   # pinned_by_me                  job
   # has_unread_feedback           job
   # has_landing_failure           job
@@ -95,6 +96,7 @@ module Filters
 
       # Owner
       "owner_user_id"                 => "Filters::Chips::Jobs::OwnerUserId",
+      "eligible_approver"             => "Filters::Chips::Jobs::EligibleApprover",
 
       # Booleans (predicates)
       "pinned_by_me"                  => "Filters::Chips::Jobs::PinnedByMe",
