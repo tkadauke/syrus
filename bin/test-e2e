@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Runs Playwright E2E specs: core (e2e/) plus every plugin's own (plugins/*/e2e/).
+# Each tree is its own named Playwright project (see playwright.config.ts), so
+# use --project to scope down instead of a path (path args are ambiguous here
+# since every plugin's directory also contains "e2e/"):
+#   bin/test-e2e                        # core + every plugin
+#   bin/test-e2e --project=browser      # just the browser plugin
+#   bin/test-e2e --project=core         # just core
+set -euo pipefail
+
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/ms-playwright}"
+
+if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then
+  npm ci
+fi
+
+exec npx playwright test "$@"
