@@ -11,7 +11,7 @@ import {
   type RepositoryScheduledTask,
   type RepositoryScheduledTasksPayload
 } from "../api/scheduledTasks"
-import { RepositoryTabs } from "@app/components/RepositoryTabs"
+import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { toRomanDate } from "@app/lib/romanCalendar"
 import { useT } from "@app/hooks/useT"
@@ -25,21 +25,37 @@ export function RepositoryScheduledTasksRoute() {
   const { t } = useT("settings")
   const location = useLocation()
   const params = useParams()
-  const repositoryId = params.repositoryId || ""
+  // The sidebar_pages route declares this segment as `:repository_id`
+  // (snake_case), not `:repositoryId` -- unlike the core repo_tabs dispatcher
+  // route. Reading the wrong key left this permanently empty, so the query
+  // never ran and the tab was stuck on "Loading scheduled tasks...".
+  const repositoryId = params.repository_id || ""
+  const prefix = routePrefix(location.pathname)
   const tasks = useQuery({
     queryKey: ["repositories", repositoryId, "scheduled_tasks"],
     queryFn: () => fetchRepositoryScheduledTasks(repositoryId),
     enabled: repositoryId.length > 0
   })
-  const slug = tasks.data?.repository.slug
+  const payload = tasks.data
+  const slug = payload?.repository.slug
   usePageTitle(slug ? t("page_title_repo_schedules", { slug }) : t("page_title_schedules"))
 
   return (
-    <main aria-label={t("aria_repo_scheduled_tasks")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <RepositoryPageShell
+      activeTab="scheduled_tasks.repository"
+      ariaLabel={t("aria_repo_scheduled_tasks")}
+      heading={payload ? (
+        <PageHeading mono>
+          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
+        </PageHeading>
+      ) : null}
+      prefix={prefix}
+      tabs={payload?.tabs ?? []}
+    >
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <RepositoryScheduledTasksError error={tasks.error} /> : null}
-      {tasks.isSuccess ? <RepositoryScheduledTasksView payload={tasks.data} prefix={routePrefix(location.pathname)} /> : null}
-    </main>
+      {payload ? <RepositoryScheduledTasksView payload={payload} prefix={prefix} /> : null}
+    </RepositoryPageShell>
   )
 }
 
@@ -68,14 +84,6 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
 
   return (
     <>
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <PageHeading mono>{payload.repository.slug}</PageHeading>
-        </div>
-      </header>
-
-      <RepositoryTabs active="scheduled_tasks" prefix={prefix} tabs={payload.tabs} />
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("scheduled_tasks.heading")}</SectionHeading>
         <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>{t("scheduled_tasks.new_task")}</Link>
