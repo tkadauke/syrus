@@ -65,6 +65,25 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("Do not fall back to builds, tests, lint")
   end
 
+  it "tells the reviewer to test both a desktop and mobile viewport via browser_resize by default" do
+    expect(prompt).to include("browser_resize")
+    expect(prompt).to include("1280x800")
+    expect(prompt).to include("390x844")
+    expect(prompt).to include("desktop viewport")
+    expect(prompt).to include("mobile viewport")
+  end
+
+  it "permits skipping a viewport with a stated reason, not silently" do
+    expect(prompt).to include("You may skip one viewport when the issue/diff context makes it clearly")
+    expect(prompt).to include("state why in your critique")
+    expect(prompt).to include("not a silent omission")
+  end
+
+  it "warns that browser_snapshot refs must be re-taken after a resize" do
+    expect(prompt).to include("re-run `browser_snapshot` before the next click/fill after resizing")
+    expect(prompt).to include("never reuse refs captured at the previous viewport size")
+  end
+
   it "tells the reviewer to skip when browser automation is broken" do
     expect(prompt).to include("browser automation itself appears unavailable or broken")
     expect(prompt).to match(/at\s+most two focused retries/)

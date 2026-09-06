@@ -5,6 +5,9 @@ module Prompts
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
     }.freeze
 
+    DESKTOP_VIEWPORT = { width: 1280, height: 800 }.freeze
+    MOBILE_VIEWPORT = { width: 390, height: 844 }.freeze
+
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil,
                    test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil)
       @issue = issue
@@ -126,9 +129,9 @@ module Prompts
         2. If it is visually testable, call `start_preview` to boot the app. If the documented seed
            data above doesn't cover the feature under test, you may run additional ad hoc seed
            commands yourself via your normal shell access to reach the state you need.
-        3. Use your browser tools (navigate, snapshot, click, fill, wait_for, screenshot) to drive the
-           running app against your own improvised test plan targeting what changed. Don't just load
-           the homepage — exercise the actual feature.
+        3. Use your browser tools (navigate, snapshot, click, fill, wait_for, resize, screenshot) to
+           drive the running app against your own improvised test plan targeting what changed. Don't
+           just load the homepage — exercise the actual feature.
            For click/fill/single-element screenshots, call `browser_snapshot` first and copy the exact
            `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
            refs, pass an undefined target, or call click/fill when the element is absent. If the element
@@ -139,11 +142,26 @@ module Prompts
            most two focused retries, read preview logs if useful, then call `submit_visual_review` with
            verdict "skipped" and explain the tooling blocker. Do not fall back to builds, tests, lint,
            typecheck, or direct code-only review as a substitute for visual inspection.
-        4. Capture "after" screenshots of what you tested with the image-artifact submit tool so an
+        4. By default, test the change at both a desktop viewport
+           (#{viewport_label(DESKTOP_VIEWPORT)}) and a mobile viewport
+           (#{viewport_label(MOBILE_VIEWPORT)}) via `browser_resize`, capturing screenshots at each
+           with `submit_visual_artifact` and titling them clearly (e.g. "Desktop — ..." /
+           "Mobile — ..."). You may skip one viewport when the issue/diff context makes it clearly
+           irrelevant (a mobile-nav-only bug report, a component hidden below a desktop breakpoint,
+           an admin-only desktop tool) — but if you skip a viewport, state why in your critique so it
+           is an auditable judgment call, not a silent omission. `browser_resize` fully re-applies the
+           viewport each time, so there's no need to reset between calls; but a resize triggers a
+           layout reflow, so re-run `browser_snapshot` before the next click/fill after resizing —
+           never reuse refs captured at the previous viewport size.
+        5. Capture "after" screenshots of what you tested with the image-artifact submit tool so an
            operator can see the result.
-        5. Call `submit_visual_review` with your verdict and critique.
-        6. Always call `stop_preview` before you finish, whether or not you started one.
+        6. Call `submit_visual_review` with your verdict and critique.
+        7. Always call `stop_preview` before you finish, whether or not you started one.
       TEXT
+    end
+
+    def viewport_label(viewport)
+      "#{viewport[:width]}x#{viewport[:height]}"
     end
 
     def prior_review_context

@@ -132,9 +132,26 @@ driving the browser.
 The reviewer's browser tools are provided by the `browser` plugin
 (`plugins/browser/`), a granular MCP tool set — `browser_navigate`,
 `browser_snapshot`, `browser_click`, `browser_fill`, `browser_screenshot`,
-`browser_wait_for`, `browser_close` — rather than one opaque "run test
-suite" tool, so the agent improvises its own test plan against the running
-preview. Each call is proxied to a per-Run `@playwright/mcp` subprocess.
+`browser_wait_for`, `browser_resize`, `browser_close` — rather than one
+opaque "run test suite" tool, so the agent improvises its own test plan
+against the running preview. Each call is proxied to a per-Run
+`@playwright/mcp` subprocess.
+
+**`browser_resize(width, height)`** resizes the viewport in CSS pixels
+within the same session — no new browser instance, no manual Playwright
+script. By default, `Prompts::VisualReview` instructs the reviewer to test
+every visually testable change at both a desktop viewport (1280x800) and a
+mobile viewport (390x844), capturing labeled screenshots at each with
+`submit_visual_artifact`. The reviewer may skip one viewport when the
+issue/diff context makes it clearly irrelevant (a mobile-nav-only bug
+report, a component hidden below a desktop breakpoint, an admin-only
+desktop tool), but must state why in its critique so the omission is an
+auditable judgment call rather than silent. Resizing triggers a layout
+reflow, so the reviewer is instructed to re-run `browser_snapshot` before
+the next click/fill after a resize instead of reusing refs captured at the
+previous viewport size. The two viewport sizes are prompt-level constants
+(`Prompts::VisualReview::DESKTOP_VIEWPORT` / `MOBILE_VIEWPORT`) — no
+`.syrus.yml` configuration exists yet to override them.
 
 **Loopback restriction.** `browser_navigate` is hard-restricted to the
 worker's own loopback preview (`SyrusBrowser::LoopbackGuard`): only literal
