@@ -460,14 +460,14 @@ describe("tool result rendering", () => {
           tool: "Inspection",
           calls: [{ ...baseCall, result_body: "No such file", result_error: true, result_kind: "error" as const }],
           summary_label: "Inspected missing.rb",
-          outcome_label: "Needs attention",
+          outcome_label: "Failed",
           collapsed_by_default: false,
           prominent: true
         }}
       />
     )
 
-    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.getByText("Failed")).toBeInTheDocument()
     expect(screen.queryByText("No such file")).not.toBeInTheDocument()
 
     expandToolGroup("Inspected missing.rb")
