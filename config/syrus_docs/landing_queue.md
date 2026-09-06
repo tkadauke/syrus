@@ -171,6 +171,12 @@ Implementation has a narrower, execution-only exception: a same-Epic child Job m
 
 Operators can add or remove manual dependencies from the Job detail page; admins can override the gate.
 
-## No-changes resolution
+## Closed-PR resolution
 
-If a PR is closed without merging but its branch has no unique patches left against the base, Syrus closes the Job as `no_changes` rather than `pr_closed`. `no_changes` counts as a successful resolution for dependency gates and landing queue wakeups.
+When a PR is closed without GitHub marking it merged, Syrus inspects the branch against the PR base with `git cherry` and picks one of three outcomes:
+
+- **`pr_merged`** — every commit on the branch has a patch-equivalent commit on the base. The work landed, even though this PR was not the thing GitHub merged: a merge train landed a rebased copy, or someone cherry-picked it. This is a landing, and recording it as anything else files real work as work that never happened.
+- **`no_changes`** — the branch is not ahead of the base by a single commit. The agent genuinely produced nothing (the normal happy path for a survey-style cron Job).
+- **`pr_closed`** — the branch still carries commits the base does not have.
+
+`no_changes` and `pr_merged` both count as successful resolutions for dependency gates and landing queue wakeups; the distinction matters for attribution, not for gating.

@@ -1,8 +1,29 @@
 require "fileutils"
 
+# What a closed PR's branch still holds relative to its base -- three
+# outcomes, not two.
+#
+# `git cherry` already distinguishes them and the old boolean threw the
+# distinction away: a branch whose commits all have equivalents on the base
+# (they LANDED, typically via a merge train or a cherry-pick) read the same as
+# a branch that never had a commit at all (the agent produced nothing). Both
+# closed the Job as `no_changes`, so landed work was filed as "this Job did
+# nothing" -- see JOB-4346.
 class BranchPatchPresence
+  # The branch has no commits the base lacks, and none that the base has an
+  # equivalent of either: there was never anything here.
+  NO_COMMITS = :no_commits
+  # Every commit on the branch has an equivalent on the base. The work landed.
+  ALL_LANDED = :all_landed
+  # Real, unmerged commits.
+  HAS_UNIQUE = :has_unique
+
+  def self.classify(job:, pr:, client:, git: nil)
+    new(job: job, pr: pr, client: client, git: git).classify
+  end
+
   def self.no_unique_commits?(job:, pr:, client:, git: nil)
-    new(job: job, pr: pr, client: client, git: git).no_unique_commits?
+    classify(job: job, pr: pr, client: client, git: git) != HAS_UNIQUE
   end
 
   def initialize(job:, pr:, client:, git: nil)
@@ -13,16 +34,18 @@ class BranchPatchPresence
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
   end
 
-  def no_unique_commits?
-    return false if branch_name.blank?
-    return false if base_ref.blank?
+  # Unknowable reads as HAS_UNIQUE: without evidence, assume there is
+  # unmerged work, which is the outcome that changes the least.
+  def classify
+    return HAS_UNIQUE if branch_name.blank?
+    return HAS_UNIQUE if base_ref.blank?
 
     clone_base_branch
     fetch_branch_head
-    no_unique_patches?
+    cherry_classification
   rescue StandardError => e
     Rails.logger.info("[BranchPatchPresence] #{@job.slug} check failed: #{e.class}: #{e.message}")
-    false
+    HAS_UNIQUE
   ensure
     cleanup_clone
   end
@@ -71,9 +94,17 @@ class BranchPatchPresence
     end
   end
 
-  def no_unique_patches?
-    output = @git.run("cherry", "-v", "origin/#{base_ref}", feature_ref, chdir: clone_path.to_s)
-    output.each_line.none? { |line| line.start_with?("+") }
+  # `git cherry` prints one line per commit on the branch: `+` when the base
+  # has no equivalent, `-` when it does. No lines at all means the branch is
+  # not ahead of the base by even one commit.
+  def cherry_classification
+    lines = @git.run("cherry", "-v", "origin/#{base_ref}", feature_ref, chdir: clone_path.to_s)
+                .each_line.map(&:strip).reject(&:empty?)
+
+    return HAS_UNIQUE if lines.any? { |line| line.start_with?("+") }
+    return ALL_LANDED if lines.any? { |line| line.start_with?("-") }
+
+    NO_COMMITS
   end
 
   def feature_ref

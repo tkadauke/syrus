@@ -22,6 +22,27 @@ RSpec.describe Steps::ForcePush do
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("force_push: skipped")
   end
 
+  # A Run resumed from a failed step reaches this handler directly, without
+  # Steps::AutoRebase having just run, so the refusal has to live here too.
+  # Pushing a branch the rebase emptied is what wiped JOB-4346's PR to zero
+  # commits after its work had already landed.
+  it "refuses to push a branch whose work is already on the base" do
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => ::AutoRebase::ALREADY_LANDED_REASON,
+      "changed" => false,
+      "succeeded" => true,
+      "post_sha" => "base",
+      "base_sha" => "base"
+    })
+    handler = described_class.new(run)
+
+    expect(handler).not_to receive(:workspace)
+
+    handler.call
+
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include("already on the base")
+  end
+
   it "pushes with an explicit lease from the auto_rebase remote SHA" do
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "conflict",

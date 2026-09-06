@@ -203,6 +203,34 @@ RSpec.describe AutoRebase, :ci_only do
     end
   end
 
+  # JOB-4346: a merge train landed the branch's commit, member reconciliation
+  # failed to close the Job, and hours later a rebase replayed the branch onto
+  # a main that already contained the change. Every commit dropped, HEAD ended
+  # up at main's tip, and the force-push emptied the PR -- 0 commits, 0 files --
+  # destroying the only record of what the Job did.
+  describe "when the rebase leaves nothing ahead of the base" do
+    it "reports already_landed and refuses to push the emptied branch" do
+      feature = "syrus/issue-42-#{job.id}"
+      push_branch_with_file(feature, "feature.rb", "FEATURE\n", "feature commit")
+      # The same change lands on main independently, the way a merge train
+      # lands a rebased copy of a member's commit.
+      push_main_advance("feature.rb", "FEATURE\n", "feature commit (via train)")
+      before_sha = remote_sha(feature)
+
+      result = described_class.new(job, base_branch: "main").call
+
+      expect(result).to be_succeeded
+      expect(result.reason).to eq(described_class::ALREADY_LANDED_REASON)
+      expect(result.changed).to be(false)
+      # The branch is untouched, so the PR still shows what the Job did.
+      expect(remote_sha(feature)).to eq(before_sha)
+    end
+  end
+
+  def remote_sha(branch)
+    sh("git --git-dir=#{bare_remote_dir} rev-parse #{branch}").strip
+  end
+
   def push_branch_with_file(branch, file, content, message)
     Dir.mktmpdir("push") do |w|
       sh("git clone -q file://#{bare_remote_dir} #{w}")

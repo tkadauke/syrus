@@ -12,9 +12,17 @@ class ClosedPullRequestResolution
 
   def reason
     return "pr_merged" if merged?
-    return "no_changes" if branch_patch_already_on_base?
 
-    "pr_closed"
+    case branch_state
+    # GitHub never marked the PR merged, but every commit on the branch has an
+    # equivalent on the base -- a merge train landed it, or someone
+    # cherry-picked it. That is a landing, and calling it "no changes" files
+    # real work as work that never happened.
+    when BranchPatchPresence::ALL_LANDED then "pr_merged"
+    # Nothing on the branch at all: the agent genuinely produced no changes.
+    when BranchPatchPresence::NO_COMMITS then "no_changes"
+    else "pr_closed"
+    end
   end
 
   private
@@ -23,7 +31,7 @@ class ClosedPullRequestResolution
     @pr.respond_to?(:merged) && @pr.merged
   end
 
-  def branch_patch_already_on_base?
-    BranchPatchPresence.no_unique_commits?(job: @job, pr: @pr, client: @client, git: @git)
+  def branch_state
+    BranchPatchPresence.classify(job: @job, pr: @pr, client: @client, git: @git)
   end
 end

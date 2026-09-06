@@ -456,6 +456,8 @@ Non-agentic. Final push after a conflict-resolved rebase.
 
 Non-agentic. Attempts a deterministic `git rebase` onto the base branch. On clean rebase, marks `agent_rebase` skipped and proceeds to `force_push`.
 
+If the rebase leaves the branch with no commits ahead of the base, every commit already has an equivalent there and the Job has, in substance, landed — usually through a merge train whose member reconciliation failed to close it. Syrus reports `already_landed`, does **not** push (pushing would leave the branch at the base tip, emptying the PR and destroying the record of what the Job did), closes the Job as `pr_merged`, and closes the PR with a comment.
+
 ### agent_rebase
 
 Agentic. Resolves rebase conflicts. Runs only when `auto_rebase` encounters
@@ -472,7 +474,7 @@ operator rebase can allow another attempt.
 
 ### force_push
 
-Non-agentic. Force-pushes with `--force-with-lease=<branch>:<observed_sha>` to prevent clobbering concurrent pushes.
+Non-agentic. Force-pushes with `--force-with-lease=<branch>:<observed_sha>` to prevent clobbering concurrent pushes. Skips the push entirely when `auto_rebase` reported a no-op or `already_landed`.
 
 ### stack_auto_rebase / stack_agent_rebase / stack_force_push
 

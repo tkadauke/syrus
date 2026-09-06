@@ -497,10 +497,23 @@ authenticated Action Cable subscription is authorized, and the relay is not
 exposed through public ingress or Traefik.
 
 **Closed PR resolution** does not blindly treat every closed PR as
-`pr_closed`: merged PRs close as `pr_merged`, and closed unmerged PRs whose
-branch has no unique patches left against the PR base close as `no_changes`.
-`no_changes` is a successful parent resolution for dependency gates, stack
-rebases, and landing queue wakeups.
+`pr_closed`. `ClosedPullRequestResolution` reads `BranchPatchPresence.classify`,
+which runs `git cherry` against the PR base and returns three outcomes, not two:
+every commit patch-equivalent on base (`ALL_LANDED` → `pr_merged` — a merge
+train landed a rebased copy, or someone cherry-picked it), no commits ahead of
+base at all (`NO_COMMITS` → `no_changes`), or real unmerged commits
+(`HAS_UNIQUE` → `pr_closed`); an unrunnable check assumes `HAS_UNIQUE`.
+Collapsing the first two — the old behavior — filed landed work as "this Job
+produced nothing" (JOB-4346). Both `no_changes` and `pr_merged` are successful
+parent resolutions for dependency gates, stack rebases, and landing queue
+wakeups; the distinction is about attribution.
+
+**A rebase never empties a branch.** When `auto_rebase`'s deterministic rebase
+leaves no commits ahead of base, the work already landed; `AutoRebase` returns
+`ALREADY_LANDED_REASON` instead of pushing (`Steps::ForcePush` refuses too, for
+retried Runs), and `Steps::AutoRebase` closes the Job `pr_merged` and closes the
+PR. Force-pushing there would leave the branch at the base tip, empty the PR to
+zero commits, and destroy the only record of what the Job did.
 
 **Failure resilience** — failed Runs persist a `RunFailureClassification`
 from diagnostics, recent logs, spawned process outcomes, and agent outcome.

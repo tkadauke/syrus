@@ -271,7 +271,7 @@ All signals are equivalent. On detection, `ForkReviewApprover`:
 **Feature branch lifetime** — the feature branch is never deleted while the upstream PR is open. When the upstream PR is later closed or merged, `PollPullRequestJob` handles cleanup:
 
 - **Merged** — closes the Job as `pr_merged`; the fork branch is deleted.
-- **Closed without merge** — closes the Job as `pr_closed` or `no_changes`; the fork branch is deleted and an `upstream_pr_closed` notification is sent to the job owner so they know the upstream PR was rejected.
+- **Closed without merge** — Syrus checks the branch against the PR base before deciding: commits that all have equivalents on the base mean the work landed anyway (`pr_merged`), a branch with nothing ahead of the base closes as `no_changes`, and a branch that still carries unmerged commits closes as `pr_closed`. The fork branch is deleted and an `upstream_pr_closed` notification is sent to the job owner.
 
 **PR feedback iteration history** — each round of review feedback (a `pr_comment` or `chat_feedback` workflow) is stamped with a sequential iteration number in workflow artifacts (`pr_feedback_iteration`, `pr_feedback_auto`, `pr_feedback_source_handle`). The Job timeline (`Jobs::Timeline`) surfaces these as labeled "Feedback iteration N" events, showing whether each iteration was triggered automatically or confirmed by an operator, and who sent the triggering comment.
 

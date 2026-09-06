@@ -10,22 +10,31 @@ RSpec.describe ClosedPullRequestResolution do
   let(:pr) { OpenStruct.new(merged: false, base: OpenStruct.new(ref: "main")) }
 
   it "returns pr_merged for merged pull requests" do
-    allow(BranchPatchPresence).to receive(:no_unique_commits?)
+    allow(BranchPatchPresence).to receive(:classify)
 
     reason = described_class.reason(job: job, pr: OpenStruct.new(merged: true), client: client)
 
     expect(reason).to eq("pr_merged")
-    expect(BranchPatchPresence).not_to have_received(:no_unique_commits?)
+    expect(BranchPatchPresence).not_to have_received(:classify)
   end
 
-  it "returns no_changes when the branch has no unique patches against base" do
-    allow(BranchPatchPresence).to receive(:no_unique_commits?).and_return(true)
+  # JOB-4346: a merge train landed the work, member reconciliation failed to
+  # close the Job, and the PR was eventually closed unmerged. Every commit had
+  # an equivalent on main, which used to be filed as "this Job did nothing".
+  it "returns pr_merged when every commit already has an equivalent on base" do
+    allow(BranchPatchPresence).to receive(:classify).and_return(BranchPatchPresence::ALL_LANDED)
+
+    expect(described_class.reason(job: job, pr: pr, client: client)).to eq("pr_merged")
+  end
+
+  it "returns no_changes only when the branch never held a commit" do
+    allow(BranchPatchPresence).to receive(:classify).and_return(BranchPatchPresence::NO_COMMITS)
 
     expect(described_class.reason(job: job, pr: pr, client: client)).to eq("no_changes")
   end
 
   it "returns pr_closed when the branch still has unique patches" do
-    allow(BranchPatchPresence).to receive(:no_unique_commits?).and_return(false)
+    allow(BranchPatchPresence).to receive(:classify).and_return(BranchPatchPresence::HAS_UNIQUE)
 
     expect(described_class.reason(job: job, pr: pr, client: client)).to eq("pr_closed")
   end
@@ -47,6 +56,39 @@ RSpec.describe BranchPatchPresence do
     end
   ensure
     ENV["SYRUS_DATA_ROOT"] = original
+  end
+
+  describe ".classify" do
+    it "reports ALL_LANDED when every commit has an equivalent on base" do
+      allow(git).to receive(:run).and_return("", "", "- abc already applied\n- def already applied\n")
+
+      expect(described_class.classify(job: job, pr: pr, client: client, git: git))
+        .to eq(described_class::ALL_LANDED)
+    end
+
+    # The distinction the old boolean collapsed: nothing on the branch at all
+    # is a genuine "no changes", and must not be confused with work that
+    # landed.
+    it "reports NO_COMMITS when the branch is not ahead of base at all" do
+      allow(git).to receive(:run).and_return("", "", "")
+
+      expect(described_class.classify(job: job, pr: pr, client: client, git: git))
+        .to eq(described_class::NO_COMMITS)
+    end
+
+    it "reports HAS_UNIQUE when any commit is missing from base" do
+      allow(git).to receive(:run).and_return("", "", "- abc already applied\n+ def still unique\n")
+
+      expect(described_class.classify(job: job, pr: pr, client: client, git: git))
+        .to eq(described_class::HAS_UNIQUE)
+    end
+
+    it "assumes unmerged work when the check cannot run" do
+      allow(git).to receive(:run).and_raise(GitRunner::GitError.new(%w[cherry], 1, "boom"))
+
+      expect(described_class.classify(job: job, pr: pr, client: client, git: git))
+        .to eq(described_class::HAS_UNIQUE)
+    end
   end
 
   it "returns true when git cherry reports only patch-equivalent commits" do

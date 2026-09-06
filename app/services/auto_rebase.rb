@@ -14,6 +14,11 @@ require "fileutils"
 class AutoRebase
   class LeaseRejected < StandardError; end
 
+  # A clean rebase that leaves nothing ahead of the base. Distinct from
+  # "rebased" because the branch must NOT be pushed and the Job has, in
+  # substance, landed.
+  ALREADY_LANDED_REASON = "already_landed".freeze
+
   class Result
     attr_reader :succeeded, :reason, :note, :changed, :pre_sha, :post_sha, :base_sha
 
@@ -86,6 +91,20 @@ class AutoRebase
       post_sha = head_sha
       if pre_sha == post_sha
         Result.new(true, "rebased", "no-op (already up-to-date)",
+                   changed: false, pre_sha: pre_sha, post_sha: post_sha, base_sha: base_sha)
+      elsif nothing_ahead_of_base?(base_sha, post_sha)
+        # The rebase replayed every commit and kept none: each one already has
+        # an equivalent on the base, i.e. this branch's work has landed --
+        # typically through a merge train whose member reconciliation failed to
+        # close the Job.
+        #
+        # Force-pushing here is actively destructive. It would leave the branch
+        # pointing at the base tip, which empties the PR (0 commits, 0 files)
+        # and erases the only remaining record of what the Job did. JOB-4346's
+        # PR #3235 was wiped exactly this way, hours after its commit landed,
+        # and the Job was then filed as "no_changes".
+        Result.new(true, ALREADY_LANDED_REASON,
+                   "no commits left ahead of #{base_branch} — this branch's work is already on the base",
                    changed: false, pre_sha: pre_sha, post_sha: post_sha, base_sha: base_sha)
       else
         force_push
@@ -186,6 +205,17 @@ class AutoRebase
 
   def configure_git_author
     @git.configure_author(BotIdentity.for(@job), chdir: clone_path.to_s)
+  end
+
+  # `--count` of the range rather than comparing SHAs: a rebase can drop every
+  # commit and still leave HEAD somewhere other than the base tip (an empty
+  # merge commit, a dropped-then-recreated ref), and "how much is ahead" is
+  # the question that actually matters.
+  def nothing_ahead_of_base?(base_sha, post_sha)
+    @git.run("rev-list", "--count", "#{base_sha}..#{post_sha}", chdir: clone_path.to_s).strip == "0"
+  rescue GitRunner::GitError => e
+    Rails.logger.warn("[AutoRebase] #{@job.slug} could not count commits ahead of base: #{e.message}")
+    false
   end
 
   def rebase_succeeded?

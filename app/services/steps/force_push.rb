@@ -7,6 +7,11 @@ module Steps
   # separate workflow facts.
   class ForcePush < Base
     def call
+      if already_landed_auto_rebase?
+        log("force_push: skipped — the branch's work is already on the base; pushing would empty the PR")
+        return
+      end
+
       if noop_auto_rebase?
         log("force_push: skipped — deterministic rebase was a no-op")
         return
@@ -108,6 +113,16 @@ module Steps
     def clean_auto_rebase?
       result = workflow.artifact("auto_rebase_result")
       result.is_a?(Hash) && result["succeeded"] == true
+    end
+
+    # A rebase that dropped every commit leaves HEAD at the base tip. Pushing
+    # that empties the PR and destroys the record of what the Job did, which is
+    # exactly how JOB-4346's PR ended up with zero commits after its work had
+    # already landed. `AutoRebase` refuses to push it; so does this step, since
+    # a Run resumed from a failed step reaches here on its own.
+    def already_landed_auto_rebase?
+      result = workflow.artifact("auto_rebase_result")
+      result.is_a?(Hash) && result["reason"] == ::AutoRebase::ALREADY_LANDED_REASON
     end
 
     def noop_auto_rebase?
