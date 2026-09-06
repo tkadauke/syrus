@@ -22,7 +22,7 @@ function PopupHarness({ open, onClose }: { open: boolean; onClose: () => void })
 // not nested under the popup's own ref, but still logically "inside" it.
 function PortaledPopupHarness({ open, onClose }: { open: boolean; onClose: () => void }) {
   const extraRef = useRef<HTMLDivElement | null>(null)
-  const ref = useDismissiblePopup<HTMLDivElement>(open, onClose, extraRef)
+  const ref = useDismissiblePopup<HTMLDivElement>(open, onClose, [extraRef])
 
   return (
     <>

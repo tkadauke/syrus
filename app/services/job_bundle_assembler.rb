@@ -21,15 +21,24 @@ class JobBundleAssembler
 
   # Whether `priority`'s own candidate pool forms a ready bundle on its
   # own — independent of whether a higher tier currently occupies the
-  # "first ready tier" slot #call would return. LandingQueueProcessor
-  # uses this (rather than a raw candidate count) to decide whether a
-  # same-tier Job must wait for a bundle, so the queue gate can't
-  # disagree with #call's own readiness math: a dependency-linked
-  # island larger than AppSetting.merge_train_max_size can get capped
-  # below MIN_BUNDLE_SIZE (see #capped_members), and a raw count would
-  # miss that, blocking the Job on a bundle that can never actually
-  # dispatch.
+  # "first ready tier" slot #call would return. Note this answers "is
+  # *some* owner-partition of this tier ready," not "is `job` about to
+  # be bundled" — callers that need to gate one specific Job's landing
+  # must use #ready_for_job? instead, or they'll block/misroute that Job
+  # over an unrelated owner's ready bundle in the same tier.
   def self.ready_for_priority?(repository, priority) = new(repository).ready_for_priority?(priority)
+
+  # Whether `job`'s own effective-owner partition (within its own
+  # repository+priority tier) forms a ready bundle. LandingQueueProcessor
+  # uses this (rather than #ready_for_priority? or a raw candidate count)
+  # to decide whether a specific Job must wait for a bundle, so the queue
+  # gate can't block/misroute a Job over a different owner's ready bundle
+  # in the same tier, and can't disagree with #call's own readiness math:
+  # a dependency-linked island larger than AppSetting.merge_train_max_size
+  # can get capped below MIN_BUNDLE_SIZE (see #capped_members), and a raw
+  # count would miss that, blocking the Job on a bundle that can never
+  # actually dispatch.
+  def self.ready_for_job?(job) = new(job.repository).ready_for_job?(job)
 
   def initialize(repository)
     @repository = repository
@@ -54,16 +63,38 @@ class JobBundleAssembler
     ready_members_for(priority).any?
   end
 
+  def ready_for_job?(job)
+    return false if job.epic_id.present? || job.external_pr?
+
+    owner_id = effective_owner_id(job)
+    candidates = eligible_candidates(job.priority).select { |candidate| effective_owner_id(candidate) == owner_id }
+    members_for(candidates).any?
+  end
+
   private
 
+  # A bundle's members must all share one effective owner — mixing Jobs
+  # from different owners would let whichever Job lands as `members.last`
+  # merge the integration PR under its owner's credentials for changes it
+  # didn't own. Candidates are partitioned by owner before dependency
+  # ordering/capping, and MIN_BUNDLE_SIZE is evaluated within each
+  # partition rather than across the whole tier: an owner with only one
+  # eligible Job in this tier falls through to the per-Job auto_merge path,
+  # same as today's behavior for a repo/tier with too few eligible Jobs.
   def ready_members_for(priority)
-    candidates = eligible_candidates(priority)
+    eligible_candidates(priority).group_by { |job| effective_owner_id(job) }.each_value do |candidates|
+      members = members_for(candidates)
+      return members if members.any?
+    end
+
+    []
+  end
+
+  def members_for(candidates)
     return [] if candidates.size < MIN_BUNDLE_SIZE
 
     members = capped_members(LandingQueueProcessor.dependency_ordered(candidates))
-    return [] if members.size < MIN_BUNDLE_SIZE
-
-    members
+    members.size >= MIN_BUNDLE_SIZE ? members : []
   end
 
   def eligible_candidates(priority)
@@ -72,6 +103,10 @@ class JobBundleAssembler
       .where(epic_id: nil, priority: priority)
       .where.not(kind: "external_pr")
       .to_a
+  end
+
+  def effective_owner_id(job)
+    job.owner_user_id.presence || job.user_id
   end
 
   # Cap the ordered candidate list at AppSetting.merge_train_max_size.

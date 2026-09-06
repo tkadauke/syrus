@@ -4,9 +4,10 @@ RSpec.describe JobBundleAssembler do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
-  def approved(issue_number:, priority: "medium", pr_number: nil, parent_job: nil, kind: "issue")
+  def approved(issue_number:, priority: "medium", pr_number: nil, parent_job: nil, kind: "issue", owner_user: user)
     Factories.job_record(
       user: user,
+      owner_user: owner_user,
       repository: repository,
       issue_number: issue_number,
       state: "approved",
@@ -78,6 +79,38 @@ RSpec.describe JobBundleAssembler do
 
     expect(result.priority).to eq("urgent")
     expect(result.job_ids).to contain_exactly(urgent_a.id, urgent_b.id)
+  end
+
+  it "does not bundle same-tier Jobs from different owners together" do
+    other_owner = Factories.user
+    approved(issue_number: 1, owner_user: user)
+    approved(issue_number: 2, owner_user: other_owner)
+
+    result = described_class.call(repository)
+
+    expect(result).not_to be_ready
+  end
+
+  it "still bundles same-tier Jobs that share one owner" do
+    a = approved(issue_number: 1, owner_user: user)
+    b = approved(issue_number: 2, owner_user: user)
+
+    result = described_class.call(repository)
+
+    expect(result).to be_ready
+    expect(result.job_ids).to contain_exactly(a.id, b.id)
+  end
+
+  it "bundles the owner-partition that reaches the minimum, ignoring a lone Job from another owner" do
+    other_owner = Factories.user
+    a = approved(issue_number: 1, owner_user: user)
+    b = approved(issue_number: 2, owner_user: user)
+    approved(issue_number: 3, owner_user: other_owner)
+
+    result = described_class.call(repository)
+
+    expect(result).to be_ready
+    expect(result.job_ids).to contain_exactly(a.id, b.id)
   end
 
   it "excludes Jobs that belong to an Epic" do
@@ -182,6 +215,56 @@ RSpec.describe JobBundleAssembler do
       JobDependency.create!(job: c, depends_on_job: b, source: "manual")
 
       expect(described_class.ready_for_priority?(repository, "medium")).to be false
+    end
+
+    it "returns false when same-tier candidates exist but belong to different owners" do
+      other_owner = Factories.user
+      approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: other_owner)
+
+      expect(described_class.ready_for_priority?(repository, "medium")).to be false
+    end
+  end
+
+  describe ".ready_for_job?" do
+    it "is true when the Job's own owner-partition is ready" do
+      a = approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(a)).to be true
+    end
+
+    it "is false for a solo owner even while a different owner's same-tier bundle is ready" do
+      other_owner = Factories.user
+      solo = approved(issue_number: 1, owner_user: user)
+      approved(issue_number: 2, owner_user: other_owner)
+      approved(issue_number: 3, owner_user: other_owner)
+
+      expect(described_class.ready_for_job?(solo)).to be false
+    end
+
+    it "is true for a member of the ready bundle even while a solo different-owner Job exists in the same tier" do
+      other_owner = Factories.user
+      approved(issue_number: 1, owner_user: other_owner)
+      b = approved(issue_number: 2, owner_user: user)
+      approved(issue_number: 3, owner_user: user)
+
+      expect(described_class.ready_for_job?(b)).to be true
+    end
+
+    it "is false for an Epic-backed Job" do
+      epic = Factories.epic(user: user, repository: repository)
+      member = Factories.job_record(user: user, owner_user: user, repository: repository, epic: epic, issue_number: 1, state: "approved", pr_number: 900)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(member)).to be false
+    end
+
+    it "is false for an external_pr Job" do
+      external = approved_external_pr(external_pr_number: 1)
+      approved(issue_number: 2, owner_user: user)
+
+      expect(described_class.ready_for_job?(external)).to be false
     end
   end
 end

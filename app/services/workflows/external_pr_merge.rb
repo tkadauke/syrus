@@ -59,6 +59,16 @@ module Workflows
       LandingFailureHandler.call(job: job, reason: failure_reason_for(workflow), run: latest_failed_run(workflow))
     end
 
+    # See Workflows::AutoMerge#after_cancel -- same gap, same fix: without
+    # this hook a cancelled external_pr_merge workflow (e.g. "Stop
+    # Landing") would leave the Job stuck in :landing.
+    def self.after_cancel(workflow)
+      job = workflow.job
+      return unless job&.landing?
+
+      LandingFailureHandler.call(job: job, reason: "operator stopped landing", run: nil)
+    end
+
     def self.failure_reason_for(workflow)
       explicit_reason = workflow.failure_reason.presence || workflow.artifact("failure_reason").presence
       return explicit_reason if explicit_reason

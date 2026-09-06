@@ -557,7 +557,7 @@ describe("WorkerTimeline macro view", () => {
     expect(calls.some((url) => url.includes("/worker_timeline/workflow") && url.includes("id=501"))).toBe(true)
   })
 
-  it("virtualizes lanes so only the scrolled-into-view rows render, not every lane up front", async () => {
+  it("renders every lane up front with no inner scroll container, even with many lanes", async () => {
     const lanes = Array.from({ length: 20 }, (_, index) => ({
       key: `durable:storage-${index}:runs`,
       worker_storage_key: `storage-${index}`,
@@ -587,14 +587,8 @@ describe("WorkerTimeline macro view", () => {
 
     expect(await screen.findByText("runs-0")).toBeInTheDocument()
     expect(screen.getByText("runs-13")).toBeInTheDocument()
-    expect(screen.queryByText("runs-19")).not.toBeInTheDocument()
-
-    fireEvent.scroll(screen.getByLabelText("Worker lanes"), { target: { scrollTop: 900 } })
-
-    await waitFor(() => {
-      expect(screen.getByText("runs-19")).toBeInTheDocument()
-    })
-    expect(screen.queryByText("runs-0")).not.toBeInTheDocument()
+    expect(screen.getByText("runs-19")).toBeInTheDocument()
+    expect(screen.getByLabelText("Worker lanes")).not.toHaveClass("overflow-y-auto")
   })
 })
 

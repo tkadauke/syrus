@@ -121,6 +121,7 @@ Rails.application.routes.draw do
         delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/, tag_id: /\d+/ }
         post "jobs/:job_id/claim", to: "job_claims#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/claim", to: "job_claims#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/start_chat", to: "job_chats#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/owner", to: "job_claims#update_owner", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/dependency_options", to: "job_metadata#dependency_options", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -138,6 +139,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/stop_landing", to: "job_lifecycle#stop_landing", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/force_fail", to: "job_lifecycle#force_fail", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pause", to: "job_lifecycle#pause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/unpause", to: "job_lifecycle#unpause", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -313,6 +315,7 @@ Rails.application.routes.draw do
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
+          resources :final_approvers, controller: "repository_final_approvers", only: %i[ index create destroy ]
         end
         resources :teams, only: %i[ index show create update destroy ] do
           resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]

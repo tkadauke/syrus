@@ -28,7 +28,7 @@ module Workflows
         "preflight_grader_fanout",
         "preflight_grader_collect",
         grader_retry_loop(job, :implement),
-        initial_pr_finish_steps
+        initial_pr_finish_steps(job)
       )
     end
 

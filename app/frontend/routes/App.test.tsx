@@ -9949,6 +9949,47 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
   })
 
+  it("shows a Stop Landing button for a landing job and stops landing on click", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/stop_landing" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Landing stopped." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload({
+        job: { state: "landing", summary_state: "landing" },
+        actions: {
+          can_approve: false,
+          can_retry: false,
+          can_poll_feedback: false,
+          can_rebase: false,
+          can_check_mergeability: false,
+          can_restart: false,
+          can_cancel: true,
+          can_stop_landing: true
+        }
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const stopLandingButton = await screen.findByRole("button", { name: "Stop Landing" })
+    fireEvent.click(stopLandingButton)
+
+    const confirmButton = await screen.findByRole("button", { name: "Confirm" })
+    fireEvent.click(confirmButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/stop_landing", expect.objectContaining({ method: "POST" }))
+    })
+  })
+
   it("sends retry feedback from the Job header More menu", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -16085,6 +16126,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       can_retry_from_failed_step: false,
       can_restart: false,
       can_cancel: true,
+      can_stop_landing: false,
       can_approve: true,
       can_unapprove: false,
       can_reopen: false,
@@ -16109,6 +16151,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_run_again_path: "/api/v1/app/jobs/42/run_again",
       app_restart_path: "/api/v1/app/jobs/42/restart",
       app_cancel_path: "/api/v1/app/jobs/42/cancel",
+      app_stop_landing_path: "/api/v1/app/jobs/42/stop_landing",
       app_approve_path: "/api/v1/app/jobs/42/approve",
       app_unapprove_path: "/api/v1/app/jobs/42/unapprove",
       app_reopen_path: "/api/v1/app/jobs/42/reopen",

@@ -17,6 +17,35 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe "#discussion_chat" do
+    it "returns nil when no chat has been attached" do
+      job = Factories.job_record
+
+      expect(job.discussion_chat).to be_nil
+    end
+
+    it "returns the earliest attached chat session" do
+      job = Factories.job_record
+      older_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      newer_chat = ChatSession.create!(user: job.user, repository: job.repository)
+      job.chat_attachments.create!(chat_session: newer_chat)
+      job.chat_attachments.create!(chat_session: older_chat, attached_at: 1.hour.ago)
+
+      expect(job.discussion_chat).to eq(older_chat)
+    end
+
+    it "is destroyed along with the job" do
+      job = Factories.job_record
+      chat = ChatSession.create!(user: job.user, repository: job.repository)
+      attachment = job.chat_attachments.create!(chat_session: chat)
+
+      job.destroy!
+
+      expect(ChatAttachment.exists?(attachment.id)).to be(false)
+      expect(ChatSession.exists?(chat.id)).to be(true)
+    end
+  end
+
   describe "owner defaulting on create" do
     it "defaults owner_user to the creating user when none is given" do
       creator = Factories.user
@@ -941,6 +970,68 @@ RSpec.describe Job, :ci_only do
       Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
 
       expect(job.active_runtime_workflows).to be_empty
+    end
+
+    describe "#stop_landing!" do
+      it "cancels the active landing workflow and reverts the job to :implemented, clearing approval" do
+        job = Factories.job_record(state: "implemented")
+        job.approve!(via: "operator")
+        job.start_landing!
+        job.save!
+
+        workflow = Workflow.create!(
+          job: job,
+          trigger_kind: "auto_merge",
+          state: "running",
+          started_at: 5.minutes.ago
+        )
+        intent = WorkIntent.create!(
+          kind: "auto_merge",
+          state: "requested",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          actor: job.user,
+          source_type: "spec"
+        )
+        unit = WorkUnit.create!(
+          work_intent: intent,
+          kind: "auto_merge",
+          state: "running",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          workflow: workflow
+        )
+        unit.work_unit_members.create!(job: job, role: "primary")
+
+        job.stop_landing!
+
+        expect(job.reload).to be_implemented
+        expect(job.approved_at).to be_nil
+        expect(job.approved_via).to be_nil
+        expect(workflow.reload).to be_cancelled
+        expect(workflow.artifact("cancelled_reason")).to eq("operator_stopped_landing")
+        expect(unit.reload).to be_cancelled
+      end
+
+      it "does nothing when the job is not landing" do
+        job = Factories.job_record(state: "implemented")
+
+        expect { job.stop_landing! }.not_to change { job.reload.state }
+      end
+
+      it "falls back to fail_landing! when no active landing workflow is found" do
+        job = Factories.job_record(state: "implemented")
+        job.approve!(via: "operator")
+        job.start_landing!
+        job.save!
+
+        job.stop_landing!
+
+        expect(job.reload).to be_implemented
+        expect(job.approved_at).to be_nil
+      end
     end
 
     it "ignores auxiliary visual diff workflows when reporting active primary runtime work" do
@@ -3213,6 +3304,74 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       job = Job.new(user: user, owner_user: user, repository: other_repo, epic: epic, issue_number: 56, kind: "issue")
       job.valid?
       expect(job.errors[:epic]).to include("must belong to the same repository or its upstream")
+    end
+  end
+
+  describe "epic_children_share_one_effective_owner validation" do
+    let(:user) { Factories.user }
+    let(:other_user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "is valid when the epic has no existing open children yet" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 60, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "is valid when the incoming job's effective owner matches existing open children" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      job = Job.new(user: user, owner_user: user, repository: repository, epic: epic, issue_number: 61, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "rejects assigning a job with a different effective owner into a populated epic" do
+      epic = Factories.epic(user: user, repository: repository)
+      existing = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 62, kind: "issue")
+
+      expect(job).not_to be_valid
+      expect(job.errors[:epic]).to include("already has an open child Job (#{existing.slug}) owned by a different user")
+    end
+
+    it "ignores closed children when checking for owner conflicts" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "closed")
+
+      job = Job.new(user: user, owner_user: other_user, repository: repository, epic: epic, issue_number: 63, kind: "issue")
+
+      expect(job).to be_valid
+    end
+
+    it "falls back to the creating user when owner_user_id is unset for either side" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user_id: nil, state: "queued")
+
+      job = Job.new(user: other_user, repository: repository, epic: epic, issue_number: 64, kind: "issue")
+
+      expect(job).not_to be_valid
+      expect(job.errors[:epic]).to include(a_string_matching(/owned by a different user/))
+    end
+
+    it "does not re-check unrelated updates on an existing epic child" do
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      Factories.job_record(user: user, repository: repository, owner_user_id: nil, state: "queued").update_column(:epic_id, epic.id)
+
+      expect { job.update!(issue_title: "renamed") }.not_to raise_error
+    end
+
+    it "does not block the existing owner-correction cascade, which bypasses validations" do
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, owner_user: user, state: "queued")
+      mismatched = Factories.job_record(user: user, repository: repository, owner_user: other_user, state: "queued")
+      mismatched.update_column(:epic_id, epic.id)
+
+      expect { epic.reassign_child_jobs_to_owner!(user) }.not_to raise_error
+      expect(mismatched.reload.owner_user_id).to eq(user.id)
     end
   end
 

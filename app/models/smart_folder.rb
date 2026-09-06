@@ -35,6 +35,23 @@ class SmartFolder < ApplicationRecord
     }
   end
 
+  # Like user_job_attention_preset_filter but scopes to jobs where the
+  # current user's approval would satisfy the review policy
+  # (Filters::Chips::Jobs::EligibleApprover) instead of raw ownership.
+  # Inbox is the only builtin that needs this: a repo owner/collaborator
+  # whose approval would count should see the job in their Inbox even if
+  # they didn't personally trigger it. Every other builtin keeps using
+  # owner_user_id via user_job_attention_preset_filter.
+  def self.user_job_eligible_approver_preset_filter(preset)
+    {
+      "and" => [
+        { "field" => "attention", "op" => "is", "value" => preset },
+        { "field" => "job_type", "op" => "is", "value" => "user" },
+        { "field" => "eligible_approver", "op" => "is", "value" => "me" }
+      ]
+    }
+  end
+
   def self.epic_attention(preset)
     attention_preset_filter(preset)
   end
@@ -59,11 +76,12 @@ class SmartFolder < ApplicationRecord
     { key: "in_progress",      name: "In progress",            visibility: :when_present, filter: user_job_attention_preset_filter("in_progress") },
     { key: "paused",           name: "Paused",                 visibility: :when_present, filter: user_job_attention_preset_filter("paused") },
     { key: "queued",           name: "Queued",                 visibility: :when_present, filter: user_job_attention_preset_filter("queued") },
+    { key: "triaging",         name: "Triaging",               visibility: :when_present, filter: user_job_attention_preset_filter("triaging") },
     { key: "invalid",          name: "Invalid",                visibility: :when_present, filter: user_job_attention_preset_filter("needs_review") },
     { key: "awaiting_epic",    name: "Awaiting Epic",          visibility: :when_present, filter: user_job_attention_preset_filter("awaiting_epic") },
 
     # Tier 2: always-on routing.
-    { key: "inbox",            name: "Inbox",                  visibility: :always,       filter: user_job_attention_preset_filter("inbox") },
+    { key: "inbox",            name: "Inbox",                  visibility: :always,       filter: user_job_eligible_approver_preset_filter("inbox") },
     { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: user_job_attention_preset_filter("landing_queue") },
     { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: user_job_attention_preset_filter("just_failed") },
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: user_job_attention_preset_filter("blocked") },

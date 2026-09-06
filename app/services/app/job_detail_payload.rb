@@ -25,6 +25,14 @@ module App
       new(job: job, user: user).dependency_options_payload
     end
 
+    # Lean re-derivation of just the actions hash, for command endpoints
+    # (approve/unapprove/reopen/etc.) that need to hand the frontend a
+    # freshly computed set of available buttons in the same response as the
+    # state change, instead of waiting on the next full job-detail refetch.
+    def self.actions_payload(job:, user:)
+      new(job: job, user: user).actions_payload
+    end
+
     def initialize(job:, user:, params: {})
       @job = job
       @user = user
@@ -108,6 +116,10 @@ module App
           epic_dependency_target_options: PerformanceLogging.phase("job_dependency_options.epic_targets", job_id: @job.id) { epic_dependency_target_options }
         }
       end
+    end
+
+    def actions_payload
+      PerformanceLogging.phase("job_actions_payload", job_id: @job.id) { { actions: actions_json } }
     end
 
     private
@@ -232,6 +244,7 @@ module App
         total_cost_usd: cost_snapshot.fetch(:total_cost_usd)&.to_f,
         billed_runs_count: cost_snapshot.fetch(:billed_runs_count),
         source_chat: source_chat,
+        discussion_chat: discussion_chat_json,
         workflows_count: workflows_count,
         runs_count: runs_count,
         any_active_run: any_active_run,
@@ -725,6 +738,26 @@ module App
       @source_chat_payload ||= App::JobSourceChat.for(@job)
     end
 
+    # The "Chat about this" link (see JobChatsController), distinct from
+    # source_chat_payload's proposal-provenance chat. Present once a chat has
+    # been attached, whether or not the Job was itself proposed from a chat.
+    def discussion_chat_json
+      chat = discussion_chat
+      return nil unless chat
+
+      {
+        chat_id: chat.id,
+        chat_title: chat.title.presence,
+        path: chat_path(chat)
+      }
+    end
+
+    def discussion_chat
+      return @discussion_chat if defined?(@discussion_chat)
+
+      @discussion_chat = @job.discussion_chat
+    end
+
     def pending_feedback_json
       scope = @job.pr_review_comments.order(:comment_created_at, :id)
       scope = if @job.repository.feedback_policy_confirm?
@@ -882,11 +915,13 @@ module App
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
           ),
-        can_cancel: writable && @job.open?,
+        can_cancel: writable && mutable_runtime_job,
+        can_stop_landing: writable && @job.landing?,
         can_approve: writable && reviewable_job && @job.can_add_job_approval?(@user) && !simple_epic_child?,
         can_unapprove: writable && @job.may_unapprove?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
         can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
+        can_start_chat: writable && source_chat_payload.nil? && discussion_chat.nil?,
         can_open_in_local_mode: writable && Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
         can_cancel_local_mode: writable && Feature.local_mode_enabled? && @job.coding?,
         linked_chat_id: @job.linked_chat_id,
@@ -947,6 +982,7 @@ module App
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",
         app_restart_path: "/api/v1/app/jobs/#{@job.id}/restart",
         app_cancel_path: "/api/v1/app/jobs/#{@job.id}/cancel",
+        app_stop_landing_path: "/api/v1/app/jobs/#{@job.id}/stop_landing",
         app_approve_path: "/api/v1/app/jobs/#{@job.id}/approve",
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
@@ -965,6 +1001,7 @@ module App
         app_stack_base_path: "/api/v1/app/jobs/#{@job.id}/stack_base",
         app_mark_valid_path: "/api/v1/app/jobs/#{@job.id}/mark_valid",
         app_attachments_path: "/api/v1/app/jobs/#{@job.id}/attachments",
+        app_start_chat_path: "/api/v1/app/jobs/#{@job.id}/start_chat",
         app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin",
         app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback",
         app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode",

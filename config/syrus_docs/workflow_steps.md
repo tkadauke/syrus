@@ -428,8 +428,12 @@ requires operator review.
 ### review_plan
 
 Agentic, but best-effort — never fails the parent Job/Workflow. Optional
-step, opt-in via `.syrus.yml` `review_plan: true` (see [`syrus_yml.md`](syrus_yml.md)). Runs after `pr_open` in chains that end with
-`initial_pr_finish_steps`. Resumes the agent from the last successful
+step, opt-in via `.syrus.yml` `review_plan: true` (see [`syrus_yml.md`](syrus_yml.md)). Materialized only when
+`RepoReviewPlanPlan` resolves the repository as opted in (read pre-clone,
+the same way the adversarial/visual review plans are) — a repository that
+hasn't configured it gets no `review_plan` Step in its chain at all, rather
+than one that runs and self-skips. When materialized, runs after `pr_open`
+in chains that end with `initial_pr_finish_steps`. Resumes the agent from the last successful
 `implement` session and asks it to call `submit_review_plan` with a handful
 of specific, high-signal "pay attention to X because Y" points anchored at
 `file`/`line`. On success, formats the artifact and posts (or upserts) a PR

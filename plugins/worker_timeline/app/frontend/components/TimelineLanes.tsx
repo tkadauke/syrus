@@ -7,7 +7,6 @@ import { TimeAxis } from "./timeline/TimeAxis"
 import { TimelineBar } from "./timeline/TimelineBar"
 import { TooltipCard } from "./timeline/TooltipCard"
 import { blockedMessage, formatDuration } from "./timeline/spanFormatting"
-import { useVirtualizedRows } from "./timeline/useVirtualizedRows"
 import { useZoomableTimeScale } from "./timeline/useZoomableTimeScale"
 
 type TooltipState = {
@@ -51,8 +50,7 @@ export function TimelineLanes({
   const lanes = buildPackedLaneRows(payload.lanes, t)
 
   const { axisRef, xScale } = useZoomableTimeScale(payload.range.from, payload.range.to)
-  const { scrollRef, startIndex, endIndex, totalHeight, onScroll } = useVirtualizedRows(lanes.length, ROW_HEIGHT)
-  const visibleLanes = lanes.slice(startIndex, endIndex)
+  const totalHeight = lanes.length * ROW_HEIGHT
 
   if (lanes.length === 0) {
     return <p className="p-6 text-sm text-gray-500 dark:text-gray-400">{t("no_lanes")}</p>
@@ -65,23 +63,20 @@ export function TimelineLanes({
       </div>
       <div
         aria-label={t("lanes_aria")}
-        className="relative h-[480px] overflow-y-auto overflow-x-hidden border-t border-gray-200 dark:border-gray-800"
-        onScroll={onScroll}
-        ref={scrollRef}
+        className="relative overflow-x-hidden border-t border-gray-200 dark:border-gray-800"
+        style={{ height: totalHeight }}
       >
-        <div style={{ height: totalHeight, position: "relative" }}>
-          {visibleLanes.map((lane, offset) => (
-            <LaneRow
-              index={startIndex + offset}
-              key={`${lane.lane.key}:${lane.subrowIndex}`}
-              lane={lane}
-              onHover={setTooltip}
-              onHoverRestart={setRestartTooltip}
-              onSelectWorkflow={onSelectWorkflow}
-              scale={xScale}
-            />
-          ))}
-        </div>
+        {lanes.map((lane, index) => (
+          <LaneRow
+            index={index}
+            key={`${lane.lane.key}:${lane.subrowIndex}`}
+            lane={lane}
+            onHover={setTooltip}
+            onHoverRestart={setRestartTooltip}
+            onSelectWorkflow={onSelectWorkflow}
+            scale={xScale}
+          />
+        ))}
       </div>
       {tooltip ? <SpanTooltip span={tooltip.span} x={tooltip.x} y={tooltip.y} /> : null}
       {restartTooltip ? <TooltipCard x={restartTooltip.x} y={restartTooltip.y}>{restartTooltip.text}</TooltipCard> : null}

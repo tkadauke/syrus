@@ -1528,6 +1528,51 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.reload.feedback_policy).to eq("confirm")
   end
 
+  it "includes review_policy in the edit form payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", review_policy: "two_person")
+
+    get "/api/v1/app/repositories/#{repository.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("repository", "review_policy")).to eq("two_person")
+  end
+
+  it "updates review_policy via PATCH" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", review_policy: "self")
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: {
+        owner: repository.owner,
+        name: repository.name,
+        default_branch: repository.default_branch,
+        trigger_label: repository.trigger_label,
+        review_policy: "final_say"
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload.review_policy).to eq("final_say")
+  end
+
+  it "rejects invalid review policies via PATCH" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: {
+        owner: repository.owner,
+        name: repository.name,
+        default_branch: repository.default_branch,
+        trigger_label: repository.trigger_label,
+        review_policy: "committee"
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
   it "rejects invalid Epic dependency policies via PATCH" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")

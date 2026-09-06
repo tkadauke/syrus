@@ -393,6 +393,10 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("job", "id")).to eq(new_job.id)
     expect(parse_body.dig("old_job", "id")).to eq(original_id)
     expect(parse_body["redirect_to"]).to eq(job_path(new_job))
+    # job/actions in this response both describe the replacement job, not
+    # the one the request was made against — the frontend must key its
+    # cache merge off this id rather than assuming it matches the request.
+    expect(parse_body.dig("actions")).to be_present
   end
 
   it "restarts a direct job preserving kind, title, body, and agent_provider" do
@@ -477,8 +481,46 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("job", "state")).to eq("closed")
   end
 
+  it "stops landing without closing the job" do
+    job.update!(state: "implemented")
+    job.approve!(via: "operator")
+    job.start_landing!
+    job.save!
+
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running", started_at: 5.minutes.ago)
+    intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository: repo,
+      scope_type: "job", scope_id: job.id, actor: user, source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent, kind: "auto_merge", state: "running",
+      repository: repo, scope_type: "job", scope_id: job.id, workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    post app_job_path(job, "stop_landing"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_implemented
+    expect(job).to be_open
+    expect(workflow.reload).to be_cancelled
+    expect(parse_body).to include("message" => "Landing stopped.")
+    expect(parse_body.dig("job", "state")).to eq("implemented")
+  end
+
+  it "rejects stop_landing when the job is not landing" do
+    job.update!(state: "implemented")
+
+    post app_job_path(job, "stop_landing"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload).to be_implemented
+  end
+
   it "approves and unapproves an implemented job (self policy — owner is user)" do
     job.update!(state: "implemented")
+    job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
 
     post app_job_path(job, "approve"), as: :json
 
@@ -489,6 +531,11 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Job approved.")
     expect(parse_body.dig("job", "approved_by_user_id")).to eq(user.id)
     expect(job.job_approvals.where(user: user).count).to eq(1)
+    # can_approve/can_unapprove must flip in the same response as the state
+    # change so the frontend can update the button and the badge together,
+    # instead of the Approve button lingering until the next full refetch.
+    expect(parse_body.dig("actions", "can_approve")).to be(false)
+    expect(parse_body.dig("actions", "can_unapprove")).to be(true)
 
     post app_job_path(job, "unapprove"), as: :json
 
@@ -497,6 +544,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(job.approved_at).to be_nil
     expect(job.approved_via).to be_nil
     expect(parse_body).to include("message" => "Job unapproved.")
+    expect(parse_body.dig("actions", "can_approve")).to be(true)
+    expect(parse_body.dig("actions", "can_unapprove")).to be(false)
   end
 
   it "records an approval vote without transitioning when policy is not yet satisfied (two_person)" do
@@ -688,6 +737,32 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(job.reload).to be_closed
+    end
+
+    it "403s stop_landing for a read-tier member" do
+      job.update!(state: "implemented")
+      job.approve!(via: "operator")
+      job.start_landing!
+      job.save!
+      sign_in_as(read_member)
+
+      post app_job_path(job, "stop_landing"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.reload).to be_landing
+    end
+
+    it "allows stop_landing for a write-tier member" do
+      job.update!(state: "implemented")
+      job.approve!(via: "operator")
+      job.start_landing!
+      job.save!
+      sign_in_as(write_member)
+
+      post app_job_path(job, "stop_landing"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).to be_implemented
     end
 
     it "403s approve for a read-tier member" do

@@ -2,14 +2,14 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 17 Job built-ins (14 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
-    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue = 48 core built-ins.
+    # 18 Job built-ins (15 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
+    # + 4 Admin User + 3 Spawned Process + 11 Admin Queue = 49 core built-ins.
     # Plugins register their own on top (design_docs adds 6), so the total is
     # counted rather than pinned -- pinning it makes those plugins undeletable.
     core_builtins = described_class::BUILTINS_BY_SUBJECT.values.sum(&:size)
     plugin_builtins = described_class.registered_subjects.values.sum { |definition| definition.fetch(:builtins).size }
 
-    expect(core_builtins).to eq(48)
+    expect(core_builtins).to eq(49)
     expect { described_class.ensure_builtins! }.to change(described_class, :count).by(core_builtins + plugin_builtins)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
@@ -25,6 +25,7 @@ RSpec.describe SmartFolder do
       "In progress",
       "Paused",
       "Queued",
+      "Triaging",
       "Invalid",
       "Awaiting Epic",
       "Inbox",
@@ -209,6 +210,7 @@ RSpec.describe SmartFolder do
     expect(by_name["Landing queue"]).to eq(:when_present)
     expect(by_name["Pinned"]).to eq(:when_present)
     expect(by_name["Queued"]).to eq(:when_present)
+    expect(by_name["Triaging"]).to eq(:when_present)
     expect(by_name["Invalid"]).to eq(:when_present)
     expect(by_name["Awaiting Epic"]).to eq(:when_present)
     expect(by_name["Stale"]).to eq(:on_demand)
@@ -351,7 +353,10 @@ RSpec.describe SmartFolder do
   it "scopes attention-preset job built-ins to the current user by default" do
     described_class.ensure_builtins_for_subject!(:job)
 
-    attention_folders = described_class.builtins(:job).reject { |f| f.name == "All jobs" }
+    # Inbox is the sole exception: it scopes by review-policy eligibility
+    # (Filters::Chips::Jobs::EligibleApprover), not raw ownership. See the
+    # dedicated Inbox expectations below.
+    attention_folders = described_class.builtins(:job).reject { |f| [ "All jobs", "Inbox" ].include?(f.name) }
     owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
 
     attention_folders.each do |folder|
@@ -359,6 +364,18 @@ RSpec.describe SmartFolder do
       expect(chips).to include(owner_chip),
         "expected #{folder.name} filter to include owner_user_id=me chip, got: #{chips.inspect}"
     end
+  end
+
+  it "scopes the Inbox built-in by review-policy eligibility instead of raw ownership" do
+    described_class.ensure_builtins_for_subject!(:job)
+
+    inbox = described_class.builtins(:job).find_by!(name: "Inbox")
+    chips = Array(inbox.filter["and"])
+    eligible_approver_chip = { "field" => "eligible_approver", "op" => "is", "value" => "me" }
+    owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+
+    expect(chips).to include(eligible_approver_chip)
+    expect(chips).not_to include(owner_chip)
   end
 
   it "does not add owner filter chip to the All jobs built-in" do

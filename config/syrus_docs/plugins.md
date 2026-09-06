@@ -2414,7 +2414,7 @@ Bundled plugins:
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools
   (`browser_navigate`, `browser_click`, `browser_fill`, `browser_hover`,
-  `browser_snapshot`, `browser_screenshot`, `browser_wait_for`,
+  `browser_snapshot`, `browser_screenshot`, `browser_wait_for`, `browser_resize`,
   `browser_close`) for workflow agents, backed by a bundled `@playwright/mcp`
   stdio subprocess (Chromium ships in the worker Docker image only — see
   `Dockerfile`'s `worker-deps` stage). One browser session is spawned per Run
@@ -2587,13 +2587,17 @@ Bundled plugins:
   `/api/v1/timeline/macro` endpoint uses, since the plugin's browser SPA
   frontend has no API token to send. Renders one horizontal lane per worker
   hostname+pid as hand-rolled React+SVG bars, using `d3-scale` for the time
-  axis and `d3-zoom`/`d3-selection` for pan/zoom, with row virtualization
-  and the app-wide shared `FilterBar` for repository/epic/hostname/status/
-  time-window filtering (default: last 3 hours, no other filters). The
-  same `paths` array also covers `/worker_timeline/workflow`, the
-  per-workflow Step/Run waterfall drill-down (`WorkflowWaterfall.tsx`,
-  reached by clicking a macro-view Workflow span), consuming
+  axis and `d3-zoom`/`d3-selection` for pan/zoom, and the app-wide shared
+  `FilterBar` for repository/epic/hostname/status/time-window filtering
+  (default: last 3 hours, no other filters). All lanes render up front —
+  no row virtualization or internal scroll container — so the page itself
+  scrolls to reveal every lane. The same `paths` array also covers
+  `/worker_timeline/workflow`, the per-workflow Step/Run waterfall
+  drill-down (`WorkflowWaterfall.tsx`, reached by clicking a macro-view
+  Workflow span), consuming
   `GET /api/v1/app/admin/worker_timeline/workflow` — a session-authenticated
-  wrapper around `Timeline::WorkflowWaterfallQuery` — and reusing the macro
-  view's bar/pan-zoom/tooltip rendering primitives — see
+  wrapper around `Timeline::WorkflowWaterfallQuery` — reusing the macro
+  view's bar/pan-zoom/tooltip rendering primitives, though (unlike the
+  macro view) it still row-virtualizes its Step lanes inside a
+  fixed-height scrollable container — see
   `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md`.

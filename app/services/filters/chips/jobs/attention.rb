@@ -2,7 +2,7 @@ module Filters
   module Chips
     module Jobs
       # Preset macro chip — value selects a named composite filter
-      # (pinned / in_progress / backlog / queued / inbox / awaiting_approval / just_failed /
+      # (pinned / in_progress / backlog / queued / triaging / inbox / awaiting_approval / just_failed /
       # stale / blocked / merged_this_week / awaiting_epic /
       # needs_review / landing_queue). Each
       # preset compiles to whatever sub-scope it needs; the UI will
@@ -15,7 +15,7 @@ module Filters
         operators :is
 
         PRESETS = %w[
-          pinned in_progress paused backlog queued inbox awaiting_approval just_failed
+          pinned in_progress paused backlog queued triaging inbox awaiting_approval just_failed
           stale blocked merged_this_week awaiting_epic needs_review landing_queue
           waiting_for_upstream promotion_pending delivery_needs_attention
         ].freeze
@@ -167,6 +167,10 @@ module Filters
           scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
         end
 
+        def apply_triaging
+          scope.where(state: "triaging", kind: Filters::Chips::Jobs::JobType.user_kinds)
+        end
+
         def apply_queued
           # Infrastructure workflows skip propagate_start_to_job!, leaving the job :queued while the workflow runs; exclude them so they appear in_progress instead.
           running_infra_ids = runtime_running_job_ids(trigger_kind: WorkDefinitions.lifecycle_managed_workflow_kinds)
@@ -179,18 +183,21 @@ module Filters
         def apply_inbox
           return scope.none unless user
 
-          # Scope to the current user's *effective* ownership. A raw
-          # `owner_user_id = user.id` silently excludes NULL-owner jobs
+          # Scope to jobs where the current user's approval would actually
+          # satisfy the job's review policy — not just jobs they own. A raw
+          # `owner_user_id = user.id` also silently excludes NULL-owner jobs
           # (NULL = id is never true), which dropped the operator's own
-          # unowned jobs out of the inbox. effectively_owned_by falls
-          # back to the creator, matching the rest of the codebase.
-          owner_jobs = Job.effectively_owned_by(user)
-          open = scope.effectively_owned_by(user).open_threads.without_active_runtime_work
-          open.where(id: actionable_unread_feedback_ids(owner_jobs))
+          # unowned jobs out of the inbox; EligibleApprover.eligible_for
+          # falls back to the creator for ownership the same way
+          # effectively_owned_by does, on top of the two_person/final_say
+          # review-policy branches.
+          eligible_jobs = Filters::Chips::Jobs::EligibleApprover.eligible_for(Job.all, user.id)
+          open = Filters::Chips::Jobs::EligibleApprover.eligible_for(scope, user.id).open_threads.without_active_runtime_work
+          open.where(id: actionable_unread_feedback_ids(eligible_jobs))
               .or(open.where(state: "failed").where.not(id: active_repair_work_job_ids))
-              .or(open.where(id: landing_failure_ids(owner_jobs)))
-              .or(open.where(id: needs_review_ids(owner_jobs)))
-              .or(open.where(id: awaiting_approval_ids(owner_jobs)))
+              .or(open.where(id: landing_failure_ids(eligible_jobs)))
+              .or(open.where(id: needs_review_ids(eligible_jobs)))
+              .or(open.where(id: awaiting_approval_ids(eligible_jobs)))
         end
 
         def apply_awaiting_approval

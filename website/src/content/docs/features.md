@@ -39,7 +39,11 @@ shows the furthest configured stage each Job has reached.
 Epic detail pages show those configured stages as columns in the child Jobs
 table, so operators can scan which landed Jobs have reached each stage.
 When a Job came from a chat proposal, or belongs to an Epic that came from a
-chat proposal, the Jobs UI links back to the originating chat message.
+chat proposal, the Jobs UI links back to the originating chat message. A Job
+with no chat link at all yet — a bug report, or a Job ingested from an
+external PR — instead shows a "Chat about this" action; using it starts a
+new chat, permanently attaches the Job to it (visible in that chat's Jobs
+list), and the Job page then links to that chat going forward.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with

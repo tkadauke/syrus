@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import { deleteJobCommand, patchJobCommand, postJobCommand } from "../../api/jobs"
+import { deleteJobCommand, patchJobCommand, postJobCommand, type JobDetailPayload } from "../../api/jobs"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useConfirm } from "../../hooks/useConfirm"
 import type { JobDetailQueryKey, JobWorkflowsQueryKey } from "./queryKeys"
@@ -32,6 +32,22 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
     onSuccess: (payload) => {
       if (payload.redirect_to) navigate(payload.redirect_to)
       onNotice(payload.message || null)
+      // Apply the state/actions the command response already carries
+      // synchronously, so job state and the buttons that depend on it
+      // (e.g. "Approve") update together instead of the button lingering
+      // for one more round trip until the invalidated query below refetches.
+      // Guard on the response's job id: `restart` returns the newly created
+      // replacement Job, not the one this hook/queryKey is bound to, so a
+      // payload naming a different job must never be merged into this
+      // Job's cache entry.
+      const respondsForThisJob = payload.job === undefined || payload.job.id === jobId
+      if (respondsForThisJob && (payload.job || payload.actions)) {
+        queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && {
+          ...old,
+          job: payload.job ? { ...old.job, ...payload.job } : old.job,
+          actions: payload.actions ?? old.actions
+        })
+      }
       void queryClient.invalidateQueries({ queryKey })
       if (workflowsQueryKey) void queryClient.invalidateQueries({ queryKey: workflowsQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })

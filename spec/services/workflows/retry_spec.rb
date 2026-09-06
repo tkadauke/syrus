@@ -15,13 +15,16 @@ RSpec.describe Workflows::Retry do
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     )
+    allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+      RepoReviewPlanPlan::Result.new(enabled: false, source: "none", note: "disabled")
+    )
   end
 
   it "materializes the standard chain with coverage_analyze always present" do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      %w[ prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
     )
   end
 
@@ -36,7 +39,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open ]
       )
     end
   end
@@ -52,7 +55,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -69,7 +72,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -99,7 +102,7 @@ RSpec.describe Workflows::Retry do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement adversarial_review visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open ]
       )
       expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
@@ -115,6 +118,26 @@ RSpec.describe Workflows::Retry do
       expect(visual.loop_id).to be_present
       expect(grader.loop_id).to be_present
       expect([ adversarial.loop_id, visual.loop_id, grader.loop_id ].uniq.size).to eq(3)
+    end
+  end
+
+  it "omits review_plan entirely when it is not configured" do
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.steps.where(kind: "review_plan")).to be_empty
+  end
+
+  context "when review_plan is enabled" do
+    before do
+      allow(RepoReviewPlanPlan).to receive(:for_job).and_return(
+        RepoReviewPlanPlan::Result.new(enabled: true, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "appends review_plan after pr_open" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind).last(2)).to eq(%w[ pr_open review_plan ])
     end
   end
 end

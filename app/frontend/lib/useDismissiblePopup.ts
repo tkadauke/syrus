@@ -1,9 +1,16 @@
-import { type RefObject, useEffect, useRef } from "react"
+import { useEffect, useRef, type RefObject } from "react"
 
-// extraRef covers content rendered through a portal (e.g. a floating-ui
-// FloatingPortal) that is outside `ref`'s DOM subtree but should still count
-// as "inside" the popup for outside-pointer dismissal.
-export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClose: () => void, extraRef?: RefObject<HTMLElement | null>) {
+const NO_EXTRA_REFS: ReadonlyArray<RefObject<HTMLElement | null>> = []
+
+// extraRefs lets a caller whose trigger element lives outside the popup's own
+// subtree (e.g. a portaled dropdown, where the toggle button and the menu are
+// no longer DOM ancestors of each other) exempt that trigger from counting as
+// an "outside" click.
+export function useDismissiblePopup<T extends HTMLElement>(
+  open: boolean,
+  onClose: () => void,
+  extraRefs: ReadonlyArray<RefObject<HTMLElement | null>> = NO_EXTRA_REFS
+) {
   const ref = useRef<T>(null)
 
   useEffect(() => {
@@ -15,12 +22,10 @@ export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClos
 
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target
-      if (!(target instanceof Node)) {
-        onClose()
-        return
+      if (target instanceof Node) {
+        if (ref.current?.contains(target)) return
+        if (extraRefs.some((extraRef) => extraRef.current?.contains(target))) return
       }
-      if (ref.current?.contains(target)) return
-      if (extraRef?.current?.contains(target)) return
 
       onClose()
     }
@@ -31,7 +36,7 @@ export function useDismissiblePopup<T extends HTMLElement>(open: boolean, onClos
       window.removeEventListener("keydown", closeOnEscape)
       window.removeEventListener("pointerdown", closeOnOutsidePointer)
     }
-  }, [open, onClose])
+  }, [open, onClose, extraRefs])
 
   return ref
 }

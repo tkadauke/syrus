@@ -47,6 +47,13 @@ class Job < ApplicationRecord
   # and low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
   PRIORITY_TO_SQ = { "urgent" => -10, "high" => 0, "medium" => 10, "low" => 20 }.freeze
+  # Raw SQL predicate for "effectively owned by :id" — owner_user_id when
+  # set, else the creating user. Mirrors the `owner_user_id.presence ||
+  # user_id` convention so a job with a NULL owner still counts as its
+  # creator's for owner-scoped views. Shared with
+  # Filters::Chips::Jobs::EligibleApprover so the ownership-fallback rule
+  # lives in exactly one place.
+  EFFECTIVE_OWNER_SQL = "jobs.owner_user_id = :id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :id)"
   attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition, :releasing_from_backlog
 
   belongs_to :user
@@ -70,6 +77,7 @@ class Job < ApplicationRecord
   has_many :diff_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
+  has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
   has_many :workflow_warnings, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
@@ -129,6 +137,7 @@ class Job < ApplicationRecord
   validates :external_pr_number, presence: true, if: :external_pr?
   validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
   validate  :epic_belongs_to_same_user_and_repository
+  validate  :epic_children_share_one_effective_owner, if: -> { epic_id.present? && (new_record? || will_save_change_to_epic_id?) }
   before_validation :default_owner_user, on: :create
   before_validation :default_origin, on: :create
   before_validation :default_agent_provider, on: :create
@@ -150,12 +159,10 @@ class Job < ApplicationRecord
   scope :closed_threads, -> { where(state: "closed") }
   scope :not_manually_paused, -> { where(manual_paused: false) }
   # Effective ownership: owner_user_id when set, else the creating user.
-  # Mirrors the `owner_user_id.presence || user_id` convention so a job
-  # with a NULL owner still counts as its creator's for owner-scoped
-  # views. Defensive against any residual NULL owners; new jobs default
+  # Defensive against any residual NULL owners; new jobs default
   # owner_user_id at creation (see default_owner_user).
   scope :effectively_owned_by, ->(user) {
-    where("jobs.owner_user_id = :id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :id)", id: user.id)
+    where(EFFECTIVE_OWNER_SQL, id: user.id)
   }
   # Jobs visible to a user: any job on a repository they're a member of
   # (directly or via a Team grant), plus jobs on upstream repositories of
@@ -364,6 +371,15 @@ class Job < ApplicationRecord
 
   def title
     issue_title.presence || slug
+  end
+
+  # The chat permanently linked to this Job via "Chat about this" (see
+  # JobChatsController) -- distinct from linked_chat_id, which is Coding/Local
+  # Mode's exclusive-ownership link. Earliest attachment wins so the link
+  # stays stable once a discussion has started, even if the Job is later
+  # attached to additional chats as ordinary context elsewhere.
+  def discussion_chat
+    chat_attachments.order(:attached_at, :id).first&.chat_session
   end
 
   # Returns an "issue-shaped" object (responds to #title, #body) for
@@ -933,8 +949,14 @@ class Job < ApplicationRecord
   def can_add_job_approval?(user)
     return false unless implemented?
 
-    effective_owner_id = owner_user_id.presence || user_id
     user.id == effective_owner_id || user.id != user_id
+  end
+
+  # owner_user_id when set, else the creating user. Mirrors the
+  # `effectively_owned_by` scope so a job with a NULL owner still
+  # resolves to its creator.
+  def effective_owner_id
+    owner_user_id.presence || user_id
   end
 
   def approve!(*args, **kwargs)
@@ -984,6 +1006,37 @@ class Job < ApplicationRecord
 
     cancel_active_execution!
     close_with_reason!(reason)
+  end
+
+  # Stops an in-progress landing attempt without closing the Job, unlike
+  # cancel_active_runs_and_close!. Cancels the active landing workflow --
+  # a solo auto_merge/external_pr_merge Workflow owned by this Job, or the
+  # single Epic-wide merge_train Workflow when this Job is a train member
+  # (active_runtime_workflows resolves that through WorkUnitMember, not
+  # Workflow#job_id, so it works for any train member, not just the
+  # anchor). Each landing Workflow's after_cancel hook
+  # (LandingFailureHandler / MergeTrainFailureHandler) reverts the Job to
+  # :implemented and clears approval, same as a genuine landing failure --
+  # an explicit stop should require the operator to re-approve, not
+  # silently re-enter the landing queue. The trailing fail_landing! is a
+  # fallback for the (should-be-rare) case where no active landing
+  # workflow was found or its hook didn't move the Job out of :landing.
+  def stop_landing!
+    return unless landing?
+
+    active_runtime_workflows.select(&:landing_workflow?).each do |workflow|
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "operator_stopped_landing",
+        artifacts: {
+          "cancelled_reason" => "operator_stopped_landing",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
+    end
+
+    reload
+    fail_landing! if landing? && may_fail_landing?
   end
 
   def cancel_active_execution!
@@ -1810,6 +1863,33 @@ class Job < ApplicationRecord
     same_repo = epic.repository_id == repository_id
     fork_to_upstream = repository && repository.upstream_repository_id == epic.repository_id
     errors.add(:epic, "must belong to the same repository or its upstream") unless same_repo || fork_to_upstream
+  end
+
+  # Guards against a multi-owner Epic: all current + incoming open children
+  # must share one effective owner (owner_user_id.presence || user_id). An
+  # Epic with no open children yet imposes no constraint -- there's nothing
+  # to conflict with -- so a still-unclaimed Epic can freely take its first
+  # children regardless of who created them. This is enforced here (rather
+  # than in each call site -- the assign_job_to_epic MCP tool, epic-related
+  # controllers, chat proposal materialization) so it can't be bypassed by a
+  # new entry point. Bulk owner-correction paths (`claim_unowned_child_jobs!`,
+  # `reassign_child_jobs_to_owner!`) intentionally use `update_all`, which
+  # skips validations, so they remain free to fix up a mismatch after the
+  # fact.
+  def epic_children_share_one_effective_owner
+    return unless epic
+
+    # "Open" here deliberately matches MergeTrainAssembler#open_children
+    # (state != "closed"), not the TERMINAL_STATES-based open_threads/open?
+    # used elsewhere on Job -- this validation exists specifically to keep
+    # MergeTrainAssembler's landing bundle single-owner.
+    conflicting = epic.jobs
+      .where.not(state: "closed")
+      .where.not(id: id)
+      .find { |sibling| sibling.effective_owner_id != effective_owner_id }
+    return unless conflicting
+
+    errors.add(:epic, "already has an open child Job (#{conflicting.slug}) owned by a different user")
   end
 
   def set_target_repository_from_epic

@@ -1,5 +1,6 @@
 import type { FormEvent, KeyboardEvent } from "react"
 import { useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useT } from "../../hooks/useT"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -247,6 +248,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_unapprove) available.push({ key: "unapprove", label: t("unapprove"), input: { method: "post", path: paths.app_unapprove_path, confirm: t("confirm_unapprove") }, tone: "secondary" })
   if (actions.can_open_in_local_mode) available.push({ key: "open_in_local_mode", label: t("open_in_local_mode"), input: { method: "post", path: paths.app_open_in_local_mode_path }, tone: "secondary" })
   if (actions.can_cancel_local_mode) available.push({ key: "cancel_local_mode", label: t("cancel_local_mode"), input: { method: "post", path: paths.app_cancel_local_mode_path, confirm: t("confirm_cancel_local_mode") }, tone: "danger" })
+  if (actions.can_stop_landing) available.push({ key: "stop_landing", label: t("stop_landing"), input: { method: "post", path: paths.app_stop_landing_path, confirm: t("confirm_stop_landing") }, tone: "danger" })
   if (actions.can_cancel) {
     const backlogged = payload.job.state === "backlog"
     available.push({
@@ -273,7 +275,9 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     if (availableKeys.has(key) && keys.length < 2) keys.push(key)
   }
 
-  if (payload.job.any_active_run || jobState === "running") {
+  if (jobState === "landing") {
+    add("stop_landing")
+  } else if (payload.job.any_active_run || jobState === "running") {
     add("cancel")
   } else if (jobState === "coding") {
     add("cancel_local_mode")
@@ -314,33 +318,44 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
   return keys
 }
 
+// w-56 in the menu's own className
+const MENU_WIDTH_PX = 224
+
+type MenuPosition = { top: number; left?: number; right?: number }
+
 function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; onActionClick: (action: HeaderAction) => void; onRetryFeedback: (input: RetryPostInput) => void }) {
   const [open, setOpen] = useState(false)
-  const [alignRight, setAlignRight] = useState(true)
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  // The menu portals to document.body (see below), so its trigger button no
+  // longer contains it in the DOM: exempt the button explicitly, or every
+  // click on it would first register as an "outside" click and close it.
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => closeMenu(), [buttonRef])
+
+  function closeMenu() {
+    setOpen(false)
+    setMenuPosition(null)
+  }
 
   function handleToggle() {
-    if (!open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      let containerLeft = 0
-      let el: HTMLElement | null = buttonRef.current.parentElement
-      while (el && el !== document.documentElement) {
-        const ox = window.getComputedStyle(el).overflowX
-        if (ox === "auto" || ox === "scroll" || ox === "hidden") {
-          containerLeft = el.getBoundingClientRect().left
-          break
-        }
-        el = el.parentElement
-      }
-      // w-56 = 224px; open left only when the menu won't be clipped by its scroll container
-      setAlignRight(rect.right - 224 >= containerLeft)
+    if (open) {
+      closeMenu()
+      return
     }
-    setOpen((current) => !current)
+
+    const rect = buttonRef.current?.getBoundingClientRect()
+    if (rect) {
+      setMenuPosition(
+        rect.right - MENU_WIDTH_PX >= 0
+          ? { top: rect.bottom + 4, right: window.innerWidth - rect.right }
+          : { top: rect.bottom + 4, left: rect.left }
+      )
+    }
+    setOpen(true)
   }
 
   return (
-    <div className="relative" ref={menuRef}>
+    <>
       <Button
         aria-expanded={open}
         aria-haspopup="menu"
@@ -351,15 +366,27 @@ function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }:
       >
         ⋯
       </Button>
-      {open ? (
-        <div className={`absolute ${alignRight ? "right-0" : "left-0"} z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900`} role="menu">
+      {open && menuPosition ? createPortal(
+        // Rendered through a portal at a fixed viewport position (rather than
+        // absolutely inside the header) so it always paints above ordinary
+        // page content — like the review sidebar's sticky column, which
+        // otherwise forms its own stacking context that can sit in front of
+        // an absolutely-positioned descendant of the header. z-20 keeps it
+        // consistent with other in-page dropdown menus, still under the
+        // z-30+ modal/backdrop layers.
+        <div
+          className="fixed z-20 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          ref={menuRef}
+          role="menu"
+          style={menuPosition}
+        >
           {actions.map((action) => (
             <button
               className={menuButtonClass(action.tone)}
               disabled={command.isPending}
               key={action.key}
               onClick={() => {
-                setOpen(false)
+                closeMenu()
                 if (action.key.startsWith("retry_feedback")) {
                   onRetryFeedback(action.input as RetryPostInput)
                   return
@@ -372,9 +399,10 @@ function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }:
               {action.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       ) : null}
-    </div>
+    </>
   )
 }
 

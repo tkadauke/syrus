@@ -201,7 +201,7 @@ describe("renderChatMessages tool grouping", () => {
     const toolGroup = group(items[0])
     expect(toolGroup.prominent).toBe(true)
     expect(toolGroup.collapsed_by_default).toBe(true)
-    expect(toolGroup.outcome_label).toBe("Needs attention")
+    expect(toolGroup.outcome_label).toBe("Failed")
   })
 
   it("does not merge side-effecting tools into read-only inspection groups", () => {

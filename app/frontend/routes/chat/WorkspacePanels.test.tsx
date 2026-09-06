@@ -544,6 +544,47 @@ describe("MediaGallery artifacts", () => {
   })
 })
 
+describe("MediaGallery images", () => {
+  beforeEach(() => {
+    vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
+  })
+
+  it("renders images from the full chat_images history instead of the currently loaded message window, with download and lightbox preview", async () => {
+    // The payload's own `messages` array is the paginated window shown in
+    // the transcript; chat_images comes from GET /media, which is scoped to
+    // the chat's full history. An old image outside the loaded window (no
+    // corresponding entry in `messages` here) must still render.
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 1,
+          title: "old.png",
+          filename: "old.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
+          image_url: "/api/v1/app/repository_documents/1/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    const thumbnail = await screen.findByRole("button", { name: "Open old.png" })
+    expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/repository_documents/1/file")
+
+    const download = screen.getByRole("link", { name: "Download old.png" })
+    expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")
+    expect(download).toHaveAttribute("download", "old.png")
+
+    fireEvent.click(thumbnail)
+
+    expect(screen.getByRole("dialog", { name: "old.png" })).toBeInTheDocument()
+  })
+})
+
 describe("ChatWorkspacePanel pinned tab", () => {
   beforeEach(() => {
     vi.clearAllMocks()

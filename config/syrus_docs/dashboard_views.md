@@ -12,6 +12,21 @@ Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeed
 
 Kanban payloads are paginated per lane. Each lane includes `total_count`, `loaded_count`, `has_more`, and `next_offset`; when `has_more` is true, the UI shows a lane-specific Load more button. Follow-up lane fetches call `GET /api/v1/app/dashboard` with the existing dashboard filters plus `kanban_lane` and `kanban_offset`, so loading older cards preserves the current smart folder, ownership scope, and other lane state.
 
+## Inbox
+
+The Inbox smart folder scopes to jobs where the current user is an *eligible
+approver* under the job's repository `review_policy`
+(`Filters::Chips::Jobs::EligibleApprover`), not raw ownership. Under the
+default `self` policy that's still just the effective owner, but under
+`two_person` it also includes jobs owned by anyone else (any non-creator
+approval counts), and under `final_say` it also includes jobs owned by
+anyone when the current user is one of the repository's designated final
+approvers. This keeps a repo owner/collaborator from missing a Job in their
+own Inbox — including its review/repair/feedback sub-signals — just because
+they didn't personally trigger it. Every other attention-preset smart folder
+(Pinned, In progress, Queued, Landing queue, etc.) still scopes strictly by
+`owner_user_id is me`.
+
 ## Backlogged Job actions
 
 Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
@@ -26,6 +41,8 @@ Single-Job lifecycle endpoints:
 - `POST /api/v1/app/jobs/:job_id/cancel` also accepts backlogged Jobs. A backlogged Job has no Workflow/Run to cancel, so this is a pure close-with-reason (`closure_reason: "cancelled"`) that skips the normal active-work cancellation entirely. The Job detail page's `can_cancel` action is available for any open Job, including `backlog`, and labels/confirms it as "Remove from backlog" rather than the runtime "Cancel" wording when the Job is currently backlogged.
 - `PATCH /api/v1/app/jobs/:job_id/owner` assigns or reassigns `owner_user_id`. The selected owner must be a repository member with read access. This does not claim the Job for active work.
 - `POST /api/v1/app/jobs/:job_id/claim` and `DELETE /api/v1/app/jobs/:job_id/claim` operate only on the work-claim overlay. A Job claimed by another user cannot be claimed, and only the current claimant can release their claim.
+
+The `Triaging` smart folder surfaces user-facing Jobs currently sitting in the `triaging` AASM state (across any of the current user's repositories) so classifier delays or stuck intake are visible without a manual filter. Like `Invalid` and `Awaiting Epic`, it only appears in the sidebar when at least one matching Job exists.
 
 The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.
 
