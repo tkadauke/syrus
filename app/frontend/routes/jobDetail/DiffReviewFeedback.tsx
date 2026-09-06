@@ -247,7 +247,7 @@ export function useDiffReviewFeedback({
         deletePending={deleteComment.isPending}
         editing={editing}
         handledComments={handledComments}
-        isComposing={Boolean(selection || editing)}
+        isComposing={Boolean(editing)}
         onBodyChange={setBody}
         onCancel={cancelComposer}
         onCancelReply={cancelReply}
@@ -268,7 +268,6 @@ export function useDiffReviewFeedback({
         replyingId={replyingId}
         resolvePending={resolveComment.isPending}
         reviewCommentBody={reviewCommentBody}
-        selection={selection}
         submitError={submitError}
         submitPending={submitComments.isPending}
         supportsGlobalComments={supportsGlobalComments}
@@ -335,7 +334,6 @@ function DiffReviewFeedbackPanel({
   replyingId,
   resolvePending,
   reviewCommentBody,
-  selection,
   submitError,
   submitPending,
   supportsGlobalComments,
@@ -373,7 +371,6 @@ function DiffReviewFeedbackPanel({
   replyingId: number | null
   resolvePending: boolean
   reviewCommentBody: string
-  selection: DiffLineSelection | null
   submitError: string | null
   submitPending: boolean
   supportsGlobalComments: boolean
