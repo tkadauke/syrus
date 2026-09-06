@@ -658,6 +658,17 @@ class GithubClient
     raise
   end
 
+  # Just the authenticated credential's own GitHub login — cheaper than
+  # accessible_owners when the caller only needs identity, e.g.
+  # Job::ApprovalPropagator comparing the approving user's real login
+  # against a PR's author login.
+  def authenticated_login
+    track_rate_limits { @client.user }.login
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user&.email_address} rate-limited resolving authenticated_login: #{e.message}")
+    raise
+  end
+
   # All open or closed issues for a repo (no label filter). Pull requests are
   # excluded — GitHub's issues endpoint returns them too when their state
   # matches. Results are sorted by updated_at desc (GitHub default).

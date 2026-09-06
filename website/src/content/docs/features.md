@@ -1443,9 +1443,12 @@ cross-repo notice ("N unlabeled open issues across M repositories") with
 links straight into each repository's GitHub Issues tab, so operators
 notice unlabeled bug reports without visiting every repository one at a
 time.
-When approval propagation is enabled, Syrus mirrors eligible Job approvals
-as GitHub PR reviews, but skips PAT-created PRs because GitHub treats them
-as user-authored and rejects self-approval.
+When approval propagation is enabled, Syrus mirrors eligible Job approvals as
+GitHub PR reviews. It posts as the approving user's own connected GitHub
+account whenever their GitHub identity differs from the PR's author; when the
+approver *is* the PR's own author (a true GitHub self-review, which GitHub
+always rejects from the same identity), Syrus posts the review as the GitHub
+App instead, crediting the real approving human in the review body.
 
 If a labeled GitHub issue was created by a Syrus user whose GitHub handle
 maps to a `product_owner` account, polling creates the Job in
