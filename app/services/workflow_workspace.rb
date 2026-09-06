@@ -324,6 +324,7 @@ class WorkflowWorkspace
 
   def clone_and_checkout
     FileUtils.mkdir_p(path.dirname)
+    reclaim_partial_clone!
     if local_source_path
       clone_local_source
       return
@@ -546,6 +547,30 @@ class WorkflowWorkspace
   def notify(message)
     Rails.logger.info("[WorkflowWorkspace] #{message}")
     @log&.call(message, kind: "system")
+  end
+
+  # `git clone` refuses a destination that exists and is non-empty, and the
+  # directory can be there even though setup took the "does not exist" branch:
+  # a previous attempt on this same workflow that died mid-clone leaves debris
+  # behind, and every retry then fails on its own leftovers rather than on the
+  # original fault. That loop is self-perpetuating -- each attempt re-arms it --
+  # and it blocked production for hours.
+  #
+  # The path is namespaced by workflow id, so anything in it is ours. Reclaiming
+  # it is gated by the same rule that guards recloning a broken checkout: safe
+  # while only deterministic setup has succeeded, refused once an agentic step
+  # may have produced commits that exist nowhere else.
+  def reclaim_partial_clone!
+    return unless path.exist?
+    return if path.children.empty?
+
+    message = "workflow workspace at #{path} already exists and is not empty"
+    unless safe_to_reclone_existing_workspace?
+      raise GitRunner::GitError.new([ "clone", path.to_s ], 128, "#{message}; refusing to discard possible agent work")
+    end
+
+    notify("#{message}; reclaiming it before clone")
+    FileUtils.rm_rf(path)
   end
 
   def recover_invalid_checkout_if_safe!

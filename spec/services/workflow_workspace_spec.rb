@@ -53,6 +53,46 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     end
   end
 
+  # `setup` checks path.exist? and only then clones, so a directory that appears
+  # in between -- a previous attempt on this same workflow that died mid-clone,
+  # or a concurrent run -- reaches `git clone` and is rejected with "already
+  # exists and is not an empty directory". Every retry then failed on its own
+  # leftovers rather than the original fault, a loop that blocked production.
+  describe "#reclaim_partial_clone!" do
+    it "removes debris left by a dead clone so the retry can proceed" do
+      ws = described_class.new(workflow)
+      FileUtils.mkdir_p(ws.path)
+      File.write(ws.path.join("partial.tmp"), "half a clone")
+
+      ws.send(:reclaim_partial_clone!)
+
+      expect(ws.path).not_to exist
+    end
+
+    it "leaves an empty directory alone, since git clones into one happily" do
+      ws = described_class.new(workflow)
+      FileUtils.mkdir_p(ws.path)
+
+      ws.send(:reclaim_partial_clone!)
+
+      expect(ws.path).to exist
+    end
+
+    # The same gate that guards recloning a broken checkout: once an agentic
+    # step has succeeded the directory may hold commits that exist nowhere
+    # else, and silently discarding them would be worse than failing.
+    it "refuses to discard a workspace once an agentic step has succeeded" do
+      ws = described_class.new(workflow)
+      FileUtils.mkdir_p(ws.path)
+      File.write(ws.path.join("partial.tmp"), "half a clone")
+      Step.create!(workflow: workflow, kind: "implement", state: "succeeded", position: 1)
+
+      expect { ws.send(:reclaim_partial_clone!) }
+        .to raise_error(GitRunner::GitError, /refusing to discard possible agent work/)
+      expect(ws.path).to exist
+    end
+  end
+
   describe "#setup" do
     context "fresh workflow (no prior workspace)" do
       it "creates a clone on the workflow's branch" do

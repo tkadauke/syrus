@@ -501,4 +501,55 @@ RSpec.describe RetryWorkflowEnqueuer do
       expect(job.reopened_at).to be > (old_reopened_at || 1.year.ago)
     end
   end
+
+  # A rebase whose force_push failed used to be "retried" by re-running the
+  # entire initial chain -- prepare, implement, both reviews, every grader,
+  # pr_open -- discarding a finished, PR-opened implementation to recover from
+  # a failed push. JOB-4339 did exactly that in production.
+  describe "which kind a retry re-runs" do
+    # A rebase whose force_push failed used to be "retried" by re-running the
+    # entire initial chain -- prepare, implement, both reviews, every grader,
+    # pr_open -- discarding a finished, PR-opened implementation to recover
+    # from a failed push. JOB-4339 did exactly that in production.
+    def add_failed_workflow!(trigger_kind)
+      Workflow.create!(
+        job: job, user: job.user, trigger_kind: trigger_kind,
+        state: "failed", finished_at: Time.current
+      )
+    end
+
+    before do
+      finish_current_run!
+      allow(WorkUnits::Launcher).to receive(:start!)
+    end
+
+    it "re-runs a failed rebase as a rebase, not as a full re-implementation" do
+      add_failed_workflow!("rebase")
+
+      expect(WorkUnits::Launcher).to receive(:instantiate)
+        .with(hash_including(kind: "rebase")).and_call_original
+
+      described_class.call(job: job)
+    end
+
+    it "re-runs a failed stack_rebase as a stack_rebase" do
+      add_failed_workflow!("stack_rebase")
+
+      expect(WorkUnits::Launcher).to receive(:instantiate)
+        .with(hash_including(kind: "stack_rebase")).and_call_original
+
+      described_class.call(job: job)
+    end
+
+    # auto_merge and merge_train own job lifecycle and have their own retry
+    # paths, so they must still fall through to the initial-chain retry.
+    it "still uses the initial-chain retry for a failed auto_merge" do
+      add_failed_workflow!("auto_merge")
+
+      expect(WorkUnits::Launcher).to receive(:instantiate)
+        .with(hash_including(kind: "retry")).and_call_original
+
+      described_class.call(job: job)
+    end
+  end
 end

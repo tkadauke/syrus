@@ -1,4 +1,18 @@
 class RetryWorkflowEnqueuer
+  # Maintenance workflows that a retry should re-run AS THEMSELVES rather than
+  # escalating to the initial chain.
+  #
+  # Retrying used to always instantiate "retry", whatever had failed. A rebase
+  # whose force_push failed therefore re-ran prepare, implement, both reviews,
+  # every grader and pr_open -- discarding a finished, PR-opened implementation
+  # to recover from a failed push. Re-running the rebase is both correct and
+  # orders of magnitude cheaper.
+  #
+  # Deliberately only the pure-maintenance kinds. auto_merge and merge_train own
+  # job lifecycle and have their own retry paths (EpicLandingRetrier), so they
+  # are not in scope here.
+  SELF_RETRYING_TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze
+
   Result = Data.define(:workflow, :error, :circuit) do
     def success? = workflow.present?
   end
@@ -179,7 +193,14 @@ class RetryWorkflowEnqueuer
     checkpoint_resume = RunCheckpointResume.call(job: job, agent_provider: agent_provider, artifacts: artifacts)
     return checkpoint_resume.workflow if checkpoint_resume.success?
 
-    WorkUnits::Launcher.instantiate(kind: "retry", job: job, artifacts: artifacts, agent_provider: agent_provider)
+    WorkUnits::Launcher.instantiate(kind: retry_kind, job: job, artifacts: artifacts, agent_provider: agent_provider)
+  end
+
+  # The kind of the most recent failed workflow, when re-running it is the right
+  # remedy; otherwise the initial-chain retry.
+  def retry_kind
+    kind = job.workflows.where(state: "failed").order(:created_at, :id).last&.trigger_kind
+    SELF_RETRYING_TRIGGER_KINDS.include?(kind) ? kind : "retry"
   end
 
   def failure(message, circuit: nil)
