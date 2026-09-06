@@ -53,7 +53,7 @@ export function KubernetesClusters() {
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[72rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
+    <main aria-label={t("aria_page")} className="mx-auto max-w-[72rem] space-y-6 p-3 sm:p-6">
       <header>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
