@@ -85,6 +85,7 @@
       "in_progress": "In progress",
       "paused": "Paused",
       "queued": "Queued",
+      "triaging": "Triaging",
       "invalid": "Invalid",
       "awaiting_epic": "Awaiting Epic",
       "inbox": "Inbox",

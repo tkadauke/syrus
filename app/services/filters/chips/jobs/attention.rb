@@ -2,7 +2,7 @@ module Filters
   module Chips
     module Jobs
       # Preset macro chip — value selects a named composite filter
-      # (pinned / in_progress / backlog / queued / inbox / awaiting_approval / just_failed /
+      # (pinned / in_progress / backlog / queued / triaging / inbox / awaiting_approval / just_failed /
       # stale / blocked / merged_this_week / awaiting_epic /
       # needs_review / landing_queue). Each
       # preset compiles to whatever sub-scope it needs; the UI will
@@ -15,7 +15,7 @@ module Filters
         operators :is
 
         PRESETS = %w[
-          pinned in_progress paused backlog queued inbox awaiting_approval just_failed
+          pinned in_progress paused backlog queued triaging inbox awaiting_approval just_failed
           stale blocked merged_this_week awaiting_epic needs_review landing_queue
           waiting_for_upstream promotion_pending delivery_needs_attention
         ].freeze
@@ -165,6 +165,10 @@ module Filters
 
         def apply_backlog
           scope.where(state: "backlog", kind: Filters::Chips::Jobs::JobType.user_kinds)
+        end
+
+        def apply_triaging
+          scope.where(state: "triaging", kind: Filters::Chips::Jobs::JobType.user_kinds)
         end
 
         def apply_queued

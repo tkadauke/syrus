@@ -315,6 +315,15 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "backlog")).not_to include(infrastructure)
     end
 
+    it "triaging: returns jobs currently being triaged" do
+      triaging = Factories.job_record(repository: repo, issue_number: 38, state: "triaging")
+      infrastructure = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader", state: "triaging")
+      Factories.job_record(repository: repo, issue_number: 39, state: "queued")
+
+      expect(run(field: "attention", op: "is", value: "triaging")).to contain_exactly(triaging)
+      expect(run(field: "attention", op: "is", value: "triaging")).not_to include(infrastructure)
+    end
+
     it "stale: excludes backlogged jobs solely aged past the stale window" do
       stale_queued = Factories.job_record(repository: repo, issue_number: 30, state: "queued")
       backlogged = Factories.job_record(repository: repo, issue_number: 31, state: "backlog")
