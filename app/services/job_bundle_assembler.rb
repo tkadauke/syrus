@@ -56,14 +56,23 @@ class JobBundleAssembler
 
   private
 
+  # A bundle's members must all share one effective owner — mixing Jobs
+  # from different owners would let whichever Job lands as `members.last`
+  # merge the integration PR under its owner's credentials for changes it
+  # didn't own. Candidates are partitioned by owner before dependency
+  # ordering/capping, and MIN_BUNDLE_SIZE is evaluated within each
+  # partition rather than across the whole tier: an owner with only one
+  # eligible Job in this tier falls through to the per-Job auto_merge path,
+  # same as today's behavior for a repo/tier with too few eligible Jobs.
   def ready_members_for(priority)
-    candidates = eligible_candidates(priority)
-    return [] if candidates.size < MIN_BUNDLE_SIZE
+    eligible_candidates(priority).group_by { |job| effective_owner_id(job) }.each_value do |candidates|
+      next if candidates.size < MIN_BUNDLE_SIZE
 
-    members = capped_members(LandingQueueProcessor.dependency_ordered(candidates))
-    return [] if members.size < MIN_BUNDLE_SIZE
+      members = capped_members(LandingQueueProcessor.dependency_ordered(candidates))
+      return members if members.size >= MIN_BUNDLE_SIZE
+    end
 
-    members
+    []
   end
 
   def eligible_candidates(priority)
@@ -72,6 +81,10 @@ class JobBundleAssembler
       .where(epic_id: nil, priority: priority)
       .where.not(kind: "external_pr")
       .to_a
+  end
+
+  def effective_owner_id(job)
+    job.owner_user_id.presence || job.user_id
   end
 
   # Cap the ordered candidate list at AppSetting.merge_train_max_size.

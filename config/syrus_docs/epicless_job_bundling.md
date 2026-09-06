@@ -51,13 +51,23 @@ tier has enough candidates:
   (`LandingQueueProcessor#unrelated_urgent_job_active_for_repository?`)
   from "is one urgent Job active" to "does the active landing unit contain
   an urgent member."
-- **Minimum bundle size is 2** (`JobBundleAssembler::MIN_BUNDLE_SIZE`). A
-  single ready epicless Job — urgent or not — falls through to the
-  existing per-Job `auto_merge` path instead of spinning up a
-  merge-train-style pipeline for one member. `LandingQueueProcessor` only
-  routes a Job to `JobBundleDispatcher` once
-  `bundle_eligible_epicless_job?` finds at least `MIN_BUNDLE_SIZE`
-  same-tier, epicless, own-PR approved siblings for the repository.
+- **Owner-homogeneous** — within a priority tier, candidates are further
+  partitioned by effective owner (`owner_user_id.presence || user_id`)
+  before a bundle is formed; a bundle's members must all share one owner.
+  This matters because whichever Job ends up as `members.last` is the Job
+  whose credentials author and merge the integration PR for every member's
+  changes (see Dispatch below) — mixing owners would let one Job's owner
+  merge code they didn't write. An owner with only one eligible Job in a
+  tier behaves the same as today's "not enough candidates" case: it falls
+  through to the per-Job `auto_merge` path rather than waiting on other
+  owners' Jobs to bundle with.
+- **Minimum bundle size is 2** (`JobBundleAssembler::MIN_BUNDLE_SIZE`),
+  evaluated per owner-partition. A single ready epicless Job — urgent or
+  not — falls through to the existing per-Job `auto_merge` path instead of
+  spinning up a merge-train-style pipeline for one member. `LandingQueueProcessor`
+  only routes a Job to `JobBundleDispatcher` once `bundle_eligible_epicless_job?`
+  finds at least `MIN_BUNDLE_SIZE` same-tier, same-owner, epicless, own-PR
+  approved siblings for the repository.
 - **Dependency ordering and size cap** — candidates are topologically
   ordered by `LandingQueueProcessor.dependency_ordered` the same way Epic
   members are, then capped at `AppSetting.merge_train_max_size`, shrinking
