@@ -214,7 +214,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
 
       expect(review_workflow.reload).to be_succeeded
       expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan
+        prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
       ])
       expect(review_workflow.steps.where(kind: "implement").count).to eq(2)
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
@@ -252,8 +252,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "dependency_audit", 1 ],
         [ "summarize", 1 ],
         [ "test_plan", 1 ],
-        [ "pr_open", 1 ],
-        [ "review_plan", 1 ]
+        [ "pr_open", 1 ]
       ])
       # rounds: 2 seeks exactly two review opinions (JOB-4300 fix: no longer
       # one review short) -- the third, budget-exhausted implement has no
@@ -295,8 +294,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "dependency_audit", "succeeded" ],
         [ "summarize", "succeeded" ],
         [ "test_plan", "succeeded" ],
-        [ "pr_open", "succeeded" ],
-        [ "review_plan", "succeeded" ]
+        [ "pr_open", "succeeded" ]
       ])
       # Nothing to skip this time: the grade loop no longer leads with an
       # implement (it's check-first), so approving early doesn't need to

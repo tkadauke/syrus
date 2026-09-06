@@ -16,7 +16,7 @@ module Workflows
         grader_retry_loop(job, :implement, autofix: true, repair_first: false),
         "coverage_analyze",
         "dependency_audit",
-        initial_pr_finish_steps
+        initial_pr_finish_steps(job)
       )
     end
   end

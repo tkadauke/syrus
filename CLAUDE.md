@@ -358,8 +358,11 @@ Key steps:
   open the PR if needed.
 - **`review_plan`** — Optional, best-effort agentic step after `pr_open` in
   chains ending with `initial_pr_finish_steps`. Opt-in via `.syrus.yml`
-  `review_plan: true` (a bare boolean, not a nested block); a no-op
-  otherwise. Resumes the agent from the last successful `implement` session
+  `review_plan: true` (a bare boolean, not a nested block); materialized
+  only when `RepoReviewPlanPlan` resolves the repository as opted in (read
+  pre-clone, the same way the adversarial/visual review plans are), so an
+  unconfigured repository gets no `review_plan` Step at all rather than one
+  that runs and self-skips. Resumes the agent from the last successful `implement` session
   and asks it to call `submit_review_plan` with a handful of specific,
   high-signal "pay attention to X because Y" points anchored at
   `file`/`line`, then posts (or upserts, by marker) a PR comment formatted

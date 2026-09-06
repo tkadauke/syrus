@@ -150,8 +150,7 @@ RSpec.describe RunJob, :ci_only do
         [ "dependency_audit", "succeeded" ],
         [ "summarize",        "succeeded" ],
         [ "test_plan",        "succeeded" ],
-        [ "pr_open",          "succeeded" ],
-        [ "review_plan",      "succeeded" ]
+        [ "pr_open",          "succeeded" ]
       ])
       expect(wf.artifact("pr_title")).to eq("Add greeting helper")
       expect(job.pr_number).to eq(123)
