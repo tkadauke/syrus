@@ -1754,11 +1754,25 @@ module Api
             linked_direct_job_count: counts.fetch(:linked_direct_jobs),
             scratchpad_items_count: counts.fetch(:scratchpad_items),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
+            chat_image_count: PerformanceLogging.phase("chat_json.chat_image_count", chat_id: chat_session.id) { chat_image_attachment_count(chat_session) },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
             coding_relay_ready: chat_session.coding_relay_address.present? && chat_session.coding_relay_token.present?,
             chat_effort: chat_session.chat_effort
           }
+        end
+
+        # Counts inline image attachments across the chat's full history (not
+        # just the currently loaded message window) so the media tab/panel
+        # can reflect old attachments the way ChatMediaLibrary materializes
+        # them for the /media endpoint, without paying for that materialization
+        # (Document creation) on every chat payload build.
+        def chat_image_attachment_count(chat_session)
+          chat_session.messages.where(role: "user").pluck(:content).sum do |content|
+            next 0 unless content.is_a?(Hash)
+
+            Array(content["attachments"]).count { |attachment| attachment["mime_type"].to_s.start_with?("image/") }
+          end
         end
 
         def chat_session_payload_counts(chat_session_id)

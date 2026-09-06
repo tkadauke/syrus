@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ChatMessageItem, ChatPayload } from "../../api/chats"
+import type { ChatPayload } from "../../api/chats"
 import { availableWorkspaceTabs, mediaTabVisible, workspaceTabClass } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
@@ -67,24 +67,24 @@ function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   } as ChatPayload
 }
 
-function imageMessage(): ChatMessageItem {
-  return {
-    type: "message",
-    id: 1,
-    role: "user",
-    text: "",
-    bookmarkable: false,
-    attachments: [{ name: "screenshot.png", mime_type: "image/png", data: "data:image/png;base64,AAAA" }]
-  }
-}
-
 describe("mediaTabVisible", () => {
   it("is false when the chat has no images, walkthroughs, snapshots, or artifacts", () => {
     expect(mediaTabVisible(makePayload())).toBe(false)
   })
 
-  it("is true when a message has an image attachment", () => {
-    expect(mediaTabVisible(makePayload({ messages: [imageMessage()] }))).toBe(true)
+  it("is true when the chat has an image attachment", () => {
+    const payload = makePayload()
+    payload.chat.chat_image_count = 1
+    expect(mediaTabVisible(payload)).toBe(true)
+  })
+
+  it("is true for an image attachment on an old message outside the currently loaded window", () => {
+    // chat_image_count reflects the chat's full history (see
+    // chat_image_attachment_count on ChatsController), independent of which
+    // messages happen to be loaded in payload.messages right now.
+    const payload = makePayload({ messages: [] })
+    payload.chat.chat_image_count = 1
+    expect(mediaTabVisible(payload)).toBe(true)
   })
 
   it("is true when the chat has a video walkthrough", () => {
@@ -141,7 +141,9 @@ describe("availableWorkspaceTabs", () => {
   })
 
   it("includes the media tab once there is an image attachment", () => {
-    expect(availableWorkspaceTabs(makePayload({ messages: [imageMessage()] }))).toContain("media")
+    const payload = makePayload()
+    payload.chat.chat_image_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("media")
   })
 
   it("excludes the jobs tab when there are no confirmed proposals or linked direct jobs", () => {

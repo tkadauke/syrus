@@ -2001,7 +2001,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   describe "GET /api/v1/app/chats/:id (media tab visibility counts)" do
-    it "reports zero whiteboard_snapshot_count and typed_artifact_count for a chat with no media" do
+    it "reports zero whiteboard_snapshot_count, typed_artifact_count, and chat_image_count for a chat with no media" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
 
@@ -2010,6 +2010,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(0)
       expect(parse_body.dig("chat", "typed_artifact_count")).to eq(0)
+      expect(parse_body.dig("chat", "chat_image_count")).to eq(0)
     end
 
     it "counts whiteboard snapshots and typed artifacts attached to the chat" do
@@ -2031,6 +2032,36 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(1)
       expect(parse_body.dig("chat", "typed_artifact_count")).to eq(1)
+    end
+
+    it "counts an inline image attachment on a message outside the default loaded message window" do
+      # Regression test: the media sidebar/tab used to derive its image list
+      # (and its very visibility) from payload.messages, the latest loaded
+      # tail -- an image attached to an old message that had scrolled out of
+      # that window silently disappeared from the sidebar. chat_image_count
+      # scans the chat's full message history so the tab stays visible (and
+      # GET /media's chat_images list, built the same way, stays populated)
+      # regardless of which messages happen to be loaded right now.
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      chat.messages.create!(
+        role: "user",
+        content: {
+          "text" => "Old screenshot.",
+          "attachments" => [
+            { "name" => "old-screenshot.png", "mime_type" => "image/png", "data" => Base64.strict_encode64("png-bytes") }
+          ]
+        }
+      )
+      # Enough newer messages that a small default page size would exclude
+      # the image message from payload.messages.
+      30.times { |i| chat.messages.create!(role: "assistant", content: { "text" => "Filler #{i}" }) }
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "chat_image_count")).to eq(1)
+      expect(parse_body["messages"].pluck("id")).not_to include(chat.messages.first.id)
     end
   end
 

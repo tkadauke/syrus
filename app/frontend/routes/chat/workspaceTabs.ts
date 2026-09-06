@@ -14,7 +14,6 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
-import { imageAttachments } from "./messageDisplay"
 import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible } from "./utils"
 
 // Unlike every other workspace tab kind (a hardcoded singleton), preview
@@ -22,8 +21,12 @@ import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible } from "./ut
 // rather than a fixed name.
 export type PreviewTab = `preview:${number}`
 
+// chat_image_count reflects the chat's full attachment history (see
+// chat_image_attachment_count on ChatsController), not just the currently
+// loaded message window — a chat whose only image attachment scrolled out
+// of the loaded tail must still show the media tab.
 export function mediaTabVisible(payload: ChatPayload): boolean {
-  return imageAttachments(payload.messages).length > 0 ||
+  return (payload.chat.chat_image_count ?? 0) > 0 ||
     (payload.video_walkthroughs?.length ?? 0) > 0 ||
     (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
     (payload.chat.typed_artifact_count ?? 0) > 0

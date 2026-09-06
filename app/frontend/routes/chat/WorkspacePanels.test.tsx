@@ -544,6 +544,63 @@ describe("MediaGallery artifacts", () => {
   })
 })
 
+describe("MediaGallery image attachments", () => {
+  beforeEach(() => {
+    vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
+  })
+
+  it("lists an old image attachment from chat history even though it isn't in the loaded message window", async () => {
+    // payload.messages is empty here -- mirroring a chat where the image was
+    // sent long ago and has since scrolled out of the loaded tail. The media
+    // panel must still list it because chat_images reflects full history.
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 7,
+          title: "old-screenshot.png",
+          filename: "old-screenshot.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/7/file",
+          image_url: "/api/v1/app/chats/1/media/chat_images/7/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByText("old-screenshot.png")).toBeInTheDocument()
+    const image = screen.getByRole("img", { name: "old-screenshot.png" })
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/7/file")
+  })
+
+  it("opens the lightbox for a persisted chat image", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 7,
+          title: "old-screenshot.png",
+          filename: "old-screenshot.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/7/file",
+          image_url: "/api/v1/app/chats/1/media/chat_images/7/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open old-screenshot.png" }))
+
+    expect(await screen.findByRole("dialog", { name: "old-screenshot.png" })).toBeInTheDocument()
+  })
+})
+
 describe("ChatWorkspacePanel pinned tab", () => {
   beforeEach(() => {
     vi.clearAllMocks()
