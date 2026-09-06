@@ -921,6 +921,10 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       ws.setup
 
       lock_path = described_class.lock_path_for(workflow)
+      # ProcessRunner mkdir_p's the lock directory before opening the sentinel;
+      # the lock lives beside the workspaces rather than inside one, so that
+      # directory is not created by setup.
+      FileUtils.mkdir_p(lock_path.dirname)
       lock_file = File.open(lock_path, File::CREAT | File::RDWR)
       lock_file.flock(File::LOCK_EX)
 

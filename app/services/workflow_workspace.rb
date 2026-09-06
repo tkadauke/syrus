@@ -33,6 +33,8 @@ class WorkflowWorkspace
   # declared dead based on the slower heartbeat/poll signal) can't have
   # its working directory deleted out from under it.
   LOCK_SENTINEL = ".workspace.lock".freeze
+  # Sibling directory holding the per-workflow lock files.
+  LOCK_DIR = ".locks".freeze
 
   attr_reader :path, :branch_name
 
@@ -44,8 +46,16 @@ class WorkflowWorkspace
     data_root.join("workflows", workflow.id.to_s)
   end
 
+  # Beside the workspaces, NOT inside the one it guards.
+  #
+  # ProcessRunner takes this lock around every subprocess it spawns, and the
+  # clone that creates the workspace is one of them -- so with the sentinel
+  # inside, locking `mkdir_p`d the destination and dropped a file in it, and
+  # `git clone` then refused the non-empty directory. The lock made its own
+  # clone impossible. Keeping it outside also means git never sees it, so it
+  # needs no .git/info/exclude entry to stay invisible.
   def self.lock_path_for(workflow)
-    path_for(workflow).join(LOCK_SENTINEL)
+    data_root.join("workflows", LOCK_DIR, "#{workflow.id}.lock")
   end
 
   def self.agent_home_for(workflow, provider)
@@ -167,6 +177,10 @@ class WorkflowWorkspace
     # close it below — POSIX keeps an unlinked-but-open inode alive.
     FileUtils.rm_rf(p.to_s) if p.exist?
     FileUtils.rm_rf(agent_home.to_s) if agent_home.exist?
+    # The lock lives beside the workspace now, so removing the workspace no
+    # longer removes it. Unlink the path while still holding the fd -- POSIX
+    # keeps the inode (and the flock) alive until we close it below.
+    FileUtils.rm_f(lock_path_for(workflow).to_s)
 
     if p.exist?
       Rails.logger.warn("[WorkflowWorkspace] rm_rf completed but #{p} still present for Workflow ##{workflow.id} — will retry on next prune pass")
@@ -562,7 +576,7 @@ class WorkflowWorkspace
   # may have produced commits that exist nowhere else.
   def reclaim_partial_clone!
     return unless path.exist?
-    return if path.children.empty?
+    return if debris.empty?
 
     message = "workflow workspace at #{path} already exists and is not empty"
     unless safe_to_reclone_existing_workspace?
@@ -571,6 +585,16 @@ class WorkflowWorkspace
 
     notify("#{message}; reclaiming it before clone")
     FileUtils.rm_rf(path)
+  end
+
+  # Everything in the workspace except the lock sentinel. The lock lives INSIDE
+  # the directory it guards, so `acquire_exclusive_lock` creates the directory
+  # as a side effect of locking it -- which means "directory exists and is not
+  # empty" is the NORMAL state before a clone, not evidence of debris.
+  def debris
+    return [] unless path.exist?
+
+    path.children.reject { |child| child.basename.to_s == LOCK_SENTINEL }
   end
 
   def recover_invalid_checkout_if_safe!
