@@ -870,6 +870,98 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.members.find_by(job: a).state).to eq("failed")
     end
 
+    def missing_object_error(command, missing_sha)
+      GitRunner::GitError.new(command, 128, "fatal: Not a valid object name #{missing_sha}^{commit}")
+    end
+
+    def missing_commit_error(command, missing_sha)
+      GitRunner::GitError.new(command, 128, "fatal: Not a valid commit name #{missing_sha}")
+    end
+
+    it "fetches the base branch to pull in the newly-merged integration commit before checking member ancestry" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      git = stub_git(handler)
+      record_landed_commit!(a, sha: "a-landed-1")
+      # This workspace never fetched the merge commit GitHub just created via
+      # the API, so a plain existence check for it fails locally...
+      allow(git).to receive(:run)
+        .with("cat-file", "-e", "trainsha789^{commit}", chdir: "/tmp/ws")
+        .and_raise(missing_object_error([ "cat-file", "-e", "trainsha789^{commit}" ], "trainsha789"))
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      # Once from ensure_base_unchanged! (pre-merge base check), once more
+      # from reconciliation fetching the post-merge tip after the missing
+      # object was detected.
+      expect(git).to have_received(:run)
+        .with("fetch", "https://push.example/repo.git", "refs/heads/master", chdir: "/tmp/ws").twice
+      expect(a.reload).to be_closed
+      expect(a.closure_reason).to eq("pr_merged")
+      expect(train.members.find_by(job: a).state).to eq("merged")
+    end
+
+    it "does not fail a member solely because the land workspace is missing the integration merge commit locally (fatal: Not a valid commit name)" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      git = stub_git(handler)
+      # Recorded by *this* workflow's own merge_train_build step, moments
+      # before this land step runs -- created after the workflow itself.
+      record_landed_commit!(a, sha: "a-landed-1")
+      allow(git).to receive(:run)
+        .with("cat-file", "-e", "trainsha789^{commit}", chdir: "/tmp/ws")
+        .and_raise(missing_object_error([ "cat-file", "-e", "trainsha789^{commit}" ], "trainsha789"))
+      # Even after the fetch attempt, this workspace still can't resolve the
+      # commit (e.g. the fetch itself failed, or objects were pruned) --
+      # production evidence: WF-25752/train 5067 logged exactly this message
+      # for every member.
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "a-landed-1", "trainsha789", chdir: "/tmp/ws")
+        .and_raise(missing_commit_error([ "merge-base", "--is-ancestor", "a-landed-1", "trainsha789" ], "trainsha789"))
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(a.reload).to be_closed
+      expect(a.closure_reason).to eq("pr_merged")
+      expect(train.members.find_by(job: a).state).to eq("merged")
+      logs = handler.run.job_logs.pluck(:chunk).join("\n")
+      expect(logs).to include("could not verify")
+      expect(logs).to include("trusting this workflow's own build-time record")
+    end
+
+    it "still fails a genuinely stale carryover member even when the ancestry check reports a missing local object" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      # A LandedCommit row left over from an earlier (different) train
+      # attempt, predating this workflow -- not positive evidence for
+      # *this* landing, unlike the case above.
+      travel_to(1.hour.ago) { record_landed_commit!(a, sha: "a-landed-1") }
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      git = stub_git(handler)
+      allow(git).to receive(:run)
+        .with("cat-file", "-e", "trainsha789^{commit}", chdir: "/tmp/ws")
+        .and_raise(missing_object_error([ "cat-file", "-e", "trainsha789^{commit}" ], "trainsha789"))
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "a-landed-1", "trainsha789", chdir: "/tmp/ws")
+        .and_raise(missing_commit_error([ "merge-base", "--is-ancestor", "a-landed-1", "trainsha789" ], "trainsha789"))
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(a.reload).not_to be_closed
+      expect(train.members.find_by(job: a).state).to eq("failed")
+    end
+
     it "stores the integration merge SHA as landed_sha on all member Jobs" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)

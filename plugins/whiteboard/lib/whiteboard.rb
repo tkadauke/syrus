@@ -31,7 +31,7 @@ module Whiteboard
     always "chat session compatibility associations" do |_scope|
       unless ChatSession.reflect_on_association(:whiteboard)
         ChatSession.has_one :whiteboard,
-                            class_name: "Whiteboard",
+                            class_name: "Whiteboard::Board",
                             foreign_key: :chat_session_id,
                             dependent: nil
       end

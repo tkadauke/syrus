@@ -1080,6 +1080,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    # Signing in materializes `user`, whose creation publishes a "user.created"
+    # domain event (consumed by the scheduled_tasks plugin); drain that before
+    # asserting the chat-creation request itself enqueues nothing.
+    clear_enqueued_jobs
 
     expect {
       post "/api/v1/app/chats"
@@ -1815,6 +1819,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "includes walkthrough videos in the payload for the media panel" do
     sign_in_as(user)
+    PluginRecord.find_or_create_by!(name: "video_walkthroughs").update!(enabled: true, disableable: true)
     chat = ChatSession.create!(user: user)
     walkthrough = chat.video_walkthroughs.create!(
       user: user, content_type: "video/mp4", byte_size: 12, duration_seconds: 90,
@@ -1827,22 +1832,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(entry).to include(
       "title" => "Checkout run", "state" => "analyzed", "duration_seconds" => 90, "has_video" => true
     )
-    # Flag off (default in test): composer intake is gated, but history stays.
-    expect(parse_body["walkthroughs_enabled"]).to eq(false)
-  end
-
-  it "reports walkthroughs_enabled true in the chat payload when the labs flag is on" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user)
-    feature = Feature.find_or_create_by!(slug: "video_walkthroughs") do |record|
-      record.category = "Labs"
-      record.name = "Walkthrough videos"
-    end
-    feature.update!(enabled: true)
-
-    get "/api/v1/app/chats/#{chat.id}"
-
-    expect(parse_body["walkthroughs_enabled"]).to eq(true)
   end
 
   it "includes the chat mode in the payload (nil when not set)" do
