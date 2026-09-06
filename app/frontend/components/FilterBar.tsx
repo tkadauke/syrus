@@ -9,7 +9,7 @@ import { Select } from "./Select"
 import { DateTimeRangeFilterValueEditor } from "./filterBar/DateTimeRangeFilterValueEditor"
 
 import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./filterBar/types"
-import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
+import { clearFiltersLink, dateRangeSegments, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
 export { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./filterBar/helpers"
 export type { FilterChip, FilterGroup, FilterLinkBuilder, FilterNode, FilterOption, FilterSchemaField, FilterSuggestion, FilterTree } from "./filterBar/types"
 
@@ -421,11 +421,24 @@ function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: 
   const fieldLabel = meta ? t(`filter_fields.${meta.field}`, { defaultValue: meta.label || chip.field }) : chip.field
   const opLabel = translateOp(chip.op, t)
   const label = `${negated ? t("filter_bar.not_prefix") + " " : ""}${fieldLabel} ${opLabel}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
+  const dateRange = meta?.bucket === "date" && chip.op === "between" && Array.isArray(chip.value)
+    ? dateRangeSegments(chip.value[0], chip.value[1])
+    : null
+
   return (
-    <button aria-label={label} className="inline-flex items-baseline gap-1 text-left" onClick={onClick} type="button">
+    <button aria-label={label} className="inline-flex flex-col items-start gap-0.5 text-left sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-1" onClick={onClick} type="button">
       <span className="font-medium text-gray-700 dark:text-gray-200">{fieldLabel}</span>
-      <span className="text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
-      {isPredicateOp(chip.op) ? null : <span className="font-mono text-gray-900 dark:text-white">{formattedValue}</span>}
+      {isPredicateOp(chip.op) ? null : dateRange && dateRange.from && dateRange.to ? (
+        <span className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-1">
+          <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{opLabel} <span className="font-mono text-gray-900 dark:text-white">{dateRange.from}</span></span>
+          <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{t("filter_bar.and")} <span className="font-mono text-gray-900 dark:text-white">{dateRange.to}</span></span>
+        </span>
+      ) : (
+        <>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
+          <span className="font-mono text-gray-900 dark:text-white">{formattedValue}</span>
+        </>
+      )}
     </button>
   )
 }

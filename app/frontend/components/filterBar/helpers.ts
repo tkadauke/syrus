@@ -176,10 +176,10 @@ export function formatFilterValue(
 export function formatDateFilterValue(chip: FilterChip, unsetLabel = "(unset)", agoLabel = "ago", translateUnit: (unit: string) => string = (u) => u) {
   if (Array.isArray(chip.value)) {
     const [from, to] = chip.value
-    const fromLabel = formatDateLiteral(from)
-    const toLabel = formatDateLiteral(to)
-    if (fromLabel && toLabel) return `${fromLabel} - ${toLabel}`
-    return fromLabel || toLabel || unsetLabel
+    const segments = dateRangeSegments(from, to)
+    if (!segments) return unsetLabel
+    if (segments.from && segments.to) return `${segments.from} - ${segments.to}`
+    return segments.from || segments.to || unsetLabel
   }
 
   if (isObjectValue(chip.value) && "n" in chip.value && "unit" in chip.value) {
@@ -187,6 +187,40 @@ export function formatDateFilterValue(chip: FilterChip, unsetLabel = "(unset)", 
   }
 
   return formatDateLiteral(chip.value) || unsetLabel
+}
+
+// A same-day range collapses its date onto one side ("2026-09-05 00:00 - 23:59"
+// instead of repeating it); a same-day-as-today range drops the date entirely
+// ("00:00 - 23:59") so the chip doesn't wrap into an unreadable ISO ribbon on
+// narrow viewports.
+export function dateRangeSegments(from: unknown, to: unknown): { from: string; to: string } | null {
+  const fromFormatted = formatDateLiteral(from)
+  const toFormatted = formatDateLiteral(to)
+  if (!fromFormatted && !toFormatted) return null
+  if (!fromFormatted || !toFormatted) return { from: fromFormatted, to: toFormatted }
+
+  const fromParts = splitDateAndTime(fromFormatted)
+  const toParts = splitDateAndTime(toFormatted)
+  if (fromParts.time && toParts.time && fromParts.date === toParts.date) {
+    if (isTodayIsoDate(fromParts.date)) return { from: fromParts.time, to: toParts.time }
+    return { from: fromFormatted, to: toParts.time }
+  }
+
+  return { from: fromFormatted, to: toFormatted }
+}
+
+function splitDateAndTime(formatted: string) {
+  const spaceIndex = formatted.indexOf(" ")
+  if (spaceIndex === -1) return { date: formatted, time: "" }
+  return { date: formatted.slice(0, spaceIndex), time: formatted.slice(spaceIndex + 1) }
+}
+
+function isTodayIsoDate(isoDate: string) {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, "0")
+  const d = String(today.getDate()).padStart(2, "0")
+  return isoDate === `${y}-${m}-${d}`
 }
 
 function formatDateLiteral(value: unknown) {
