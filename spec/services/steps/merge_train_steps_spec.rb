@@ -229,6 +229,31 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(handler.workflow.artifact("merge_train_base_sha")).to eq("basesha123")
     end
 
+    # The integration branch is assembled in a workspace on node-local disk,
+    # but the Runs that grade and land it are claimed by whichever worker is
+    # free. Leaving the branch unpublished meant a Workflow that hopped
+    # workers re-cloned, found nothing to check out, silently fell back to a
+    # member branch, and graded that instead.
+    it "publishes the integration branch and records it as the workspace's required branch" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(handler).to receive(:run_agent)
+
+      handler.call
+
+      expect(git).to have_received(:run).with(
+        "push", "--force", authenticated_fetch_url,
+        "#{train.integration_branch}:refs/heads/#{train.integration_branch}", chdir: "/tmp/ws"
+      )
+      expect(git).to have_received(:run).with(
+        "update-ref", "refs/remotes/origin/#{train.integration_branch}", "intsha999", chdir: "/tmp/ws"
+      )
+      expect(handler.workflow.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT))
+        .to eq(train.integration_branch)
+    end
+
     it "records per-member LandedCommit rows with no cross-member bleed" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)

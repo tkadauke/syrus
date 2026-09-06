@@ -107,6 +107,60 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     end
   end
 
+  # Workspaces live on node-local disk while every Run is claimed by whichever
+  # worker is free, so a Workflow resumes on a machine with no workspace all
+  # the time. For an ordinary Job the re-clone reproduces the work from the
+  # published branch. A merge train's integration branch is built in the
+  # workspace and (until it is published) exists nowhere else, so the re-clone
+  # used to fall through to `job.branch_name` and hand every later Step a
+  # single member branch dressed up as the train.
+  describe "required branch" do
+    let(:required) { "syrus/job-bundle-99" }
+
+    before { workflow.set_artifact!(described_class::REQUIRED_BRANCH_ARTIFACT, required) }
+
+    it "checks out the required branch rather than the Job's branch" do
+      seed_remote_branch(required, "integration work")
+
+      ws = described_class.new(workflow)
+      ws.setup
+
+      expect(current_branch(ws)).to eq(required)
+      expect(ws.path.join("integration.txt")).to exist
+    end
+
+    it "refuses to invent the branch when it is not on the remote" do
+      ws = described_class.new(workflow)
+
+      expect { ws.setup }
+        .to raise_error(described_class::RequiredBranchUnavailable, /#{Regexp.escape(required)}/)
+    end
+
+    # An existing workspace can be on the wrong branch too -- a crashed Run, or
+    # a Step that left a member branch checked out. Moving to a branch that is
+    # already in the workspace is safe and silent.
+    it "moves an existing workspace onto the required branch when it is present locally" do
+      seed_remote_branch(required, "integration work")
+      ws = described_class.new(workflow)
+      ws.setup
+      run_git(ws.path, "checkout", "main")
+
+      described_class.new(workflow).setup
+
+      expect(current_branch(described_class.new(workflow))).to eq(required)
+    end
+
+    it "raises rather than continuing when an existing workspace lacks the branch" do
+      plain = Workflow.create!(job: job, trigger_kind: "initial")
+      ws = described_class.new(plain)
+      ws.setup
+      FileUtils.mv(ws.path.to_s, described_class.path_for(workflow).to_s)
+
+      expect { described_class.new(workflow).setup }
+        .to raise_error(described_class::RequiredBranchUnavailable, /must be on/)
+    end
+  end
+
   describe "#setup" do
     context "fresh workflow (no prior workspace)" do
       it "creates a clone on the workflow's branch" do
@@ -1006,6 +1060,27 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       FileUtils.mkdir_p(bare_path.dirname)
       sh("git clone -q --bare #{seed} #{bare_path}")
     end
+  end
+
+  # Publishes a branch on the fixture remote, the way merge_train_build now
+  # publishes an integration branch it has just assembled.
+  def seed_remote_branch(branch, message)
+    Dir.mktmpdir("syrus-wfws-branch") do |work|
+      sh("git clone -q #{bare_remote_dir} #{work}")
+      sh("git -C #{work} checkout -q -b #{branch}")
+      File.write(File.join(work, "integration.txt"), message)
+      sh("git -C #{work} add integration.txt")
+      sh("git -C #{work} commit -q -m '#{message}'")
+      sh("git -C #{work} push -q origin #{branch}")
+    end
+  end
+
+  def run_git(path, *args)
+    sh("git -C #{path} #{args.join(' ')}")
+  end
+
+  def current_branch(workspace)
+    sh("git -C #{workspace.path} rev-parse --abbrev-ref HEAD").strip
   end
 
   def sh(cmd)

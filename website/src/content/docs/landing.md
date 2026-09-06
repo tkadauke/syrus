@@ -39,6 +39,11 @@ integration branch.
 The goal is atomicity: either the whole Epic lands together, or no child lands.
 This keeps a feature from being half-present on the base branch.
 
+The integration branch is pushed to your repository as soon as it is built, so
+the rest of the landing attempt can continue on any worker. It is temporary
+bookkeeping under a `syrus/` name unique to that train, and Syrus deletes it
+once the train lands, fails, or is cancelled.
+
 ## Job Bundles
 
 Job bundles use the same idea for independent approved Jobs that are safe to

@@ -528,6 +528,8 @@ Non-agentic. Validates that all open Epic child Jobs are approved and the member
 
 Agentic. Rebases member branches onto a growing integration branch in dependency order. Tries deterministic `git rebase` first; hands conflicts to the agent on failure.
 
+On success it pushes the integration branch and records it as the workflow's required workspace branch, so a later step that resumes on a different worker checks out the train rather than falling back to a member branch. See [Merge Train](merge_train.md).
+
 ### merge_train_reconcile
 
 Agentic. Runs on the built merge-train integration branch before prepare, graders, coverage, and landing. Asks the configured agent provider to inspect the integrated tree for cross-Job inconsistencies. No diff is a successful result; focused reconciliation edits are committed onto the integration branch and then the normal gates continue.

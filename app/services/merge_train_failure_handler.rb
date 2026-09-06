@@ -20,6 +20,8 @@ class MergeTrainFailureHandler
       train.update!(state: @cancelled ? "cancelled" : "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
     end
 
+    delete_integration_branch(train)
+
     train.members.each do |member|
       next if member.state == "merged"
 
@@ -54,6 +56,22 @@ class MergeTrainFailureHandler
   # Scoped by @workflow.created_at so a LandedCommit trail left by a much
   # earlier failed/rebuilt attempt for the same Job can't be mistaken for
   # evidence from the attempt that just failed.
+  # `merge_train_build` publishes the integration branch so the rest of the
+  # chain can be picked up by any worker. A train that never lands would
+  # otherwise leave that branch behind for good, so retire it here -- the
+  # successful path already does the same in Steps::MergeTrainLand.
+  # Never fatal: the branch is disposable, the member revert above is not.
+  def delete_integration_branch(train)
+    branch = train.integration_branch
+    return if branch.blank?
+    return if @workflow.job.nil?
+
+    GithubClient.for(repository: @workflow.job.repository, user: @workflow.job.user)
+                .delete_branch(@workflow.job.repository.slug, branch)
+  rescue StandardError => e
+    Rails.logger.warn("[MergeTrainFailureHandler] could not delete #{branch}: #{e.class}: #{e.message}")
+  end
+
   def already_landed?(job)
     return false unless integration_merge_sha
 

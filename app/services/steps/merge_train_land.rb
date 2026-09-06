@@ -128,10 +128,29 @@ module Steps
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      # `merge_train_build` now publishes the integration branch, so by the
+      # time we land it usually exists on the remote. `--force-with-lease`
+      # needs a remote-tracking ref to lease against, and a workspace that was
+      # re-cloned on another worker fetched the branch without one -- so
+      # refresh it here rather than letting the lease fail as "stale info".
+      refresh_integration_tracking_ref(git, chdir, train.integration_branch)
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_push", log: method(:log)) do |push_url|
         git.run("push", "--force-with-lease", push_url, "HEAD:refs/heads/#{train.integration_branch}", chdir: chdir)
       end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
+    end
+
+    # Best-effort: a branch that isn't on the remote yet (an older train, or a
+    # build that failed to publish) simply has no baseline, which is the state
+    # `--force-with-lease` already handles.
+    def refresh_integration_tracking_ref(git, chdir, branch)
+      return if branch.blank?
+
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_fetch", log: method(:log)) do |url|
+        git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: chdir)
+      end
+    rescue GitRunner::GitError => e
+      log("merge_train: no remote baseline for #{branch} (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease baseline")
     end
 
     # The integration merge commit represents the whole train landing, not

@@ -36,6 +36,28 @@ class WorkflowWorkspace
   # Sibling directory holding the per-workflow lock files.
   LOCK_DIR = ".locks".freeze
 
+  # A branch that an earlier Step built *inside* this workspace and that the
+  # rest of the Workflow must operate on. A merge train's integration branch
+  # is the motivating case: it is assembled locally by `merge_train_build`
+  # and, until it is published, exists on exactly one worker's disk.
+  #
+  # Workspaces live under $SYRUS_DATA_ROOT, which is node-local storage, but
+  # each Run is an independent Solid Queue job that any worker may claim. So
+  # a Workflow routinely resumes on a machine where `path` does not exist and
+  # gets re-cloned. For an ordinary Job that is survivable -- the work is
+  # committed on a published branch, so the clone reproduces it. For a merge
+  # train it was not: the integration branch wasn't on the remote, the clone
+  # fell through to `job.branch_name`, and every subsequent Step graded,
+  # repaired and (at land time) would have force-pushed a single *member*
+  # branch while reporting on the train. Recording the branch here makes that
+  # requirement explicit, so it is either honored or raised, never guessed.
+  REQUIRED_BRANCH_ARTIFACT = "workspace_required_branch".freeze
+
+  # Raised when the workspace cannot be put on the Workflow's required
+  # branch. Callers should treat this as fatal for the Step: continuing means
+  # operating on the wrong tree.
+  class RequiredBranchUnavailable < StandardError; end
+
   attr_reader :path, :branch_name
 
   def self.data_root
@@ -224,7 +246,9 @@ class WorkflowWorkspace
     @repository = @job.repository
     @git = git || GitRunner.new
     @path = self.class.path_for(workflow)
-    @branch_name = @workflow.artifact(RebaseTarget::BRANCH_ARTIFACT).presence ||
+    @required_branch = @workflow.artifact(REQUIRED_BRANCH_ARTIFACT).presence
+    @branch_name = @required_branch ||
+      @workflow.artifact(RebaseTarget::BRANCH_ARTIFACT).presence ||
       @job.branch_name.presence ||
       initial_branch_name
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
@@ -254,6 +278,7 @@ class WorkflowWorkspace
       ensure_exclude_entry
     end
     configure_git_author
+    verify_required_branch!
   end
 
   def cleanup
@@ -303,6 +328,42 @@ class WorkflowWorkspace
     end
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] sweep_sibling_workspaces! failed for #{@job.slug}: #{e.class}: #{e.message}")
+  end
+
+  # The last line of defence before a Step acts on the tree. An existing
+  # workspace can be on the wrong branch too: a Run that crashed mid-chain,
+  # a Step that left a member branch checked out, or a workspace this worker
+  # rebuilt for a different purpose. Checking out the required branch is fine
+  # when it is present locally; inventing it is not.
+  def verify_required_branch!
+    return if @required_branch.blank?
+
+    head = current_branch_name
+    return if head == @required_branch
+
+    unless local_branch_exists?(@required_branch)
+      raise RequiredBranchUnavailable,
+            "workspace for Workflow ##{@workflow.id} must be on '#{@required_branch}' " \
+            "but is on '#{head}', and that branch does not exist in the workspace"
+    end
+
+    @git.run("checkout", @required_branch, chdir: path.to_s)
+    Rails.logger.info(
+      "[WorkflowWorkspace] Workflow ##{@workflow.id} moved from '#{head}' to required branch '#{@required_branch}'"
+    )
+  end
+
+  def current_branch_name
+    @git.run("rev-parse", "--abbrev-ref", "HEAD", chdir: path.to_s).strip
+  rescue GitRunner::GitError
+    ""
+  end
+
+  def local_branch_exists?(branch)
+    @git.run("rev-parse", "--verify", "--quiet", "refs/heads/#{branch}", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
   end
 
   def initial_branch_name
@@ -423,6 +484,14 @@ class WorkflowWorkspace
         )
       end
       @git.run("checkout", @branch_name, chdir: path.to_s)
+    elsif @required_branch.present?
+      # A required branch is one an earlier Step *built*. Creating an empty
+      # one off the base tip would look identical to the real thing to every
+      # later Step while containing none of the integrated work, so this is
+      # the one case where a missing branch has to stop the Workflow.
+      raise RequiredBranchUnavailable,
+            "Workflow ##{@workflow.id} requires branch '#{@required_branch}', " \
+            "which is not on #{@repository.slug}"
     elsif base_on_upstream_default?
       # New branch based on the upstream's default tip, not the fork's default.
       @git.run("checkout", "-b", @branch_name, base_ref, chdir: path.to_s)

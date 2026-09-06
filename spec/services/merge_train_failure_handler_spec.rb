@@ -26,6 +26,37 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
   end
 
   describe "#call" do
+    # merge_train_build publishes the integration branch so the rest of the
+    # chain is worker-independent. The landing path already deletes it on the
+    # way out; a train that never lands has to as well, or every failed train
+    # leaves a branch on the repository forever.
+    it "deletes the published integration branch when the train does not land" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: some genuine failure")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
+    end
+
+    it "still reverts members when the branch cannot be deleted" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: some genuine failure")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_raise(Octokit::Error.new)
+
+      described_class.call(workflow: workflow)
+
+      expect(a.reload.state).to eq("implemented")
+      expect(train.reload.state).to eq("failed")
+    end
+
     it "reverts members with no evidence of landing back to a re-landable state" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])

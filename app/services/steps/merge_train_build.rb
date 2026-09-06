@@ -48,6 +48,7 @@ module Steps
       tree_sha = @git.run("rev-parse", "HEAD^{tree}", chdir: @chdir).strip
       train.update!(integration_branch: @integration, integration_sha: sha, state: "grading")
       log("merge_train: built #{@integration} at #{sha.first(9)} (#{members.size} member(s) integrated)")
+      publish_integration_branch!(sha)
       decision = LandingValidationCache.reusable_for?(
         job: job,
         head_sha: sha,
@@ -74,6 +75,35 @@ module Steps
     end
 
     private
+
+    # Publish the integration branch as soon as it exists, and record it as
+    # the workspace's required branch.
+    #
+    # Everything above this line happened in one workspace on one worker, and
+    # workspaces sit on node-local disk while each Run is claimed by whichever
+    # worker is free. A Workflow therefore resumes on a different machine
+    # routinely -- this train hopped three times in two hours -- and finds no
+    # workspace to reuse. Before this, the re-clone had nothing to check out
+    # (the integration branch was local-only) and fell back to the Job's own
+    # branch, so the grade loop, its repairs, and finally `merge_train_land`'s
+    # `push HEAD:` all pointed at a single member branch.
+    #
+    # Pushing here makes the branch reproducible anywhere; the artifact makes
+    # WorkflowWorkspace demand it rather than substitute something plausible.
+    # Together they turn a silent wrong-tree run into either a correct
+    # workspace or a loud failure. Publishing early is safe: the name is
+    # unique per train, CI only builds `main` and pull requests, and
+    # `merge_train_land` force-pushes this same ref moments later anyway.
+    def publish_integration_branch!(sha)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: @git, operation_type: "git_merge_train_publish", log: method(:log)) do |url|
+        @git.run("push", "--force", url, "#{@integration}:refs/heads/#{@integration}", chdir: @chdir)
+      end
+      # Give later `--force-with-lease` pushes a baseline to compare against;
+      # pushing to a URL rather than a named remote leaves no tracking ref.
+      @git.run("update-ref", "refs/remotes/origin/#{@integration}", sha, chdir: @chdir)
+      workflow.set_artifact!(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT, @integration)
+      log("merge_train: published #{@integration} so the rest of the chain is worker-independent")
+    end
 
     def fetch_branch!(branch)
       GithubAuthenticatedGit.run(repository: repository, user: job.user, git: @git, operation_type: "git_merge_train_fetch", log: method(:log)) do |url|

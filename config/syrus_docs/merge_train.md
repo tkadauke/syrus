@@ -45,6 +45,10 @@ For each member branch:
 
 Branch refs are fetched through the repository's authenticated GitHub URL so private branches work under App or PAT credentials.
 
+Once the integration branch is assembled, `merge_train_build` immediately pushes it to the repository and records it as the workflow's required workspace branch. Workflow workspaces live on each worker's local disk, but every Run is picked up by whichever worker is free, so a train routinely continues on a machine that has no copy of the workspace and re-clones. Publishing the branch means that re-clone can check out the branch the train is actually about to land; recording it means `WorkflowWorkspace` refuses to substitute anything else. Without both, the re-clone fell back to a single member's branch, and every later step — graders, `landing_fix`, and finally the land push — silently operated on that member branch while reporting on the train.
+
+The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
+
 ## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.

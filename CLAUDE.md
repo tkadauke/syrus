@@ -276,9 +276,17 @@ Key steps:
   end-state (scratch branch checkout, clean worktree, integration branch is an
   ancestor), not by rebase-internal refs like `REBASE_HEAD`; build fetches
   base/member refs through the repository's authenticated GitHub URL so private
-  branches work under App or PAT credentials; land pushes the integration
-  branch, merges one integration PR into base, then comments on and closes the
-  member PRs.
+  branches work under App or PAT credentials. Build then **pushes the
+  integration branch and records it as
+  `WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT`**: workspaces live on
+  node-local disk while each Run is claimed by whichever worker is free, so a
+  train routinely resumes on a machine that re-clones — and with the
+  integration branch unpublished, that re-clone fell back to `job.branch_name`
+  and every later step graded, repaired and would have force-pushed a single
+  *member* branch while reporting on the train. Land pushes the integration
+  branch, merges one integration PR into base, comments on and closes the
+  member PRs, and deletes the integration branch;
+  `MergeTrainFailureHandler` deletes it on the failed/cancelled path.
 - **`merge_train_reconcile`** — Agentic pass between `merge_train_build` and
   `prepare` that runs on the just-built integration branch, allows a no-op
   success, and commits focused reconciliation changes (e.g. cross-member
