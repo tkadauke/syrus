@@ -131,9 +131,7 @@ const FILENAME_LANGUAGE_MAP: Record<string, HighlighterLanguageId> = {
 }
 
 // Single canonical language-detection helper, mapping a file path/extension
-// to one of the ids this library loads. Later jobs in the epic will replace
-// inferToolResultLanguage() (syntaxHighlight.tsx) and sourceLanguage()
-// (jobDetail/sourceTree.ts) with this; both are left untouched for now.
+// to one of the ids this library loads.
 export function detectHighlighterLanguage(path: string): HighlighterLanguageId | null {
   const name = (path.split(/[\\/]/).pop() || "").toLowerCase()
   if (!name) return null
@@ -142,4 +140,18 @@ export function detectHighlighterLanguage(path: string): HighlighterLanguageId |
 
   const extension = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : ""
   return EXTENSION_LANGUAGE_MAP[extension] || null
+}
+
+const HIGHLIGHTER_LANGUAGE_IDS = new Set<string>(Object.keys(LANGUAGE_LOADERS))
+
+// Maps a Markdown fenced code block's info string (e.g. the `ruby` in
+// ```ruby) to a highlighter language id. Accepts both canonical ids
+// ("ruby", "typescript") and the file-extension aliases
+// detectHighlighterLanguage() already understands ("rb", "ts", "yml").
+export function detectFenceLanguage(hint: string): HighlighterLanguageId | null {
+  const normalized = hint.trim().toLowerCase()
+  if (!normalized) return null
+  if (HIGHLIGHTER_LANGUAGE_IDS.has(normalized)) return normalized as HighlighterLanguageId
+
+  return detectHighlighterLanguage(`fence.${normalized}`)
 }

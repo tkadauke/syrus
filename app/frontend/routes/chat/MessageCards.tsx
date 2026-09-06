@@ -12,7 +12,8 @@ import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { BANNER_TONE_CLASSES } from "../../components/StatusPill"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
-import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
+import { CodeBlock } from "../../components/CodeBlock"
+import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
@@ -432,7 +433,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
           <div key={call.message_id}>
             <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
-            {expanded && call.result_body ? <ToolResultBody call={call} groupTool={item.tool} /> : null}
+            {expanded && call.result_body ? <ToolResultBody call={call} /> : null}
             {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
             {expanded && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
@@ -448,7 +449,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
   )
 })
 
-function ToolResultBody({ call, groupTool }: { call: ChatToolGroupItem["calls"][number]; groupTool: string }) {
+function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
@@ -461,7 +462,7 @@ function ToolResultBody({ call, groupTool }: { call: ChatToolGroupItem["calls"][
   })
   if (pluginBody != null) return <>{pluginBody}</>
 
-  return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={call.display_label || groupTool} />
+  return <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} />
 }
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
@@ -506,13 +507,18 @@ function RawToolDetails({ payload }: { payload: unknown }) {
   )
 }
 
-function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
-  const language = inferToolResultLanguage(detail, tool)
+function HighlightedToolResult({ code, detail, error }: { code: string; detail: string; error: boolean }) {
+  const language = toolResultLanguage(detail)
   const className = `mt-1 whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400 ${error ? "text-red-600 dark:text-red-300" : ""}`
 
   if (!language || error || hasLongLine(code)) return <pre className={className}>{code}</pre>
 
-  return <pre className={className}>{highlightCode(code, language)}</pre>
+  return <CodeBlock className={className} code={code} lang={language} />
+}
+
+function toolResultLanguage(detail: string) {
+  const path = detail.split(/[\s,]+/, 1)[0] || ""
+  return detectHighlighterLanguage(path)
 }
 
 function hasLongLine(value: string) {

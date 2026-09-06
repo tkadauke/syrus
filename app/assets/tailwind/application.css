@@ -265,8 +265,8 @@
 .chat-prose pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -312,14 +312,6 @@
 .dark .chat-prose:not(.chat-prose-invert) code {
   background: rgba(255,255,255,0.1);
   color: #e5e7eb;
-}
-.dark .chat-prose:not(.chat-prose-invert) pre {
-  background: #020617;
-  color: #e2e8f0;
-}
-.dark .chat-prose:not(.chat-prose-invert) pre code {
-  background: transparent;
-  color: inherit;
 }
 .dark .chat-prose:not(.chat-prose-invert) blockquote {
   border-left-color: #475569;

@@ -17,7 +17,7 @@ import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { errorMessage } from "../../lib/errorMessage"
-import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
+import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
 import { chatDisplayTitle, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
@@ -644,7 +644,7 @@ function PreviewPanelNativeViewer({
         ) : textQuery.data?.binary ? (
           <PanelMessage>{t("preview_unsupported_binary")}</PanelMessage>
         ) : (
-          <CodingSourceViewer content={textQuery.data?.content ?? ""} path={entryPath} />
+          <SourceCodeTable content={textQuery.data?.content ?? ""} path={entryPath} targetLine={null} testId="coding-source-viewer" />
         )}
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-3 py-2 dark:border-gray-700">
@@ -678,7 +678,7 @@ function MarkdownPreviewPanel({ entryPath, query, rawEntryUrl }: { entryPath: st
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={query.data?.content ?? ""} />
           </div>
         ) : (
-          <CodingSourceViewer content={query.data?.content ?? ""} path={entryPath} />
+          <SourceCodeTable content={query.data?.content ?? ""} path={entryPath} targetLine={null} testId="coding-source-viewer" />
         )}
       </div>
     </div>
@@ -1482,7 +1482,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
             ) : fileContent.data?.too_large ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_too_large")}</p>
             ) : (
-              <CodingSourceViewer content={fileContent.data?.content ?? ""} path={selectedFile} />
+              <SourceCodeTable content={fileContent.data?.content ?? ""} path={selectedFile} targetLine={null} testId="coding-source-viewer" />
             )}
           </div>
         </div>
@@ -1546,29 +1546,6 @@ function truncateCommitMessage(message: string) {
 
 function isCodingRelayUnavailable(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === "relay_unavailable"
-}
-
-function CodingSourceViewer({ content, path }: { content: string; path: string }) {
-  const language = inferToolResultLanguage(path, "Read")
-  const lines = content.split("\n")
-
-  return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="coding-source-viewer">
-      <tbody>
-        {lines.map((line, index) => {
-          const lineNum = index + 1
-          return (
-            <tr className="bg-white dark:bg-gray-950" data-line={lineNum} key={lineNum}>
-              <td className="w-10 select-none px-2 py-0.5 text-right text-xs text-gray-400 dark:text-gray-600">{lineNum}</td>
-              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {language ? highlightCode(line, language) : line}
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
-  )
 }
 
 function UnifiedDiffViewer({ diff, testId }: { diff: string; testId?: string }) {

@@ -180,6 +180,14 @@ describe("Markdown", () => {
     expect(pre?.querySelector("code")?.textContent).toBe("const x = 1")
   })
 
+  it("highlights fenced code blocks using the language hint from the info string", async () => {
+    render(<Markdown text={"```ruby\nclass User\nend\n```"} />)
+
+    const keyword = await screen.findByText("class")
+    expect(keyword.tagName).toBe("SPAN")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
+  })
+
   it("renders inline TeX math as selectable KaTeX HTML and MathML", () => {
     const { container } = render(<Markdown text={"Smooth interpolation uses $t^2(3 - 2t)$ for easing."} />)
 
