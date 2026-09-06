@@ -349,7 +349,8 @@ describe("ChatWorkspacePanel coding files", () => {
     fireEvent.click(secondFile)
 
     expect(await screen.findByTestId("coding-diff-viewer")).toBeInTheDocument()
-    expect(screen.getByText("export const b = 2")).toBeInTheDocument()
+    const keyword = await screen.findByText("export")
+    expect(keyword.closest("tr")).toHaveTextContent("export const b = 2")
     expect(screen.queryByText("export const a = 2")).not.toBeInTheDocument()
   })
 
