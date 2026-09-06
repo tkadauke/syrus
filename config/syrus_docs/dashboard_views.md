@@ -12,6 +12,21 @@ Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeed
 
 Kanban payloads are paginated per lane. Each lane includes `total_count`, `loaded_count`, `has_more`, and `next_offset`; when `has_more` is true, the UI shows a lane-specific Load more button. Follow-up lane fetches call `GET /api/v1/app/dashboard` with the existing dashboard filters plus `kanban_lane` and `kanban_offset`, so loading older cards preserves the current smart folder, ownership scope, and other lane state.
 
+## Inbox
+
+The Inbox smart folder scopes to jobs where the current user is an *eligible
+approver* under the job's repository `review_policy`
+(`Filters::Chips::Jobs::EligibleApprover`), not raw ownership. Under the
+default `self` policy that's still just the effective owner, but under
+`two_person` it also includes jobs owned by anyone else (any non-creator
+approval counts), and under `final_say` it also includes jobs owned by
+anyone when the current user is one of the repository's designated final
+approvers. This keeps a repo owner/collaborator from missing a Job in their
+own Inbox — including its review/repair/feedback sub-signals — just because
+they didn't personally trigger it. Every other attention-preset smart folder
+(Pinned, In progress, Queued, Landing queue, etc.) still scopes strictly by
+`owner_user_id is me`.
+
 ## Backlogged Job actions
 
 Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
