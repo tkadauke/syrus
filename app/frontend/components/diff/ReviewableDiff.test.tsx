@@ -399,6 +399,29 @@ describe("large-file gating", () => {
     expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Load diff for this file" })).not.toBeInTheDocument()
   })
+
+  function fileWithContextRowCount(rowCount: number) {
+    // total rows = 3 header rows (diff/---/+++) + 1 hunk row + N context rows
+    const contextRows = rowCount - 4
+    const patch = [
+      "diff --git a/big.rb b/big.rb",
+      "--- a/big.rb",
+      "+++ b/big.rb",
+      `@@ -1,${contextRows} +1,${contextRows} @@`,
+      ...Array.from({ length: contextRows }, (_, i) => ` line ${i + 1}`)
+    ].join("\n")
+    return { additions: 0, deletions: 0, patch, path: "big.rb", status: "modified" }
+  }
+
+  it("respects the ~300-row default threshold with no override needed", () => {
+    render(<ReviewableDiff files={[fileWithContextRowCount(300)]} mode="continuous" showFileHeaders />)
+    expect(screen.queryByRole("button", { name: "Load diff for this file" })).not.toBeInTheDocument()
+  })
+
+  it("gates a file just past the default threshold", () => {
+    render(<ReviewableDiff files={[fileWithContextRowCount(301)]} mode="continuous" showFileHeaders />)
+    expect(screen.getByRole("button", { name: "Load diff for this file" })).toBeInTheDocument()
+  })
 })
 
 describe("changed-file count cap", () => {
