@@ -7,6 +7,17 @@ class ChatMediaLibrary
     new(chat_session).materialize_inline_images!
   end
 
+  # Existence-only check over the chat's full message history (unlike the
+  # loaded/paginated message window the chat payload sends the frontend) --
+  # e.g. "does the sidebar Media tab have anything to show." Reuses the same
+  # attachment predicate as #inline_image_attachments but stops scanning at
+  # the first match instead of collecting every attachment across the chat,
+  # since callers only need a boolean and this runs on most chat payload
+  # builds, not just when the Media tab is opened.
+  def self.any_inline_images?(chat_session)
+    new(chat_session).any_inline_images?
+  end
+
   def initialize(chat_session)
     @chat_session = chat_session
     @user = chat_session.user
@@ -18,22 +29,35 @@ class ChatMediaLibrary
     end
   end
 
+  def any_inline_images?
+    chat_session.messages.where(role: "user").find_each(batch_size: 50) do |message|
+      return true if image_attachments_in(message).any?
+    end
+    false
+  end
+
   private
 
   attr_reader :chat_session, :user
 
   def inline_image_attachments
     chat_session.messages.where(role: "user").order(:created_at, :id).flat_map do |message|
-      next [] unless message.content.is_a?(Hash)
-
-      Array(message.content["attachments"]).each_with_index.filter_map do |attachment, index|
-        mime_type = attachment["mime_type"].to_s
-        next unless mime_type.start_with?("image/")
-        next if attachment["data"].blank?
-
-        [ message, attachment, index ]
-      end
+      image_attachments_in(message).map { |attachment, index| [ message, attachment, index ] }
     end
+  end
+
+  def image_attachments_in(message)
+    return [] unless message.content.is_a?(Hash)
+
+    Array(message.content["attachments"]).each_with_index.filter_map do |attachment, index|
+      next unless image_attachment?(attachment)
+
+      [ attachment, index ]
+    end
+  end
+
+  def image_attachment?(attachment)
+    attachment["mime_type"].to_s.start_with?("image/") && attachment["data"].present?
   end
 
   def materialize_inline_image!(message, attachment, index)

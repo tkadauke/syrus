@@ -146,7 +146,7 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           )
         })}
       </div>
-      {lightboxImage ? <ImageLightbox attachment={lightboxImage} onClose={() => setLightboxImage(null)} /> : null}
+      {lightboxImage ? <ImageLightbox name={lightboxImage.name || "Image attachment"} onClose={() => setLightboxImage(null)} src={attachmentDataUrl(lightboxImage)} /> : null}
     </>
   )
 }
@@ -174,7 +174,7 @@ function MessageFileAttachments({ attachments, align = "start" }: { attachments?
   )
 }
 
-export function ImageLightbox({ attachment, onClose }: { attachment: ChatMessageImageAttachment; onClose: () => void }) {
+export function ImageLightbox({ name, onClose, src }: { name: string; onClose: () => void; src: string }) {
   const { t } = useT("chat")
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -187,7 +187,7 @@ export function ImageLightbox({ attachment, onClose }: { attachment: ChatMessage
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
-      <section aria-label={attachment.name || "Image attachment"} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
+      <section aria-label={name} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
         <button
           aria-label={t("aria_close_image")}
           className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
@@ -196,7 +196,7 @@ export function ImageLightbox({ attachment, onClose }: { attachment: ChatMessage
         >
           <CloseIcon className="h-4 w-4" />
         </button>
-        <img alt={attachment.name || "Image attachment"} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={attachmentDataUrl(attachment)} />
+        <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
       </section>
     </div>
   )

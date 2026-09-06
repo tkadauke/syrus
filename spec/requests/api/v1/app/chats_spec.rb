@@ -2055,6 +2055,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(0)
       expect(parse_body.dig("chat", "typed_artifact_count")).to eq(0)
+      expect(parse_body.dig("chat", "has_chat_images")).to eq(false)
     end
 
     it "counts whiteboard snapshots and typed artifacts attached to the chat" do
@@ -2076,6 +2077,30 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(1)
       expect(parse_body.dig("chat", "typed_artifact_count")).to eq(1)
+    end
+
+    it "reports has_chat_images true for an image attachment from anywhere in the chat's full history, not just the loaded message window" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.messages.create!(
+        role: "user",
+        content: {
+          "text" => "Old screenshot.",
+          "attachments" => [
+            { "name" => "old.png", "mime_type" => "image/png", "data" => Base64.strict_encode64("png-bytes") }
+          ]
+        }
+      )
+      # Enough newer text messages to push the image attachment outside the
+      # payload's paginated message window (ChatSession::MESSAGE_PAGE_SIZE)
+      # -- the regression this guards against is the sidebar Media tab
+      # hiding old media that scrolled out of the loaded tail.
+      (ChatSession::MESSAGE_PAGE_SIZE + 5).times { |n| chat.messages.create!(role: "user", content: { "text" => "note #{n}" }) }
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "has_chat_images")).to eq(true)
     end
   end
 
