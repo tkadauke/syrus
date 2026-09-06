@@ -84,6 +84,7 @@
       "in_progress": "In Bearbeitung",
       "paused": "Pausiert",
       "queued": "In Warteschlange",
+      "triaging": "In Triage",
       "invalid": "Ungültig",
       "awaiting_epic": "Wartet auf Epic",
       "inbox": "Posteingang",
