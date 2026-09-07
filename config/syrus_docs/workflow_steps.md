@@ -207,7 +207,7 @@ workflow for that signal.
 
 ### coding_handoff_fix
 
-Agentic. Used inside the `coding_handoff` grader retry loop before any PR exists. Repairs required grader failures on the captured handoff branch with a fresh workflow-agent turn. The prompt includes original Job context, committed handoff branch metadata, recent branch commits, and `Prompts::GradeFailureFeedback`.
+Agentic. Used inside `coding_handoff`'s `adversarial_review`/`visual_review` loops and its grader retry loop, before any PR exists — plays the same repair role `implement`/`respond` plays for `initial`/`retry`, since coding_handoff has no bare leading agentic step of its own (the diff was already committed by the chat coding session). Repairs a review's `needs_work` verdict and/or required grader failures on the captured handoff branch with a fresh workflow-agent turn. The prompt includes original Job context, committed handoff branch metadata, recent branch commits, `Prompts::ReviewFeedback`, and `Prompts::GradeFailureFeedback`.
 
 ### landing_fix
 
@@ -301,22 +301,27 @@ repair loops.
 
 Agentic. An independent reviewer agent critiques the implementation, calls the available `submit_adversarial_review` MCP tool name with a verdict and findings, and any workspace changes it makes are discarded. Runs in a bounded loop before graders when `adversarial_review.rounds > 0`.
 
-Every workflow that has this loop (`initial`, `retry`, `pr_comment`,
-`chat_feedback`, `external_pr_feedback`) leads with a bare top-level
+Most workflows that have this loop (`initial`, `retry`, `pr_comment`,
+`chat_feedback`, `external_pr_feedback`) lead with a bare top-level
 `implement`/`respond` step that runs regardless of whether adversarial review
 is configured, so the loop is always review-first: iteration 1 is
 `adversarial_review` alone, reviewing that top-level step's diff directly.
-A `needs_work` verdict always inserts a repair `implement`/`respond`,
-unconditionally, regardless of remaining review budget; the repair pairs with
-another review whenever budget remains. Once the review that just ran was the
-last one `rounds` allows, its `needs_work` repair runs alone, with no trailing
-review — there's no budget left to act on further feedback. `rounds: N` seeks
-exactly N review opinions, each reacted to with exactly one repair; the loop
-never fails the workflow on its own. See [`adversarial_review.md`](adversarial_review.md).
+`coding_handoff` has no such leading step — the diff was already committed by
+the chat coding session before the workflow started — so `latest_agentic_diff`
+falls back to a fresh `git diff` against the default branch when the chain has
+no `implement`/`respond` step at all, and `coding_handoff_fix` plays the
+repair role in its place. A `needs_work` verdict always inserts a repair
+`implement`/`respond` (or `coding_handoff_fix`), unconditionally, regardless of
+remaining review budget; the repair pairs with another review whenever budget
+remains. Once the review that just ran was the last one `rounds` allows, its
+`needs_work` repair runs alone, with no trailing review — there's no budget
+left to act on further feedback. `rounds: N` seeks exactly N review opinions,
+each reacted to with exactly one repair; the loop never fails the workflow on
+its own. See [`adversarial_review.md`](adversarial_review.md).
 
 ### visual_review
 
-Agentic. An independent reviewer agent drives a headless browser against its own `start_preview` instance to catch visible defects, then calls the available `submit_visual_review` MCP tool name with a verdict (`approved`, `needs_work`, or `skipped`) and findings; any workspace changes it makes are discarded. Runs in a bounded, review-first loop immediately after the `adversarial_review` loop and before the grader retry loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows, gated by `visual_review.enabled` in `.syrus.yml` or the instance-wide `Feature.visual_review_enabled?` default (see [`syrus_yml.md`](syrus_yml.md) and [`visual_review.md`](visual_review.md)). Like `adversarial_review`, iteration 1 is `visual_review` alone, reviewing whatever `implement`/`respond` step (or the tail of a preceding `adversarial_review` loop) already ran before it — there is no redundant leading `implement`/`respond` inside this loop's own iteration 1.
+Agentic. An independent reviewer agent drives a headless browser against its own `start_preview` instance to catch visible defects, then calls the available `submit_visual_review` MCP tool name with a verdict (`approved`, `needs_work`, or `skipped`) and findings; any workspace changes it makes are discarded. Runs in a bounded, review-first loop immediately after the `adversarial_review` loop and before the grader retry loop, in `initial`, `retry`, `pr_comment`, `chat_feedback`, and `coding_handoff` workflows, gated by `visual_review.enabled` in `.syrus.yml` or the instance-wide `Feature.visual_review_enabled?` default (see [`syrus_yml.md`](syrus_yml.md) and [`visual_review.md`](visual_review.md)). Like `adversarial_review`, iteration 1 is `visual_review` alone, reviewing whatever `implement`/`respond` step (or the tail of a preceding `adversarial_review` loop) already ran before it — there is no redundant leading `implement`/`respond` inside this loop's own iteration 1. `coding_handoff` has no `implement`/`respond` step at all, so this falls back to a fresh `git diff` against the default branch the same way the standalone `manual_visual_review` workflow does, and repairs run through `coding_handoff_fix` instead.
 
 Before spending an agent turn, the step applies `visual_review.when_files_changed` as a deterministic pre-filter — same glob semantics as a grader's `when_files_changed` — and skips immediately (verdict `skipped`, no agent turn) when configured and no changed file matches. When the agent does run, it reads the `submit_test_plan` artifact's `visual_review_recommended`/`visual_review_reason` fields (set by the implementing agent) as a hint, but makes its own independent go/no-go call before ever starting a preview. `needs_work` always inserts a repair `implement`/`respond` iteration, the same way `adversarial_review`'s does; `approved` and `skipped` both exit the loop early.
 

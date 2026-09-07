@@ -457,4 +457,42 @@ RSpec.describe Steps::AdversarialReview do
       chat_handler.call
     end
   end
+
+  context "in a coding_handoff workflow (no implement/respond step)" do
+    let(:handoff_job) do
+      Factories.job_record(issue_title: "Add a dashboard banner", issue_body: "Show a banner on the dashboard.")
+    end
+    let(:handoff_workflow) do
+      Workflow.create!(job: handoff_job, trigger_kind: "coding_handoff", agent_provider: "claude", chain_template: [])
+    end
+    let(:handoff_step) { Step.create!(workflow: handoff_workflow, kind: "adversarial_review", position: 0, iteration: 1) }
+    let(:handoff_run) { Run.create!(job: handoff_job, step: handoff_step, trigger_kind: "coding_handoff") }
+    let(:handoff_handler) { described_class.new(handoff_run) }
+
+    before do
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
+      allow(handoff_handler).to receive(:workspace).and_return(fake_ws)
+    end
+
+    it "falls back to a fresh git diff against the default branch" do
+      allow(handoff_handler).to receive(:diff_against_default).and_return(
+        "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n"
+      )
+
+      expect(handoff_handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("show.html.erb")
+        handoff_workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => handoff_step.iteration, "critique" => "Looks sound.", "verdict" => "approved" }
+        ])
+      end
+
+      handoff_handler.call
+    end
+
+    it "raises StepFailed when the branch has no changes to review" do
+      allow(handoff_handler).to receive(:diff_against_default).and_return("")
+
+      expect { handoff_handler.call }.to raise_error(Steps::Base::StepFailed, /no changes to review/)
+    end
+  end
 end
