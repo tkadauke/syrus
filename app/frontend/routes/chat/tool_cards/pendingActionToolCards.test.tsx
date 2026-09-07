@@ -2,9 +2,11 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import rebaseJobCard from "./rebase_job"
+import retryJobCard from "./retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"
+import pollJobFeedbackCard from "./poll_job_feedback"
 import pauseLandingQueueCard from "./pause_landing_queue"
 import resumeLandingQueueCard from "./resume_landing_queue"
 import adminCleanupWorkspaceCard from "./admin_cleanup_workspace"
@@ -32,6 +34,7 @@ import adminRetryStepCard from "./admin_retry_step"
 import adoptCurrentPrHeadCard from "./adopt_current_pr_head"
 import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_workflow_output"
 import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
+import reconcileJobStateCard from "./reconcile_job_state"
 
 // Parity guard for the pending-action tool card family (EPIC-292 /
 // JOB-4222). Each card is a thin re-export of ../pendingActionToolCard, so
@@ -44,9 +47,11 @@ import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
 // excludes *.test.tsx from its card glob, so it is never discovered.
 const CARDS: Array<[string, ToolCardRenderer]> = [
   ["rebase_job", rebaseJobCard],
+  ["retry_job", retryJobCard],
   ["run_visual_review", runVisualReviewCard],
   ["delegate_issue", delegateIssueCard],
   ["check_job_mergeability", checkJobMergeabilityCard],
+  ["poll_job_feedback", pollJobFeedbackCard],
   ["pause_landing_queue", pauseLandingQueueCard],
   ["resume_landing_queue", resumeLandingQueueCard],
   ["admin_cleanup_workspace", adminCleanupWorkspaceCard],
@@ -74,6 +79,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["adopt_current_pr_head", adoptCurrentPrHeadCard],
   ["replace_pr_branch_with_workflow_output", replacePrBranchWithWorkflowOutputCard],
   ["retry_from_current_pr_branch", retryFromCurrentPrBranchCard],
+  ["reconcile_job_state", reconcileJobStateCard],
 ]
 
 function context(toolName: string, parsedResult: unknown): ToolCardContext {
@@ -82,8 +88,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(31)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(31)
+    expect(CARDS).toHaveLength(34)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(34)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {

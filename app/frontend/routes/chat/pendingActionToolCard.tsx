@@ -5,7 +5,7 @@ import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePi
 // Shared presentation for the pending-action MCP tool family (EPIC-292 /
 // JOB-4222). Every tool that creates a ChatPendingAction returns one of
 // three closely related JSON shapes, so one parser plus one card backs all
-// ~31 of them; `tool_cards/<name>.tsx` files are thin re-exports.
+// ~34 of them; `tool_cards/<name>.tsx` files are thin re-exports.
 //
 // Lives outside `tool_cards/` on purpose: pluginToolCards.tsx globs every
 // non-test .tsx file there as a card module and would warn about the
