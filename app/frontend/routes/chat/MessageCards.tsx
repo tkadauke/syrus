@@ -175,7 +175,7 @@ function MessageFileAttachments({ attachments, align = "start" }: { attachments?
   )
 }
 
-export function ImageLightbox({ name, onClose, src }: { name: string; onClose: () => void; src: string }) {
+export function ImageLightbox({ name, onClose, src, extraAction }: { name: string; onClose: () => void; src: string; extraAction?: { label: string; onClick: () => void } }) {
   const { t } = useT("chat")
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -189,14 +189,25 @@ export function ImageLightbox({ name, onClose, src }: { name: string; onClose: (
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
       <section aria-label={name} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
-        <button
-          aria-label={t("aria_close_image")}
-          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={onClose}
-          type="button"
-        >
-          <CloseIcon className="h-4 w-4" />
-        </button>
+        <div className="absolute right-2 top-2 flex items-center gap-2">
+          {extraAction ? (
+            <button
+              className="rounded bg-white/90 px-2 py-1.5 text-xs font-medium text-gray-700 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              onClick={extraAction.onClick}
+              type="button"
+            >
+              {extraAction.label}
+            </button>
+          ) : null}
+          <button
+            aria-label={t("aria_close_image")}
+            className="rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
         <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
       </section>
     </div>

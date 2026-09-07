@@ -27,7 +27,7 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
-import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
+import { type AttachMediaToComposerDetail, CHAT_ATTACH_MEDIA_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
@@ -959,6 +959,35 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     window.addEventListener("syrus:video-walkthrough", onWalkthroughEvent)
     return () => window.removeEventListener("syrus:video-walkthrough", onWalkthroughEvent)
   }, [payload.chat.id, onNotice, t, queryClient, queryKey])
+
+  // The media gallery's "Attach to message" action (WorkspacePanels.tsx)
+  // dispatches this instead of calling a prop -- it lives several component
+  // layers away as a sibling of Compose under ChatWorkspace. Fetching the
+  // already-hosted media URL and wrapping it as a File lets this join
+  // handleAttachmentChange's existing funnel unchanged (validation, the
+  // walkthrough split, attachmentDraftStore persistence).
+  useEffect(() => {
+    function onAttachMediaEvent(event: Event) {
+      const detail = (event as CustomEvent<AttachMediaToComposerDetail>).detail
+      if (!detail || detail.chatId !== chatId) return
+      void attachMediaLibraryImage(detail)
+    }
+
+    window.addEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachMediaEvent)
+    return () => window.removeEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachMediaEvent)
+  }, [chatId])
+
+  async function attachMediaLibraryImage(detail: AttachMediaToComposerDetail) {
+    try {
+      const response = await fetch(detail.url)
+      if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
+      const blob = await response.blob()
+      const file = new File([blob], detail.name, { type: blob.type || detail.mimeType })
+      handleAttachmentChange([file])
+    } catch (_error) {
+      setAttachmentError(t("media_attach_error"))
+    }
+  }
 
   async function uploadWalkthrough(note: string) {
     if (!walkthrough || walkthrough.status !== "ready") return
