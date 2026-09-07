@@ -167,6 +167,23 @@ tip, clears uncommitted work and local-only commits, and queues preparation
 again. After that reset, `submit_coding_changes` has no committed changes to
 capture until new work is done.
 
+Coding Mode chats also get a set of generic `runtime_*` tools for working
+with a live Runtime Session — a dev server, browser, or other running
+process attached to the chat's checkout — so the agent can start it, build or
+reload it, snapshot or inspect what's running, page through its logs, and
+tear it down when done: `runtime_list_sessions`, `runtime_start`,
+`runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
+`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`. Sending input to a
+Runtime Session (`runtime_input`, and the equivalent direct
+`browser_click`/`browser_fill`/`browser_hover` tools) requires the agent to
+first request a short-lived control lease with `runtime_acquire_control` and
+release it with `runtime_release_control` when finished, so agent-driven
+interaction never races an operator who is looking at the same session;
+`runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
+and `runtime_stop` tears the session down. This first slice covers a browser
+dev-server session; a right-sidebar panel for watching a Runtime Session live
+is planned but not yet available.
+
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
 conversation. If a retry is pushed to a replacement branch, pass that branch to
