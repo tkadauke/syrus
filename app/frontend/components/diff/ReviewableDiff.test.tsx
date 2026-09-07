@@ -174,6 +174,29 @@ describe("ReviewableDiff", () => {
     expect(onCancelComposing).toHaveBeenCalled()
   })
 
+  it("opens the comment composer full screen on mobile, like the workflow transcript panel", () => {
+    const onCancelComposing = vi.fn()
+
+    render(
+      <ReviewableDiff
+        composingBody="Please add a regression spec."
+        composingSelection={{ file: files[0], line: { code: "new", kind: "add", newLine: 1, oldLine: null, marker: "+", hunkId: -1 }, side: "new" }}
+        files={files}
+        mode="single-file"
+        onCancelComposing={onCancelComposing}
+        onCommentLine={vi.fn()}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    const composer = screen.getByTestId("diff-review-composer")
+    const overlay = within(composer).getByLabelText("Comment").closest("div.max-md\\:fixed")
+    expect(overlay).toHaveClass("max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]")
+
+    fireEvent.click(within(composer).getByRole("button", { name: "Close" }))
+    expect(onCancelComposing).toHaveBeenCalled()
+  })
+
   it("offers to delete a draft diff review thread inline, but not a submitted one", () => {
     const onDeleteThread = vi.fn()
 
