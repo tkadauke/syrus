@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
+import * as performanceMarkers from "../../lib/performanceMarkers"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
@@ -782,6 +783,59 @@ describe("changed files menu placement", () => {
     const dialog = screen.getByRole("dialog")
     expect(dialog).toHaveClass("fixed", "inset-0")
     expect(screen.getByRole("button", { name: "Close changed files" })).toBeInTheDocument()
+  })
+})
+
+describe("performance markers", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("marks parsing, viewport rendering, and comment thread rendering while the diff renders", () => {
+    const startMarkerSpy = vi.spyOn(performanceMarkers, "startMarker")
+    const recordCountSpy = vi.spyOn(performanceMarkers, "recordCount")
+
+    render(
+      <ReviewableDiff
+        comments={{ "app/models/job.rb": { anchor: [ { author: "reviewer", body: "look here", id: 1, state: "draft" } ] } }}
+        files={files}
+        mode="continuous"
+      />
+    )
+
+    expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.parse_diff", expect.objectContaining({ maxPerSession: 300 }))
+    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.viewport_render", expect.objectContaining({
+      metadata: expect.objectContaining({ total_files: files.length })
+    }))
+    expect(recordCountSpy).toHaveBeenCalledWith("diff_review.comment_threads_render", expect.objectContaining({
+      metadata: expect.objectContaining({ thread_count: 1 })
+    }))
+  })
+
+  it("times the Files menu from open to render as one span", () => {
+    const startMarkerSpy = vi.spyOn(performanceMarkers, "startMarker")
+    const endMarkerSpy = vi.spyOn(performanceMarkers, "endMarker")
+
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+
+    expect(startMarkerSpy).toHaveBeenCalledWith("diff_review.files_menu_open", expect.objectContaining({ maxPerSession: 200 }))
+    expect(endMarkerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "diff_review.files_menu_open" }),
+      expect.objectContaining({ metadata: { total_files: files.length } })
+    )
+  })
+
+  it("marks navigating to a selected file as an anchor_scroll span", () => {
+    const measureSyncSpy = vi.spyOn(performanceMarkers, "measureSync")
+
+    render(<ReviewableDiff files={files} mode="continuous" selectedPath="app/models/run.rb" />)
+
+    expect(measureSyncSpy).toHaveBeenCalledWith(
+      "diff_review.anchor_scroll",
+      expect.any(Function),
+      expect.objectContaining({ metadata: expect.objectContaining({ selected_path: "app/models/run.rb" }) })
+    )
   })
 })
 

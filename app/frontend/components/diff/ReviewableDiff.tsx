@@ -6,6 +6,7 @@ import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
 import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
+import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
   CONTEXT_EXPAND_LINE_INCREMENT,
   DEFAULT_FILE_HEADER_HEIGHT_PX,
@@ -197,6 +198,10 @@ export function ReviewableDiff({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [filesPopupOpen, setFilesPopupOpen] = useState(false)
   const [filesPopupPlacement, setFilesPopupPlacement] = useState<FilesPopupPlacement | null>(null)
+  // Started when the Files menu opens, ended once its popup has actually
+  // been positioned and rendered -- open-to-render latency, not just the
+  // click handler's own (near-zero) synchronous cost.
+  const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
@@ -278,8 +283,51 @@ export function ReviewableDiff({
       return
     }
     pendingScrollTarget.current = null
-    virtualizer.scrollToIndex(index, { align: "start" })
+    measureSync("diff_review.anchor_scroll", () => virtualizer.scrollToIndex(index, { align: "start" }), {
+      maxPerSession: 200,
+      metadata: { selected_path: target, virtualization_mode: scroll }
+    })
   })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // Throttled by the effect's own dependency array, not a timer: this only
+  // fires when the *count* of virtualized (mounted) files actually changes
+  // -- initial mount, "load more files", or files scrolling in/out of the
+  // overscan range -- not on every scroll-position pixel.
+  useEffect(() => {
+    const mountedFiles = virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
+    const mountedRows = mountedFiles.reduce((sum, file) => sum + (file.patch ? countDiffRows(file.patch) : 0), 0)
+    recordCount("diff_review.viewport_render", {
+      maxPerSession: 300,
+      metadata: {
+        mounted_files: virtualItems.length,
+        mounted_rows: mountedRows,
+        total_files: visibleFiles.length,
+        virtualization_mode: scroll
+      }
+    })
+  }, [virtualItems.length, visibleFiles.length, scroll])
+
+  useEffect(() => {
+    if (!comments) return
+    const threadCount = Object.values(comments).reduce(
+      (sum, byAnchor) => sum + Object.values(byAnchor).reduce((innerSum, threads) => innerSum + threads.length, 0),
+      0
+    )
+    if (threadCount === 0) return
+    recordCount("diff_review.comment_threads_render", {
+      maxPerSession: 200,
+      metadata: { comment_composer_active: Boolean(composingSelection), thread_count: threadCount }
+    })
+  }, [comments, composingSelection])
+
+  useEffect(() => {
+    const marker = filesMenuMarkerRef.current
+    if (!filesPopupOpen || !filesPopupPlacement || !marker) return
+    endMarker(marker, { metadata: { total_files: files.length } })
+    filesMenuMarkerRef.current = null
+  }, [filesPopupOpen, filesPopupPlacement, files.length])
 
   if (renderFiles.length === 0) return <>{emptyState}</>
 
@@ -287,7 +335,11 @@ export function ReviewableDiff({
     const buttonRect = event.currentTarget.getBoundingClientRect()
     const containerRect = containerRef.current?.getBoundingClientRect() ?? buttonRect
     setFilesPopupPlacement(computeFilesPopupPlacement(buttonRect, containerRect))
-    setFilesPopupOpen((open) => !open)
+    setFilesPopupOpen((open) => {
+      const next = !open
+      if (next) filesMenuMarkerRef.current = startMarker("diff_review.files_menu_open", { maxPerSession: 200 })
+      return next
+    })
   }
 
   function selectFileFromPopup(path: string) {
@@ -298,8 +350,6 @@ export function ReviewableDiff({
   function toggleHighlightToken(token: string) {
     setHighlightedToken((current) => (current === token ? null : token))
   }
-
-  const virtualItems = virtualizer.getVirtualItems()
 
   return (
     <div className="relative" data-testid="agent-diff-viewer" ref={containerRef}>
@@ -611,7 +661,12 @@ function DiffFileSection({
   showHeader: boolean
   unavailableState: ReactNode
 }) {
-  const lines = useMemo(() => parseUnifiedDiff(file.patch || ""), [file.patch])
+  const lines = useMemo(() => {
+    const marker = startMarker("diff_review.parse_diff", { maxPerSession: 300, thresholdMs: 1 })
+    const parsed = parseUnifiedDiff(file.patch || "")
+    endMarker(marker, { metadata: { path: file.path, rows: parsed.length } })
+    return parsed
+  }, [file.patch])
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
   const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path)
@@ -810,6 +865,7 @@ function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId 
     if (missing.length === 0) return
 
     let cancelled = false
+    const marker = startMarker("diff_review.syntax_highlight", { maxPerSession: 300 })
     Promise.all(
       missing.map(async ([hunkId, indexes]) => {
         const code = indexes.map((index) => lines[index].code).join("\n")
@@ -819,6 +875,8 @@ function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId 
     ).then((results) => {
       if (cancelled) return
       for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
+      const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
+      endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
       bumpVersion()
     })
 

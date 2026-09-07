@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
+import * as performanceMarkers from "../../lib/performanceMarkers"
 import { ReviewWorkspace } from "./ReviewWorkspace"
 
 stubVirtualizerMeasurements()
@@ -472,6 +473,35 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.")
     })
+  })
+
+  it("marks the source diff fetch as a diff_review.fetch_source_diff span", async () => {
+    const measureAsyncSpy = vi.spyOn(performanceMarkers, "measureAsync")
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await waitFor(() => expect(measureAsyncSpy).toHaveBeenCalledWith(
+      "diff_review.fetch_source_diff",
+      expect.any(Function),
+      expect.objectContaining({ metadata: { job_id: 42 } })
+    ))
+    vi.restoreAllMocks()
+  })
+
+  it("marks the initial diff render once the source diff has loaded", async () => {
+    const useMarkedRenderSpy = vi.spyOn(performanceMarkers, "useMarkedRender")
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await waitFor(() => expect(useMarkedRenderSpy).toHaveBeenCalledWith(
+      "diff_review.initial_render",
+      expect.objectContaining({ enabled: undefined, metadata: { total_files: sourceDiffPayload().files.length }, phase: "paint" })
+    ))
+    vi.restoreAllMocks()
   })
 })
 
