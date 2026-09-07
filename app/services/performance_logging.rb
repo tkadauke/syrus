@@ -263,6 +263,8 @@ module PerformanceLogging
       request_context,
       "duration_ms" => duration_ms,
       "trace_id" => safe_string(attrs[:trace_id] || attrs["trace_id"], 100),
+      "parent_id" => safe_string(attrs[:parent_id] || attrs["parent_id"], 100).presence,
+      "interaction_id" => safe_string(attrs[:interaction_id] || attrs["interaction_id"], 100).presence,
       "name" => safe_string(attrs[:name] || attrs["name"], 200),
       "path" => safe_string(attrs[:path] || attrs["path"], 500),
       "visibility_state" => safe_string(attrs[:visibility_state] || attrs["visibility_state"], 50),

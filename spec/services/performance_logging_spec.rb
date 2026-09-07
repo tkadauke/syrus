@@ -435,6 +435,45 @@ RSpec.describe PerformanceLogging do
     ])
   end
 
+  it "records optional parent/interaction correlation ids on browser traces" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+
+    described_class.record_browser_trace(
+      trace_id: "trace-marker",
+      parent_id: "trace-parent",
+      interaction_id: "interaction-42",
+      name: "diff_review.viewport_render",
+      path: "/jobs/4348?tab=review",
+      duration_ms: 18.5,
+      visibility_state: "visible"
+    )
+
+    event = described_class::Store.recent.first
+    expect(event).to include(
+      "trace_id" => "trace-marker",
+      "parent_id" => "trace-parent",
+      "interaction_id" => "interaction-42"
+    )
+  end
+
+  it "omits parent/interaction ids when absent instead of storing blank strings" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+
+    described_class.record_browser_trace(
+      trace_id: "trace-no-correlation",
+      name: "diff_review.files_menu_open",
+      path: "/jobs/4348?tab=review",
+      duration_ms: 5.0,
+      visibility_state: "visible"
+    )
+
+    event = described_class::Store.recent.first
+    expect(event).not_to have_key("parent_id")
+    expect(event).not_to have_key("interaction_id")
+  end
+
   it "does not flush the admin buffer to Rails.cache on every event" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
