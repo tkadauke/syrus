@@ -9,6 +9,8 @@ import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow }
 import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
+import { ShortcutsProvider } from "../contexts/ShortcutsContext"
+import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { ArtifactsTab, FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 
@@ -413,15 +415,17 @@ describe("JobDetailView", () => {
             return () => {}
           }
         }}>
-          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-            <JobDetailView
-              activeTab="summary"
-              onSelectTab={() => {}}
-              payload={payload}
-              prefix="/app-shell"
-              queryKey={["jobs", "1", "detail", ""]}
-            />
-          </MemoryRouter>
+          <ShortcutsProvider>
+            <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+              <JobDetailView
+                activeTab="summary"
+                onSelectTab={() => {}}
+                payload={payload}
+                prefix="/app-shell"
+                queryKey={["jobs", "1", "detail", ""]}
+              />
+            </MemoryRouter>
+          </ShortcutsProvider>
         </BugReportContext.Provider>
       </QueryClientProvider>
     )
@@ -2339,15 +2343,17 @@ describe("Job detail tour", () => {
     queryClient.setQueryData(["bootstrap"], buildBootstrap(seenTours))
     return render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-          <JobDetailView
-            activeTab="summary"
-            onSelectTab={() => {}}
-            payload={jobPayload()}
-            prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
-          />
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+            <JobDetailView
+              activeTab="summary"
+              onSelectTab={() => {}}
+              payload={jobPayload()}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
   }
@@ -2375,15 +2381,17 @@ describe("Job detail tour", () => {
     const p = jobPayload()
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-          <JobDetailView
-            activeTab="summary"
-            onSelectTab={() => {}}
-            payload={{ ...p, actions: { ...p.actions, can_view_timeline: true } }}
-            prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
-          />
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+            <JobDetailView
+              activeTab="summary"
+              onSelectTab={() => {}}
+              payload={{ ...p, actions: { ...p.actions, can_view_timeline: true } }}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
     expect(document.querySelector("[data-tour='job-timeline']")).toBeInTheDocument()
@@ -2405,6 +2413,266 @@ describe("Job detail tour", () => {
     vi.spyOn(useTourModule, "useTour").mockReturnValue({ run: false, handleJoyrideCallback: vi.fn() })
     renderJobDetail(jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } }))
     expect(document.querySelector("[data-tour='job-feedback']")).toBeInTheDocument()
+  })
+})
+
+describe("Job Detail keyboard shortcuts", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("does not register the approve shortcut when the job cannot be approved", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } }))
+
+    fireEvent.keyDown(window, { key: "a" })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("arms a confirmation before approving on the shortcut path and executes on confirm", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
+
+    fireEvent.keyDown(window, { key: "a" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Approve this Job?")).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/approve",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("cancels the armed approve confirmation on Escape without executing", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
+
+    fireEvent.keyDown(window, { key: "a" })
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("leaves the approve button's direct mouse-click behavior unchanged (no confirmation)", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/approve",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("arms a confirmation before reopening on the shortcut path and executes on confirm", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job reopened." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "closed", summary_state: "closed" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_reopen: true } })
+
+    fireEvent.keyDown(window, { key: "o" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Reopen this Job?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/reopen",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("leaves the reopen button's direct mouse-click behavior unchanged (no confirmation)", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job reopened." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "closed", summary_state: "closed" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_reopen: true } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen" }))
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/reopen",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("reuses the existing unapprove confirmation on the shortcut path", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Unapproved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "approved", summary_state: "approved" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_unapprove: true } })
+
+    fireEvent.keyDown(window, { key: "u" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Move this Job back to implemented?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/unapprove",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("reuses the existing cancel confirmation on the shortcut path", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Cancelled." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_cancel: true } })
+
+    fireEvent.keyDown(window, { key: "x" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Cancel any running work and close this Job?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/cancel",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("reuses the existing stop-landing confirmation on the shortcut path", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Landing stopped." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "landing", summary_state: "landing" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_stop_landing: true } })
+
+    fireEvent.keyDown(window, { key: "s" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/stop_landing",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("prefers retry_failed_step_action over retry_implementation_action for the retry shortcut, confirming first", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retrying." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        retry_failed_step_action: { key: "retry_failed_step", label: "Retry failed step", path: "/api/v1/app/jobs/1/retry_failed_step" },
+        retry_implementation_action: { key: "retry_implementation", label: "Retry", path: "/api/v1/app/jobs/1/retry_implementation" }
+      }
+    })
+
+    fireEvent.keyDown(window, { key: "r" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Retry this Job now?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/retry_failed_step",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("falls back to retry_implementation_action for the retry shortcut when no failed step is retryable", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retrying." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } })
+    renderJobDetail({
+      ...payload,
+      actions: {
+        ...payload.actions,
+        retry_implementation_action: { key: "retry_implementation", label: "Retry", path: "/api/v1/app/jobs/1/retry_implementation" }
+      }
+    })
+
+    fireEvent.keyDown(window, { key: "r" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/retry_implementation",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("does not register the retry shortcut when no retry action is available", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
+    renderJobDetail(jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } }))
+
+    fireEvent.keyDown(window, { key: "r" })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("toggles pin immediately on the shortcut path, without a confirmation dialog", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Pinned." }))
+    renderJobDetail(jobPayload({ pinned: false }))
+
+    fireEvent.keyDown(window, { key: "p" })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/pin",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("groups the header-action shortcuts under the Job Detail heading in the help modal", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    const withActions = { ...payload, actions: { ...payload.actions, can_approve: true } }
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+            <JobDetailView
+              activeTab="summary"
+              onSelectTab={() => {}}
+              payload={withActions}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+            <ShortcutsHelpModal onClose={() => {}} open />
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    const heading = screen.getByRole("heading", { name: "Job Detail", level: 3 })
+    const group = heading.closest("div") as HTMLElement
+    expect(within(group).getByText("Approve")).toBeInTheDocument()
+    expect(within(group).getByText("Pin")).toBeInTheDocument()
   })
 })
 
@@ -2452,16 +2720,18 @@ function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summ
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-        {options.showLocation ? <LocationProbe /> : null}
-        <JobDetailView
-          activeTab={options.activeTab || "summary"}
-          onSelectTab={() => {}}
-          payload={payload}
-          prefix="/app-shell"
-          queryKey={["jobs", "1", "detail", ""]}
-        />
-      </MemoryRouter>
+      <ShortcutsProvider>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+          {options.showLocation ? <LocationProbe /> : null}
+          <JobDetailView
+            activeTab={options.activeTab || "summary"}
+            onSelectTab={() => {}}
+            payload={payload}
+            prefix="/app-shell"
+            queryKey={["jobs", "1", "detail", ""]}
+          />
+        </MemoryRouter>
+      </ShortcutsProvider>
     </QueryClientProvider>
   )
 }
@@ -2504,15 +2774,17 @@ function renderJobSource(payload: JobDetailPayload = jobPayload()) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=source"]}>
-        <JobDetailView
-          activeTab="source"
-          onSelectTab={() => {}}
-          payload={payload}
-          prefix="/app-shell"
-          queryKey={["jobs", "1", "detail", ""]}
-        />
-      </MemoryRouter>
+      <ShortcutsProvider>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1?tab=source"]}>
+          <JobDetailView
+            activeTab="source"
+            onSelectTab={() => {}}
+            payload={payload}
+            prefix="/app-shell"
+            queryKey={["jobs", "1", "detail", ""]}
+          />
+        </MemoryRouter>
+      </ShortcutsProvider>
     </QueryClientProvider>
   )
 }
