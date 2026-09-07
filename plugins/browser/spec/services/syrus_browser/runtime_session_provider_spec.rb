@@ -67,7 +67,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       launcher = instance_double(SyrusBrowser::PreviewLauncher)
       allow(SyrusBrowser::PreviewLauncher).to receive(:new).and_return(launcher)
       expect(launcher).to receive(:launch!).with(port: 3001).and_return(
-        SyrusBrowser::PreviewLauncher::Result.new(pid: 1, port: 3001, url: "http://localhost:3001")
+        SyrusBrowser::PreviewLauncher::Result.new(pid: 424_242, port: 3001, url: "http://localhost:3001")
       )
 
       provider.start_session("/workspace/chat-1", {})
@@ -76,17 +76,17 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
 
   describe "#build_or_reload" do
     it "kills the existing preview process and starts a fresh one" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 111, port: 3001)
+      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_243, port: 3001)
       allow(SyrusBrowser::PreviewProcessRegistry).to receive(:kill).with(runtime_session.workspace_ref).and_call_original
 
-      result = SyrusBrowser::PreviewLauncher::Result.new(pid: 222, port: 3001, url: "http://localhost:3001")
+      result = SyrusBrowser::PreviewLauncher::Result.new(pid: 424_244, port: 3001, url: "http://localhost:3001")
       launcher = instance_double(SyrusBrowser::PreviewLauncher, launch!: result)
       allow(SyrusBrowser::PreviewLauncher).to receive(:new).and_return(launcher)
 
       provider.build_or_reload(runtime_session.id, {})
 
       expect(SyrusBrowser::PreviewProcessRegistry).to have_received(:kill).with(runtime_session.workspace_ref)
-      expect(SyrusBrowser::PreviewProcessRegistry.get(runtime_session.workspace_ref)).to eq(pid: 222, port: 3001)
+      expect(SyrusBrowser::PreviewProcessRegistry.get(runtime_session.workspace_ref)).to eq(pid: 424_244, port: 3001)
     end
   end
 
@@ -96,7 +96,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
     end
 
     it "navigates the session's browser to the dev server URL via NavigateTool" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 1, port: 4000)
+      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_245, port: 4000)
       response = MCP::Tool::Response.new([ { type: "text", text: "navigated" } ])
       expect(SyrusBrowser::NavigateTool).to receive(:call)
         .with(server_context: { runtime_session: runtime_session }, url: "http://127.0.0.1:4000/")
@@ -108,7 +108,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
     end
 
     it "honors an explicit path option" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 1, port: 4000)
+      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_245, port: 4000)
       response = MCP::Tool::Response.new([])
       expect(SyrusBrowser::NavigateTool).to receive(:call)
         .with(server_context: { runtime_session: runtime_session }, url: "http://127.0.0.1:4000/dashboard")
@@ -180,7 +180,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
 
   describe "#stop_session" do
     it "kills both the browser session and the preview process" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 1, port: 3001)
+      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_246, port: 3001)
       allow(SyrusBrowser::SessionRegistry).to receive(:kill)
 
       expect(provider.stop_session(runtime_session.id)).to be true
