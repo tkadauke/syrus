@@ -59,6 +59,7 @@ class ChatSession < ApplicationRecord
   has_many :queued_messages, -> { pending.order(:created_at, :id) }, class_name: "ChatQueuedMessage"
   has_many :scratchpad_items, -> { ordered }, class_name: "ChatScratchpadItem", dependent: :destroy
   has_many :video_walkthroughs, class_name: "VideoWalkthroughs::Walkthrough", dependent: :destroy
+  has_many :chat_shell_commands, dependent: :destroy
   has_many :wakeups, class_name: "ChatWakeup", dependent: :destroy
   has_many :scheduled_messages, class_name: "ScheduledChatMessage", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
@@ -319,6 +320,10 @@ class ChatSession < ApplicationRecord
     SpawnedProcess.live_agent
                   .where(workdir: workspace_root.to_s)
                   .exists?
+  end
+
+  def shell_command_in_flight?
+    chat_shell_commands.running.exists?
   end
 
   def cumulative_cost

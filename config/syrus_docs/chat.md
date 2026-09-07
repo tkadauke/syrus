@@ -302,6 +302,43 @@ chat's own Coding Mode turn rather than a separate execution path. See
 `skills.md`'s "Slash-command execution in chat" section for the full
 resolution, Coding Mode gating, and handoff-confirmation behavior.
 
+## One-shot shell commands in Coding Mode (EPIC-323)
+
+`POST /api/v1/app/chats/:chat_id/shell_commands` runs a single, user-supplied
+shell command against a Coding Mode chat session's persistent `ChatWorkspace`
+checkout (the same long-lived clone Coding Mode turns edit — not an ephemeral
+workspace). It is currently an API-level primitive only: the composer's `!`
+trigger and the chat rendering of command output are separate follow-up Jobs
+under EPIC-323.
+
+Requirements enforced by the endpoint and `ChatShellCommandJob`:
+
+- Gated on `Feature.coding_mode_enabled?`, the chat being in `coding` mode,
+  a repository attached with an active coding checkout, and the same
+  repository write-tier check Job mutations use (`RepositoryPolicy#write?`
+  via `BaseController#authorize_repository_write!`).
+- Only one command may run at a time per chat session, and a command is
+  refused while an agent turn already owns the checkout
+  (`turn_in_flight?`/`agent_busy?`). `ChatShellCommandJob` also joins
+  `ChatTurnJob::CONCURRENCY_GROUP` so the two can never touch the checkout
+  concurrently.
+- Execution reuses `ProcessRunner` (env scrubbing, `SpawnedProcess`
+  registration) rather than the Terminal plugin's `PTY.spawn` model — this is
+  a request/response command, not an interactive shell. There is no enforced
+  wall-clock timeout by default (the operator has accepted the same risk
+  profile as already running the Terminal plugin), only a very large
+  (24-hour) backstop.
+- `POST /api/v1/app/chats/:chat_id/shell_commands/:id/cancel` kills an
+  in-flight command by stamping the associated `SpawnedProcess`'s existing
+  `kill_requested_at` switch — the same cross-pod kill mechanism the admin
+  Processes page uses.
+- On completion or cancellation, the command and its captured combined
+  stdout+stderr (capped at `ChatShellCommand::MAX_OUTPUT_BYTES`) are recorded
+  on a `ChatShellCommand` row, and a `role: "user"` `ChatMessage` carrying
+  `content["chat_shell_command_id"]` is always posted and a normal
+  `ChatTurnJob` is enqueued so the agent sees and responds to the command and
+  its output.
+
 Independently of bookmarks, user and assistant messages can be pinned via
 `ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on
 the same `pinnable?` role restriction as `bookmarkable?`. Pin state is shared
