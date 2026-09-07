@@ -170,6 +170,230 @@ ways it can be broken have different severity:
   (matching its documented never-raises contract) and reports it through
   `Diagnostics#error` instead.
 
+## Monorepo layout patterns
+
+DOC-20 lists a handful of representative monorepo layouts to prove the
+`project:` primitive isn't just "one folder equals one project." Every
+pattern below uses only what's implemented today — nested `.syrus.yml`
+discovery, the `project:` id/label/kind/path fields, and each legacy
+section's own file-glob scoping (`formatters[].files`, `generated[].sources`,
+`grade[].when_files_changed`). None of it relies on explicit `targets:` or
+dependency edges (DOC-20 "Level 2/3"), which don't exist yet.
+
+The rule that decides every layout below: **one `.syrus.yml` file compiles
+into exactly one project.** Two files can never share a project — two nested
+files (or a nested file and the root) that resolve to the same `project.id`
+fail compilation naming both files rather than merging (see "Nested
+`.syrus.yml` discovery" above). So "how many projects does this repo have"
+is really "how many `.syrus.yml` files does it have," and laying out a
+project boundary that spans more than one subdirectory means putting a
+single file where those subdirectories meet and scoping its entries with
+globs — not adding a nested file inside each one.
+
+### One root app, no subprojects
+
+No config beyond the root `.syrus.yml`. Everything compiles into the
+implicit root project (`//:repo`); an explicit `project:` block here is
+optional, and only useful to override the default `"Repository"` label.
+
+```yaml
+# .syrus.yml
+prepare:
+  - bundle install
+grade:
+  - name: rspec
+    run: bin/rspec-fast
+```
+
+### One folder per project
+
+The common case: give each top-level directory its own `.syrus.yml`. Nested
+discovery turns each into its own implicit project (id/label derived from
+its path), no `project:` block required.
+
+```yaml
+# api/.syrus.yml
+grade:
+  - name: tests
+    run: bin/rspec-fast
+
+# web/.syrus.yml
+grade:
+  - name: tests
+    run: npm test
+```
+
+Compiles to `//api:grade/tests` under implicit project `api` and
+`//web:grade/tests` under implicit project `web`.
+
+### Frontend and backend as one product project
+
+Don't create `frontend/.syrus.yml` and `backend/.syrus.yml` — per the rule
+above, two files can never resolve to the same project, so that layout would
+always produce two projects, not one. Instead declare a single file at the
+directory that contains both, and scope each grader to its half with its own
+glob:
+
+```yaml
+# app/.syrus.yml
+project:
+  id: app
+  label: App
+  kind: web_app
+
+grade:
+  - name: backend-tests
+    run: bin/rspec-fast
+    when_files_changed: ["backend/**"]
+  - name: frontend-tests
+    run: npm test
+    when_files_changed: ["frontend/**"]
+```
+
+`app/backend/` and `app/frontend/` get no `.syrus.yml` of their own.
+
+### Desktop project with renderer, Electron main, packaging, and updater targets
+
+Same shape as above, one level in: a single `desktop/.syrus.yml` with one
+`project:` block and several grade/formatter entries, each scoped to its own
+sub-area:
+
+```yaml
+# desktop/.syrus.yml
+project:
+  id: desktop
+  label: Desktop App
+  kind: desktop_app
+
+formatters:
+  - command: npx eslint --fix
+    files: ["renderer/**/*.ts", "renderer/**/*.tsx"]
+
+grade:
+  - name: renderer-typecheck
+    run: npm --prefix renderer run typecheck
+    when_files_changed: ["renderer/**"]
+  - name: main-typecheck
+    run: npm --prefix electron run typecheck
+    when_files_changed: ["electron/**"]
+  - name: package
+    run: npm run build:package
+    when_files_changed: ["renderer/**", "electron/**", "package.json"]
+  - name: updater-manifest
+    run: bin/check-updater-manifest
+    when_files_changed: ["updater/**"]
+```
+
+Renderer, Electron main, packaging, and the updater all stay part of one
+operator-facing project even though they're four different subdirectories
+with four different toolchains.
+
+### Plugin ecosystems where many targets may belong to one project
+
+If the plugins share one operator boundary (reviewed together, one coverage
+policy), keep them as one project the same way: a single `plugins/.syrus.yml`
+with one grade entry per plugin, each scoped to its own subdirectory.
+
+```yaml
+# plugins/.syrus.yml
+project:
+  id: plugins
+  label: Plugins
+  kind: plugin_ecosystem
+
+grade:
+  - name: claude_agent-tests
+    run: bin/rspec-fast plugins/claude_agent
+    when_files_changed: ["claude_agent/**"]
+  - name: codex_agent-tests
+    run: bin/rspec-fast plugins/codex_agent
+    when_files_changed: ["codex_agent/**"]
+```
+
+If a plugin instead needs its own operator-facing boundary — its own
+preview, its own coverage threshold — give it its own nested `.syrus.yml`
+instead. That's "one folder per project" again, just applied one directory
+deeper (`plugins/claude_agent/.syrus.yml`).
+
+### Shared generated clients as targets but not projects
+
+A generated client (an OpenAPI- or protobuf-generated SDK, for example) is a
+target — the `generated:` entry that regenerates it, plus whatever grader
+glob watches it — not a project: no operator picks it from a preview
+selector or sets a coverage threshold on it by itself. Don't give it its own
+nested `.syrus.yml`; declare it as a `generated:` entry in the project that
+owns it:
+
+```yaml
+# api/.syrus.yml
+generated:
+  - command: buf generate --template buf.gen.yaml
+    sources: "proto/**/*.proto"
+    generates:
+      - "clients/typescript/**"
+      - "clients/go/**"
+```
+
+If more than one project consumes the generated output, repeat the relevant
+`generated:` entry, or a `when_files_changed`/`sources` glob reaching into
+the shared source directory, in each consuming project's own file — see the
+next section for why that repetition is necessary today.
+
+### iOS and Android as separate projects consuming shared API targets
+
+Two nested files, one project each — this is "one folder per project" for
+the platform-specific code:
+
+```yaml
+# ios/.syrus.yml
+project:
+  id: ios
+  label: iOS
+  kind: mobile_app
+
+grade:
+  - name: xctest
+    run: bin/ios-test
+    when_files_changed: ["ios/**", "shared/api/**"]
+
+# android/.syrus.yml
+project:
+  id: android
+  label: Android
+  kind: mobile_app
+
+grade:
+  - name: gradle-test
+    run: ./gradlew test
+    when_files_changed: ["android/**", "shared/api/**"]
+```
+
+Because there's no dependency-edge primitive yet (DOC-20 "Level 2/3"), each
+project has to name the shared API directory in its own
+`when_files_changed` glob to be re-graded when it changes — Syrus doesn't
+yet propagate "the shared target changed" from a shared target to the
+projects that consume it.
+
+### Implicit directory projects vs. explicit `project:`
+
+- Use the implicit default (no `project:` block) whenever the directory name
+  is already the right id and label — most one-folder-per-project layouts
+  need nothing else.
+- Declare `project.id` when two directories would otherwise derive colliding
+  ids (a top-level `apps-mobile/` and a nested `apps/mobile/` both deriving
+  id `apps-mobile`), or when the operator-facing boundary genuinely isn't
+  one folder — frontend+backend, desktop's four sub-areas, a plugin
+  ecosystem — and you're placing one file at the point where those
+  subdirectories meet.
+- Declare `project.label`/`project.kind` purely for a nicer operator-facing
+  name even when the id would derive fine on its own (`apps/desktop` derives
+  id `apps-desktop`, but the label "Desktop App" reads better).
+- `project:` only ever applies to the one file that declares it. It cannot
+  fuse two separately-discovered nested `.syrus.yml` files into one project
+  — if a layout needs one project spanning several subdirectories, put a
+  single file at their common point and scope its entries with globs instead
+  of adding a nested file inside each subdirectory.
+
 ## Diagnostics
 
 The `prepare` step compiles the workspace's target graph once per Run purely
