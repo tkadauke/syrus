@@ -534,9 +534,12 @@ CLI/TUI process, and so on). Core owns the `RuntimeSession` record —
 lifecycle state, ownership, capabilities, artifacts — while a plugin per
 platform supplies the execution.
 
-As of this writing only the model and the registry skeleton exist; no bundled
-plugin registers a concrete provider yet (the browser provider is later work
-in EPIC-319). This section documents the interface contributors implement.
+The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
+concrete provider (EPIC-319): a headless-Chromium session driving the repo's
+own dev server, built on the same `PreviewCommandSource` dev-server
+start/health-check plumbing the preview feature already uses (see
+`SyrusBrowser::PreviewLauncher`). This section documents the interface
+contributors implement.
 
 `provider_key`, `display_name`, `detect`, and `capabilities` are class
 methods, so a provider can be selected for a repository/config before any
@@ -580,6 +583,33 @@ RuntimeSessionProviders.for("browser")              # => provider class, or rais
 RuntimeSessionProviders.detect_for(repository, {})   # => first provider class whose .detect matches, or nil
 RuntimeSessionProviders.all                          # => every registered provider class
 ```
+
+**Context-aware tools: two independent axes.** The browser provider does not
+reimplement browser automation — its `#snapshot`/`#inspect` delegate into the
+same `browser_*` MCP tool classes (`SyrusBrowser::ScreenshotTool`,
+`SyrusBrowser::SnapshotTool`, ...) that workflow `visual_review` steps already
+call, by passing a `server_context` shaped `{ runtime_session: session }`.
+Making a tool that already assumed "the current session is a workflow Run"
+usable from a Coding Mode chat's `RuntimeSession` splits into two independent
+resolutions, both derived from the same call context — don't conflate them:
+
+- **Session-owner routing** (`SyrusBrowser::SessionContext.resolve`) — which
+  live browser session (keyed in `SyrusBrowser::SessionRegistry`) does this
+  call operate on? Checks, in order: an explicit `:runtime_session` key (set
+  by the provider itself when delegating), then `:chat_session` (a live chat
+  MCP call, resolved to that chat's active browser `RuntimeSession`), then
+  falls back to the existing Run-based resolution. Local Mode's daemon-routed
+  browser is a deliberately unimplemented third branch here — DOC-16's own
+  broker work adds it later.
+- **Artifact-sink routing** (`SyrusBrowser::ArtifactSinks`) — where does
+  captured evidence (a screenshot) get filed? A `Null` sink for the Run path
+  (unchanged — the `visual_review` agent still files evidence explicitly via
+  `submit_visual_artifact`) or a `ChatMedia` sink for Coding Mode, which
+  writes a chat-visible `Document` via `ChatMediaLibrary.materialize_captured_image!`.
+
+A tool opts into the artifact-sink axis with `captures_artifact!` (see
+`SyrusBrowser::BrowserTool`); most proxied actions (click, fill, navigate)
+have nothing to capture and leave it off.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
