@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
-import { useLocation } from "react-router-dom"
+import { matchPath, useLocation } from "react-router-dom"
 import { fetchAdminPluginPages } from "./api/adminPluginPages"
 import { useT } from "./hooks/useT"
 
@@ -42,8 +42,14 @@ export function pluginAdminComponentFor(key: string | null | undefined) {
   return Component
 }
 
-export function PluginAdminPageRoute() {
-  const { t } = useT("admin")
+/**
+ * Resolves the plugin admin page that owns the current URL, if any.
+ *
+ * Paths are matched with React Router's own matcher rather than string
+ * equality, mirroring `usePluginSidebarPage` -- a declared path can carry
+ * parameters, which cannot be matched by comparing text.
+ */
+export function usePluginAdminPage() {
   const location = useLocation()
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
   const pages = useQuery({
@@ -52,12 +58,20 @@ export function PluginAdminPageRoute() {
     staleTime: 30_000
   })
 
-  if (pages.isPending) {
+  const page = pages.data?.pages.find((candidate) =>
+    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
+  )
+
+  return { isPending: pages.isPending, page, Component: pluginAdminComponentFor(page?.component) }
+}
+
+export function PluginAdminPageRoute() {
+  const { t } = useT("admin")
+  const { isPending, page, Component } = usePluginAdminPage()
+
+  if (isPending) {
     return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
   }
-
-  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => path === normalizedPath))
-  const Component = pluginAdminComponentFor(page?.component)
 
   if (!page || !Component) {
     return (
