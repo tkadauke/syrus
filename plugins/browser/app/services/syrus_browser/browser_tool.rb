@@ -36,12 +36,37 @@ module SyrusBrowser
         !!@captures_artifact
       end
 
+      # Opt-in flag for tools that deliver real pointer/keyboard input to a
+      # shared Runtime Session (DOC-17's Shared Human/Agent Control) -- click,
+      # fill, hover. These are the only working way to drive pointer/keyboard
+      # input today (RuntimeSessionProvider#input itself still answers
+      # "not_yet_supported"), so without this check an agent could bypass the
+      # runtime_acquire_control lease entirely by calling these tools
+      # directly instead of going through runtime_input. Navigate/resize/
+      # close/snapshot/screenshot/wait_for stay ungated: navigation is also
+      # how runtime_launch drives the initial page load (which must not
+      # itself require a pre-acquired lease), and the rest are observational
+      # or session-lifecycle actions, not "input" in DOC-17's capability
+      # sense. Enforcement only applies when the call targets an actual
+      # RuntimeSession (a Coding Mode chat) -- the workflow Run path
+      # (visual_review) has no lease concept and is unaffected.
+      def requires_input_lease!
+        @requires_input_lease = true
+      end
+
+      def requires_input_lease?
+        !!@requires_input_lease
+      end
+
       def call(server_context:, **params)
         params = normalize_argument_aliases(params)
         missing = missing_required_arguments(params)
         return error(missing_arguments_message(missing)) if missing.any?
 
         context = SessionContext.resolve(server_context)
+        lease_error = enforce_input_lease(context)
+        return lease_error if lease_error
+
         session = SessionRegistry.fetch(context.session_key)
         response = session.call_tool(name: upstream_tool_name, arguments: upstream_arguments(params))
         translate(response, artifact_sink: context.artifact_sink)
@@ -62,6 +87,24 @@ module SyrusBrowser
       end
 
       private
+
+      # Returns an error Response when this tool requires an input lease and
+      # the calling RuntimeSession's agent does not currently hold one; nil
+      # (proceed) otherwise, including for any call that does not target a
+      # RuntimeSession at all (the workflow Run path).
+      def enforce_input_lease(context)
+        return nil unless requires_input_lease?
+
+        runtime_session = context.owner
+        return nil unless runtime_session.is_a?(RuntimeSession)
+        return nil if runtime_session.active_agent_input_lease
+
+        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: { tool: tool_name })
+        error(
+          "lease_required: the agent must hold an active runtime_acquire_control(mode: \"input\") " \
+          "lease on this Runtime Session before calling #{tool_name}."
+        )
+      end
 
       def missing_required_arguments(params)
         required = Array(input_schema_value.to_h.dig(:required))
