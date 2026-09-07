@@ -28,14 +28,20 @@ presence on disk — discovery never infers a project boundary from
 `package.json`, `go.mod`, Rails directory conventions, or any other
 repository-structure signal.
 
-The walk excludes directories that are never real project configuration: VCS
-internals (`.git`), the workspace's own scratch directory (`.syrus`), and
-common dependency/vendor caches and build outputs (`node_modules`, `vendor`,
-`.bundle`, `tmp`, `log`, `coverage`, `dist`, `build`, `.next`, `.cache`).
-Discovered directories are always returned sorted, so nested config is always
-compiled in the same deterministic order regardless of filesystem iteration
-order — and always after the root `.syrus.yml`, which `TargetGraph::Compiler`
-compiles first.
+The walk always excludes VCS internals (`.git`) and the workspace's own
+scratch directory (`.syrus`) — neither is ever real project configuration,
+regardless of what the repository's `.gitignore` says. Everything else is
+excluded purely by asking git whether the containing directory is gitignored
+(a single batched `git check-ignore --stdin -z` call, not one process per
+candidate): a nested `.syrus.yml` sitting in a gitignored directory
+(`node_modules/`, `vendor/`, `dist/`, a custom build-output directory, or
+anything else the repository ignores) can never be committed, so it can
+never be an effective declaration. A workspace that isn't a git checkout (or
+has no `git` binary available) degrades to treating nothing as gitignored
+rather than raising. Discovered directories are always returned sorted, so
+nested config is always compiled in the same deterministic order regardless
+of filesystem iteration order — and always after the root `.syrus.yml`,
+which `TargetGraph::Compiler` compiles first.
 
 Each discovered nested `.syrus.yml` becomes its own directory-scoped
 `Project` (id and label derived from its relative path, e.g. `cli` for
