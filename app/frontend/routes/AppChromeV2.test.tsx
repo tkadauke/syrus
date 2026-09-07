@@ -1884,6 +1884,22 @@ describe("buildAdminNavItems", () => {
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.legacy")
   })
 
+  it("does not duplicate a plugin's admin page nav entry (agent_insights)", () => {
+    const { groups } = buildAdminNavItems({}, [{
+      id: "agent_insights.admin",
+      label: "Insights",
+      label_key: "agent_insights:nav_insights",
+      path: "/admin/insights",
+      paths: ["/admin/insights"],
+      order: 20,
+      group_id: "product_data"
+    }], translate)
+
+    const productDataGroup = groups.find(({ group }) => group.id === "product_data")
+    const insightsItems = productDataGroup?.items.filter((i) => i.label === "Insights") ?? []
+    expect(insightsItems).toHaveLength(1)
+  })
+
   it("sorts group items by order then label", () => {
     const { groups } = buildAdminNavItems({}, [
       { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
@@ -1906,10 +1922,14 @@ describe("buildAdminNavItems", () => {
     ])
   })
 
-  it("includes insights in the product_data group", () => {
-    const insights = CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")
-    expect(insights).toBeDefined()
-    expect(insights?.groupId).toBe("product_data")
+  it("includes scoped_chat_events in the product_data group", () => {
+    const scopedChatEvents = CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "scoped_chat_events")
+    expect(scopedChatEvents).toBeDefined()
+    expect(scopedChatEvents?.groupId).toBe("product_data")
+  })
+
+  it("does not duplicate a plugin-owned insights nav entry", () => {
+    expect(CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")).toBeUndefined()
   })
 })
 
