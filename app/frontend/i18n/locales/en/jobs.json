@@ -49,6 +49,9 @@
   "mark_valid": "Mark valid",
   "pin": "Pin",
   "unpin": "Unpin",
+  "shortcuts": {
+    "group": "Job Detail"
+  },
   "open_terminal_in_workspace": "Open terminal in workspace",
   "open_in_coding_mode": "Open in Coding Mode",
   "retry_failed_step": "Retry failed step",
@@ -59,6 +62,9 @@
   "confirm_retry_pr_ingestion": "Re-run PR ingestion against the current PR head? This starts a fresh ingestion workflow.",
   "confirm_rebase_cancels_running": "A workflow is currently running for this Job. Rebasing now will cancel it and start the rebase instead. Continue?",
   "confirm_unapprove": "Move this Job back to implemented?",
+  "confirm_approve_shortcut": "Approve this Job?",
+  "confirm_reopen_shortcut": "Reopen this Job?",
+  "confirm_retry_shortcut": "Retry this Job now?",
   "confirm_cancel": "Cancel any running work and close this Job?",
   "confirm_remove_from_backlog": "Remove this Job from the backlog and close it?",
   "confirm_stop_landing": "Stop landing this Job? It will move back to implemented and need to be re-approved.",
