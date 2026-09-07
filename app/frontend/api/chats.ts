@@ -60,6 +60,7 @@ export type ChatRecord = {
   has_chat_images?: boolean
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null
+  runtime_session_count?: number
   chat_effort?: string | null
 }
 
@@ -1367,4 +1368,77 @@ export type ChatJobStatusItem = ChatJobStatusEpicItem | ChatJobStatusJobItem
 export async function fetchChatJobStatus(chatId: string | number) {
   const payload = await getJson<unknown>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
   return Array.isArray(payload) ? (payload as ChatJobStatusItem[]) : []
+}
+
+// DOC-17 Runtime Sessions (Coding Mode right-sidebar Runtime panel).
+export type RuntimeControlLeaseOwner = "none" | "user" | "agent"
+export type RuntimeControlLeaseMode = "observe_only" | "input" | "build" | "lifecycle"
+export type RuntimeControlLeaseState = "active" | "released" | "cancelled" | "expired"
+
+export type RuntimeControlLease = {
+  id: number
+  owner: RuntimeControlLeaseOwner
+  owner_ref: string | null
+  mode: RuntimeControlLeaseMode
+  reason: string | null
+  state: RuntimeControlLeaseState
+  acquired_at: string | null
+  expires_at: string | null
+  cancellable: boolean
+}
+
+export type RuntimeSessionState = "starting" | "building" | "running" | "idle" | "failed" | "stopping" | "stopped"
+
+export const RUNTIME_SESSION_ACTIVE_STATES: RuntimeSessionState[] = [ "starting", "building", "running", "idle", "stopping" ]
+
+export type RuntimeSession = {
+  id: number
+  provider_key: string
+  display_name: string
+  state: RuntimeSessionState
+  primary: boolean
+  workspace_ref: string
+  capabilities: Record<string, unknown>
+  metadata: Record<string, unknown>
+  stream_url: string | null
+  latest_frame_url: string | null
+  latest_frame_at: string | null
+  last_error: string | null
+  active_agent_input_lease: RuntimeControlLease | null
+}
+
+export type RuntimeSessionLogs = {
+  entries: string[]
+  cursor: number | string
+}
+
+function runtimeSessionsBasePath(chatId: string | number) {
+  return `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/runtime_sessions`
+}
+
+export function fetchRuntimeSessions(chatId: string | number) {
+  return getJson<{ runtime_sessions: RuntimeSession[] }>(runtimeSessionsBasePath(chatId))
+}
+
+export function fetchRuntimeSession(chatId: string | number, sessionId: number) {
+  return getJson<RuntimeSession>(`${runtimeSessionsBasePath(chatId)}/${sessionId}`)
+}
+
+export function fetchRuntimeSessionLogs(chatId: string | number, sessionId: number, cursor?: number | string) {
+  const params = new URLSearchParams()
+  if (cursor !== undefined && cursor !== null) params.set("cursor", String(cursor))
+  const query = params.toString()
+  return getJson<RuntimeSessionLogs>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/logs${query ? `?${query}` : ""}`)
+}
+
+export function captureRuntimeArtifact(chatId: string | number, sessionId: number) {
+  return postJson<{ runtime_session: RuntimeSession }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/capture`)
+}
+
+export function takeRuntimeControl(chatId: string | number, sessionId: number, options: { mode?: RuntimeControlLeaseMode; reason?: string } = {}) {
+  return postJson<{ runtime_session: RuntimeSession; lease: RuntimeControlLease }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/take_control`, options)
+}
+
+export function releaseRuntimeControl(chatId: string | number, sessionId: number) {
+  return postJson<{ runtime_session: RuntimeSession; released: RuntimeControlLease[] }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/release_control`)
 }

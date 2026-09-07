@@ -19,19 +19,39 @@ module SyrusBrowser
     # step, so the capture path itself files it as a chat-visible Document,
     # via the same Document/ChatAttachment recipe ChatMediaLibrary already
     # uses for pasted/uploaded chat images.
+    #
+    # When the capture is attributed to a RuntimeSession (the runtime_snapshot/
+    # runtime_capture_artifact tools, or the Coding Mode Runtime panel's own
+    # capture action), also stamp `latest_frame_url`/`latest_frame_at` so the
+    # panel's periodic-screenshot polling (DOC-17's "Coding Mode Right
+    # Sidebar") has something to point at -- otherwise those columns are
+    # declared but never written.
     class ChatMedia
-      def initialize(chat_session)
+      def initialize(chat_session, runtime_session: nil)
         @chat_session = chat_session
+        @runtime_session = runtime_session
       end
 
       def capture(bytes:, content_type:, title:)
         return nil unless @chat_session
 
-        ChatMediaLibrary.materialize_captured_image!(
+        document = ChatMediaLibrary.materialize_captured_image!(
           @chat_session,
           bytes: bytes,
           content_type: content_type,
           title: title
+        )
+        stamp_latest_frame!(document) if @runtime_session
+        document
+      end
+
+      private
+
+      def stamp_latest_frame!(document)
+        @runtime_session.update!(
+          latest_frame_url: "/api/v1/app/chats/#{@chat_session.id}/runtime_sessions/#{@runtime_session.id}/frame",
+          latest_frame_at: Time.current,
+          metadata: @runtime_session.metadata.merge("latest_frame_document_id" => document.id)
         )
       end
     end
