@@ -21,11 +21,11 @@ RSpec.describe SmartFolder do
     expect(described_class.builtins.pluck(:name)).to eq([
       "All jobs",
       "Backlog",
+      "Triaging",
       "Pinned",
       "In progress",
       "Paused",
       "Queued",
-      "Triaging",
       "Invalid",
       "Awaiting Epic",
       "Inbox",
