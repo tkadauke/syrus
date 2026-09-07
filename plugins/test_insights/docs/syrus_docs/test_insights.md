@@ -210,6 +210,39 @@ Safe query boundaries:
   command spans. If the run was under CPU/IO/memory pressure, treat runtime
   deltas as infrastructure-correlated until a clean rerun confirms them.
 
+## Admin API
+
+Operators get the same data the MCP tools expose, reachable with a bearer
+token instead of a browser session or an agent run (`docs/api.md` has the
+general admin API auth model):
+
+- `GET /api/v1/admin/repositories/:repository_id/tests` — the admin twin of
+  `list_repository_test_insights`. Accepts `state` (alias `category`/`filter`)
+  with the same `recently_seen`/`failing`/`flaky`/`slow` values, `sort`/
+  `direction` (including `failure_rate` and the runtime sorts), `query`,
+  `grader_name`, `limit`, and a `filters` object for the summary/failure-rate
+  bounds. It's the same `TestInsights::Query` service the MCP tool calls, so
+  the two surfaces never drift onto different underlying data.
+- `GET /api/v1/admin/repositories/:repository_id/tests/:id` — the admin twin
+  of `read_test_insight`: one `TestIdentity`'s history, duration points, and
+  related refs, scoped to the given repository. Backed by `TestInsights::Detail`.
+- `GET /api/v1/admin/jobs/:job_id/test_results` — the admin twin of
+  `read_job_test_results`, backed by `TestInsights::RunResults.for_job`. Same
+  compact-by-default shape: pass `include_suites`/`include_slow_cases` to opt
+  into more detail, `grader_name` to scope to one grader.
+
+All three are plugin-owned routes (`plugins/test_insights/app/controllers/api/v1/admin/`);
+with the plugin disabled they answer `plugin_disabled` like every other
+disableable plugin's admin routes.
+
+A single malformed row (a `TestIdentity`, `TestCase`, or `TestRun` that fails
+to serialize -- typically a partially cleaned-up association) degrades to
+`{ id, type, error_serializing }` in place rather than 500ing the whole
+response, the same posture `Admin::JobStateSerializer` uses for nested Job
+state. This applies to `TestInsights::Query`, `TestInsights::Detail`, and
+`TestInsights::RunResults` directly, so the MCP tools inherit the same
+resilience.
+
 ## Configuring this for another repository
 
 1. Confirm the test runner can produce results in a format a registered
