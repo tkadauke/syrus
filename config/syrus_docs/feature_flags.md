@@ -2,7 +2,7 @@
 
 Syrus uses feature flags to gate experimental and operational behaviors. Flags are declared in `config/features.yml`, parsed through `FeatureRegistry`, and toggled in the admin UI under the Features tab (or via Rails console: `Feature.find_by(slug: 'slug').update(enabled: true)`).
 
-All current flags are typed booleans; most default to `false` (disabled), and `epicless_job_bundling` defaults to `true` (enabled). Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
+All flags are typed booleans. Most default to `false` (disabled); `epicless_job_bundling` defaults to `true` (enabled), and `coding_mode`, `local_mode`, and `visual_review` also default to `true` (enabled) since their September 2026 graduation out of Labs-preview status — they are code-complete, well-tested, and gated by product/security choice rather than incompleteness. An instance that explicitly turned one of these off keeps that choice: `Features::SyncFromYaml` only seeds `enabled` from `default` for a brand-new `Feature` row, never overwriting an existing operator override when the YAML default changes. Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
 
 ## chat_speech_to_text
 
@@ -14,7 +14,7 @@ The only registered backend today is `whisper_cpp`, a local subprocess (via `Pro
 
 ## coding_mode
 
-**Category:** Labs
+**Category:** Labs · **On by default**
 
 Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writable full clone so the agent can implement code directly during a chat session instead of just planning. New chat-authored work starts on the repository default branch; accepted `submit_coding_changes` captures the current HEAD to an immutable `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, dispatches a `coding_handoff` workflow, then resets the chat checkout to the repository default branch tip and queues prep again for the next Coding Mode turn. Existing Job work can still use that Job's branch and hand off with `complete_implement_step`. Handoff paths require operator confirmation before dispatching automation unless an active coding/local Chat Goal has `auto_submit_jobs` enabled; in that case `submit_coding_changes` records the pending action and auto-enqueues its confirmation. Once dispatched, the workflow owns grader repair with fresh workflow-agent turns; the original chat is only notified passively.
 
@@ -33,15 +33,15 @@ Reclamation is safe and transparent: before deleting, standalone default-branch 
 
 ## local_mode
 
-**Category:** Labs
+**Category:** Labs · **On by default**
 
 Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone. Pairing the CLI to a chat requires a `--chat`/`--token` command copied from the chat UI's Local Mode banner — see the Local Mode documentation for the full pairing flow.
 
 ## visual_review
 
-**Category:** Labs
+**Category:** Labs · **On by default**
 
-Instance-wide default for the visual_review Labs feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review. `Feature.visual_review_enabled?` is the instance-wide default; when enabled instance-wide, a repository's `.syrus.yml` `visual_review.enabled` setting can still override the default per repo (and vice versa when disabled instance-wide). See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
+Instance-wide default for the visual_review feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects before opening a PR, capturing screenshot artifacts for operator review. `Feature.visual_review_enabled?` is the instance-wide default; when enabled instance-wide, a repository's `.syrus.yml` `visual_review.enabled` setting can still override the default per repo (and vice versa when disabled instance-wide). See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction, and the `visual_review` section of the `.syrus.yml` reference for the per-repo `rounds`, `when_files_changed`, and `seed_notes` fields.
 
 ## admin_supervisor_chat
 

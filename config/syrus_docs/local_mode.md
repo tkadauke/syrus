@@ -2,17 +2,17 @@
 
 Local Mode lets a chat agent read and write files, run commands, and inspect
 git state directly on an operator's own machine over a reverse WebSocket
-tunnel — no server-side clone required. It is a labs feature (`local_mode`),
-disabled by default.
+tunnel — no server-side clone required. It is gated by the `local_mode`
+feature flag, enabled by default.
 
-## Enabling
+## Disabling
 
 ```ruby
-Feature.find_by(slug: 'local_mode').update(enabled: true)
+Feature.find_by(slug: 'local_mode').update(enabled: false)
 ```
 
-Once enabled, chats can be switched to Local mode from the chat mode
-selector, and the `syrus local` CLI subcommand becomes usable.
+While enabled, chats can be switched to Local mode from the chat mode
+selector, and the `syrus local` CLI subcommand is usable.
 
 ## Pairing flow
 
