@@ -536,7 +536,6 @@ Rails.application.routes.draw do
 
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
-  get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
   get "repositories/:repository_id/scheduled_tasks", to: "spa#show", as: :repository_scheduled_tasks
   get "cron_templates/new", to: "spa#show", as: :new_cron_template
   get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }
