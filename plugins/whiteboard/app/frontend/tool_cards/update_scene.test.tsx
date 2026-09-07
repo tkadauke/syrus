@@ -40,4 +40,14 @@ describe("update_scene tool card", () => {
   it("falls back to null for a non-object payload", () => {
     expect(updateSceneToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()
   })
+
+  it("falls back to null instead of fabricating '0 elements' when input is absent (the collapsed-row dispatch case)", () => {
+    // Collapsed-row dispatch never carries `input` (see toolRendering.ts's
+    // toolResultPresentation) -- only the expanded view gets it. Without a
+    // real input this card has no counts to report and must not claim
+    // "0 elements", which would misrepresent every real replacement.
+    const parsedResult = { replaced: true, version: 5 }
+    expect(updateSceneToolCard.collapsedSummary?.(context({ parsedResult }))).toBeNull()
+    expect(updateSceneToolCard.renderExpanded(context({ parsedResult }))).toBeNull()
+  })
 })
