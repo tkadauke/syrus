@@ -123,6 +123,37 @@ under that project the exact same way the root file's sections do —
 `.syrus.yml` compilation is completely unaffected: a repository with no
 nested config compiles exactly as it did before nested discovery existed.
 
+### Affected-file scope defaults
+
+`TargetGraph::Compiler#scoped_source_scope` gives every compiled
+formatter/generator/grader target's `source_scope` (its affected-file
+scope — a `formatter.files`, `generated.sources`, or grader
+`when_files_changed` selector) a default based on where it was declared,
+not on whether it's the root file:
+
+- A declaration with an explicit file selector has that selector's globs
+  resolved relative to the directory of the `.syrus.yml` that declared it
+  — `files: ["**/*.go"]` in `cli/.syrus.yml` becomes `source_scope:
+  ["cli/**/*.go"]`, not the literal (repo-rooted) `**/*.go`.
+- A declaration with no explicit selector at all defaults to that entire
+  directory — a nested `cli/.syrus.yml` grader with no `when_files_changed`
+  gets `source_scope: ["cli/**/*"]` instead of the unscoped `[]` a legacy
+  root grader with no selector gets.
+
+The root `.syrus.yml`'s directory is the repository root, so both rules
+collapse to the existing repo-wide behavior there: an explicit root
+selector resolves unchanged (no `//`-rooted prefix to add), and a root
+declaration with no selector stays unscoped (`source_scope: []`, meaning
+"always runs," the same as before this default existed). This falls out of
+resolving every selector relative to its own directory — there is no
+dedicated "is this the root config" branch. Root and nested scopes compose
+additively in the same graph: a repo-wide root grader and a
+directory-scoped nested grader coexist with their own independent
+`source_scope`, neither widening nor narrowing the other. `prepare:` is
+never routed through this: it has no file-selector primitive and stays the
+unconditional pre-implementation baseline in both the root and nested
+case (see "Prepare Semantics" in DOC-20).
+
 A broken nested `.syrus.yml` is reported, never silently dropped, but the two
 ways it can be broken have different severity:
 
