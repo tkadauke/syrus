@@ -172,5 +172,27 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
 
       expect(preview).to eq("#{first_paragraph}\n\n#{(['beta'] * 40).join(' ')}…")
     end
+
+    it "drops a leading heading that just restates the doc's own title" do
+      doc = described_class.create!(
+        owner_user: owner,
+        title: "Interactive Runtime Sessions for Coding Mode",
+        markdown: "# Interactive Runtime Sessions for Coding Mode\n\nRelationship To DOC-16"
+      )
+
+      expect(doc.preview_text).to eq("Relationship To DOC-16")
+    end
+
+    it "drops a title heading regardless of case or heading level" do
+      doc = described_class.create!(owner_user: owner, title: "Checkout Design", markdown: "## checkout design\nBody text.")
+
+      expect(doc.preview_text).to eq("Body text.")
+    end
+
+    it "keeps a leading heading that differs from the title" do
+      doc = described_class.create!(owner_user: owner, title: "Headed", markdown: "# Overview\nAlpha beta gamma.")
+
+      expect(doc.preview_text).to eq("# Overview\nAlpha beta gamma.")
+    end
   end
 end
