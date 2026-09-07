@@ -47,6 +47,9 @@
   "mark_valid": "Validum marca",
   "pin": "Fige",
   "unpin": "Defige",
+  "shortcuts": {
+    "group": "Opus"
+  },
   "open_terminal_in_workspace": "Terminale in spatio operis aperi",
   "open_in_coding_mode": "Aperi in Modo Codificandi",
   "retry_failed_step": "Gradum defectum itera",
@@ -57,6 +60,9 @@
   "confirm_retry_pr_ingestion": "Susceptionem PR contra caput PR currens iterum exsequi? Hoc novum cursum susceptionis incipiet.",
   "confirm_rebase_cancels_running": "Cursus operis huic Operi nunc fit. Si nunc rebase facies, is cancellabitur et rebase pro eo incipiet. Pergere?",
   "confirm_unapprove": "Hoc Opus ad statum implementatum reducere?",
+  "confirm_approve_shortcut": "Hoc Opus probare?",
+  "confirm_reopen_shortcut": "Hoc Opus iterum aperire?",
+  "confirm_retry_shortcut": "Hoc Opus nunc iterum conari?",
   "confirm_cancel": "Laborem currentem cancellare et hoc Opus claudere?",
   "confirm_remove_from_backlog": "Hoc Opus ex backlog removere et claudere?",
   "confirm_stop_landing": "Descensum huius Operis sistere? Ad statum implementatum redibit et iterum probari debebit.",
