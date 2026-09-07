@@ -83,6 +83,49 @@ RSpec.describe RuntimeControlLease, type: :model do
         described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
       }.not_to raise_error
     end
+
+    it "reaps a time-expired active holder before checking for a conflict, without waiting for a background sweep" do
+      session = build_session
+      stale = described_class.acquire!(runtime_session: session, owner: "agent", mode: "input")
+
+      travel_to(stale.expires_at + 1.second) do
+        described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+      end
+
+      expect(stale.reload.state).to eq("expired")
+    end
+
+    # A `SELECT ... FOR UPDATE` conflict check can't lock rows that don't
+    # exist yet, so it can't stop two callers who both observe "no active
+    # lease" from both inserting one -- the exact TOCTOU race flagged in
+    # review. The real guarantee is the DB-level unique index on
+    # active_group_key (see the migration): unlike the app-level uniqueness
+    # validation, which runs a SELECT against each transaction's own
+    # snapshot, the index rejects a conflicting INSERT unconditionally. These
+    # two specs prove each half of that: the index itself rejects a raw
+    # duplicate even with Rails' own validation bypassed, and .acquire!
+    # correctly translates that DB-level rejection into Conflict instead of
+    # leaking ActiveRecord::RecordNotUnique.
+    describe "the active_group_key unique index is the real concurrency guarantee, not the app-level check" do
+      it "the DB rejects a second active row in the same group even when the Rails-level uniqueness validation is bypassed" do
+        session = build_session
+        first = described_class.acquire!(runtime_session: session, owner: "agent", mode: "input")
+
+        conflicting = described_class.new(runtime_session: session, owner: "user", mode: "input", state: "active", acquired_at: Time.current)
+        conflicting.active_group_key = first.active_group_key
+
+        expect { conflicting.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+      end
+
+      it ".acquire! converts a raw DB-level uniqueness violation into Conflict, simulating a genuinely concurrent second INSERT" do
+        session = build_session
+        allow(described_class).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique.new("Duplicate entry"))
+
+        expect {
+          described_class.acquire!(runtime_session: session, owner: "agent", mode: "input")
+        }.to raise_error(RuntimeControlLease::Conflict)
+      end
+    end
   end
 
   describe "validations" do
