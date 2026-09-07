@@ -295,6 +295,7 @@
     "open_help": "Tastaturkürzel anzeigen",
     "group_global": "Global",
     "title": "Tastaturkürzel",
+    "close": "Tastaturkürzel schließen",
     "empty": "Derzeit sind keine Tastaturkürzel aktiv."
   }
 }

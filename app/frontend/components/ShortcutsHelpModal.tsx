@@ -3,62 +3,56 @@ import { useActiveShortcuts, type ShortcutRegistration } from "../contexts/Short
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
 
-function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "")
-}
-
-const MODIFIER_LABELS: Record<string, { mac: string; other: string }> = {
-  mod: { mac: "⌘", other: "Ctrl" },
-  alt: { mac: "⌥", other: "Alt" },
-  shift: { mac: "⇧", other: "Shift" }
-}
-
-function formatKeyLabel(key: string): string {
-  if (key.length === 1) return key.toUpperCase()
-  return key.charAt(0).toUpperCase() + key.slice(1)
-}
-
-// Renders a combo string like "mod+shift+k" as platform-appropriate symbols
-// (⌘⇧K on Mac, Ctrl+Shift+K elsewhere).
+// Renders a combo string like "mod+enter" as title-cased tokens joined by
+// " + " (Mod + Enter). A bare symbol combo like "?" -- only reachable via
+// Shift on most layouts -- is left untouched rather than title-cased into
+// something that no longer matches the key the user actually presses.
 export function formatShortcutCombo(combo: string): string {
-  const mac = isMacPlatform()
   const parts = combo.split("+").map((part) => part.trim()).filter(Boolean)
-  const key = parts[parts.length - 1] ?? ""
-  const modifiers = parts.slice(0, -1)
-  const labels = modifiers.map((modifier) => MODIFIER_LABELS[modifier]?.[mac ? "mac" : "other"] ?? modifier)
-  const formatted = [...labels, formatKeyLabel(key)]
-  return mac ? formatted.join("") : formatted.join("+")
+  if (parts.length === 1 && parts[0].length === 1 && !/[a-z0-9]/i.test(parts[0])) return parts[0]
+  return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(" + ")
 }
 
-function groupShortcuts(shortcuts: ShortcutRegistration[]): Array<{ group: string; groupOrder: number; shortcuts: ShortcutRegistration[] }> {
-  const byGroup = new Map<string, { group: string; groupOrder: number; shortcuts: ShortcutRegistration[] }>()
+export interface ShortcutGroupSummary<T> {
+  group: string
+  groupOrder: number
+  items: T[]
+}
 
-  shortcuts.forEach((shortcut) => {
-    const existing = byGroup.get(shortcut.group)
+// Groups a live shortcut snapshot by each registration's `group` label,
+// ordered by the lowest groupOrder seen for that group (ties alphabetical by
+// group name). Items keep the registry's own order within a group.
+export function groupActiveShortcuts<T extends { group: string; groupOrder?: number }>(items: T[]): ShortcutGroupSummary<T>[] {
+  const byGroup = new Map<string, ShortcutGroupSummary<T>>()
+
+  items.forEach((item) => {
+    const groupOrder = item.groupOrder ?? 0
+    const existing = byGroup.get(item.group)
     if (existing) {
-      existing.shortcuts.push(shortcut)
+      existing.items.push(item)
+      existing.groupOrder = Math.min(existing.groupOrder, groupOrder)
     } else {
-      byGroup.set(shortcut.group, { group: shortcut.group, groupOrder: shortcut.groupOrder ?? 0, shortcuts: [shortcut] })
+      byGroup.set(item.group, { group: item.group, groupOrder, items: [item] })
     }
   })
 
-  return Array.from(byGroup.values())
-    .map((entry) => ({ ...entry, shortcuts: [...entry.shortcuts].sort((a, b) => a.description.localeCompare(b.description)) }))
-    .sort((a, b) => a.groupOrder - b.groupOrder || a.group.localeCompare(b.group))
+  return Array.from(byGroup.values()).sort((a, b) => a.groupOrder - b.groupOrder || a.group.localeCompare(b.group))
 }
 
+// Renders a live snapshot of the shortcut registry -- it reads the same
+// registry useShortcut writes to, so it can never list a shortcut that isn't
+// actually mounted and unshadowed right now.
 export function ShortcutsHelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useTranslation(["nav", "common"])
+  const { t } = useTranslation("nav")
   const shortcuts = useActiveShortcuts()
-  const groups = groupShortcuts(shortcuts)
+  const groups = groupActiveShortcuts<ShortcutRegistration>(shortcuts)
 
   return (
     <Modal label={t("nav:shortcuts.title")} onClose={onClose} open={open}>
       <header className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("nav:shortcuts.title")}</h2>
         <button
-          aria-label={t("common:close")}
+          aria-label={t("nav:shortcuts.close")}
           className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
           onClick={onClose}
           type="button"
@@ -74,7 +68,7 @@ export function ShortcutsHelpModal({ open, onClose }: { open: boolean; onClose: 
             <div key={entry.group}>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{entry.group}</h3>
               <ul className="mt-1.5 divide-y divide-gray-100 dark:divide-gray-800">
-                {entry.shortcuts.map((shortcut) => (
+                {entry.items.map((shortcut) => (
                   <li className="flex items-center justify-between gap-4 py-1.5 text-sm" key={`${shortcut.group}-${shortcut.keys}-${shortcut.id}`}>
                     <span className="text-gray-700 dark:text-gray-300">{shortcut.description}</span>
                     <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
