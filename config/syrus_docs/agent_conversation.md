@@ -6,7 +6,8 @@ node/edge causal graph of everything that fed into a Job's implementation --
 agent sessions, deterministic checks, and external triggers -- statically
 scoped to the current Job (no job picker; the Job is already the page
 context). It is core, not a plugin, and is a different surface from the
-`agent_activity` plugin's sessions-only feed (see `agent_activity.md`): this
+`agent_activity` plugin's sessions-only feed (see
+`plugins/agent_activity/docs/syrus_docs/agent_activity.md`): this
 tab additionally shows *why* an attempt started and *what checked it*, not
 just what an agent session said.
 
