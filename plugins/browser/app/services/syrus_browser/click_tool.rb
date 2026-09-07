@@ -18,5 +18,6 @@ module SyrusBrowser
 
     argument_aliases target: %i[ref]
     proxies "browser_click", element: "element", target: "target"
+    requires_input_lease!
   end
 end
