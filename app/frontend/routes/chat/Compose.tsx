@@ -103,11 +103,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
   // EPIC-323 `!` command mode (Coding Mode only): the shell command this
-  // composer instance most recently started, tracked locally rather than in
-  // ChatPayload/ChatRecord — there is no persisted read endpoint for it yet,
-  // only create/cancel. Cleared once the completion message
-  // (`chat_shell_command_id` matching) shows up in the transcript below.
-  const [shellCommand, setShellCommand] = useState<ChatShellCommandRecord | null>(null)
+  // composer instance is tracking, seeded from the payload's
+  // `chat_shell_command_in_flight` so a Compose remount (e.g. crossing the
+  // desktop/mobile layout breakpoint mid-command, JOB-4507 visual review)
+  // rehydrates the stop control instead of losing it. Local state still
+  // drives the UI moment-to-moment (immediate feedback on submit/cancel,
+  // before the next full payload refetch); cleared once the completion
+  // message (`chat_shell_command_id` matching) shows up in the transcript
+  // below.
+  const [shellCommand, setShellCommand] = useState<ChatShellCommandRecord | null>(() => payload.chat_shell_command_in_flight ?? null)
   const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; filterByPr?: boolean; jobState?: string; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)

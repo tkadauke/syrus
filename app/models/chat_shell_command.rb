@@ -38,4 +38,23 @@ class ChatShellCommand < ApplicationRecord
   def cancellable?
     running? && spawned_process.present? && spawned_process.running?
   end
+
+  # Shared wire shape for this record: the create/cancel endpoint responses
+  # (Api::V1::App::ChatShellCommandsController) and the chat payload's
+  # `chat_shell_command_in_flight` field (ChatSerialization#chat_payload) both
+  # render this exact hash so the composer can rehydrate from either source.
+  def as_command_json
+    {
+      id: id,
+      chat_session_id: chat_session_id,
+      command: command,
+      output: output,
+      outcome: outcome,
+      exit_status: exit_status,
+      started_at: started_at&.iso8601,
+      finished_at: finished_at&.iso8601,
+      running: running?,
+      cancellable: cancellable?
+    }
+  end
 end

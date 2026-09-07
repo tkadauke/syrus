@@ -702,6 +702,11 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
+  // Coding Mode only (EPIC-323): the chat session's currently-running `!`
+  // command, if any, so the composer can rehydrate its command-mode stop
+  // control across a remount (e.g. a desktop/mobile breakpoint crossing)
+  // instead of relying solely on its own local state.
+  chat_shell_command_in_flight?: ChatShellCommandRecord | null
   switching_provider: boolean
   has_more_older: boolean
   pending_proposal_count?: number

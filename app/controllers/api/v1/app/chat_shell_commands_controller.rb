@@ -45,7 +45,7 @@ module Api
 
           ChatShellCommandJob.perform_later(command_record.id)
 
-          render json: shell_command_json(command_record), status: :created
+          render json: command_record.as_command_json, status: :created
         end
 
         def cancel
@@ -70,7 +70,7 @@ module Api
 
           command_record.spawned_process.request_kill!(user: Current.user)
 
-          render json: shell_command_json(command_record.reload)
+          render json: command_record.reload.as_command_json
         end
 
         private
@@ -103,21 +103,6 @@ module Api
           end
 
           [ command_record, conflict ]
-        end
-
-        def shell_command_json(command_record)
-          {
-            id: command_record.id,
-            chat_session_id: command_record.chat_session_id,
-            command: command_record.command,
-            output: command_record.output,
-            outcome: command_record.outcome,
-            exit_status: command_record.exit_status,
-            started_at: command_record.started_at&.iso8601,
-            finished_at: command_record.finished_at&.iso8601,
-            running: command_record.running?,
-            cancellable: command_record.cancellable?
-          }
         end
       end
     end

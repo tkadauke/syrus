@@ -29,6 +29,10 @@ module ChatSerialization
       agent_busy = PerformanceLogging.phase("chat_payload.agent_busy", chat_id: chat_session.id) do
         chat_session.agent_busy?
       end
+      chat_shell_command_in_flight = PerformanceLogging.phase("chat_payload.chat_shell_command_in_flight", chat_id: chat_session.id) do
+        # Coding-mode-only feature (EPIC-323); skip the query for every other chat.
+        chat_session.coding? ? chat_session.chat_shell_commands.running.order(id: :desc).first&.as_command_json : nil
+      end
 
       {
         message: message,
@@ -38,6 +42,11 @@ module ChatSerialization
         chat_available: Current.user.chat_available?,
         turn_in_flight: turn_in_flight,
         agent_busy: agent_busy,
+        # The composer's `!` command mode rehydrates its running/cancellable
+        # state from this field on mount so a remount (e.g. crossing the
+        # desktop/mobile layout breakpoint) doesn't silently drop an
+        # in-flight ChatShellCommand's stop control (JOB-4507 visual review).
+        chat_shell_command_in_flight: chat_shell_command_in_flight,
         switching_provider: false,
         has_more_older: has_more_older,
         pending_proposal_count: counts.fetch(:proposed_proposals),
