@@ -3,6 +3,7 @@ import type { ThemedToken } from "@shikijs/core"
 import { Button } from "../Button"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
+import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
 import {
   CONTEXT_EXPAND_LINE_INCREMENT,
@@ -743,6 +744,7 @@ export function UnifiedDiffTable({
   testId?: string
 }) {
   const lines = useMemo(() => linesProp ?? parseUnifiedDiff(file.patch || ""), [linesProp, file.patch])
+  const { t } = useT("common")
   const lang = detectHighlighterLanguage(file.path)
   const tokensByLine = useHighlightedDiffLines(lines, lang)
   const [localHighlight, setLocalHighlight] = useState<string | null>(null)
@@ -856,14 +858,14 @@ export function UnifiedDiffTable({
                   <td className="border-r border-brand/20 max-md:hidden" colSpan={2} />
                   <td className="text-brand max-md:hidden">*</td>
                   <td className="px-3 py-2 max-md:p-0" colSpan={2}>
-                    <div className="space-y-2 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:space-y-0 max-md:bg-white max-md:dark:bg-gray-950">
+                    <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
                       <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Comment</h4>
-                        <button aria-label="Close" className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
+                        <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
                           <CloseIcon className="h-5 w-5" />
                         </button>
                       </div>
-                      <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:gap-2 max-md:overflow-auto max-md:p-3">
+                      <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
                         <textarea
                           aria-label="Comment"
                           autoFocus
