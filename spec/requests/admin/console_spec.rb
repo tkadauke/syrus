@@ -24,10 +24,16 @@ RSpec.describe "Admin operator console", type: :request do
     end
   end
 
+  it "serves the SPA shell for the retired legacy HTML console GET path instead of 404ing" do
+    sign_in_as(admin)
+
+    get "/admin/console/legacy"
+
+    expect(response).to be_successful
+    expect(response.body).to include('id="syrus-spa-root"')
+  end
+
   it "does not route the retired legacy HTML console endpoints" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/console/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
     expect {
       Rails.application.routes.recognize_path("/admin/console/pause_polling", method: :post)
     }.to raise_error(ActionController::RoutingError)

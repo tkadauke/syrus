@@ -51,10 +51,12 @@ RSpec.describe "Admin transcripts", type: :request do
     end
   end
 
-  it "does not route the retired legacy transcript endpoint" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/runs/#{run.id}/transcript/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
+  it "serves the SPA shell for the retired legacy transcript GET path instead of 404ing" do
+    sign_in_as(admin)
+    get "/admin/runs/#{run.id}/transcript/legacy"
+
+    expect(response).to be_successful
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 
   describe "GET /admin/runs/:run_id/transcript/download" do

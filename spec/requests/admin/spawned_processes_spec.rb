@@ -28,13 +28,16 @@ RSpec.describe "Admin spawned processes (HTML shell)", type: :request do
     end
   end
 
+  it "serves the SPA shell for retired legacy HTML process GET paths instead of 404ing" do
+    [ "/admin/processes/legacy", "/admin/processes/legacy/1" ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
+  end
+
   it "does not route the retired legacy HTML process endpoints" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/processes/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
-      Rails.application.routes.recognize_path("/admin/processes/legacy/1", method: :get)
-    }.to raise_error(ActionController::RoutingError)
     expect {
       Rails.application.routes.recognize_path("/admin/processes/1/kill", method: :post)
     }.to raise_error(ActionController::RoutingError)
