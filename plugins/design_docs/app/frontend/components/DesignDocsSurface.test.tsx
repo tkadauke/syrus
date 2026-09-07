@@ -814,6 +814,59 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("keeps Rich Text comment offsets correct for a selection made right after an in-place edit", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+    const markdown = "Intro line.\n\nTarget phrase to comment on."
+    const selected = "Target phrase to comment on."
+    const inserted = "REVISED "
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: markdown } })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+
+    // Simulate typing while the editor keeps focus: the full re-render effect
+    // intentionally skips the live DOM while focused (so it doesn't clobber the
+    // cursor), so this must exercise the incremental data-source-* patch on its
+    // own, without a masking full re-render.
+    editor.focus()
+    const introTextNode = Array.from(editor.querySelectorAll("[data-source-start]"))
+      .find((node) => node.textContent === "Intro line.")!
+      .firstChild as Text
+    introTextNode.data = inserted + introTextNode.data
+    fireEvent.input(editor)
+
+    const targetTextNode = Array.from(editor.querySelectorAll("[data-source-start]"))
+      .find((node) => node.textContent === selected)!
+      .firstChild!
+    const range = document.createRange()
+    range.setStart(targetTextNode, 0)
+    range.setEnd(targetTextNode, selected.length)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Still correct" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    const expectedOffset = markdown.indexOf(selected) + inserted.length
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: {
+        body: "Still correct",
+        start_offset: expectedOffset,
+        end_offset: expectedOffset + selected.length,
+        selected_markdown: selected,
+        selected_text: selected
+      }
+    })
+  })
+
   it("synchronizes focus between inline highlights and the comment rail", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
