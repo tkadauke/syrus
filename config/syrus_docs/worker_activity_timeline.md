@@ -18,10 +18,16 @@ are packed by the frontend from timestamps.
 ## Endpoints
 
 Gated the same way as the rest of the token-based REST admin API
-(`Authorization: Bearer <api_token>`, `User#admin?` required) by
-`Api::V1::Timeline::BaseController < Api::V1::Admin::BaseController`.
+(`Authorization: Bearer <api_token>`, `User#admin?` required), plus the
+`worker_timeline` plugin's own enabled flag (a disabled plugin answers
+`plugin_disabled`). The controller and routes are plugin-owned —
+`Api::V1::Admin::WorkerTimelineController < Api::V1::Admin::BaseController`
+under `plugins/worker_timeline/` — wrapping these same core query services;
+see `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md` for the
+plugin's full surface, including the session-authenticated equivalents the
+browser SPA calls.
 
-- `GET /api/v1/timeline/macro` — `Timeline::MacroQuery`. Params:
+- `GET /api/v1/admin/worker_timeline/macro` — `Timeline::MacroQuery`. Params:
   `from`/`to` (ISO8601; default window is the last hour),
   `repository_id`, `epic_id`, `job_id`, `hostname`, `status` (Workflow
   state; accepts a comma-separated list), `job_type` (`user` or `system`;
@@ -41,11 +47,12 @@ Gated the same way as the rest of the token-based REST admin API
   - `pending`: Workflows that haven't started yet (so they have no lane to
     place a span in) — `workflow_id`, `job_id`, `label`, `created_at`,
     `blocked`.
-- `GET /api/v1/timeline/workflows/:id` — `Timeline::WorkflowWaterfallQuery`.
-  Returns the target Workflow (with resolved `worker_storage_key`,
-  `queue_role`, `hostname`, and `pid`) plus its Steps, in order, each
-  carrying the same worker attribution (Step/Run have no host column of
-  their own) and its Runs (`started_at`, `finished_at`, `last_heartbeat_at`).
+- `GET /api/v1/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
+  `Timeline::WorkflowWaterfallQuery`. Returns the target Workflow (with
+  resolved `worker_storage_key`, `queue_role`, `hostname`, and `pid`) plus
+  its Steps, in order, each carrying the same worker attribution (Step/Run
+  have no host column of their own) and its Runs (`started_at`,
+  `finished_at`, `last_heartbeat_at`).
 
 ## Worker attribution
 
