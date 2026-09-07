@@ -613,6 +613,65 @@ A tool opts into the artifact-sink axis with `captures_artifact!` (see
 `SyrusBrowser::BrowserTool`); most proxied actions (click, fill, navigate)
 have nothing to capture and leave it off.
 
+### Generic `runtime_*` MCP tools and Runtime Control Lease
+
+Coding Mode chat agents reach Runtime Sessions through thirteen generic
+`runtime_*` core MCP tools (`app/services/mcp/tools/runtime_*_tool.rb`,
+registered in `McpToolRegistry#chat_entries` with
+`feature_flag: :coding_mode, required_roles: [AgentRole::CHAT_CODING]` — same
+gate as `reset_workspace`/`complete_implement_step`/`submit_coding_changes` —
+so they are never advertised to a planning or Local Mode chat, or when the
+`coding_mode` feature is off):
+
+| Tool | Delegates to |
+|---|---|
+| `runtime_list_sessions` | `chat_session.runtime_sessions` (core-only, no provider call) |
+| `runtime_start` | `RuntimeSessionProviders.for`/`.detect_for`, then `#start_session` |
+| `runtime_status` | core-only: the `RuntimeSession` row + its active lease |
+| `runtime_build_or_reload` | `#build_or_reload` |
+| `runtime_launch` | `#launch` |
+| `runtime_snapshot` | `#snapshot` |
+| `runtime_inspect` | `#inspect` |
+| `runtime_logs` | `#logs` |
+| `runtime_acquire_control` | `RuntimeControlLease.acquire!(owner: "agent", ...)` |
+| `runtime_release_control` | releases the agent's active lease(s) |
+| `runtime_input` | `#input` (the provider itself enforces the lease gate below) |
+| `runtime_capture_artifact` | `#snapshot` (the only capture-capable provider method today) |
+| `runtime_stop` | `#stop_session` |
+
+All thirteen accept an optional `session_id`; when omitted,
+`Mcp::Tools::RuntimeSessionToolSupport#resolve_runtime_session` defaults to
+the calling chat's primary active session, falling back to its most recently
+started active session, mirroring `SyrusBrowser::SessionContext`'s own
+provider-scoped default. `runtime_start` is the one write that also owns
+`RuntimeSession` lifecycle bookkeeping: it resolves `ChatWorkspace.repo_path_for`
+as `workspace_ref`, creates the row (`primary: true` only when the chat has no
+other active session), and transitions it `starting` → `running` on success or
+`failed` (with `last_error`) if the provider raises. `runtime_build_or_reload`
+and `runtime_stop` make the same `running`/`failed`/`stopped` transitions on
+their own outcomes; the read/interact tools (`snapshot`, `inspect`, `logs`,
+`launch`, `input`, `capture_artifact`) leave session state untouched and wrap
+provider errors as an `invalid` tool response instead of raising.
+
+**Runtime Control Lease (`RuntimeControlLease`, DOC-17's Shared Human/Agent
+Control)** gates input so the operator and agent never race each other on the
+same session. `mode` is `input`, `build`, or `lifecycle` (`observe_only` never
+needs a lease); input is serialized on its own `SERIALIZATION_GROUPS` key
+while `build`/`lifecycle` share a second group, so an agent can hold an input
+lease and a build lease at once but never two input leases. Leases are
+short-lived (`MIN_DURATION`/`MAX_DURATION` clamp to 15-60s, default 30s) and a
+second `acquire!` for an already-held group raises `RuntimeControlLease::Conflict`
+(surfaced as an `invalid` tool response). `runtime_acquire_control` always
+acquires as `owner: "agent"`; `runtime_input` does not check the lease
+itself — it delegates straight to the provider's own `#input`, which is what
+actually enforces the gate (see `SyrusBrowser::RuntimeSessionProvider#input`,
+returning `{error: "lease_required"}` with no active agent input lease). Every
+acquire/release/cancel/expire and delivered input event is audited via
+`JobLog` (when the session has a `run`) and broadcast live over
+`runtime_session_<id>_control` for the operator's Take Control / Abort Agent
+Control affordance — a bypass this Job does not add an MCP tool for, since
+that path is operator-only per DOC-17.
+
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
