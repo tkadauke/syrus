@@ -677,6 +677,28 @@ module Steps
       GitRunner.new.run("merge-base", "--is-ancestor", expected_sha, actual_sha, chdir: workspace.path.to_s)
       true
     rescue GitRunner::GitError
+      amended_commit?(expected_sha, actual_sha)
+    end
+
+    # `git commit --amend` (Steps::Summarize/SummarizeAmend rewriting the
+    # implement commit's message to the agent-authored PR title) replaces
+    # expected_sha with a new SHA sharing its parent, so the ordinary
+    # ancestor check above sees two unrelated siblings and reports the
+    # workspace as missing the validated head -- even though the tree it
+    # committed is right there under a new message. Recognize that specific
+    # shape (same parent, same tree) as "already contains it" so a later
+    # checkpoint restore (e.g. Steps::PrOpen's opportunistic recovery) can't
+    # discard the rewritten commit message and resurrect the placeholder one.
+    def amended_commit?(expected_sha, actual_sha)
+      git = GitRunner.new
+      expected_parent = git.run("rev-parse", "#{expected_sha}^", chdir: workspace.path.to_s).strip
+      actual_parent   = git.run("rev-parse", "#{actual_sha}^", chdir: workspace.path.to_s).strip
+      return false unless expected_parent == actual_parent
+
+      expected_tree = git.run("rev-parse", "#{expected_sha}^{tree}", chdir: workspace.path.to_s).strip
+      actual_tree   = git.run("rev-parse", "#{actual_sha}^{tree}", chdir: workspace.path.to_s).strip
+      expected_tree == actual_tree
+    rescue GitRunner::GitError
       false
     end
 

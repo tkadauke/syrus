@@ -14,7 +14,8 @@ RSpec.describe Steps::Base, :ci_only do
     Class.new(described_class) do
       def call; nil; end
       public :log, :parent_session_id, :buffered_log_sink, :agent_provider,
-             :agent_adapter, :perform_agentic_change_step, :commit_agent_changes
+             :agent_adapter, :perform_agentic_change_step, :commit_agent_changes,
+             :workspace_contains_sha?, :restore_run_checkpoint_if_needed!, :head_sha
     end
   end
   let(:handler) { handler_class.new(run) }
@@ -694,6 +695,67 @@ RSpec.describe Steps::Base, :ci_only do
       expect { handler.send(:assert_branch_history_intact!) }
         .to raise_error(Steps::Base::AgentBrokeGitState, /no common ancestor with origin\/master/)
       expect(run.reload.agent_outcome).to eq("git_state_corrupt")
+    end
+  end
+
+  # JOB-4540 regression: Steps::Summarize amends the implement commit's
+  # placeholder message to the agent-authored pr_title (`git commit --amend`),
+  # which replaces its SHA with a sibling sharing the same parent. Steps::PrOpen's
+  # opportunistic `restore_validated_implementation_if_missing!` then asked
+  # "does the workspace still contain the implement Run's recorded head_sha?" —
+  # a plain ancestor check answered no (the amended commit isn't a descendant
+  # of the pre-amend one), so it fetched and checked out the stale pre-amend
+  # checkpoint, silently discarding the rewritten commit message and pushing
+  # "Implement: JOB-1: ..." instead of the real PR title.
+  describe "#workspace_contains_sha? and checkpoint restore", :ci_only do
+    let(:workspace_dir) { Pathname.new(Dir.mktmpdir("syrus-amend-check")) }
+    let(:fake_ws) { instance_double(WorkflowWorkspace, path: workspace_dir, branch_name: "syrus/issue-1-1") }
+
+    before do
+      # Mirror the real shape: the implement commit always has a parent (the
+      # base branch tip the workflow cloned from) — never a repo root commit.
+      system("git", "-C", workspace_dir.to_s, "init", "-q", "--initial-branch=main", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "config", "user.email", "x@x.test")
+      system("git", "-C", workspace_dir.to_s, "config", "user.name", "Test")
+      File.write(workspace_dir.join("README.md"), "base\n")
+      system("git", "-C", workspace_dir.to_s, "add", "README.md", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "commit", "-q", "-m", "Base commit", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "checkout", "-q", "-b", "syrus/issue-1-1", out: File::NULL, err: File::NULL)
+      File.write(workspace_dir.join("feature.rb"), "def greet = 'hello'\n")
+      system("git", "-C", workspace_dir.to_s, "add", "feature.rb", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "commit", "-q", "-m", "Implement: JOB-1: JOB-1", out: File::NULL, err: File::NULL)
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+    end
+
+    after { FileUtils.rm_rf(workspace_dir) }
+
+    it "treats a message-only amend of the expected SHA as already present" do
+      expected_sha = handler.head_sha
+      system("git", "-C", workspace_dir.to_s, "commit", "-q", "--amend", "-m", "Add greeting helper", out: File::NULL, err: File::NULL)
+
+      expect(expected_sha).not_to eq(handler.head_sha)
+      expect(handler.workspace_contains_sha?(expected_sha)).to be(true)
+    end
+
+    it "does not treat an unrelated commit as containing the expected SHA" do
+      expected_sha = handler.head_sha
+      system("git", "-C", workspace_dir.to_s, "checkout", "-q", "--orphan", "unrelated", out: File::NULL, err: File::NULL)
+      File.write(workspace_dir.join("other.rb"), "other\n")
+      system("git", "-C", workspace_dir.to_s, "add", "other.rb", out: File::NULL, err: File::NULL)
+      system("git", "-C", workspace_dir.to_s, "commit", "-q", "-m", "unrelated", out: File::NULL, err: File::NULL)
+
+      expect(handler.workspace_contains_sha?(expected_sha)).to be(false)
+    end
+
+    it "does not discard an amended commit message via checkpoint restore" do
+      expected_sha = handler.head_sha
+      system("git", "-C", workspace_dir.to_s, "commit", "-q", "--amend", "-m", "Add greeting helper", out: File::NULL, err: File::NULL)
+      source_run = Run.create!(job: job, step: step, trigger_kind: "initial", head_sha: expected_sha, state: "succeeded")
+
+      handler.restore_run_checkpoint_if_needed!(source_run, context: "pr_open")
+
+      tip = `git -C #{workspace_dir} log -1 --format=%s`.strip
+      expect(tip).to eq("Add greeting helper")
     end
   end
 end
