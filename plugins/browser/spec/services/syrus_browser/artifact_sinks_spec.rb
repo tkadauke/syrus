@@ -43,5 +43,24 @@ RSpec.describe SyrusBrowser::ArtifactSinks do
       expect(ChatMediaLibrary).not_to receive(:materialize_captured_image!)
       expect(sink.capture(bytes: png_bytes, content_type: "image/png", title: "x")).to be_nil
     end
+
+    it "stamps the runtime session's latest_frame_url/at when given a runtime_session" do
+      repository_for_session = repository
+      runtime_session = RuntimeSession.create!(repository: repository_for_session, chat_session: chat_session, workspace_ref: "a", provider_key: "browser", display_name: "Browser", state: "running")
+      sink = described_class.new(chat_session, runtime_session: runtime_session)
+
+      document = sink.capture(bytes: png_bytes, content_type: "image/png", title: "Screenshot")
+
+      runtime_session.reload
+      expect(runtime_session.latest_frame_url).to eq("/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{runtime_session.id}/frame")
+      expect(runtime_session.latest_frame_at).to be_present
+      expect(runtime_session.metadata["latest_frame_document_id"]).to eq(document.id)
+    end
+
+    it "does not touch any runtime session when none is given" do
+      sink = described_class.new(chat_session)
+
+      expect { sink.capture(bytes: png_bytes, content_type: "image/png", title: "x") }.not_to raise_error
+    end
   end
 end

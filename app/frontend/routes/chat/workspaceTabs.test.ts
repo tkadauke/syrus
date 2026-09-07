@@ -174,4 +174,31 @@ describe("availableWorkspaceTabs", () => {
     payload.chat.mode = "local"
     expect(availableWorkspaceTabs(payload)).not.toContain("diff")
   })
+
+  it("excludes the runtime tab when the chat has no runtime sessions", () => {
+    const payload = makePayload({ coding_mode_enabled: true })
+    payload.chat.mode = "coding"
+    expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
+  })
+
+  it("includes the runtime tab once the chat has a runtime session in Coding Mode", () => {
+    const payload = makePayload({ coding_mode_enabled: true })
+    payload.chat.mode = "coding"
+    payload.chat.runtime_session_count = 1
+    expect(availableWorkspaceTabs(payload)).toContain("runtime")
+  })
+
+  it("excludes the runtime tab outside Coding Mode even with runtime sessions", () => {
+    const payload = makePayload({ coding_mode_enabled: true })
+    payload.chat.mode = "planning"
+    payload.chat.runtime_session_count = 1
+    expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
+  })
+
+  it("excludes the runtime tab when Coding Mode is disabled instance-wide", () => {
+    const payload = makePayload({ coding_mode_enabled: false })
+    payload.chat.mode = "coding"
+    payload.chat.runtime_session_count = 1
+    expect(availableWorkspaceTabs(payload)).not.toContain("runtime")
+  })
 })

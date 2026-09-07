@@ -42,7 +42,7 @@ module SyrusBrowser
       def for_runtime_session(runtime_session)
         Result.new(
           session_key: "runtime_session:#{runtime_session.id}",
-          artifact_sink: ArtifactSinks::ChatMedia.new(runtime_session.chat_session),
+          artifact_sink: ArtifactSinks::ChatMedia.new(runtime_session.chat_session, runtime_session: runtime_session),
           owner: runtime_session
         )
       end

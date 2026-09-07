@@ -181,8 +181,13 @@ release it with `runtime_release_control` when finished, so agent-driven
 interaction never races an operator who is looking at the same session;
 `runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
 and `runtime_stop` tears the session down. This first slice covers a browser
-dev-server session; a right-sidebar panel for watching a Runtime Session live
-is planned but not yet available.
+dev-server session, watchable from Coding Mode's right sidebar in a Runtime
+tab (once the chat has started a session): session state, the latest
+screenshot (refreshed periodically, not a live video stream, in this first
+slice), a scrolling log tail, and provider details like the dev server's URL.
+The panel also gives the operator a Take Control / Abort Agent Control button
+that immediately takes over input from the agent, and a button to capture a
+fresh screenshot on demand.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same

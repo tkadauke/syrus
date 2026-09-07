@@ -296,6 +296,13 @@ Rails.application.routes.draw do
         get "chats/:id/source_file/raw", to: "chats#source_file_raw", constraints: { id: /\d+/ }
         post "chats/:chat_id/shell_commands", to: "chat_shell_commands#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/shell_commands/:id/cancel", to: "chat_shell_commands#cancel", constraints: { chat_id: /\d+/, id: /\d+/ }
+        get "chats/:chat_id/runtime_sessions", to: "runtime_sessions#index", constraints: { chat_id: /\d+/ }
+        get "chats/:chat_id/runtime_sessions/:id", to: "runtime_sessions#show", constraints: { chat_id: /\d+/, id: /\d+/ }
+        get "chats/:chat_id/runtime_sessions/:id/logs", to: "runtime_sessions#logs", constraints: { chat_id: /\d+/, id: /\d+/ }
+        get "chats/:chat_id/runtime_sessions/:id/frame", to: "runtime_sessions#frame", constraints: { chat_id: /\d+/, id: /\d+/ }
+        post "chats/:chat_id/runtime_sessions/:id/capture", to: "runtime_sessions#capture", constraints: { chat_id: /\d+/, id: /\d+/ }
+        post "chats/:chat_id/runtime_sessions/:id/take_control", to: "runtime_sessions#take_control", constraints: { chat_id: /\d+/, id: /\d+/ }
+        post "chats/:chat_id/runtime_sessions/:id/release_control", to: "runtime_sessions#release_control", constraints: { chat_id: /\d+/, id: /\d+/ }
         get "repositories/new", to: "repositories#new"
         get "repositories/:id/edit", to: "repositories#edit", constraints: { id: /\d+/ }
         get "repositories/owners", to: "repositories#owners"
