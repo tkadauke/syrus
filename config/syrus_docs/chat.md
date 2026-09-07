@@ -302,6 +302,91 @@ chat's own Coding Mode turn rather than a separate execution path. See
 `skills.md`'s "Slash-command execution in chat" section for the full
 resolution, Coding Mode gating, and handoff-confirmation behavior.
 
+## One-shot shell commands in Coding Mode and Local Mode (EPIC-323)
+
+`POST /api/v1/app/chats/:chat_id/shell_commands` runs a single, user-supplied
+shell command against a Coding Mode or Local Mode chat session's checkout.
+`ChatShellCommandExecutor::Base.for(chat_session.mode)` (a policy class per
+mode — `Coding`/`Local`, `app/services/chat_shell_command_executor/`) picks
+how: Coding Mode runs it directly on the worker against the chat's persistent
+`ChatWorkspace` checkout (the same long-lived clone Coding Mode turns edit —
+not an ephemeral workspace) via `ProcessRunner`; Local Mode has no Syrus-side
+checkout at all and dispatches it over the same reverse WebSocket tunnel
+(`LocalTunnelChannel`/`LocalToolCall`/`LocalDaemonSession`) the Local Mode
+agent's own `run_command` MCP tool already uses, so it runs against the
+operator's own machine and checkout.
+
+Typing `!` as the first character of an empty composer, in a `coding`- or
+`local`-mode chat, flips it into command-mode styling (red border/background/
+text — `isBangCommandMode` in `app/frontend/lib/bangCommand.ts`, modeled on
+the slash-command derived-state pattern; shown every time, no one-time
+dismissal) and routes Send to this endpoint instead of the normal
+message/enqueue path. Backspacing the draft back to empty reverts to a
+normal message. While a command is running, a second `!` submission is
+blocked client-side (mirroring the endpoint's one-in-flight rule) and the
+composer shows a stop control in place of the normal "stop agent" button,
+calling the cancel endpoint below. There is still no dedicated read/poll
+endpoint for a running command's status; instead, the chat payload's
+`chat_shell_command_in_flight` field (the chat session's current running
+`ChatShellCommand`, or `null`, computed only for `coding`- or `local`-mode
+chats — `ChatShellCommand#as_command_json`, also reused by the create/cancel
+endpoint responses) lets the composer rehydrate its stop control from
+whatever payload it mounts with, so a Compose remount mid-command (e.g. a
+desktop/mobile layout breakpoint crossing) doesn't silently drop the
+control. Moment-to-moment UI state (immediate feedback on submit/cancel)
+still comes from local component state; the composer infers completion by
+watching for the `chat_shell_command_id`-carrying message below to show up
+in the transcript. Chat rendering of the output (`MessageCards.tsx`'s
+`ShellCommandCard`, monospace/ANSI-aware via `AnsiText`) is shared by both
+modes unchanged.
+
+Requirements enforced by the endpoint and `ChatShellCommandJob`:
+
+- Gated on the mode's feature flag (`Feature.coding_mode_enabled?` /
+  `Feature.local_mode_enabled?`), the chat being in `coding` or `local` mode,
+  a repository attached, the same repository write-tier check Job mutations
+  use (`RepositoryPolicy#write?` via `BaseController#authorize_repository_write!`),
+  and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error`)
+  — an active coding checkout for Coding Mode, a daemon that has completed the
+  real "connect" handshake for Local Mode (`ChatSession#daemon_connected?`,
+  not merely `LocalDaemonSession#connected?`'s row-exists/not-yet-disconnected
+  check — a session row is minted as soon as the operator requests a connect
+  token, before `syrus local` has actually dialed in).
+- Only one command may run at a time per chat session, and a command is
+  refused while an agent turn already owns the checkout
+  (`turn_in_flight?`/`agent_busy?`). `ChatShellCommandJob` also joins
+  `ChatTurnJob::CONCURRENCY_GROUP` so a shell command and an agent turn can
+  never touch the same checkout concurrently.
+- Coding Mode execution reuses `ProcessRunner` (env scrubbing, `SpawnedProcess`
+  registration) rather than the Terminal plugin's `PTY.spawn` model — this is
+  a request/response command, not an interactive shell. There is no enforced
+  wall-clock timeout by default (the operator has accepted the same risk
+  profile as already running the Terminal plugin), only a very large
+  (24-hour) backstop (`ChatShellCommandJob::MAX_RUNTIME_SECONDS`) that also
+  bounds how long a Local Mode command's `LocalToolCall#wait_for_result` will
+  wait for the daemon's reply.
+- `POST /api/v1/app/chats/:chat_id/shell_commands/:id/cancel` interrupts an
+  in-flight command through the mode's executor: Coding Mode stamps the
+  associated `SpawnedProcess`'s existing `kill_requested_at` switch (the same
+  cross-pod kill mechanism the admin Processes page uses); Local Mode calls
+  `LocalToolCall#request_cancel!`, which broadcasts a `"cancel"` message on
+  the daemon's tool-call stream that `LocalTunnelChannel` turns into a
+  `{ type: "cancel_tool_call", tool_use_id: }` frame over the tunnel — a new
+  protocol message type added for this (the tunnel previously had no
+  mid-command cancellation). The daemon CLI (`cli/cmd/local.go`) tracks a
+  cancel function per in-flight tool call and kills the shell subprocess on
+  receipt, replying with its normal `tool_result` frame carrying
+  `"killed": true`. If the daemon disconnects entirely while a command is
+  outstanding, `LocalDaemonSession#mark_disconnected!` fails any
+  pending/dispatched `LocalToolCall`s immediately rather than leaving the
+  chat's single-in-flight lock held for the full 24-hour backstop.
+- On completion or cancellation, the command and its captured combined
+  stdout+stderr (capped at `ChatShellCommand::MAX_OUTPUT_BYTES`) are recorded
+  on a `ChatShellCommand` row, and a `role: "user"` `ChatMessage` carrying
+  `content["chat_shell_command_id"]` is always posted and a normal
+  `ChatTurnJob` is enqueued so the agent sees and responds to the command and
+  its output.
+
 Independently of bookmarks, user and assistant messages can be pinned via
 `ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on
 the same `pinnable?` role restriction as `bookmarkable?`. Pin state is shared

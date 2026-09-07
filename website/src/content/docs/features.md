@@ -171,6 +171,18 @@ visible in the chat Jobs tab and grader failures can route back to the same
 conversation. If a retry is pushed to a replacement branch, pass that branch to
 `complete_implement_step`; Syrus updates the Job before rerunning graders.
 
+Typing `!` as the first character of an empty message box in a Coding Mode or
+Local Mode chat switches the composer into a warning-styled command mode
+(shown every time, not just the first) and runs the rest of what you type as
+a shell command against the chat's checkout instead of sending a chat
+message — in Coding Mode that's the chat's own workspace; in Local Mode it
+runs on the operator's own machine over the same connection the agent's local
+tools already use. Backspacing back to an empty box returns to normal typing.
+Only one command runs at a time per chat; while it's running, Send is blocked
+for another `!` command and a stop control lets you cancel it. Either way,
+the command and its output post to the chat and the agent takes a turn to
+look at the result.
+
 The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.

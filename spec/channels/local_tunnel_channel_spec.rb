@@ -191,6 +191,67 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     end
   end
 
+  describe "cancel broadcast (EPIC-323 `!` command stop control)" do
+    before { enable_local_mode }
+
+    it "transmits cancel_tool_call for a dispatched call" do
+      subscribe_to(daemon_session)
+      tool_call = LocalToolCall.create!(
+        local_daemon_session: daemon_session,
+        chat_session: chat,
+        tool_use_id: "call-1",
+        tool_name: "run_command",
+        tool_input: { command: "sleep 100" },
+        state: "dispatched"
+      )
+
+      subscription.receive_from_subscription({ "type" => "cancel", "tool_call_id" => tool_call.id })
+
+      expect(transmissions).to include({ "type" => "cancel_tool_call", "tool_use_id" => "call-1" })
+    end
+
+    it "ignores a cancel broadcast for a call that hasn't been dispatched" do
+      subscribe_to(daemon_session)
+      tool_call = LocalToolCall.create!(
+        local_daemon_session: daemon_session,
+        chat_session: chat,
+        tool_use_id: "call-2",
+        tool_name: "run_command",
+        tool_input: { command: "sleep 100" },
+        state: "pending"
+      )
+
+      subscription.receive_from_subscription({ "type" => "cancel", "tool_call_id" => tool_call.id })
+
+      expect(transmissions.none? { |t| t["type"] == "cancel_tool_call" }).to eq(true)
+    end
+
+    it "ignores a cancel broadcast for a call that already completed" do
+      subscribe_to(daemon_session)
+      tool_call = LocalToolCall.create!(
+        local_daemon_session: daemon_session,
+        chat_session: chat,
+        tool_use_id: "call-3",
+        tool_name: "run_command",
+        tool_input: { command: "sleep 100" },
+        state: "completed"
+      )
+
+      subscription.receive_from_subscription({ "type" => "cancel", "tool_call_id" => tool_call.id })
+
+      expect(transmissions.none? { |t| t["type"] == "cancel_tool_call" }).to eq(true)
+    end
+
+    it "ignores a cancel broadcast for an unknown tool_call_id" do
+      subscribe_to(daemon_session)
+
+      expect {
+        subscription.receive_from_subscription({ "type" => "cancel", "tool_call_id" => -1 })
+      }.not_to raise_error
+      expect(transmissions.none? { |t| t["type"] == "cancel_tool_call" }).to eq(true)
+    end
+  end
+
   describe "heartbeat timeout" do
     before { enable_local_mode }
 

@@ -59,6 +59,7 @@ class LocalDaemonSession < ApplicationRecord
   def mark_disconnected!
     return if disconnected?
 
+    fail_outstanding_tool_calls!
     update!(disconnected_at: Time.current)
     chat_session.update!(
       daemon_connected: false,
@@ -77,5 +78,16 @@ class LocalDaemonSession < ApplicationRecord
 
   def default_auth_token
     self.auth_token ||= SecureRandom.hex(32)
+  end
+
+  # A `!` command's LocalToolCall can wait up to ChatShellCommandJob::MAX_RUNTIME_SECONDS
+  # (24h) for a result, so an outstanding call must be failed fast on
+  # disconnect rather than left to time out on its own -- otherwise a dropped
+  # daemon connection would wedge the chat's single-in-flight-command lock for
+  # the rest of that window.
+  def fail_outstanding_tool_calls!
+    tool_calls.where(state: %w[pending dispatched]).find_each do |call|
+      call.fail!(error: "Local daemon disconnected before the command finished.")
+    end
   end
 end

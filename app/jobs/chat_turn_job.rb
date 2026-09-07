@@ -418,9 +418,9 @@ class ChatTurnJob < ApplicationJob
   end
 
   def content_text(message)
-    return message.content["text"].to_s if message.content.is_a?(Hash)
+    return message.content.to_s unless message.content.is_a?(Hash)
 
-    message.content.to_s
+    message.content["text"].presence || message.content["internal_prompt"].to_s
   end
 
   def bounded_history_text(text, max_bytes = HISTORY_FALLBACK_ENTRY_MAX_BYTES)

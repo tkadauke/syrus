@@ -319,6 +319,7 @@ export type ChatMessageItem = {
   created_at?: string
   attachments?: Array<{ name: string; mime_type: string; data: string }>
   video_walkthrough_id?: number
+  chat_shell_command?: ChatShellCommandResult | null
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
   sender_user?: { id: number; name: string } | null
@@ -589,6 +590,36 @@ export type HiddenChatsPayload = {
   total_pages: number
 }
 
+export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
+
+// Embedded on the completion message a `!` command posts to the chat
+// transcript (App::ChatMessagePayload#chat_shell_command_json, EPIC-323).
+// Unlike ChatShellCommandRecord below, this is always a finished command —
+// there is no `running`/`cancellable` state to track once it's rendered here.
+export type ChatShellCommandResult = {
+  id: number
+  command: string
+  output: string | null
+  outcome: ChatShellCommandOutcome | null
+  exit_status: number | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+// Mirrors ChatShellCommandsController#shell_command_json (EPIC-323).
+export type ChatShellCommandRecord = {
+  id: number
+  chat_session_id: number
+  command: string
+  output: string | null
+  outcome: ChatShellCommandOutcome | null
+  exit_status: number | null
+  started_at: string | null
+  finished_at: string | null
+  running: boolean
+  cancellable: boolean
+}
+
 export type ChatWalkthroughMedia = {
   id: number
   title: string
@@ -686,6 +717,11 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
+  // Coding Mode only (EPIC-323): the chat session's currently-running `!`
+  // command, if any, so the composer can rehydrate its command-mode stop
+  // control across a remount (e.g. a desktop/mobile breakpoint crossing)
+  // instead of relying solely on its own local state.
+  chat_shell_command_in_flight?: ChatShellCommandRecord | null
   switching_provider: boolean
   has_more_older: boolean
   pending_proposal_count?: number
@@ -1125,6 +1161,18 @@ export function reorderScratchpadItems(chatId: string | number, ids: number[]) {
 
 export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+// EPIC-323 `!` command mode: run/cancel a one-shot shell command against a
+// Coding Mode chat session's persistent checkout. chatId is the numeric chat
+// session id (not a paths.* entry) since these routes were added after the
+// rest of the chat payload's path map was established.
+export function createChatShellCommand(chatId: string | number, command: string) {
+  return postJson<ChatShellCommandRecord>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/shell_commands`, { command })
+}
+
+export function cancelChatShellCommand(chatId: string | number, id: number) {
+  return postJson<ChatShellCommandRecord>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/shell_commands/${id}/cancel`)
 }
 
 

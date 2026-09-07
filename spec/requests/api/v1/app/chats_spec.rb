@@ -1712,6 +1712,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["chat_available"]).to eq(true)
     expect(body["turn_in_flight"]).to eq(false)
     expect(body["agent_busy"]).to eq(false)
+    expect(body["chat_shell_command_in_flight"]).to be_nil
     expect(body["bookmarks"]).to eq([])
     expect(body["agent_questions"]).to contain_exactly(include(
       "id" => question.id,
@@ -1760,6 +1761,63 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("whiteboard", "elements", 0, "id")).to eq("box-1")
     expect(body.dig("whiteboard", "appState")).to eq("viewBackgroundColor" => "#ffffff")
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
+  end
+
+  it "includes the running shell command in the payload for a Coding Mode chat (JOB-4507 composer remount fix)" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, mode: "coding", last_message_at: Time.current)
+    command = chat.chat_shell_commands.create!(user: user, command: "ls -la", started_at: Time.current)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["chat_shell_command_in_flight"]).to eq(
+      "id" => command.id,
+      "chat_session_id" => chat.id,
+      "command" => "ls -la",
+      "output" => nil,
+      "outcome" => nil,
+      "exit_status" => nil,
+      "started_at" => command.started_at.iso8601,
+      "finished_at" => nil,
+      "running" => true,
+      "cancellable" => false
+    )
+  end
+
+  it "includes the running shell command in the payload for a Local Mode chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, mode: "local", last_message_at: Time.current)
+    command = chat.chat_shell_commands.create!(user: user, command: "npm test", started_at: Time.current)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["chat_shell_command_in_flight"]).to eq(
+      "id" => command.id,
+      "chat_session_id" => chat.id,
+      "command" => "npm test",
+      "output" => nil,
+      "outcome" => nil,
+      "exit_status" => nil,
+      "started_at" => command.started_at.iso8601,
+      "finished_at" => nil,
+      "running" => true,
+      "cancellable" => false
+    )
+  end
+
+  it "omits the shell command field once it has finished" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, mode: "coding", last_message_at: Time.current)
+    chat.chat_shell_commands.create!(user: user, command: "ls -la", started_at: 1.minute.ago, finished_at: Time.current, outcome: "succeeded")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["chat_shell_command_in_flight"]).to be_nil
   end
 
   it "skips malformed persisted agent questions when loading a chat" do

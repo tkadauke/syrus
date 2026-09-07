@@ -58,6 +58,35 @@ RSpec.describe LocalToolCall, type: :model do
     end
   end
 
+  describe "#request_cancel!" do
+    it "broadcasts a cancel notification when dispatched" do
+      call = tool_call(state: "dispatched")
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast) { |stream, msg| broadcasts << [ stream, msg ] }
+
+      call.request_cancel!
+
+      expect(broadcasts).to include([
+        "local_daemon_session_#{session.id}_tool_calls",
+        { type: "cancel", tool_call_id: call.id }
+      ])
+    end
+
+    it "is a no-op when the call has not been dispatched yet" do
+      call = tool_call(state: "pending")
+      expect(ActionCable.server).not_to receive(:broadcast)
+
+      call.request_cancel!
+    end
+
+    it "is a no-op once the call has already completed" do
+      call = tool_call(state: "completed")
+      expect(ActionCable.server).not_to receive(:broadcast)
+
+      call.request_cancel!
+    end
+  end
+
   describe "#wait_for_result" do
     it "returns result when the call completes before timeout" do
       call = tool_call

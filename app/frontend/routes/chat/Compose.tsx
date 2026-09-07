@@ -10,7 +10,7 @@ import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationS
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, cancelChatShellCommand, clearChatHistory, createChat, createChatShellCommand, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ChatShellCommandRecord, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -20,6 +20,7 @@ import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
 import { StopIcon } from "../../components/StopIcon"
 import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
+import { bangCommandText, isBangCommandMode } from "../../lib/bangCommand"
 import { fetchRepositorySkills } from "../../api/skills"
 import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
 import { useBugReportTrigger } from "../../lib/bugReportContext"
@@ -28,7 +29,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
-import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
+import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
@@ -101,6 +102,16 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
+  // EPIC-323 `!` command mode (Coding Mode and Local Mode): the shell command
+  // this composer instance is tracking, seeded from the payload's
+  // `chat_shell_command_in_flight` so a Compose remount (e.g. crossing the
+  // desktop/mobile layout breakpoint mid-command, JOB-4507 visual review)
+  // rehydrates the stop control instead of losing it. Local state still
+  // drives the UI moment-to-moment (immediate feedback on submit/cancel,
+  // before the next full payload refetch); cleared once the completion
+  // message (`chat_shell_command_id` matching) shows up in the transcript
+  // below.
+  const [shellCommand, setShellCommand] = useState<ChatShellCommandRecord | null>(() => payload.chat_shell_command_in_flight ?? null)
   const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; filterByPr?: boolean; jobState?: string; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -134,6 +145,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   )
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
+  const bangCommandModeActive = (payload.chat.mode === "coding" || payload.chat.mode === "local") && isBangCommandMode(text)
+  const shellCommandRunning = shellCommand?.running ?? false
   const pendingProposals = useMemo(() => {
     const seenIds = new Set<number>()
     return payload.messages.filter(
@@ -177,6 +190,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setDraftAttachments(chatId, attachments)
   }, [chatId, attachments])
 
+  // Unblocks the composer once ChatShellCommandJob's completion message shows
+  // up in the transcript (it always posts one, on success, failure, or
+  // cancellation — see ChatShellCommandJob#post_result_message!). There is no
+  // status-polling endpoint for a running command, so the existing live
+  // message feed is the only completion signal.
+  useEffect(() => {
+    if (!shellCommand) return
+    const finished = payload.messages.some((item) => contentRecord(item.content)?.chat_shell_command_id === shellCommand.id)
+    if (finished) setShellCommand(null)
+  }, [payload.messages, shellCommand])
+
   function clearComposerDraft() {
     setText("")
     setAttachments([])
@@ -215,6 +239,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setAttachments(draft.attachments)
       setAttachmentError(null)
       onNotice(errorMessage(error, "Message could not be sent."))
+    }
+  })
+  const runShellCommand = useMutation({
+    mutationFn: (command: string) => createChatShellCommand(chatId, command),
+    onSuccess: (record) => {
+      setShellCommand(record)
+      clearComposerDraft()
+      onNotice(null)
+    },
+    onError: (error) => {
+      onNotice(errorMessage(error, "Shell command could not be started."))
     }
   })
   const systemAction = useMutation<ChatPayload | ChatCreatedPayload | ChatBranchPayload | ShareChatPayload, Error, ChatSystemAction>({
@@ -388,6 +423,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
   function submitMessage() {
     if (send.isPending || systemAction.isPending || systemCommandAction.isPending) return
+    if (bangCommandModeActive) {
+      submitShellCommand()
+      return
+    }
     if (walkthrough?.status === "ready") {
       // A walkthrough and image/PDF attachments can't share one send: the
       // video goes to Gemini, the attachments to the chat agent — silently
@@ -444,6 +483,21 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     onNotice(null)
     sendComposerDraft(text)
+  }
+
+  // Backend enforces one `!` command in flight per chat session
+  // (ChatShellCommandsController#create_command_if_idle!); this mirrors that
+  // rule locally so a second submission never leaves the composer.
+  function submitShellCommand() {
+    if (shellCommandRunning || runShellCommand.isPending) {
+      onNotice("A shell command is already running for this chat.")
+      return
+    }
+    const command = bangCommandText(text)?.trim()
+    if (!command) return
+
+    onNotice(null)
+    runShellCommand.mutate(command)
   }
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
@@ -1694,8 +1748,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
             aria-expanded={commandPaletteOpen}
             aria-haspopup="listbox"
-            className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-brand focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending}
+            className={`min-h-11 w-full resize-none overflow-y-hidden rounded border py-2.5 pl-3 pr-3 text-base leading-6 focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800 ${
+              bangCommandModeActive
+                ? "border-red-300 bg-red-50 text-red-700 focus:border-red-400 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                : "border-gray-200 bg-white focus:border-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            }`}
+            disabled={send.isPending || systemAction.isPending || runShellCommand.isPending}
             onChange={(event) => {
               updateText(event.target.value)
               if (clearConfirmationOpen) setClearConfirmationOpen(false)
@@ -1752,7 +1810,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             <button
               aria-label={agentActive ? t("enqueue_message") : t("send_message")}
               className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
-              disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
+              disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || runShellCommand.isPending || (bangCommandModeActive && shellCommandRunning) || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
               type="submit"
             >
               {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
@@ -1778,6 +1836,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                 className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
                 payload={payload}
                 queryKey={queryKey}
+              />
+            ) : null}
+            {!agentActive && shellCommand && shellCommandRunning ? (
+              <ShellCommandStopButton
+                chatId={chatId}
+                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+                command={shellCommand}
+                onError={(error) => onNotice(errorMessage(error, "Could not cancel command."))}
+                onUpdate={setShellCommand}
               />
             ) : null}
           </div>
@@ -2812,6 +2879,26 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
   return (
     <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
+    </button>
+  )
+}
+
+// EPIC-323 `!` command mode: cancels the in-flight ChatShellCommand, reusing
+// StopButton's exact styling/icon so the two controls read as one family.
+// `onUpdate` hands the (still `running: true` — the kill is only requested
+// here, not yet applied) response record back to the composer; the effect
+// that watches payload.messages is what actually clears it once
+// ChatShellCommandJob finalizes and posts the completion message.
+function ShellCommandStopButton({ chatId, className, command, onError, onUpdate }: { chatId: string; className?: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
+  const { t } = useT("chat")
+  const cancel = useMutation({
+    mutationFn: () => cancelChatShellCommand(chatId, command.id),
+    onSuccess: onUpdate,
+    onError
+  })
+  return (
+    <button aria-label={t("aria_stop_shell_command")} className={className} disabled={cancel.isPending} onClick={() => cancel.mutate()} type="button">
+      <StopIcon className={`h-5 w-5 ${cancel.isPending ? "opacity-50" : ""}`} />
     </button>
   )
 }

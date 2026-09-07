@@ -112,6 +112,20 @@ RSpec.describe LocalDaemonSession, type: :model do
       session = daemon_session(disconnected_at: 5.minutes.ago)
       expect { session.mark_disconnected! }.not_to change { session.reload.disconnected_at }
     end
+
+    it "fails pending and dispatched tool calls so a waiting `!` command doesn't hang for the full backstop" do
+      session = daemon_session
+      pending_call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat, tool_use_id: "p", tool_name: "run_command", state: "pending")
+      dispatched_call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat, tool_use_id: "d", tool_name: "run_command", state: "dispatched")
+      completed_call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat, tool_use_id: "c", tool_name: "run_command", state: "completed", result: { "exit_code" => 0 })
+
+      session.mark_disconnected!
+
+      expect(pending_call.reload.state).to eq("failed")
+      expect(pending_call.error).to eq("Local daemon disconnected before the command finished.")
+      expect(dispatched_call.reload.state).to eq("failed")
+      expect(completed_call.reload.state).to eq("completed")
+    end
   end
 
   describe "#record_heartbeat!" do
