@@ -58,6 +58,21 @@ RSpec.describe WorkflowAdmissionBudget do
     )
   end
 
+  # A workflow that is merely `state: "running"` contributes no load to a host
+  # -- its next Run may well be sitting in the queue this budget just delayed.
+  # Only a Run that has actually started is pressure, so a fixture standing in
+  # for "active work" has to have one.
+  def executing_workflow_for(**kwargs)
+    workflow = workflow_for(state: "running", **kwargs)
+    step = workflow.steps.order(:position).first
+    step.update!(state: "running")
+    step.runs.create!(
+      job: workflow.job, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "running", started_at: 1.minute.ago
+    )
+    workflow
+  end
+
   def seed_low_cost_profiles(except: [], attributed: false)
     %w[prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
       next if except.include?(step_kind)
@@ -145,7 +160,7 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   it "delays missing-profile work when another running workflow is already consuming the bootstrap budget" do
-    workflow_for(state: "running")
+    executing_workflow_for
     candidate = workflow_for(trigger_kind: "retry")
 
     decision = described_class.call(workflow: candidate)
@@ -168,9 +183,61 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("active", "workflow_count")).to eq(0)
   end
 
+  # Production ran at ~18% agent utilisation with hosts 87% idle because these
+  # three accounting errors compounded: per-step pressures summed within a
+  # workflow, summed again across workflows, and compared against one host's
+  # 100%. `over_budget?` was therefore true whenever anything ran at all, and
+  # 88% of admissions only got through on the minimum-progress floor.
+  describe "pressure accounting" do
+    it "treats a workflow's cost as its peak step, not the sum of every step" do
+      WorkflowStepResourceProfile.delete_all
+      seed_low_cost_profiles(except: [ "prepare" ])
+      profile(step_kind: "prepare", duration: 60, cpu: 30.0, io: 20.0, memory: 30.0)
+
+      decision = described_class.call(workflow: workflow_for)
+
+      # 30.0 (the peak step), not 30.0 plus every other step's contribution.
+      expect(decision.pressure.dig("candidate", "cpu_pressure")).to eq(30.0)
+    end
+
+    it "measures the budget against the fleet, not a single host" do
+      WorkflowStepResourceProfile.delete_all
+      seed_low_cost_profiles(except: [ "prepare" ])
+      profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 40.0)
+      3.times { |i| worker_sample(hostname: "worker-#{i}") }
+      executing_workflow_for
+
+      decision = described_class.call(workflow: workflow_for)
+
+      # Two workflows at 70 apiece is 140 -- over one host's 100, comfortably
+      # inside three healthy workers' 300.
+      expect(decision.pressure.dig("projected", "cpu_pressure")).to be > 100.0
+      expect(decision.action).to eq("admit_now")
+    end
+
+    # The feedback loop: work this budget had just delayed came back as
+    # pressure justifying the next delay, so the more it blocked the more it
+    # wanted to block.
+    it "does not count a workflow whose next Run is only queued as load" do
+      WorkflowStepResourceProfile.delete_all
+      seed_low_cost_profiles(except: [ "prepare" ])
+      profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 40.0)
+      waiting = workflow_for(state: "running")
+      waiting.steps.order(:position).first.runs.create!(
+        job: waiting.job, trigger_kind: waiting.trigger_kind,
+        agent_provider: waiting.agent_provider, state: "queued"
+      )
+
+      decision = described_class.call(workflow: workflow_for)
+
+      expect(decision.pressure.dig("active", "workflow_count")).to eq(0)
+      expect(decision.action).to eq("admit_now")
+    end
+  end
+
   it "delays a medium-priority workflow when active predicted work already consumes the budget" do
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    active = workflow_for(state: "running")
+    active = executing_workflow_for
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
@@ -202,7 +269,7 @@ RSpec.describe WorkflowAdmissionBudget do
     WorkflowStepResourceProfile.delete_all
     seed_low_cost_profiles(except: [ "prepare" ])
     profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    active = workflow_for(state: "running", trigger_kind: "auto_merge")
+    active = executing_workflow_for(trigger_kind: "auto_merge")
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
@@ -429,7 +496,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "records urgent admission as an override instead of delaying for soft pressure" do
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    workflow_for(state: "running")
+    executing_workflow_for
     urgent = workflow_for(priority: "urgent")
 
     decision = described_class.call(workflow: urgent)
@@ -545,10 +612,14 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.action).to eq("admit_now")
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
+    # Duration still sums across steps -- 60 for prepare plus 10 low-cost steps
+    # at 10s -- because that genuinely is how long the workflow will take.
+    # Pressure is the peak step, not the sum: the steps run one after another,
+    # so 5.0 is the most this workflow contributes at any instant, not 15.0.
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
       "duration_seconds" => 160,
-      "cpu_pressure" => 15.0,
-      "io_pressure" => 13.0,
+      "cpu_pressure" => 5.0,
+      "io_pressure" => 3.0,
       "memory_used_percent" => 25.0,
       "source" => "command_attributed",
       "confidence" => "process_attributed"
@@ -583,7 +654,7 @@ RSpec.describe WorkflowAdmissionBudget do
   it "bypasses conservative default prediction delays when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
     WorkflowStepResourceProfile.delete_all
-    workflow_for(state: "running")
+    executing_workflow_for
     candidate = workflow_for(trigger_kind: "retry")
 
     decision = described_class.call(workflow: candidate)
@@ -599,7 +670,7 @@ RSpec.describe WorkflowAdmissionBudget do
   it "bypasses pending high-cost and repository concurrency throttles when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 20.0, io: 10.0, memory: 40.0)
-    2.times { workflow_for(state: "running") }
+    2.times { executing_workflow_for }
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
@@ -615,7 +686,7 @@ RSpec.describe WorkflowAdmissionBudget do
   it "re-enabling admission restores normal budgeting behavior" do
     AppSetting.current.update!(workflow_admission_control_enabled: true)
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    workflow_for(state: "running")
+    executing_workflow_for
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
@@ -672,7 +743,7 @@ RSpec.describe WorkflowAdmissionBudget do
     it "still governs admission by profile-based pressure when host telemetry is absent" do
       WorkerHostHealthSample.delete_all
       profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-      active = workflow_for(state: "running")
+      active = executing_workflow_for
       candidate = workflow_for
 
       decision = described_class.call(workflow: candidate)

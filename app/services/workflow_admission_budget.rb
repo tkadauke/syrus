@@ -137,11 +137,24 @@ class WorkflowAdmissionBudget
     pressure_from_profiles(step_kinds, profiles_for_step(candidate_step))
   end
 
+  # Duration sums across steps -- that is genuinely how long the whole workflow
+  # will take, and it is what `high_cost?` should judge.
+  #
+  # Pressure does not. A workflow runs its steps SEQUENTIALLY, so at any instant
+  # it contributes the load of exactly one of them; summing thirteen steps'
+  # CPU percentages describes a state that never exists. This used to produce
+  # ~480 "cpu_pressure" for a single workflow, which then got summed again
+  # across active workflows into ~9,100 and compared against a budget of 100 --
+  # so `over_budget?` was true whenever anything at all was running, and 88% of
+  # admissions only got through on the minimum-progress floor.
+  #
+  # `memory_used_percent` already used max here, which is why memory never
+  # tripped the budget while CPU and IO always did.
   def pressure_from_profiles(step_kinds, profiles)
     predictions = predictions_for(step_kinds, profiles)
     duration = predictions.sum { |prediction| prediction.fetch(:duration_seconds).to_f }
-    cpu = predictions.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }
-    io = predictions.sum { |prediction| prediction.fetch(:io_pressure).to_f }
+    cpu = predictions.map { |prediction| prediction.fetch(:cpu_pressure).to_f }.max || 0.0
+    io = predictions.map { |prediction| prediction.fetch(:io_pressure).to_f }.max || 0.0
     memory = predictions.map { |prediction| prediction.fetch(:memory_used_percent).to_f }.max || 0.0
     process_predictions = predictions.select { |prediction| prediction.fetch(:prediction_source) == "command_attributed" }
     process_duration = process_predictions.sum { |prediction| prediction.fetch(:process_attributed_duration_seconds).to_f }
@@ -325,9 +338,14 @@ class WorkflowAdmissionBudget
     WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
   end
 
+  # Only workflows that are actually *executing* count as load. A workflow
+  # whose next Run is merely queued contributes nothing to the host until it
+  # starts -- and counting it created a feedback loop: work this budget had
+  # just delayed came straight back as pressure justifying the next delay, so
+  # the more admission blocked, the more it wanted to block.
   def active_workflow_pressure
     @active_workflow_pressure ||= begin
-      workflows = active_workflows_with_runs
+      workflows = executing_workflows
         .where.not(id: workflow.id)
         .where.not(job_id: job.id)
         .where(created_at: (now - ACTIVE_WORKFLOW_WINDOW)..)
@@ -494,6 +512,16 @@ class WorkflowAdmissionBudget
       .distinct
   end
 
+  # The load-bearing subset of the above: a Run that has actually started.
+  # `active_workflows_with_runs` stays as it is for the repository-concurrency
+  # count, where "how much work is open on this repo" is the right question.
+  def executing_workflows
+    active_workflow_scope
+      .joins(steps: :runs)
+      .where(runs: { state: "running" })
+      .distinct
+  end
+
   def active_workflow_scope
     Workflow.where(id: active_work_unit_workflow_ids)
   end
@@ -601,11 +629,25 @@ class WorkflowAdmissionBudget
       host_pressure.fetch("max_data_root_used_percent") >= SOFT_HOST_PRESSURE
   end
 
+  # CPU and IO pressure are summed across *concurrently active* workflows, so
+  # the ceiling has to be the fleet's capacity, not one machine's. Comparing a
+  # fleet-wide sum against a single host's 100% is what made a second
+  # concurrent workflow look like a budget breach on a fleet that was 87% idle.
+  #
+  # Memory stays per-host: it is a max across workflows, not a sum, so it is
+  # already expressed on one host's scale.
   def over_budget?(pressure)
     projected = pressure.fetch("projected")
-    projected.fetch("cpu_pressure") >= CPU_BUDGET ||
-      projected.fetch("io_pressure") >= IO_BUDGET ||
+    projected.fetch("cpu_pressure") >= fleet_budget(CPU_BUDGET) ||
+      projected.fetch("io_pressure") >= fleet_budget(IO_BUDGET) ||
       projected.fetch("memory_used_percent") >= MEMORY_BUDGET
+  end
+
+  # Falls back to a single host's worth of budget when no worker telemetry has
+  # been recorded, which keeps a fleet we cannot see from being treated as
+  # infinite.
+  def fleet_budget(per_host_budget)
+    per_host_budget * [ healthy_worker_count, 1 ].max
   end
 
   def pending_high_cost_work?(active)

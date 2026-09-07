@@ -378,6 +378,33 @@ whether a profile is process-attributed, host-correlated, mixed, or defaults
 only so Admin and Supervisor surfaces can audit top command consumers without
 conflating host pressure with process-owned cost.
 
+## How Workflow Admission Pressure Is Counted
+
+Three rules, and getting any of them wrong throttles a fleet that is mostly
+idle:
+
+- **A workflow's pressure is its peak step, not the sum of its steps.** Steps
+  run sequentially, so a workflow contributes the load of exactly one of them
+  at any instant. Duration is still summed — that genuinely is how long the
+  whole workflow takes, and it is what `high_cost?` judges.
+- **Only workflows with a *running* Run count as load.** A workflow whose next
+  Run is merely queued is consuming nothing. Counting it creates a feedback
+  loop, because work admission has just delayed comes straight back as
+  pressure justifying the next delay.
+- **The budget is the fleet's, not one host's.** CPU and IO are summed across
+  concurrently active workflows, so the ceiling is `CPU_BUDGET ×
+  healthy_worker_count`. Memory is a max across workflows, so it stays on a
+  single host's scale.
+
+Before these were right, per-step pressures were summed within a workflow
+(~480 for one workflow), summed again across active workflows (~9,100), and
+compared against 100.0 — so `over_budget?` was true whenever anything was
+running. Production sat at roughly 18% agent utilisation with hosts 87% idle,
+and 88% of admissions only got through on the minimum-progress floor, which
+made the effective concurrency limit `healthy_worker_count` rather than the
+configured budget. If admissions are overwhelmingly `minimum_progress_floor`
+rather than `within_budget`, that is the symptom to look for.
+
 ## Workflow Admission Control Kill Switch
 
 `AppSetting.workflow_admission_control_enabled` is the global operator kill
