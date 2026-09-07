@@ -368,6 +368,16 @@ module Steps
     def restore_validated_implementation_if_missing!
       source_run = latest_succeeded_run_for(%w[implement run_skill])
       return if source_run.nil?
+      # The validated SHA being absent does NOT mean the work is gone -- and
+      # unlike summarize/summarize_amend, this step runs *after* the steps that
+      # rewrite it. `summarize` amends the implement commit to the agent-authored
+      # message, and format/generate commit on top, so by now the implement SHA
+      # has normally been replaced by an equivalent commit. Restoring on that
+      # signal alone reset the branch to the pre-amend commit and threw the amend
+      # away: every PR got the templated "Implement: JOB-N" subject instead of
+      # the agent's, and main went red on it. Only a branch with nothing of its
+      # own is actually missing the work -- the worker-hop case this exists for.
+      return if workflow_branch_has_commits_ahead_of_base?
 
       restore_run_checkpoint_if_needed!(source_run, context: "pr_open")
     rescue StandardError => e

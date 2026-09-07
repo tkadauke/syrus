@@ -660,6 +660,23 @@ module Steps
       streaming_git.run("checkout", workspace.branch_name, chdir: workspace.path.to_s)
     end
 
+    # True when the workflow branch holds any work of its own. A fresh clone that
+    # checked out the branch off the base -- the state a worker hop leaves behind
+    # -- has nothing ahead of base and answers false. Errs toward "there is work
+    # here": if this cannot be determined, nothing is clobbered.
+    def workflow_branch_has_commits_ahead_of_base?
+      base = workspace.base_ref.to_s
+      return true if base.blank?
+
+      count = GitRunner.new.run(
+        "rev-list", "--count", "#{base}..refs/heads/#{workspace.branch_name}",
+        chdir: workspace.path.to_s
+      ).to_s.strip
+      count.present? && count != "0"
+    rescue GitRunner::GitError
+      true
+    end
+
     def workflow_branch_contains_sha?(expected_sha)
       git = GitRunner.new
       branch_ref = "refs/heads/#{workspace.branch_name}"

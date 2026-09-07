@@ -86,7 +86,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       agent_provider: workflow.agent_provider
     )
     handler = described_class.new(pr_open_run)
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}", base_ref: "origin/main")
     fake_client = instance_double(GithubClient, access_token: "tok")
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
@@ -111,7 +111,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       agent_provider: workflow.agent_provider
     )
     handler = described_class.new(pr_open_run)
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}", base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:push_branch)
     expect(PullRequestOpener).not_to receive(:new)
@@ -132,7 +132,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     branch = "syrus/issue-42-#{job.id}"
     path = Pathname.new("/tmp/syrus-pr-open-spec")
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -216,7 +216,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -298,7 +298,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     branch = "syrus/direct-#{direct_job.id}"
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     git = instance_double(GitRunner)
     client = instance_double(GithubClient, access_token: "token")
     fetch_url = repository.authenticated_push_url("token")
@@ -350,7 +350,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     branch = "syrus/direct-#{job.id}"
     path = Pathname.new("/tmp/syrus-pr-open-spec")
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -429,7 +429,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     branch = "syrus/direct-#{job.id}"
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     git = instance_double(GitRunner)
     client = instance_double(GithubClient, access_token: "token")
     fetch_url = repository.authenticated_push_url("token")
@@ -479,10 +479,13 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     handler = described_class.new(pr_open_run)
     allow(handler).to receive(:workspace).and_return(
-      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"))
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"), base_ref: "origin/main")
     )
     allow(handler).to receive(:push_branch).and_return(:pushed)
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(true)
+    # The hop leaves a fresh clone with nothing of its own; that is the state
+    # this restore exists for.
+    allow(handler).to receive(:workflow_branch_has_commits_ahead_of_base?).and_return(false)
     allow(handler).to receive(:restore_run_checkpoint_if_needed!)
 
     handler.call
@@ -519,7 +522,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     allow(handler).to receive(:workspace).and_return(
-      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: path)
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: path, base_ref: "origin/main")
     )
     allow(handler).to receive(:workspace_contains_sha?).and_return(false)
     allow(handler).to receive(:workflow_branch_contains_sha?).and_return(false)
@@ -527,6 +530,11 @@ RSpec.describe Steps::PrOpen, :ci_only do
     git = instance_double(GitRunner)
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(git).to receive(:run).and_return("validated-sha\n")
+    # Nothing ahead of base: the worker-hop state the restore exists to repair.
+    # Declared after the catch-all so this narrower stub is the one that matches.
+    allow(git).to receive(:run)
+      .with("rev-list", "--count", "origin/main..refs/heads/syrus/direct-#{job.id}", chdir: path.to_s)
+      .and_return("0\n")
     allow(GitRunner).to receive(:new).and_return(git)
     allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://push.example/repo.git")
 
@@ -552,7 +560,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     handler = described_class.new(pr_open_run)
     allow(handler).to receive(:workspace).and_return(
-      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"))
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"), base_ref: "origin/main")
     )
     allow(handler).to receive(:push_branch).and_return(:pushed)
     allow(handler).to receive(:close_empty_new_publication_branch!).and_return(true)
@@ -580,7 +588,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     branch = "syrus/direct-#{job.id}"
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path, base_ref: "origin/main")
     git = instance_double(GitRunner)
     client = instance_double(GithubClient, access_token: "token")
     fetch_url = repository.authenticated_push_url("token")
@@ -620,7 +628,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       agent_provider: workflow.agent_provider
     )
     handler = described_class.new(pr_open_run)
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}", base_ref: "origin/main")
     opener = instance_double(PullRequestOpener)
     client = instance_double(GithubClient, access_token: "tok")
 
@@ -669,7 +677,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
         agent_provider: workflow.agent_provider
       )
       handler = described_class.new(pr_open_run)
-      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}", base_ref: "origin/main")
       opener = instance_double(PullRequestOpener, open: 55)
       client = instance_double(GithubClient, access_token: "tok")
 
@@ -705,7 +713,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       agent_provider: workflow.agent_provider
     )
     handler = described_class.new(pr_open_run)
-    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}", base_ref: "origin/main")
     opener = instance_double(PullRequestOpener)
     client = instance_double(GithubClient, access_token: "tok")
 
@@ -748,7 +756,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
         agent_provider: fork_workflow.agent_provider
       )
       handler = described_class.new(fork_run)
-      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}")
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}", base_ref: "origin/main")
       fork_client = instance_double(GithubClient, access_token: "fork-tok")
       opener = instance_double(PullRequestOpener)
 
@@ -784,7 +792,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
         agent_provider: fork_workflow.agent_provider
       )
       handler = described_class.new(fork_run)
-      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}")
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-55-#{fork_job.id}", base_ref: "origin/main")
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:push_branch)
       expect(PullRequestOpener).not_to receive(:new)
@@ -807,7 +815,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
-    workspace = instance_double(WorkflowWorkspace, branch_name: "syrus/issue-42-#{job.id}", path: path)
+    workspace = instance_double(WorkflowWorkspace, branch_name: "syrus/issue-42-#{job.id}", path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -849,6 +857,86 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
 
+  # `summarize` amends the implement commit to the agent-authored message, so by
+  # the time pr_open runs the validated SHA has been replaced by an equivalent
+  # commit. Treating that as "the implementation is missing" reset the branch to
+  # the pre-amend commit and discarded the amend -- every PR got the templated
+  # "Implement: JOB-N" subject, and main went red on it.
+  it "does not restore over work a later step rewrote" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
+    implement_run = Run.create!(
+      job: job, step: implement_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "succeeded", head_sha: "pre-amend-sha"
+    )
+    RunCheckpoint.create!(
+      run: implement_run, workflow: workflow, step: implement_step, job: job,
+      repository: repository, user: job.user, step_kind: implement_step.kind,
+      commit_sha: "pre-amend-sha", remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published", published_at: Time.current
+    )
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    allow(handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: path, base_ref: "origin/main")
+    )
+    # The amend rewrote the commit, so the validated SHA is genuinely absent...
+    allow(handler).to receive(:workspace_contains_sha?).and_return(false)
+    # ...but the branch still holds the amended commit.
+    git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run)
+      .with("rev-list", "--count", "origin/main..refs/heads/syrus/direct-#{job.id}", chdir: path.to_s)
+      .and_return("1\n")
+    expect(handler).not_to receive(:checkout_workflow_branch_at!)
+    expect(handler).not_to receive(:checkout_workflow_branch!)
+
+    handler.send(:restore_validated_implementation_if_missing!)
+  end
+
+  # The worker-hop case the restore exists for: a fresh clone off the base has
+  # nothing of its own, so restoring is the only way the work survives.
+  it "still restores when the branch has nothing ahead of base" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
+    implement_run = Run.create!(
+      job: job, step: implement_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "succeeded", head_sha: "validated-sha"
+    )
+    RunCheckpoint.create!(
+      run: implement_run, workflow: workflow, step: implement_step, job: job,
+      repository: repository, user: job.user, step_kind: implement_step.kind,
+      commit_sha: "validated-sha", remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published", published_at: Time.current
+    )
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    allow(handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: path, base_ref: "origin/main")
+    )
+    allow(handler).to receive(:workspace_contains_sha?).and_return(false)
+    allow(handler).to receive(:workflow_branch_contains_sha?).and_return(false)
+    git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run)
+      .with("rev-list", "--count", "origin/main..refs/heads/syrus/direct-#{job.id}", chdir: path.to_s)
+      .and_return("0\n")
+    allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: path.to_s).and_return("validated-sha\n")
+    streaming = instance_double(GitRunner)
+    allow(handler).to receive(:streaming_git).and_return(streaming)
+    allow(streaming).to receive(:run)
+    allow(handler).to receive(:authenticated_git).and_yield("https://example.invalid/repo.git")
+    expect(handler).to receive(:checkout_workflow_branch_at!).with("validated-sha")
+
+    handler.send(:restore_validated_implementation_if_missing!)
+  end
+
   # Choosing between these two branches is destructive and irreversible, and the
   # operator usually faces the choice hours later on a worker that no longer has
   # the workspace. Capture what each side holds while both are still readable,
@@ -862,7 +950,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     branch = "syrus/issue-42-#{job.id}"
-    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -907,7 +995,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
     branch = "syrus/issue-42-#{job.id}"
-    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path)
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
@@ -942,7 +1030,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
     )
     handler = described_class.new(pr_open_run)
     path = Pathname.new("/tmp/syrus-pr-open-spec")
-    workspace = instance_double(WorkflowWorkspace, branch_name: "syrus/issue-42-#{job.id}", path: path)
+    workspace = instance_double(WorkflowWorkspace, branch_name: "syrus/issue-42-#{job.id}", path: path, base_ref: "origin/main")
     client = instance_double(GithubClient, access_token: "token")
     git = instance_double(GitRunner)
     push_url = repository.authenticated_push_url("token")
