@@ -223,20 +223,105 @@ RSpec.describe TargetGraph::Compiler do
 
       formatter = graph.target(TargetGraph::Label.parse("//cli:format/0"))
       expect(formatter.command).to eq("gofmt -w .")
-      expect(formatter.source_scope).to eq([ "**/*.go" ])
+      expect(formatter.source_scope).to eq([ "cli/**/*.go" ])
       expect(formatter.dependencies).to eq([ TargetGraph.root_label ])
 
       generator = graph.target(TargetGraph::Label.parse("//cli:generate/0"))
       expect(generator.command).to eq("go generate ./...")
+      expect(generator.source_scope).to eq([ "cli/**/*" ])
 
       tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
       expect(tests.command).to eq("go test ./...")
       expect(tests.project_id).to eq("cli")
       expect(tests.owner_config_path).to eq("cli/.syrus.yml")
+      expect(tests.source_scope).to eq([ "cli/**/*" ])
 
       # Root behavior is unaffected: still just the implicit root target.
       expect(graph.target(TargetGraph.root_label)).not_to be_nil
       expect(graph.validate!).to be(true)
+    end
+
+    describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do
+      it "keeps root-only declarations repo-wide, with or without an explicit selector" do
+        write(".syrus.yml", <<~YAML)
+          formatters:
+            - command: rubocop -a
+              files: ["**/*.rb"]
+          generated:
+            - command: bin/rails db:schema:dump
+              generates: ["db/schema.rb"]
+          grade:
+            - name: tests
+              run: bin/rspec
+        YAML
+
+        graph = described_class.compile(@dir)
+
+        formatter = graph.target(TargetGraph::Label.parse("//:format/0"))
+        expect(formatter.source_scope).to eq([ "**/*.rb" ])
+
+        generator = graph.target(TargetGraph::Label.parse("//:generate/0"))
+        expect(generator.source_scope).to eq([])
+
+        tests = graph.target(TargetGraph::Label.parse("//:grade/tests"))
+        expect(tests.source_scope).to eq([])
+      end
+
+      it "scopes a nested declaration with no explicit selector to its own directory" do
+        write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+        graph = described_class.compile(@dir)
+
+        tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(tests.source_scope).to eq([ "cli/**/*" ])
+      end
+
+      it "resolves a nested declaration's own narrower file selector relative to its directory" do
+        write("cli/.syrus.yml", <<~YAML)
+          formatters:
+            - command: gofmt -w .
+              files: ["**/*.go"]
+          generated:
+            - command: go generate ./...
+              sources: ["proto/**/*.proto"]
+              generates: ["gen/*.go"]
+          grade:
+            - name: tests
+              run: go test ./...
+              when_files_changed: ["**/*.go"]
+        YAML
+
+        graph = described_class.compile(@dir)
+
+        formatter = graph.target(TargetGraph::Label.parse("//cli:format/0"))
+        expect(formatter.source_scope).to eq([ "cli/**/*.go" ])
+
+        generator = graph.target(TargetGraph::Label.parse("//cli:generate/0"))
+        expect(generator.source_scope).to eq([ "cli/proto/**/*.proto" ])
+
+        tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(tests.source_scope).to eq([ "cli/**/*.go" ])
+      end
+
+      it "composes root and nested scopes additively: root stays repo-wide, nested stays directory-scoped" do
+        write(".syrus.yml", <<~YAML)
+          grade:
+            - name: root-tests
+              run: bin/rspec
+              when_files_changed: ["app/**/*.rb"]
+        YAML
+        write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+        graph = described_class.compile(@dir)
+
+        root_tests = graph.target(TargetGraph::Label.parse("//:grade/root-tests"))
+        expect(root_tests.source_scope).to eq([ "app/**/*.rb" ])
+
+        cli_tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(cli_tests.source_scope).to eq([ "cli/**/*" ])
+
+        expect(graph.validate!).to be(true)
+      end
     end
 
     it "loads nested config after root config, in deterministic path-sorted order" do
