@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
@@ -358,13 +358,22 @@ describe("ReviewableDiff", () => {
 
     render(<ReviewableDiff files={highlightedFiles} mode="single-file" selectedPath="app/models/job.rb" />)
 
-    const contextKeyword = await screen.findByText("class")
-    expect(contextKeyword.tagName).toBe("SPAN")
-    expect(contextKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+    // Word-occurrence highlighting renders a colorless clickable span for
+    // "class"/"def" immediately, before async Shiki tokenization resolves,
+    // so plain findByText would grab that transient element. Poll until the
+    // (possibly re-rendered) element for this text has picked up its Shiki
+    // color instead of asserting against whatever's there on the first tick.
+    await waitFor(() => {
+      const contextKeyword = screen.getByText("class")
+      expect(contextKeyword.tagName).toBe("SPAN")
+      expect(contextKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+    })
 
-    const addedKeyword = await screen.findByText("def")
-    expect(addedKeyword.style.color).toMatch(/^var\(--shiki-token-/)
-    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+    await waitFor(() => {
+      const addedKeyword = screen.getByText("def")
+      expect(addedKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+      expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+    })
   })
 })
 
