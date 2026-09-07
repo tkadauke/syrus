@@ -110,6 +110,41 @@ until the owner accepts a suggestion. New pending suggestions cannot overlap an
 existing pending suggestion, and selections that cut through partial Markdown
 block syntax are rejected with a validation error.
 
+### Threads rail anchor alignment
+
+Comments and suggestions render as one combined, document-order list in the
+Threads rail (`activeRailEntries` in `DesignDocsSurface.tsx`) sorted by each
+entry's anchor offset -- not grouped into a comments group followed by a
+suggestions group -- so reading the rail top to bottom matches reading the
+document top to bottom, and the two kinds are positioned identically.
+
+Each card's vertical position targets the pixel position of its anchor mark
+in the currently active editor surface (the Rich Text WYSIWYG body or the
+Markdown highlight mirror), measured via `getBoundingClientRect` and applied
+with a per-card `margin-top` plus one `transform: translateY(...)` on the
+whole card stack (`computeRailLayout` in `designDocRailLayout.ts`). When
+anchors sit too close together for their cards to fit without overlapping,
+the card nearest the focused anchor/card (the "pivot" -- the clicked item, or
+the topmost item when nothing is focused) holds its exact position and the
+rest cascade away from it, earlier cards pushed up and later cards pushed
+down, preserving document order and a minimum gap. A pushed-up card can end
+up rendered above the rail's own top edge -- that's expected: selecting that
+card or its anchor makes it the pivot and snaps it back into exact alignment.
+Layout recomputes on focus changes, editor mode switches, thread/suggestion
+set changes, and content/viewport resizes (`ResizeObserver` plus a window
+`resize` listener); it never introduces a separate scrolling container --
+the rail stays part of the normal document scroll, and any overflow below
+the document's end just extends the page's own scroll height.
+
+Anchors without a rendered mark (e.g. `point`-kind anchors, or any anchor
+that briefly has no highlight while a draft edit is unsaved and dirty) fall
+back to inheriting the previous entry's resolved position rather than being
+measured, so the cascade still holds even when a marker can't be found.
+Historical version threads (see "Anchor staleness" above) are exempt from
+this positioning entirely and keep a plain, unaligned stacking order, since
+their anchors describe a past Markdown body, not whatever is currently
+rendered in the editor.
+
 The document detail API includes editor permission flags:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
 an `Edit` / `Suggest` selector in the editor toolbar. `Edit` is selected by

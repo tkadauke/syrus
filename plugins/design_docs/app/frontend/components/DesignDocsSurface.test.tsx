@@ -833,6 +833,194 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
   })
 
+  it("synchronizes focus between an inline suggestion mark and its rail card", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    fireEvent.click(screen.getByText("Use newer name"))
+    expect(editor.selectionStart).toBe(11)
+    expect(editor.selectionEnd).toBe(16)
+
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    const wysiwygHighlight = await waitFor(() => container.querySelector("mark[data-suggestion-id='9']"))
+    fireEvent.click(wysiwygHighlight!)
+
+    expect(screen.getByText("Use newer name").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+  })
+
+  it("keeps the Threads rail in document order -- not grouped by comment vs. suggestion -- when anchors interleave", async () => {
+    const markdown = "Alpha Bravo Charlie Delta"
+    const interleavedDoc = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      open_threads_count: 1,
+      pending_suggestions_count: 1,
+      threads: [{
+        ...docDetail.threads[0],
+        id: 201,
+        anchor: {
+          ...docDetail.threads[0].anchor,
+          id: 301,
+          marker_id: "t1",
+          start_offset: 12,
+          end_offset: 19,
+          last_known_start_offset: 12,
+          last_known_end_offset: 19,
+          selected_markdown: "Charlie",
+          selected_text: "Charlie"
+        },
+        agent_run: null,
+        comments: [{ id: 401, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: "Later thread comment", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
+      }],
+      suggestions: [{
+        ...docDetail.suggestions[0],
+        id: 90,
+        original_markdown: "Alpha",
+        suggested_markdown: "AlphaX",
+        proposed_markdown: "AlphaX",
+        change_summary: "Earlier suggestion summary",
+        anchor: {
+          ...docDetail.suggestions[0].anchor,
+          id: 302,
+          marker_id: "s1",
+          start_offset: 0,
+          end_offset: 5,
+          last_known_start_offset: 0,
+          last_known_end_offset: 5,
+          selected_markdown: "Alpha",
+          selected_text: "Alpha"
+        },
+        thread: null
+      }]
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: interleavedDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    await screen.findByText("Earlier suggestion summary")
+    await screen.findByText("Later thread comment")
+
+    const cards = Array.from(container.querySelectorAll("[data-anchor-offset]"))
+    expect(cards.map((card) => card.getAttribute("data-anchor-offset"))).toEqual(["0", "12"])
+  })
+
+  it("does not give the Threads rail its own scrolling container", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const threadsHeading = await screen.findByText("Threads")
+    const rail = threadsHeading.closest("aside")
+    expect(rail).not.toBeNull()
+    expect(rail!.innerHTML).not.toMatch(/overflow-y/)
+  })
+
+  it("pushes cards above the top edge, without overlap or reordering, to keep a clicked anchor aligned with its card", async () => {
+    const markdown = "Alpha Bravo Charlie"
+    const clusterDoc = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      suggestions: [],
+      open_threads_count: 3,
+      pending_suggestions_count: 0,
+      threads: [0, 6, 12].map((startOffset, index) => ({
+        ...docDetail.threads[0],
+        id: 101 + index,
+        agent_run: null,
+        anchor: {
+          ...docDetail.threads[0].anchor,
+          id: 201 + index,
+          marker_id: `c${index}`,
+          start_offset: startOffset,
+          end_offset: startOffset + 5,
+          last_known_start_offset: startOffset,
+          last_known_end_offset: startOffset + 5
+        },
+        comments: [{ id: 301 + index, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: ["First note", "Second note", "Third note"][index], created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
+      }))
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: clusterDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    await screen.findByText("First note")
+
+    const markerTops: Record<string, number> = { "101": 0, "102": 10, "103": 20 }
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      const threadId = this.dataset.threadId
+      if (threadId && markerTops[threadId] != null) {
+        const top = markerTops[threadId]
+        return { ...base, top, bottom: top, height: 0 } as DOMRect
+      }
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    fireEvent.click(screen.getByText("Third note"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(-84px)" })
+    })
+    // Pinned to its own anchor (the clicked pivot).
+    expect(screen.getByText("Third note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "12px" })
+    // Pushed up to make room, in the same 12px minimum gap -- never overlapping,
+    // never reordered even though it's now visually above its own anchor.
+    expect(screen.getByText("Second note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "12px" })
+    // The whole stack's shift (-84px) carries the first card up front -- it
+    // keeps a 0px margin of its own, same as any unshifted first card.
+    expect(screen.getByText("First note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "0px" })
+  })
+
+  it("recomputes card alignment when the window resizes", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    let markerTop = 100
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: markerTop, bottom: markerTop, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent.click(screen.getByText("Needs evidence"))
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(100px)" })
+    })
+
+    markerTop = 250
+    fireEvent(window, new Event("resize"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(250px)" })
+    })
+  })
+
   it("renders block-level suggestions as anchored document marks and structured thread diffs", async () => {
     const blockSuggestion = {
       ...docDetail.suggestions[0],
