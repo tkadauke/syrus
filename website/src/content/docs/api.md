@@ -217,6 +217,48 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 }'
 ```
 
+## Scheduled Tasks
+
+When the `scheduled_tasks` plugin is enabled (on by default), admin tokens
+can inspect and operate `ScheduledTask`s instance-wide — the same
+pause/unpause/fire actions available from the Schedules UI, reachable
+without a browser session. With the plugin disabled these endpoints return
+`plugin_disabled`. Authoring (create/edit/delete) stays app-API/SPA-only.
+
+`GET /api/v1/admin/scheduled_tasks` lists tasks across every repository and
+user, filterable by `repository` (`owner/name`), `user` (email substring),
+`kind` (`cron` or `one_shot`), `paused` (`true`/`false`), and `due_before`
+(ISO 8601 — tasks whose next fire time falls before it). Archived tasks are
+excluded by default.
+
+```bash
+curl "https://syrus.example.com/api/v1/admin/scheduled_tasks?paused=true" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/admin/scheduled_tasks/:id` returns full detail, including the
+cron expression, `pr_pileup_policy`, `consecutive_failure_count`,
+`last_fired_at`, and `next_fire_at`.
+
+`POST /api/v1/admin/scheduled_tasks/:id/pause` and `.../unpause` toggle a
+task the same way the operator UI does — useful for silencing a task that is
+filing broken Jobs every hour without waiting on `AppSetting.max_job_failures`
+to auto-pause it.
+
+`POST /api/v1/admin/scheduled_tasks/:id/fire` fires the task once immediately,
+producing the same `kind=cron` Job the poller would (prompt rendered at fire
+time), without waiting for its next scheduled window. Useful for testing a
+task's prompt end-to-end.
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/scheduled_tasks/42/fire \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/admin/cron_templates` and `GET
+/api/v1/admin/cron_templates/:id` are read-only lookups for the reusable
+schedule + prompt templates tasks can be created from, filterable by `user`.
+
 ## Rename a Chat
 
 `POST /api/v1/app/chats/:id/rename` (also accepted as `PATCH`) renames one

@@ -143,6 +143,16 @@ Cron task prompts support these interpolation variables, rendered at fire time:
 
 The Job runs on the branch `syrus/scheduled-<task_id>-<job_id>`.
 
+## Admin API
+
+Bearer-token admin clients can inspect and operate scheduled tasks
+instance-wide through `/api/v1/admin/scheduled_tasks` and
+`/api/v1/admin/cron_templates` — list/filter, view detail (cron expression,
+`pr_pileup_policy`, consecutive failure count, last/next fire time), and
+pause/unpause/fire a task without a browser session. Authoring stays UI-only.
+See `website/src/content/docs/api.md` (Scheduled Tasks section) for the full
+surface. With the plugin disabled, every endpoint answers `plugin_disabled`.
+
 ## Per-user scheduling pause
 
 Set `User#scheduling_paused = true` to pause all scheduled tasks for a user without touching individual tasks. `PollScheduledTasksJob` skips paused users entirely. Operators can toggle this via the admin UI; users can toggle it in `/credentials/edit`.
