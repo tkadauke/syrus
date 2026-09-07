@@ -474,7 +474,7 @@ module Admin
       train = MergeTrain.where(epic: job.epic).order(created_at: :desc, id: :desc).first
       workflow_scope = Workflow.where(trigger_kind: "merge_train", job_id: job.epic.jobs.select(:id))
       latest_workflow = workflow_scope.order(created_at: :desc, id: :desc).first
-      readiness = MergeTrainAssembler.call(job.epic)
+      readiness = LandingBundleAssembler.for_epic(job.epic)
       {
         enabled: AppSetting.merge_train_enabled?,
         readiness: {

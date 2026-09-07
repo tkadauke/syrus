@@ -24,7 +24,7 @@ class MergeTrainDispatcher
   def try_dispatch!
     return if blocker_reason
 
-    result = MergeTrainAssembler.call(@epic)
+    result = LandingBundleAssembler.for_epic(@epic)
     return unless result.ready?
 
     workflow = nil
@@ -74,7 +74,7 @@ class MergeTrainDispatcher
       return cooldown_reason(failed_train)
     end
 
-    readiness = MergeTrainAssembler.call(@epic)
+    readiness = LandingBundleAssembler.for_epic(@epic)
     return readiness.reason unless readiness.ready?
 
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)

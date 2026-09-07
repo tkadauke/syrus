@@ -115,8 +115,8 @@ atomic bundle, the same way an Epic's children already land together via the
 merge train (`MergeTrain`/`MergeTrainMember`). `MergeTrain.epic_id` is
 nullable and a `priority` column exists so a train row can be either
 epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
-nil, `priority` present), enforced by a model validation. `JobBundleAssembler`
-(candidate selection: same repository, epicless, approved, own-PR, grouped
+nil, `priority` present), enforced by a model validation. `LandingBundleAssembler`'s
+priority-tier scope (candidate selection: same repository, epicless, approved, own-PR, grouped
 into same-priority tiers, minimum 2 members, capped at
 `AppSetting.merge_train_max_size` without splitting a real `JobDependency`
 edge across bundles) and `JobBundleDispatcher` (transactional
