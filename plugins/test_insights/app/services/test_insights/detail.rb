@@ -30,7 +30,7 @@ module TestInsights
         repository: repository_payload(repository),
         test: test_identity_payload(identity, history_cases: history_cases),
         history_limit: @history_limit,
-        history: history_cases.map { |test_case| history_payload(test_case) },
+        history: history_cases.map { |test_case| safe_history_payload(test_case) },
         duration_points: duration_points(identity),
         related: related_payload(history_cases)
       }
@@ -140,6 +140,16 @@ module TestInsights
       payload
     end
 
+    # A single malformed TestCase (missing run/job chain) must not 500
+    # the whole history -- mirrors Admin::JobStateSerializer's per-record
+    # degrade shape.
+    def safe_history_payload(test_case)
+      history_payload(test_case)
+    rescue StandardError => e
+      Rails.logger.warn("[test_insights/detail] failed to serialize TestCase##{test_case.id}: #{e.class}: #{e.message}")
+      { test_case: { id: test_case.id, type: "TestCase" }, error_serializing: "#{e.class}: #{e.message}" }
+    end
+
     def duration_points(identity)
       identity.test_cases
         .where.not(duration_ms: nil)
@@ -159,10 +169,19 @@ module TestInsights
 
     def related_payload(history_cases)
       {
-        grader_names: history_cases.map { |test_case| test_case.test_run.grader_name }.uniq,
-        run_refs: history_cases.map { |test_case| "RUN-#{test_case.test_run.run_id}" }.uniq,
-        job_refs: history_cases.map { |test_case| test_case.test_run.run.job.slug }.uniq
+        grader_names: history_cases.filter_map { |test_case| rescue_nil { test_case.test_run.grader_name } }.uniq,
+        run_refs: history_cases.filter_map { |test_case| rescue_nil { "RUN-#{test_case.test_run.run_id}" } }.uniq,
+        job_refs: history_cases.filter_map { |test_case| rescue_nil { test_case.test_run.run.job.slug } }.uniq
       }
+    end
+
+    # Same "one bad row can't take down the response" posture as
+    # safe_history_payload, applied to the aggregate ref lists -- a
+    # malformed test_case here should just be omitted, not fail the request.
+    def rescue_nil
+      yield
+    rescue StandardError
+      nil
     end
 
     def failure_payload(test_case)
