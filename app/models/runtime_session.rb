@@ -7,6 +7,8 @@ class RuntimeSession < ApplicationRecord
   belongs_to :workflow, optional: true
   belongs_to :run, optional: true
 
+  has_many :runtime_control_leases, dependent: :destroy
+
   attribute :capabilities, :json, default: -> { {} }
   attribute :metadata, :json, default: -> { {} }
 
@@ -20,4 +22,15 @@ class RuntimeSession < ApplicationRecord
   def active? = !%w[failed stopped].include?(state)
   def failed? = state == "failed"
   def stopped? = state == "stopped"
+
+  # The agent's currently active input-mode control lease, if any — the gate
+  # DOC-17 requires before delivering pointer/keyboard/touch/etc. events on
+  # this session's behalf.
+  def active_agent_input_lease
+    runtime_control_leases.active.held_by("agent").for_mode("input").first
+  end
+
+  def agent_input_lease_active?
+    active_agent_input_lease.present?
+  end
 end
