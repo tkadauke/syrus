@@ -86,6 +86,7 @@
     "attachments_remove": "Remove {{filename}}",
     "attachments_too_large": "{{filename}} exceeds the 20 MB limit and was not added.",
     "attachments_max_reached": "You can attach at most 9 additional files.",
+    "drop_to_attach": "Drop to attach",
     "whats_included": "What's included",
     "context_url": "URL",
     "context_browser": "Browser",

@@ -86,6 +86,7 @@
     "attachments_remove": "{{filename}} entfernen",
     "attachments_too_large": "{{filename}} überschreitet das 20-MB-Limit und wurde nicht hinzugefügt.",
     "attachments_max_reached": "Sie können maximal 9 zusätzliche Dateien anhängen.",
+    "drop_to_attach": "Zum Anhängen hier ablegen",
     "whats_included": "Was enthalten ist",
     "context_url": "URL",
     "context_browser": "Browser",
