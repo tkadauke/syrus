@@ -3,18 +3,68 @@
 Syrus has an internal `TargetGraph` model (`app/services/target_graph.rb` and
 `app/services/target_graph/`) that represents a repository's configuration as
 canonically labeled `Project`s and `Target`s (`//package:name`, e.g.
-`//:repo`, `//:grade/tests`). It exists so later project-aware workflow work
-has one real graph to build on instead of a model nothing populates.
+`//:repo`, `//:grade/tests`, `//cli:grade/tests`). It exists so later
+project-aware workflow work has one real graph to build on instead of a model
+nothing populates.
 
-**This is internal plumbing, not a feature yet.** Today `TargetGraph::Compiler`
-only reads a repository's root `.syrus.yml` legacy sections (`prepare`,
+**This is internal plumbing, not a feature yet.** `TargetGraph::Compiler`
+reads a repository's root `.syrus.yml` legacy sections (`prepare`,
 `formatters`, `generated`, `grade`) and compiles them into targets under an
-implicit root project (`//:repo`). Nothing in the runtime prepare, format,
-generate, or grader pipelines reads from the compiled graph, and compiling it
-does not change what those pipelines run. Nested `.syrus.yml` discovery,
-explicit `project:`/`targets:` declarations, and build-system plugin import
-(the later adoption levels in `DOC-20`) do not exist yet — do not describe
-them as available.
+implicit root project (`//:repo`), then does the same for every nested
+`.syrus.yml` it discovers below the root (see "Nested `.syrus.yml`
+discovery" below). Nothing in the runtime prepare, format, generate, or
+grader pipelines reads from the compiled graph — root or nested — and
+compiling it does not change what those pipelines run. Explicit
+`project:`/`targets:` declarations and build-system plugin import (later
+adoption levels in `DOC-20`) do not exist yet — do not describe them as
+available.
+
+## Nested `.syrus.yml` discovery
+
+`TargetGraph::NestedConfigDiscovery` (`app/services/target_graph/nested_config_discovery.rb`)
+walks a workspace below its root looking for `.syrus.yml` files in
+subdirectories. A nested `.syrus.yml` is discovered purely by its literal
+presence on disk — discovery never infers a project boundary from
+`package.json`, `go.mod`, Rails directory conventions, or any other
+repository-structure signal.
+
+The walk excludes directories that are never real project configuration: VCS
+internals (`.git`), the workspace's own scratch directory (`.syrus`), and
+common dependency/vendor caches and build outputs (`node_modules`, `vendor`,
+`.bundle`, `tmp`, `log`, `coverage`, `dist`, `build`, `.next`, `.cache`).
+Discovered directories are always returned sorted, so nested config is always
+compiled in the same deterministic order regardless of filesystem iteration
+order — and always after the root `.syrus.yml`, which `TargetGraph::Compiler`
+compiles first.
+
+Each discovered nested `.syrus.yml` becomes its own directory-scoped
+`Project` (id and label derived from its relative path, e.g. `cli` for
+`cli/.syrus.yml`, `apps-desktop` for `apps/desktop/.syrus.yml`), and its
+`prepare`/`formatters`/`generated`/`grade` sections compile into targets
+under that project the exact same way the root file's sections do —
+`//cli:prepare`, `//cli:format/0`, `//cli:grade/tests`, and so on. Root
+`.syrus.yml` compilation is completely unaffected: a repository with no
+nested config compiles exactly as it did before nested discovery existed.
+
+A broken nested `.syrus.yml` is reported, never silently dropped, but the two
+ways it can be broken have different severity:
+
+- **Invalid YAML/config in one nested file** (the same errors
+  `SyrusYml::ParseError` already reports for the root file) is lenient: only
+  that file's project and targets are skipped, compilation continues for the
+  root and every other nested file, and the problem shows up in
+  `Diagnostics#error` naming the offending file's path (e.g.
+  `cli/.syrus.yml: formatters: must be an array`) — this never raises from
+  `TargetGraph::Compiler#compile` or `#diagnose`.
+- **A structural collision across files** — most concretely, two different
+  nested directories whose paths reduce to the same project id (a directory
+  literally named `foo-bar` alongside a nested `foo/bar/.syrus.yml`, both of
+  which need to become project id `foo-bar`) — is a real graph-construction
+  problem and raises `TargetGraph::ValidationError` naming both files, the
+  same way any other duplicate project/target declaration does.
+  `TargetGraph::Compiler#compile` propagates this; `#diagnose` catches it
+  (matching its documented never-raises contract) and reports it through
+  `Diagnostics#error` instead.
 
 ## Diagnostics
 
