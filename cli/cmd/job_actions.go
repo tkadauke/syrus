@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,18 +17,29 @@ import (
 
 var openBrowser = defaultOpenBrowser
 
+// jobCreatePriorities mirrors Job::PRIORITIES in app/models/job.rb.
+var jobCreatePriorities = []string{"urgent", "high", "medium", "low"}
+
 func newJobCreateCommand() *cobra.Command {
 	var repo string
 	var yes bool
+	var priority string
+	var agent string
+	var epic string
+	var owner string
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a direct Syrus job",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobCreate(cmd, repo, yes)
+			return runJobCreate(cmd, repo, yes, priority, agent, epic, owner)
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug, e.g. owner/name")
 	cmd.Flags().BoolVar(&yes, "yes", false, "create without confirmation")
+	cmd.Flags().StringVar(&priority, "priority", "", "priority: urgent, high, medium, or low (default: medium)")
+	cmd.Flags().StringVar(&agent, "agent", "", "agent provider slug, e.g. claude or codex")
+	cmd.Flags().StringVar(&epic, "epic", "", "attach to an epic, e.g. EPIC-42 or a slug")
+	cmd.Flags().StringVar(&owner, "owner", "", "assign a repository member as owner, by user ID")
 	return cmd
 }
 
@@ -108,13 +121,28 @@ func newJobOpenCommand() *cobra.Command {
 	}
 }
 
-func runJobCreate(cmd *cobra.Command, repo string, yes bool) error {
+func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, agent string, epic string, owner string) error {
 	repo = strings.TrimSpace(repo)
 	if repo == "" {
 		repo = cliplugin.DetectCurrentRepoSlug()
 	}
 	if repo == "" {
 		return errors.New("run from a GitHub checkout or pass --repo owner/name")
+	}
+
+	priority = strings.TrimSpace(priority)
+	if priority != "" && !slices.Contains(jobCreatePriorities, priority) {
+		return fmt.Errorf("invalid --priority %q: must be one of %s", priority, strings.Join(jobCreatePriorities, ", "))
+	}
+
+	var ownerUserID int64
+	owner = strings.TrimSpace(owner)
+	if owner != "" {
+		parsed, err := strconv.ParseInt(owner, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid --owner %q: must be a numeric user ID", owner)
+		}
+		ownerUserID = parsed
 	}
 
 	reader := bufio.NewReader(cmd.InOrStdin())
@@ -151,10 +179,29 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool) error {
 	if !ok {
 		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
 	}
+
+	var epicID int64
+	epic = strings.TrimSpace(epic)
+	if epic != "" {
+		_, ref, err := parseEpicRef(epic)
+		if err != nil {
+			return err
+		}
+		resolved, err := client.GetEpic(cmd.Context(), ref)
+		if err != nil {
+			return fmt.Errorf("could not resolve epic %s: %w", epic, err)
+		}
+		epicID = resolved.Epic.ID
+	}
+
 	job, err := client.CreateDirectJob(cmd.Context(), api.CreateJobParams{
-		RepositoryID: repositoryID,
-		Title:        title,
-		Prompt:       description,
+		RepositoryID:  repositoryID,
+		Title:         title,
+		Prompt:        description,
+		Priority:      priority,
+		AgentProvider: strings.TrimSpace(agent),
+		EpicID:        epicID,
+		OwnerUserID:   ownerUserID,
 	})
 	if err != nil {
 		return err

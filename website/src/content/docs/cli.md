@@ -254,7 +254,15 @@ human-readable slugs derived from the job title (e.g.
 
 `job create` prompts for a title and multi-line description, defaults to
 the current checkout repository, and accepts `--repo owner/name` and
-`--yes`.
+`--yes`. Optional flags set fields the API already accepts but that the
+interactive prompt does not ask for: `--priority` (`urgent`, `high`,
+`medium`, or `low`; omitted defaults to `medium` server-side), `--agent`
+(an agent provider slug, e.g. `claude` or `codex`), `--epic` (an Epic to
+attach the job to, as `EPIC-<id>` or a slug — resolved to its numeric ID
+before the job is created), and `--owner` (the numeric user ID of a
+repository member to assign as owner). All four are optional and omitted
+entirely from the request when not passed, rather than sent as blank
+values.
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
