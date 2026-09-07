@@ -321,4 +321,16 @@ RSpec.describe TestInsights::Query do
     expect(result.tests.map { |test| test.fetch(:id) }).to eq([ identity.id ])
     expect(test_case_selects).to all(match(/"test_identity_id"|`test_identity_id`/))
   end
+
+  it "degrades a malformed identity instead of failing the whole list" do
+    identity = create_identity!(name: "breaks on serialize")
+    create_case!(identity: identity, status: "passed", created_at: 1.minute.ago)
+    allow_any_instance_of(TestInsights::TestIdentity).to receive(:interesting_reasons).and_raise(RuntimeError, "boom")
+
+    result = described_class.call(user: user, repository: repository, category: "recently_seen")
+
+    row = result.tests.find { |test| test.fetch(:id) == identity.id }
+    expect(row.fetch(:error_serializing)).to include("boom")
+    expect(row.fetch(:type)).to eq("TestIdentity")
+  end
 end

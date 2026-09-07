@@ -123,4 +123,19 @@ RSpec.describe TestInsights::RunResults do
     expect(run_payload.dig(:suites, 0, :test_cases).map { |test_case| test_case.fetch(:name) }).to eq(%w[fast slow])
     expect(payload.fetch(:truncation)).to include(slow_cases_returned: 1, slow_cases_omitted: 1, suites_included: true)
   end
+
+  it "degrades a malformed test run instead of failing the whole payload" do
+    job = Factories.job(user: user, repository: repository)
+    run = job.initial_run
+    test_run = build_test_run(run: run)
+    build_test_case(test_run: test_run, name: "passes")
+    allow_any_instance_of(TestInsights::TestRun).to receive(:run).and_raise(RuntimeError, "boom")
+
+    payload = described_class.for_run(run: run)
+
+    row = payload.fetch(:test_runs).first
+    expect(row.fetch(:error_serializing)).to include("boom")
+    expect(row.fetch(:id)).to eq(test_run.id)
+    expect(row.fetch(:type)).to eq("TestRun")
+  end
 end

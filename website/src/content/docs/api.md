@@ -217,6 +217,43 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 }'
 ```
 
+## Test Insights
+
+Requires the `test_insights` plugin (bundled, on by default). It exposes an
+operator-facing admin twin of the read-only Test Insights MCP tools agents
+already use, so debugging a flaky or failing grader doesn't require scraping
+Run transcripts.
+
+`GET /api/v1/admin/repositories/:repository_id/tests` lists a repository's
+tests, filterable by `state` (`recently_seen`, `failing`, `flaky`, `slow`) and
+sortable by `sort`/`direction` (`last_seen`, `last_failed`, `last_duration`,
+`failure_rate`, `avg_duration`, `p50_duration`, `p95_duration`):
+
+```bash
+curl -G https://syrus.example.com/api/v1/admin/repositories/123/tests \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -d state=flaky -d sort=failure_rate -d direction=desc
+```
+
+`GET /api/v1/admin/repositories/:repository_id/tests/:id` returns one test's
+execution history, duration points, and related Run/Job references.
+
+`GET /api/v1/admin/jobs/:job_id/test_results` returns the ingested test
+results for a Job's most recent Workflow with test data — compact by
+default; pass `include_suites=true` or `include_slow_cases=true` for more
+detail, and `grader_name` to scope to one grader.
+
+```bash
+curl https://syrus.example.com/api/v1/admin/jobs/456/test_results \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+All three read from the same `TestInsights::Query`/`TestInsights::Detail`/
+`TestInsights::RunResults` service objects the `list_repository_test_insights`,
+`read_test_insight`, and `read_job_test_results` MCP tools call, so the admin
+API and agent tools never see different data. With the plugin disabled, all
+three answer `404` with `{ "error": { "code": "plugin_disabled" } }`.
+
 ## Rename a Chat
 
 `POST /api/v1/app/chats/:id/rename` (also accepted as `PATCH`) renames one
