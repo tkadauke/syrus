@@ -16,6 +16,7 @@ import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
+import { Input } from "./Input"
 import { Modal } from "./Modal"
 import { Select } from "./Select"
 import { useT } from "../hooks/useT"
@@ -37,6 +38,8 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   const [ownersNotice, setOwnersNotice] = useState<string | null>(null)
   const [reposNotice, setReposNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [detectedForkParent, setDetectedForkParent] = useState<string | null>(null)
+  const [showUpstreamFields, setShowUpstreamFields] = useState(false)
 
   // Seed defaults from the standard new-repository form, then apply the
   // onboarding overrides: auto-merge on, inherit the user's default agent,
@@ -194,18 +197,41 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     setRepoOptions([])
     setBranchOptions([])
     setReposNotice(null)
-    setValues((current) => (current ? { ...current, owner, name: "", github_owner_id: "", github_repository_id: "" } : current))
+    setDetectedForkParent(null)
+    setShowUpstreamFields(false)
+    setValues((current) => (current ? {
+      ...current,
+      owner,
+      name: "",
+      github_owner_id: "",
+      github_repository_id: "",
+      upstream_owner: "",
+      upstream_name: "",
+      upstream_default_branch: ""
+    } : current))
   }
 
   function chooseRepo(name: string) {
     const selected = repoOptions.find((r) => r.name === name)
     setBranchOptions([])
+    const parentFullName = selected?.fork ? selected.parent_full_name : null
+    const [parentOwner, parentName] = parentFullName ? parentFullName.split("/") : [ "", "" ]
+    setDetectedForkParent(parentFullName || null)
+    setShowUpstreamFields(!!parentFullName)
     setValues((current) => (current ? {
       ...current,
       name,
       github_owner_id: selected?.github_owner_id == null ? "" : String(selected.github_owner_id),
-      github_repository_id: selected?.github_repository_id == null ? "" : String(selected.github_repository_id)
+      github_repository_id: selected?.github_repository_id == null ? "" : String(selected.github_repository_id),
+      upstream_owner: parentOwner || "",
+      upstream_name: parentName || "",
+      upstream_default_branch: parentFullName ? (selected?.parent_default_branch || "") : ""
     } : current))
+  }
+
+  function updateUpstream(field: "upstream_owner" | "upstream_name" | "upstream_default_branch", value: string) {
+    setDetectedForkParent(null)
+    setValues((current) => (current ? { ...current, [field]: value } : current))
   }
 
   function submit(event: React.FormEvent) {
@@ -361,6 +387,43 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                     </Select>
                   )}
                 </Field>
+              ) : null}
+
+              {values.name && showUpstreamFields ? (
+                <div className="space-y-3 rounded border border-gray-200 dark:border-gray-700 p-3">
+                  {detectedForkParent ? (
+                    <Box tone="muted">{t('add_repository.upstream_detected_note', { parent: detectedForkParent })}</Box>
+                  ) : null}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label={t('add_repository.field_upstream_owner')}>
+                      <Input
+                        aria-label={t('add_repository.field_upstream_owner')}
+                        className="font-mono"
+                        onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
+                        type="text"
+                        value={values.upstream_owner}
+                      />
+                    </Field>
+                    <Field label={t('add_repository.field_upstream_name')}>
+                      <Input
+                        aria-label={t('add_repository.field_upstream_name')}
+                        className="font-mono"
+                        onChange={(event) => updateUpstream("upstream_name", event.target.value)}
+                        type="text"
+                        value={values.upstream_name}
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t('add_repository.field_upstream_branch')}>
+                    <Input
+                      aria-label={t('add_repository.field_upstream_branch')}
+                      className="font-mono"
+                      onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
+                      type="text"
+                      value={values.upstream_default_branch}
+                    />
+                  </Field>
+                </div>
               ) : null}
 
               <Box tone="muted">

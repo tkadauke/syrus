@@ -6,6 +6,18 @@ fork's upstream on the repository form (`upstream_owner` / `upstream_name`); whe
 the upstream is a repository Syrus already knows, the two are linked by
 `upstream_repository_id`.
 
+**Onboarding auto-detects GitHub forks.** When adding a repository, if the
+selected GitHub repository is itself a fork, the Add Repository modal pre-fills
+`upstream_owner`, `upstream_name`, and `upstream_default_branch` from GitHub's
+fork metadata (`GithubClient#owner_repos` returns `fork`/`parent_full_name`/
+`parent_default_branch`, fetching the individual repo only for repos flagged as
+forks when the list endpoint omits `parent`). This is a default, not a
+decision — the fields stay editable and can be cleared before submitting, and a
+non-fork repository's upstream fields stay blank exactly as before. Detection
+failures (rate limits, GitHub errors) degrade silently; the modal still
+submits without upstream fields. This does not retroactively detect upstreams
+for repositories already added.
+
 ## Jobs on a fork branch off the upstream's default branch
 
 For a fork whose upstream is registered in the instance, Jobs base their work on

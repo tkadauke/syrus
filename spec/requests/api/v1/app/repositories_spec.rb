@@ -1488,6 +1488,27 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "passes through fork metadata for a selected owner" do
+    sign_in_as(user)
+    allow(GithubClient).to receive(:for_user).and_return(
+      instance_double(
+        GithubClient,
+        owner_repos: [
+          { name: "syrus", github_repository_id: 456, github_owner_id: 123, fork: true,
+            parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+        ]
+      )
+    )
+
+    get "/api/v1/app/repositories/repos", params: { owner: "skadauke", owner_type: "user" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repos"]).to contain_exactly(
+      { "name" => "syrus", "github_repository_id" => 456, "github_owner_id" => 123, "fork" => true,
+        "parent_full_name" => "tkadauke/syrus", "parent_default_branch" => "main" }
+    )
+  end
+
   it "returns branches for a selected repository" do
     sign_in_as(user)
     allow(GithubClient).to receive(:for_user).and_return(
