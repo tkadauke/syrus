@@ -12,5 +12,6 @@ module SyrusBrowser
     input_schema(type: "object", properties: {}, required: [])
 
     proxies "browser_snapshot"
+    captures_artifact!
   end
 end
