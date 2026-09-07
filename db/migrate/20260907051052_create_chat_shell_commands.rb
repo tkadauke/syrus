@@ -7,8 +7,11 @@ class CreateChatShellCommands < ActiveRecord::Migration[8.1]
   def change
     create_table :chat_shell_commands, if_not_exists: true do |t|
       # Indexed references without database-level constraints: Syrus keeps
-      # referential behavior in application code (see CLAUDE.md).
-      t.references :chat_session, null: false
+      # referential behavior in application code (see CLAUDE.md). No
+      # single-column index on chat_session_id here -- the composite
+      # [chat_session_id, finished_at] index added below already serves as
+      # one (chat_session_id is its leftmost column).
+      t.references :chat_session, null: false, index: false
       t.references :user, null: false
       t.references :spawned_process, null: true
       t.text :command, null: false

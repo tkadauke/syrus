@@ -692,7 +692,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_051052) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["chat_session_id", "finished_at"], name: "idx_chat_shell_commands_session_in_flight"
-    t.index ["chat_session_id"], name: "index_chat_shell_commands_on_chat_session_id"
     t.index ["spawned_process_id"], name: "index_chat_shell_commands_on_spawned_process_id"
     t.index ["user_id"], name: "index_chat_shell_commands_on_user_id"
   end
