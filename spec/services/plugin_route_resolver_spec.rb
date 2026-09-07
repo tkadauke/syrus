@@ -94,6 +94,38 @@ RSpec.describe PluginRouteResolver do
     end
   end
 
+  describe ".sidebar_page_route?" do
+    def register_sidebar_page(name, paths)
+      provider = Class.new do
+        include Syrus::Plugin::SidebarPage
+      end
+      provider.define_singleton_method(:sidebar_pages) { [ { id: name, label: name, paths: paths, component: "x" } ] }
+      Syrus::PluginRegistry.register(name: name, version: "0.1.0", provides: { sidebar_page: provider })
+    end
+
+    it "matches a bare numeric id" do
+      register_sidebar_page("widgets", [ "/widgets", "/widgets/:id" ])
+
+      expect(described_class.sidebar_page_route?("/widgets/42")).to be true
+    end
+
+    # Regression: Mockups' detail path is "/mockups/:id", but the value the
+    # frontend actually navigates to is a "MOCKUP-<id>" slug (Mockups::Mockup#slug),
+    # not a bare Rails id -- so a hard reload of a real mockup detail URL 404ed
+    # even though the plugin declared the path.
+    it "matches a PREFIX-<digits> slug id, the same shape Mockups::Mockup#slug produces" do
+      register_sidebar_page("mockups", [ "/mockups", "/mockups/:id" ])
+
+      expect(described_class.sidebar_page_route?("/mockups/MOCKUP-1")).to be true
+    end
+
+    it "still rejects an unrelated static segment standing in for :id" do
+      register_sidebar_page("scheduled_tasks", [ "/scheduled_tasks/:id" ])
+
+      expect(described_class.sidebar_page_route?("/scheduled_tasks/legacy")).to be false
+    end
+  end
+
   describe ".repo_page_tab_route?" do
     def register_repo_page_tab(name, &block)
       provider = Class.new do
