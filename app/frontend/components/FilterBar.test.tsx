@@ -151,13 +151,39 @@ describe("FilterBar", () => {
       </MemoryRouter>
     )
 
-    const chip = screen.getByRole("button", { name: "State is Open" }).closest("span")
+    const valueButton = screen.getByRole("button", { name: "State is Open" })
+    const chip = valueButton.closest("span")
     expect(chip).not.toHaveClass("flex-wrap")
     expect(chip).toHaveClass("flex-nowrap", "whitespace-nowrap")
 
-    const valueButton = screen.getByRole("button", { name: "State is Open" })
     expect(valueButton).not.toHaveClass("flex-col")
-    expect(valueButton).toHaveClass("flex-nowrap", "whitespace-nowrap")
+
+    const [fieldSpan, opSpan, valueSpan] = Array.from(valueButton.children) as HTMLElement[]
+    expect(fieldSpan).toHaveClass("shrink-0", "whitespace-nowrap")
+    expect(opSpan).toHaveClass("shrink-0", "whitespace-nowrap")
+    expect(valueSpan).toHaveClass("truncate")
+  })
+
+  it("truncates an overlong chip value instead of letting it overflow or wrap", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "job_class", op: "contains", value: "Steps::AdversarialReviewLongClassNameThatWouldOtherwiseOverflow" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    const valueButton = screen.getByRole("button", { name: /Job class contains/ })
+    const chip = valueButton.closest("span")
+    expect(chip).toHaveClass("max-w-full", "min-w-0")
+    expect(valueButton).toHaveClass("min-w-0")
+
+    const valueSpan = Array.from(valueButton.children).find((child) => child.textContent?.includes("AdversarialReview"))
+    expect(valueSpan).toHaveClass("truncate", "min-w-0", "flex-1")
+    expect(valueSpan).not.toHaveClass("whitespace-nowrap")
   })
 
   it("uses a custom link builder for filter and clear navigation", async () => {
