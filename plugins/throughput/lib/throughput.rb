@@ -15,6 +15,7 @@ module Throughput
 
     route :get, "/api/v1/app/repositories/:repository_id/throughput_metrics",
           to: "api/v1/app/repository_throughput#show"
+    route :get, "/api/v1/admin/throughput", to: "api/v1/admin/throughput#show"
 
     frontend ui_slots: { "throughput/ThroughputPanel" => "app/frontend/ui_slots/ThroughputPanel.tsx" }
   end

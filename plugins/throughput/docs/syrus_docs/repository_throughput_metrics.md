@@ -283,6 +283,71 @@ Source fields:
 - `job_approvals.approved_at`
 - successful `pr_open` Step completion
 
+## Admin Throughput API
+
+`Throughput::AdminMetricsPayload` answers a different shape of question than
+the repository-scoped contract above: not "what is the current rate over
+these rolling windows for one repository?" but "how did throughput move
+bucket by bucket across an arbitrary `since`/`until` range, instance-wide or
+for one repository?" It backs:
+
+```http
+GET /api/v1/admin/throughput
+```
+
+Bearer-token, admin-scoped (`User#api_token`), following the same
+`before_action :require_admin_api` pattern as core's `/api/v1/admin/*`
+diagnostics endpoints. With the plugin disabled, it answers
+`{ "error": { "code": "plugin_disabled" } }` with a `404`, matching
+`admin_mysql` and `tailscale`.
+
+Query parameters:
+
+- `repository` - optional. Either a numeric Repository id or an
+  `owner/name` slug. Omitted means instance-wide.
+- `since` / `until` - optional ISO-8601 timestamps, consistent with
+  `/api/v1/admin/runs?since=`. Default window is the trailing 7 days ending
+  now; the window is clamped to at most 90 days.
+
+Response shape:
+
+```ruby
+{
+  version: 1,
+  generated_at: "2026-09-06T12:00:00Z",
+  range: { since: "...", until: "..." },
+  repository: { id: 1, slug: "acme/widgets" } | nil,
+  hourly: { bucket_seconds: 3600, buckets: [ { ... } ] },
+  daily:  { bucket_seconds: 86400, buckets: [ { ... } ] }
+}
+```
+
+Each bucket reports:
+
+- `bucket_start` / `bucket_end` - UTC ISO-8601 boundaries.
+- `jobs_created` - Jobs whose `created_at` falls in the bucket.
+- `jobs_closed` - Jobs whose `state = "closed"` and `finished_at` falls in
+  the bucket, any closure reason.
+- `jobs_implemented` - Jobs reaching `implemented` in the bucket. Jobs have
+  no durable "reached implemented" timestamp column (the AASM transition is
+  not event-logged), so this counts the first successful `pr_open` Step's
+  `finished_at` per Job as a proxy -- the moment that transition happens for
+  the overwhelming majority of Jobs. A Job that reaches `implemented`
+  through another path without ever running a successful `pr_open` Step is
+  not counted.
+- `cycle_time_seconds` - `sample_count`, `median`, and `p90` of
+  `jobs.finished_at - jobs.created_at` for Jobs closed with
+  `closure_reason = "pr_merged"` whose `finished_at` falls in the bucket.
+
+All timestamps are UTC. Stored columns are UTC while MySQL's session
+`NOW()` is not, and conflating them has produced wrong readings before (see
+the repository-root `CLAUDE.md` "Things that bit us" notes) -- this endpoint
+only ever emits `Time#iso8601` on UTC-stored `datetime` columns.
+
+Per-bucket resilience follows `Admin::JobStateSerializer`: a bucket that
+fails to compute emits `{ bucket_start:, error_serializing: "..." }` instead
+of 500ing the whole response.
+
 ## Persistence Policy
 
 Do not add metric tables for this contract until a caller demonstrates one of:
@@ -298,10 +363,13 @@ contract shape or introduce a new `version`.
 ## Plugin ownership
 
 This feature lives in the `throughput` plugin, not core. The plugin owns
-`Throughput::MetricContract`, the `throughput_metrics` endpoint, and the panel
+`Throughput::MetricContract`, `Throughput::AdminMetricsPayload`, the
+`throughput_metrics` and `/api/v1/admin/throughput` endpoints, and the panel
 component, and contributes the panel to the repository detail page through the
-`repository.detail` `ui_slot`. Disabling the plugin removes the panel and the
-endpoint; nothing else on the page changes.
+`repository.detail` `ui_slot`. Disabling the plugin removes the panel and both
+endpoints; nothing else on the page changes. Core has no reference to either
+contract -- `bin/check-plugin-boundaries` (and the slower opt-in
+`bin/plugin-boundary-audit throughput`) enforce it.
 
 Simple mode still hides the panel, now decided by `Throughput::UiSlots` rather
 than by a `simple_mode` check inside the page component.
