@@ -391,6 +391,80 @@ if Rails.env.development?
     end
   end
 
+  # Rails plugin typed artifact renderer sample data. The rails plugin
+  # (enabled by default) renders rails_schema_erd/rails_migration_diff typed
+  # artifacts on the Job detail Review tab (SyrusRails::SchemaErdRenderer /
+  # MigrationDiffRenderer, dispatched through TypedArtifactPanel), but a
+  # fresh preview never runs a real agent turn that calls submit_artifact --
+  # seed both on the implemented demo Job's workflow so the ERD diagram and
+  # migration diff renderers have real data to show.
+  rails_artifact_workflow = implemented_job.workflows.order(:created_at).first
+  if rails_artifact_workflow
+    existing_typed_artifact_types = Array(rails_artifact_workflow.artifact("typed_artifacts")).map { |entry| entry["type"] }
+
+    unless existing_typed_artifact_types.include?("rails_schema_erd")
+      rails_artifact_workflow.set_typed_artifact!(
+        type: "rails_schema_erd",
+        title: "Schema ERD",
+        payload: {
+          "tables" => [
+            {
+              "name" => "users",
+              "columns" => [
+                { "name" => "id", "type" => "integer" },
+                { "name" => "email", "type" => "string" },
+                { "name" => "account_id", "type" => "integer" }
+              ],
+              "indexes" => [
+                { "name" => "index_users_on_email", "columns" => [ "email" ], "unique" => true }
+              ],
+              "foreign_keys" => [
+                { "from_column" => "account_id", "to_table" => "accounts", "to_column" => "id" }
+              ]
+            },
+            {
+              "name" => "accounts",
+              "columns" => [
+                { "name" => "id", "type" => "integer" },
+                { "name" => "name", "type" => "string" }
+              ],
+              "indexes" => [],
+              "foreign_keys" => []
+            }
+          ]
+        }
+      )
+    end
+
+    unless existing_typed_artifact_types.include?("rails_migration_diff")
+      rails_artifact_workflow.set_typed_artifact!(
+        type: "rails_migration_diff",
+        title: "Migration: AddNeedsAttentionCountToUsers",
+        payload: {
+          "migration_name" => "AddNeedsAttentionCountToUsers",
+          "before" => {
+            "table_name" => "users",
+            "columns" => [
+              { "name" => "id", "type" => "integer" },
+              { "name" => "email", "type" => "string" }
+            ]
+          },
+          "after" => {
+            "table_name" => "users",
+            "columns" => [
+              { "name" => "id", "type" => "integer" },
+              { "name" => "email", "type" => "string" },
+              { "name" => "needs_attention_count", "type" => "integer" }
+            ]
+          },
+          "changes" => [
+            { "type" => "added", "column" => { "name" => "needs_attention_count", "type" => "integer" } }
+          ]
+        }
+      )
+    end
+  end
+
   # Agent Insights sample report. The plugin is off by default
   # (default_enabled: false), so a fresh preview shows it disabled on
   # Admin -> Plugins, same as a real install -- but the repository's
