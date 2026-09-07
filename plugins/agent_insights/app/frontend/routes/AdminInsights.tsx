@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { withRoutePrefix } from "@app/lib/routing"
+import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -12,6 +13,7 @@ type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
 export function AdminInsightsRoute() {
   const { t } = useT("agent_insights")
+  usePageTitle(t("admin_title"))
   const [page, setPage] = useState(1)
   const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
 
@@ -22,15 +24,17 @@ export function AdminInsightsRoute() {
 
   if (query.isPending) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="p-6 text-sm text-gray-600 dark:text-gray-400">
-        {t("loading")}
+      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+        <AdminInsightsHeader />
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p>
       </main>
     )
   }
 
   if (query.isError) {
     return (
-      <main aria-label={t("aria_admin_insights")} className="p-6">
+      <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+        <AdminInsightsHeader />
         <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(query.error, t("load_error"))}</p>
       </main>
     )
@@ -45,6 +49,17 @@ export function AdminInsightsRoute() {
       onFilterChange={setStateFilter}
       onPageChange={setPage}
     />
+  )
+}
+
+function AdminInsightsHeader() {
+  const { t } = useT("agent_insights")
+  return (
+    <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
+      <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
+      <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
+      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
+    </header>
   )
 }
 
@@ -84,11 +99,7 @@ function AdminInsightsList({
 
   return (
     <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
-        <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
-      </header>
+      <AdminInsightsHeader />
 
       <div className="flex items-center justify-between gap-4">
         <SectionHeading>
