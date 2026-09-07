@@ -2075,19 +2075,23 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(parse_body["batch_id"]).to be_present
     end
 
-    it "approves app-authored jobs without trying to leave a self-review on GitHub" do
+    it "falls back to a bot-authenticated review for app-authored jobs when the approver has no connected PAT" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
       installation = Factories.installation(user: user, account_login: "acme")
       repo.update!(auto_merge_enabled: true, installation: installation)
       job = Factories.job_record(repository: repo, issue_number: 10, pr_number: 660)
       job.update!(state: "implemented")
       client = instance_double(GithubClient)
+      bot_client = instance_double(GithubClient)
       allow(AppEvents).to receive(:broadcast)
       allow(GithubClient).to receive(:for).with(repository: repo, user: user).and_return(client)
       allow(client).to receive(:pull_request)
         .with("acme/widgets", 660, bypass_cache: true)
         .and_return(Struct.new(:user).new(Struct.new(:login).new("operator-syrus[bot]")))
-      expect(client).not_to receive(:create_pr_review)
+      allow(GithubClient).to receive(:for).with(repository: repo, user: nil).and_return(bot_client)
+      expect(bot_client).to receive(:create_pr_review)
+        .with("acme/widgets", 660, event: "APPROVE", body: "Approved by @#{user.email_address} via Syrus.")
+        .and_return(Struct.new(:id).new(789))
 
       post "/api/v1/app/dashboard/jobs/bulk",
            params: { job_ids: [ job.id ], bulk_action: "approve" },
@@ -2097,7 +2101,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(job.reload).to be_approved
       expect(parse_body["message"]).to include("Approved 1 job in batch")
       expect(parse_body["message"]).not_to include("GitHub review failed")
-      expect(parse_body["message"]).not_to include("GitHub reviews left")
+      expect(parse_body["message"]).to include("GitHub reviews left for 1 job.")
     end
 
     it "returns review payloads for selected implemented jobs" do
