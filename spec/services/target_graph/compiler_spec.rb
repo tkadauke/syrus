@@ -195,6 +195,105 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.targets.keys).to eq(%w[//:repo])
     end
 
+    it "compiles a nested .syrus.yml's legacy sections into a directory-scoped project and targets" do
+      write("cli/.syrus.yml", <<~YAML)
+        prepare:
+          - go mod download
+        formatters:
+          - command: gofmt -w .
+            files: ["**/*.go"]
+        generated:
+          - command: go generate ./...
+            generates: ["gen/*.go"]
+        grade:
+          - name: tests
+            run: go test ./...
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      cli_project = graph.project("cli")
+      expect(cli_project.path).to eq("cli")
+      expect(cli_project.owner_config_path).to eq("cli/.syrus.yml")
+
+      prepare = graph.target(TargetGraph::Label.parse("//cli:prepare"))
+      expect(prepare.project_id).to eq("cli")
+      expect(prepare.command).to eq("go mod download")
+      expect(prepare.owner_config_path).to eq("cli/.syrus.yml")
+
+      formatter = graph.target(TargetGraph::Label.parse("//cli:format/0"))
+      expect(formatter.command).to eq("gofmt -w .")
+      expect(formatter.source_scope).to eq([ "**/*.go" ])
+      expect(formatter.dependencies).to eq([ TargetGraph.root_label ])
+
+      generator = graph.target(TargetGraph::Label.parse("//cli:generate/0"))
+      expect(generator.command).to eq("go generate ./...")
+
+      tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+      expect(tests.command).to eq("go test ./...")
+      expect(tests.project_id).to eq("cli")
+      expect(tests.owner_config_path).to eq("cli/.syrus.yml")
+
+      # Root behavior is unaffected: still just the implicit root target.
+      expect(graph.target(TargetGraph.root_label)).not_to be_nil
+      expect(graph.validate!).to be(true)
+    end
+
+    it "loads nested config after root config, in deterministic path-sorted order" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("zeta/.syrus.yml", "grade:\n  - name: tests\n    run: echo zeta\n")
+      write("alpha/.syrus.yml", "grade:\n  - name: tests\n    run: echo alpha\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.targets.keys).to eq(
+        %w[//:repo //:grade/root-tests //alpha:grade/tests //zeta:grade/tests]
+      )
+    end
+
+    it "supports a nested .syrus.yml several directories below the root" do
+      write("apps/desktop/.syrus.yml", "grade:\n  - name: tests\n    run: npm test\n")
+
+      graph = described_class.compile(@dir)
+
+      target = graph.target(TargetGraph::Label.parse("//apps/desktop:grade/tests"))
+      expect(target.project_id).to eq("apps-desktop")
+      expect(target.owner_config_path).to eq("apps/desktop/.syrus.yml")
+    end
+
+    it "skips only the offending nested .syrus.yml when it fails to parse, keeping root and other nested files" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("broken/.syrus.yml", "formatters:\n  not_an_array: true\n")
+      write("ok/.syrus.yml", "grade:\n  - name: tests\n    run: echo ok\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests"))).not_to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//ok:grade/tests"))).not_to be_nil
+      expect(graph.project("broken")).to be_nil
+      expect(graph.validate!).to be(true)
+    end
+
+    it "raises a validation error naming both files when two nested directories resolve to the same project id" do
+      write("foo/bar/.syrus.yml", "prepare: []\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("foo/bar/.syrus.yml")
+        expect(error.message).to include("foo-bar/.syrus.yml")
+      end
+    end
+
+    it "does not infer a nested project from package.json, go.mod, or Rails conventions" do
+      write("cli/go.mod", "module example.com/cli\n")
+      write("api/package.json", "{}\n")
+      write("app/models/.gitkeep", "")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.projects.keys).to eq(%w[repo])
+    end
+
     it "produces a graph that validates cleanly end to end" do
       write(".syrus.yml", <<~YAML)
         prepare:
@@ -249,6 +348,51 @@ RSpec.describe TargetGraph::Compiler do
         "target_count" => 3,
         "error" => nil
       )
+    end
+
+    it "reports project/target labels compiled from a nested .syrus.yml alongside the root's own" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics.target_labels).to eq(%w[//:grade/root-tests //:repo //cli:grade/tests])
+      expect(diagnostics.project_count).to eq(2)
+      expect(diagnostics.error).to be_nil
+    end
+
+    it "names the offending nested file's path when it fails to parse, without failing the whole diagnosis" do
+      write("broken/.syrus.yml", "formatters:\n  not_an_array: true\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("broken/.syrus.yml")
+      # The rest of the graph -- here just the implicit root -- still compiles.
+      expect(diagnostics.target_labels).to eq(%w[//:repo])
+    end
+
+    it "reports both a root and a nested parse failure together" do
+      write(".syrus.yml", "formatters:\n  not_an_array: true\n")
+      write("broken/.syrus.yml", "generated:\n  not_an_array: true\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include(".syrus.yml:")
+      expect(diagnostics.error).to include("broken/.syrus.yml:")
+    end
+
+    it "reports a duplicate nested project id declaration with both file paths, instead of raising" do
+      write("foo/bar/.syrus.yml", "prepare: []\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      diagnostics = nil
+      expect { diagnostics = described_class.diagnose(@dir) }.not_to raise_error
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("foo/bar/.syrus.yml")
+      expect(diagnostics.error).to include("foo-bar/.syrus.yml")
     end
 
     it "names the owning .syrus.yml path in the error message when the config fails to parse" do

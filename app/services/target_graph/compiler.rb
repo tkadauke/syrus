@@ -3,20 +3,43 @@ require "pathname"
 class TargetGraph
   # Compiles a repository's root `.syrus.yml` legacy primitives (`prepare`,
   # `formatters`, `generated`, `grade`) into a TargetGraph under the
-  # implicit root project, per DOC-20's "First Implementation Slice" step 1.
+  # implicit root project (DOC-20's "First Implementation Slice" step 1),
+  # then does the same for every nested `.syrus.yml` discovered below the
+  # root (step 2) -- each nested file becomes its own directory-scoped
+  # project, with its legacy sections compiled into targets under that
+  # project the exact same way the root file's sections are.
   #
   # This is representation only: nothing in the runtime prepare/format/
   # generate/grader pipelines (RepoPrepPlan, Steps::Format, Steps::Generate,
   # RepoGradePlan/grader_fanout) reads from the compiled graph yet, and this
-  # class does not change what those pipelines do. It exists so operator
-  # tooling and later graph-aware selection code (nested `.syrus.yml`
-  # discovery, explicit projects/targets) have one real compiler to build on
-  # instead of a graph model nothing populates.
+  # class does not change what those pipelines do -- including for nested
+  # `.syrus.yml` files, which today have no effect on any of those pipelines
+  # either. Root `.syrus.yml` compilation is unchanged by this: a repository
+  # with no nested config compiles exactly as it did before nested discovery
+  # existed. It exists so operator tooling and later graph-aware selection
+  # code (explicit projects/targets, default affected-file scope per
+  # package) have one real compiler to build on instead of a graph model
+  # nothing populates.
   #
   # Grader compilation delegates to RepoGradePlan so the exact same
   # legacy-`ci:` expansion, duplicate-name detection, and failure-policy
   # defaulting apply here as they do for real grader runs -- this compiler
-  # does not reimplement that logic.
+  # does not reimplement that logic. RepoGradePlan already accepts any
+  # directory (not just the workspace root), so the same call works for a
+  # nested `.syrus.yml`'s directory.
+  #
+  # Two different severities apply to a broken nested `.syrus.yml`, mirroring
+  # how a broken root config already behaves:
+  #
+  # - Invalid YAML/config in one nested file (SyrusYml::ParseError) is
+  #   lenient: that one file's project/targets are skipped, compilation
+  #   continues for the root and every other nested file, and the problem is
+  #   surfaced through Diagnostics#error (never raised from #compile).
+  # - A structural collision across files -- two different nested
+  #   directories resolving to the same project id, or (in principle) two
+  #   targets resolving to the same label -- is a real graph-construction
+  #   error and raises TargetGraph::ValidationError, exactly like any other
+  #   duplicate project/target declaration.
   class Compiler
     # Low-noise summary of one compilation, meant for workflow/run log
     # output and the `target_graph_diagnostics` workflow artifact (see
@@ -60,14 +83,16 @@ class TargetGraph
       compile_formatters!(graph)
       compile_generated!(graph)
       compile_graders!(graph)
+      compile_nested_configs!(graph)
       graph.validate!
       graph
     end
 
     # Never raises -- callers such as Steps::Prepare use this for
     # low-stakes diagnostics and must not fail a workflow over a
-    # diagnostics-only read. A parse or validation failure is reported
-    # through `Diagnostics#error` instead of propagating.
+    # diagnostics-only read. A parse or validation failure -- root or
+    # nested -- is reported through `Diagnostics#error` instead of
+    # propagating.
     def diagnose
       graph = compile
       Diagnostics.new(
@@ -75,7 +100,7 @@ class TargetGraph
         owner_config_path: owner_config_path,
         target_labels: graph.targets.keys.sort,
         project_count: graph.projects.size,
-        error: parse_error && "#{owner_config_path}: #{parse_error.message}"
+        error: combined_error
       )
     rescue StandardError => e
       Diagnostics.new(
@@ -112,8 +137,89 @@ class TargetGraph
       TargetGraph::ROOT_PROJECT_ID
     end
 
-    def label_for(name)
-      TargetGraph::Label.root(name)
+    def label_for(name, package: "")
+      TargetGraph::Label.new(package: package, name: name)
+    end
+
+    # Discovers nested `.syrus.yml` files below the workspace root
+    # (TargetGraph::NestedConfigDiscovery) and compiles each one into its
+    # own directory-scoped project plus prepare/formatter/generator/grader
+    # targets, using exactly the same per-section compile methods the root
+    # config uses above. Nested files are visited in NestedConfigDiscovery's
+    # deterministic (path-sorted) order, always after the root config has
+    # already been compiled, so a repository's target graph never depends on
+    # filesystem iteration order.
+    def compile_nested_configs!(graph)
+      @nested_parse_errors = []
+      declared_project_ids = { root_project_id => owner_config_path }
+
+      nested_relative_dirs.each do |relative_dir|
+        nested_owner_config_path = "#{relative_dir}/#{SyrusYml::CONFIG_FILE}"
+
+        begin
+          project_id = nested_project_id(relative_dir)
+        rescue ArgumentError => e
+          @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
+          next
+        end
+
+        if (existing_owner = declared_project_ids[project_id])
+          raise TargetGraph::ValidationError,
+            "#{nested_owner_config_path} and #{existing_owner} both resolve to project id #{project_id.inspect}; " \
+            "rename one of the directories"
+        end
+        declared_project_ids[project_id] = nested_owner_config_path
+
+        begin
+          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
+        rescue SyrusYml::ParseError => e
+          @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
+          next
+        end
+
+        graph.add_project(
+          TargetGraph::Project.new(
+            id: project_id,
+            label: relative_dir,
+            path: relative_dir,
+            owner_config_path: nested_owner_config_path
+          )
+        )
+
+        compile_prepare!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+        compile_formatters!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+        compile_generated!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+        compile_graders!(graph, syrus_workspace_path: workspace_path.join(relative_dir), package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
+      end
+    end
+
+    def nested_relative_dirs
+      @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
+    end
+
+    # A project id may only contain letters, digits, `_`, and `-` (the exact
+    # charset TargetGraph::Project and TargetGraph::Label segments already
+    # require -- TargetGraph::Label::SEGMENT_PATTERN) -- collapse the
+    # directory's path segments into one id the same way a label's package
+    # segments already render (`cli/tools` -> `cli-tools`). A directory name
+    # outside that charset can't become a project id at all; that is
+    # reported as an invalid declaration for this one file rather than
+    # raised, matching how any other malformed nested `.syrus.yml` is
+    # handled.
+    def nested_project_id(relative_dir)
+      id = relative_dir.tr("/", "-")
+      unless id.match?(TargetGraph::Label::SEGMENT_PATTERN)
+        raise ArgumentError, "directory #{relative_dir.inspect} can't become a project id (only letters, digits, _ and - are allowed)"
+      end
+
+      id
+    end
+
+    def combined_error
+      messages = []
+      messages << "#{owner_config_path}: #{parse_error.message}" if parse_error
+      messages.concat(Array(@nested_parse_errors))
+      messages.join("; ").presence
     end
 
     # Root prepare is left out of the dependency graph on purpose: it is the
@@ -121,78 +227,79 @@ class TargetGraph
     # workflow step, not selectively per affected target), so wiring it as a
     # dependency of every root executable target would assert a selection
     # relationship that doesn't exist yet. See DOC-20 "Prepare Semantics."
-    def compile_prepare!(graph)
-      return unless config
-      return unless config.prepare.is_a?(Array)
+    # The same treatment applies to a nested `.syrus.yml`'s own `prepare:`.
+    def compile_prepare!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+      return unless syrus_config.prepare.is_a?(Array)
 
-      commands = config.prepare.map(&:to_s).map(&:strip).reject(&:empty?)
+      commands = syrus_config.prepare.map(&:to_s).map(&:strip).reject(&:empty?)
       return if commands.empty?
 
       graph.add_target(
         TargetGraph::Target.new(
-          label: label_for("prepare"),
+          label: label_for("prepare", package: package),
           kind: "prepare",
-          project_id: root_project_id,
+          project_id: project_id,
           command: commands.join(" && "),
-          owner_config_path: owner_config_path,
+          owner_config_path: config_path,
           metadata: { "commands" => commands }
         )
       )
     end
 
-    def compile_formatters!(graph)
-      return unless config
-      return unless config.formatters.is_a?(Array)
+    def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+      return unless syrus_config.formatters.is_a?(Array)
 
-      config.formatters.each_with_index do |formatter, index|
+      syrus_config.formatters.each_with_index do |formatter, index|
         graph.add_target(
           TargetGraph::Target.new(
-            label: label_for("format/#{index}"),
+            label: label_for("format/#{index}", package: package),
             kind: "formatter",
-            project_id: root_project_id,
+            project_id: project_id,
             source_scope: formatter.files,
             command: formatter.command,
             dependencies: [ TargetGraph.root_label ],
-            owner_config_path: owner_config_path
+            owner_config_path: config_path
           )
         )
       end
     end
 
-    def compile_generated!(graph)
-      return unless config
-      return unless config.generated.is_a?(Array)
+    def compile_generated!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+      return unless syrus_config.generated.is_a?(Array)
 
-      config.generated.each_with_index do |entry, index|
+      syrus_config.generated.each_with_index do |entry, index|
         graph.add_target(
           TargetGraph::Target.new(
-            label: label_for("generate/#{index}"),
+            label: label_for("generate/#{index}", package: package),
             kind: "generator",
-            project_id: root_project_id,
+            project_id: project_id,
             source_scope: entry.sources,
             command: entry.command,
             dependencies: [ TargetGraph.root_label ],
-            owner_config_path: owner_config_path,
+            owner_config_path: config_path,
             metadata: { "generates" => entry.generates, "codegen_ignore" => entry.codegen_ignore }
           )
         )
       end
     end
 
-    def compile_graders!(graph)
-      RepoGradePlan.for(workspace_path).graders.each do |grader|
+    def compile_graders!(graph, syrus_workspace_path: workspace_path, package: "", project_id: root_project_id, config_path: owner_config_path)
+      RepoGradePlan.for(syrus_workspace_path).graders.each do |grader|
         graph.add_target(
           TargetGraph::Target.new(
-            label: label_for("grade/#{grader.name}"),
+            label: label_for("grade/#{grader.name}", package: package),
             kind: "grader",
-            project_id: root_project_id,
+            project_id: project_id,
             source_scope: grader.when_files_changed,
             command: grader.command,
             dependencies: [ TargetGraph.root_label ],
             phases: grader.phases,
             required: grader.required,
             timeout_minutes: positive_timeout(grader.timeout_minutes),
-            owner_config_path: owner_config_path,
+            owner_config_path: config_path,
             metadata: {
               "description" => grader.description,
               "junit_output" => grader.junit_output,
