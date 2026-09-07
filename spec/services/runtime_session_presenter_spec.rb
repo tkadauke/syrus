@@ -41,6 +41,15 @@ RSpec.describe RuntimeSessionPresenter do
 
       expect(payload[:active_agent_input_lease]).to be_nil
     end
+
+    it "strips internal bookkeeping keys out of metadata" do
+      session.update!(metadata: session.metadata.merge("latest_frame_document_id" => 42, "url" => "http://127.0.0.1:3001"))
+
+      payload = described_class.session_payload(session)
+
+      expect(payload[:metadata]).to eq("port" => 3001, "url" => "http://127.0.0.1:3001")
+      expect(payload[:metadata]).not_to have_key("latest_frame_document_id")
+    end
   end
 
   describe ".lease_payload" do

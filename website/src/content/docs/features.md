@@ -186,7 +186,9 @@ screenshot (refreshed periodically, not a live video stream, in this first
 slice), a scrolling log tail, and provider details like the dev server's URL.
 The panel also gives the operator a Take Control / Abort Agent Control button
 that immediately takes over input from the agent, and a button to capture a
-fresh screenshot on demand.
+fresh screenshot on demand. Control leases are short-lived by design, but the
+panel renews an active operator lease automatically in the background, so
+staying on the tab keeps control without it silently expiring mid-task.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same

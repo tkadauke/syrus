@@ -712,6 +712,22 @@ calls `RuntimeControlLease.abort_agent_control!` first so an operator's Take
 Control / Abort Agent Control click immediately preempts whatever the agent
 was holding, per DOC-17's "the operator can always abort agent control
 immediately"; `release_control` releases the operator's own active lease(s).
+`RuntimeControlLease::DEFAULT_DURATION`/`MAX_DURATION` (30s/60s) are
+intentionally short per DOC-17 ("leases should be short-lived and
+auto-expire"), so the panel requests the max duration up front and then
+heartbeats a `renew_control` call (`RuntimeControlLease#renew!`, extending
+`expires_at` on the same lease row in place rather than releasing and
+re-acquiring) roughly every 5s once within 15s of expiry, for as long as the
+operator's tab stays open holding the lease. If a heartbeat ever fails to
+renew in time (network hiccup, or something else claimed the group), the
+panel stops pretending it still holds control and shows an explicit
+"control lapsed" message instead of leaving a stale "You (input)" badge.
+`RuntimeSessionPresenter.session_payload`'s `metadata` excludes
+`INTERNAL_METADATA_KEYS` (currently just `latest_frame_document_id`, the
+`frame` action's own lookup key -- see below) so Syrus's internal
+bookkeeping never renders next to genuinely useful provider fields like
+`url`/`port` in the panel or in the agent's `runtime_status`/`runtime_inspect`
+payloads.
 The tab only appears once the chat has at least one `RuntimeSession`
 (`runtimeTabVisible` in `app/frontend/routes/chat/utils.ts`, backed by
 `chat.runtime_session_count` in the chat payload). A dedicated `frame` action

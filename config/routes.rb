@@ -300,6 +300,7 @@ Rails.application.routes.draw do
         post "chats/:chat_id/runtime_sessions/:id/capture", to: "runtime_sessions#capture", constraints: { chat_id: /\d+/, id: /\d+/ }
         post "chats/:chat_id/runtime_sessions/:id/take_control", to: "runtime_sessions#take_control", constraints: { chat_id: /\d+/, id: /\d+/ }
         post "chats/:chat_id/runtime_sessions/:id/release_control", to: "runtime_sessions#release_control", constraints: { chat_id: /\d+/, id: /\d+/ }
+        post "chats/:chat_id/runtime_sessions/:id/renew_control", to: "runtime_sessions#renew_control", constraints: { chat_id: /\d+/, id: /\d+/ }
         get "repositories/new", to: "repositories#new"
         get "repositories/:id/edit", to: "repositories#edit", constraints: { id: /\d+/ }
         get "repositories/owners", to: "repositories#owners"

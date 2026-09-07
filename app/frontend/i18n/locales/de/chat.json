@@ -280,6 +280,8 @@
   "runtime_control_agent": "Agent ({{mode}})",
   "runtime_control_you": "Du ({{mode}})",
   "runtime_control_none": "Keine",
+  "runtime_control_expires_label": "Läuft ab",
+  "runtime_control_lapsed": "Kontrolle ist abgelaufen, bevor sie erneuert werden konnte. Übernehmen Sie die Kontrolle erneut, um fortzufahren.",
   "runtime_take_control": "Kontrolle übernehmen",
   "runtime_abort_agent_control": "Agentenkontrolle abbrechen",
   "runtime_release_control": "Kontrolle freigeben",

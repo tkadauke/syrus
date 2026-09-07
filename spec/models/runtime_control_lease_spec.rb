@@ -268,6 +268,65 @@ RSpec.describe RuntimeControlLease, type: :model do
     end
   end
 
+  describe "#renew!" do
+    it "extends expires_at on the same active lease instead of creating a new one" do
+      session = build_session
+      lease = described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+      original_id = lease.id
+
+      travel_to(10.seconds.from_now) do
+        lease.renew!
+
+        expect(lease.id).to eq(original_id)
+        expect(lease.state).to eq("active")
+        expect(lease.expires_at).to eq(described_class::DEFAULT_DURATION.from_now)
+        expect(session.runtime_control_leases.active.count).to eq(1)
+      end
+    end
+
+    it "clamps an out-of-range requested duration into [MIN_DURATION, MAX_DURATION]" do
+      session = build_session
+      lease = described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+
+      freeze_time do
+        lease.renew!(duration_seconds: 3600)
+        expect(lease.expires_at).to eq(described_class::MAX_DURATION.from_now)
+      end
+    end
+
+    it "raises NotRenewable once the lease has already ended" do
+      session = build_session
+      lease = described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+      lease.release!
+
+      expect { lease.renew! }.to raise_error(RuntimeControlLease::NotRenewable)
+    end
+
+    it "raises NotRenewable once the lease has time-expired, even though state is still active" do
+      session = build_session
+      lease = described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+
+      travel_to(lease.expires_at + 1.second) do
+        expect { lease.renew! }.to raise_error(RuntimeControlLease::NotRenewable)
+      end
+    end
+
+    it "is broadcast on the session's control channel" do
+      session = build_session
+      lease = described_class.acquire!(runtime_session: session, owner: "user", mode: "input")
+
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast) { |stream, msg| broadcasts << [ stream, msg ] }
+
+      lease.renew!
+
+      expect(broadcasts).to include([
+        "runtime_session_#{session.id}_control",
+        hash_including(type: "renew", lease_id: lease.id)
+      ])
+    end
+  end
+
   describe "#active?" do
     it "is false once expires_at is in the past even if state is still active" do
       session = build_session
