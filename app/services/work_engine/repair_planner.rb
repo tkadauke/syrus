@@ -712,13 +712,16 @@ module WorkEngine
 
         private
 
+        # Routed through the shared resolver (workflow-engine-v3 primitive B)
+        # instead of asking the work definition's retry policy directly: the
+        # policy is still what answers -- it is tier 3 of that rule -- but
+        # going through Remediation::Resolver is what lets a future step or
+        # template override take precedence here too, the same way
+        # RetryFailedStepEnqueuer#remediation_for already works.
         def rebuild_unit_retry?
           return false unless primary_workflow && primary_step
 
-          definition = WorkDefinitions.for(primary_workflow.work_unit&.kind || primary_workflow.trigger_kind)
-          definition.retry_policy.rebuild_unit?(primary_step)
-        rescue WorkDefinitions::UnknownKind
-          false
+          Remediation::Resolver.call(step: primary_step, workflow: primary_workflow).rebuild_unit?
         end
 
         def rebuild_work_unit

@@ -47,11 +47,11 @@ RSpec.describe Remediation::Resolver do
   end
 
   describe "work definition policies" do
-    # work_definition builds a fresh object per call, so the double has to be
-    # returned by that lookup rather than stubbed on one instance of it.
-    def stub_policy(**answers)
+    # WorkDefinitions.for builds a fresh object per call, so the double has to
+    # be returned by that lookup rather than stubbed on one instance of it.
+    def stub_policy(kind: workflow.trigger_kind, **answers)
       policy = instance_double("retry_policy", **answers)
-      allow(workflow).to receive(:work_definition).and_return(instance_double("work_definition", retry_policy: policy))
+      allow(WorkDefinitions).to receive(:for).with(kind).and_return(instance_double("work_definition", retry_policy: policy))
     end
 
     it "resumes the step for a policy that treats it as a continuation" do
@@ -70,6 +70,27 @@ RSpec.describe Remediation::Resolver do
       stub_policy(rebuild_unit?: false, continuation?: false, new_attempt?: true)
 
       expect(described_class.call(step: step, workflow: workflow).action).to eq(:restart_workflow)
+    end
+
+    # A Workflow's trigger_kind can differ from the WorkUnit that actually
+    # owns its retry policy (e.g. a `merge_train` trigger_kind Workflow that
+    # is a member attempt owned by a `job_bundle` WorkUnit). The resolver must
+    # ask the WorkUnit's kind first, matching what WorkEngine::RepairPlanner
+    # relied on before this tier delegated to the resolver.
+    it "prefers the owning WorkUnit's kind over the workflow's own trigger_kind" do
+      allow(workflow).to receive(:work_unit).and_return(instance_double(WorkUnit, kind: "job_bundle"))
+      stub_policy(kind: "job_bundle", rebuild_unit?: true, continuation?: false, new_attempt?: true)
+
+      expect(described_class.call(step: step, workflow: workflow).action).to eq(:rebuild_unit)
+    end
+
+    it "falls through to the problem default when the resolved kind is unknown" do
+      allow(WorkDefinitions).to receive(:for).with(workflow.trigger_kind).and_raise(WorkDefinitions::UnknownKind)
+
+      result = described_class.call(problem: Problem[:rate_limited], step: step, workflow: workflow)
+
+      expect(result.action).to eq(:defer)
+      expect(result.source).to eq(:problem_default)
     end
   end
 
