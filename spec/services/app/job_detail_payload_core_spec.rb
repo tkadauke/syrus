@@ -275,7 +275,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     it "shows blocked non-landing WorkUnits as paused" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "running")
-      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "provider_availability")
       next_check = 5.minutes.from_now
       unit.update!(
         blocked_until: next_check,
@@ -284,7 +284,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       payload = payload_for(job).fetch(:job)
       expect(payload[:summary_state]).to eq("paused")
-      expect(payload[:start_blocked_reason]).to eq("admission_control")
+      expect(payload[:start_blocked_reason]).to eq("provider_availability")
       expect(payload[:start_blocked_next_check_at]).to eq(next_check.iso8601)
       expect(payload[:start_blocked_details]).to eq("reason" => "worker_host_pressure_high")
 
@@ -293,10 +293,22 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(active_work).to include(
         kind: "manual_visual_review",
         label: "Manual visual review",
-        blocked_reason: "admission_control",
-        blocked_label: "Admission control",
+        blocked_reason: "provider_availability",
+        blocked_label: "Provider availability",
         blocked_details: { "reason" => "worker_host_pressure_high" }
       )
+    end
+
+    it "does not show a summary_state of paused for WorkUnits blocked on ordinary scheduling contention" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload[:summary_state]).not_to eq("paused")
+      expect(payload[:summary_state]).to eq("running")
+      expect(payload[:start_blocked_reason]).to eq("admission_control")
     end
 
     it "shows a blocked WorkUnit with an actively running Run as running" do

@@ -5,6 +5,20 @@ module WorkUnits
       WorkflowBlockProjection::REASON_MAP.fetch(start_blocked_reason.to_s, "preempted")
     end
 
+    # A blocked/start-blocked "reason" string can be either an already-
+    # canonical WorkUnit::BLOCKED_REASONS value (e.g. "admission_control")
+    # or a raw legacy artifact string (e.g. "workflow_admission_budget")
+    # that needs mapping through work_unit_reason_for first -- callers
+    # deciding whether a Job is genuinely "Paused" (WorkUnit::PAUSE_BLOCKED_REASONS)
+    # must resolve to the canonical form before checking, since presence of
+    # *any* reason isn't the same as a genuine pause.
+    def self.pause_reason?(raw_reason)
+      return false if raw_reason.blank?
+
+      canonical = WorkUnit::BLOCKED_REASONS.include?(raw_reason.to_s) ? raw_reason.to_s : work_unit_reason_for(raw_reason)
+      WorkUnit::PAUSE_BLOCKED_REASONS.include?(canonical)
+    end
+
     # Reusable blocked-reason explanation for a Workflow's CURRENT state —
     # the single source both Admin::StuckJobExplainer and the
     # Timeline::* query services call, so neither reimplements the

@@ -181,6 +181,7 @@ RSpec.describe WorkUnits::Ownership do
     expect(snapshot.running_job_ids).to contain_exactly(running.id)
     expect(snapshot.blocked_job_ids).to contain_exactly(blocked.id)
     expect(snapshot.blocked_job_ids(include_landing: true)).to contain_exactly(blocked.id, landing.id)
+    expect(snapshot.blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS)).to be_empty
     expect(snapshot.active_trigger_kinds_by_job_id).to eq(
       running.id => "ci_failure",
       blocked.id => "manual_visual_review",
@@ -277,6 +278,23 @@ RSpec.describe WorkUnits::Ownership do
     expect(scoped).to include(manually_paused.id)
     expect(scoped).not_to include(dependency_blocked.id)
     expect(described_class.all_blocked_job_ids).to include(manually_paused.id, dependency_blocked.id)
+  end
+
+  it "filters blocked_job_ids/blocked_for_job? by blocked_reason when reasons: is given" do
+    admission_blocked = Factories.job_record(issue_number: 310)
+    provider_blocked = Factories.job_record(repository: admission_blocked.repository, issue_number: 311)
+    admission_workflow = Workflow.create!(job: admission_blocked, trigger_kind: "initial", state: "running")
+    provider_workflow = Workflow.create!(job: provider_blocked, trigger_kind: "initial", state: "running")
+    attach_work_unit(admission_workflow, member_jobs: [ admission_blocked ], kind: "initial", state: "blocked", blocked_reason: "admission_control")
+    attach_work_unit(provider_workflow, member_jobs: [ provider_blocked ], kind: "initial", state: "blocked", blocked_reason: "provider_availability")
+
+    scoped = described_class.blocked_job_ids([ admission_blocked.id, provider_blocked.id ], reasons: WorkUnit::PAUSE_BLOCKED_REASONS)
+
+    expect(scoped).to include(provider_blocked.id)
+    expect(scoped).not_to include(admission_blocked.id)
+    expect(described_class.blocked_for_job?(admission_blocked, reasons: WorkUnit::PAUSE_BLOCKED_REASONS)).to be false
+    expect(described_class.blocked_for_job?(provider_blocked, reasons: WorkUnit::PAUSE_BLOCKED_REASONS)).to be true
+    expect(described_class.blocked_for_job?(admission_blocked)).to be true
   end
 
   it "counts blocked jobs from an Active Record scope without materializing ids" do
