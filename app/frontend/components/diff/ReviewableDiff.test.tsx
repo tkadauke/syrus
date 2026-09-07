@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
+
+stubVirtualizerMeasurements()
 
 const files = [
   {
@@ -42,6 +46,23 @@ function findCodeCellText(text: string) {
 }
 function getCodeCellText(text: string) {
   return screen.getByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
+}
+
+function manyFiles(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    additions: 1,
+    deletions: 0,
+    patch: [
+      `diff --git a/file${index}.rb b/file${index}.rb`,
+      `--- a/file${index}.rb`,
+      `+++ b/file${index}.rb`,
+      "@@ -1,1 +1,2 @@",
+      " keep",
+      "+added"
+    ].join("\n"),
+    path: `file${index}.rb`,
+    status: "modified"
+  }))
 }
 
 describe("ReviewableDiff", () => {
@@ -305,20 +326,17 @@ describe("ReviewableDiff", () => {
     expect(row?.querySelectorAll("td")[1]).toBe(gutterCell)
   })
 
-  it("opens an on-demand popup listing changed files and navigates to the selected one", () => {
-    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onSelectFile={vi.fn()} showFileHeaders />)
+  it("opens an on-demand popup listing changed files and reports the selected one", () => {
+    const onSelectFile = vi.fn()
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onSelectFile={onSelectFile} showFileHeaders />)
 
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
 
     expect(screen.getByText("Changed files")).toBeInTheDocument()
-    const scrollSpy = vi.fn()
-    const target = document.querySelector('[data-diff-file="app/models/run.rb"]') as HTMLElement
-    target.scrollIntoView = scrollSpy
-
     fireEvent.click(screen.getByTitle("app/models/run.rb (+1 -0)"))
 
-    expect(scrollSpy).toHaveBeenCalled()
+    expect(onSelectFile).toHaveBeenCalledWith("app/models/run.rb")
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
@@ -381,22 +399,23 @@ describe("ReviewableDiff", () => {
 
     render(<ReviewableDiff files={highlightedFiles} mode="single-file" selectedPath="app/models/job.rb" />)
 
-    // Word-occurrence highlighting renders a colorless clickable span for
-    // "class"/"def" immediately, before async Shiki tokenization resolves,
-    // so plain findByText would grab that transient element. Poll until the
-    // (possibly re-rendered) element for this text has picked up its Shiki
-    // color instead of asserting against whatever's there on the first tick.
-    await waitFor(() => {
-      const contextKeyword = screen.getByText("class")
-      expect(contextKeyword.tagName).toBe("SPAN")
-      expect(contextKeyword.style.color).toMatch(/^var\(--shiki-token-/)
+    // "class"/"def" render immediately as plain (untokenized) spans, then
+    // get replaced once the async Shiki fetch resolves -- findByText alone
+    // resolves on the first (untokenized) match, so wait for the eventual
+    // *tokenized* span specifically instead of racing the fetch.
+    const contextKeyword = await waitFor(() => {
+      const element = screen.getByText("class")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
     })
+    expect(contextKeyword.tagName).toBe("SPAN")
 
-    await waitFor(() => {
-      const addedKeyword = screen.getByText("def")
-      expect(addedKeyword.style.color).toMatch(/^var\(--shiki-token-/)
-      expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+    const addedKeyword = await waitFor(() => {
+      const element = screen.getByText("def")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
     })
+    expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
   })
 })
 
@@ -457,23 +476,6 @@ describe("large-file gating", () => {
 })
 
 describe("changed-file count cap", () => {
-  function manyFiles(count: number) {
-    return Array.from({ length: count }, (_, index) => ({
-      additions: 1,
-      deletions: 0,
-      patch: [
-        `diff --git a/file${index}.rb b/file${index}.rb`,
-        `--- a/file${index}.rb`,
-        `+++ b/file${index}.rb`,
-        "@@ -1,1 +1,2 @@",
-        " keep",
-        "+added"
-      ].join("\n"),
-      path: `file${index}.rb`,
-      status: "modified"
-    }))
-  }
-
   it("renders only the first maxVisibleFiles files by default, with a control to load the rest", () => {
     render(<ReviewableDiff files={manyFiles(5)} maxVisibleFiles={2} mode="continuous" showFileHeaders />)
 
@@ -497,6 +499,78 @@ describe("changed-file count cap", () => {
     render(<ReviewableDiff files={manyFiles(3)} mode="continuous" showFileHeaders />)
 
     expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()
+  })
+})
+
+// These exercise ReviewableDiff's file-level virtualization (see the
+// `data-rendered-file-count`/`data-total-file-count` instrumentation
+// attributes on the scroll container): only files near the viewport should
+// actually mount, and a file's expanded-context/loaded-whole-file state
+// must survive scrolling it out of, then back into, the mounted window.
+describe("file-level virtualization", () => {
+  function scrollContainerFor(viewer: HTMLElement) {
+    return viewer.querySelector("[data-total-file-count]") as HTMLElement
+  }
+
+  it("mounts only files near the viewport for a large diff, not every file at once", () => {
+    render(<ReviewableDiff files={manyFiles(60)} mode="continuous" showFileHeaders />)
+
+    const scrollContainer = scrollContainerFor(screen.getByTestId("agent-diff-viewer"))
+    expect(scrollContainer).toHaveAttribute("data-total-file-count", "60")
+    const renderedCount = Number(scrollContainer.getAttribute("data-rendered-file-count"))
+    expect(renderedCount).toBeGreaterThan(0)
+    expect(renderedCount).toBeLessThan(60)
+
+    expect(screen.getByTitle("file0.rb")).toBeInTheDocument()
+    expect(screen.queryByTitle("file50.rb")).not.toBeInTheDocument()
+  })
+
+  it("keeps a file's loaded-whole-file state cached after it scrolls out of the virtualized window and back", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(<ReviewableDiff files={manyFiles(60)} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Load whole file" })[0])
+    await screen.findByRole("button", { name: "Whole file loaded" })
+
+    const scrollContainer = scrollContainerFor(screen.getByTestId("agent-diff-viewer"))
+    fireEvent.scroll(scrollContainer, { target: { scrollTop: 10_000_000 } })
+    expect(screen.queryByTitle("file0.rb")).not.toBeInTheDocument()
+
+    fireEvent.scroll(scrollContainer, { target: { scrollTop: 0 } })
+    expect(await screen.findByRole("button", { name: "Whole file loaded" })).toBeDisabled()
+    // Cached (not refetched) -- the second mount reused the earlier fetch.
+    expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+  })
+
+  it("scrolls the virtualized list toward a file selected from the Files menu, even outside the initial window", () => {
+    function Controlled() {
+      const [selectedPath, setSelectedPath] = useState<string | null>(null)
+      return (
+        <ReviewableDiff
+          changedFilesPopup
+          files={manyFiles(60)}
+          mode="continuous"
+          onSelectFile={setSelectedPath}
+          selectedPath={selectedPath}
+          showFileHeaders
+        />
+      )
+    }
+    render(<Controlled />)
+
+    const scrollContainer = scrollContainerFor(screen.getByTestId("agent-diff-viewer"))
+    // jsdom has no Element.prototype.scrollTo at all (real browsers do), and
+    // @tanstack/react-virtual calls it through optional chaining, so it's
+    // safe to leave unset everywhere else -- define a spy directly on this
+    // one element instance (not the shared prototype) so nothing leaks into
+    // other tests.
+    const scrollToSpy = vi.fn()
+    Object.defineProperty(scrollContainer, "scrollTo", { configurable: true, value: scrollToSpy })
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+    fireEvent.click(screen.getByTitle("file50.rb (+1 -0)"))
+
+    expect(scrollToSpy).toHaveBeenCalled()
   })
 })
 

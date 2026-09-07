@@ -163,6 +163,34 @@ compact context snippets.
   control reveals the rest in further batches. Picking a file from the
   Files popup that's beyond the current cap raises the cap to include it
   before scrolling.
+- **File-level virtualization** — within the capped file list, only file
+  sections near the viewport actually mount their rows and Shiki token spans;
+  the rest are windowed out via `@tanstack/react-virtual` (`useWindowVirtualizer`
+  for `scroll="natural"`, `useVirtualizer` for `scroll="bounded"` — both are
+  constructed unconditionally since hooks can't be conditional, but the
+  inactive one is passed `enabled: false` so it never touches its scroll
+  element). `DEFAULT_FILE_VIRTUALIZATION_OVERSCAN` (6 files) keeps enough
+  extra mounted above/below the viewport that ordinary scrolling never shows
+  a blank gap while a newly-revealed file's real height is still being
+  measured; each file's height is estimated from its parsed row count
+  (`estimateFileSectionHeight`) until it first mounts and reports its actual
+  size. This is file-level, not row-level, windowing — row/comment-thread
+  variable heights inside one file all render together; only whole files
+  window in and out. A file's expanded hidden-context state and fetched
+  Shiki tokens are cached outside the file section's own component state
+  (`FileCacheEntry`, keyed by file path on the parent `ReviewableDiff`), so
+  scrolling a file out of the mounted window and back doesn't lose expansion
+  state or redo tokenization; Shiki tokens are cached by hunk id specifically
+  (not raw line index) so the cache survives hidden-context expansion
+  reshuffling line positions. Selecting a file (Files popup, a comment's
+  "View in diff", or any other `selectedPath` prop change) scrolls the
+  virtualized list to it via `scrollToIndex`, bumping the file-count cap
+  first if the target is beyond it — this replaced an earlier
+  `data-diff-file` DOM-query + `scrollIntoView` approach, which stopped
+  working once non-mounted files could be absent from the DOM entirely. The
+  scroll container exposes `data-rendered-file-count`/`data-total-file-count`
+  attributes as lightweight instrumentation for catching windowing
+  regressions in tests.
 - **Hidden-context expansion** — clicking a hunk marker row's up/down
   triangle reveals `CONTEXT_EXPAND_LINE_INCREMENT` (20) more lines of real
   file content in that direction, fetched via the `onLoadFileContext` prop
