@@ -2560,7 +2560,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_
   context "with approved same-Epic fan-in dependency branches" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
-    let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear") }
+    let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
     let(:job_model) { Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_number: 1577) }
 
     def approved_dependency(issue_number, branch_name, head_sha)
