@@ -39,12 +39,15 @@ module Steps
       end
       log("[grader_fanout] using #{grader_phase} grader phase") unless review_grader_context?
 
-      # Skip graders whose when_files_changed globs don't match this PR's diff.
+      # Skip graders whose target isn't affected by this PR's diff -- own
+      # source scope (when_files_changed) or, transitively, a declared
+      # dependency's source scope (TargetGraph#affected).
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
-      active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, matching_files) }
-      skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
+      selections = plan.graders.map { |g| [ g, target_graph.affected(target_label_for(g), changed_files: matching_files) ] }
+      active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
+      log_selections(selections)
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
@@ -102,32 +105,15 @@ module Steps
       default_branch_ref
     end
 
-    def files_match?(grader, changed_files)
-      return true if dependency_files_match?(grader, changed_files)
-      return true if grader.when_files_changed.nil? || grader.when_files_changed.empty?
-      changed_files.any? do |file|
-        grader.when_files_changed.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
+    # Explains every grader's selection/skip by name and target label -- the
+    # existing "skipped <name> (no matching files changed)" prefix is kept
+    # verbatim so it stays a stable substring for anything already grepping
+    # workflow logs; the target label is appended rather than interleaved.
+    def log_selections(selections)
+      selections.each do |grader, selection|
+        verb = selection.affected ? "selected" : "skipped"
+        log("[grader_fanout] #{verb} #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}]")
       end
-    end
-
-    def dependency_files_match?(grader, changed_files)
-      dependency_patterns = dependency_source_scope_for(grader)
-      return false if dependency_patterns.empty?
-
-      changed_files.any? do |file|
-        dependency_patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
-      end
-    end
-
-    def dependency_source_scope_for(grader)
-      graph = target_graph
-
-      target_label = target_label_for(grader)
-      explicit_dependencies = Array(grader.deps).map do |dependency|
-        TargetGraph::Label.resolve(dependency, package: "")
-      end
-      closure = explicit_dependencies.flat_map { |dependency| [ dependency, *graph.dependency_closure_for(dependency) ] }
-      graph.source_scopes_for(closure)
     end
 
     # Expands the raw diff's changed files with any :affected_test_analyzer

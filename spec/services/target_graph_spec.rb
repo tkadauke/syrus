@@ -190,4 +190,114 @@ RSpec.describe TargetGraph do
       end
     end
   end
+
+  describe "#affected and #affected_targets" do
+    let(:root_grader) { TargetGraph::Label.parse("//:grade/tests") }
+
+    it "treats a root-only grader with no source scope as repo-wide" do
+      graph.add_target(TargetGraph::Target.new(label: root_grader, kind: "grader", project_id: "repo"))
+
+      selection = graph.affected(root_grader, changed_files: [ "anything/at/all.rb" ])
+
+      expect(selection.affected).to be(true)
+      expect(selection.reason).to include("repo-wide")
+    end
+
+    it "matches a root-only grader's own explicit source scope (legacy when_files_changed behavior)" do
+      graph.add_target(
+        TargetGraph::Target.new(label: root_grader, kind: "grader", project_id: "repo", source_scope: [ "app/**" ])
+      )
+
+      expect(graph.affected(root_grader, changed_files: [ "app/models/user.rb" ]).affected).to be(true)
+      expect(graph.affected(root_grader, changed_files: [ "lib/other.rb" ]).affected).to be(false)
+    end
+
+    it "matches a nested-only project's grader against its own directory-scoped source scope" do
+      graph.add_project(TargetGraph::Project.new(id: "cli", path: "cli"))
+      label = TargetGraph::Label.parse("//cli:grade/tests")
+      graph.add_target(TargetGraph::Target.new(label: label, kind: "grader", project_id: "cli", source_scope: [ "cli/**" ]))
+
+      expect(graph.affected(label, changed_files: [ "cli/main.go" ]).affected).to be(true)
+      expect(graph.affected(label, changed_files: [ "web/app.js" ]).affected).to be(false)
+    end
+
+    it "selects only the affected side of a mixed root+nested graph" do
+      graph.add_project(TargetGraph::Project.new(id: "cli", path: "cli"))
+      root_label = TargetGraph::Label.parse("//:grade/rspec")
+      nested_label = TargetGraph::Label.parse("//cli:grade/tests")
+      graph.add_target(TargetGraph::Target.new(label: root_label, kind: "grader", project_id: "repo", source_scope: [ "app/**" ], command: "bin/rspec"))
+      graph.add_target(TargetGraph::Target.new(label: nested_label, kind: "grader", project_id: "cli", source_scope: [ "cli/**" ], command: "go test ./..."))
+
+      results = graph.affected_targets(kind: "grader", changed_files: [ "cli/main.go" ]).index_by { |selection| selection.target.label }
+
+      expect(results[root_label].affected).to be(false)
+      expect(results[nested_label].affected).to be(true)
+    end
+
+    it "selects a target through its dependency closure, across formatter/generator/builder/grader kinds alike" do
+      library = TargetGraph::Label.parse("//:library")
+      graph.add_target(TargetGraph::Target.new(label: library, kind: "library", project_id: "repo", source_scope: [ "lib/**" ]))
+
+      %w[formatter builder generator grader].each_with_index do |kind, index|
+        dependent = TargetGraph::Label.parse("//:#{kind}/#{index}")
+        graph.add_target(
+          TargetGraph::Target.new(
+            label: dependent, kind: kind, project_id: "repo",
+            source_scope: [ "unrelated/**" ], command: "check", dependencies: [ library ]
+          )
+        )
+
+        selection = graph.affected(dependent, changed_files: [ "lib/service.rb" ])
+        expect(selection.affected).to be(true)
+        expect(selection.reason).to include(library.to_s)
+      end
+    end
+
+    it "reports no-match when neither a target's own scope nor any dependency's scope matches the diff" do
+      library = TargetGraph::Label.parse("//:library")
+      grader = TargetGraph::Label.parse("//:grade/library-tests")
+      graph.add_target(TargetGraph::Target.new(label: library, kind: "library", project_id: "repo", source_scope: [ "lib/**" ]))
+      graph.add_target(
+        TargetGraph::Target.new(label: grader, kind: "grader", project_id: "repo", source_scope: [ "spec/lib/**" ], dependencies: [ library ])
+      )
+
+      selection = graph.affected(grader, changed_files: [ "app/models/user.rb" ])
+
+      expect(selection.affected).to be(false)
+      expect(selection.reason).to eq("no matching files changed")
+    end
+
+    it "never treats a dependency with an empty source scope (e.g. the implicit root target) as a match" do
+      grader = TargetGraph::Label.parse("//:grade/tests")
+      graph.add_target(
+        TargetGraph::Target.new(label: grader, kind: "grader", project_id: "repo", source_scope: [ "app/**" ], dependencies: [ described_class.root_label ])
+      )
+
+      selection = graph.affected(grader, changed_files: [ "totally/unrelated.rb" ])
+
+      expect(selection.affected).to be(false)
+    end
+
+    it "reports an unknown label as unaffected instead of raising" do
+      selection = graph.affected("//:grade/missing", changed_files: [ "anything.rb" ])
+
+      expect(selection.affected).to be(false)
+      expect(selection.reason).to include("unknown target")
+    end
+
+    it "#affected_targets only considers executable targets of the requested kind(s)" do
+      library = TargetGraph::Label.parse("//:library")
+      formatter = TargetGraph::Label.parse("//:format/0")
+      grader = TargetGraph::Label.parse("//:grade/tests")
+      graph.add_target(TargetGraph::Target.new(label: library, kind: "library", project_id: "repo"))
+      graph.add_target(TargetGraph::Target.new(label: formatter, kind: "formatter", project_id: "repo", command: "rubocop -a"))
+      graph.add_target(TargetGraph::Target.new(label: grader, kind: "grader", project_id: "repo", command: "bin/rspec"))
+
+      grader_only = graph.affected_targets(kind: "grader", changed_files: [])
+      both_kinds = graph.affected_targets(kind: %w[formatter grader], changed_files: [])
+
+      expect(grader_only.map { |selection| selection.target.label }).to eq([ grader ])
+      expect(both_kinds.map { |selection| selection.target.label }).to contain_exactly(formatter, grader)
+    end
+  end
 end
