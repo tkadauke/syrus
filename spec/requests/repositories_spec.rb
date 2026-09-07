@@ -44,15 +44,9 @@ RSpec.describe "Repositories", type: :request do
 
     it "does not route retired repository list and form endpoints" do
       [
-        [ :get, "/repositories/legacy" ],
-        [ :get, "/repositories/new/legacy" ],
-        [ :get, "/repositories/1/edit/legacy" ],
         [ :post, "/repositories" ],
         [ :patch, "/repositories/1" ],
-        [ :delete, "/repositories/1" ],
-        [ :get, "/repositories/owners" ],
-        [ :get, "/repositories/repos" ],
-        [ :get, "/repositories/branches" ]
+        [ :delete, "/repositories/1" ]
       ].each do |method, path|
         expect {
           Rails.application.routes.recognize_path(path, method: method)
@@ -76,13 +70,29 @@ RSpec.describe "Repositories", type: :request do
     it "does not route retired repository-scoped HTML endpoints" do
       [
         [ :post, "/repositories/1/notes" ],
-        [ :delete, "/repositories/1/notes/2" ],
-        [ :get, "/repositories/1/legacy" ],
-        [ :get, "/repositories/1/proposals" ]
+        [ :delete, "/repositories/1/notes/2" ]
       ].each do |method, path|
         expect {
           Rails.application.routes.recognize_path(path, method: method)
         }.to raise_error(ActionController::RoutingError), "#{method.upcase} #{path} should not route"
+      end
+    end
+
+    it "serves the SPA shell for retired repository GET paths instead of 404ing" do
+      [
+        "/repositories/legacy",
+        "/repositories/new/legacy",
+        "/repositories/1/edit/legacy",
+        "/repositories/owners",
+        "/repositories/repos",
+        "/repositories/branches",
+        "/repositories/1/legacy",
+        "/repositories/1/proposals"
+      ].each do |path|
+        get path
+
+        expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+        expect(response.body).to include('id="syrus-spa-root"')
       end
     end
   end

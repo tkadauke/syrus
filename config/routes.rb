@@ -546,52 +546,30 @@ Rails.application.routes.draw do
     get "memberships", to: "spa#show", as: :memberships
   end
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
-  get "repositories/:repository_id/plugin/*path", to: "spa#show", as: :repository_plugin_spa, constraints: lambda { |request|
-    PluginRouteResolver.spa_route_declared?(request.path) ||
-      PluginRouteResolver.repo_page_tab_route?(request.path)
-  }
 
   get "chats/search", to: "spa#show", as: :search_chats
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
   get "chats/:id", to: "spa#show", as: :chat, constraints: { id: /\d+/ }
 
-  get "documents", to: "spa#show", as: :documents
   get "notifications", to: "spa#show", as: :notifications
   get "notifications/settings", to: "spa#show", as: :notification_settings
-  get "search", to: "spa#show", as: :search
-  get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
-  get "scheduled_tasks/new", to: "spa#show", as: :new_scheduled_task
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
-  get "scheduled_tasks/:id/edit", to: "spa#show", as: :edit_scheduled_task, constraints: { id: /\d+/ }
   get "repositories/:repository_id/scheduled_tasks", to: "spa#show", as: :repository_scheduled_tasks
-  get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
-  get "cron_templates", to: "spa#show", as: :cron_templates
   get "cron_templates/new", to: "spa#show", as: :new_cron_template
   get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }
   get "cron_templates/:id/edit", to: "spa#show", as: :edit_cron_template, constraints: { id: /\d+/ }
-  # Kept as named routes, unlike design_docs: core generates `profile_path` in
-  # six places (dashboard payloads, job claims, repository summaries), so the
-  # helper has to exist even though the page itself belongs to team_directory.
-  # The plugin's own `paths` is what makes the React route work; this is only
-  # the URL helper.
-  get "profiles", to: "spa#show", as: :profiles
+  # Only `profile_path` still has a named-helper caller (dashboard payloads,
+  # job claims, repository summaries) -- the plugin's own `paths` is what
+  # makes the React route work, this is only the URL helper. The bare
+  # `/profiles` index has no such caller and is covered by the blanket route.
   get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
   get "onboarding", to: "spa#show", as: :onboarding
   get "app-shell", to: "spa#show", as: :app_shell
-  get "app-shell/*path", to: "spa#show", as: :app_shell_route
   get "dashboard", to: "spa#show", as: :dashboard
   get "dashboard/epics", to: "spa#show", as: :dashboard_epics
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
-  get "insights/spending", to: "spa#show", as: :insights_spending
   get "memories", to: "spa#show", as: :memories
-  get "db_browser", to: "spa#show", as: :db_browser
-  get "k8s_clusters", to: "spa#show", as: :k8s_clusters
-  get "worker_timeline", to: "spa#show", as: :worker_timeline
-  get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
-  get "agent_activity", to: "spa#show", as: :agent_activity
-  get "terminal", to: "spa#show", as: :terminal
-  get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|
     query = request.query_parameters.except("subject").to_query
     query.present? ? "/dashboard/workflows?#{query}" : "/dashboard/workflows"
@@ -605,59 +583,27 @@ Rails.application.routes.draw do
   get "epics/:id", to: "spa#show", as: :epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "tags", to: "spa#show", as: :tags
-  get "design_system", to: "spa#show", as: :design_system
   get "invitations", to: "spa#show", as: :invitations
   # Legacy compatibility: the account menu's `/settings` entry is the
   # per-user credentials page. App-wide settings live at `/settings/edit`
   # and remain admin-only.
   get "settings", to: "spa#show"
-  get "settings/hidden_chats", to: "spa#show"
   get "settings/edit", to: "spa#show", as: :edit_settings
   get "profile", to: "spa#show", as: :account_profile
   get "settings/agent", to: "spa#show", as: :agent_settings
   get "settings/preferences", to: "spa#show", as: :account_preferences
-  get "settings/themes", to: "spa#show", as: :account_themes
-  get "settings/connected_platforms", to: "spa#show", as: :connected_platforms
   get "jobs/new", to: "spa#show", as: :new_job
   get "jobs/:id/source", to: "spa#show", as: :source_job, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "jobs/:id", to: "spa#show", as: :job, constraints: { id: /[a-zA-Z0-9_-]+/ }
-  get "admin", to: "spa#show", as: :admin_root
   get "admin/resource_admission", to: "spa#show", as: :admin_resource_admission
-  get "admin/scoped_chat_events", to: "spa#show", as: :admin_scoped_chat_events
-  get "admin/activity", to: "spa#show", as: :admin_activity
-  get "admin/work_units", to: "spa#show", as: :admin_work_units
-  get "admin/attention_items", to: "spa#show", as: :admin_attention_items
-  get "admin/reconciler_activity", to: "spa#show", as: :admin_reconciler_activity
-  get "admin/browser_errors", to: "spa#show", as: :admin_browser_errors
-  get "admin/backend_exceptions", to: "spa#show", as: :admin_backend_exceptions
   get "admin/queue", to: "spa#show", as: :admin_queue_root
   get "admin/queue/:tab", to: "spa#show", as: :admin_queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
-  get "admin/stuck", to: "spa#show", as: :admin_stuck
   get "admin/processes", to: "spa#show", as: :admin_processes
   get "admin/processes/:id", to: "spa#show", as: :admin_process, constraints: { id: /\d+/ }
-  get "admin/mcp_tool_usage", to: "spa#show", as: :admin_mcp_tool_usage
-  get "admin/runs/:run_id/transcript", to: "spa#show", as: :admin_run_transcript, constraints: { run_id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
-  get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
-  get "admin/teams", to: "spa#show", as: :admin_teams
-  get "admin/teams/:id", to: "spa#show", as: :admin_team, constraints: { id: /\d+/ }
-  get "admin/features", to: "spa#show", as: :admin_features
-  get "admin/plugins", to: "spa#show", as: :admin_plugins
-  get "admin/performance", to: "spa#show", as: :admin_performance
-  get "admin/tailscale", to: "spa#show", as: :admin_tailscale
-  get "admin/console", to: "spa#show", as: :admin_console
   get "admin/installations", to: "spa#show", as: :admin_installations
   get "admin/github_app/register", to: "spa#show", as: :admin_github_app_register
   get "admin/github_app/confirm", to: "spa#show", as: :admin_github_app_confirm
-  get "admin/*path", to: "spa#show", as: :admin_plugin_spa, constraints: lambda { |request|
-    Syrus::PluginRegistry.all_plugins.any? do |manifest|
-      metadata = manifest.metadata.with_indifferent_access
-      Array(metadata[:routes]).any? do |route|
-        route = route.to_h.with_indifferent_access
-        route[:controller].to_s == "spa#show" && route[:path].to_s == request.path
-      end
-    end
-  }
 
   namespace :admin do
     # Raw transcript download for offline analysis.
@@ -669,17 +615,6 @@ Rails.application.routes.draw do
     get "github_app/manifest", to: "github_app#manifest", as: :github_app_manifest
   end
 
-
-  # Any path a `sidebar_page` provider claims, served as the SPA shell without
-  # core listing it. Declared last so every core route still wins, and
-  # constrained so this never becomes a blanket catch-all: an undeclared path
-  # still 404s. New plugin pages need no edit to this file -- the hand-written
-  # list that used to live here is how mockups and scheduled_tasks shipped
-  # 404ing on hard reload.
-  get "*plugin_sidebar_path", to: "spa#show", constraints: lambda { |request|
-    PluginRouteResolver.sidebar_page_route?(request.path)
-  }, format: false
-
   root "spa#show"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
@@ -689,4 +624,18 @@ Rails.application.routes.draw do
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   get "manifest.json" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
+
+  # SPA shell for every path the React router owns, so a hard reload never
+  # 404s just because core (or a plugin) forgot to hand-declare it here --
+  # this is how the git_history repo tab, then Mockups and Scheduled Tasks,
+  # each shipped unreachable. Declared last so every explicit route above
+  # still wins. "/api" is excluded so an unmatched API call keeps returning a
+  # JSON 404 instead of an HTML shell. "/rails" is excluded too: Active
+  # Storage, Action Mailbox, and other Railtie-owned GET routes live in gem
+  # `config/routes.rb` files that Rails loads AFTER this one (see
+  # `Rails.application.routes_reloader.paths`), so they land BEHIND this
+  # wildcard in the final route set rather than in front of it -- without the
+  # exclusion this route would swallow blob downloads and the mailbox health
+  # check instead of losing to them "by declaration order".
+  get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?("/api", "/rails") }, format: false
 end

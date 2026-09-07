@@ -68,11 +68,15 @@ RSpec.describe "Settings", type: :request do
           Rails.application.routes.recognize_path("/settings", method: :patch)
         }.to raise_error(ActionController::RoutingError)
         expect {
-          Rails.application.routes.recognize_path("/settings/edit/legacy", method: :get)
-        }.to raise_error(ActionController::RoutingError)
-        expect {
           Rails.application.routes.recognize_path("/settings/legacy", method: :patch)
         }.to raise_error(ActionController::RoutingError)
+      end
+
+      it "serves the SPA shell for the retired legacy HTML settings GET path instead of 404ing" do
+        get "/settings/edit/legacy"
+
+        expect(response).to be_successful
+        expect(response.body).to include('id="syrus-spa-root"')
       end
     end
   end

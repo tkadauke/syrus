@@ -61,7 +61,6 @@ RSpec.describe "Jobs", type: :request do
       [ :post, "/jobs/1/override_dependencies" ],
       [ :patch, "/jobs/1/stack_base" ],
       [ :post, "/jobs/1/mark_valid" ],
-      [ :get, "/jobs/1/runs/2/grade_log" ],
       [ :post, "/jobs/1/pin" ],
       [ :delete, "/jobs/1/pin" ],
       [ :post, "/jobs/1/attachments" ],
@@ -71,5 +70,12 @@ RSpec.describe "Jobs", type: :request do
         Rails.application.routes.recognize_path(path, method: method)
       }.to raise_error(ActionController::RoutingError), "#{method.upcase} #{path} should not route"
     end
+  end
+
+  it "serves the SPA shell for a retired legacy HTML job GET path instead of 404ing" do
+    get "/jobs/1/runs/2/grade_log"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 end

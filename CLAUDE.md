@@ -888,28 +888,42 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   history; in the YAML it becomes stale and misleading once the flag is widely
   deployed. Describe only what the flag does and any operator requirements
   (e.g. "Requires a Gemini API key.").
-- **A plugin sidebar page's `paths` is the whole contract.** Both sides derive
-  from it: React registers a route per entry, and `PluginRouteResolver` answers
-  Rails' SPA wildcard from the same list. A page whose component branches on
-  `useParams().id` must therefore declare the detail path
-  (`["/design_docs", "/design_docs/:id"]`), or direct navigation renders the
-  bare `BootstrapShell` instead of the page — the failure is silent, because
-  Rails still serves the shell. `spec/requests/spa_spec.rb` guards this both
-  ways: every declared path routes to `spa#show`, *and* the resolver
-  recognizes it without a hand-written route. Some plugin pages still have
-  hand-written entries in `config/routes.rb` because core generates their URL
-  helpers (`profile_path` in dashboard payloads, job claims, repository
-  summaries); those stay until the helper use moves, and they are why the
-  second assertion exists.
-- **SPA routes must be registered in Rails and React together.** Every path
-  declared in `app/frontend/routes/App.tsx` (and any nested route file it
-  references) needs a matching `get "...", to: "spa#show"` entry in
-  `config/routes.rb`. Without it, a browser hard-reload or direct navigation
-  to that URL returns "No route matches ..." from Rails instead of serving the
-  SPA shell. The `app-shell/*path` wildcard only covers `/app-shell/`-prefixed
-  paths; all other routes require an explicit entry. When adding a new React
-  route, add the Rails counterpart in the same PR. Reviewers should check both
-  files.
+- **A plugin sidebar page's `paths` is still the whole contract on the React
+  side.** `config/routes.rb`'s blanket `get "*path", to: "spa#show"` route
+  (see below) makes Rails-side reachability unconditional, so a plugin no
+  longer needs to declare anything for a hard reload to reach `spa#show`. What
+  `paths` still drives is React's OWN client-side route table
+  (`usePluginSidebarPaths` in `app/frontend/pluginSidebarPages.tsx`): a page
+  whose component branches on `useParams().id` must declare the detail path
+  (`["/design_docs", "/design_docs/:id"]`), or client-side navigation to it
+  renders nothing, because React has no route for it — the failure is silent,
+  because Rails happily served the shell. `spec/architecture/plugin_sidebar_page_routing_spec.rb`
+  guards this. The host used to run a separate, narrower
+  `repositories/:repository_id/plugin/*path` route
+  (`PluginRouteResolver.repo_page_tab_route?`) gating this specifically to
+  paths a `repo_page_tab` provider declared; that route was folded into the
+  blanket wildcard too, since the constraint no longer decided anything the
+  wildcard didn't already serve.
+- **SPA routing is derived, not duplicated.** `config/routes.rb` ends with
+  `get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?("/api", "/rails") }, format: false`
+  — every path `app/frontend/routes/App.tsx` (and any nested route file it
+  references) owns reaches `spa#show` automatically, declared or not, so a
+  hard reload or direct navigation never 404s just because someone forgot to
+  hand-write a matching Rails route. This retired the ~90-line hand-written
+  `spa#show` list this file used to require in the same PR as a new React
+  route; see `spec/requests/spa_spec.rb`'s "routes every React app route"
+  example. `/api` is excluded so an unmatched API call still gets a JSON 404;
+  `/rails` is excluded because Active Storage, Action Mailbox, and other
+  Railtie-owned GET routes live in gem `config/routes.rb` files Rails loads
+  AFTER this one (`Rails.application.routes_reloader.paths`), so they land
+  BEHIND the wildcard in the final route set rather than in front of it — the
+  wildcard would otherwise swallow blob downloads and the mailbox health
+  check instead of losing to them "by declaration order" the way every
+  same-file route does. A named route (`as:`) is still worth keeping when a
+  Ruby `_path`/`_url` helper is actually called somewhere (dashboard payloads,
+  job claims, repository summaries, mailer templates, redirects) — grep for a
+  real call before adding or removing one, since a coincidentally-matching
+  JSON payload field name is not a caller.
 - **Frontend i18n** — all user-visible strings in the SPA use i18next. Use the
   `useT` hook (`app/frontend/hooks/useT.ts`, a re-export of `useTranslation`) and
   pick the right namespace (`common`, `nav`, `jobs`, `epics`, `dashboard`, `chat`,
