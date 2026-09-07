@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_130422) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_09_07_021849) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2292,6 +2291,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_130422) do
     t.index ["user_id"], name: "index_runs_on_user_id"
   end
 
+  create_table "runtime_sessions", force: :cascade do |t|
+    t.json "capabilities", null: false
+    t.integer "chat_session_id"
+    t.datetime "created_at", null: false
+    t.string "display_name", null: false
+    t.datetime "expires_at"
+    t.integer "job_id"
+    t.text "last_error"
+    t.datetime "latest_frame_at"
+    t.string "latest_frame_url"
+    t.json "metadata", null: false
+    t.boolean "primary", default: false, null: false
+    t.string "provider_key", null: false
+    t.integer "repository_id", null: false
+    t.integer "run_id"
+    t.string "state", default: "starting", null: false
+    t.string "stream_url"
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.string "workspace_ref", null: false
+    t.index ["chat_session_id"], name: "index_runtime_sessions_on_chat_session_id"
+    t.index ["job_id"], name: "index_runtime_sessions_on_job_id"
+    t.index ["provider_key"], name: "index_runtime_sessions_on_provider_key"
+    t.index ["repository_id", "state"], name: "index_runtime_sessions_on_repository_id_and_state"
+    t.index ["repository_id"], name: "index_runtime_sessions_on_repository_id"
+    t.index ["run_id"], name: "index_runtime_sessions_on_run_id"
+    t.index ["workflow_id"], name: "index_runtime_sessions_on_workflow_id"
+  end
+
   create_table "scheduled_chat_messages", force: :cascade do |t|
     t.text "body", null: false
     t.integer "chat_session_id", null: false
@@ -2703,7 +2731,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_130422) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: { "elements" => [] }, null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

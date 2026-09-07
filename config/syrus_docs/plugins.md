@@ -525,6 +525,62 @@ Postgres container, the repo's `config/database.yml` must use
 `adapter: sqlite3` for the `development` environment. Postgres preview
 environments are not yet supported.
 
+## `:runtime_session_provider`
+
+Runtime session providers back DOC-17's Interactive Runtime Sessions for
+Coding Mode: a live process, app, device, emulator, or service stack attached
+to a Coding Mode workspace (a browser dev server, an iOS Simulator build, a
+CLI/TUI process, and so on). Core owns the `RuntimeSession` record —
+lifecycle state, ownership, capabilities, artifacts — while a plugin per
+platform supplies the execution.
+
+As of this writing only the model and the registry skeleton exist; no bundled
+plugin registers a concrete provider yet (the browser provider is later work
+in EPIC-319). This section documents the interface contributors implement.
+
+`provider_key`, `display_name`, `detect`, and `capabilities` are class
+methods, so a provider can be selected for a repository/config before any
+session exists. The remaining lifecycle methods are instance methods, called
+on a provider instance scoped to one running session. Include
+`Syrus::Plugin::RuntimeSessionProvider` and implement:
+
+| Method | Signature | Description |
+|---|---|---|
+| `self.provider_key` | `() → String` | Unique stable identifier (e.g. `"browser"`) |
+| `self.display_name` | `() → String` | Shown in the Coding Mode runtime panel |
+| `self.detect` | `(repository, config) → truthy/falsy` | Whether this provider applies |
+| `self.capabilities` | `(repository, config) → RuntimeCapability Hash` | stream/input/inspect/build/artifacts this provider offers |
+| `#start_session` | `(workspace_ref, config) → Hash` | Starts a session; return value seeds the `RuntimeSession` record |
+| `#build_or_reload` | `(session_id, options)` | Restarts/recompiles/hot-reloads the target |
+| `#launch` | `(session_id, options)` | Launches (or relaunches) the target inside the session |
+| `#snapshot` | `(session_id, options)` | Captures a point-in-time view (e.g. a screenshot) |
+| `#inspect` | `(session_id = nil, options = nil)` | Structural inspection (DOM, accessibility tree, view hierarchy) |
+| `#input` | `(session_id, event)` | Delivers a pointer/keyboard/touch/stdin event |
+| `#logs` | `(session_id, cursor, options)` | Next chunk of log output after `cursor` |
+| `#stop_session` | `(session_id)` | Tears down the underlying process/device/VM lease |
+
+`#inspect` shadows `Kernel#inspect` to match DOC-17's interface naming; its
+arguments default to `nil` so anything that calls plain `.inspect` with no
+arguments (RSpec failure output, pry, logging) raises `NotImplementedError`
+instead of `ArgumentError`.
+
+Register via a gem manifest, the same as any other extension point:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { runtime_session_provider: MyPlugin::RuntimeSessionProvider }
+)
+```
+
+Look providers up through `RuntimeSessionProviders`:
+
+```ruby
+RuntimeSessionProviders.for("browser")              # => provider class, or raises ConfigurationError
+RuntimeSessionProviders.detect_for(repository, {})   # => first provider class whose .detect matches, or nil
+RuntimeSessionProviders.all                          # => every registered provider class
+```
+
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
