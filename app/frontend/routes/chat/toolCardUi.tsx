@@ -97,3 +97,24 @@ export function InternalLink({ href, children }: { href: string; children: React
     </a>
   )
 }
+
+// Collapsed-by-default detail section for content a card should not dump
+// into the main body by default (file contents, command output, long
+// lists) — the raw JSON "Raw details" disclosure always covers the full
+// payload regardless, so this is purely a friendlier, still-opt-in view.
+export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="rounded border border-gray-200 bg-white px-2 py-1 dark:border-gray-800 dark:bg-gray-950">
+      <summary className="cursor-pointer text-2xs font-semibold uppercase text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">{label}</summary>
+      <div className="mt-1 text-gray-700 dark:text-gray-300">{children}</div>
+    </details>
+  )
+}
+
+export type LinePreview = { preview: string; truncated: boolean; totalLines: number }
+
+export function truncateLines(text: string, maxLines: number): LinePreview {
+  const lines = text.split("\n")
+  if (lines.length <= maxLines) return { preview: text, truncated: false, totalLines: lines.length }
+  return { preview: lines.slice(0, maxLines).join("\n"), truncated: true, totalLines: lines.length }
+}
