@@ -174,7 +174,10 @@ The terminal picker groups sessions for the current checkout first. On a
 real terminal, the chat itself opens as a full-screen frame with three
 regions: a scrollable history pane, a multi-line input area, and a thin
 status line showing the chat title/repository and a busy indicator (a
-single Latin phrase) while a turn is streaming.
+single Latin phrase) while a turn is streaming. Tool calls the agent makes
+during a turn render live in the history pane as a compact `› toolname`
+line, followed by a one-line result summary — the same format used when
+replaying a session's history.
 
 - **Enter** sends the message; **Ctrl+J** inserts a literal newline for a
   multi-line message instead of sending.
