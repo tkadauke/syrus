@@ -40,8 +40,28 @@ RSpec.describe TargetGraph::NestedConfigDiscovery do
       expect(described_class.call(@dir)).to eq(%w[alpha mid zeta])
     end
 
-    it "excludes .git, dependency/vendor caches, build outputs, and the .syrus scratch dir" do
+    it "always excludes .git and the .syrus scratch dir, gitignored or not" do
       write(".git/.syrus.yml", "prepare: []\n")
+      write(".syrus/workflows/1/.syrus.yml", "prepare: []\n")
+      write("cli/.syrus.yml", "prepare: []\n")
+
+      expect(described_class.call(@dir)).to eq([ "cli" ])
+    end
+
+    it "excludes dependency/vendor caches and build outputs that the repository's own .gitignore ignores" do
+      init_git_repo
+      write(".gitignore", <<~GITIGNORE)
+        node_modules/
+        vendor/
+        .bundle/
+        tmp/
+        log/
+        coverage/
+        dist/
+        build/
+        .next/
+        .cache/
+      GITIGNORE
       write("node_modules/some-pkg/.syrus.yml", "prepare: []\n")
       write("vendor/bundle/.syrus.yml", "prepare: []\n")
       write(".bundle/.syrus.yml", "prepare: []\n")
@@ -52,16 +72,41 @@ RSpec.describe TargetGraph::NestedConfigDiscovery do
       write("build/.syrus.yml", "prepare: []\n")
       write(".next/.syrus.yml", "prepare: []\n")
       write(".cache/.syrus.yml", "prepare: []\n")
-      write(".syrus/workflows/1/.syrus.yml", "prepare: []\n")
       write("cli/.syrus.yml", "prepare: []\n")
 
       expect(described_class.call(@dir)).to eq([ "cli" ])
     end
 
-    it "still discovers a legitimately nested .syrus.yml inside a directory that merely starts with an excluded name" do
+    it "still discovers a legitimately nested .syrus.yml inside a directory that merely starts with a gitignored name" do
+      init_git_repo
+      write(".gitignore", "vendor/\n")
       write("vendored-tools/.syrus.yml", "prepare: []\n")
 
       expect(described_class.call(@dir)).to eq([ "vendored-tools" ])
+    end
+
+    it "discovers a nested .syrus.yml in a directory that isn't gitignored, even if its name matches an old hardcoded exclusion" do
+      init_git_repo
+      write(".gitignore", "\n")
+      write("dist/.syrus.yml", "prepare: []\n")
+
+      expect(described_class.call(@dir)).to eq([ "dist" ])
+    end
+
+    it "excludes a nested .syrus.yml inside any gitignored directory, not just a fixed list of common cache/build names" do
+      init_git_repo
+      write(".gitignore", "scratch/\n")
+      write("scratch/.syrus.yml", "prepare: []\n")
+      write("cli/.syrus.yml", "prepare: []\n")
+
+      expect(described_class.call(@dir)).to eq([ "cli" ])
+    end
+
+    it "does not raise and treats nothing as gitignored when the workspace isn't a git checkout" do
+      write("dist/.syrus.yml", "prepare: []\n")
+      write("cli/.syrus.yml", "prepare: []\n")
+
+      expect(described_class.call(@dir)).to eq(%w[cli dist])
     end
 
     it "does not infer a project from package.json, go.mod, or other repository-structure signals" do
@@ -76,5 +121,13 @@ RSpec.describe TargetGraph::NestedConfigDiscovery do
     path = File.join(@dir, rel)
     FileUtils.mkdir_p(File.dirname(path))
     File.write(path, contents)
+  end
+
+  def init_git_repo
+    Dir.chdir(@dir) do
+      system("git", "init", "-q", exception: true)
+      system("git", "config", "user.email", "test@example.com", exception: true)
+      system("git", "config", "user.name", "Test", exception: true)
+    end
   end
 end
