@@ -3,6 +3,7 @@ module github.com/tkadauke/syrus/cli
 go 1.25.0
 
 require (
+	github.com/tkadauke/syrus/plugins/k8s_cluster/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
@@ -51,3 +52,5 @@ require (
 // go.work). Neither module is published, so the relative replace resolves
 // them from the working tree and keeps `GOWORK=off` builds working.
 replace github.com/tkadauke/syrus/plugins/scheduled_tasks/cli => ../plugins/scheduled_tasks/cli
+
+replace github.com/tkadauke/syrus/plugins/k8s_cluster/cli => ../plugins/k8s_cluster/cli
