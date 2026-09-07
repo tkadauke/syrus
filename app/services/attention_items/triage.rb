@@ -1,4 +1,4 @@
-module Decisions
+module AttentionItems
   # The second queue on the decision mechanism (workflow-engine-v3 C3).
   #
   # Bug triage is the same shape as an operator decision -- one problem, its
@@ -28,7 +28,7 @@ module Decisions
     def call
       return nil unless triageable?
 
-      Decisions::Opener.call(
+      AttentionItems::Opener.call(
         problem: problem,
         title: "Needs triage: #{@job.title.presence || @job.slug}",
         summary: summary,

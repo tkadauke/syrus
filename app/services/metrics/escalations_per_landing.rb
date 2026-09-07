@@ -2,8 +2,9 @@ module Metrics
   # The plan's one metric (workflow-engine-v3): escalations per landing,
   # trending down. Flat means the ladder is not learning.
   #
-  # Escalations are Decisions opened in the window -- one per distinct problem,
-  # not per occurrence, because Decisions::Opener collapses repeats. Landings
+  # Escalations are AttentionItems opened in the window -- one per distinct
+  # problem, not per occurrence, because AttentionItems::Opener collapses
+  # repeats. Landings
   # are the workflows that actually put code on the base branch. The ratio is
   # "how much human attention did it cost to land something", which is the
   # question the whole attention model exists to answer.
@@ -45,7 +46,7 @@ module Metrics
     private
 
     def decisions
-      scope = Decision.for_queue(@queue).where(created_at: @from..@to)
+      scope = AttentionItem.for_queue(@queue).where(created_at: @from..@to)
       @repository ? scope.where(repository: @repository) : scope
     end
 

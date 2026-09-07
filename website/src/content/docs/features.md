@@ -974,6 +974,20 @@ state (running or finished), by `outcome` for finished processes (failed,
 timed out, operator killed, and the rest), by owning user, and by kind, host,
 or Run, with built-in Running, Stale, and Recently failed folders.
 
+Admin → Attention Items (`/admin/attention_items`) is a decision/escalation
+queue: one row per distinct problem, not per occurrence, so ten failures of
+the same grader on the same branch stay one item instead of flooding the
+queue. Each item shows structured evidence, an automated adjudicator's
+verdict when one exists, and the typed actions available for it (for
+example, retrying the Job the failure came from). Running an action executes
+it immediately and is recorded on the admin audit log; deciding an item
+(upheld, dismissed, or deferred, with a reason) removes it from the default
+open view and is remembered — a later occurrence of the same problem in the
+same repository reuses that decision instead of asking again, until it
+expires. Two producers currently open items here: workflow failures that
+reached the end of Syrus's automatic remediation ladder, and inbound Jobs
+Syrus's classifier could not confidently place.
+
 Admins can also toggle boolean feature flags from `/admin/features` when
 the instance declares features in `config/features.yml`. The page groups
 declared flags by category, shows the slug and description for each flag,

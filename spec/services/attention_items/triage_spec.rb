@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Decisions::Triage do
+RSpec.describe AttentionItems::Triage do
   let(:job) { Factories.job_record }
 
   def uncertain!
