@@ -680,11 +680,19 @@ module Steps
       false
     end
 
-    def authenticated_git(operation_type, &block)
+    # `git:` is a keyword rather than a second positional argument on purpose.
+    # Steps::PrOpen and Steps::Push each used to redefine this name with the
+    # signature `(git, operation_type)` so they could pass their streaming git
+    # -- which silently changed the contract for every inherited caller. The
+    # checkpoint restore in this class called it with one argument and died
+    # with `ArgumentError: wrong number of arguments (given 1, expected 2)` in
+    # exactly the two steps that publish a branch. A keyword default lets a
+    # caller supply its own runner without changing the arity anyone else sees.
+    def authenticated_git(operation_type, git: GitRunner.new, &block)
       GithubAuthenticatedGit.run(
         repository: repository,
         user: job.user,
-        git: GitRunner.new,
+        git: git,
         operation_type: operation_type,
         log: method(:log),
         &block

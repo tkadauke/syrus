@@ -227,7 +227,7 @@ module Steps
 
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      authenticated_git(git, "git_pr_open_push") do |push_url|
+      authenticated_git("git_pr_open_push", git: git) do |push_url|
         return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
         push_branch_to_remote(git, push_url)
       end
@@ -241,16 +241,6 @@ module Steps
       raise BranchDiverged, branch_divergence_message
     end
 
-    def authenticated_git(git, operation_type, &block)
-      GithubAuthenticatedGit.run(
-        repository: repository,
-        user: job.user,
-        git: git,
-        operation_type: operation_type,
-        log: method(:log),
-        &block
-      )
-    end
 
     def push_branch_to_remote(git, push_url)
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",

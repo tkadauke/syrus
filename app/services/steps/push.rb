@@ -17,7 +17,7 @@ module Steps
 
       log("push: pushing branch #{workspace.branch_name} (#{workflow.slug})")
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      authenticated_git(git, "git_push") { |push_url| push_branch(git, push_url) }
+      authenticated_git("git_push", git: git) { |push_url| push_branch(git, push_url) }
       apply_job_metadata_refresh
       update_managed_pr_footers unless refreshed_job_metadata_applied?
     end
@@ -46,16 +46,6 @@ module Steps
               chdir: workspace.path.to_s)
     end
 
-    def authenticated_git(git, operation_type, &block)
-      GithubAuthenticatedGit.run(
-        repository: repository,
-        user: job.user,
-        git: git,
-        operation_type: operation_type,
-        log: method(:log),
-        &block
-      )
-    end
 
     def rebase_onto_remote_branch!(git, push_url)
       branch = workspace.branch_name

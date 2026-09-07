@@ -491,6 +491,51 @@ RSpec.describe Steps::PrOpen, :ci_only do
       .with(implement_run, context: "pr_open")
   end
 
+  # Stubbing the restore proved it was *called*, not that it *works*. It did
+  # not: Steps::PrOpen and Steps::Push each define their own
+  # `authenticated_git(git, operation_type)`, shadowing the one-argument helper
+  # in Steps::Base that the restore uses -- so the real call raised
+  # `ArgumentError: wrong number of arguments (given 1, expected 2)` in exactly
+  # the two steps that publish a branch. JOB-4453 failed four times this way
+  # after the fix was deployed, with the error swallowed by the opportunistic
+  # rescue.
+  it "can actually reach the checkpoint fetch from pr_open" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
+    implement_run = Run.create!(
+      job: job, step: implement_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "succeeded", head_sha: "validated-sha"
+    )
+    RunCheckpoint.create!(
+      run: implement_run, workflow: workflow, step: implement_step, job: job,
+      repository: repository, user: job.user, step_kind: implement_step.kind,
+      commit_sha: "validated-sha",
+      remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published", published_at: Time.current
+    )
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    allow(handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: path)
+    )
+    allow(handler).to receive(:workspace_contains_sha?).and_return(false)
+    allow(handler).to receive(:workflow_branch_contains_sha?).and_return(false)
+    allow(handler).to receive(:checkout_workflow_branch_at!)
+    git = instance_double(GitRunner)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(git).to receive(:run).and_return("validated-sha\n")
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://push.example/repo.git")
+
+    handler.send(:restore_run_checkpoint_if_needed!, implement_run, context: "pr_open")
+
+    expect(GithubAuthenticatedGit).to have_received(:run)
+      .with(hash_including(operation_type: "git_checkpoint_restore"))
+  end
+
   # The recovery is opportunistic. If it cannot run, the step must behave
   # exactly as it did before rather than turning a repairable state into a
   # worse failure -- close_empty_new_publication_branch! still guards the
