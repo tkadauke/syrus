@@ -4,7 +4,7 @@
 # feedback, failed jobs, landing failures, needs-review and awaiting-approval,
 # and the operator reconstructs the problem from workflow state and logs.
 #
-# A Decision is the problem instead -- its evidence, the verdict rung 0
+# An AttentionItem is the problem instead -- its evidence, the verdict rung 0
 # reached, and one to three typed actions bound to the existing PendingActions
 # mechanism. The actions are not new capabilities; they are the ones an
 # operator already has, attached to the thing that needs deciding.
@@ -12,7 +12,12 @@
 # `queue` exists because bug triage needs a second queue on the same mechanism:
 # different audience, different SLA, different actions. Merging them buries the
 # rare important decision under the frequent cheap one.
-class Decision < ApplicationRecord
+#
+# Named `AttentionItem` rather than `Decision` to avoid colliding with the
+# unrelated `Decision` value classes already in the codebase (ephemeral
+# selector-service return values, not persisted records) -- e.g.
+# `ProviderCircuitBreaker::Decision`, `WorkflowAdmissionBudget::Decision`.
+class AttentionItem < ApplicationRecord
   STATES = %w[open decided expired superseded].freeze
   QUEUES = %w[operator triage].freeze
   URGENCIES = %w[low normal urgent].freeze

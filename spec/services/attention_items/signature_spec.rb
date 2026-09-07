@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Decisions::Signature do
+RSpec.describe AttentionItems::Signature do
   # The whole point: two occurrences of the same problem must fingerprint the
   # same, or a decision never matches twice and the queue stops compounding.
   it "is stable across occurrences of the same problem" do

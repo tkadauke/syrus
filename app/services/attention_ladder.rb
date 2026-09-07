@@ -5,7 +5,7 @@
 #   1 · deterministic repair        cheap     format/generate, auto_rebase, backoff
 #   2 · agentic repair              one turn  landing_fix, the implement loop
 #   3 · agentic adjudication        one turn  Adjudicators::AgenticGraderReview
-#   4 · human decision              expensive Decisions::Escalator
+#   4 · human decision              expensive AttentionItems::Escalator
 #
 # The ladder differs per work definition because the cost of being wrong
 # differs. A stalled landing is the expensive failure, so auto_merge spends a

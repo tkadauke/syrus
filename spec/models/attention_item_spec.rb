@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Decision do
+RSpec.describe AttentionItem do
   let(:repo) { Factories.repository }
 
   def decision(**overrides)

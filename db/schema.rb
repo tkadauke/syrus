@@ -201,6 +201,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_092835) do
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
   end
 
+  create_table "attention_items", force: :cascade do |t|
+    t.json "actions", null: false
+    t.json "adjudication"
+    t.datetime "created_at", null: false
+    t.datetime "decided_at"
+    t.integer "decided_by_user_id"
+    t.json "evidence", null: false
+    t.datetime "expires_at"
+    t.integer "job_id"
+    t.string "problem_code", null: false
+    t.string "queue", default: "operator", null: false
+    t.text "reason"
+    t.integer "repository_id"
+    t.string "resolution"
+    t.string "signature", null: false
+    t.string "state", default: "open", null: false
+    t.integer "step_id"
+    t.text "summary"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.string "urgency", default: "normal", null: false
+    t.integer "user_id"
+    t.integer "workflow_id"
+    t.index ["decided_by_user_id"], name: "index_attention_items_on_decided_by_user_id"
+    t.index ["job_id"], name: "index_attention_items_on_job_id"
+    t.index ["problem_code"], name: "index_attention_items_on_problem_code"
+    t.index ["queue", "state", "urgency"], name: "index_attention_items_on_queue_state_urgency"
+    t.index ["repository_id"], name: "index_attention_items_on_repository_id"
+    t.index ["signature", "state"], name: "index_attention_items_on_signature_and_state"
+    t.index ["step_id"], name: "index_attention_items_on_step_id"
+    t.index ["user_id"], name: "index_attention_items_on_user_id"
+    t.index ["workflow_id"], name: "index_attention_items_on_workflow_id"
+  end
+
   create_table "auto_retry_attempts", force: :cascade do |t|
     t.string "agent_provider", null: false
     t.integer "attempt_number", null: false
@@ -758,40 +792,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_092835) do
     t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
     t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
-  end
-
-  create_table "decisions", force: :cascade do |t|
-    t.json "actions", null: false
-    t.json "adjudication"
-    t.datetime "created_at", null: false
-    t.datetime "decided_at"
-    t.integer "decided_by_user_id"
-    t.json "evidence", null: false
-    t.datetime "expires_at"
-    t.integer "job_id"
-    t.string "problem_code", null: false
-    t.string "queue", default: "operator", null: false
-    t.text "reason"
-    t.integer "repository_id"
-    t.string "resolution"
-    t.string "signature", null: false
-    t.string "state", default: "open", null: false
-    t.integer "step_id"
-    t.text "summary"
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.string "urgency", default: "normal", null: false
-    t.integer "user_id"
-    t.integer "workflow_id"
-    t.index ["decided_by_user_id"], name: "index_decisions_on_decided_by_user_id"
-    t.index ["job_id"], name: "index_decisions_on_job_id"
-    t.index ["problem_code"], name: "index_decisions_on_problem_code"
-    t.index ["queue", "state", "urgency"], name: "index_decisions_on_queue_state_urgency"
-    t.index ["repository_id"], name: "index_decisions_on_repository_id"
-    t.index ["signature", "state"], name: "index_decisions_on_signature_and_state"
-    t.index ["step_id"], name: "index_decisions_on_step_id"
-    t.index ["user_id"], name: "index_decisions_on_user_id"
-    t.index ["workflow_id"], name: "index_decisions_on_workflow_id"
   end
 
   create_table "design_doc_agent_runs", force: :cascade do |t|
