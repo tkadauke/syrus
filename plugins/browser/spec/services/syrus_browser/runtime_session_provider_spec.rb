@@ -12,7 +12,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
   end
   let(:provider) { described_class.new }
 
-  after { SyrusBrowser::PreviewProcessRegistry.reset! }
+  after { Mcp::Tools::AgentPreviewRegistry.reset! }
 
   describe ".provider_key and .display_name" do
     it "identifies itself as the browser provider" do
@@ -52,22 +52,38 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
   end
 
   describe "#start_session" do
-    it "launches the dev server and registers it in the preview process registry" do
-      result = SyrusBrowser::PreviewLauncher::Result.new(pid: 123, port: 3001, url: "http://localhost:3001")
-      launcher = instance_double(SyrusBrowser::PreviewLauncher, launch!: result)
-      allow(SyrusBrowser::PreviewLauncher).to receive(:new).with("/workspace/chat-1").and_return(launcher)
+    it "launches the dev server via the shared PreviewProcessLauncher, keyed by workspace_ref" do
+      result = PreviewProcessLauncher::Result.new(pid: 123, port: 3001, url: "http://localhost:3001", reused: false)
+      launcher = instance_double(PreviewProcessLauncher)
+      allow(PreviewProcessLauncher).to receive(:new).with("/workspace/chat-1").and_return(launcher)
+      expect(launcher).to receive(:launch!).with(key: "/workspace/chat-1", port: 3001).and_return(result)
 
       metadata = provider.start_session("/workspace/chat-1", { port: 3001 })
 
       expect(metadata).to eq(workspace_ref: "/workspace/chat-1", pid: 123, port: 3001, url: "http://localhost:3001")
-      expect(SyrusBrowser::PreviewProcessRegistry.get("/workspace/chat-1")).to eq(pid: 123, port: 3001)
+    end
+
+    it "registers the process in the shared Mcp::Tools::AgentPreviewRegistry" do
+      allow(PreviewCommandSource).to receive(:new).with("/workspace/chat-1").and_return(
+        double(resolve: double(
+          start_command_for: ->(port:) { "bin/rails server -p #{port}" },
+          setup_commands: [], seed_command: nil, health_check_path: "/",
+          log_paths: [], env: {}, unset_env: []
+        ))
+      )
+      allow(Process).to receive(:spawn).and_return(424_242)
+      allow_any_instance_of(PreviewProcessLauncher).to receive(:http_ok?).and_return(true)
+
+      provider.start_session("/workspace/chat-1", { port: 3001 })
+
+      expect(Mcp::Tools::AgentPreviewRegistry.get("/workspace/chat-1")).to eq(pid: 424_242, port: 3001)
     end
 
     it "defaults to port 3001 when no port is configured" do
-      launcher = instance_double(SyrusBrowser::PreviewLauncher)
-      allow(SyrusBrowser::PreviewLauncher).to receive(:new).and_return(launcher)
-      expect(launcher).to receive(:launch!).with(port: 3001).and_return(
-        SyrusBrowser::PreviewLauncher::Result.new(pid: 424_242, port: 3001, url: "http://localhost:3001")
+      launcher = instance_double(PreviewProcessLauncher)
+      allow(PreviewProcessLauncher).to receive(:new).and_return(launcher)
+      expect(launcher).to receive(:launch!).with(key: "/workspace/chat-1", port: 3001).and_return(
+        PreviewProcessLauncher::Result.new(pid: 424_243, port: 3001, url: "http://localhost:3001", reused: false)
       )
 
       provider.start_session("/workspace/chat-1", {})
@@ -76,17 +92,19 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
 
   describe "#build_or_reload" do
     it "kills the existing preview process and starts a fresh one" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_243, port: 3001)
-      allow(SyrusBrowser::PreviewProcessRegistry).to receive(:kill).with(runtime_session.workspace_ref).and_call_original
+      Mcp::Tools::AgentPreviewRegistry.register(key: runtime_session.workspace_ref, pid: 424_244, port: 3001)
+      allow(Mcp::Tools::AgentPreviewRegistry).to receive(:kill).with(runtime_session.workspace_ref).and_call_original
 
-      result = SyrusBrowser::PreviewLauncher::Result.new(pid: 424_244, port: 3001, url: "http://localhost:3001")
-      launcher = instance_double(SyrusBrowser::PreviewLauncher, launch!: result)
-      allow(SyrusBrowser::PreviewLauncher).to receive(:new).and_return(launcher)
+      result = PreviewProcessLauncher::Result.new(pid: 424_245, port: 3001, url: "http://localhost:3001", reused: false)
+      launcher = instance_double(PreviewProcessLauncher, launch!: result)
+      allow(PreviewProcessLauncher).to receive(:new).and_return(launcher)
 
-      provider.build_or_reload(runtime_session.id, {})
+      metadata = provider.build_or_reload(runtime_session.id, {})
 
-      expect(SyrusBrowser::PreviewProcessRegistry).to have_received(:kill).with(runtime_session.workspace_ref)
-      expect(SyrusBrowser::PreviewProcessRegistry.get(runtime_session.workspace_ref)).to eq(pid: 424_244, port: 3001)
+      expect(Mcp::Tools::AgentPreviewRegistry).to have_received(:kill).with(runtime_session.workspace_ref)
+      expect(metadata).to eq(
+        workspace_ref: runtime_session.workspace_ref, pid: 424_245, port: 3001, url: "http://localhost:3001"
+      )
     end
   end
 
@@ -96,7 +114,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
     end
 
     it "navigates the session's browser to the dev server URL via NavigateTool" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_245, port: 4000)
+      Mcp::Tools::AgentPreviewRegistry.register(key: runtime_session.workspace_ref, pid: 424_246, port: 4000)
       response = MCP::Tool::Response.new([ { type: "text", text: "navigated" } ])
       expect(SyrusBrowser::NavigateTool).to receive(:call)
         .with(server_context: { runtime_session: runtime_session }, url: "http://127.0.0.1:4000/")
@@ -108,7 +126,7 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
     end
 
     it "honors an explicit path option" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_245, port: 4000)
+      Mcp::Tools::AgentPreviewRegistry.register(key: runtime_session.workspace_ref, pid: 424_246, port: 4000)
       response = MCP::Tool::Response.new([])
       expect(SyrusBrowser::NavigateTool).to receive(:call)
         .with(server_context: { runtime_session: runtime_session }, url: "http://127.0.0.1:4000/dashboard")
@@ -180,13 +198,13 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
 
   describe "#stop_session" do
     it "kills both the browser session and the preview process" do
-      SyrusBrowser::PreviewProcessRegistry.register(session_key: runtime_session.workspace_ref, pid: 424_246, port: 3001)
+      Mcp::Tools::AgentPreviewRegistry.register(key: runtime_session.workspace_ref, pid: 424_247, port: 3001)
       allow(SyrusBrowser::SessionRegistry).to receive(:kill)
 
       expect(provider.stop_session(runtime_session.id)).to be true
 
       expect(SyrusBrowser::SessionRegistry).to have_received(:kill).with("runtime_session:#{runtime_session.id}")
-      expect(SyrusBrowser::PreviewProcessRegistry.get(runtime_session.workspace_ref)).to be_nil
+      expect(Mcp::Tools::AgentPreviewRegistry.get(runtime_session.workspace_ref)).to be_nil
     end
   end
 end

@@ -1,9 +1,9 @@
 module SyrusBrowser
   # DOC-17's first concrete RuntimeSessionProvider: a headless-Chromium
-  # session driving the repo's own dev server, reusing the same
-  # PreviewCommandSource / dev-server-start-and-health-check plumbing already
-  # built for the preview feature (see PreviewLauncher) instead of
-  # reinventing dev-server management.
+  # session driving the repo's own dev server, via the same
+  # PreviewProcessLauncher / Mcp::Tools::AgentPreviewRegistry the workflow
+  # start_preview MCP tool uses -- one dev-server-start-and-health-check
+  # implementation shared across both call sites, not two.
   #
   # `snapshot`/`inspect` deliberately delegate into the browser_* MCP tool
   # classes (ScreenshotTool/SnapshotTool) rather than re-driving Playwright
@@ -48,16 +48,14 @@ module SyrusBrowser
       config = config.to_h.symbolize_keys
       port = Integer(config[:port] || DEFAULT_PORT)
 
-      launcher = PreviewLauncher.new(workspace_ref)
-      result = launcher.launch!(port: port)
-      PreviewProcessRegistry.register(session_key: workspace_ref, pid: result.pid, port: result.port)
+      result = PreviewProcessLauncher.new(workspace_ref).launch!(key: workspace_ref, port: port)
 
       { workspace_ref: workspace_ref, pid: result.pid, port: result.port, url: result.url }
     end
 
     def build_or_reload(session_id, options)
       runtime_session = find_runtime_session(session_id)
-      PreviewProcessRegistry.kill(runtime_session.workspace_ref)
+      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       start_session(runtime_session.workspace_ref, options)
     end
 
@@ -113,7 +111,7 @@ module SyrusBrowser
     def stop_session(session_id)
       runtime_session = find_runtime_session(session_id)
       SessionRegistry.kill(SessionContext.for_runtime_session(runtime_session).session_key)
-      PreviewProcessRegistry.kill(runtime_session.workspace_ref)
+      Mcp::Tools::AgentPreviewRegistry.kill(runtime_session.workspace_ref)
       true
     end
 
@@ -126,7 +124,7 @@ module SyrusBrowser
     end
 
     def running_preview_for!(runtime_session)
-      PreviewProcessRegistry.get(runtime_session.workspace_ref) ||
+      Mcp::Tools::AgentPreviewRegistry.get(runtime_session.workspace_ref) ||
         raise(SessionNotFoundError, "no running dev server for session #{runtime_session.id} — call start_session first")
     end
 

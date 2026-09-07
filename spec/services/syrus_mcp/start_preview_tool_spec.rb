@@ -3,6 +3,7 @@ require "rails_helper"
 RSpec.describe Mcp::Tools::StartPreviewTool do
   let(:run)            { Factories.job.initial_run }
   let(:workspace_path) { WorkflowWorkspace.path_for(run.step.workflow).to_s }
+  let(:launcher)       { PreviewProcessLauncher.new(workspace_path) }
 
   let(:preview_config) do
     PreviewCommandSource::Config.new(
@@ -23,6 +24,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
   before do
     Mcp::Tools::AgentPreviewRegistry.reset!
     allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
+    allow(PreviewProcessLauncher).to receive(:new).with(workspace_path).and_return(launcher)
   end
 
   after { Mcp::Tools::AgentPreviewRegistry.reset! }
@@ -30,7 +32,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
   context "when health check passes immediately" do
     before do
       allow(Process).to receive(:spawn).and_return(12345)
-      allow(described_class).to receive(:http_ok?).and_return(true)
+      allow(launcher).to receive(:http_ok?).and_return(true)
     end
 
     it "returns the local URL and PID" do
@@ -97,7 +99,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
   end
 
   context "when a preview is already running for this run" do
-    before { Mcp::Tools::AgentPreviewRegistry.register(run_id: run.id, pid: 9999, port: 3001) }
+    before { Mcp::Tools::AgentPreviewRegistry.register(key: run.id, pid: 9999, port: 3001) }
 
     it "returns the existing URL and PID without spawning again" do
       expect(Process).not_to receive(:spawn)
@@ -105,6 +107,10 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       expect(response).not_to be_error
       payload = JSON.parse(response.content.first[:text])
       expect(payload).to eq("url" => "http://localhost:3001", "pid" => 9999)
+    end
+
+    it "does not write a JobLog audit line for a reused preview" do
+      expect { call }.not_to change { run.job_logs.count }
     end
   end
 
@@ -130,9 +136,9 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
   context "when the health check times out" do
     before do
-      stub_const("Mcp::Tools::StartPreviewTool::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
+      stub_const("PreviewProcessLauncher::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
       allow(Process).to receive(:spawn).and_return(12345)
-      allow(described_class).to receive(:http_ok?).and_return(false)
+      allow(launcher).to receive(:http_ok?).and_return(false)
     end
 
     it "returns an error mentioning the timeout" do
@@ -167,15 +173,15 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
     before do
       allow(Process).to receive(:spawn).and_return(1111)
-      allow(described_class).to receive(:http_ok?).and_return(true)
+      allow(launcher).to receive(:http_ok?).and_return(true)
     end
 
-    it "calls run_seed! with the config and workspace path" do
-      expect(described_class).to receive(:run_seed!).with(
-        preview_config,
-        workspace_path,
-        hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle"))
-      )
+    it "runs the configured seed command" do
+      expect(launcher).to receive(:system).with(
+        hash_including("BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
+        "bash", "-c", "bin/rails db:seed",
+        chdir: workspace_path, exception: false, unsetenv_others: true
+      ).and_return(true)
       call
     end
 
@@ -191,16 +197,16 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       )
       allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
 
-      expect(described_class).to receive(:run_seed!).with(
-        preview_config,
-        workspace_path,
-        hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development")
-      )
+      expect(launcher).to receive(:system).with(
+        hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development"),
+        "bash", "-c", "bin/rails db:seed",
+        chdir: workspace_path, exception: false, unsetenv_others: true
+      ).and_return(true)
       call
     end
 
     it "returns an error when the seed step fails" do
-      allow(described_class).to receive(:run_seed!).and_raise("preview seed command exited non-zero: bin/rails db:seed")
+      allow(launcher).to receive(:system).and_return(false)
       response = call
       expect(response).to be_error
       expect(response.content.first[:text]).to include("preview seed command exited non-zero")
@@ -222,11 +228,11 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
     before do
       allow(Process).to receive(:spawn).and_return(1111)
-      allow(described_class).to receive(:http_ok?).and_return(true)
+      allow(launcher).to receive(:http_ok?).and_return(true)
     end
 
     it "runs setup before spawning the preview process" do
-      expect(described_class).to receive(:system).with(
+      expect(launcher).to receive(:system).with(
         hash_including("RAILS_ENV" => "development", "BUNDLE_PATH" => File.join(workspace_path, ".syrus/deps/bundle")),
         "bash",
         "-c",
@@ -240,7 +246,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
     end
 
     it "returns an error when setup fails" do
-      allow(described_class).to receive(:system).and_return(false)
+      allow(launcher).to receive(:system).and_return(false)
 
       response = call
 
