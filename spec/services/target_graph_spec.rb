@@ -23,6 +23,32 @@ RSpec.describe TargetGraph do
     end
   end
 
+  describe "root_project: override" do
+    it "seeds the root project/target from the given Project instead of the default" do
+      custom_root = TargetGraph::Project.new(id: "repo", label: "Syrus", kind: "rails_app", path: "")
+      graph = described_class.new(root_project: custom_root)
+
+      expect(graph.root_project).to eq(custom_root)
+      expect(graph.root_project.label).to eq("Syrus")
+      expect(graph.root_project.kind).to eq("rails_app")
+      expect(graph.root_target.project_id).to eq("repo")
+    end
+
+    it "rejects a custom root project whose id is not the root project id" do
+      bad_root = TargetGraph::Project.new(id: "not-repo", path: "")
+
+      expect { described_class.new(root_project: bad_root) }
+        .to raise_error(TargetGraph::ValidationError, /root project id must be "repo"/)
+    end
+
+    it "rejects a custom root project with a non-empty path" do
+      bad_root = TargetGraph::Project.new(id: "repo", path: "cli")
+
+      expect { described_class.new(root_project: bad_root) }
+        .to raise_error(TargetGraph::ValidationError, /root project path must be empty/)
+    end
+  end
+
   describe "#add_project" do
     it "adds a new project" do
       project = TargetGraph::Project.new(id: "cli", path: "cli")
