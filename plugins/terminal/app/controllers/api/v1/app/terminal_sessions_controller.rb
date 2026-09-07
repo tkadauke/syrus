@@ -34,8 +34,7 @@ module Api
         end
 
         def destroy
-          session = find_session
-          session.update!(finished_at: Time.current, outcome: "killed") if session.running?
+          session = ::Terminal::KillSession.call(find_session)
 
           render json: { session: session_json(session) }
         end

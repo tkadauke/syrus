@@ -41,6 +41,27 @@ Traefik and public ingress are not involved — the relay is internal only.
 
 The terminal gives shell access to the workflow workspace (a shallow clone of the repository). Operators can inspect files, run commands, check git state, or debug a stuck agent. Changes made in the terminal are visible to the agent if it is still running.
 
+## Admin API
+
+`/api/v1/admin/terminal_sessions` gives bearer-token admin API clients the same
+inspect-and-kill surface the app API gives an individual signed-in user, but
+across every user — the same shape as core's `/api/v1/admin/processes`.
+
+- `GET /api/v1/admin/terminal_sessions` — list sessions, filterable by
+  `?state=running|finished`, `?user=<email substring>`, and
+  `?hostname=<relay host>` (matched against the host portion of
+  `relay_address`). Supports `?page`/`?per` (default 50, max 100).
+- `GET /api/v1/admin/terminal_sessions/:id` — one session's detail.
+- `POST /api/v1/admin/terminal_sessions/:id/kill` — kill the session. This is
+  the same write path (`Terminal::KillSession`) the app API's kill/destroy
+  actions use: it flips the session to finished/killed so the worker-side
+  Relay's kill-poll observes it and sends `SIGTERM` to the PTY.
+
+Session payloads add `state`, `hostname`, `age_s`, and an owning `user`
+summary on top of the app API's fields; they never include `auth_token`. With
+the plugin disabled, every endpoint answers `plugin_disabled` like the rest of
+the plugin's routes.
+
 ## Limitations
 
 - One terminal session per workflow run.
