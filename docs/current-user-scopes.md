@@ -227,6 +227,7 @@ admin-only:
   - app/controllers/api/v1/app/auth_controller.rb
   - plugins/agent_activity/app/controllers/api/v1/app/admin/agent_activity_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/admin/build_cache_controller.rb
+  - app/controllers/api/v1/app/admin/attention_items_controller.rb
   - app/controllers/api/v1/app/admin/console_controller.rb
   - app/controllers/api/v1/app/admin/github_app_controller.rb
   - app/controllers/api/v1/app/admin/installations_controller.rb
@@ -442,6 +443,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Public auth status uses `Current.user` only to report whether the current session is authenticated. |
 | `app/controllers/api/v1/app/base_controller.rb` | admin-only guard | Defines the JSON `require_admin` guard used by SPA admin controllers and local admin-only actions. |
 | `plugins/build_cache/app/controllers/api/v1/app/admin/build_cache_controller.rb` | admin-only | Stamps the current admin as requester/confirmer on `AdminBuildCacheClearRequest` create/confirm, for audit. |
+| `app/controllers/api/v1/app/admin/attention_items_controller.rb` | admin-only | Records the current admin as the deciding/acting user on `AttentionItem` decide/act requests. |
 | `app/controllers/api/v1/app/admin/console_controller.rb` | admin-only | Builds console payloads with the current admin as actor. |
 | `app/controllers/api/v1/app/admin/github_app_controller.rb` | admin-only | Builds GitHub App manifests using the current admin's identity/contact context. |
 | `app/controllers/api/v1/app/admin/installations_controller.rb` | admin-only | Queues installation sync for the current admin. |
