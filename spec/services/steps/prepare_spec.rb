@@ -87,6 +87,61 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
+  # `bundle install --jobs 4` can start building a native extension before the
+  # gem that extension needs *at build time* has finished installing. The same
+  # command then succeeds, because the first attempt left the missing gem
+  # behind. JOB-4377 lost a landing and its approval to that race.
+  describe "retrying a failed command" do
+    def result(exit_status:, timed_out: false)
+      ProcessRunner::Result.new(
+        exit_status: exit_status, timed_out: timed_out, stopped: false,
+        silent_timed_out: false, operator_killed: false, aliveness_failed: false,
+        duration_s: 0.1, spawned_process_id: nil
+      )
+    end
+
+    before do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        prepare:
+          - bundle install --jobs 4
+      YAML
+    end
+
+    it "succeeds when a failed command passes on the second attempt" do
+      fake_runner = instance_double(ProcessRunner)
+      allow(fake_runner).to receive(:run).and_return(result(exit_status: 5), result(exit_status: 0))
+      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+      expect { handler.call }.not_to raise_error
+
+      expect(fake_runner).to have_received(:run).twice
+      expect(workflow.reload.artifact("prepare_failure")).to be_nil
+    end
+
+    it "still fails when both attempts fail" do
+      fake_runner = instance_double(ProcessRunner)
+      allow(fake_runner).to receive(:run).and_return(result(exit_status: 5))
+      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /prepare command failed/)
+
+      expect(fake_runner).to have_received(:run).twice
+    end
+
+    # A timeout means the command is genuinely too slow. Retrying would spend
+    # another full PER_COMMAND_TIMEOUT to learn the same thing, and landing
+    # speed matters.
+    it "does not retry a command that timed out" do
+      fake_runner = instance_double(ProcessRunner)
+      allow(fake_runner).to receive(:run).and_return(result(exit_status: nil, timed_out: true))
+      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      expect(fake_runner).to have_received(:run).once
+    end
+  end
+
   it "runs commands with workspace-local dependency paths" do
     File.write(@ws_path.join(".syrus.yml"), <<~YAML)
       prepare:

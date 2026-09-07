@@ -128,7 +128,42 @@ module Steps
     # command records a soft failure and returns false so the chain
     # continues to the agent; an explicit `.syrus.yml` command raises
     # StepFailed so the operator sees their config break loudly.
+    # Dependency installs are idempotent and their failures are often ordering
+    # or network noise rather than a broken manifest, so a failed command gets
+    # one more attempt before it counts. The motivating case: `bundle install
+    # --jobs 4` can start building llhttp-ffi's native extension before the
+    # `ffi` gem it needs *at build time* has finished installing -- a race in
+    # gem ordering, not a problem with the lockfile. It cost JOB-4377 a landing
+    # and its approval, and the identical command succeeds on a second run
+    # because the first left the missing gem installed. A genuinely broken
+    # manifest still fails, just one attempt later.
     def run_shell(cmd, guessed:)
+      outcome = attempt_shell(cmd)
+      return true if outcome == :ok
+
+      # A timeout is not a race -- the command is genuinely too slow, and a
+      # second attempt would just spend PER_COMMAND_TIMEOUT again. Only retry a
+      # command that actually failed.
+      if outcome == :failed
+        log("[prepare] command failed; retrying once (setup commands are idempotent, " \
+            "and install failures are often ordering or network noise)")
+        return true if attempt_shell(cmd) == :ok
+      end
+
+      failure = @last_prepare_failure
+      if guessed
+        record_prepare_soft_failure!(failure)
+        false
+      else
+        record_prepare_failure!(failure)
+        raise StepFailed, prepare_failure_message(failure)
+      end
+    end
+
+    # Runs the command once. Returns :ok, :failed, or :timed_out; on failure
+    # stashes the payload in @last_prepare_failure so the caller reports the
+    # *final* attempt rather than the first.
+    def attempt_shell(cmd)
       buffer = new_log_buffer
       tail = +""
       result = ProcessRunner.new(
@@ -147,16 +182,10 @@ module Steps
       flush_log_buffer(buffer)
       publish_command_completed!(step_kind: "prepare", label: cmd)
 
-      return true if result.success? && !result.timed_out
+      return :ok if result.success? && !result.timed_out
 
-      failure = prepare_failure_payload(cmd, result, tail)
-      if guessed
-        record_prepare_soft_failure!(failure)
-        false
-      else
-        record_prepare_failure!(failure)
-        raise StepFailed, prepare_failure_message(failure)
-      end
+      @last_prepare_failure = prepare_failure_payload(cmd, result, tail)
+      result.timed_out ? :timed_out : :failed
     end
 
     def prepare_failure_payload(cmd, result, tail)

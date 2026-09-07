@@ -34,7 +34,10 @@ RSpec.describe LandingFailureHandler do
       "POST https://api.github.com/repos/acme/widgets/pulls: 502 - No server is currently available to service your request.",
       "agent reported mcp_sidecar_failed",
       "active WorkUnit #12 already owns lock landing:repository:3",
-      "Octokit::BadGateway: 502 Bad Gateway"
+      "Octokit::BadGateway: 502 Bad Gateway",
+      # A landing workflow that dies in prepare never reached a grader, so the
+      # change was never judged -- the environment failed to build (JOB-4377).
+      "Steps::Base::StepFailed: prepare command failed (exit 5) in /syrus-home/.syrus/workflows/26349: bundle install --jobs 4"
     ].each do |reason|
       it "keeps the approval and defers for: #{reason.truncate(48)}" do
         job = landing_job

@@ -44,6 +44,20 @@ same landing unit, such as a queued merge train blocked by `urgent_job_active`,
 an already-active merge train, or landing state drift where a Job is in
 `landing` with no active workflow or train.
 
+## Failures that are not rejections
+
+`LandingFailureHandler` splits a failed landing attempt two ways. A **deferral**
+keeps the Job `approved` and lets the landing queue try again; a **failure**
+reverts it to `implemented`, clears the approval, and waits for an operator.
+Only a genuine rejection of the work — failed graders — belongs on the second
+side. Everything that says nothing about whether the change is landable is a
+deferral: GitHub 5xx, a sidecar that did not come up, a dead worker, lock
+contention, and a `prepare` failure (the workflow never reached a grader, so the
+change was never judged — the environment failed to build).
+
+Putting a new failure path on the wrong side of that split costs an operator a
+round of re-approving, potentially every member of a merge train.
+
 ## Failing PR checks: inherited vs. introduced
 
 A Job whose GitHub checks are red is held out of landing, but *why* they are red

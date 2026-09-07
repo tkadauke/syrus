@@ -27,7 +27,13 @@ class LandingFailureHandler
     /\bworker_died\b/i,
     /already owns lock\b/i,
     /\bECONNRESET\b|\bETIMEDOUT\b|\bEHOSTUNREACH\b/i,
-    /execution expired/i
+    /execution expired/i,
+    # A landing workflow that dies in `prepare` never reached a grader, so
+    # nothing about the change was rejected -- the environment failed to build.
+    # JOB-4377 lost its approval to a `bundle install` ordering race
+    # (llhttp-ffi's native extension built before the `ffi` it needs at build
+    # time), and an operator had to re-approve work that was never judged.
+    /prepare command failed/i
   ].freeze
 
   def self.transient_blocker?(reason)

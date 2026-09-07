@@ -56,6 +56,23 @@ the step was actually certain; a confident wrong code is worse than an honest
 
 Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected from lockfiles) in the cloned workspace. Explicit commands hard-fail on error; auto-detected commands soft-fail with a warning so a wrong guess doesn't block the first run. Per-timeout: 10 minutes per command.
 
+A command that **fails** gets one retry before it counts; a command that **times
+out** does not (it is genuinely too slow, and a second attempt would spend the
+full timeout again). Setup commands are idempotent, and install failures are
+frequently ordering or network noise rather than a broken manifest: `bundle
+install --jobs 4` can start building a gem's native extension before the gem
+that extension needs *at build time* has finished installing, and the identical
+command then succeeds because the first attempt left the missing gem behind.
+A genuinely broken manifest still fails, one attempt later. The recorded
+`prepare_failure` is always the final attempt.
+
+A `prepare` failure inside a **landing** workflow is also treated as transient by
+`LandingFailureHandler` (`TRANSIENT_BLOCKER_PATTERNS`): the workflow never
+reached a grader, so nothing about the change was rejected — the environment
+failed to build. The Job keeps its approval and the landing queue retries,
+rather than reverting to `implemented` and making an operator re-approve work
+that was never judged.
+
 Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `merge_train_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`, `main_branch_repair`.
 
 **Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
