@@ -688,7 +688,15 @@ module Steps
     # with `ArgumentError: wrong number of arguments (given 1, expected 2)` in
     # exactly the two steps that publish a branch. A keyword default lets a
     # caller supply its own runner without changing the arity anyone else sees.
-    def authenticated_git(operation_type, git: GitRunner.new, &block)
+    # Both variations a step ever needs -- its own git runner, and a
+    # repository other than the Job's (fork -> upstream fetches) -- are
+    # keywords with defaults, so there is one name and one arity for
+    # everyone. Steps::PrOpen and Steps::Push previously redefined this name
+    # with `(git, operation_type)` and Steps::PrOpen carried a second
+    # `authenticated_git_for(repo, git, operation_type)` besides; the
+    # redefinition broke every inherited caller (see
+    # spec/architecture/step_helper_signatures_spec.rb).
+    def authenticated_git(operation_type, git: GitRunner.new, repository: self.repository, &block)
       GithubAuthenticatedGit.run(
         repository: repository,
         user: job.user,

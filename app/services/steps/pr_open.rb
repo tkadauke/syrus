@@ -322,7 +322,7 @@ module Steps
 
     def fetch_pr_base_ref!(git, base_branch)
       ref = "refs/remotes/origin/#{base_branch}"
-      authenticated_git_for(pr_base_repository, git, "git_pr_open_base_fetch") do |fetch_url|
+      authenticated_git("git_pr_open_base_fetch", git: git, repository: pr_base_repository) do |fetch_url|
         git.run(
           "fetch",
           fetch_url,
@@ -341,17 +341,6 @@ module Steps
       else
         job.effective_target_repository
       end
-    end
-
-    def authenticated_git_for(repo, git, operation_type, &block)
-      GithubAuthenticatedGit.run(
-        repository: repo,
-        user: job.user,
-        git: git,
-        operation_type: operation_type,
-        log: method(:log),
-        &block
-      )
     end
 
     def expected_publication_head_sha
