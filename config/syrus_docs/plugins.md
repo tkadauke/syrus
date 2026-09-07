@@ -536,10 +536,12 @@ platform supplies the execution.
 
 The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
 concrete provider (EPIC-319): a headless-Chromium session driving the repo's
-own dev server, built on the same `PreviewCommandSource` dev-server
-start/health-check plumbing the preview feature already uses (see
-`SyrusBrowser::PreviewLauncher`). This section documents the interface
-contributors implement.
+own dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
+`start_preview` MCP tool uses — one dev-server start/health-check
+implementation, keyed by an arbitrary caller-supplied identifier in
+`Mcp::Tools::AgentPreviewRegistry` (a workflow Run id for `start_preview`, a
+`RuntimeSession`'s `workspace_ref` here), not two independently-drifting
+copies. This section documents the interface contributors implement.
 
 `provider_key`, `display_name`, `detect`, and `capabilities` are class
 methods, so a provider can be selected for a repository/config before any
