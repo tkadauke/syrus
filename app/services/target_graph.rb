@@ -21,10 +21,18 @@ class TargetGraph
     Label.root(ROOT_TARGET_NAME)
   end
 
-  def initialize
+  # `root_project`, when given, replaces the default implicit root Project
+  # (label "Repository", no kind) -- how TargetGraph::Compiler represents an
+  # explicit `project:` block declared in the root `.syrus.yml`. It must
+  # still identify the root: id `ROOT_PROJECT_ID` and an empty path. This is
+  # a defensive invariant of the graph itself, not just of the compiler that
+  # usually builds one -- a caller passing a mismatched root project gets a
+  # clear error here instead of a confusing "target references unknown
+  # project" failure when the root target is seeded next.
+  def initialize(root_project: nil)
     @projects = {}
     @targets = {}
-    seed_implicit_root!
+    seed_implicit_root!(root_project)
   end
 
   def add_project(project)
@@ -119,8 +127,17 @@ class TargetGraph
     rotations.min.join("\0")
   end
 
-  def seed_implicit_root!
-    add_project(Project.new(id: ROOT_PROJECT_ID, label: "Repository", path: ""))
+  def seed_implicit_root!(custom_root_project)
+    if custom_root_project
+      unless custom_root_project.id == ROOT_PROJECT_ID
+        raise ValidationError, "root project id must be #{ROOT_PROJECT_ID.inspect}; got #{custom_root_project.id.inspect}"
+      end
+      unless custom_root_project.path == ""
+        raise ValidationError, "root project path must be empty; got #{custom_root_project.path.inspect}"
+      end
+    end
+
+    add_project(custom_root_project || Project.new(id: ROOT_PROJECT_ID, label: "Repository", path: ""))
     add_target(Target.new(label: self.class.root_label, kind: "default", project_id: ROOT_PROJECT_ID))
   end
 end
