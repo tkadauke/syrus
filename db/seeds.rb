@@ -412,4 +412,88 @@ if Rails.env.development?
   ensure
     insight_plugin.update!(enabled: false) unless insight_plugin_was_enabled
   end
+
+  # Test Insights sample data. The plugin is enabled by default, but it only
+  # ever writes rows when a real grader run parses JUnit output -- a fresh
+  # preview never runs graders, so the repository's Tests tab would render
+  # its empty state forever without a fixture. Seed one failing, one flaky,
+  # and one slow test identity with a short run history so the "interesting
+  # tests" list (failing / flaky / slow) has something real to show.
+  if TestInsights::TestIdentity.for_repository(demo_repo).none?
+    test_fixture_job = demo_jobs_by_title.fetch("Inspect preview dashboard states")
+    run_offsets = [ 4.days, 3.days, 2.days, 1.day ]
+
+    [
+      {
+        suite_name: "Billing::DiscountCalculatorTest",
+        name: "raises when the discount exceeds the order total",
+        file_path: "spec/services/billing/discount_calculator_spec.rb",
+        statuses: %w[failed failed failed failed],
+        duration_ms: 180,
+        failure_message: "expected DiscountExceedsTotalError to be raised, but nothing was raised"
+      },
+      {
+        suite_name: "Webhooks::DeliveryWorkerTest",
+        name: "retries once before giving up on a flaky webhook delivery",
+        file_path: "spec/workers/webhooks/delivery_worker_spec.rb",
+        statuses: %w[passed failed passed failed],
+        duration_ms: 220,
+        failure_message: "Timeout::Error: execution expired"
+      },
+      {
+        suite_name: "DashboardPayloadTest",
+        name: "renders the full dashboard summary payload",
+        file_path: "spec/services/dashboard_payload_spec.rb",
+        statuses: %w[passed passed passed passed],
+        duration_ms: 2150,
+        failure_message: nil
+      }
+    ].each do |fixture|
+      identity = TestInsights::TestIdentity.create!(
+        repository: demo_repo,
+        fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: fixture.fetch(:suite_name), name: fixture.fetch(:name)),
+        suite_name: fixture.fetch(:suite_name),
+        name: fixture.fetch(:name),
+        file_path: fixture.fetch(:file_path)
+      )
+
+      fixture.fetch(:statuses).each_with_index do |status, index|
+        occurred_at = run_offsets.fetch(index).ago
+        fixture_run = Run.create!(
+          job: test_fixture_job,
+          user: demo_user,
+          trigger_kind: "initial",
+          agent_provider: "codex",
+          state: "succeeded",
+          started_at: occurred_at,
+          finished_at: occurred_at + 3.minutes
+        )
+        test_run = TestInsights::TestRun.create!(
+          run: fixture_run,
+          repository: demo_repo,
+          grader_name: "rspec",
+          total_count: 1,
+          passed_count: status == "passed" ? 1 : 0,
+          failed_count: status == "failed" ? 1 : 0,
+          skipped_count: 0,
+          error_count: 0,
+          duration_ms: fixture.fetch(:duration_ms)
+        )
+        TestInsights::TestCase.create!(
+          test_run: test_run,
+          repository: demo_repo,
+          test_identity: identity,
+          suite_name: fixture.fetch(:suite_name),
+          name: fixture.fetch(:name),
+          status: status,
+          duration_ms: fixture.fetch(:duration_ms),
+          failure_message: status == "passed" ? nil : fixture[:failure_message],
+          created_at: occurred_at,
+          updated_at: occurred_at
+        )
+      end
+
+      identity.refresh_summary!
+    end
+  end
 end
