@@ -75,6 +75,15 @@ Optional fields are `title`, `priority` (`high`, `medium`, `low`),
 `agent_provider`, `epic_id`, and `owner_user_id`. When `title` is blank or
 omitted, Syrus derives a short deterministic title from the prompt.
 
+`POST /api/v1/app/jobs` is the non-admin equivalent — the Job belongs to the
+authenticated token user rather than the repository owner, and `repository_id`
+must reference one of that user's own active repositories (the `syrus job
+create` CLI command posts here). It accepts the same optional `title`,
+`prompt`, `priority` (`urgent`, `high`, `medium`, `low`), `agent_provider`,
+`epic_id`, and `owner_user_id` fields; `epic_id` must reference an Epic in the
+same repository, and `owner_user_id` must reference a user who is a member of
+that repository.
+
 ## Submit Job Feedback
 
 All job and epic endpoints accept a numeric ID, the `JOB-<n>` / `EPIC-<n>`
