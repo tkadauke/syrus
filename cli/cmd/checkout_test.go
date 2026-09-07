@@ -418,6 +418,33 @@ func TestCheckoutCommandReportsMissingBranch(t *testing.T) {
 	}
 }
 
+func TestCheckoutCommandReportsMissingBranchForSlug(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"job":{"id":456,"state":"queued","branch_name":""},"repository":{"slug":"acme/widgets"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		t.Fatalf("git should not be called")
+		return "", nil
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "repair-aqueduct"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "Job repair-aqueduct does not have a branch yet (state: queued)" {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
 func TestCheckoutCommandRejectsWrongRepository(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -860,8 +887,8 @@ func TestParseJobRefAcceptsSlugs(t *testing.T) {
 		{"JOB-42", "JOB-42", "42", false},
 		{"job-42", "JOB-42", "42", false},
 		{"42", "JOB-42", "42", false},
-		{"add-user-avatar-upload", "JOB-add-user-avatar-upload", "add-user-avatar-upload", false},
-		{"my-feature", "JOB-my-feature", "my-feature", false},
+		{"add-user-avatar-upload", "add-user-avatar-upload", "add-user-avatar-upload", false},
+		{"my-feature", "my-feature", "my-feature", false},
 		{"", "", "", true},
 		{"JOB-", "", "", true},
 	}
@@ -928,8 +955,9 @@ func TestCheckoutCommandAcceptsJobSlug(t *testing.T) {
 	checkoutRunGit = checkoutGitStub(t, "syrus/issue-42-456", &calls)
 	t.Cleanup(func() { checkoutRunGit = runGit })
 
+	var stdout bytes.Buffer
 	command := NewRootCommand()
-	command.SetOut(&bytes.Buffer{})
+	command.SetOut(&stdout)
 	command.SetErr(&bytes.Buffer{})
 	command.SetArgs([]string{"checkout", "add-user-avatar-upload"})
 
@@ -938,6 +966,10 @@ func TestCheckoutCommandAcceptsJobSlug(t *testing.T) {
 	}
 	if requestedPath != "/api/v1/app/jobs/add-user-avatar-upload" {
 		t.Fatalf("unexpected request path: %s", requestedPath)
+	}
+	wantMessage := "Checked out syrus/issue-42-456 — run 'syrus test-plan add-user-avatar-upload' to see the test plan.\n"
+	if stdout.String() != wantMessage {
+		t.Fatalf("output = %q, want %q", stdout.String(), wantMessage)
 	}
 }
 

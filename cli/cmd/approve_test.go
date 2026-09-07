@@ -39,6 +39,36 @@ func TestNormalizeJobIDAcceptsSlugs(t *testing.T) {
 	}
 }
 
+func TestApproveCommandAcceptsNumericJobID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	var requestedURL string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedURL = r.URL.String()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	writeCredentials(t, home, server.URL, "secret-token")
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"approve", "JOB-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if requestedURL != "/api/v1/app/jobs/42/approve" {
+		t.Fatalf("unexpected request URL: %s", requestedURL)
+	}
+	if got := output.String(); got != "Approved JOB-42. Landing will begin shortly.\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
+
 func TestApproveCommandAcceptsJobSlug(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
