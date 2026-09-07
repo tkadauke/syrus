@@ -56,7 +56,6 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "features", labelKey: "nav_features", to: "/admin/features", paths: ["/admin/features"], groupId: "system", order: 20, visible: (ff) => Object.keys(ff).length > 0 },
   { id: "plugins", labelKey: "nav_plugins", to: "/admin/plugins", paths: ["/admin/plugins"], groupId: "system", order: 30 },
   { id: "scoped_chat_events", labelKey: "nav_scoped_chat_events", to: "/admin/scoped_chat_events", paths: ["/admin/scoped_chat_events"], groupId: "product_data", order: 10 },
-  { id: "insights", labelKey: "nav_insights", to: "/admin/insights", paths: ["/admin/insights"], groupId: "product_data", order: 20 },
 ]
 
 const KNOWN_GROUP_IDS = new Set(ADMIN_NAV_GROUPS.map((g) => g.id))
