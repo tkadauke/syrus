@@ -219,13 +219,26 @@ captured integration branch.
 
 **When it fires:** An operator confirms the handoff after a Coding Mode chat session commits changes.
 
-**Step chain:** `prepare → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open`
+**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan`
 
-Validates the chat agent's committed work with graders before opening a PR.
-If required graders fail, a fresh workflow agent runs `coding_handoff_fix` on
-the committed handoff branch, using the original Job context, captured handoff
-branch metadata, recent commits, and `Prompts::GradeFailureFeedback`; graders
-then retry up to `grade_max_iterations`. The original chat is not queued for
+Reviews and validates the chat agent's committed work before opening a PR.
+There is no bare leading agentic step — the chat coding session already
+produced the diff before this workflow starts, so `coding_handoff_fix` plays
+the repair role the `implement`/`respond` step plays in `initial`/`retry`:
+it repairs a review's `needs_work` verdict and/or a required grader failure
+with a fresh workflow-agent turn. The `adversarial_review` loop only appears
+when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the
+`visual_review` loop only appears when `visual_review.enabled` is true (per
+`.syrus.yml` or the `visual_review` Labs feature flag); `review_plan` only
+appears when the repository has opted in via `.syrus.yml` `review_plan: true`
+— same conditional-materialization rules as `initial`/`retry`. Because the
+reviewers have no `implement`/`respond` step to read a diff off of, both
+`Steps::AdversarialReview` and `Steps::VisualReview` fall back to a fresh
+`git diff` against the default branch when the chain has no step of that kind.
+If a review flags `needs_work` or required graders fail, `coding_handoff_fix`
+repairs using the original Job context, captured handoff branch metadata,
+recent commits, `Prompts::ReviewFeedback`, and/or `Prompts::GradeFailureFeedback`;
+graders retry up to `grade_max_iterations`. The original chat is not queued for
 repair. Syrus may post a passive chat notification identifying the Job. On
 success it notifies the originating chat after the PR opens, schedules coding
 workspace reclaim, then clears the chat link.

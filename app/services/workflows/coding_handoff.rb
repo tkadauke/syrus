@@ -1,8 +1,17 @@
 module Workflows
-  # Post-coding-mode handoff: runs graders on the code the chat agent wrote,
-  # repairs grader failures with fresh workflow-agent turns, then opens the PR.
-  # Instantiated by the complete_implement_step MCP tool once the agent commits
-  # and pushes from the chat workspace.
+  # Post-coding-mode handoff: reviews and grades the code the chat agent
+  # wrote, repairs review/grader findings with fresh workflow-agent turns,
+  # then opens the PR. Instantiated by the complete_implement_step MCP tool
+  # once the agent commits and pushes from the chat workspace.
+  #
+  # There is no bare leading agentic step here — the chat coding session
+  # already produced the diff before this workflow starts. `coding_handoff_fix`
+  # plays the "agent_step" role the adversarial/visual review loops and the
+  # grader retry loop all repair through, the same way `implement` does for
+  # Initial/Retry. Review-loop iteration 1 reviews that pre-existing diff
+  # directly (see Steps::AdversarialReview/VisualReview#latest_agentic_diff,
+  # which fall back to a fresh `git diff` when no implement/respond step
+  # exists in the chain).
   #
   # On grader pass: workflow succeeds, PR is opened by pr_open, and
   # after_success posts a confirmation to the originating chat, enqueues
@@ -15,6 +24,8 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
+        adversarial_review_loop(job, agent_step: :coding_handoff_fix),
+        visual_review_loop(job, agent_step: :coding_handoff_fix),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair_first: false,
