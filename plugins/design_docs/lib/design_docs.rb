@@ -32,6 +32,11 @@ module DesignDocs
     route :post, "/api/v1/app/design_docs/:id/suggestions/:suggestion_id/accept", to: "api/v1/app/design_docs#accept_suggestion"
     route :post, "/api/v1/app/design_docs/:id/suggestions/:suggestion_id/reject", to: "api/v1/app/design_docs#reject_suggestion"
     route :get, "/api/v1/app/repositories/:repository_id/design_docs", to: "api/v1/app/design_docs#repository_index"
+    route :get, "/api/v1/admin/design_docs", to: "api/v1/admin/design_docs#index"
+    route :post, "/api/v1/admin/design_docs", to: "api/v1/admin/design_docs#create"
+    route :get, "/api/v1/admin/design_docs/:id", to: "api/v1/admin/design_docs#show"
+    route :patch, "/api/v1/admin/design_docs/:id", to: "api/v1/admin/design_docs#update"
+    route :get, "/api/v1/admin/design_docs/:id/versions", to: "api/v1/admin/design_docs#versions"
     frontend routes: {
           "design_docs/DesignDocs" => "app/frontend/routes/DesignDocs.tsx"
         },

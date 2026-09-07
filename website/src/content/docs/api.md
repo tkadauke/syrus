@@ -226,6 +226,35 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 }'
 ```
 
+## Manage Design Docs
+
+When the `design_docs` plugin is enabled, admin tokens can manage design
+docs through `/api/v1/admin/design_docs` instead of the SPA's session-shaped
+app API. `GET /api/v1/admin/design_docs` lists docs across every owner,
+filterable by `state` (`draft`/`accepted`/`archived`), `visibility`
+(`private`/`public`), and `user` (a substring match against the owner's
+email address).
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "design_doc": {
+      "title": "Deploy runbook",
+      "markdown": "# Deploy runbook\n\n..."
+    }
+  }'
+```
+
+`GET /api/v1/admin/design_docs/:id` returns the full detail payload including
+current Markdown. `PATCH /api/v1/admin/design_docs/:id` updates
+`title`/`markdown`/`state` and, on a canonical edit, records a new version —
+every admin `PATCH` checkpoints by default, so it always produces a version
+row the way an explicit `Save` does in the editor. `GET
+/api/v1/admin/design_docs/:id/versions` returns the version history.
+With the plugin disabled, every endpoint answers `plugin_disabled`.
+
 ## Rename a Chat
 
 `POST /api/v1/app/chats/:id/rename` (also accepted as `PATCH`) renames one
