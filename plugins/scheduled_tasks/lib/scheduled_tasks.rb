@@ -51,6 +51,16 @@ module ScheduledTasks
     route :post,   "/api/v1/app/scheduled_tasks/:id/resume", to: "api/v1/app/scheduled_tasks#resume"
     route :post,   "/api/v1/app/scheduled_tasks/:id/fire_now", to: "api/v1/app/scheduled_tasks#fire_now"
 
+    # Bearer-token admin API — instance-wide inspection/pause/unpause/fire,
+    # for operators without a browser session (see CLAUDE.md's admin API
+    # guidance). Authoring stays app-API/SPA-only.
+    route :get,    "/api/v1/admin/scheduled_tasks", to: "api/v1/admin/scheduled_tasks#index"
+    route :get,    "/api/v1/admin/scheduled_tasks/:id", to: "api/v1/admin/scheduled_tasks#show"
+    route :post,   "/api/v1/admin/scheduled_tasks/:id/pause", to: "api/v1/admin/scheduled_tasks#pause"
+    route :post,   "/api/v1/admin/scheduled_tasks/:id/unpause", to: "api/v1/admin/scheduled_tasks#unpause"
+    route :post,   "/api/v1/admin/scheduled_tasks/:id/fire", to: "api/v1/admin/scheduled_tasks#fire"
+    route :get,    "/api/v1/admin/cron_templates", to: "api/v1/admin/cron_templates#index"
+    route :get,    "/api/v1/admin/cron_templates/:id", to: "api/v1/admin/cron_templates#show"
 
     frontend routes: { "scheduled_tasks/ScheduledTasksPage" => "app/frontend/routes/ScheduledTasksPage.tsx" }
 
