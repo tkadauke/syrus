@@ -15,3 +15,4 @@ go 1.25.0
 // it is.
 use ./cli
 use ./plugins/scheduled_tasks/cli
+use ./plugins/k8s_cluster/cli
