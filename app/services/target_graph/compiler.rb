@@ -78,7 +78,7 @@ class TargetGraph
     end
 
     def compile
-      graph = TargetGraph.new
+      graph = TargetGraph.new(root_project: root_project_override)
       compile_prepare!(graph)
       compile_formatters!(graph)
       compile_generated!(graph)
@@ -137,6 +137,36 @@ class TargetGraph
       TargetGraph::ROOT_PROJECT_ID
     end
 
+    # An explicit `project:` block in the root `.syrus.yml` (DOC-20 "Explicit
+    # Projects" applied to the implicit root project mentioned in
+    # TargetGraph::Project#root?) may only customize label/kind: the root
+    # project's id and path are structural (there is exactly one repository
+    # root), so a declared `project.id`/`project.path` that disagrees with
+    # that is a config error naming the offending file, not a silent
+    # override -- the same posture as every other nested/root collision this
+    # compiler reports.
+    def root_project_override
+      declared = config&.project
+      return nil unless declared
+
+      if declared.id && declared.id != root_project_id
+        raise TargetGraph::ValidationError,
+          "#{owner_config_path} project.id must be #{root_project_id.inspect} for the root .syrus.yml; got #{declared.id.inspect}"
+      end
+      if declared.path
+        raise TargetGraph::ValidationError,
+          "#{owner_config_path} project.path must be empty for the root .syrus.yml; got #{declared.path.inspect}"
+      end
+
+      TargetGraph::Project.new(
+        id: root_project_id,
+        label: declared.label || "Repository",
+        kind: declared.kind,
+        path: "",
+        owner_config_path: owner_config_path
+      )
+    end
+
     def label_for(name, package: "")
       TargetGraph::Label.new(package: package, name: name)
     end
@@ -157,7 +187,14 @@ class TargetGraph
         nested_owner_config_path = "#{relative_dir}/#{SyrusYml::CONFIG_FILE}"
 
         begin
-          project_id = nested_project_id(relative_dir)
+          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
+        rescue SyrusYml::ParseError => e
+          @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
+          next
+        end
+
+        begin
+          project_id = nested_project_id(relative_dir, nested_config)
         rescue ArgumentError => e
           @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
           next
@@ -166,22 +203,17 @@ class TargetGraph
         if (existing_owner = declared_project_ids[project_id])
           raise TargetGraph::ValidationError,
             "#{nested_owner_config_path} and #{existing_owner} both resolve to project id #{project_id.inspect}; " \
-            "rename one of the directories"
+            "rename one of the directories or declare a distinct project.id"
         end
         declared_project_ids[project_id] = nested_owner_config_path
 
-        begin
-          nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
-        rescue SyrusYml::ParseError => e
-          @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
-          next
-        end
-
+        declared_project = nested_config.project
         graph.add_project(
           TargetGraph::Project.new(
             id: project_id,
-            label: relative_dir,
-            path: relative_dir,
+            label: declared_project&.label || relative_dir,
+            kind: declared_project&.kind,
+            path: declared_project&.path || relative_dir,
             owner_config_path: nested_owner_config_path
           )
         )
@@ -197,16 +229,23 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    # A project id may only contain letters, digits, `_`, and `-` (the exact
-    # charset TargetGraph::Project and TargetGraph::Label segments already
-    # require -- TargetGraph::Label::SEGMENT_PATTERN) -- collapse the
-    # directory's path segments into one id the same way a label's package
-    # segments already render (`cli/tools` -> `cli-tools`). A directory name
-    # outside that charset can't become a project id at all; that is
-    # reported as an invalid declaration for this one file rather than
-    # raised, matching how any other malformed nested `.syrus.yml` is
-    # handled.
-    def nested_project_id(relative_dir)
+    # An explicit `project.id` in the nested file (already charset-validated
+    # by SyrusYml::PROJECT_ID_PATTERN, the same charset as
+    # TargetGraph::Label::SEGMENT_PATTERN) always wins over the
+    # directory-derived default -- this is exactly the "non-trivial layout"
+    # escape hatch DOC-20 describes: a directory whose implied id collides
+    # with another, or whose path just isn't the id an operator wants, can
+    # declare a different one.
+    #
+    # Without an explicit id, collapse the directory's path segments into one
+    # the same way a label's package segments already render (`cli/tools` ->
+    # `cli-tools`). A directory name outside that charset can't become a
+    # project id at all; that is reported as an invalid declaration for this
+    # one file rather than raised, matching how any other malformed nested
+    # `.syrus.yml` is handled.
+    def nested_project_id(relative_dir, nested_config)
+      return nested_config.project.id if nested_config.project&.id
+
       id = relative_dir.tr("/", "-")
       unless id.match?(TargetGraph::Label::SEGMENT_PATTERN)
         raise ArgumentError, "directory #{relative_dir.inspect} can't become a project id (only letters, digits, _ and - are allowed)"

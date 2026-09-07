@@ -1889,4 +1889,66 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /external_prs\.ingest: must be a mapping/)
     end
   end
+
+  describe "project: key" do
+    it "returns nil when the project key is absent" do
+      expect(parse("grade: []").project).to be_nil
+    end
+
+    it "parses id, label, kind, and path" do
+      config = parse(<<~YAML)
+        project:
+          id: desktop
+          label: Desktop App
+          kind: desktop_app
+          path: apps/desktop
+      YAML
+
+      expect(config.project).to eq(
+        described_class::ProjectConfig.new(id: "desktop", label: "Desktop App", kind: "desktop_app", path: "apps/desktop")
+      )
+    end
+
+    it "leaves every field nil when the project block is empty" do
+      config = parse("project: {}\n")
+
+      expect(config.project).to eq(described_class::ProjectConfig.new(id: nil, label: nil, kind: nil, path: nil))
+    end
+
+    it "rejects a non-mapping project value" do
+      expect {
+        parse("project: desktop\n")
+      }.to raise_error(SyrusYml::ParseError, /project: must be a mapping/)
+    end
+
+    it "rejects a project id with invalid characters" do
+      expect {
+        parse("project:\n  id: \"desktop app\"\n")
+      }.to raise_error(SyrusYml::ParseError, /project\.id: must match/)
+    end
+
+    it "rejects a project path with a leading slash" do
+      expect {
+        parse("project:\n  id: desktop\n  path: \"/desktop\"\n")
+      }.to raise_error(SyrusYml::ParseError, /project\.path: must not start or end with \//)
+    end
+
+    it "rejects a project path with a trailing slash" do
+      expect {
+        parse("project:\n  id: desktop\n  path: \"desktop/\"\n")
+      }.to raise_error(SyrusYml::ParseError, /project\.path: must not start or end with \//)
+    end
+
+    it "strips blank id/label/kind/path down to nil" do
+      config = parse(<<~YAML)
+        project:
+          id: "   "
+          label: "  "
+          kind: ""
+          path: "  "
+      YAML
+
+      expect(config.project).to eq(described_class::ProjectConfig.new(id: nil, label: nil, kind: nil, path: nil))
+    end
+  end
 end

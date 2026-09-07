@@ -64,7 +64,13 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs)
+  # Charset for an explicit `project.id` -- matches TargetGraph::Project::ID_PATTERN
+  # and TargetGraph::Label::SEGMENT_PATTERN so a validly-parsed id can never
+  # fail graph construction on charset grounds; TargetGraph::Compiler still
+  # owns cross-file uniqueness, which a single file's parse can't know about.
+  PROJECT_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
+
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -164,6 +170,17 @@ class SyrusYml
   # `GeneratedStep` when explicitly configured.
   GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
   HooksConfig = Data.define(:post_checkout)
+  # Explicit `project:` block (DOC-20 "Explicit Projects"). Every field is
+  # optional -- a `.syrus.yml` with no `project:` key keeps compiling into
+  # TargetGraph::Compiler's implicit project (the root `//:repo` project for
+  # the root file, or a directory-derived project for a nested file)
+  # unchanged. `id`, when given, overrides that implicit id; `label` and
+  # `kind` are cosmetic/operator-facing; `path` overrides the project's
+  # default scope metadata (the directory containing this file). What "root"
+  # means and whether a given `id`/`path` is legal there is TargetGraph::Compiler's
+  # call, not this parser's -- SyrusYml only sees one file's content, never
+  # its position in the repository.
+  ProjectConfig = Data.define(:id, :label, :kind, :path)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
@@ -211,7 +228,8 @@ class SyrusYml
       delivery: normalize_delivery(raw_delivery),
       raw_delivery: raw_delivery,
       approval: parse_approval(raw["approval"]),
-      external_prs: parse_external_prs(raw["external_prs"])
+      external_prs: parse_external_prs(raw["external_prs"]),
+      project: parse_project(raw["project"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -340,6 +358,26 @@ class SyrusYml
     clamped
   rescue ArgumentError, TypeError
     raise ParseError, "visual_review.rounds: must be an integer"
+  end
+
+  def parse_project(raw)
+    return nil if raw.nil?
+    raise ParseError, "project: must be a mapping" unless raw.is_a?(Hash)
+
+    id = raw["id"].to_s.strip.presence
+    raise ParseError, "project.id: must match #{PROJECT_ID_PATTERN.inspect}" if id && !id.match?(PROJECT_ID_PATTERN)
+
+    path = raw["path"].to_s.strip
+    if path.start_with?("/") || path.end_with?("/")
+      raise ParseError, "project.path: must not start or end with /"
+    end
+
+    ProjectConfig.new(
+      id: id,
+      label: raw["label"].to_s.strip.presence,
+      kind: raw["kind"].to_s.strip.presence,
+      path: path.presence
+    )
   end
 
   def parse_hooks(raw)

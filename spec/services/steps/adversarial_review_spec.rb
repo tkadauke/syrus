@@ -169,7 +169,8 @@ RSpec.describe Steps::AdversarialReview do
           delivery: nil,
           raw_delivery: nil,
           approval: nil,
-          external_prs: nil
+          external_prs: nil,
+          project: nil
         )
       )
     end
@@ -265,7 +266,8 @@ RSpec.describe Steps::AdversarialReview do
           delivery: nil,
           raw_delivery: nil,
           approval: nil,
-          external_prs: nil
+          external_prs: nil,
+          project: nil
         )
       )
 

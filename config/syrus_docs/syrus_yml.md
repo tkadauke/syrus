@@ -413,3 +413,30 @@ Omitting `deploy` entirely disables the feature for the repository — the same 
 | `min_interval_minutes` | no | — | Positive integer; throttles auto-triggered deploys in `continuous` mode only |
 
 `mode: manual` deploys only run when explicitly launched. `mode: continuous` additionally auto-triggers a deploy after a landing Workflow succeeds, throttled by `min_interval_minutes` when set. `min_interval_minutes` is a plain integer count of minutes — not a duration string — matching `timeout_minutes` and `hitmap_ttl_days` elsewhere in this file.
+
+## project
+
+Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for later project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` never changes which commands run — every `prepare`/`formatters`/`generated`/`grade` section in this file still compiles into targets exactly as documented above.
+
+Every `.syrus.yml` file has an implicit project even with no `project:` key: the root `.syrus.yml` gets the implicit root project (id `repo`), and a nested `.syrus.yml` (in a subdirectory) gets an implicit project derived from its directory (e.g. `apps/desktop/.syrus.yml` implies id `apps-desktop`, label `apps/desktop`). Most repositories never need to declare `project:` at all.
+
+Declare `project:` when the implicit derivation isn't the right boundary — a directory-derived id collides with another directory, or an operator-facing label reads better than a raw path:
+
+```yaml
+# desktop/.syrus.yml
+project:
+  id: desktop
+  label: Desktop App
+  kind: desktop_app
+```
+
+### project fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `id` | no | derived from the file's directory (`repo` at root) | Must match `[A-Za-z0-9_-]+`. Two files that resolve to the same id — by derivation, explicit declaration, or one of each — fail compilation naming both files. |
+| `label` | no | the directory path (nested) or `"Repository"` (root) | Free-form operator-facing display text. |
+| `kind` | no | — | Free-form, e.g. `desktop_app`. |
+| `path` | no | the directory containing this file | Overrides the project's scope metadata. Informational only today — it does not change which files' changes route to this file's targets. |
+
+The root `.syrus.yml` may declare `project:` too, but only to customize `label`/`kind`. The root project's `id` (`repo`) and `path` (empty) are structural — there is exactly one repository root — so an explicit `project.id`/`project.path` in the root file that disagrees with that is a config error, not a silent override.
