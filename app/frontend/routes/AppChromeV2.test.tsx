@@ -1007,6 +1007,23 @@ describe("AppChromeV2 bug report trigger placement", () => {
 
     expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
   })
+
+  it("pressing the shortcut again while the dialog is open with unsaved text does not clear the title/description", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+    const dialog = await screen.findByRole("dialog", { name: "Report a bug" })
+
+    const titleField = within(dialog).getByLabelText("Title") as HTMLInputElement
+    const descriptionField = within(dialog).getByLabelText("Description") as HTMLTextAreaElement
+    fireEvent.change(titleField, { target: { value: "Unsaved title in progress" } })
+    fireEvent.change(descriptionField, { target: { value: "Unsaved description in progress" } })
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+
+    expect(titleField.value).toBe("Unsaved title in progress")
+    expect(descriptionField.value).toBe("Unsaved description in progress")
+  })
 })
 
 describe("AppChromeV2 primary nav reordering", () => {
