@@ -478,53 +478,38 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(landing_job.reload.parent_job).to eq(middle)
     end
 
-    it "staggers medium-priority workflows when predicted grader pressure would overlap" do
+    it "staggers medium-priority workflows when measured worker pressure is high" do
+      # Admission now measures the host instead of predicting a workflow's
+      # cost from WorkflowStepResourceProfile rows (see
+      # "Admit on measured host state instead of predicted step cost"), so
+      # staggering a second candidate requires an actually busy worker plus a
+      # first workflow whose agentic Run has genuinely started -- a Run that
+      # is merely created (still "queued") contributes no measured pressure.
       repository = job.repository
-      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
-        RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+      WorkerHostHealthSample.create!(
+        hostname: "worker-1",
+        role: "worker",
+        version: "test",
+        observed_at: Time.current,
+        cpu_pressure_some: 90.0,
+        memory_used_percent: 50.0,
+        data_root_used_percent: 25.0,
+        raw_metrics: {}
       )
+
       existing = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
+      existing_first = existing.steps.find_by!(kind: "implement")
+      existing_first.update!(state: "running")
+      existing_first.runs.create!(
+        job: existing.job,
+        trigger_kind: existing.trigger_kind,
+        agent_provider: existing.agent_provider,
+        state: "running",
+        started_at: 1.minute.ago
+      )
+
       candidate = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
       candidate_first = candidate.first_step
-
-      %w[prepare implement grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
-        WorkflowStepResourceProfile.create!(
-          repository: repository,
-          agent_provider: "claude",
-          trigger_kind: "initial",
-          step_kind: step_kind,
-          grader_name: "",
-          job_kind: "issue",
-          sample_count: 40,
-          p90_duration_seconds: 30,
-          p90_cpu_pressure: 2.0,
-          p90_io_pressure: 2.0,
-          p90_memory_used_percent: 20.0,
-          timeout_rate: 0.0,
-          failure_rate: 0.0,
-          last_observed_at: Time.current,
-          profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
-        )
-      end
-      WorkflowStepResourceProfile.create!(
-        repository: repository,
-        agent_provider: "claude",
-        trigger_kind: "initial",
-        step_kind: "grader",
-        grader_name: "production-build-boot",
-        job_kind: "issue",
-        sample_count: 40,
-        p90_duration_seconds: 2_400,
-        p90_cpu_pressure: 70.0,
-        p90_io_pressure: 40.0,
-        p90_memory_used_percent: 70.0,
-        timeout_rate: 0.0,
-        failure_rate: 0.0,
-        last_observed_at: Time.current,
-        profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
-      )
-
-      described_class.start_workflow(existing)
 
       expect {
         described_class.start_workflow(candidate)
@@ -534,9 +519,8 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(candidate.artifact("start_blocked_reason")).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
       expect(candidate.artifact("start_blocked_details")).to include(
         "action" => "delay_until",
-        "reason" => "predicted_budget_pressure_high"
+        "reason" => "worker_host_pressure_high"
       )
-      expect(candidate.artifact("start_blocked_details").dig("pressure", "projected", "cpu_pressure")).to be >= 100.0
     end
 
     it "keeps landing workflows in the landing queue when first-run admission is delayed" do
@@ -2100,16 +2084,28 @@ RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
   end
 
   it "does not deadlock a phase when no resource profile exists" do
+    # With no WorkflowStepResourceProfile rows at all, the old predicted-cost
+    # gate had no candidate cost to compare and fell back to an
+    # "admit_low_risk_only" default. Admission no longer predicts a step's
+    # cost from profiles at all -- it measures the worker directly -- so a
+    # missing profile has no special effect: the same measured
+    # worker_host_pressure_high gate governs, and it still defers cleanly
+    # (with a recheck scheduled) rather than getting stuck.
     worker_pressure!
 
     expect {
       described_class.advance_from(implement)
-    }.to change { grader_fanout.runs.count }.by(1)
+    }.not_to change { grader_fanout.runs.count }
 
-    expect(workflow.reload.artifact("workflow_admission_decision")).to include(
-      "action" => "admit_low_risk_only",
-      "reason" => "worker_host_pressure_high"
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
+    expect(workflow.artifact("start_blocked_details")).to include(
+      "action" => "delay_until",
+      "reason" => "worker_host_pressure_high",
+      "phase_step_id" => grader_fanout.id,
+      "phase_step_kind" => "grader_fanout"
     )
+    recheck_jobs = enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }
+    expect(recheck_jobs).to be_present
   end
 end
 
