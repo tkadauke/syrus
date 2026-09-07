@@ -413,17 +413,15 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	if repo != "" {
 		filters.Set("repo", repo)
 	}
+	if query != "" {
+		filters.Set("q", query)
+	}
 	list, err := client.ListJobs(cmd.Context(), filters)
 	if err != nil {
 		return err
 	}
 	jobs := make([]api.JobItem, 0, len(list.Jobs))
-	for _, job := range list.Jobs {
-		if query != "" && !strings.Contains(strings.ToLower(job.Title), strings.ToLower(query)) {
-			continue
-		}
-		jobs = append(jobs, job)
-	}
+	jobs = append(jobs, list.Jobs...)
 	if jsonOut {
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.JobList{Count: len(jobs), Jobs: jobs})
 	}
@@ -448,17 +446,15 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 	if repo != "" {
 		filters.Set("repo", repo)
 	}
+	if query != "" {
+		filters.Set("q", query)
+	}
 	list, err := client.ListEpics(cmd.Context(), filters)
 	if err != nil {
 		return err
 	}
 	epics := make([]api.EpicItem, 0, len(list.Epics))
-	for _, epic := range list.Epics {
-		if query != "" && !strings.Contains(strings.ToLower(epic.Title), strings.ToLower(query)) {
-			continue
-		}
-		epics = append(epics, epic)
-	}
+	epics = append(epics, list.Epics...)
 	if jsonOut {
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.EpicList{Count: len(epics), Epics: epics})
 	}
