@@ -137,6 +137,23 @@ RSpec.describe ChatShellCommandExecutor::Local do
       expect(result.outcome).to eq("error")
       expect(result.output).to eq("daemon exploded")
     end
+
+    it "caps oversized combined stdout+stderr the same way Coding's streamed output is capped" do
+      connected_daemon_session
+      command = command_record
+      huge_stdout = "a" * (ChatShellCommand::MAX_OUTPUT_BYTES + 10)
+
+      Thread.new do
+        sleep 0.05
+        LocalToolCall.find_by(chat_session: chat_session).complete!(result: { "stdout" => huge_stdout, "stderr" => "", "exit_code" => 0 })
+      end
+
+      result = executor.run!(command)
+
+      expect(result.outcome).to eq("succeeded")
+      expect(result.output.bytesize).to be <= ChatShellCommand::MAX_OUTPUT_BYTES + ChatShellCommand::TRUNCATION_NOTICE.bytesize
+      expect(result.output).to end_with(ChatShellCommand::TRUNCATION_NOTICE)
+    end
   end
 
   describe "#cancellable?" do

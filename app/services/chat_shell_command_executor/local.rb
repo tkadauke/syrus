@@ -69,8 +69,12 @@ module ChatShellCommandExecutor
       end
     end
 
+    # Capped the same way Coding's streamed output is (ChatShellCommand::MAX_OUTPUT_BYTES)
+    # -- the daemon returns the whole buffer in one shot rather than chunk-by-chunk, but
+    # `output` is still a MySQL TEXT column with the same 65,535-byte ceiling.
     def combined_output(outcome)
-      [ outcome["stdout"], outcome["stderr"] ].compact_blank.join
+      raw = [ outcome["stdout"], outcome["stderr"] ].compact_blank.join
+      ChatShellCommand.append_capped("", raw)
     end
   end
 end
