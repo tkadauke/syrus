@@ -255,7 +255,7 @@ module Steps
     def env
       ProcessRunner.forwarded_env(
         Prepare.prep_env_forward,
-        extra: Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace.path)
+        extra: workspace_dependency_env.merge(Prepare.prep_extra_env(workflow: workflow, workspace_path: workspace.path))
       )
     end
   end

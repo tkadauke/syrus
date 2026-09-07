@@ -156,6 +156,24 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(captured_command).to eq([ "bash", "-c", "bin/rspec spec/models --format json --out custom.json" ])
   end
 
+  it "scrubs inherited Bundler env and uses workspace-local dependency paths" do
+    step.update!(details: step.details.merge(
+      "command" => <<~'RUBY'.squish
+        ruby -e 'abort "leaked BUNDLE_WITHOUT" if ENV["BUNDLE_WITHOUT"];
+        abort "missing BUNDLE_PATH" unless ENV["BUNDLE_PATH"].to_s.include?(".syrus/deps/bundle");
+        abort "missing npm cache" unless ENV["NPM_CONFIG_CACHE"].to_s.include?(".syrus/deps/npm-cache")'
+      RUBY
+    ))
+
+    old_bundle_without = ENV["BUNDLE_WITHOUT"]
+    ENV["BUNDLE_WITHOUT"] = "development:test"
+
+    expect { handler.call }.not_to raise_error
+    expect(step.reload.details["exit_code"]).to eq(0)
+  ensure
+    ENV["BUNDLE_WITHOUT"] = old_bundle_without
+  end
+
   it "records spans for successful composite grader phases without writing markers to grade logs" do
     step.update!(details: step.details.merge("command" => "printf check && printf install && printf spec"))
 
