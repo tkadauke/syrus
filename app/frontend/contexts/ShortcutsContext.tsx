@@ -34,10 +34,15 @@ let nextRegistrationId = 0
 
 // Same input/textarea/contentEditable guard as AppChromeV2's sidebar search
 // shortcut (SidebarSearchForm) -- shortcuts must never fire while the user is
-// typing.
+// typing. jsdom doesn't implement `isContentEditable` (always undefined), so
+// the raw attribute is checked too rather than relying on that alone.
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target instanceof HTMLElement ? target : null
-  return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable === true
+  if (!element) return false
+  if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") return true
+  if (element.isContentEditable) return true
+  const contentEditableAttr = element.getAttribute("contenteditable")
+  return contentEditableAttr === "" || contentEditableAttr === "true"
 }
 
 interface ParsedCombo {
@@ -77,38 +82,58 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
   const listenersRef = useRef<Set<() => void>>(new Set())
   const snapshotRef = useRef<ShortcutRegistration[]>([])
 
-  function notify() {
-    snapshotRef.current = Array.from(registryRef.current.values())
-      .map((stack) => stack[stack.length - 1]?.registration)
-      .filter((registration): registration is ShortcutRegistration => registration != null)
-    listenersRef.current.forEach((listener) => listener())
-  }
-
-  function register(keys: string, handler: ShortcutHandler, options: ShortcutOptions) {
-    const normalizedKeys = keys.toLowerCase()
-    const registration: ShortcutRegistration = {
-      id: nextRegistrationId++,
-      keys: normalizedKeys,
-      description: options.description,
-      group: options.group,
-      groupOrder: options.groupOrder ?? 0
+  // Built once and never replaced, so `context` stays referentially stable
+  // across re-renders -- otherwise every registrant's effect (keyed on
+  // `context`) would tear down and re-register on every unrelated re-render
+  // of the tree above it. The closures below read from the refs above at
+  // call time, not at creation time, so a single build-once instance stays
+  // correct for the provider's whole lifetime.
+  const valueRef = useRef<ShortcutsContextValue | null>(null)
+  if (!valueRef.current) {
+    function notify() {
+      snapshotRef.current = Array.from(registryRef.current.values())
+        .map((stack) => stack[stack.length - 1]?.registration)
+        .filter((registration): registration is ShortcutRegistration => registration != null)
+      listenersRef.current.forEach((listener) => listener())
     }
 
-    const stack = registryRef.current.get(normalizedKeys) ?? []
-    stack.push({ registration, handler })
-    registryRef.current.set(normalizedKeys, stack)
-    notify()
+    function register(keys: string, handler: ShortcutHandler, options: ShortcutOptions) {
+      const normalizedKeys = keys.toLowerCase()
+      const registration: ShortcutRegistration = {
+        id: nextRegistrationId++,
+        keys: normalizedKeys,
+        description: options.description,
+        group: options.group,
+        groupOrder: options.groupOrder ?? 0
+      }
 
-    return () => {
-      const currentStack = registryRef.current.get(normalizedKeys)
-      if (!currentStack) return
-
-      const index = currentStack.findIndex((entry) => entry.registration.id === registration.id)
-      if (index === -1) return
-
-      currentStack.splice(index, 1)
-      if (currentStack.length === 0) registryRef.current.delete(normalizedKeys)
+      const stack = registryRef.current.get(normalizedKeys) ?? []
+      stack.push({ registration, handler })
+      registryRef.current.set(normalizedKeys, stack)
       notify()
+
+      return () => {
+        const currentStack = registryRef.current.get(normalizedKeys)
+        if (!currentStack) return
+
+        const index = currentStack.findIndex((entry) => entry.registration.id === registration.id)
+        if (index === -1) return
+
+        currentStack.splice(index, 1)
+        if (currentStack.length === 0) registryRef.current.delete(normalizedKeys)
+        notify()
+      }
+    }
+
+    valueRef.current = {
+      register,
+      subscribe(listener) {
+        listenersRef.current.add(listener)
+        return () => listenersRef.current.delete(listener)
+      },
+      getSnapshot() {
+        return snapshotRef.current
+      }
     }
   }
 
@@ -129,18 +154,7 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  const value: ShortcutsContextValue = {
-    register,
-    subscribe(listener) {
-      listenersRef.current.add(listener)
-      return () => listenersRef.current.delete(listener)
-    },
-    getSnapshot() {
-      return snapshotRef.current
-    }
-  }
-
-  return <ShortcutsContext.Provider value={value}>{children}</ShortcutsContext.Provider>
+  return <ShortcutsContext.Provider value={valueRef.current}>{children}</ShortcutsContext.Provider>
 }
 
 function useShortcutsContext(): ShortcutsContextValue {
@@ -160,7 +174,6 @@ export function useShortcut(keys: string, handler: ShortcutHandler, options: Sho
 
   useEffect(() => {
     return context.register(keys, (event) => handlerRef.current(event), options)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, keys, options.description, options.group, options.groupOrder])
 }
 
