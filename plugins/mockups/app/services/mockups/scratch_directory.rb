@@ -5,8 +5,8 @@ module Mockups
   # <ChatWorkspace.path_for(chat_session)>/previews/<panel_id>/ so the
   # write/edit MCP tools can never escape into the rest of the persistent
   # chat workspace, the attached repository checkout, or another panel's
-  # scratch files. Mirrors the cleanpath + prefix-check pattern
-  # ChatWorkspace#safe_checkout_path already uses for repository paths.
+  # scratch files. Delegates the actual jailing to Syrus::PathJail, the
+  # shared helper also used by ChatWorkspace for repository paths.
   class ScratchDirectory
     class InvalidPath < StandardError; end
 
@@ -22,14 +22,14 @@ module Mockups
     # blank, empty after cleaning, or that escapes root (absolute paths,
     # "../" traversal).
     def resolve(relative_path)
-      raise InvalidPath, "path is required" if relative_path.blank?
-
-      candidate = root.join(relative_path).cleanpath
-      unless candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
+      Syrus::PathJail.resolve!(root, relative_path)
+    rescue Syrus::PathJail::PathEscape => e
+      case e.reason
+      when :blank
+        raise InvalidPath, "path is required"
+      else
         raise InvalidPath, "#{relative_path.inspect} resolves outside the panel's scratch directory"
       end
-
-      candidate
     end
 
     def write(relative_path, content)
