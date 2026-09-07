@@ -353,7 +353,7 @@
       },
       "epicless_job_bundling": {
         "name": "Job-Bündelung ohne Epic",
-        "description": "Ermöglicht das gemeinsame Landen mehrerer genehmigter epicloser Jobs als ein atomares Bündel, so wie die Kinder eines Epics bereits gemeinsam über den Merge-Train landen. Experimentell."
+        "description": "Ermöglicht das gemeinsame Landen mehrerer genehmigter epicloser Jobs als ein atomares Bündel, so wie die Kinder eines Epics bereits gemeinsam über den Merge-Train landen."
       },
       "persistent_mcp_sidecar": {
         "name": "Persistenter MCP-Sidecar",

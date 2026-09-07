@@ -417,21 +417,26 @@ original description, helps elaborate technical decisions, updates the Epic
 description first so version history preserves that elaboration step, and then
 proposes child Jobs against the existing Epic.
 
-## Epicless Job Bundling
+## Atomic Landing Units: Epic Merge Trains and Job Bundling
 
-When the `epicless_job_bundling` feature flag is enabled, Syrus can land
-several approved Jobs together as one atomic unit even when they don't
-belong to an Epic — the same all-or-nothing integration branch that Epic
-merge trains already use. This is an experimental Labs feature, off by
-default.
+Epic merge trains and epicless Job bundling are two scopes of the same
+underlying idea: several approved Jobs land together as one atomic
+integration branch instead of one at a time. A merge train scopes that unit
+to an Epic's children; Job bundling scopes it to same-priority Jobs that
+don't belong to an Epic at all. Both share the same all-or-nothing
+integration branch, build/reconcile/grade/land pipeline, and failure
+handling — Job bundling is not a separate or less mature mechanism, just a
+different way of grouping candidates for the same landing machinery.
 
-Syrus only bundles Jobs that share the same priority tier: urgent Jobs
-bundle only with other urgent Jobs, never with medium or low-priority work,
-so urgent work still lands first. A single ready Job never waits around for
-a bundle — bundling only kicks in once at least two same-priority Jobs are
-ready to land together; a lone ready Job lands on its own right away.
-Externally filed pull requests are never bundled, since they land directly
-against the GitHub PR rather than through a Syrus-owned integration branch.
+Job bundling is gated by the `epicless_job_bundling` feature flag (on by
+default; operators can opt out from Admin → Features). Syrus only bundles
+Jobs that share the same priority tier: urgent Jobs bundle only with other
+urgent Jobs, never with medium or low-priority work, so urgent work still
+lands first. A single ready Job never waits around for a bundle — bundling
+only kicks in once at least two same-priority Jobs are ready to land
+together; a lone ready Job lands on its own right away. Externally filed
+pull requests are never bundled, since they land directly against the
+GitHub PR rather than through a Syrus-owned integration branch.
 
 As with Epic merge trains, only the final integrated result that actually
 lands is graded — intermediate commits inside the integration branch are

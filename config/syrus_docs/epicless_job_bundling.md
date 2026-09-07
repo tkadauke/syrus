@@ -1,4 +1,4 @@
-# Epicless Job Bundling (experimental)
+# Epicless Job Bundling
 
 Epicless Job bundling lets multiple approved Jobs that don't belong to an
 Epic land together as one atomic landing unit, the same way an Epic's
@@ -8,6 +8,9 @@ end to end — `MergeTrain`/`MergeTrainMember`, the
 `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare →
 retry_until(graders, repair: landing_fix) → merge_train_land` step chain,
 and `MergeTrainFailureHandler` — rather than a parallel model or workflow.
+Epic merge-trains and epicless Job bundling are two scopes of the same
+generalized "atomic landing unit" concept (Epic-scoped or
+priority-tier-scoped), not separate or different-maturity features.
 
 A `MergeTrain` row is either **epic-backed** (`epic_id` present) or
 **bundle-backed** (`priority` present); a model validation
@@ -19,16 +22,16 @@ of train it's running.
 ## Feature flag
 
 Epicless Job bundling is gated by the `epicless_job_bundling` Labs feature
-flag (`config/features.yml`), off by default:
+flag (`config/features.yml`), on by default:
 
 ```ruby
-Feature.find_by(slug: "epicless_job_bundling").update(enabled: true)
+Feature.find_by(slug: "epicless_job_bundling").update(enabled: false)
 ```
 
 Unlike `merge_train_enabled` (an `AppSetting`, effectively an operations
-switch once turned on instance-wide), this is a per-instance experimental
-toggle in the same family as `visual_review` or `landing_validation_prefetch` —
-operators opt in from Admin → Features.
+switch once turned on instance-wide), this stays a per-instance toggle in
+the same family as `visual_review` or `landing_validation_prefetch` —
+operators can opt back out from Admin → Features.
 
 ## Assembly (`LandingBundleAssembler`, priority-tier scope)
 
