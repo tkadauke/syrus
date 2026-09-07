@@ -478,7 +478,12 @@ class PollPullRequestJob < ApplicationJob
     end
     return if pr_checks_cache_fresh?(head_sha, state)
 
-    attrs = { pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current }
+    attrs = {
+      pr_checks_sha: head_sha,
+      pr_checks_state: state,
+      pr_checks_checked_at: Time.current,
+      pr_checks_failing_names: Job.failing_check_names_from(detail)
+    }
     if no_effective_ci_repair_landing_reason? &&
        (!state.in?(%w[failing pending]) || (@job.pr_checks_sha.present? && @job.pr_checks_sha != head_sha))
       attrs[:landing_failure_reason] = nil
@@ -490,6 +495,9 @@ class PollPullRequestJob < ApplicationJob
     return false if no_effective_ci_repair_landing_reason?
     return false unless @job.pr_checks_sha == head_sha
     return false unless @job.pr_checks_state == state
+    # A Job cached before failing names were recorded is not fresh enough to
+    # skip: the landing gate needs the names to attribute the failure.
+    return false if state == "failing" && @job.pr_checks_failing_names.nil?
     return false if @job.pr_checks_checked_at.blank?
 
     @job.pr_checks_checked_at > PR_CHECK_CACHE_REFRESH_INTERVAL.ago

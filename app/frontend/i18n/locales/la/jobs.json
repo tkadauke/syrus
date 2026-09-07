@@ -676,5 +676,11 @@
   "workflow_divergence_files": "{{count}} tabellae tactae",
   "workflow_divergence_truncated": "… plura non monstrata",
   "workflow_divergence_view_discarded": "Differentiam videre →",
-  "workflow_divergence_view_published": "Differentiam videre →"
+  "workflow_divergence_view_published": "Differentiam videre →",
+  "pr_checks_attribution_inherited": "Iam in basi cadens",
+  "pr_checks_attribution_own": "Ab hoc opere inductum",
+  "pr_checks_attribution_unknown": "Nondum attribuendum",
+  "pr_checks_attribution_base": "Cum basi {{sha}} comparatum",
+  "pr_checks_attribution_failing": "Hic cadens",
+  "pr_checks_attribution_base_failing": "In basi cadens"
 }

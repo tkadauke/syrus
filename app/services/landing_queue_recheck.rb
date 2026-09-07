@@ -92,7 +92,12 @@ class LandingQueueRecheck
     elsif detail[:all_passed?] then "passing"
     else "unknown"
     end
-    @job.update_columns(pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current)
+    @job.update_columns(
+      pr_checks_sha: head_sha,
+      pr_checks_state: state,
+      pr_checks_checked_at: Time.current,
+      pr_checks_failing_names: Job.failing_check_names_from(detail)
+    )
     true
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     raise e

@@ -183,6 +183,18 @@ class Job < ApplicationRecord
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
+  # Check-run names for the currently failing checks on `pr_checks_sha`, so the
+  # landing gate can tell a Job's own breakage from one inherited from its base
+  # (see PrCheckAttribution). Collectors hand us GitHub's richer check hashes;
+  # only the names are worth persisting.
+  def self.failing_check_names_from(detail)
+    checks = Array(detail.is_a?(Hash) ? (detail[:failed_checks] || detail["failed_checks"]) : detail)
+    checks.filter_map { |check|
+      next check if check.is_a?(String)
+      check[:name] || check["name"] if check.is_a?(Hash)
+    }.map(&:to_s).reject(&:blank?).uniq.sort
+  end
+
   def self.find_by_tracked_pr(repository:, pr_number:)
     where(repository: repository)
       .where("pr_number = :pr_number OR external_pr_number = :pr_number", pr_number: pr_number)

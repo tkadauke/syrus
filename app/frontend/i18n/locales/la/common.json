@@ -296,7 +296,8 @@
     "pr_checks_pending": "Examina PR in {{slug}} exspectantur",
     "waiting_to_merge": "Exspectatur {{slug}} coniungi",
     "waiting_epic_to_complete": "Exspectatur Epicum #{{number}} compleri",
-    "pr_not_mergeable": "Petitio extrahendi coniungi non potest"
+    "pr_not_mergeable": "Petitio extrahendi coniungi non potest",
+    "pr_checks_failing_inherited": "Probationes PR in {{slug}} cadunt — iam in basi cadentes ({{checks}})"
   },
   "close": "Claudere",
   "search_aria": "Quaerere",

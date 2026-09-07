@@ -19,7 +19,7 @@ import { workflowSlug } from "../lib/slugs"
 import { Button } from "../components/Button"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobPrCheckAttribution, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { PluginUiSlot, type UiSlotPanel } from "../pluginUiSlots"
@@ -915,8 +915,13 @@ function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
     ? t("pr_checks_failing", { sha })
     : t("pr_checks_pending", { sha })
 
+  const attribution = checks.attribution
+  // An inherited failure is not this Job's fault, so it should not be dressed in
+  // the same red as one this Job introduced.
+  const tone = checks.state !== "failing" || attribution?.verdict === "inherited" ? "muted" : "error"
+
   return (
-    <PanelMessage tone={checks.state === "failing" ? "error" : "muted"}>
+    <PanelMessage tone={tone}>
       {message}
       {checks.checks_url ? (
         <>
@@ -926,7 +931,45 @@ function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
           </a>
         </>
       ) : null}
+      {attribution ? <PrCheckAttributionDetail attribution={attribution} /> : null}
     </PanelMessage>
+  )
+}
+
+// Shows the comparison, not just the verdict: which checks are red here, which
+// of those were already red on the base, and which base was compared. Without
+// this an operator cannot check the call, and neither can an agent.
+function PrCheckAttributionDetail({ attribution }: { attribution: JobPrCheckAttribution }) {
+  const { t } = useT("jobs")
+  const label = attribution.verdict === "inherited"
+    ? t("pr_checks_attribution_inherited")
+    : attribution.verdict === "own"
+      ? t("pr_checks_attribution_own")
+      : t("pr_checks_attribution_unknown")
+
+  return (
+    <div className="mt-2 text-xs">
+      <div className="font-semibold uppercase tracking-wide">{label}</div>
+      <dl className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-[auto_1fr]">
+        {attribution.failing_names.length > 0 ? (
+          <>
+            <dt className="text-gray-600 dark:text-gray-400">{t("pr_checks_attribution_failing")}</dt>
+            <dd className="font-mono">{attribution.failing_names.join(", ")}</dd>
+          </>
+        ) : null}
+        {attribution.base_failing_names.length > 0 ? (
+          <>
+            <dt className="text-gray-600 dark:text-gray-400">{t("pr_checks_attribution_base_failing")}</dt>
+            <dd className="font-mono">{attribution.base_failing_names.join(", ")}</dd>
+          </>
+        ) : null}
+      </dl>
+      {attribution.base_sha ? (
+        <div className="mt-1 text-gray-600 dark:text-gray-400">
+          {t("pr_checks_attribution_base", { sha: attribution.base_sha.slice(0, 7) })}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

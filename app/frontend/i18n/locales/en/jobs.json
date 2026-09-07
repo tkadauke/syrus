@@ -680,5 +680,11 @@
   "workflow_divergence_files": "{{count}} file(s) affected",
   "workflow_divergence_truncated": "… more not shown",
   "workflow_divergence_view_discarded": "View this diff →",
-  "workflow_divergence_view_published": "View this diff →"
+  "workflow_divergence_view_published": "View this diff →",
+  "pr_checks_attribution_inherited": "Already failing on the base",
+  "pr_checks_attribution_own": "Introduced by this job",
+  "pr_checks_attribution_unknown": "Not yet attributable",
+  "pr_checks_attribution_base": "Compared against base {{sha}}",
+  "pr_checks_attribution_failing": "Failing here",
+  "pr_checks_attribution_base_failing": "Failing on base"
 }

@@ -798,6 +798,22 @@ class LandingQueueProcessor
     end
     case job.pr_checks_state
     when "failing"
+      # A failing check is only this Job's problem when it is not already
+      # failing on the base. An inherited failure still holds the Job -- name
+      # matching is too coarse to prove innocence (one "rspec" check can be red
+      # on main for spec A and red here for A *and* B) -- but it is a different
+      # situation and says so, and unlike an own failure the operator can
+      # override it. Blocking both identically is what left 33 Jobs looking
+      # equally guilty while main was broken.
+      attribution = PrCheckAttribution.for(job)
+      if attribution.inherited?
+        return override_or_block(
+          job,
+          { key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } },
+          consume: consume_override
+        )
+      end
+
       return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
     when "pending"
       return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })

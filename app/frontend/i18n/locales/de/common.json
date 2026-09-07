@@ -295,7 +295,8 @@
     "pr_checks_pending": "PR-Prüfungen ausstehend auf {{slug}}",
     "waiting_to_merge": "Warte auf Merge von {{slug}}",
     "waiting_epic_to_complete": "Warte auf Abschluss von Epic #{{number}}",
-    "pr_not_mergeable": "PR nicht mergeierbar"
+    "pr_not_mergeable": "PR nicht mergeierbar",
+    "pr_checks_failing_inherited": "PR-Checks schlagen bei {{slug}} fehl – bereits auf dem Basis-Branch rot ({{checks}})"
   },
   "close": "Schließen",
   "search_aria": "Suche",

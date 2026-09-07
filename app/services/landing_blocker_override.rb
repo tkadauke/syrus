@@ -1,4 +1,9 @@
 class LandingBlockerOverride
+  # `pr_checks_failing_inherited` is deliberately NOT here. A Job whose every
+  # failing check is already failing on its base did not cause that breakage, so
+  # an operator who has looked at the evidence (surfaced on the Job page and in
+  # the landing-queue payload) may land it. `pr_checks_failing` -- a failure this
+  # Job introduced -- stays non-overridable.
   NON_OVERRIDABLE_KEYS = %w[
     missing_pull_request
     pr_checks_failing

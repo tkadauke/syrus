@@ -2999,3 +2999,66 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
+
+describe("PrChecksBanner attribution", () => {
+  function renderWithChecks(pr_checks: Record<string, unknown>) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+    const payload = jobPayload()
+    const withChecks = { ...payload, job: { ...payload.job, pr_checks } } as unknown as JobDetailPayload
+
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+          <JobDetailView
+            activeTab="summary"
+            onSelectTab={() => {}}
+            payload={withChecks}
+            prefix="/app-shell"
+            queryKey={["jobs", "1", "detail", ""]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  // The operator has to be able to check the verdict, not just read it, so the
+  // banner shows both sides of the comparison and which base was used.
+  it("shows the evidence behind an inherited verdict", async () => {
+    renderWithChecks({
+      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      attribution: {
+        verdict: "inherited",
+        failing_names: ["rspec"],
+        base_failing_names: ["rspec", "react-tests"],
+        own_names: [],
+        base_sha: "basesha1234"
+      }
+    })
+
+    expect(await screen.findByText("Already failing on the base")).toBeInTheDocument()
+    expect(screen.getByText("rspec")).toBeInTheDocument()
+    expect(screen.getByText("rspec, react-tests")).toBeInTheDocument()
+    expect(screen.getByText("Compared against base basesha")).toBeInTheDocument()
+  })
+
+  it("names a failure the job introduced as its own", async () => {
+    renderWithChecks({
+      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      attribution: {
+        verdict: "own", failing_names: ["mine"], base_failing_names: [], own_names: ["mine"], base_sha: null
+      }
+    })
+
+    expect(await screen.findByText("Introduced by this job")).toBeInTheDocument()
+  })
+
+  // Jobs whose checks were cached before names were recorded must still render.
+  it("renders without an attribution block when none is present", async () => {
+    renderWithChecks({ state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null })
+
+    expect(await screen.findByText(/PR checks are failing/)).toBeInTheDocument()
+    expect(screen.queryByText("Already failing on the base")).not.toBeInTheDocument()
+    expect(screen.queryByText("Introduced by this job")).not.toBeInTheDocument()
+  })
+})

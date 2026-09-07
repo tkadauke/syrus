@@ -44,6 +44,49 @@ same landing unit, such as a queued merge train blocked by `urgent_job_active`,
 an already-active merge train, or landing state drift where a Job is in
 `landing` with no active workflow or train.
 
+## Failing PR checks: inherited vs. introduced
+
+A Job whose GitHub checks are red is held out of landing, but *why* they are red
+decides which hold applies. `PrCheckAttribution` compares the checks failing on
+the PR head against the checks already failing on its base:
+
+- **`own`** — at least one check is red here that is not red on the base. The
+  Job introduced a failure. Blocked as `pr_checks_failing`, and that key is on
+  `LandingBlockerOverride::NON_OVERRIDABLE_KEYS`: no override.
+- **`inherited`** — *every* failing check is also failing on the base. The Job
+  did not cause this. Blocked as `pr_checks_failing_inherited`, which **is**
+  overridable, so an operator who has read the evidence can land it.
+- **`unknown`** — no failing check names recorded for this SHA, or no settled
+  health record for the base. Falls through to `pr_checks_failing`; the system
+  does not guess in the Job's favour.
+
+Both halves of the comparison are persisted, which is what makes the call
+auditable rather than a black box: `jobs.pr_checks_failing_names` (written by
+`PollPullRequestJob`, `LandingQueueRecheck`, and `CiRepair::CheckRefresh`) and
+`main_branch_health_checks.ci_failed_checks` (written by
+`PollMainBranchHealthJob`). The base compared against is the PR's own
+`mergeability_base_sha` when a health record exists for it, else the
+repository's most recent settled CI poll.
+
+**An inherited verdict is evidence, not proof.** Check-run names are coarse: a
+single `rspec` check can be red on main for spec A and red on a PR for specs A
+*and* B, and by name alone those are indistinguishable. That is why `inherited`
+downgrades the block to overridable rather than landing the Job automatically —
+auto-landing on that signal would let a second breakage through while main is
+already red, which is the failure mode the distinction exists to prevent.
+
+The verdict and its evidence are surfaced in three places so an operator and an
+agent see the same thing: the Job page's PR-checks banner (which checks fail
+here, which fail on the base, and the base SHA), the app payload
+(`job.pr_checks.attribution`), and the admin API
+(`GET /api/v1/admin/jobs/:id` -> `pr_checks_attribution`).
+
+Syrus already made this distinction for its *own* grader steps via
+`.syrus.yml`'s `grade.failures: allow_inherited` ->
+`Adjudicators::InheritedGraderFailure` -> `MainBranchFailureClassifier`. This is
+the same idea applied to GitHub check runs, which previously had nowhere to
+record which checks failed.
+
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part

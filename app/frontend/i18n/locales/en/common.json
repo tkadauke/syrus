@@ -295,7 +295,8 @@
     "pr_checks_pending": "PR checks pending on {{slug}}",
     "waiting_to_merge": "Waiting for {{slug}} to merge",
     "waiting_epic_to_complete": "Waiting for Epic #{{number}} to complete",
-    "pr_not_mergeable": "PR not mergeable"
+    "pr_not_mergeable": "PR not mergeable",
+    "pr_checks_failing_inherited": "PR checks failing on {{slug}} — already failing on the base ({{checks}})"
   },
   "close": "Close",
   "search_aria": "Search",

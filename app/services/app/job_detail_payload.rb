@@ -1212,8 +1212,19 @@ module App
         sha: sha,
         short_sha: sha&.first(7),
         checked_at: iso8601(@job.pr_checks_checked_at),
-        checks_url: @job.pr_number.present? ? "#{pr_url(@job.pr_number)}/checks" : nil
-      }
+        checks_url: @job.pr_number.present? ? "#{pr_url(@job.pr_number)}/checks" : nil,
+        # Why the checks are red, not just that they are: which checks fail here,
+        # which of those are already red on the base, and what the base was. An
+        # operator (or an agent) deciding whether this Job is at fault needs the
+        # comparison, not the verdict alone.
+        attribution: pr_check_attribution_json
+      }.compact
+    end
+
+    def pr_check_attribution_json
+      return nil unless @job.pr_checks_state == "failing"
+
+      PrCheckAttribution.for(@job)&.to_h
     end
 
     def issue_url

@@ -1048,6 +1048,48 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
     end
 
+    # 33 Jobs sat behind an identical, non-overridable "PR checks failing" while
+    # main was red on the same check. The Job that broke something and the Job
+    # that merely inherited a broken base are different situations and now read
+    # differently.
+    it "distinguishes a failure inherited from the base from one this job introduced" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason[:key]).to eq("pr_checks_failing_inherited")
+      expect(entry.blocked_reason[:params][:checks]).to eq("rspec")
+      # Still held -- name matching cannot prove innocence -- but the operator
+      # can now override it, which a plain pr_checks_failing never allowed.
+      expect(job.reload).to be_approved
+      expect(LandingBlockerOverride.overridable?("pr_checks_failing_inherited")).to be(true)
+      expect(LandingBlockerOverride.overridable?("pr_checks_failing")).to be(false)
+    end
+
+    it "still blames the job when it fails a check the base passes" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec", "mine" ], mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
+    end
+
     it "surfaces no-effective CI repairs instead of the generic failing checks reason" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(

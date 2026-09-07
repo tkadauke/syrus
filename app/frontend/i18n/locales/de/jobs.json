@@ -680,5 +680,11 @@
   "workflow_divergence_files": "{{count}} betroffene Datei(en)",
   "workflow_divergence_truncated": "… weitere nicht angezeigt",
   "workflow_divergence_view_discarded": "Diff ansehen →",
-  "workflow_divergence_view_published": "Diff ansehen →"
+  "workflow_divergence_view_published": "Diff ansehen →",
+  "pr_checks_attribution_inherited": "Bereits auf dem Basis-Branch rot",
+  "pr_checks_attribution_own": "Von diesem Job verursacht",
+  "pr_checks_attribution_unknown": "Noch nicht zuordenbar",
+  "pr_checks_attribution_base": "Verglichen mit Basis {{sha}}",
+  "pr_checks_attribution_failing": "Hier rot",
+  "pr_checks_attribution_base_failing": "Auf Basis rot"
 }

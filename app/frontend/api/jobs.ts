@@ -164,6 +164,19 @@ export type JobPrChecks = {
   short_sha: string | null
   checked_at: string | null
   checks_url: string | null
+  attribution?: JobPrCheckAttribution | null
+}
+
+// Whether failing checks are this Job's doing or inherited from a base that was
+// already red, plus the evidence the verdict rests on. Present only while checks
+// are failing.
+export type JobPrCheckAttribution = {
+  verdict: "inherited" | "own" | "unknown" | string
+  failing_names: string[]
+  base_failing_names: string[]
+  own_names: string[]
+  base_sha?: string | null
+  reason?: string | null
 }
 
 export type WorkerHealthMetricSummary = {

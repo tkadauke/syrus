@@ -180,7 +180,39 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
         short_sha: "3bf7b45",
         checked_at: checked_at.iso8601,
-        checks_url: "https://github.com/#{repo.owner}/#{repo.name}/pull/2796/checks"
+        checks_url: "https://github.com/#{repo.owner}/#{repo.name}/pull/2796/checks",
+        # Failing checks always carry an attribution, and "we cannot tell yet" is
+        # a real answer rather than an omission: it says the names have not been
+        # recorded for this SHA, which is why the gate still treats it as the
+        # Job's own failure.
+        attribution: {
+          "verdict" => "unknown",
+          "failing_names" => [],
+          "base_failing_names" => [],
+          "own_names" => [],
+          "reason" => "no_failing_check_names_recorded"
+        }
+      )
+    end
+
+    it "attributes a failing check to the base when the base is red on the same check" do
+      job = Factories.job_record(
+        user: user, repository: repo, pr_number: 2796,
+        pr_checks_state: "failing", pr_checks_sha: "head-sha",
+        pr_checks_checked_at: Time.current, pr_checks_failing_names: [ "rspec" ],
+        mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: repo, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      expect(payload_for(job).dig(:job, :pr_checks, :attribution)).to include(
+        "verdict" => "inherited",
+        "failing_names" => [ "rspec" ],
+        "base_failing_names" => [ "rspec" ],
+        "own_names" => [],
+        "base_sha" => "base-sha"
       )
     end
 

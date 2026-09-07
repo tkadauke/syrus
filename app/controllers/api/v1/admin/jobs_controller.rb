@@ -292,6 +292,13 @@ module Api
             last_feedback_addressed_at: job.last_feedback_addressed_at,
             last_ci_handled_sha: job.last_ci_handled_sha,
             landing_failure_reason: job.landing_failure_reason,
+            pr_checks_state: job.pr_checks_state,
+            pr_checks_sha: job.pr_checks_sha,
+            pr_checks_checked_at: job.pr_checks_checked_at,
+            # Which checks are red and whether the base was already red on them,
+            # so "is this Job at fault?" is answerable from the API alone rather
+            # than by opening GitHub and eyeballing two check lists.
+            pr_checks_attribution: (PrCheckAttribution.for(job)&.to_h if job.pr_checks_state == "failing"),
             created_at: job.created_at,
             updated_at: job.updated_at,
             workflows: job.workflows.order(:created_at).map { |wf| ::Admin::JobStateSerializer.workflow(wf) }
