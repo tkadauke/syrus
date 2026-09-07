@@ -143,6 +143,21 @@ module Api
           render json: ::App::JobDetailPayload.timeline(job: find_job)
         end
 
+        # Non-admin-safe per-Workflow execution waterfall (Step/Run timing)
+        # for the Job detail page's Timeline tab. Distinct from #timeline
+        # above, which serves the admin-only Job Backlog lifecycle-events
+        # timeline -- unrelated features that happen to share a name.
+        def waterfall
+          job = find_job
+          workflow = job.workflows.find_by(id: params[:workflow_id])
+          unless workflow
+            render_error("not_found", "Workflow not found for this Job.", status: :not_found)
+            return
+          end
+
+          render json: ::App::JobWaterfallPayload.build(workflow: workflow, admin: Current.user&.admin? || false)
+        end
+
         def run_artifacts
           job = find_job_by_param(:job_id)
           run = job.runs.includes(:step).find_by(id: params[:run_id])

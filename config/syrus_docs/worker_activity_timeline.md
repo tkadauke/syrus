@@ -47,6 +47,32 @@ Gated the same way as the rest of the token-based REST admin API
   carrying the same worker attribution (Step/Run have no host column of
   their own) and its Runs (`started_at`, `finished_at`, `last_heartbeat_at`).
 
+## Non-admin session-authenticated waterfall endpoint
+
+`GET /api/v1/app/jobs/:id/waterfall?workflow_id=<id>` (`Api::V1::App::JobsController#waterfall`)
+is a separate, less-privileged endpoint backing a Job detail page "Timeline"
+tab available to any user who can view the Job -- not gated behind the
+`worker_timeline` plugin or `User#admin?`. It is authorized the same way as
+the rest of Job detail (`find_job`, which resolves through `policy_scope(Job)`),
+not `require_admin`, and 404s if `workflow_id` doesn't belong to the resolved
+Job. It wraps the same `Timeline::WorkflowWaterfallQuery` the bearer-token
+`/api/v1/timeline/workflows/:id` endpoint and the admin-only
+`/api/v1/app/admin/worker_timeline/workflow` endpoint use, but
+`App::JobWaterfallPayload` strips `hostname`, `pid`, `worker_storage_key`, and
+`queue_role` from the workflow and each Step payload entirely (not merely
+nulled) unless `Current.user&.admin?` -- non-admins see Step/Run timing,
+duration, and status only. This endpoint does not replace or change either of
+the admin-gated ones.
+
+The three shared rendering primitives the waterfall view composes --
+`TimeAxis`, `TimelineBar`, `TooltipCard` -- live in core at
+`app/frontend/components/timeline/` (not under the `worker_timeline` plugin),
+so any future core UI can reuse them without depending on the plugin. The
+`worker_timeline` plugin's own `TimelineLanes.tsx` and `WorkflowWaterfall.tsx`
+import them from `@app/components/timeline/*`. `TimeAxis` takes its chart
+`width` as a prop instead of importing a plugin-owned constant, since core
+has no opinion on the plugin's chart layout constants.
+
 ## Worker attribution
 
 `Timeline::WorkerAttribution` resolves the worker attribution a Workflow ran
