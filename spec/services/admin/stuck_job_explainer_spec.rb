@@ -256,7 +256,7 @@ RSpec.describe Admin::StuckJobExplainer do
   end
 
   it "uses the stack resolver result for fan-in so it does not invent a selected parent" do
-    epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_title: "Fan-in")
     deps = [
       Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 1574, branch_name: "syrus/issue-1574", pr_number: 1574),

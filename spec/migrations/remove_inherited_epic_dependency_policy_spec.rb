@@ -15,7 +15,8 @@ RSpec.describe RemoveInheritedEpicDependencyPolicy, :ci_only do
     Epic.reset_column_information
 
     linear_repository = Factories.repository(epic_dependency_policy: "linear")
-    nonlinear_repository = Factories.repository(epic_dependency_policy: "nonlinear")
+    nonlinear_repository = Factories.repository(epic_dependency_policy: "linear")
+    nonlinear_repository.update_column(:epic_dependency_policy, "nonlinear")
     linear_epic = Factories.epic(user: linear_repository.user, repository: linear_repository, epic_dependency_policy: "linear")
     nonlinear_epic = Factories.epic(user: nonlinear_repository.user, repository: nonlinear_repository, epic_dependency_policy: "linear")
     concrete_epic = Factories.epic(user: nonlinear_repository.user, repository: nonlinear_repository, epic_dependency_policy: "linear")

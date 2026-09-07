@@ -379,10 +379,12 @@ dispatches its ready child Jobs. In linear Epics, children with same-Epic
 parents can keep implementing down the stack once the immediate parent has
 an implemented PR branch; approval and landing order still waits for the
 normal dependency gates.
-For nonlinear same-Epic fan-in, Syrus can prepare a combined execution base
-from approved dependency PR branches when they merge cleanly; otherwise the
-queued child shows an explicit fan-in base blocker with the dependency branches
-that need landing, linearizing, or conflict resolution.
+For a handful of older Epics whose child Jobs still branch or fan in (from
+before same-Epic dependencies were required to form a single chain), Syrus
+can prepare a combined execution base from approved dependency PR branches
+when they merge cleanly; otherwise the queued child shows an explicit fan-in
+base blocker with the dependency branches that need landing, linearizing, or
+conflict resolution.
 Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is
@@ -405,9 +407,8 @@ the actor, timestamp, and before/after text.
 
 Repositories default new Epics to a linear child-Job dependency policy: child
 Jobs should form one ordered chain. Each Epic stores a concrete policy when it
-is created; `nonlinear` can no longer be newly chosen anywhere — it only
-persists on Epics and repositories that already had it before that
-restriction landed. Chat's `propose_epic_with_jobs` tool rejects a branching,
+is created; `linear` is the only value that exists. Chat's
+`propose_epic_with_jobs` tool rejects a branching,
 fan-in, or disconnected child-Job graph immediately, with the offending child
 slugs in the error, before it even creates the proposal card — the operator
 never sees a card that would fail later. The same check runs again at
@@ -434,8 +435,9 @@ blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.
 After Syrus builds the train's integration branch, it runs an agentic
 reconciliation pass on the recorded integrated SHA before prepare, graders,
-coverage, and landing. Nonlinear Epics with multiple approved leaves are
-assembled into that same combined branch first. A no-diff reconciliation
+coverage, and landing. Older Epics with multiple approved leaves (predating
+the single-chain requirement) are assembled into that same combined branch
+first. A no-diff reconciliation
 continues normally; focused fixes are committed to the integration branch
 and still pass the normal gates before the Epic lands.
 Syrus records landing throughput metrics on workflow artifacts so operators can
