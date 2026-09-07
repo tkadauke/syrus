@@ -1,8 +1,9 @@
 module Api
   module V1
     module App
-      # Operator-scoped agent sessions feed: repositories the current user
-      # belongs to, plus Jobs they effectively own (AgentActivity::SessionsQuery).
+      # Operator-scoped agent sessions feed: Jobs visible via Job.accessible_to
+      # (direct/Team repository membership plus upstream repositories), plus
+      # Jobs they effectively own (AgentActivity::SessionsQuery).
       class AgentActivityController < BaseController
         def sessions
           filter = ::AgentActivity::Filter.from_params(params, user: Current.user)
