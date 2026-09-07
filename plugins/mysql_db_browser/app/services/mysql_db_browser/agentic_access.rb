@@ -3,15 +3,23 @@ module MysqlDbBrowser
   # access - the opposite of AdminMysql's global admin/repo check. Every
   # agentic tool call names a MysqlConnection id in its params, and this is
   # the single place that resolves it and enforces that connection's own
-  # `agentic_access_enabled` flag before any tool touches the external
-  # database. There is no framework hook to do this at manifest-build time
-  # (ChatToolSet/WorkflowToolSet#available_for? only ever sees the surface,
-  # never an individual call's params) - so each tool calls this from inside
-  # its own #call, mirroring Mcp::Tools::AuthorizationSupport's find_*!
-  # pattern for first-party tools.
+  # `agentic_access_enabled` flag (and, for writes, `allow_writes`) before any
+  # tool touches the external database. There is no framework hook to do this
+  # at manifest-build time (ChatToolSet/WorkflowToolSet#available_for? only
+  # ever sees the surface, never an individual call's params) - so each tool
+  # calls this from inside its own #call, mirroring
+  # Mcp::Tools::AuthorizationSupport's find_*! pattern for first-party tools.
+  # See Syrus::Plugin::AgenticConnection for the shared gating logic this
+  # class and K8sCluster::AgenticAccess both delegate to.
   class AgenticAccess
+    extend Syrus::Plugin::AgenticConnection
+
     class ConnectionNotFound < StandardError; end
     class AccessDisabled < StandardError; end
+    class WriteAccessDisabled < StandardError; end
+
+    RESOURCE_NAME = "MySQL connection"
+    SETTINGS_LOCATION = "DB Browser connection settings"
 
     SAFE_METADATA_FIELDS = %i[
       id
@@ -38,14 +46,22 @@ module MysqlDbBrowser
     end
 
     def self.connection!(id)
-      connection = MysqlConnection.find_by(id: id)
-      raise ConnectionNotFound, "MySQL connection #{id.inspect} was not found." unless connection
-      unless connection.agentic_access_enabled?
-        raise AccessDisabled, "Agentic access is disabled for the \"#{connection.label}\" connection. " \
-          "An admin must enable it from DB Browser connection settings before agents can query it."
-      end
+      find_agentic!(
+        MysqlConnection, id,
+        resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
+        not_found_error: ConnectionNotFound, access_disabled_error: AccessDisabled
+      )
+    end
 
-      connection
+    # Write gate for a connection QueryExecutor already resolved via
+    # connection! - see Syrus::Plugin::AgenticConnection#require_write_access!
+    # for why this takes the record itself rather than an id.
+    def self.connection_with_write_access!(connection)
+      require_write_access!(
+        connection,
+        resource_name: RESOURCE_NAME, settings_location: SETTINGS_LOCATION,
+        write_access_disabled_error: WriteAccessDisabled
+      )
     end
   end
 end

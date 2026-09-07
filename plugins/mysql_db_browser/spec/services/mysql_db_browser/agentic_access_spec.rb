@@ -18,4 +18,26 @@ RSpec.describe MysqlDbBrowser::AgenticAccess do
       expect { described_class.connection!(-1) }.to raise_error(described_class::ConnectionNotFound)
     end
   end
+
+  describe ".connection_with_write_access!" do
+    it "returns the connection when it has opted into writes" do
+      connection = Factories.mysql_connection(allow_writes: true)
+
+      expect(described_class.connection_with_write_access!(connection)).to eq(connection)
+    end
+
+    it "raises WriteAccessDisabled when the connection has not opted into writes" do
+      connection = Factories.mysql_connection(allow_writes: false)
+
+      expect {
+        described_class.connection_with_write_access!(connection)
+      }.to raise_error(described_class::WriteAccessDisabled, /Write access is disabled/)
+    end
+
+    it "does not re-check agentic_access_enabled, since the caller already resolved the connection" do
+      connection = Factories.mysql_connection(agentic_access_enabled: false, allow_writes: true)
+
+      expect(described_class.connection_with_write_access!(connection)).to eq(connection)
+    end
+  end
 end

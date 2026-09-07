@@ -338,7 +338,13 @@ it resolves the `cluster_id` named in that call's params and raises unless
 that specific row has `agentic_access_enabled: true`, mirroring
 `MysqlDbBrowser::AgenticAccess.connection!(id)` and
 `Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
-first-party tools. `K8sCluster::ResourceService::Unavailable`/`NotFound` and
+first-party tools. `AgenticAccess.cluster!`/`.cluster_with_write_access!`
+delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
+concern (`lib/syrus/plugin/agentic_connection.rb`), which
+`MysqlDbBrowser::AgenticAccess` also extends - the two plugins' near-identical
+find-by-id/raise-if-disabled classes were extracted into that one concern
+rather than left as parallel, drifting implementations.
+`K8sCluster::ResourceService::Unavailable`/`NotFound` and
 a missing-namespace validation error are all normalized into an
 `MCP::Tool::Response` with `error: true` rather than raising out of the MCP
 sidecar process.
@@ -390,7 +396,10 @@ the existing read-access wording if that's off), then additionally requires
 with its own actionable message ("An admin must enable \"Allow writes\" for
 this cluster...") when read access is on but writes are not - so an agent
 gets a clear, specific reason rather than a generic auth failure that reads
-like the cluster isn't accessible at all.
+like the cluster isn't accessible at all. `MysqlDbBrowser::QueryExecutor`
+gates writes at this same layer, via an explicit
+`MysqlDbBrowser::AgenticAccess.connection_with_write_access!(connection)` -
+see the MySQL DB Browser docs' Read-only guardrails section.
 
 All four write tools are registered in the same `ChatToolSet::TOOL_CLASSES` /
 `WorkflowToolSet` list as the read-only tools (there is no separate write
