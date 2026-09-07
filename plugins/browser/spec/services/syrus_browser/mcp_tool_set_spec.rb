@@ -18,12 +18,12 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".tool_definitions" do
     subject(:defs) { described_class.tool_definitions }
 
-    it "exposes twelve granular browser tools" do
+    it "exposes thirteen granular browser tools" do
       names = defs.map { |d| d[:name] }
       expect(names).to contain_exactly(
         "browser_navigate", "browser_click", "browser_fill", "browser_hover", "browser_snapshot",
         "browser_screenshot", "browser_wait_for", "browser_resize", "browser_evaluate",
-        "browser_file_upload", "browser_drag", "browser_close"
+        "browser_file_upload", "browser_drop", "browser_drag", "browser_close"
       )
     end
 
@@ -294,6 +294,49 @@ RSpec.describe SyrusBrowser::McpToolSet do
       tool_set.handle("browser_file_upload", {}, ctx)
 
       expect(session).to have_received(:call_tool).with(name: "browser_file_upload", arguments: {})
+    end
+  end
+
+  describe "#handle browser_drop" do
+    it "forwards element, target, and paths to the upstream browser_drop tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle(
+        "browser_drop",
+        { "element" => "Bug report drop zone", "target" => "e9", "paths" => [ "/tmp/screenshot.png" ] },
+        ctx
+      )
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_drop",
+        arguments: { "element" => "Bug report drop zone", "target" => "e9", "paths" => [ "/tmp/screenshot.png" ] }
+      )
+    end
+
+    it "accepts legacy ref as a target alias" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_drop", { "ref" => "e9", "paths" => [ "/tmp/screenshot.png" ] }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_drop", arguments: { "target" => "e9", "paths" => [ "/tmp/screenshot.png" ] }
+      )
+    end
+
+    it "rejects missing snapshot targets before calling the upstream browser" do
+      response = tool_set.handle("browser_drop", { "paths" => [ "/tmp/screenshot.png" ] }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires target")
+      expect(session).not_to have_received(:call_tool)
+    end
+
+    it "rejects a call with neither paths nor data before calling the upstream browser" do
+      response = tool_set.handle("browser_drop", { "target" => "e9" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires at least one of paths or data")
+      expect(session).not_to have_received(:call_tool)
     end
   end
 

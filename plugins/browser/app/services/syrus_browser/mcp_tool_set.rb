@@ -4,8 +4,8 @@ require "json"
 module SyrusBrowser
   # Granular browser-control MCP tools for the visual_review agent (and any
   # other agentic step): navigate, click, fill, hover, snapshot, screenshot,
-  # wait_for, resize, evaluate, file_upload, drag, close. Deliberately NOT
-  # one opaque "run test suite" tool — the agent improvises its own test
+  # wait_for, resize, evaluate, file_upload, drop, drag, close. Deliberately
+  # NOT one opaque "run test suite" tool — the agent improvises its own test
   # plan against the running preview.
   #
   # Each concrete tool (see BrowserTool and its subclasses in this
@@ -23,6 +23,7 @@ module SyrusBrowser
       ResizeTool,
       EvaluateTool,
       FileUploadTool,
+      DropTool,
       DragTool,
       CloseTool
     ].freeze
