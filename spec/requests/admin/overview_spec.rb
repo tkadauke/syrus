@@ -29,9 +29,11 @@ RSpec.describe "Admin overview", type: :request do
     end
   end
 
-  it "does not route the retired legacy overview endpoint" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
+  it "serves the SPA shell for the retired legacy overview GET path instead of 404ing" do
+    sign_in_as(admin)
+    get "/admin/legacy"
+
+    expect(response).to be_successful
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 end

@@ -14,9 +14,6 @@ RSpec.describe "Tags", type: :request do
 
   it "does not route the retired legacy HTML tag endpoints" do
     expect {
-      Rails.application.routes.recognize_path("/tags/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
       Rails.application.routes.recognize_path("/tags", method: :post)
     }.to raise_error(ActionController::RoutingError)
     expect {
@@ -25,5 +22,12 @@ RSpec.describe "Tags", type: :request do
     expect {
       Rails.application.routes.recognize_path("/tags/1", method: :delete)
     }.to raise_error(ActionController::RoutingError)
+  end
+
+  it "serves the SPA shell for the retired legacy HTML tag GET path instead of 404ing" do
+    get "/tags/legacy"
+
+    expect(response).to be_successful
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 end

@@ -2053,11 +2053,12 @@ Admin-page plugins should declare:
 - install-time `frontend.routes` metadata mapping component keys such as
   `syrus_dev/AdminPerformance` to plugin frontend files.
 - install-time `frontend.i18n` metadata listing plugin locale files.
-- install-time `routes` metadata for API and SPA routes. The host serves
-  `/admin/*` through the SPA for plugin pages. API routes declared under
-  `/api/v1/app/*` or `/api/v1/admin/*` are served by the host plugin-route
-  dispatcher after concrete core routes, so plugin controllers can live inside
-  the plugin engine without adding one-off host routes.
+- install-time `routes` metadata for its API route(s). No SPA route is
+  needed: the host's blanket `get "*path", to: "spa#show"` route already
+  serves any `/admin/*` GET, plugin-declared or not. API routes declared
+  under `/api/v1/app/*` or `/api/v1/admin/*` are served by the host
+  plugin-route dispatcher after concrete core routes, so plugin controllers
+  can live inside the plugin engine without adding one-off host routes.
 
 The `group_id` field slots the plugin's admin page into one of the core
 navigation groups in the Admin sidebar. Valid values:
@@ -2096,11 +2097,13 @@ extension point.
 `section` picks which nav the page joins. The default, `"primary"`, is the
 main sidebar. `"settings"` puts it in the settings section's own side nav
 instead, which is where a per-user, preferences-shaped page belongs — that is
-how `agent_memory` owns `/memories`. Either way the page still needs an
-explicit `get "<path>", to: "spa#show"` line in `config/routes.rb`: plugin
-route dispatch covers `api/v1/app/` and `api/v1/admin/`, and the SPA
-wildcards cover `/admin/*` and `/repositories/:id/plugin/*`, but a top-level
-sidebar path has neither.
+how `agent_memory` owns `/memories`. Either way, the page needs no
+`config/routes.rb` entry for Rails to serve it: `config/routes.rb`'s blanket
+`get "*path", to: "spa#show"` route reaches any non-API, non-Rails GET path,
+declared or not, so a hard reload of a page core has never heard of still
+serves the shell. What still needs a `paths` entry (see above) is React's own
+client-side route table, which is populated from `GET /api/v1/app/sidebar_pages`
+below, not from `config/routes.rb`.
 
 The `team_directory` plugin owns the operator directory at `/profiles` and the
 per-person profile pages beneath it. Note the naming: it has nothing to do with
@@ -2163,26 +2166,23 @@ Repo-page-tab plugins should declare:
 - install-time `routes` metadata for its API route(s) only (served the same
   way as admin-page plugin API routes).
 
-Unlike `admin_page`, a `repo_page_tab` plugin does **not** need to also
-hand-declare a `spa#show` manifest route for hard-reload/direct-navigation
-support — that used to be required (mirroring the admin convention) and was
-easy to forget: the first `repo_page_tab` plugin built against this extension
-point (`git_history`) shipped without one, so hard-reloading
-`/repositories/:id/plugin/git_history` 404'd from Rails instead of serving
-the SPA shell. The host's `repositories/:repository_id/plugin/*path` route
-now also accepts any path returned by a registered `repo_page_tab` provider's
-own `repo_page_tabs(repository:, user:)` — via
-`PluginRouteResolver.repo_page_tab_route?`, which resolves the repository
-from the URL's `:repository_id` and calls the provider with a user known to
-have access to it (the owner, or else any member) purely to read off the
-tab's `path`/`paths`, not to authorize the actual requesting viewer (like
-every other SPA-shell route, real per-viewer authorization happens in the
-authenticated API calls the SPA makes after mounting, not at the routing
-layer). `PluginRouteResolver.spa_route_declared?` (the manual-declaration
-path) still works too, for plugins that want it — a `repo_page_tab`'s
-`routes:` array only needs a manual `spa#show` entry for extra SPA paths
-outside its own declared tabs (e.g. a tab sub-page not itself returned by
-`repo_page_tabs`).
+A `repo_page_tab` plugin does **not** need to hand-declare a `spa#show`
+manifest route for hard-reload/direct-navigation support — the host's blanket
+`get "*path", to: "spa#show"` route reaches any non-API, non-Rails GET path
+regardless, so `/repositories/:id/plugin/git_history` reaches the shell
+whether or not the plugin ever registered it. That wasn't always true: the
+first `repo_page_tab` plugin built against this extension point
+(`git_history`) shipped without a manual declaration, and the routing
+mechanism of the time 404'd it instead of serving the SPA shell. The host used
+to also run a narrower `repositories/:repository_id/plugin/*path` route
+gating this specifically to paths a `repo_page_tab` provider's own
+`repo_page_tabs(repository:, user:)` returned (via
+`PluginRouteResolver.repo_page_tab_route?`); that route was retired once the
+blanket wildcard existed, since the gate no longer decided anything the
+wildcard didn't already serve. Real per-viewer authorization was never done at
+the routing layer either way — it happens in the authenticated API calls the
+SPA makes after mounting (see `SpaController`, which has no repository-level
+gating).
 
 Repo-page viewing itself (the repository detail page and its five sibling tab
 endpoints) is available to both the repository owner and any

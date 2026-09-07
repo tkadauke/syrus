@@ -35,14 +35,18 @@ RSpec.describe "Invitations", type: :request do
 
     it "does not route the retired legacy HTML invitation endpoints" do
       expect {
-        Rails.application.routes.recognize_path("/invitations/legacy", method: :get)
-      }.to raise_error(ActionController::RoutingError)
-      expect {
         Rails.application.routes.recognize_path("/invitations", method: :post)
       }.to raise_error(ActionController::RoutingError)
       expect {
         Rails.application.routes.recognize_path("/invitations/1", method: :delete)
       }.to raise_error(ActionController::RoutingError)
+    end
+
+    it "serves the SPA shell for the retired legacy HTML invitation GET path instead of 404ing" do
+      get "/invitations/legacy"
+
+      expect(response).to be_successful
+      expect(response.body).to include('id="syrus-spa-root"')
     end
   end
 end

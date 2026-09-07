@@ -179,9 +179,9 @@ RSpec.describe "SPA shell", type: :request do
     user = Factories.user
     sign_in_as(user)
 
-    # design_docs is a plugin page and is covered by the plugin-route example
-    # below; core no longer hand-writes its URLs, so there are no named
-    # helpers for them here.
+    # design_docs is a plugin page and is covered by the "routes every React
+    # app route" example below; core no longer hand-writes its URLs, so there
+    # are no named helpers for them here.
     [ notifications_path, memories_path, search_chats_path ].each do |path|
       get path
 
@@ -195,36 +195,9 @@ RSpec.describe "SPA shell", type: :request do
   # hard reload / direct navigation renders the bare bootstrap shell instead of
   # the page -- which is what /design_docs/22 did, because the plugin declared
   # only the index path while its component had always branched on params.id.
-  # Both sides derive from `paths`, so this one list is the thing to guard.
-  it "routes every declared plugin sidebar path through the SPA shell" do
-    paths = PluginRouteResolver.declared_sidebar_paths
-    expect(paths).to be_any
-
-    paths.each do |declared|
-      path = declared.split("/").map { |segment| segment.start_with?(":") ? "9" : segment }.join("/")
-      recognized = Rails.application.routes.recognize_path(path, method: :get)
-
-      expect(recognized).to include(controller: "spa", action: "show"),
-                            "expected sidebar path #{declared} (sample #{path}) to route to spa#show"
-    end
-  end
-
-  # And that it routes through the *derived* wildcard, not because core happens
-  # to hand-write the same URL. Several plugin pages still have hand-written
-  # entries in config/routes.rb (profiles, memories, scheduled_tasks and
-  # friends) because core generates their URL helpers, so the check above can
-  # pass for a page the resolver does not actually know about -- and then a
-  # plugin whose helper core does not use ships unreachable, which is how
-  # mockups and scheduled_tasks shipped unreachable in the first place.
-  it "recognizes every declared plugin sidebar path without a hand-written route" do
-    PluginRouteResolver.declared_sidebar_paths.each do |declared|
-      path = declared.split("/").map { |segment| segment.start_with?(":") ? "9" : segment }.join("/")
-
-      expect(PluginRouteResolver.sidebar_page_route?(path)).to be(true),
-                                                              "expected the plugin route resolver to recognize #{declared} (sample #{path})"
-    end
-  end
-
+  # There is no plugin-specific derivation left to guard here: the blanket
+  # wildcard below serves any path the React router owns, declared plugin or
+  # not, so this is now the same assertion as "routes every React app route".
   it "routes every React app route through the SPA shell" do
     (frontend_app_routes + installed_plugin_spa_routes).uniq.each do |route|
       path = representative_frontend_path(route)
@@ -271,6 +244,18 @@ RSpec.describe "SPA shell", type: :request do
     expect {
       Rails.application.routes.recognize_path("/api/nope", method: :get)
     }.to raise_error(ActionController::RoutingError)
+  end
+
+  # Active Storage's own config/routes.rb loads AFTER this file finishes (see
+  # Rails.application.routes_reloader.paths), so its GET routes land BEHIND
+  # the blanket wildcard in the final route set rather than in front of it.
+  # Without the "/rails" exclusion the wildcard would win first and serve the
+  # SPA shell for a blob download instead of losing to it "by declaration
+  # order" the way every other route in this file does.
+  it "does not route Active Storage paths through the SPA shell" do
+    recognized = Rails.application.routes.recognize_path("/rails/active_storage/blobs/redirect/abc/file.png", method: :get)
+
+    expect(recognized[:controller]).to eq("active_storage/blobs/redirect")
   end
 
   it "requires authentication for canonical dashboard routes" do

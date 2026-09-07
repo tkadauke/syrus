@@ -8,8 +8,6 @@ RSpec.describe "Smart folders", type: :request do
   describe "retired HTML management endpoints" do
     it "does not route smart folder management endpoints" do
       [
-        [ :get, "/smart_folders" ],
-        [ :get, "/smart_folders/legacy" ],
         [ :post, "/smart_folders" ],
         [ :patch, "/smart_folders/legacy/1" ],
         [ :delete, "/smart_folders/legacy/1" ],
@@ -19,6 +17,15 @@ RSpec.describe "Smart folders", type: :request do
         expect {
           Rails.application.routes.recognize_path(path, method: method)
         }.to raise_error(ActionController::RoutingError), "#{method.upcase} #{path} should not route"
+      end
+    end
+
+    it "serves the SPA shell for retired smart folder GET paths instead of 404ing" do
+      [ "/smart_folders", "/smart_folders/legacy" ].each do |path|
+        get path
+
+        expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+        expect(response.body).to include('id="syrus-spa-root"')
       end
     end
   end
