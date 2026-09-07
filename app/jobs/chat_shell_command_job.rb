@@ -1,6 +1,8 @@
-# Runs one user-submitted `!` shell command against a Coding Mode chat
-# session's persistent ChatWorkspace checkout (see ChatWorkspace and
-# ChatShellCommandsController). Joins ChatTurnJob's own per-chat
+# Runs one user-submitted `!` shell command against a Coding Mode or Local
+# Mode chat session's checkout (see ChatShellCommandExecutor and
+# ChatShellCommandsController) -- Coding Mode runs it directly against the
+# chat's persistent ChatWorkspace; Local Mode dispatches it over the reverse
+# tunnel to the operator's own machine. Joins ChatTurnJob's own per-chat
 # concurrency group so a shell command and an agent turn never touch the
 # same checkout at once.
 class ChatShellCommandJob < ApplicationJob
@@ -19,7 +21,6 @@ class ChatShellCommandJob < ApplicationJob
 
   def perform(chat_shell_command_id)
     @command_record = ChatShellCommand.find(chat_shell_command_id)
-    @output = +""
 
     run_command!
   rescue ActiveRecord::RecordNotFound
@@ -30,45 +31,23 @@ class ChatShellCommandJob < ApplicationJob
     raise
   rescue StandardError => e
     Rails.logger.error("[ChatShellCommandJob] chat_shell_command=#{chat_shell_command_id} #{e.class}: #{e.message}")
-    finalize!(outcome: "error", output: "#{@output}\n[chat_shell_command] #{e.class}: #{e.message}")
+    finalize!(outcome: "error", output: "[chat_shell_command] #{e.class}: #{e.message}")
   end
 
   private
 
   def run_command!
     chat_session = @command_record.chat_session
-    repository = chat_session.repository
-    unless repository
-      finalize!(outcome: "error", output: "No repository attached to this chat.")
+    executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
+
+    precondition_error = executor.precondition_error(chat_session)
+    if precondition_error
+      finalize!(outcome: "error", output: precondition_error)
       return
     end
 
-    path = ChatWorkspace.repo_path_for(chat_session, repository)
-    unless path.join(".git").directory?
-      finalize!(outcome: "error", output: "Coding checkout not found at #{path}.")
-      return
-    end
-
-    env = ProcessRunner.forwarded_env(ChatWorkspacePrepareJob::PREP_ENV_FORWARD)
-    result = ProcessRunner.new(
-      env: env,
-      command: [ "bash", "-c", @command_record.command ],
-      chdir: path,
-      timeout: MAX_RUNTIME_SECONDS,
-      kind: "chat_shell_command",
-      chat_session: chat_session,
-      on_output_chunk: ->(chunk) { @output = ChatShellCommand.append_capped(@output, chunk) },
-      on_spawned_process: ->(spawned_process) { @command_record.update_columns(spawned_process_id: spawned_process.id) }
-    ).run
-
-    finalize!(outcome: outcome_for(result), output: @output, exit_status: result.exit_status)
-  end
-
-  def outcome_for(result)
-    return "killed" if result.operator_killed?
-    return "succeeded" if result.success?
-
-    "failed"
+    result = executor.run!(@command_record)
+    finalize!(outcome: result.outcome, output: result.output, exit_status: result.exit_status)
   end
 
   def finalize!(outcome:, output: nil, exit_status: nil)

@@ -25,6 +25,13 @@ class LocalTunnelChannel < ApplicationCable::Channel
   #   { "type" => "connect",  "repo" => "...", "branch" => "..." }
   #   { "type" => "pong" }
   #   { "type" => "tool_result", "tool_use_id" => "...", "content" => [...] }
+  #
+  # Messages transmitted to the daemon CLI (see #transmit calls below):
+  #   { type: "connected" }
+  #   { type: "tool_call", tool_use_id:, tool:, input: }
+  #   { type: "cancel_tool_call", tool_use_id: }  -- EPIC-323 `!` command cancel
+  #   { type: "ping" }
+  #   { type: "disconnected", reason: }
   def receive(data)
     case data["type"]
     when "connect"
@@ -37,16 +44,19 @@ class LocalTunnelChannel < ApplicationCable::Channel
   end
 
   # Called by Action Cable when a broadcast arrives on the
-  # "local_daemon_session_N_tool_calls" stream (triggered by LocalToolCall
-  # after_create_commit). Dispatches the tool call to the daemon immediately
-  # without waiting for the next dispatch-thread poll cycle.
+  # "local_daemon_session_N_tool_calls" stream. "dispatch" (triggered by
+  # LocalToolCall's after_create_commit) sends a pending call to the daemon
+  # immediately without waiting for the next dispatch-thread poll cycle.
+  # "cancel" (triggered by LocalToolCall#request_cancel!, EPIC-323's `!`
+  # command cancel control) asks the daemon to interrupt a call already in
+  # flight.
   def receive_from_subscription(message)
-    return unless message["type"] == "dispatch"
-
-    tool_call = LocalToolCall.find_by(id: message["tool_call_id"])
-    return unless tool_call&.state == "pending"
-
-    dispatch_tool_call(tool_call)
+    case message["type"]
+    when "dispatch"
+      handle_dispatch_broadcast(message)
+    when "cancel"
+      handle_cancel_broadcast(message)
+    end
   end
 
   private
@@ -102,6 +112,20 @@ class LocalTunnelChannel < ApplicationCable::Channel
     })
   rescue => e
     tool_call.fail!(error: e.message)
+  end
+
+  def handle_dispatch_broadcast(message)
+    tool_call = LocalToolCall.find_by(id: message["tool_call_id"])
+    return unless tool_call&.state == "pending"
+
+    dispatch_tool_call(tool_call)
+  end
+
+  def handle_cancel_broadcast(message)
+    tool_call = LocalToolCall.find_by(id: message["tool_call_id"])
+    return unless tool_call&.state == "dispatched"
+
+    transmit({ type: "cancel_tool_call", tool_use_id: tool_call.tool_use_id })
   end
 
   def drain_queued_tool_calls

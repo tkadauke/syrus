@@ -1,20 +1,25 @@
-# One-shot cancellable shell command execution against a Coding Mode chat
-# session's persistent ChatWorkspace checkout (EPIC-323). API-level only —
-# the composer trigger and chat rendering of the output are separate Jobs.
+# One-shot cancellable shell command execution against a Coding Mode or
+# Local Mode chat session's checkout (EPIC-323) -- see ChatShellCommandExecutor
+# for the mode-specific execution/cancellation strategy. API-level only — the
+# composer trigger and chat rendering of the output live in Compose.tsx and
+# MessageCards.tsx.
 module Api
   module V1
     module App
       class ChatShellCommandsController < BaseController
+        SUPPORTED_MODES = %w[coding local].freeze
+
         def create
           chat_session = find_chat_session
 
-          unless Feature.coding_mode_enabled?
-            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+          unless SUPPORTED_MODES.include?(chat_session.mode)
+            render_error("validation_failed", "Shell commands are only available in Coding Mode or Local Mode chat sessions.", status: :unprocessable_content)
             return
           end
 
-          unless chat_session.coding?
-            render_error("validation_failed", "Shell commands are only available in Coding Mode chat sessions.", status: :unprocessable_content)
+          executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
+          unless executor.feature_enabled?
+            render_error("feature_disabled", "#{mode_label(chat_session.mode)} is not enabled on this instance.", status: :not_found)
             return
           end
 
@@ -25,8 +30,9 @@ module Api
           end
           return unless authorize_repository_write!(repository)
 
-          if chat_session.coding_checkout_branch.blank?
-            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+          precondition_error = executor.precondition_error(chat_session)
+          if precondition_error
+            render_error("not_found", precondition_error, status: :not_found)
             return
           end
 
@@ -63,12 +69,14 @@ module Api
             render_error("validation_failed", "This shell command has already finished.", status: :unprocessable_content)
             return
           end
-          unless command_record.spawned_process
+
+          executor = ChatShellCommandExecutor::Base.for(chat_session.mode)
+          unless executor.cancellable?(command_record)
             render_error("not_started", "The command has not started running yet. Try again in a moment.", status: :conflict)
             return
           end
 
-          command_record.spawned_process.request_kill!(user: Current.user)
+          executor.request_cancel!(command_record, user: Current.user)
 
           render json: command_record.reload.as_command_json
         end
@@ -77,6 +85,10 @@ module Api
 
         def find_chat_session
           Current.user.accessible_chat_sessions.active.find(params[:chat_id])
+        end
+
+        def mode_label(mode)
+          mode == "local" ? "Local Mode" : "Coding Mode"
         end
 
         # Atomically (row-locked on chat_session) rejects a second in-flight

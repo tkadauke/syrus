@@ -24,6 +24,24 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
     )
   end
 
+  def enable_local_mode!(enabled: true)
+    feature = Feature.find_or_create_by!(slug: "local_mode") do |record|
+      record.category = "Labs"
+      record.name = "Local Mode"
+    end
+    feature.update!(enabled: enabled)
+  end
+
+  def local_chat(**attrs)
+    ChatSession.create!({ user: user, repository: repository, mode: "local" }.merge(attrs))
+  end
+
+  def connect_local_daemon!(chat)
+    session = LocalDaemonSession.create!(chat_session: chat, user: user)
+    session.mark_connected!(repo: "acme/widgets", branch: "main")
+    session
+  end
+
   describe "POST /api/v1/app/chats/:chat_id/shell_commands" do
     it "401s when signed out" do
       chat = coding_chat
@@ -207,6 +225,92 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
       post "/api/v1/app/chats/#{chat.id}/shell_commands/#{command.id}/cancel"
 
       expect(response).to have_http_status(:forbidden)
+    end
+  end
+
+  describe "Local Mode" do
+    describe "POST /api/v1/app/chats/:chat_id/shell_commands" do
+      it "404s when the local_mode feature flag is off" do
+        sign_in_as(user)
+        chat = local_chat
+        connect_local_daemon!(chat)
+        enable_local_mode!(enabled: false)
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+        expect(response).to have_http_status(:not_found)
+        expect(parse_body.dig("error", "code")).to eq("feature_disabled")
+      end
+
+      it "404s when no daemon is connected yet" do
+        sign_in_as(user)
+        chat = local_chat
+        enable_local_mode!
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "creates a ChatShellCommand and enqueues the run once a daemon is connected" do
+        sign_in_as(user)
+        chat = local_chat
+        connect_local_daemon!(chat)
+        enable_local_mode!
+
+        expect {
+          post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "npm test" }
+        }.to have_enqueued_job(ChatShellCommandJob)
+
+        expect(response).to have_http_status(:created)
+        command = ChatShellCommand.find(parse_body["id"])
+        expect(command.chat_session_id).to eq(chat.id)
+      end
+
+      it "rejects a second command while one is already running" do
+        sign_in_as(user)
+        chat = local_chat
+        connect_local_daemon!(chat)
+        enable_local_mode!
+        chat.chat_shell_commands.create!(user: user, command: "sleep 100", started_at: Time.current)
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+        expect(response).to have_http_status(:conflict)
+        expect(parse_body.dig("error", "code")).to eq("conflict")
+      end
+    end
+
+    describe "POST /api/v1/app/chats/:chat_id/shell_commands/:id/cancel" do
+      it "requests a cancel through the daemon tunnel" do
+        sign_in_as(user)
+        chat = local_chat
+        session = connect_local_daemon!(chat)
+        enable_local_mode!
+        call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat, tool_use_id: "call-1", tool_name: "run_command", state: "dispatched")
+        command = chat.chat_shell_commands.create!(user: user, command: "sleep 100", started_at: Time.current, local_tool_call: call)
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast) { |stream, msg| broadcasts << [ stream, msg ] }
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands/#{command.id}/cancel"
+
+        expect(response).to have_http_status(:ok)
+        expect(broadcasts).to include([ "local_daemon_session_#{session.id}_tool_calls", { type: "cancel", tool_call_id: call.id } ])
+      end
+
+      it "returns a conflict when the daemon hasn't started the command yet" do
+        sign_in_as(user)
+        chat = local_chat
+        connect_local_daemon!(chat)
+        enable_local_mode!
+        command = chat.chat_shell_commands.create!(user: user, command: "echo hi", started_at: Time.current)
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands/#{command.id}/cancel"
+
+        expect(response).to have_http_status(:conflict)
+        expect(parse_body.dig("error", "code")).to eq("not_started")
+      end
     end
   end
 end

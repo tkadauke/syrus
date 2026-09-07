@@ -255,6 +255,14 @@ type localToolCallMsg struct {
 	Input     json.RawMessage `json:"input"`
 }
 
+// localCancelToolCallMsg mirrors the "cancel_tool_call" frame
+// LocalTunnelChannel#handle_cancel_broadcast transmits when the operator hits
+// the composer's stop control on an in-flight `!` command (EPIC-323):
+// { type: "cancel_tool_call", tool_use_id: ... }.
+type localCancelToolCallMsg struct {
+	ToolUseID string `json:"tool_use_id"`
+}
+
 func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
 	conn, err := localDialer(ctx, wsURL)
 	if err != nil {
@@ -271,6 +279,13 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 		return err
 	}
 	identifier := string(identJSON)
+
+	// Tracks the cancel func for each in-flight tool call, keyed by
+	// tool_use_id, so a "cancel_tool_call" frame (EPIC-323 `!` command stop
+	// control) can interrupt just that one call without affecting others or
+	// the connection itself. Safe for concurrent use by the per-call
+	// goroutines and the main receive loop below.
+	var activeCalls sync.Map // tool_use_id (string) -> context.CancelFunc
 
 	// done is closed when localConnectAndServe is about to return, giving the
 	// ctx goroutine a chance to exit before writeCh is closed.
@@ -423,8 +438,14 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 			if err := json.Unmarshal(msg.Message, &call); err != nil {
 				continue
 			}
-			go func(c localToolCallMsg) {
-				result := executeLocalToolCall(ctx, repoRoot, c)
+			callCtx, cancelCall := context.WithCancel(ctx)
+			activeCalls.Store(call.ToolUseID, cancelCall)
+			go func(c localToolCallMsg, callCtx context.Context, cancelCall context.CancelFunc) {
+				defer func() {
+					activeCalls.Delete(c.ToolUseID)
+					cancelCall()
+				}()
+				result := executeLocalToolCall(callCtx, repoRoot, c)
 				payload, err := json.Marshal(map[string]any{
 					"type":        "tool_result",
 					"tool_use_id": c.ToolUseID,
@@ -434,7 +455,16 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 					return
 				}
 				writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(payload)}
-			}(call)
+			}(call, callCtx, cancelCall)
+
+		case "cancel_tool_call":
+			var cancelMsg localCancelToolCallMsg
+			if err := json.Unmarshal(msg.Message, &cancelMsg); err != nil {
+				continue
+			}
+			if cancelFn, ok := activeCalls.Load(cancelMsg.ToolUseID); ok {
+				cancelFn.(context.CancelFunc)()
+			}
 		}
 	}
 }
@@ -548,8 +578,13 @@ func executeLocalListFiles(repoRoot string, raw json.RawMessage) map[string]any 
 	return map[string]any{"files": files}
 }
 
+// runCommandParams' JSON keys must match RunCommandTool's MCP input_schema
+// ({ command: ... }, app/services/mcp/tools/run_command_tool.rb) exactly --
+// that's the shape LocalToolDispatch.call forwards as LocalToolCall#tool_input
+// and LocalTunnelChannel#dispatch_tool_call transmits verbatim as this
+// message's "input" field.
 type runCommandParams struct {
-	Command   string `json:"cmd"`
+	Command   string `json:"command"`
 	TimeoutMS int    `json:"timeout_ms"`
 }
 
@@ -570,10 +605,15 @@ func executeLocalRunCommand(ctx context.Context, repoRoot string, raw json.RawMe
 
 	shell := exec.CommandContext(cmdCtx, "sh", "-c", p.Command)
 	shell.Dir = repoRoot
-	// Ensure Run() returns promptly after the process is killed even when
-	// grandchild processes keep inherited pipe file descriptors open.
+	// Ensure Run() returns promptly after the process is killed -- by a
+	// timeout above, or by a "cancel_tool_call" message (EPIC-323 `!` command
+	// stop control, see localConnectAndServe's activeCalls) cancelling ctx --
+	// even when grandchild processes keep inherited pipe file descriptors
+	// open.
 	if timeout > 0 {
 		shell.WaitDelay = timeout + 500*time.Millisecond
+	} else {
+		shell.WaitDelay = 2 * time.Second
 	}
 
 	var stdout, stderr strings.Builder
@@ -586,16 +626,20 @@ func executeLocalRunCommand(ctx context.Context, repoRoot string, raw json.RawMe
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
-		} else {
+		} else if cmdCtx.Err() == nil {
 			return map[string]any{"error": err.Error()}
 		}
 	}
 
-	return map[string]any{
+	result := map[string]any{
 		"stdout":    stdout.String(),
 		"stderr":    stderr.String(),
 		"exit_code": exitCode,
 	}
+	if cmdCtx.Err() != nil {
+		result["killed"] = true
+	}
+	return result
 }
 
 func executeLocalGitDiff(ctx context.Context, repoRoot string) map[string]any {

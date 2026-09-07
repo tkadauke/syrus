@@ -1786,6 +1786,29 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
   end
 
+  it "includes the running shell command in the payload for a Local Mode chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, mode: "local", last_message_at: Time.current)
+    command = chat.chat_shell_commands.create!(user: user, command: "npm test", started_at: Time.current)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["chat_shell_command_in_flight"]).to eq(
+      "id" => command.id,
+      "chat_session_id" => chat.id,
+      "command" => "npm test",
+      "output" => nil,
+      "outcome" => nil,
+      "exit_status" => nil,
+      "started_at" => command.started_at.iso8601,
+      "finished_at" => nil,
+      "running" => true,
+      "cancellable" => false
+    )
+  end
+
   it "omits the shell command field once it has finished" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, mode: "coding", last_message_at: Time.current)

@@ -102,8 +102,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
-  // EPIC-323 `!` command mode (Coding Mode only): the shell command this
-  // composer instance is tracking, seeded from the payload's
+  // EPIC-323 `!` command mode (Coding Mode and Local Mode): the shell command
+  // this composer instance is tracking, seeded from the payload's
   // `chat_shell_command_in_flight` so a Compose remount (e.g. crossing the
   // desktop/mobile layout breakpoint mid-command, JOB-4507 visual review)
   // rehydrates the stop control instead of losing it. Local state still
@@ -145,8 +145,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   )
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
-  // Scoped to Coding Mode chats — Local Mode `!` wiring is a later EPIC-323 Job.
-  const bangCommandModeActive = payload.chat.mode === "coding" && isBangCommandMode(text)
+  const bangCommandModeActive = (payload.chat.mode === "coding" || payload.chat.mode === "local") && isBangCommandMode(text)
   const shellCommandRunning = shellCommand?.running ?? false
   const pendingProposals = useMemo(() => {
     const seenIds = new Set<number>()
