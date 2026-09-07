@@ -2,12 +2,20 @@ module App
   class JobSourceChat
     include Rails.application.routes.url_helpers
 
-    def self.for(job)
-      new(job).payload
+    # anchor: whether `path` should deep-link straight to the proposal
+    # message. Job Detail renders this alongside a separate "View in chat"
+    # bookmark deeplink (see App::JobDetailPayload#origin_chat_json), so it
+    # asks for the plain chat path (anchor: false) to avoid two links
+    # pointing at the exact same destination. Other consumers (e.g. the
+    # dashboard job list) have no separate deeplink affordance, so they keep
+    # the default anchored path.
+    def self.for(job, anchor: true)
+      new(job, anchor: anchor).payload
     end
 
-    def initialize(job)
+    def initialize(job, anchor: true)
       @job = job
+      @anchor = anchor
     end
 
     def payload
@@ -17,7 +25,7 @@ module App
       message_id = anchor_message_id(proposal)
       chat = proposal.chat_session
       path = chat_path(chat)
-      path = "#{path}#message-#{message_id}" if message_id
+      path = "#{path}#message-#{message_id}" if @anchor && message_id
 
       {
         chat_id: chat.id,
