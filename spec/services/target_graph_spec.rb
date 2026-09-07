@@ -141,6 +141,19 @@ RSpec.describe TargetGraph do
       expect(graph.validate!).to be(true)
     end
 
+    it "returns dependency closures and prepare dependencies" do
+      library = TargetGraph::Label.parse("//cli:library")
+      prepare = TargetGraph::Label.parse("//cli:prepare/deps")
+      tests = TargetGraph::Label.parse("//cli:grade/tests")
+      graph.add_target(TargetGraph::Target.new(label: prepare, kind: "prepare", project_id: "cli", command: "go mod download", metadata: { "commands" => [ "go mod download" ] }))
+      graph.add_target(TargetGraph::Target.new(label: library, kind: "library", project_id: "cli", source_scope: [ "cli/**/*.go" ], dependencies: [ prepare ]))
+      graph.add_target(TargetGraph::Target.new(label: tests, kind: "grader", project_id: "cli", dependencies: [ library ]))
+
+      expect(graph.dependency_closure_for(tests)).to eq([ library.to_s, prepare.to_s ])
+      expect(graph.prepare_dependencies_for(tests).map(&:label)).to eq([ prepare ])
+      expect(graph.source_scopes_for(graph.dependency_closure_for(tests))).to eq([ "cli/**/*.go" ])
+    end
+
     it "detects a direct dependency cycle" do
       a = TargetGraph::Label.parse("//cli:a")
       b = TargetGraph::Label.parse("//cli:b")

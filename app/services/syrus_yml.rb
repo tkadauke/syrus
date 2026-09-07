@@ -69,8 +69,9 @@ class SyrusYml
   # fail graph construction on charset grounds; TargetGraph::Compiler still
   # owns cross-file uniqueness, which a single file's parse can't know about.
   PROJECT_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
+  TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -142,7 +143,7 @@ class SyrusYml
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
-  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
+  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :deps)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -155,7 +156,7 @@ class SyrusYml
   # (`formatters: []`) is the opt-in signal for Steps::Format to fall back
   # to plugin-provided `:autofix_command` defaults, while a populated
   # `Array` runs those explicit commands instead.
-  FormatterStep = Data.define(:command, :files)
+  FormatterStep = Data.define(:command, :files, :deps)
   # Deterministic codegen: derives checked-in `generates` outputs from `sources`
   # inputs. `codegen_ignore` marks an output committed for human reasons but
   # exempt from the `regen == committed` assertion (non-deterministic generator,
@@ -168,7 +169,7 @@ class SyrusYml
   # `nil` when absent (Steps::Generate no-ops — there is no plugin-provided
   # codegen default), `false` when explicitly disabled, or an `Array` of
   # `GeneratedStep` when explicitly configured.
-  GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
+  GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore, :deps)
   HooksConfig = Data.define(:post_checkout)
   # Explicit `project:` block (DOC-20 "Explicit Projects"). Every field is
   # optional -- a `.syrus.yml` with no `project:` key keeps compiling into
@@ -181,6 +182,7 @@ class SyrusYml
   # call, not this parser's -- SyrusYml only sees one file's content, never
   # its position in the repository.
   ProjectConfig = Data.define(:id, :label, :kind, :path)
+  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
@@ -229,7 +231,8 @@ class SyrusYml
       raw_delivery: raw_delivery,
       approval: parse_approval(raw["approval"]),
       external_prs: parse_external_prs(raw["external_prs"]),
-      project: parse_project(raw["project"])
+      project: parse_project(raw["project"]),
+      targets: parse_targets(raw["targets"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -261,7 +264,8 @@ class SyrusYml
 
       FormatterStep.new(
         command: command,
-        files: parse_globs(item["files"], "#{label}.files", required: true)
+        files: parse_globs(item["files"], "#{label}.files", required: true),
+        deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps")
       )
     end
   end
@@ -283,7 +287,8 @@ class SyrusYml
         command: command,
         sources: parse_globs(item["sources"], "#{label}.sources", required: false),
         generates: parse_globs(item["generates"], "#{label}.generates", required: true),
-        codegen_ignore: item.key?("codegen_ignore") ? ActiveModel::Type::Boolean.new.cast(item["codegen_ignore"]) : false
+        codegen_ignore: item.key?("codegen_ignore") ? ActiveModel::Type::Boolean.new.cast(item["codegen_ignore"]) : false,
+        deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps")
       )
     end
   end
@@ -457,8 +462,55 @@ class SyrusYml
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
       when_files_changed: when_files_changed,
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
-      failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures")
+      failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures"),
+      deps: parse_dependency_refs(raw["deps"] || raw["dependencies"], "#{label}.deps")
     )
+  end
+
+  def parse_targets(raw)
+    return [] if raw.nil?
+    raise ParseError, "targets: must be an array" unless raw.is_a?(Array)
+
+    seen = Set.new
+    raw.each_with_index.map do |item, index|
+      label = "targets[#{index}]"
+      raise ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
+
+      name = item["name"].to_s.strip
+      raise ParseError, "#{label}.name: is required" if name.empty?
+      remember_unique_name!(seen, name, label)
+
+      kind = item["kind"].to_s.strip.presence || "library"
+      unless TARGET_KINDS.include?(kind)
+        raise ParseError, "#{label}.kind: must be one of #{TARGET_KINDS.join(', ')}"
+      end
+
+      TargetConfig.new(
+        name: name,
+        kind: kind,
+        command: (item["run"] || item["command"]).to_s.strip.presence,
+        sources: parse_globs(item["sources"] || item["source_scope"], "#{label}.sources", required: false),
+        deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps")
+      )
+    end
+  end
+
+  def parse_dependency_refs(raw, label)
+    refs =
+      case raw
+      when nil then []
+      when String then [ raw ]
+      when Array then raw
+      else raise ParseError, "#{label}: must be a label string or an array of label strings"
+      end
+
+    refs = refs.map { |ref| ref.to_s.strip }.reject(&:empty?)
+    refs.each do |ref|
+      unless ref.start_with?("//") || ref.start_with?(":")
+        raise ParseError, "#{label}: #{ref.inspect} must start with // or :"
+      end
+    end
+    refs
   end
 
   def parse_grade_failure_policy(raw, label)
