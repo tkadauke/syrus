@@ -605,18 +605,6 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     return () => window.clearTimeout(timeout)
   }, [autosaveMutation, doc.id, draft, effectiveChangeMode, title])
 
-  useEffect(() => {
-    if (!focusedThreadId) return
-
-    threadRefs.current[focusedThreadId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
-  }, [focusedThreadId])
-
-  useEffect(() => {
-    if (!focusedSuggestionId) return
-
-    suggestionRefs.current[focusedSuggestionId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
-  }, [focusedSuggestionId])
-
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
     setSelectedVersionId(versionId)
@@ -634,6 +622,17 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
   const selectedRepositories = repositories.filter((repository) => repoIds.includes(String(repository.id)))
 
+  // focusThread/focusSuggestion only scroll the in-document anchor into
+  // view, never the rail card directly. A separate `cardEl.scrollIntoView`
+  // used to run here too, but once a card becomes the rail-layout pivot its
+  // position is defined to match the anchor's -- a second scroll target
+  // computed from the card's pre-recompute position raced the layout
+  // effect's own DOM changes (most visibly on the last rail entry, where
+  // becoming the pivot can shrink the whole stack's height as it stops
+  // absorbing collision push-down from earlier entries), leaving the page
+  // scrolled to a stale, sometimes out-of-range position. Scrolling only the
+  // anchor sidesteps that: the card catches up for free once the layout
+  // effect re-renders with this id as the pivot.
   function focusThread(threadId: number) {
     setFocusedThreadId(threadId)
     setFocusedSuggestionId(null)

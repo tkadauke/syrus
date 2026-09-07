@@ -136,6 +136,15 @@ set changes, and content/viewport resizes (`ResizeObserver` plus a window
 the rail stays part of the normal document scroll, and any overflow below
 the document's end just extends the page's own scroll height.
 
+`focusThread`/`focusSuggestion` only ever call `scrollIntoView` on the
+in-document anchor mark, never on the rail card: once a card becomes the
+pivot its position is defined to already match the anchor, so a second,
+separately-computed scroll target on the card would only race the layout
+effect's own DOM changes -- most visibly on the last rail entry, where
+becoming the pivot can shrink the whole stack as it stops absorbing
+collision push-down from every entry ahead of it. The card catches up for
+free once the layout effect re-renders with it as the pivot.
+
 Anchors without a rendered mark (e.g. `point`-kind anchors, or any anchor
 that briefly has no highlight while a draft edit is unsaved and dirty) fall
 back to inheriting the previous entry's resolved position rather than being

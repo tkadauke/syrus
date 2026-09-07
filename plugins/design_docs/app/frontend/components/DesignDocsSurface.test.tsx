@@ -993,6 +993,74 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("First note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "0px" })
   })
 
+  it("only scrolls the in-document anchor into view on focus, never a second competing scroll on the rail card", async () => {
+    // Regression test: focusing a thread used to scroll both the anchor mark
+    // (`block: "center"`) and the rail card (`block: "nearest"`) into view.
+    // Once a focused card becomes the rail-layout pivot, its position is
+    // defined to already match the anchor -- a second scroll computed
+    // against the card's pre-recompute position raced the layout effect's
+    // own DOM changes, most visibly for the last rail entry (becoming the
+    // pivot can shrink the whole stack once it stops absorbing collision
+    // push-down from earlier entries), leaving the page scrolled to a
+    // stale, sometimes out-of-range position. Only the anchor should ever
+    // be an explicit scroll target; the card catches up via layout alone.
+    const words = ["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf"]
+    const markdown = words.join(" ")
+    const multiThreadDoc = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      suggestions: [],
+      open_threads_count: words.length,
+      pending_suggestions_count: 0,
+      threads: words.map((word, index) => {
+        const start = markdown.indexOf(word)
+        return {
+          ...docDetail.threads[0],
+          id: 500 + index,
+          agent_run: null,
+          anchor: {
+            ...docDetail.threads[0].anchor,
+            id: 600 + index,
+            marker_id: `w${index}`,
+            start_offset: start,
+            end_offset: start + word.length,
+            last_known_start_offset: start,
+            last_known_end_offset: start + word.length
+          },
+          comments: [{ id: 700 + index, author_kind: "user", author: docDetail.owner, design_doc_agent_run_id: null, body: `${word} note`, created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }]
+        }
+      })
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: multiThreadDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const scrollIntoViewSpy = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewSpy as typeof HTMLElement.prototype.scrollIntoView
+
+    try {
+      renderSurface("/design_docs/1")
+      await screen.findByText("Golf note")
+
+      fireEvent.click(screen.getByText("Golf note"))
+
+      await waitFor(() => {
+        expect(scrollIntoViewSpy).toHaveBeenCalledWith(expect.objectContaining({ block: "center" }))
+      })
+      expect(scrollIntoViewSpy).not.toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }))
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    }
+  })
+
   it("recomputes card alignment when the window resizes", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
