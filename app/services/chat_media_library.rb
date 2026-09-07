@@ -2,9 +2,20 @@ require "base64"
 
 class ChatMediaLibrary
   INLINE_IMAGE_SOURCE_PREFIX = "chat-message-image".freeze
+  CAPTURED_IMAGE_SOURCE_PREFIX = "chat-captured-image".freeze
 
   def self.materialize_inline_images!(chat_session)
     new(chat_session).materialize_inline_images!
+  end
+
+  # Turns already-in-memory image bytes (not sourced from a ChatMessage's
+  # inline attachment JSON) into a chat-visible Document + ChatAttachment,
+  # e.g. a screenshot captured by a Coding Mode runtime session tool. Same
+  # Document/ChatAttachment recipe as #materialize_inline_image! below, just
+  # with a caller-supplied byte source instead of a decoded message
+  # attachment.
+  def self.materialize_captured_image!(chat_session, bytes:, content_type:, title:, source_url: nil)
+    new(chat_session).materialize_captured_image!(bytes: bytes, content_type: content_type, title: title, source_url: source_url)
   end
 
   # Existence-only check over the chat's full message history (unlike the
@@ -36,9 +47,38 @@ class ChatMediaLibrary
     false
   end
 
+  def materialize_captured_image!(bytes:, content_type:, title:, source_url: nil)
+    source_url ||= "#{CAPTURED_IMAGE_SOURCE_PREFIX}://#{chat_session.id}/#{SecureRandom.uuid}"
+
+    document = Document.new(
+      kind: "file",
+      attachable: user,
+      user: user,
+      title: title,
+      filename: captured_filename(title, content_type),
+      content_type: content_type,
+      byte_size: bytes.bytesize,
+      source_url: source_url
+    )
+    document.file.attach(
+      io: StringIO.new(bytes),
+      filename: document.filename,
+      content_type: content_type
+    )
+    document.save!
+
+    chat_session.chat_attachments.find_or_create_by!(attachable: document)
+    document
+  end
+
   private
 
   attr_reader :chat_session, :user
+
+  def captured_filename(title, content_type)
+    base = title.to_s.parameterize.presence || "capture"
+    "#{base}#{extension_for(content_type)}"
+  end
 
   def inline_image_attachments
     chat_session.messages.where(role: "user").order(:created_at, :id).flat_map do |message|

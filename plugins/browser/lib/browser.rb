@@ -15,6 +15,8 @@ module SyrusBrowser
     default_enabled true
     disableable true
     provides mcp_tool_set: "SyrusBrowser::McpToolSet",
-             artifact_renderer: "SyrusBrowser::ImageDiffRenderer"
+             chat_mcp_tool_set: "SyrusBrowser::ChatToolSet",
+             artifact_renderer: "SyrusBrowser::ImageDiffRenderer",
+             runtime_session_provider: "SyrusBrowser::RuntimeSessionProvider"
   end
 end
