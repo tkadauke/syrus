@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,8 +43,8 @@ func NewCheckoutCommand() *cobra.Command {
 	var noHooks bool
 	var complete bool
 	command := &cobra.Command{
-		Use:           "checkout JOB-ID|EPIC-ID",
-		Short:         "Check out a Syrus Job branch",
+		Use:           "checkout JOB-ID|EPIC-ID|BRANCH",
+		Short:         "Check out a Syrus Job branch, Epic branch, or plain git branch",
 		Args:          cobra.ExactArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -67,6 +68,10 @@ func NewCheckoutCommand() *cobra.Command {
 			}
 			job, err := client.GetJobDetail(cmd.Context(), jobID)
 			if err != nil {
+				var apiErr *api.Error
+				if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+					return runPlainBranchCheckout(cmd, args[0], noHooks)
+				}
 				return err
 			}
 			if strings.TrimSpace(job.Job.BranchName) == "" {
@@ -496,6 +501,86 @@ func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, b
 	}
 	if _, err := runner(ctx, "", "checkout", branchName); err != nil {
 		return fmt.Errorf("git checkout failed: %w", err)
+	}
+	return nil
+}
+
+// runPlainBranchCheckout is the fallback path when the Job/Epic API lookup
+// 404s: treat the argument as a plain git branch name instead of a Job ref.
+// It intentionally skips repo-slug matching (there's no Job to compare
+// against) and the force-reset/backup-branch machinery in checkoutJobBranch,
+// which exists only because Syrus force-pushes agent commits onto Job
+// branches.
+func runPlainBranchCheckout(cmd *cobra.Command, branchName string, noHooks bool) error {
+	branchName = strings.TrimSpace(branchName)
+	if err := checkoutPlainBranch(cmd.Context(), checkoutRunGit, branchName); err != nil {
+		return err
+	}
+	if !noHooks {
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Checked out %s.\n", branchName)
+	return nil
+}
+
+func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName string) error {
+	inside, err := runner(ctx, "", "rev-parse", "--is-inside-work-tree")
+	if err != nil || strings.TrimSpace(inside) != "true" {
+		return errors.New("Current directory is not a git repository.")
+	}
+
+	status, err := runner(ctx, "", "status", "--porcelain")
+	if err != nil {
+		return fmt.Errorf("git status failed: %w", err)
+	}
+	if strings.TrimSpace(status) != "" {
+		return fmt.Errorf("cannot check out %s because the current worktree has local changes; commit or stash them first", branchName)
+	}
+
+	remoteRef := "refs/remotes/origin/" + branchName
+	localRef := "refs/heads/" + branchName
+
+	_, fetchErr := runner(ctx, "", "fetch", "origin", "+refs/heads/"+branchName+":"+remoteRef)
+
+	localExists := true
+	if _, err := runner(ctx, "", "show-ref", "--verify", "--quiet", localRef); err != nil {
+		localExists = false
+	}
+
+	if fetchErr != nil && !localExists {
+		return fmt.Errorf("branch %q was not found locally or on origin", branchName)
+	}
+
+	if !localExists {
+		if _, err := runner(ctx, "", "checkout", "--track", "-b", branchName, remoteRef); err != nil {
+			return fmt.Errorf("git checkout failed: %w", err)
+		}
+		return nil
+	}
+
+	currentBranch, err := runner(ctx, "", "branch", "--show-current")
+	currentBranchName := ""
+	if err == nil {
+		currentBranchName = strings.TrimSpace(currentBranch)
+	}
+	if currentBranchName != branchName {
+		if _, err := runner(ctx, "", "checkout", branchName); err != nil {
+			return fmt.Errorf("git checkout failed: %w", err)
+		}
+	}
+
+	if fetchErr != nil {
+		return nil
+	}
+
+	if _, err := runner(ctx, "", "merge-base", "--is-ancestor", localRef, remoteRef); err != nil {
+		return fmt.Errorf("local branch %s has diverged from origin/%s; reconcile it before checking out again", branchName, branchName)
+	}
+
+	if _, err := runner(ctx, "", "merge", "--ff-only", remoteRef); err != nil {
+		return fmt.Errorf("git fast-forward failed: %w", err)
 	}
 	return nil
 }
