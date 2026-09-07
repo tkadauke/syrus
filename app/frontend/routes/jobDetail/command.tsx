@@ -54,7 +54,7 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
     }
   })
 
-  return { ...mutation, dialog }
+  return { ...mutation, confirm, dialog }
 }
 
 export type JobCommand = ReturnType<typeof useJobCommand>
