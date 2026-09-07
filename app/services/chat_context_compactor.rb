@@ -54,12 +54,16 @@ class ChatContextCompactor
                   .to_a
     return if compacted.empty?
 
-    @chat_session.context_checkpoints.create!(
+    checkpoint = @chat_session.context_checkpoints.create!(
       compacted_through_message_id: cutoff_id,
       source_message_count: latest&.source_message_count.to_i + compacted.size,
       summary_version: SUMMARY_VERSION,
       summary: build_summary(compacted, previous: latest)
     )
+
+    record_compaction_metrics!(checkpoint: checkpoint, compacted: compacted, previous: latest)
+
+    checkpoint
   end
 
   def context_messages
@@ -116,6 +120,38 @@ class ChatContextCompactor
     return relation unless latest&.role == "user"
 
     relation.where.not(id: latest.id)
+  end
+
+  def record_compaction_metrics!(checkpoint:, compacted:, previous:)
+    kept_contents = messages_scope.where("id > ?", checkpoint.compacted_through_message_id).order(:id).pluck(:content)
+    session_age_seconds = @chat_session.created_at ? (Time.current - @chat_session.created_at).round : nil
+    seconds_since_previous_checkpoint = previous ? (checkpoint.created_at - previous.created_at).round : nil
+
+    payload = {
+      chat_session_id: @chat_session.id,
+      checkpoint_id: checkpoint.id,
+      checkpoint_number: @chat_session.context_checkpoints.count,
+      compacted_through_message_id: checkpoint.compacted_through_message_id,
+      messages_compacted_this_run: compacted.size,
+      messages_kept_raw: kept_contents.size,
+      cumulative_messages_compacted: checkpoint.source_message_count,
+      estimated_compacted_context_bytes: estimated_content_bytes(compacted.map(&:content)),
+      estimated_kept_context_bytes: estimated_content_bytes(kept_contents),
+      session_age_seconds: session_age_seconds,
+      seconds_since_previous_checkpoint: seconds_since_previous_checkpoint
+    }.compact
+
+    ActiveSupport::Notifications.instrument("chat_context_compactor.compacted", payload)
+    OperationalLogging.ingest(
+      level: "info",
+      source: "chat_context_compactor",
+      message: "Compacted #{compacted.size} messages for chat #{@chat_session.id} (kept #{kept_contents.size} raw)",
+      context: payload
+    )
+  end
+
+  def estimated_content_bytes(contents)
+    contents.sum { |content| content.to_json.bytesize }
   end
 
   def checkpoint_message(checkpoint)
