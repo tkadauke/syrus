@@ -197,14 +197,12 @@ class ChatWorkspace
   def self.safe_data_root_path(path)
     return nil if path.blank?
 
-    candidate = Pathname.new(path.to_s).cleanpath
+    candidate = Pathname.new(path.to_s)
     return nil unless candidate.absolute?
 
-    root = data_root.cleanpath
-    return nil if candidate == root
-    return nil unless candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
-
-    candidate
+    Syrus::PathJail.resolve!(data_root, candidate)
+  rescue Syrus::PathJail::PathEscape
+    nil
   end
 
   # Fully destroys idle chat workspaces (workspace dir + agent homes) and
@@ -931,14 +929,9 @@ class ChatWorkspace
   # Returns a Pathname for relative_path resolved within checkout_dir, or nil
   # if the path is blank, contains traversal sequences, or escapes the root.
   def safe_checkout_path(checkout_dir, relative_path)
-    return nil if relative_path.blank?
-
-    candidate = checkout_dir.join(relative_path).cleanpath
-    root = checkout_dir.cleanpath
-    return nil if candidate == root
-    return nil unless candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
-
-    candidate
+    Syrus::PathJail.resolve!(checkout_dir, relative_path)
+  rescue Syrus::PathJail::PathEscape
+    nil
   end
 
   def file_content_at_ref(checkout_dir, relative_path, ref)
