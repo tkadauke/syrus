@@ -1,6 +1,14 @@
 
 // App-chrome nav/settings icons extracted from AppChromeV2.tsx.
 
+export function MenuIcon() {
+  return (
+    <svg aria-hidden="true" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M4.75 6.75h14.5M4.75 12h14.5M4.75 17.25h14.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function PlusIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">

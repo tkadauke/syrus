@@ -1618,6 +1618,12 @@ describe("App", () => {
       expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
+      // Mobile-width tab strip scrolls horizontally with no scrollbar; the edge
+      // fade signals there's more to scroll to instead of looking clipped. It
+      // must be turned off at the lg breakpoint, where the nav becomes a
+      // non-scrolling vertical column.
+      expect(settingsNav).toHaveClass("overflow-x-auto", "scroll-fade-x")
+      expect(settingsNav.className).toMatch(/\blg:\[mask-image:none\]/)
       expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
       expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")

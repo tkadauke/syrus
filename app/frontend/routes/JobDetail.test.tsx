@@ -2230,6 +2230,15 @@ describe("ArtifactsTab", () => {
     expect(screen.getByRole("button", { name: "Agent Conversation" })).toBeInTheDocument()
   })
 
+  it("gives the horizontally-scrolling tab strip an edge fade instead of a hard clip", () => {
+    // Mobile-width TabNav scrolls with no visible scrollbar; without the
+    // fade, an off-screen tab (e.g. Attachments) looks clipped rather than
+    // reachable by scrolling.
+    renderJobDetail(jobPayload())
+    const summaryTab = screen.getByRole("button", { name: "Summary" })
+    expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x")
+  })
+
   it("shows the Artifacts tab in the TabNav with count", () => {
     renderJobDetail(jobPayload({
       typed_artifacts: [
