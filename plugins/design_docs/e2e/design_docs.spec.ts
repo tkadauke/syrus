@@ -15,9 +15,12 @@ test("signed-in user can create a design doc, comment on it, and see it persist"
   await expect(page.getByLabel("Design doc title", { exact: true })).toHaveValue("Untitled design doc")
 
   // List/editor split surface: the new doc shows up in the index list too.
+  // Anchor on word boundaries so e.g. DOC-1 can't match DOC-10/DOC-19/DOC-100
+  // in this never-cleaned-up, ever-growing list of ids.
   await page.goto("/design_docs")
-  await expect(page.getByRole("button").filter({ hasText: `DOC-${docId}` })).toBeVisible()
-  await page.getByRole("button").filter({ hasText: `DOC-${docId}` }).click()
+  const docListEntry = page.getByRole("button", { name: new RegExp(`\\bDOC-${docId}\\b`) })
+  await expect(docListEntry).toBeVisible()
+  await docListEntry.click()
   await expect(page).toHaveURL(`/design_docs/${docId}`)
 
   const title = `E2E design doc ${Date.now()}`
