@@ -183,6 +183,39 @@ RSpec.describe ChatContextCompactor do
     ActiveSupport::Notifications.unsubscribe(subscription) if subscription
   end
 
+  it "still returns the checkpoint and does not raise when recording compaction metrics fails" do
+    enable_compaction!
+    session = chat
+    add_messages(session, 130)
+
+    allow(OperationalLogging).to receive(:ingest).and_raise("boom")
+    allow(Rails.logger).to receive(:warn)
+
+    checkpoint = nil
+    expect {
+      checkpoint = described_class.maybe_compact!(session)
+    }.not_to raise_error
+
+    expect(checkpoint).to be_a(ChatContextCheckpoint)
+    expect(checkpoint).to be_persisted
+    expect(Rails.logger).to have_received(:warn).with(/failed to record compaction metrics/)
+  end
+
+  it "excludes the current unanswered user message from the kept-raw metrics" do
+    Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+    enable_compaction!
+    enable_operational_log_indexing!
+    session = chat
+    add_messages(session, 130)
+    session.messages.create!(role: "user", content: [ { "type" => "text", "text" => "still typing" } ])
+
+    described_class.maybe_compact!(session)
+    Observability::EventSink.flush!(kinds: [ :operational ])
+
+    event = OperationalLogEvent.last
+    expect(event.context["messages_kept_raw"]).to eq("39")
+  end
+
   it "finds the compaction cutoff without counting the whole transcript" do
     enable_compaction!
     session = chat
