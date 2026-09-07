@@ -62,5 +62,24 @@ RSpec.describe SyrusBrowser::ArtifactSinks do
 
       expect { sink.capture(bytes: png_bytes, content_type: "image/png", title: "x") }.not_to raise_error
     end
+
+    it "surfaces a captured Runtime Session screenshot through the core list_chat_media MCP tool as a chat_image, with no dedicated media source needed" do
+      runtime_session = RuntimeSession.create!(repository: repository, chat_session: chat_session, workspace_ref: "a", provider_key: "browser", display_name: "Browser", state: "running")
+      sink = described_class.new(chat_session, runtime_session: runtime_session)
+      document = sink.capture(bytes: png_bytes, content_type: "image/png", title: "Runtime capture")
+
+      server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::ListChatMediaTool ],
+        server_context: { chat_session: chat_session }
+      )
+      raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_chat_media", arguments: {} } }.to_json)
+      result = JSON.parse(raw, symbolize_names: true)
+      payload = JSON.parse(result.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+
+      expect(payload[:chat_images]).to contain_exactly(
+        include(id: "chat_image:#{document.id}", kind: "chat_image", filename: document.filename, content_type: "image/png")
+      )
+    end
   end
 end

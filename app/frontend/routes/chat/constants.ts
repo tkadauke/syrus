@@ -47,4 +47,18 @@ export const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
 
 export const WHITEBOARD_MAX_ELEMENTS = 1000
 
+// Cross-panel signal from the media gallery's "Attach to message" action
+// (WorkspacePanels.tsx) to the composer (Compose.tsx) — the two live as
+// siblings under ChatWorkspace, several layers apart from the gallery, so a
+// window CustomEvent avoids threading a callback prop through every
+// intermediate component. Same technique already used for
+// syrus:video-walkthrough events (see appEvents.ts).
+export const CHAT_ATTACH_MEDIA_EVENT = "syrus:attach-media-to-composer"
+
+export type AttachMediaToComposerDetail = {
+  chatId: string
+  url: string
+  name: string
+  mimeType: string
+}
 export type ChatQueryKey = readonly ["chats", string, string]
