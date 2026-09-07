@@ -290,5 +290,11 @@
     "loading": "Wird geladen...",
     "unavailable_heading": "Seite nicht verfügbar",
     "unavailable_body": "Diese Seite ist derzeit nicht verfügbar."
+  },
+  "shortcuts": {
+    "open_help": "Tastaturkürzel anzeigen",
+    "group_global": "Global",
+    "title": "Tastaturkürzel",
+    "empty": "Derzeit sind keine Tastaturkürzel aktiv."
   }
 }

@@ -290,5 +290,11 @@
     "loading": "Loading...",
     "unavailable_heading": "Page unavailable",
     "unavailable_body": "This page is not available right now."
+  },
+  "shortcuts": {
+    "open_help": "Show keyboard shortcuts",
+    "group_global": "Global",
+    "title": "Keyboard shortcuts",
+    "empty": "No keyboard shortcuts are active right now."
   }
 }
