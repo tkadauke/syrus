@@ -1314,7 +1314,7 @@ validates it, merges one integration PR, and comments on/closes member
 PRs as an all-or-nothing unit.
 
 **Epicless job bundling** (`epicless_job_bundling` Labs flag, default
-off) generalizes the same mechanism to non-Epic Jobs: `MergeTrain` now
+on) generalizes the same mechanism to non-Epic Jobs: `MergeTrain` now
 validates exactly one of `epic` or a nullable `priority` tier is set.
 `LandingBundleAssembler`'s priority-tier scope (the same scope-keyed query
 class whose Epic scope replaced the former `MergeTrainAssembler`, see

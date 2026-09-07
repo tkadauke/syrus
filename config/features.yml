@@ -73,9 +73,9 @@ features:
     category: "Labs"
     name: "Epicless Job bundling"
     name_i18n_key: "features.slugs.epicless_job_bundling.name"
-    description: "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train. Experimental."
+    description: "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train."
     description_i18n_key: "features.slugs.epicless_job_bundling.description"
-    default: false
+    default: true
   - slug: persistent_mcp_sidecar
     category: "Labs"
     name: "Persistent MCP sidecar"
