@@ -115,6 +115,8 @@ type CreateJobRequest struct {
 	Prompt        string `json:"prompt"`
 	Priority      string `json:"priority,omitempty"`
 	AgentProvider string `json:"agent_provider,omitempty"`
+	EpicID        int64  `json:"epic_id,omitempty"`
+	OwnerUserID   int64  `json:"owner_user_id,omitempty"`
 }
 
 type CreateJobParams struct {
@@ -176,6 +178,8 @@ func (c *Client) CreateDirectJob(ctx context.Context, params CreateJobParams) (J
 		Prompt:        params.Prompt,
 		Priority:      params.Priority,
 		AgentProvider: params.AgentProvider,
+		EpicID:        params.EpicID,
+		OwnerUserID:   params.OwnerUserID,
 	}, &out)
 	return out, err
 }

@@ -34,6 +34,11 @@ func TestJobCreatePostsDirectJob(t *testing.T) {
 			if payload["prompt"] != "Make the CLI flow work.\nKeep the stones numbered." {
 				t.Fatalf("prompt = %#v", payload["prompt"])
 			}
+			for _, omitted := range []string{"priority", "agent_provider", "epic_id", "owner_user_id"} {
+				if _, present := payload[omitted]; present {
+					t.Fatalf("expected %q to be omitted when not passed, got %#v", omitted, payload[omitted])
+				}
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"job":{"id":456,"title":"Tune the aqueduct"},"repository":{"slug":"acme/widgets"}}`))
@@ -56,6 +61,137 @@ func TestJobCreatePostsDirectJob(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "JOB-456 created. Track with: syrus job watch 456") {
 		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestJobCreateWithPriorityAgentAndOwnerFlags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"active_repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/jobs":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["priority"] != "high" {
+				t.Fatalf("priority = %#v", payload["priority"])
+			}
+			if payload["agent_provider"] != "codex" {
+				t.Fatalf("agent_provider = %#v", payload["agent_provider"])
+			}
+			if payload["owner_user_id"].(float64) != 7 {
+				t.Fatalf("owner_user_id = %#v", payload["owner_user_id"])
+			}
+			if _, present := payload["epic_id"]; present {
+				t.Fatalf("expected epic_id to be omitted when --epic is not passed, got %#v", payload["epic_id"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"job":{"id":457,"title":"Tune the aqueduct"},"repository":{"slug":"acme/widgets"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader("Tune the aqueduct\nMake the CLI flow work.\n\n"))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{
+		"job", "create", "--repo", "acme/widgets", "--yes",
+		"--priority", "high", "--agent", "codex", "--owner", "7",
+	})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(output.String(), "JOB-457 created. Track with: syrus job watch 457") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestJobCreateWithEpicFlagResolvesEpicID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"active_repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		case "/api/v1/app/epics/42":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"epic":{"id":99,"title":"Aqueduct overhaul"}}`))
+		case "/api/v1/app/jobs":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["epic_id"].(float64) != 99 {
+				t.Fatalf("epic_id = %#v", payload["epic_id"])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"job":{"id":458,"title":"Tune the aqueduct"},"repository":{"slug":"acme/widgets"}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader("Tune the aqueduct\nMake the CLI flow work.\n\n"))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/widgets", "--yes", "--epic", "EPIC-42"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(output.String(), "JOB-458 created. Track with: syrus job watch 458") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestJobCreateRejectsInvalidPriority(t *testing.T) {
+	writeJobActionTestCredentials(t, "http://example.invalid")
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader("Tune the aqueduct\nMake the CLI flow work.\n\n"))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/widgets", "--yes", "--priority", "urgentish"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected an error for an invalid --priority value")
+	}
+	if !strings.Contains(err.Error(), "invalid --priority") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestJobCreateRejectsNonNumericOwner(t *testing.T) {
+	writeJobActionTestCredentials(t, "http://example.invalid")
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader("Tune the aqueduct\nMake the CLI flow work.\n\n"))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/widgets", "--yes", "--owner", "not-a-user-id"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected an error for a non-numeric --owner value")
+	}
+	if !strings.Contains(err.Error(), "invalid --owner") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

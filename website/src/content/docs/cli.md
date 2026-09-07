@@ -249,6 +249,7 @@ Use `syrus job` commands for direct Job work:
 
 ```bash
 syrus job list --state open --limit 20
+syrus job list --repo tkadauke/myapp
 syrus job search "dark mode"
 syrus job show 456
 syrus job log 456
@@ -271,12 +272,33 @@ human-readable slugs derived from the job title (e.g.
 
 `job create` prompts for a title and multi-line description, defaults to
 the current checkout repository, and accepts `--repo owner/name` and
-`--yes`.
+`--yes`. Optional flags set fields the API already accepts but that the
+interactive prompt does not ask for: `--priority` (`urgent`, `high`,
+`medium`, or `low`; omitted defaults to `medium` server-side), `--agent`
+(an agent provider slug, e.g. `claude` or `codex`), `--epic` (an Epic to
+attach the job to, as `EPIC-<id>` or a slug — resolved to its numeric ID
+before the job is created), and `--owner` (the numeric user ID of a
+repository member to assign as owner). All four are optional and omitted
+entirely from the request when not passed, rather than sent as blank
+values.
 
 `job log` pages completed transcripts through `$PAGER` and streams
 running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub
 credential; if no GitHub token is available, it prints the PR URL.
+
+`job show`, `job list`/`job search`, `job log`, `job watch`, and `job diff`
+all accept `--json`, matching `syrus status --json`: instead of the
+human-readable rendering, they print the already-fetched API response as
+JSON on stdout for scripting and the desktop app. `--json` disables the
+polling behavior of `job log` and `job watch` — each prints a single
+snapshot of the current transcript or Job state and exits rather than
+following it.
+
+`job list`/`job search` also accept `--repo owner/name` to scope results to
+one repository, overriding auto-detection from the current checkout; without
+it they fall back to the detected repository (or all repositories visible to
+the user, outside a checkout), same as `syrus jobs` and `syrus inbox`.
 
 `job checkout` verifies that the current checkout matches the Job's
 repository, fetches the Syrus branch from `origin`, and checks it out. If the
@@ -362,12 +384,47 @@ When the current branch is not a Syrus Job branch, it prints `Not on a
 Syrus job branch.` or returns `{"job_id":0,"branch":"","behind":0}` with
 `--json`.
 
+## Local Mode
+
+`syrus local` pairs this machine to a Syrus chat session so the chat agent
+can read and write files, run shell commands, and inspect git state
+directly on your machine instead of a server-side clone:
+
+```bash
+syrus local --chat 123 --token abc123...
+```
+
+It requires the `local_mode` Labs feature flag to be enabled on your Syrus
+instance and a chat session already switched to Local mode. Pairing starts
+from the chat UI, not the CLI: while a chat is in Local mode and not yet
+connected, Syrus shows a banner with the exact `syrus local --chat
+<chat_session_id> --token <auth_token>` command to copy and run. Running it
+opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
+backend and reconnects automatically (with backoff) if the connection
+drops; press Ctrl+C to disconnect cleanly.
+
+Flags:
+
+| Flag | Description |
+| --- | --- |
+| `--chat` | Syrus chat session id from the pairing command (required) |
+| `--token` | Pairing auth token from the pairing command (required) |
+| `--dir` | Path to the git repository (defaults to the current directory) |
+
+The command must run inside a git repository (or point `--dir` at one); it
+derives the repository slug from the `origin` remote and reports the
+current branch when it connects. Local Mode intentionally bypasses graders,
+the landing queue, and other Syrus automation, so treat the pairing token
+as sensitive — it grants file and command access to this machine for the
+lifetime of the paired chat session.
+
 ## Epics
 
 Use `syrus epic` to inspect and create Epics:
 
 ```bash
 syrus epic list
+syrus epic list --repo tkadauke/myapp
 syrus epic search "launch"
 syrus epic show 12
 syrus epic create
@@ -377,6 +434,11 @@ syrus epic open 12
 `epic create` must run inside a GitHub checkout. It prompts for a title
 and multi-line description, confirms the repository, creates the Epic,
 and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
+
+`epic list`/`epic search` and `epic show` also accept `--json` for the
+same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic
+search` also accept `--repo owner/name`, overriding auto-detection the same
+way as `job list`/`job search`.
 
 ## Repositories and Identity
 
@@ -389,6 +451,8 @@ syrus jobs
 syrus jobs --repo acme/widgets
 syrus jobs --closed
 ```
+
+`syrus whoami` and `syrus repo list` accept `--json` too.
 
 `jobs` lists active Jobs across repositories by default and can scope
 to one repository.

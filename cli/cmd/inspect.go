@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -47,11 +48,13 @@ func NewJobCommand() *cobra.Command {
 func newJobListCommand(search bool) *cobra.Command {
 	var state string
 	var limit int
+	var jsonOut bool
+	var repo string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List jobs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, "")
+			return runJobList(cmd, state, limit, "", jsonOut, repo)
 		},
 	}
 	if search {
@@ -59,18 +62,26 @@ func newJobListCommand(search bool) *cobra.Command {
 		cmd.Short = "Search jobs by title"
 		cmd.Args = cobra.ExactArgs(1)
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, args[0])
+			return runJobList(cmd, state, limit, args[0], jsonOut, repo)
 		}
 	}
 	cmd.Flags().StringVar(&state, "state", "open", "open, closed, or all")
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print jobs as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
 	return cmd
 }
 
 func newJobSearchCommand() *cobra.Command { return newJobListCommand(true) }
 
+type jobShowJSON struct {
+	api.JobDetail
+	Transcript api.JobTranscript `json:"transcript"`
+}
+
 func newJobShowCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "show JOB-ID",
 		Short: "Show a job",
 		Args:  cobra.ExactArgs(1),
@@ -85,6 +96,9 @@ func newJobShowCommand() *cobra.Command {
 			}
 			transcript, _ := client.GetJobTranscript(cmd.Context(), args[0])
 			out := cmd.OutOrStdout()
+			if jsonOut {
+				return json.NewEncoder(out).Encode(jobShowJSON{JobDetail: job, Transcript: transcript})
+			}
 			fmt.Fprintf(out, "JOB-%d · %s\n", job.Job.ID, job.Job.Title)
 			fmt.Fprintf(out, "State: %s\nRepo: %s\n", job.Job.State, job.Repository.Slug)
 			if job.Job.PRURL != "" {
@@ -104,10 +118,13 @@ func newJobShowCommand() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print job as JSON")
+	return cmd
 }
 
 func newJobLogCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "log JOB-ID",
 		Short: "Show or stream a job transcript",
 		Args:  cobra.ExactArgs(1),
@@ -115,6 +132,13 @@ func newJobLogCommand() *cobra.Command {
 			client, _, err := apiClient()
 			if err != nil {
 				return err
+			}
+			if jsonOut {
+				transcript, err := client.GetJobTranscript(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(transcript)
 			}
 			seen := 0
 			for {
@@ -140,10 +164,13 @@ func newJobLogCommand() *cobra.Command {
 			}
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print the job transcript as JSON")
+	return cmd
 }
 
 func newJobWatchCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "watch JOB-ID",
 		Short: "Watch a job",
 		Args:  cobra.ExactArgs(1),
@@ -151,6 +178,13 @@ func newJobWatchCommand() *cobra.Command {
 			client, _, err := apiClient()
 			if err != nil {
 				return err
+			}
+			if jsonOut {
+				job, err := client.GetJobDetail(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(job)
 			}
 			first := true
 			for {
@@ -174,10 +208,13 @@ func newJobWatchCommand() *cobra.Command {
 			}
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print the job as JSON instead of watching it")
+	return cmd
 }
 
 func newJobDiffCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "diff JOB-ID",
 		Short: "Show a job pull request diff",
 		Args:  cobra.ExactArgs(1),
@@ -190,6 +227,9 @@ func newJobDiffCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(diff)
+			}
 			if diff.NoGithubToken || diff.Diff == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), diff.PRURL)
 				return nil
@@ -197,6 +237,8 @@ func newJobDiffCommand() *cobra.Command {
 			return page(cmd, diff.Diff)
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print the job diff as JSON")
+	return cmd
 }
 
 func NewEpicCommand() *cobra.Command {
@@ -221,6 +263,8 @@ func newEpicCreateCommand() *cobra.Command {
 
 func newEpicListCommand(search bool) *cobra.Command {
 	var limit int
+	var jsonOut bool
+	var repo string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List epics",
@@ -229,7 +273,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 			if search {
 				query = args[0]
 			}
-			return runEpicList(cmd, limit, query)
+			return runEpicList(cmd, limit, query, jsonOut, repo)
 		},
 	}
 	if search {
@@ -238,6 +282,8 @@ func newEpicListCommand(search bool) *cobra.Command {
 		cmd.Args = cobra.ExactArgs(1)
 	}
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print epics as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
 	return cmd
 }
 
@@ -262,7 +308,8 @@ func newEpicOpenCommand() *cobra.Command {
 }
 
 func newEpicShowCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "show EPIC-ID",
 		Short: "Show an epic",
 		Args:  cobra.ExactArgs(1),
@@ -276,6 +323,9 @@ func newEpicShowCommand() *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
+			if jsonOut {
+				return json.NewEncoder(out).Encode(epic)
+			}
 			fmt.Fprintf(out, "%s · %s\nState: %s\nRepo: %s\n\n", epicSlug(epic.Epic.Number), epic.Epic.Title, epic.Epic.State, epic.Epic.RepositorySlug)
 			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
@@ -285,11 +335,14 @@ func newEpicShowCommand() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print the epic as JSON")
+	return cmd
 }
 
 func NewRepoCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "repo", Short: "Inspect Syrus repositories"}
-	cmd.AddCommand(&cobra.Command{
+	var jsonOut bool
+	repoListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List repositories",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -300,6 +353,9 @@ func NewRepoCommand() *cobra.Command {
 			repos, err := client.ListRepositories(cmd.Context())
 			if err != nil {
 				return err
+			}
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(repos)
 			}
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "REPO\tACTIVE JOBS\tLAST JOB")
@@ -312,12 +368,15 @@ func NewRepoCommand() *cobra.Command {
 			}
 			return tw.Flush()
 		},
-	})
+	}
+	repoListCmd.Flags().BoolVar(&jsonOut, "json", false, "Print repositories as JSON")
+	cmd.AddCommand(repoListCmd)
 	return cmd
 }
 
 func NewWhoamiCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+	cmd := &cobra.Command{
 		Use:   "whoami",
 		Short: "Show current Syrus identity",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -329,13 +388,18 @@ func NewWhoamiCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if jsonOut {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(who)
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Email: %s\nInstance: %s\nToken: …%s\n", who.Whoami.Email, creds.URL, last4(creds.Token))
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print identity as JSON")
+	return cmd
 }
 
-func runJobList(cmd *cobra.Command, state string, limit int, query string) error {
+func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
@@ -343,44 +407,64 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string) error
 	filters := url.Values{}
 	filters.Set("state", state)
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
+	if repo = strings.TrimSpace(repo); repo == "" {
+		repo = cliplugin.DetectCurrentRepoSlug()
+	}
+	if repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListJobs(cmd.Context(), filters)
 	if err != nil {
 		return err
 	}
-	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
+	jobs := make([]api.JobItem, 0, len(list.Jobs))
 	for _, job := range list.Jobs {
 		if query != "" && !strings.Contains(strings.ToLower(job.Title), strings.ToLower(query)) {
 			continue
 		}
+		jobs = append(jobs, job)
+	}
+	if jsonOut {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.JobList{Count: len(jobs), Jobs: jobs})
+	}
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
+	for _, job := range jobs {
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State), job.RepositorySlug, truncate(job.Title, 80), prText(job))
 	}
 	return tw.Flush()
 }
 
-func runEpicList(cmd *cobra.Command, limit int, query string) error {
+func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo string) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
 	}
 	filters := url.Values{}
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
+	if repo = strings.TrimSpace(repo); repo == "" {
+		repo = cliplugin.DetectCurrentRepoSlug()
+	}
+	if repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListEpics(cmd.Context(), filters)
 	if err != nil {
 		return err
 	}
-	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
+	epics := make([]api.EpicItem, 0, len(list.Epics))
 	for _, epic := range list.Epics {
 		if query != "" && !strings.Contains(strings.ToLower(epic.Title), strings.ToLower(query)) {
 			continue
 		}
+		epics = append(epics, epic)
+	}
+	if jsonOut {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.EpicList{Count: len(epics), Epics: epics})
+	}
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
+	for _, epic := range epics {
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
 	}
 	return tw.Flush()

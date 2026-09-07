@@ -371,4 +371,68 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("Repository not found")
   end
+
+  it "attaches the job to an epic in the same repository when epic_id is provided" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      epic_id: epic.id,
+      prompt: "Add a piece of the Epic."
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.epic).to eq(epic)
+  end
+
+  it "rejects an epic_id that does not belong to the target repository" do
+    sign_in_as(user)
+    other_repo = Factories.repository(user: user)
+    foreign_epic = Factories.epic(repository: other_repo, user: user)
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        epic_id: foreign_epic.id,
+        prompt: "Do something."
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Epic not found")
+  end
+
+  it "assigns owner_user_id to a fellow repository member" do
+    sign_in_as(user)
+    teammate = Factories.user
+    RepositoryMembership.create!(repository: repository, user: teammate, role: "write")
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      owner_user_id: teammate.id,
+      prompt: "Do something on the teammate's behalf."
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.owner_user).to eq(teammate)
+  end
+
+  it "rejects an owner_user_id for a user without repository access" do
+    sign_in_as(user)
+    outsider = Factories.user
+
+    expect {
+      post "/api/v1/app/jobs", params: {
+        repository_id: repository.id,
+        owner_user_id: outsider.id,
+        prompt: "Do something."
+      }
+    }.not_to change(Job, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("repository access")
+  end
 end
