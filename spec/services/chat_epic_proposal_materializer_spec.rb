@@ -292,7 +292,6 @@ RSpec.describe ChatEpicProposalMaterializer do
   end
 
   it "accepts a linear child Job chain under the default linear policy" do
-    repository.update!(epic_dependency_policy: "nonlinear")
     proposal = epic_proposal
     first = child_for(proposal, "first")
     second = child_for(proposal, "second")
@@ -359,22 +358,6 @@ RSpec.describe ChatEpicProposalMaterializer do
 
   it "rejects fan-out child dependency graphs under the default linear policy" do
     proposal = epic_proposal
-    root = child_for(proposal, "root")
-    left = child_for(proposal, "left")
-    right = child_for(proposal, "right")
-    depend_on(left, root)
-    depend_on(right, root)
-
-    expect {
-      described_class.new(user: user).file!(proposal)
-    }.to raise_error(ArgumentError, /single chain.*left, right/)
-    expect(proposal.reload).to be_proposed
-  end
-
-  it "rejects a nonlinear child graph even when the target Epic's stored policy is nonlinear" do
-    target_epic = Factories.epic(user: user, repository: repository, epic_dependency_policy: "nonlinear")
-    proposal = epic_proposal
-    proposal.update!(target_epic: target_epic)
     root = child_for(proposal, "root")
     left = child_for(proposal, "left")
     right = child_for(proposal, "right")

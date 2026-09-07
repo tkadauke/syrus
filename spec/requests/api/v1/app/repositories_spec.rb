@@ -357,7 +357,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       treat_grader_timeouts_as_failures: true,
       agent_provider: "codex",
       auto_approve_mode: "if_graders_pass",
-      epic_dependency_policy: "nonlinear",
+      epic_dependency_policy: "linear",
       github_owner_id: 123,
       github_repository_id: 456
     )
@@ -387,7 +387,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "external_pr_ingestion_enabled" => false,
       "agent_provider" => "codex",
       "auto_approve_mode" => "if_graders_pass",
-      "epic_dependency_policy" => "nonlinear",
+      "epic_dependency_policy" => "linear",
       "github_owner_id" => 123,
       "github_repository_id" => 456,
       "repository_path" => repository_path(repository)
@@ -943,7 +943,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
   end
 
-  it "rejects newly setting the nonlinear Epic dependency policy on repository create" do
+  it "rejects an unknown Epic dependency policy on repository create" do
     sign_in_as(user)
 
     expect {
@@ -960,7 +960,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("nonlinear")
+    expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
   end
 
   it "honors explicit main branch repair settings when creating fork repositories" do
@@ -1087,7 +1087,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
   end
 
-  it "rejects newly setting the nonlinear Epic dependency policy on repository update" do
+  it "rejects an unknown Epic dependency policy on repository update" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", epic_dependency_policy: "linear")
 
@@ -1097,25 +1097,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("nonlinear")
+    expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
     expect(repository.reload.epic_dependency_policy).to eq("linear")
-  end
-
-  it "keeps an already-nonlinear repository Epic dependency policy readable after unrelated updates" do
-    sign_in_as(user)
-    repository = Factories.repository(user: user, owner: "acme", name: "widgets", epic_dependency_policy: "nonlinear")
-
-    patch "/api/v1/app/repositories/#{repository.id}", params: {
-      repository: { trigger_label: "delegate" }
-    }
-
-    expect(response).to have_http_status(:ok)
-    expect(repository.reload).to have_attributes(trigger_label: "delegate", epic_dependency_policy: "nonlinear")
-
-    get "/api/v1/app/repositories/#{repository.id}/edit"
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["repository"]).to include("epic_dependency_policy" => "nonlinear")
   end
 
   it "resumes repository work even when main remains broken" do

@@ -5,7 +5,7 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
   FEEDBACK_POLICIES = %w[ auto confirm ].freeze
-  EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
+  EPIC_DEPENDENCY_POLICIES = %w[ linear ].freeze
   CI_HEALTH_STATES = %w[ unknown healthy broken not_configured inconclusive ].freeze
   GRADER_HEALTH_STATES = %w[ unknown healthy broken inconclusive ].freeze
   # Consecutive PollMainBranchHealthJob ticks that fail to reach GitHub
