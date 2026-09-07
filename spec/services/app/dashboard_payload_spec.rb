@@ -1192,7 +1192,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       backfill_work_unit(
         workflow,
         state: "blocked",
-        blocked_reason: "admission_control",
+        blocked_reason: "provider_availability",
         blocked_details: { "start_blocked_reason" => "workflow_admission_budget" }
       )
 
@@ -1217,7 +1217,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       workflow.update!(state: "running")
       next_check = 5.minutes.from_now
       workflow.work_unit.block!(
-        reason: "admission_control",
+        reason: "provider_availability",
         blocked_until: next_check,
         details: { "reason" => "worker_host_pressure_high", "source" => "spec" }
       )
@@ -1225,7 +1225,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       rows = call(subject: "job", section: "rows")
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
-      expect(item[:start_blocked_reason]).to eq("admission_control")
+      expect(item[:start_blocked_reason]).to eq("provider_availability")
       expect(item[:start_blocked_next_check_at]).to eq(next_check.iso8601)
       expect(item[:start_blocked_details]).to include("reason" => "worker_host_pressure_high")
 
