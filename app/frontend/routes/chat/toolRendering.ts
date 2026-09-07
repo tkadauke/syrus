@@ -33,8 +33,6 @@ export type ToolResultPresentation = {
 
 export type TypedToolResult =
   | { type: "success_row"; label: string }
-  | { type: "proposal_outcome"; label: string; title: string; detail: string }
-  | { type: "state_summary"; label: string; rows: Array<{ label: string; value: string }> }
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -269,22 +267,24 @@ export function typedToolResult(name: string, body: string, error = false): Type
   switch (normalizedName) {
     case "set_bookmark":
       return bookmarkResult(parsed)
-    case "propose_job":
-    case "propose_epic":
-    case "propose_epic_with_jobs":
-      return proposalOutcomeResult(normalizedName, parsed)
-    case "check_job_mergeability":
-      return mergeabilityStateSummaryResult(parsed)
     default:
       return null
   }
 }
 
-export function toolResultPresentation(name: string, body: string, error = false): ToolResultPresentation {
+// `parseBody` defaults to `body` but callers that already have the tool
+// result's complete, untruncated text (see `fullResultBodyUnbounded`) should
+// pass it explicitly: `body` itself is frequently the display-bounded
+// preview `fullResultBody` produces, and MCP tool results are typically
+// emitted as a single long `JSON.generate(data)` line, so truncating that
+// string before parsing corrupts the JSON mid-object -- `parseJsonText` then
+// returns null and both the generic and any plugin tool card silently lose
+// the whole result (JOB-4223).
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
   if (error) return { kind: "error", summary: "" }
 
   const normalizedName = normalizedToolName(name)
-  const parsed = parseJsonText(body)
+  const parsed = parseJsonText(parseBody)
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -383,54 +383,6 @@ function bookmarkResult(parsed: unknown): TypedToolResult | null {
   return { type: "success_row", label: `Bookmark added: ${label}` }
 }
 
-function proposalOutcomeResult(name: string, parsed: unknown): TypedToolResult | null {
-  if (!isPlainObject(parsed)) return null
-
-  const title = stringValue(parsed.title).trim()
-  const slug = stringValue(parsed.slug).trim()
-  const kind = stringValue(parsed.kind).trim() || (name.includes("epic") ? "epic" : "job")
-  if (!title && !slug) return null
-
-  const state = stringValue(parsed.state).trim()
-  const repository = stringValue(parsed.repository).trim()
-  const targetEpic = isPlainObject(parsed.target_epic) ? stringValue(parsed.target_epic.label).trim() : ""
-  const details = [
-    slug,
-    state,
-    repository,
-    targetEpic ? `target ${targetEpic}` : ""
-  ].filter(Boolean)
-
-  return {
-    type: "proposal_outcome",
-    label: `${humanizeToolName(kind)} proposal ready`,
-    title: title || slug,
-    detail: details.join(" · ")
-  }
-}
-
-function mergeabilityStateSummaryResult(parsed: unknown): TypedToolResult | null {
-  if (!isPlainObject(parsed)) return null
-
-  const message = stringValue(parsed.message).trim()
-  const label = message || "Mergeability check requested"
-  const rows = compactRows([
-    ["Pending action", parsed.pending_action_id],
-    ["State", parsed.state],
-    ["Job", isPlainObject(parsed.payload) ? parsed.payload.job_id : parsed.job_id]
-  ])
-  if (!message && rows.length === 0) return null
-
-  return { type: "state_summary", label, rows }
-}
-
-function compactRows(rows: Array<[string, unknown]>) {
-  return rows.flatMap(([label, value]) => {
-    const text = value == null ? "" : String(value).trim()
-    return text ? [{ label, value: text }] : []
-  })
-}
-
 export function parseJsonText(value: string): unknown {
   const trimmed = value.trim()
   if (!trimmed) return null
@@ -455,7 +407,12 @@ export function fullResultBody(content: unknown): string {
   return toolResultPreview(fullResultBodyUnbounded(content))
 }
 
-function fullResultBodyUnbounded(content: unknown): string {
+// Unbounded counterpart of fullResultBody, exported so callers building a
+// ChatToolGroupCall can keep the complete tool result text around for JSON
+// parsing (see toolResultPresentation's `parseBody` param and
+// MessageCards.tsx's ToolResultBody) instead of only the display-bounded
+// preview.
+export function fullResultBodyUnbounded(content: unknown): string {
   if (typeof content === "string") return shortenWorkspacePaths(content)
   if (Array.isArray(content)) {
     return content.map((item) => {

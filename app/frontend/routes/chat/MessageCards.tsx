@@ -487,12 +487,18 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
+  // result_json parses the tool result's complete, untruncated text;
+  // result_body is a display-bounded preview that can cut a long single-line
+  // JSON result mid-object, so plugin cards must not re-derive parsedResult
+  // from it (JOB-4223). Builders that haven't computed result_json (e.g. the
+  // admin transcript grouper) leave it undefined -- fall back to parsing the
+  // body they did set, same as before.
   const pluginBody = call.result_error ? null : pluginToolCardExpandedBody({
     toolName: call.tool_name,
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
     resultError: call.result_error,
-    parsedResult: parseJsonText(call.result_body)
+    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
   })
   if (pluginBody != null) return <>{pluginBody}</>
 
@@ -505,27 +511,6 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
       return (
         <div className="mt-1 rounded border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium text-success">
           {result.label}
-        </div>
-      )
-    case "proposal_outcome":
-      return (
-        <div className="mt-1 rounded border border-info/30 bg-info/10 px-3 py-2 text-sm">
-          <div className="font-medium text-info">{result.label}: {result.title}</div>
-          {result.detail ? <div className="mt-1 font-mono text-xs text-info">{result.detail}</div> : null}
-        </div>
-      )
-    case "state_summary":
-      return (
-        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="font-medium text-gray-900 dark:text-gray-100">{result.label}</div>
-          <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-            {result.rows.map((row) => (
-              <div className="min-w-0" key={`${row.label}-${row.value}`}>
-                <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{row.label}</dt>
-                <dd className="truncate font-mono text-xs text-gray-700 dark:text-gray-300" title={row.value}>{row.value}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
       )
   }

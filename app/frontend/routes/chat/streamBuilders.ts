@@ -10,7 +10,7 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPe
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import { fullResultBody, fullResultBodyUnbounded, parseJsonText, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -89,9 +89,12 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       if (open && open.call.result_body === "") {
         const content = contentRecord(message.content)
-        open.call.result_body = shortenWorkspacePaths(content ? fullResultBody(content.content ?? content.result) : String(message.content ?? message.text))
+        const rawResult = content ? content.content ?? content.result : message.content ?? message.text
+        const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
+        open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
+        open.call.result_json = parseJsonText(unboundedBody)
         open.call.result_error = content?.is_error === true
-        const resultPresentation = toolResultPresentation(open.call.tool_name, open.call.result_body, open.call.result_error)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, open.call.result_body, open.call.result_error, unboundedBody)
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata

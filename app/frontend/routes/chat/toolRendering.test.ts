@@ -97,6 +97,18 @@ describe("toolResultPresentation", () => {
 
     expect(result).toMatchObject({ kind: "text", summary: "" })
   })
+
+  it("parses from the explicit parseBody argument instead of the (possibly truncated) display body", () => {
+    // Simulates a caller that only has a truncated display preview for
+    // `body` (e.g. fullResultBody's output) but kept the complete text
+    // separately (fullResultBodyUnbounded) for parsing -- see JOB-4223.
+    const truncatedBody = '{"design_docs": [{"id": 1, "doc_ref": "DOC-1'
+    const fullBody = JSON.stringify({ design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }] })
+
+    const result = toolResultPresentation("list_design_docs", truncatedBody, false, fullBody)
+
+    expect(result).toMatchObject({ kind: "text", summary: "1 design doc" })
+  })
 })
 
 describe("typedToolResult", () => {
@@ -107,40 +119,16 @@ describe("typedToolResult", () => {
     })
   })
 
-  it("renders proposal tools as proposal outcomes", () => {
-    expect(typedToolResult("propose_job", JSON.stringify({
-      id: 1800,
-      slug: "fix-output",
-      title: "Fix output",
-      kind: "job",
-      state: "pending",
-      repository: "tkadauke/syrus"
-    }))).toEqual({
-      type: "proposal_outcome",
-      label: "Job proposal ready",
-      title: "Fix output",
-      detail: "fix-output · pending · tkadauke/syrus"
-    })
-  })
-
   it("no longer special-cases read_job/read_epic (superseded by their tool_cards/ renderers)", () => {
     expect(typedToolResult("read_job", JSON.stringify({ job: { id: 4048, state: "running" } }))).toBeNull()
     expect(typedToolResult("read_epic", JSON.stringify({ epic: { id: 285, state: "running" } }))).toBeNull()
   })
 
-  it("summarizes predictable mergeability pending-action payloads", () => {
-    expect(typedToolResult("check_job_mergeability", JSON.stringify({
-      pending_action_id: 201,
-      state: "pending",
-      message: "Check mergeability for JOB-2351?"
-    }))).toEqual({
-      type: "state_summary",
-      label: "Check mergeability for JOB-2351?",
-      rows: [
-        { label: "Pending action", value: "201" },
-        { label: "State", value: "pending" }
-      ]
-    })
+  it("no longer special-cases proposal/pending-action tools (superseded by their tool_cards/ renderers)", () => {
+    expect(typedToolResult("propose_job", JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" }))).toBeNull()
+    expect(typedToolResult("propose_epic", JSON.stringify({ slug: "fix-epic", title: "Fix epic", kind: "epic", state: "proposed" }))).toBeNull()
+    expect(typedToolResult("propose_epic_with_jobs", JSON.stringify({ slug: "fix-epic", state: "proposed" }))).toBeNull()
+    expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-2351?" }))).toBeNull()
   })
 
   it("returns null for unknown tools and malformed typed payloads", () => {
