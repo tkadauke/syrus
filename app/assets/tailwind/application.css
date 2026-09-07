@@ -309,4 +309,13 @@
 .chat-prose-invert th, .chat-prose-invert td {
   border-color: rgba(255,255,255,0.35);
 }
+
+/* Edge fade for horizontally-scrollable tab/nav strips (`overflow-x-auto`
+   on narrow viewports). Without it, an off-screen tab looks like clipped
+   content rather than a hint that the strip scrolls -- there's no
+   scrollbar on touch browsers to say otherwise. */
+.scroll-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+}
 .chat-prose-invert th { background: rgba(255,255,255,0.1); }
