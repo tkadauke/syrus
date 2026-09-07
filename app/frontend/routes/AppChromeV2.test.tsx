@@ -1941,6 +1941,39 @@ describe("chatSectionsFromPayload", () => {
     expect(sections[0].chats.filter((chat) => chat.id === 2)).toHaveLength(1)
     expect(sections[0].has_more).toBe(false)
   })
+
+  describe("keyboard shortcuts help", () => {
+    it("opens the shortcuts help modal on '?' and lists the shortcut itself", () => {
+      renderAppChrome()
+
+      expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
+
+      fireEvent.keyDown(window, { key: "?" })
+
+      const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
+      expect(within(dialog).getByText("Show keyboard shortcuts")).toBeInTheDocument()
+      expect(within(dialog).getByText("Global")).toBeInTheDocument()
+    })
+
+    it("does not open the shortcuts help modal while typing in an input", () => {
+      renderAppChrome()
+
+      fireEvent.keyDown(screen.getByLabelText("Search Syrus"), { key: "?" })
+
+      expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
+    })
+
+    it("closes the shortcuts help modal from its close button", () => {
+      renderAppChrome()
+
+      fireEvent.keyDown(window, { key: "?" })
+      const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close keyboard shortcuts" }))
+
+      expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
+    })
+  })
 })
 
 function renderAppChrome(
