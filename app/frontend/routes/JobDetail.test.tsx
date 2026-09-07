@@ -2585,6 +2585,37 @@ describe("Job Detail keyboard shortcuts", () => {
     })
   })
 
+  it("routes the approve shortcut through the same preview-stop prompt the button's click path uses", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_approve: true },
+      preview: { id: 1, state: "running", url: "http://localhost:3001", expires_at: null, error_message: null, error_reason: null }
+    })
+
+    fireEvent.keyDown(window, { key: "a" })
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Approve this Job?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    // Confirming the shortcut must fall through to the button's own click
+    // path (onApprove -> withPreviewStop), which intercepts with the
+    // preview-stop prompt instead of approving immediately.
+    await waitFor(() => expect(screen.getByText("A preview environment is running")).toBeInTheDocument())
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep running" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/approve",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
   it("arms a confirmation before reopening on the shortcut path and executes on confirm", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job reopened." }))
     const payload = jobPayload({ job: { ...baseJob(), state: "closed", summary_state: "closed" } })
