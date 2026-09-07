@@ -6,6 +6,7 @@ import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
+import { useShortcut } from "../../contexts/ShortcutsContext"
 import { type JobDetailPayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand, type CommandInput } from "./command"
@@ -45,6 +46,32 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
   const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
   const canRequestChanges = payload.actions.can_request_changes && onToggleRequestChangesPanel
+
+  // Keyboard shortcuts mirror the availability check of the button each one
+  // stands in for -- found via the same `actions` list, so a shortcut can
+  // never fire when its button wouldn't even be rendered. "approve" and
+  // "reopen" pushed by headerActions() carry no `confirm:` (their mouse-click
+  // path executes immediately), so the shortcut path adds one on top rather
+  // than reusing the raw input -- that click behavior must stay untouched.
+  const shortcutGroup = t("shortcuts.group")
+  const approveAction = actions.find((action) => action.key === "approve")
+  const unapproveAction = actions.find((action) => action.key === "unapprove")
+  const retryAction = actions.find((action) => action.key === "retry_failed_step") ?? actions.find((action) => action.key === "retry_implementation")
+  const cancelAction = actions.find((action) => action.key === "cancel")
+  const stopLandingAction = actions.find((action) => action.key === "stop_landing")
+  const reopenAction = actions.find((action) => action.key === "reopen")
+  const pinAction = actions.find((action) => action.key === "pin")
+
+  // Approve's own click path is `onApprove` (JobDetail.tsx), not a plain
+  // `command.mutate` -- it first runs the withPreviewStop check that offers
+  // to stop an active preview before approving. The shortcut must confirm,
+  // then fall through to that exact same path, or it would silently skip
+  // the preview-stop prompt the button always shows.
+  async function triggerApproveShortcut() {
+    if (!(await command.confirm({ message: t("confirm_approve_shortcut"), destructive: true }))) return
+    if (onApprove) onApprove()
+    else if (approveAction) command.mutate(approveAction.input)
+  }
 
   function handleActionClick(action: HeaderAction) {
     if (action.key === "approve" && onApprove) {
@@ -95,6 +122,13 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
         ))}
         {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} onActionClick={handleActionClick} onRetryFeedback={(input) => { setRetryFeedbackInput(input); setRetryFeedbackOpen(true) }} /> : null}
       </div>
+      {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="a" onTrigger={triggerApproveShortcut} /> : null}
+      {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
+      {retryAction ? <JobShortcut description={retryAction.label} group={shortcutGroup} keys="r" onTrigger={() => command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })} /> : null}
+      {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
+      {stopLandingAction ? <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="s" onTrigger={() => command.mutate(stopLandingAction.input)} /> : null}
+      {reopenAction ? <JobShortcut description={reopenAction.label} group={shortcutGroup} keys="o" onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })} /> : null}
+      {pinAction ? <JobShortcut description={pinAction.label} group={shortcutGroup} keys="p" onTrigger={() => command.mutate(pinAction.input)} /> : null}
       {retryFeedbackOpen ? (
         <RetryFeedbackDialog
           command={command}
@@ -104,6 +138,18 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
       ) : null}
     </>
   )
+}
+
+// Registers one header-action keyboard shortcut for as long as the caller
+// mounts it. Defined at module scope (not inline in HeaderActions) so it
+// keeps a stable component identity across HeaderActions re-renders --
+// otherwise every re-render would remount it and needlessly re-register the
+// shortcut. Rendering it conditionally (only when the corresponding action
+// is available) is what makes an unavailable shortcut a true no-op: it is
+// never registered in the first place, not merely gated inside the handler.
+function JobShortcut({ description, group, keys, onTrigger }: { description: string; group: string; keys: string; onTrigger: () => void }) {
+  useShortcut(keys, onTrigger, { description, group })
+  return null
 }
 
 export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (body: string) => void }) {

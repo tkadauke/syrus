@@ -290,5 +290,12 @@
     "loading": "Onerans...",
     "unavailable_heading": "Pagina non praesto",
     "unavailable_body": "Haec pagina nunc non praesto est."
+  },
+  "shortcuts": {
+    "open_help": "Claves compendiarias monstra",
+    "group_global": "Universalis",
+    "title": "Claves compendiariae",
+    "close": "Claves compendiarias claude",
+    "empty": "Nullae claves compendiariae nunc actae sunt."
   }
 }
