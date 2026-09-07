@@ -757,6 +757,308 @@ func TestCheckoutCommandPlainBranchReportsMissingBranch(t *testing.T) {
 	}
 }
 
+func TestCheckoutCommandPlainBranchFastForwardsAlreadyCheckedOutBranch(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "merge --ff-only refs/remotes/origin/main":
+			return "Updating abc123..def456\nFast-forward\n", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+
+	// No "checkout main" (already on it) and, crucially, no separate
+	// merge-base ancestor pre-check — merge --ff-only is the sole arbiter.
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"status", "--porcelain"},
+		{"fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"},
+		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
+		{"branch", "--show-current"},
+		{"merge", "--ff-only", "refs/remotes/origin/main"},
+		{"rev-parse", "--show-toplevel"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCommandPlainBranchSwitchesToExistingLocalBranch(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", nil
+		case "branch --show-current":
+			return "develop\n", nil
+		case "checkout main":
+			return "", nil
+		case "merge --ff-only refs/remotes/origin/main":
+			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"status", "--porcelain"},
+		{"fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"},
+		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
+		{"branch", "--show-current"},
+		{"checkout", "main"},
+		{"merge", "--ff-only", "refs/remotes/origin/main"},
+		{"rev-parse", "--show-toplevel"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+// TestCheckoutCommandPlainBranchSucceedsWhenLocalIsAheadOfOrigin is a
+// regression test for a bug where a `merge-base --is-ancestor localRef
+// remoteRef` pre-check was run before `merge --ff-only`: that pre-check
+// fails whenever the local branch has unpushed commits ahead of origin
+// (a safe, common state), even though nothing would be lost. `merge
+// --ff-only` alone is the correct arbiter — it no-ops ("Already up to
+// date") when local is ahead, fast-forwards when behind, and only fails
+// on genuine divergence. This test pins that merge-base is never called.
+func TestCheckoutCommandPlainBranchSucceedsWhenLocalIsAheadOfOrigin(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "merge --ff-only refs/remotes/origin/main":
+			// A real git ff-only merge is a no-op when local is already
+			// ahead of (or equal to) the remote — "Already up to date."
+			return "Already up to date.\n", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestCheckoutCommandPlainBranchRejectsDivergedBranch(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "merge --ff-only refs/remotes/origin/main":
+			return "", fmt.Errorf("fatal: Not possible to fast-forward, aborting.")
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := "local branch main has diverged from origin/main; commit, stash, or reconcile your local branch first"
+	if err.Error() != want {
+		t.Fatalf("error = %q", err.Error())
+	}
+
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"status", "--porcelain"},
+		{"fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"},
+		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
+		{"branch", "--show-current"},
+		{"merge", "--ff-only", "refs/remotes/origin/main"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCommandPlainBranchWarnsWhenFetchFailsButLocalBranchExists(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", fmt.Errorf("network error")
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	output := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(stderr)
+	command.SetArgs([]string{"checkout", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+	if !strings.Contains(stderr.String(), "could not fetch origin for main") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+
+	// No checkout (already on main) and no merge attempt — origin is
+	// unreachable, so the local branch is used as-is.
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"status", "--porcelain"},
+		{"fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"},
+		{"show-ref", "--verify", "--quiet", "refs/heads/main"},
+		{"branch", "--show-current"},
+		{"rev-parse", "--show-toplevel"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
 func TestCheckoutCommandChecksOutSingleSinkEpicJob(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/app/epics/42" {

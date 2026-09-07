@@ -513,7 +513,7 @@ func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, b
 // branches.
 func runPlainBranchCheckout(cmd *cobra.Command, branchName string, noHooks bool) error {
 	branchName = strings.TrimSpace(branchName)
-	if err := checkoutPlainBranch(cmd.Context(), checkoutRunGit, branchName); err != nil {
+	if err := checkoutPlainBranch(cmd.Context(), checkoutRunGit, branchName, cmd.ErrOrStderr()); err != nil {
 		return err
 	}
 	if !noHooks {
@@ -525,7 +525,7 @@ func runPlainBranchCheckout(cmd *cobra.Command, branchName string, noHooks bool)
 	return nil
 }
 
-func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName string) error {
+func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName string, stderr io.Writer) error {
 	inside, err := runner(ctx, "", "rev-parse", "--is-inside-work-tree")
 	if err != nil || strings.TrimSpace(inside) != "true" {
 		return errors.New("Current directory is not a git repository.")
@@ -560,6 +560,10 @@ func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName strin
 		return nil
 	}
 
+	if fetchErr != nil {
+		fmt.Fprintf(stderr, "warning: could not fetch origin for %s; checking out the local branch as-is\n", branchName)
+	}
+
 	currentBranch, err := runner(ctx, "", "branch", "--show-current")
 	currentBranchName := ""
 	if err == nil {
@@ -575,12 +579,15 @@ func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName strin
 		return nil
 	}
 
-	if _, err := runner(ctx, "", "merge-base", "--is-ancestor", localRef, remoteRef); err != nil {
-		return fmt.Errorf("local branch %s has diverged from origin/%s; reconcile it before checking out again", branchName, branchName)
-	}
-
+	// `merge --ff-only` is the sole arbiter of divergence: it no-ops when
+	// the local branch is already at or ahead of origin, fast-forwards
+	// when it's behind, and only fails when the two have genuinely
+	// diverged. A separate `merge-base --is-ancestor localRef remoteRef`
+	// pre-check would misfire on the common "local branch has unpushed
+	// commits ahead of origin" case, since local isn't an ancestor of
+	// remote there even though nothing would be lost.
 	if _, err := runner(ctx, "", "merge", "--ff-only", remoteRef); err != nil {
-		return fmt.Errorf("git fast-forward failed: %w", err)
+		return fmt.Errorf("local branch %s has diverged from origin/%s; commit, stash, or reconcile your local branch first", branchName, branchName)
 	}
 	return nil
 }
