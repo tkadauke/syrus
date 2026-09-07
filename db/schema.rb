@@ -2314,6 +2314,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
 
   create_table "runtime_control_leases", force: :cascade do |t|
     t.datetime "acquired_at"
+    t.string "active_group_key"
     t.text "cancel_reason"
     t.boolean "cancellable", default: true, null: false
     t.datetime "created_at", null: false
@@ -2326,6 +2327,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
     t.integer "runtime_session_id", null: false
     t.string "state", default: "active", null: false
     t.datetime "updated_at", null: false
+    t.index ["active_group_key"], name: "idx_runtime_control_leases_active_group_key_unique", unique: true
     t.index ["runtime_session_id", "mode", "state"], name: "index_runtime_control_leases_on_session_mode_state"
     t.index ["runtime_session_id", "state"], name: "index_runtime_control_leases_on_runtime_session_id_and_state"
     t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"

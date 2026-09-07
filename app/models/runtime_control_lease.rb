@@ -33,7 +33,13 @@ class RuntimeControlLease < ApplicationRecord
   validates :owner, inclusion: { in: OWNERS }
   validates :mode, inclusion: { in: MODES }
   validates :state, inclusion: { in: STATES }
+  # Belt-and-suspenders: the DB-level unique index on active_group_key is the
+  # actual concurrency guarantee (see the migration and .acquire! below); this
+  # validation just turns the common, non-concurrent case into a normal
+  # ActiveRecord::RecordInvalid instead of a raw DB error.
+  validates :active_group_key, uniqueness: true, allow_nil: true
 
+  before_validation :sync_active_group_key
   after_create_commit :handle_acquired
 
   scope :in_state, ->(state) { where(state: state) }
@@ -47,29 +53,52 @@ class RuntimeControlLease < ApplicationRecord
   # Acquires a new lease for a runtime session, raising Conflict when another
   # active lease already holds the same serialization group (input, or
   # build/lifecycle). observe_only never requires a lease at all.
+  #
+  # Concurrency: a `SELECT ... FOR UPDATE` conflict check can't lock rows that
+  # don't exist yet, so it can't stop two concurrent callers who both observe
+  # "no active lease" from both inserting one. The actual guarantee comes from
+  # `active_group_key`'s DB-level unique index (see migration) -- two
+  # concurrent `create!`s for the same group can never both succeed,
+  # regardless of transaction isolation level, because uniqueness is enforced
+  # against the index's current state at INSERT time, not either transaction's
+  # read snapshot. `reap_stale_holder!` is a best-effort convenience so a
+  # lease that has merely timed out (DOC-17: "leases should be short-lived and
+  # auto-expire") doesn't wedge the group until something calls #expire! --
+  # it is not required for correctness.
   def self.acquire!(runtime_session:, owner:, mode:, owner_ref: nil, reason: nil, duration_seconds: nil, cancellable: true)
     raise ArgumentError, "observe_only does not require a lease" if mode == "observe_only"
 
     group = SERIALIZATION_GROUPS.fetch(mode) { raise ArgumentError, "unknown mode #{mode.inspect}" }
-    group_modes = SERIALIZATION_GROUPS.select { |_, g| g == group }.keys
     duration = (duration_seconds || DEFAULT_DURATION).to_i.clamp(MIN_DURATION.to_i, MAX_DURATION.to_i)
 
     transaction do
-      conflict = runtime_session.runtime_control_leases.active.where(mode: group_modes).lock.first
-      raise Conflict, "runtime session #{runtime_session.id} already has an active #{group} lease" if conflict
+      reap_stale_holder!(runtime_session: runtime_session, group: group)
 
-      create!(
-        runtime_session: runtime_session,
-        owner: owner,
-        owner_ref: owner_ref,
-        mode: mode,
-        reason: reason,
-        state: "active",
-        acquired_at: Time.current,
-        expires_at: duration.seconds.from_now,
-        cancellable: cancellable
-      )
+      begin
+        create!(
+          runtime_session: runtime_session,
+          owner: owner,
+          owner_ref: owner_ref,
+          mode: mode,
+          reason: reason,
+          state: "active",
+          acquired_at: Time.current,
+          expires_at: duration.seconds.from_now,
+          cancellable: cancellable
+        )
+      rescue ActiveRecord::RecordNotUnique
+        raise Conflict, "runtime session #{runtime_session.id} already has an active #{group} lease"
+      rescue ActiveRecord::RecordInvalid => e
+        raise unless e.record.errors.of_kind?(:active_group_key, :taken)
+        raise Conflict, "runtime session #{runtime_session.id} already has an active #{group} lease"
+      end
     end
+  end
+
+  private_class_method def self.reap_stale_holder!(runtime_session:, group:)
+    group_modes = SERIALIZATION_GROUPS.select { |_, g| g == group }.keys
+    holder = runtime_session.runtime_control_leases.in_state("active").where(mode: group_modes).lock.first
+    holder.expire! if holder&.expired_by_time?
   end
 
   # Immediately revokes the runtime session's active agent lease(s), bypassing
@@ -155,6 +184,14 @@ class RuntimeControlLease < ApplicationRecord
   end
 
   private
+
+  # Mirrors WorkUnitLock#active_lock_key: non-nil only while this lease
+  # currently holds its serialization group, so the unique index only ever
+  # rejects a genuine second holder of the same group.
+  def sync_active_group_key
+    group = SERIALIZATION_GROUPS[mode]
+    self.active_group_key = (state == "active" && group) ? "#{runtime_session_id}:#{group}" : nil
+  end
 
   def handle_acquired
     self.class.send(:audit!, runtime_session: runtime_session, action: "acquire", lease: self)
