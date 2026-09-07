@@ -18,6 +18,14 @@ RSpec.describe SyrusBrowser::Engine do
     expect(Syrus::PluginRegistry.providers_for(:artifact_renderer)).to include(SyrusBrowser::ImageDiffRenderer)
   end
 
+  it "registers SyrusBrowser::ChatToolSet as the :chat_mcp_tool_set provider" do
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(SyrusBrowser::ChatToolSet)
+  end
+
+  it "registers SyrusBrowser::RuntimeSessionProvider as the :runtime_session_provider provider" do
+    expect(Syrus::PluginRegistry.providers_for(:runtime_session_provider)).to include(SyrusBrowser::RuntimeSessionProvider)
+  end
+
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil
@@ -30,5 +38,13 @@ RSpec.describe SyrusBrowser::Engine do
 
   it "includes the ArtifactRenderer plugin interface module" do
     expect(SyrusBrowser::ImageDiffRenderer.ancestors).to include(Syrus::Plugin::ArtifactRenderer)
+  end
+
+  it "includes the ChatMcpToolSet plugin interface module" do
+    expect(SyrusBrowser::ChatToolSet.ancestors).to include(Syrus::Plugin::ChatMcpToolSet)
+  end
+
+  it "includes the RuntimeSessionProvider plugin interface module" do
+    expect(SyrusBrowser::RuntimeSessionProvider.ancestors).to include(Syrus::Plugin::RuntimeSessionProvider)
   end
 end
