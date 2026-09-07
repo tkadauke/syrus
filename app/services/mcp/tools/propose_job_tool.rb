@@ -72,7 +72,7 @@ module Mcp::Tools
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
-        description = description.to_s.strip
+        description = normalize_line_breaks(description).strip
         depends_on_epic_ids = normalize_integer_list(depends_on_epic_ids)
         depends_on_job_ids = normalize_integer_list(depends_on_job_ids)
 

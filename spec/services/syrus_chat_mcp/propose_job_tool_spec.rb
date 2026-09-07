@@ -33,6 +33,18 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("`\\n`")
   end
 
+  it "normalizes literal backslash-n sequences in the description into real line breaks" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Fix footer",
+      description: "Steps:\\n1. Update copy\\n2. Ship it"
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Fix footer")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.body).to eq("Steps:\n1. Update copy\n2. Ship it")
+  end
+
   it "creates a Job proposal targeting an existing Epic" do
     epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
 
