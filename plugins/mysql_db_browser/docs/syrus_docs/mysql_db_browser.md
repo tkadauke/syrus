@@ -151,7 +151,14 @@ independent of the plugin's own enable/disable toggle. When set,
 that specific connection becomes queryable by workflow and chat agents
 through five MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`MysqlDbBrowser::WorkflowToolSet` / `MysqlDbBrowser::ChatToolSet`,
-`plugins/mysql_db_browser/app/services/mysql_db_browser/{workflow,chat}_tool_set.rb`):
+`plugins/mysql_db_browser/app/services/mysql_db_browser/{workflow,chat}_tool_set.rb`).
+Both include the shared `Syrus::Plugin::GatedToolSet` /
+`Syrus::Plugin::GatedToolSet::Workflow` mixins
+(`lib/syrus/plugin/gated_tool_set.rb`) rather than hand-rolling the
+find-tool-class/dispatch/rescue/log skeleton, parameterized via `gated_by`
+with the plugin module, gating model, and (for `ChatToolSet`) an
+error-message label - `K8sCluster::WorkflowToolSet`/`ChatToolSet` include the
+same mixins, see the K8s Cluster docs for the parallel shape:
 
 - `mysql_db_browser_list_connections` - lists configured DB Browser
   connections using safe metadata only: `id`, `label`, `default_database`,

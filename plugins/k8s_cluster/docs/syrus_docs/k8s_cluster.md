@@ -290,7 +290,12 @@ through eleven read-only MCP tools (plus four write tools gated separately -
 see "Write-capable agentic tools" below) exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`K8sCluster::WorkflowToolSet` / `K8sCluster::ChatToolSet`,
 `plugins/k8s_cluster/app/services/k8s_cluster/{workflow,chat}_tool_set.rb`),
-mirroring `mysql_db_browser`'s own MCP tool sets:
+mirroring `mysql_db_browser`'s own MCP tool sets - both include the shared
+`Syrus::Plugin::GatedToolSet` / `Syrus::Plugin::GatedToolSet::Workflow`
+mixins (`lib/syrus/plugin/gated_tool_set.rb`) rather than hand-rolling the
+find-tool-class/dispatch/rescue/log skeleton, parameterized via `gated_by`
+with the plugin module, gating model, and (for `ChatToolSet`) an
+error-message label:
 
 - `k8s_cluster_list_clusters` - lists registered clusters using safe
   metadata only: `id`, `label`, `agentic_access_enabled`, `allow_writes`,
