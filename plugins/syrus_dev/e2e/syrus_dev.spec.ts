@@ -229,8 +229,13 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
 
   await explainDialog.getByRole("button", { name: "SQL", exact: true }).click()
   await expect(explainDialog.getByText("SELECT `jobs`.* FROM `jobs` WHERE `jobs`.`state` = NULL")).toBeVisible()
+
+  // Opening Explain closes the request drilldown modal underneath it (only one
+  // modal renders at a time in AdminPerformance -- see openExplain's
+  // setRequestDetail(null)), so closing Explain leaves no modal on screen at
+  // all rather than reopening the request dialog.
   await explainDialog.getByRole("button", { name: "Close" }).click()
-  await requestDialog.getByRole("button", { name: "Close" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
 
   // Phases tab shows the same seeded phase outside of the request drilldown.
   await page.getByRole("button", { name: "Phases", exact: true }).click()
