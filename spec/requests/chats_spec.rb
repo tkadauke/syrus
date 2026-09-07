@@ -30,22 +30,19 @@ RSpec.describe "Chats", type: :request do
 
   it "does not route the retired legacy HTML chat endpoints" do
     expect {
-      Rails.application.routes.recognize_path("/chats/new", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
-      Rails.application.routes.recognize_path("/chats/new/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
-      Rails.application.routes.recognize_path("/chats/1/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
       Rails.application.routes.recognize_path("/chats", method: :post)
     }.to raise_error(ActionController::RoutingError)
     expect {
       Rails.application.routes.recognize_path("/chats/1/message", method: :post)
     }.to raise_error(ActionController::RoutingError)
-    expect {
-      Rails.application.routes.recognize_path("/chats/1/messages", method: :get)
-    }.to raise_error(ActionController::RoutingError)
+  end
+
+  it "serves the SPA shell for retired legacy HTML chat GET paths instead of 404ing" do
+    [ "/chats/new", "/chats/new/legacy", "/chats/1/legacy", "/chats/1/messages" ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
   end
 end

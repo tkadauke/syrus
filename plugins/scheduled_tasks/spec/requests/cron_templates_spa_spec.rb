@@ -53,16 +53,16 @@ RSpec.describe "Cron templates", type: :request do
       expect(response.body).to include('id="syrus-spa-root"')
     end
 
+    it "serves the SPA shell for retired legacy HTML cron-template GET paths instead of 404ing" do
+      [ "/cron_templates/legacy", "/cron_templates/legacy/new", "/cron_templates/legacy/1" ].each do |path|
+        get path
+
+        expect(response).to be_successful, "expected #{path} to serve the SPA shell"
+        expect(response.body).to include('id="syrus-spa-root"')
+      end
+    end
+
     it "does not route the retired legacy HTML cron-template endpoints" do
-      expect {
-        Rails.application.routes.recognize_path("/cron_templates/legacy", method: :get)
-      }.to raise_error(ActionController::RoutingError)
-      expect {
-        Rails.application.routes.recognize_path("/cron_templates/legacy/new", method: :get)
-      }.to raise_error(ActionController::RoutingError)
-      expect {
-        Rails.application.routes.recognize_path("/cron_templates/legacy/1", method: :get)
-      }.to raise_error(ActionController::RoutingError)
       expect {
         Rails.application.routes.recognize_path("/cron_templates", method: :post)
       }.to raise_error(ActionController::RoutingError)

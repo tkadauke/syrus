@@ -6,13 +6,10 @@ RSpec.describe "Repository whiteboards", type: :request do
 
   before { sign_in_as(user) }
 
-  it "does not route the retired repository-wide whiteboard endpoint" do
-    expect {
-      Rails.application.routes.recognize_path("/repositories/#{repo.id}/whiteboard", method: :get)
-    }.to raise_error(ActionController::RoutingError)
+  it "serves the SPA shell for the retired repository-wide whiteboard GET path instead of 404ing" do
+    get "/repositories/#{repo.id}/whiteboard"
 
-    get "/repositories/#{repo.id}/whiteboard", as: :json
-
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 end

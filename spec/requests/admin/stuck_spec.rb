@@ -23,9 +23,11 @@ RSpec.describe "Admin stuck list", type: :request do
     end
   end
 
-  it "does not route the retired legacy stuck-items endpoint" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/stuck/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
+  it "serves the SPA shell for the retired legacy stuck-items GET path instead of 404ing" do
+    sign_in_as(admin)
+    get "/admin/stuck/legacy"
+
+    expect(response).to be_successful
+    expect(response.body).to include('id="syrus-spa-root"')
   end
 end
