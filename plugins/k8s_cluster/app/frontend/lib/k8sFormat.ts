@@ -34,3 +34,61 @@ export function formatBytes(bytes: number): string {
   const value = bytes / 1024 ** exponent
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
+
+const BINARY_MEMORY_SUFFIXES: Record<string, number> = {
+  Ki: 1024,
+  Mi: 1024 ** 2,
+  Gi: 1024 ** 3,
+  Ti: 1024 ** 4,
+  Pi: 1024 ** 5,
+  Ei: 1024 ** 6
+}
+
+const DECIMAL_MEMORY_SUFFIXES: Record<string, number> = {
+  K: 1000,
+  M: 1000 ** 2,
+  G: 1000 ** 3,
+  T: 1000 ** 4,
+  P: 1000 ** 5,
+  E: 1000 ** 6
+}
+
+export function kubernetesCpuMillicores(value: string | null | undefined): number | null {
+  if (!value) return null
+  if (value.endsWith("n")) return Math.round(Number(value.slice(0, -1)) / 1_000_000)
+  if (value.endsWith("u")) return Math.round(Number(value.slice(0, -1)) / 1_000)
+  if (value.endsWith("m")) return Number.parseInt(value.slice(0, -1), 10)
+
+  const cores = Number(value)
+  return Number.isFinite(cores) ? Math.round(cores * 1000) : null
+}
+
+export function kubernetesMemoryBytes(value: string | null | undefined): number | null {
+  if (!value) return null
+
+  const suffix = Object.keys(BINARY_MEMORY_SUFFIXES).find((candidate) => value.endsWith(candidate)) ??
+    Object.keys(DECIMAL_MEMORY_SUFFIXES).find((candidate) => value.endsWith(candidate))
+  if (!suffix) {
+    const bytes = Number(value)
+    return Number.isFinite(bytes) ? bytes : null
+  }
+
+  const numeric = Number(value.slice(0, -suffix.length))
+  if (!Number.isFinite(numeric)) return null
+
+  return Math.round(numeric * (BINARY_MEMORY_SUFFIXES[suffix] ?? DECIMAL_MEMORY_SUFFIXES[suffix]))
+}
+
+export function formatKubernetesCpu(value: string | null | undefined): string {
+  const millicores = kubernetesCpuMillicores(value)
+  if (millicores === null) return value || "-"
+  if (millicores < 1000) return `${millicores}m`
+
+  const cores = millicores / 1000
+  return `${Number.isInteger(cores) ? cores.toFixed(0) : cores.toFixed(2).replace(/0$/, "")} vCPU`
+}
+
+export function formatKubernetesMemory(value: string | null | undefined): string {
+  const bytes = kubernetesMemoryBytes(value)
+  return bytes === null ? value || "-" : formatBytes(bytes)
+}
