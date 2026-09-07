@@ -144,13 +144,41 @@ driving the browser.
 The reviewer's browser tools are provided by the `browser` plugin
 (`plugins/browser/`), a granular MCP tool set — `browser_navigate`,
 `browser_snapshot`, `browser_click`, `browser_fill`, `browser_hover`,
-`browser_screenshot`, `browser_wait_for`, `browser_resize`, `browser_close` —
-rather than one opaque "run test suite" tool, so the agent improvises its own
-test plan against the running preview. Each call is proxied to a per-Run
+`browser_screenshot`, `browser_wait_for`, `browser_resize`, `browser_evaluate`,
+`browser_file_upload`, `browser_drag`, `browser_close` — rather than one
+opaque "run test suite" tool, so the agent improvises its own test plan
+against the running preview. Each call is proxied to a per-Run
 `@playwright/mcp` subprocess. `browser_hover` exists specifically so
 `:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards,
 hover-revealed controls) is reviewable — without it, the reviewer had no way
 to trigger that behavior and could only record `skipped` for it.
+
+**Drag-and-drop and file attachment.** Three tools cover the cases a
+click/fill/hover-only tool set can't reach:
+
+- **`browser_evaluate(function, target?, element?)`** — runs a JS function in
+  the page, optionally scoped to an element. This is the tool for native file
+  drag-and-drop: the reviewer constructs a synthetic `File` + `DataTransfer`
+  and dispatches the `dragenter`/`dragover`/`drop` event sequence on the
+  target drop-zone element, the same pattern the codebase's own RTL tests use
+  (`fireEvent.drop(target, { dataTransfer: { files } })`) to exercise the
+  identical production drop handlers.
+- **`browser_file_upload(paths?)`** — responds to an open file chooser with
+  absolute file paths (Playwright's `setInputFiles()` equivalent), or cancels
+  the chooser when called with no paths. Covers the file-*picker*
+  (`<input type="file">`) attachment path.
+- **`browser_drag(start_target, end_target, start_element?, end_element?)`** —
+  a real mouse-driven drag between two `browser_snapshot`-targeted elements.
+  Covers non-file drag interactions (list reordering, sliders, resizable
+  panels) that `browser_evaluate` wouldn't naturally express as cleanly.
+
+**Permanent limitation.** Simulating a literal OS-level drag of a file from
+the desktop file system into the browser is not buildable by any browser
+automation tool (Playwright, Puppeteer, Selenium) — it happens below the
+browser's event model, in the OS window manager. `Prompts::VisualReview`
+tells the reviewer to call `submit_visual_review` with verdict `skipped` and
+say so plainly for that specific scenario rather than spend retries hunting
+for a workaround; this is a hard boundary, not a tooling gap to keep chasing.
 
 **`browser_resize(width, height)`** resizes the viewport in CSS pixels
 within the same session — no new browser instance, no manual Playwright

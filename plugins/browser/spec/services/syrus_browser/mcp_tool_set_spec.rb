@@ -18,11 +18,12 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".tool_definitions" do
     subject(:defs) { described_class.tool_definitions }
 
-    it "exposes nine granular browser tools" do
+    it "exposes twelve granular browser tools" do
       names = defs.map { |d| d[:name] }
       expect(names).to contain_exactly(
         "browser_navigate", "browser_click", "browser_fill", "browser_hover", "browser_snapshot",
-        "browser_screenshot", "browser_wait_for", "browser_resize", "browser_close"
+        "browser_screenshot", "browser_wait_for", "browser_resize", "browser_evaluate",
+        "browser_file_upload", "browser_drag", "browser_close"
       )
     end
 
@@ -247,6 +248,79 @@ RSpec.describe SyrusBrowser::McpToolSet do
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("requires height")
+      expect(session).not_to have_received(:call_tool)
+    end
+  end
+
+  describe "#handle browser_evaluate" do
+    it "forwards element, target, and function to the upstream browser_evaluate tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle(
+        "browser_evaluate",
+        { "element" => "Drop zone", "target" => "e7", "function" => "(el) => el.click()" },
+        ctx
+      )
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: { "element" => "Drop zone", "target" => "e7", "function" => "(el) => el.click()" }
+      )
+    end
+
+    it "rejects a call missing function before calling the upstream browser" do
+      response = tool_set.handle("browser_evaluate", { "target" => "e7" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires function")
+      expect(session).not_to have_received(:call_tool)
+    end
+  end
+
+  describe "#handle browser_file_upload" do
+    it "forwards paths to the upstream browser_file_upload tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_file_upload", { "paths" => [ "/tmp/screenshot.png" ] }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_file_upload", arguments: { "paths" => [ "/tmp/screenshot.png" ] }
+      )
+    end
+
+    it "allows calling with no paths to cancel the file chooser" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_file_upload", {}, ctx)
+
+      expect(session).to have_received(:call_tool).with(name: "browser_file_upload", arguments: {})
+    end
+  end
+
+  describe "#handle browser_drag" do
+    it "forwards start/end element and target to the upstream browser_drag tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle(
+        "browser_drag",
+        { "start_element" => "List item 1", "start_target" => "e1", "end_element" => "List item 3", "end_target" => "e3" },
+        ctx
+      )
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_drag",
+        arguments: {
+          "startElement" => "List item 1", "startTarget" => "e1",
+          "endElement" => "List item 3", "endTarget" => "e3"
+        }
+      )
+    end
+
+    it "rejects a call missing end_target before calling the upstream browser" do
+      response = tool_set.handle("browser_drag", { "start_target" => "e1" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires end_target")
       expect(session).not_to have_received(:call_tool)
     end
   end

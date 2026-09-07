@@ -84,6 +84,30 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("never reuse refs captured at the previous viewport size")
   end
 
+  it "describes when to use browser_evaluate for native file drag-and-drop" do
+    expect(prompt).to include("browser_evaluate")
+    expect(prompt).to include("synthetic `File` + `DataTransfer`")
+    expect(prompt).to include("dragenter`/`dragover`/`drop`")
+    expect(prompt).to include("fireEvent.drop(target, { dataTransfer: { files } })")
+  end
+
+  it "describes when to use browser_file_upload for file-picker attachment" do
+    expect(prompt).to include("browser_file_upload")
+    expect(prompt).to include("File-picker")
+  end
+
+  it "describes when to use browser_drag for non-file element-to-element dragging" do
+    expect(prompt).to include("browser_drag")
+    expect(prompt).to include("Non-file element-to-element dragging")
+  end
+
+  it "tells the reviewer that literal OS-level file drag from the desktop is permanently unverifiable" do
+    expect(prompt).to include("permanently unverifiable")
+    expect(prompt).to include("OS-level drag")
+    expect(prompt).to include('verdict "skipped"')
+    expect(prompt).to include("do not spend retries hunting for a way around it")
+  end
+
   it "tells the reviewer to skip when browser automation is broken" do
     expect(prompt).to include("browser automation itself appears unavailable or broken")
     expect(prompt).to match(/at\s+most two focused retries/)
