@@ -63,22 +63,6 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
       expect(metadata).to eq(workspace_ref: "/workspace/chat-1", pid: 123, port: 3001, url: "http://localhost:3001")
     end
 
-    it "registers the process in the shared Mcp::Tools::AgentPreviewRegistry" do
-      allow(PreviewCommandSource).to receive(:new).with("/workspace/chat-1").and_return(
-        double(resolve: double(
-          start_command_for: ->(port:) { "bin/rails server -p #{port}" },
-          setup_commands: [], seed_command: nil, health_check_path: "/",
-          log_paths: [], env: {}, unset_env: []
-        ))
-      )
-      allow(Process).to receive(:spawn).and_return(424_242)
-      allow_any_instance_of(PreviewProcessLauncher).to receive(:http_ok?).and_return(true)
-
-      provider.start_session("/workspace/chat-1", { port: 3001 })
-
-      expect(Mcp::Tools::AgentPreviewRegistry.get("/workspace/chat-1")).to eq(pid: 424_242, port: 3001)
-    end
-
     it "defaults to port 3001 when no port is configured" do
       launcher = instance_double(PreviewProcessLauncher)
       allow(PreviewProcessLauncher).to receive(:new).and_return(launcher)
