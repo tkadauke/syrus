@@ -161,6 +161,18 @@ RSpec.describe ChatShellCommandJob do
     expect(chat_session.reload.turn_in_flight?).to eq(true)
   end
 
+  it "sets an internal_prompt describing the command and output for the agent turn, leaving the display text blank" do
+    make_checkout_path
+    command = create_command(command: "echo hi")
+    stub_process_runner(result: build_result, chunks: [ "hi\n" ])
+
+    described_class.perform_now(command.id)
+
+    message = chat_session.messages.order(:id).last
+    expect(message.content["text"]).to eq("")
+    expect(message.content["internal_prompt"]).to include("echo hi").and include("hi\n").and include("succeeded")
+  end
+
   it "finalizes the command as an error and still posts a chat message when the run raises" do
     make_checkout_path
     command = create_command
