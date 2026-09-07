@@ -3,7 +3,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { fetchKubernetesNodes } from "../../api/kubernetesResources"
-import { formatAge } from "../../lib/k8sFormat"
+import { formatAge, formatKubernetesCpu, formatKubernetesMemory } from "../../lib/k8sFormat"
 import { StatusBadge } from "../StatusBadge"
 
 export function NodesTab({ clusterId }: { clusterId: number }) {
@@ -42,10 +42,10 @@ export function NodesTab({ clusterId }: { clusterId: number }) {
                     </td>
                     <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{node.roles.join(", ")}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
-                      {node.capacity_cpu || "-"} / {node.capacity_memory || "-"}
+                      {formatKubernetesCpu(node.capacity_cpu)} / {formatKubernetesMemory(node.capacity_memory)}
                     </td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
-                      {node.allocatable_cpu || "-"} / {node.allocatable_memory || "-"}
+                      {formatKubernetesCpu(node.allocatable_cpu)} / {formatKubernetesMemory(node.allocatable_memory)}
                     </td>
                     <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatAge(node.created_at)}</td>
                   </tr>
