@@ -117,6 +117,19 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool) error {
 		return errors.New("run from a GitHub checkout or pass --repo owner/name")
 	}
 
+	client, _, err := apiClient()
+	if err != nil {
+		return err
+	}
+	repositories, err := client.ListRepositories(cmd.Context())
+	if err != nil {
+		return err
+	}
+	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
+	if !ok {
+		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
+	}
+
 	reader := bufio.NewReader(cmd.InOrStdin())
 	title, description, err := promptJob(reader, cmd.OutOrStdout())
 	if err != nil {
@@ -139,18 +152,6 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool) error {
 		}
 	}
 
-	client, _, err := apiClient()
-	if err != nil {
-		return err
-	}
-	repositories, err := client.ListRepositories(cmd.Context())
-	if err != nil {
-		return err
-	}
-	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
-	if !ok {
-		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
-	}
 	job, err := client.CreateDirectJob(cmd.Context(), api.CreateJobParams{
 		RepositoryID: repositoryID,
 		Title:        title,
