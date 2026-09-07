@@ -89,10 +89,23 @@ module SyrusBrowser
       tool_response_to_hash(response)
     end
 
-    # The control-lease Job gates real pointer/keyboard delivery; until that
-    # lands, any input event is safely a no-op rather than driving a shared
-    # browser session with no arbitration.
-    def input(_session_id, _event)
+    # The agent must hold an active input-mode RuntimeControlLease (DOC-17's
+    # Shared Human/Agent Control) before any pointer/keyboard/touch/etc. event
+    # reaches the shared browser session. Actual event delivery is still a
+    # no-op pending the driving implementation, but the lease gate — and its
+    # audit trail — applies regardless so callers see the real enforcement
+    # error once it lands.
+    def input(session_id, event)
+      runtime_session = find_runtime_session(session_id)
+      event = event.to_h.symbolize_keys
+      lease = runtime_session.active_agent_input_lease
+
+      unless lease
+        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
+        return { error: "lease_required", message: "the agent must hold an active input lease before sending input events" }
+      end
+
+      lease.record_input!(event)
       { error: "not_yet_supported", message: "browser input is not yet supported by this runtime session provider" }
     end
 

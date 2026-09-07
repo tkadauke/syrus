@@ -151,7 +151,15 @@ RSpec.describe SyrusBrowser::RuntimeSessionProvider do
   end
 
   describe "#input" do
-    it "reports as not yet supported without raising" do
+    it "rejects the event when the agent holds no active input lease" do
+      result = provider.input(runtime_session.id, { type: "click" })
+
+      expect(result[:error]).to eq("lease_required")
+    end
+
+    it "reports as not yet supported once the agent holds an active input lease" do
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "click a button")
+
       result = provider.input(runtime_session.id, { type: "click" })
 
       expect(result[:error]).to eq("not_yet_supported")

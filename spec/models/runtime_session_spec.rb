@@ -116,4 +116,36 @@ RSpec.describe RuntimeSession, type: :model do
       expect(described_class.for_provider("browser")).not_to include(other_session)
     end
   end
+
+  describe "#active_agent_input_lease / #agent_input_lease_active?" do
+    it "is nil/false with no leases" do
+      session = build_session
+
+      expect(session.active_agent_input_lease).to be_nil
+      expect(session.agent_input_lease_active?).to be false
+    end
+
+    it "finds the agent's active input lease, ignoring other modes" do
+      session = build_session
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "build")
+      lease = RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "input")
+
+      expect(session.active_agent_input_lease).to eq(lease)
+      expect(session.agent_input_lease_active?).to be true
+    end
+
+    it "ignores a user-held input lease" do
+      session = build_session
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "user", mode: "input")
+
+      expect(session.agent_input_lease_active?).to be false
+    end
+
+    it "ignores a released agent input lease" do
+      session = build_session
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "input").release!
+
+      expect(session.agent_input_lease_active?).to be false
+    end
+  end
 end

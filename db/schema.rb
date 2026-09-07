@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_021849) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_07_155419) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2289,6 +2289,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_021849) do
     t.index ["user_id", "created_at", "cost_usd"], name: "idx_runs_spending_user_window"
     t.index ["user_id", "state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_user_state_provider_recent"
     t.index ["user_id"], name: "index_runs_on_user_id"
+  end
+
+  create_table "runtime_control_leases", force: :cascade do |t|
+    t.datetime "acquired_at"
+    t.text "cancel_reason"
+    t.boolean "cancellable", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.string "mode", null: false
+    t.string "owner", default: "none", null: false
+    t.string "owner_ref"
+    t.text "reason"
+    t.datetime "released_at"
+    t.integer "runtime_session_id", null: false
+    t.string "state", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_session_id", "mode", "state"], name: "index_runtime_control_leases_on_session_mode_state"
+    t.index ["runtime_session_id", "state"], name: "index_runtime_control_leases_on_runtime_session_id_and_state"
+    t.index ["runtime_session_id"], name: "index_runtime_control_leases_on_runtime_session_id"
   end
 
   create_table "runtime_sessions", force: :cascade do |t|
