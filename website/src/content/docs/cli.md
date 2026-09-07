@@ -425,6 +425,30 @@ pod, restarting a rollout, scaling a deployment, cordoning a node) are
 only exposed as MCP tools today, with no backing REST endpoint for the
 CLI to call — the CLI does not duplicate them.
 
+## Search
+
+`syrus search` is contributed by the bundled `global_search` plugin and
+calls the same unified search endpoint the app's search bar uses to rank
+results across Jobs, Epics, and chats in one query:
+
+```bash
+syrus search "dark mode"
+syrus search deploy --type job,chat
+syrus search deploy --limit 10
+syrus search deploy --json
+```
+
+`--type` restricts the search to a comma-separated list of `job`, `epic`,
+and/or `chat`; omitting it searches all three. `--limit` caps the number
+of results (server default: 30, capped at 100). Results print as a
+compact one-line-per-result table grouped by type, in the order each
+type first appears in the server's relevance ranking. `--json` prints
+the raw API response instead, including the facet/filter payload the web
+UI's search page uses.
+
+A query under two characters is rejected by the server; the CLI surfaces
+that error message as-is rather than duplicating the validation.
+
 ## Claude Code skill
 
 The CLI can teach Claude Code how to drive Syrus:

@@ -3,6 +3,7 @@ module github.com/tkadauke/syrus/cli
 go 1.25.0
 
 require (
+	github.com/tkadauke/syrus/plugins/global_search/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/k8s_cluster/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -54,3 +55,5 @@ require (
 replace github.com/tkadauke/syrus/plugins/scheduled_tasks/cli => ../plugins/scheduled_tasks/cli
 
 replace github.com/tkadauke/syrus/plugins/k8s_cluster/cli => ../plugins/k8s_cluster/cli
+
+replace github.com/tkadauke/syrus/plugins/global_search/cli => ../plugins/global_search/cli
