@@ -668,7 +668,11 @@ and open in a full-size preview. The chat workspace also includes a Media tab
 that gathers image attachments into a downloadable gallery and lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
-existing work.
+existing work. Every image in the gallery — including Runtime Session
+screenshots captured in Coding Mode — has an **Attach to message** action,
+available both on the thumbnail and in its full-size preview, that pulls the
+image into the composer through the same attachment mechanism as a pasted
+screenshot; further discussion or markup happens in chat once it's attached.
 Once at least one proposal in the current chat session has been confirmed, a
 Jobs tab appears in the workspace panel. It groups confirmed proposals into
 their respective Epics (collapsible, with a done/total progress pill) and
