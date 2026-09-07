@@ -16,3 +16,4 @@ go 1.25.0
 use ./cli
 use ./plugins/scheduled_tasks/cli
 use ./plugins/k8s_cluster/cli
+use ./plugins/global_search/cli
