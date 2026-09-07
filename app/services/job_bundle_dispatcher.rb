@@ -1,6 +1,6 @@
 # Dispatches an epicless Job bundle: when a repository has a ready
-# same-priority group of approved own-PR Jobs (JobBundleAssembler),
-# create the MergeTrain/MergeTrainMember rows (epic_id: nil,
+# same-priority group of approved own-PR Jobs (LandingBundleAssembler's
+# priority-tier scope), create the MergeTrain/MergeTrainMember rows (epic_id: nil,
 # priority: <tier>), lock the member Jobs into :landing (claiming the
 # repo's single landing slot), and start the merge_train Workflow on
 # the tip member. Mirrors MergeTrainDispatcher's transactional
@@ -26,7 +26,7 @@ class JobBundleDispatcher
   def try_dispatch!
     return if blocker_reason
 
-    result = JobBundleAssembler.call(@repository)
+    result = LandingBundleAssembler.for_repository(@repository)
     return unless result.ready?
 
     workflow = nil
@@ -82,7 +82,7 @@ class JobBundleDispatcher
       return cooldown_reason(failed_bundle)
     end
 
-    readiness = JobBundleAssembler.call(@repository)
+    readiness = LandingBundleAssembler.for_repository(@repository)
     return readiness.reason unless readiness.ready?
 
     if (active_work = active_member_work(readiness.members))

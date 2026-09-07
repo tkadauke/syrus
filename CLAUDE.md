@@ -296,7 +296,7 @@ Key steps:
   Unlike `merge_train_build`/`merge_train_land`, it doesn't publish or mutate
   shared landing state, so `RetryFailedStepEnqueuer` resumes/retries it in
   place on failure (same as `implement`) instead of discarding the whole
-  train and rebuilding through `EpicLandingRetrier` — the deciding factor is
+  train and rebuilding through `LandingRetrier` — the deciding factor is
   the failed step's `Step::Kind#repair_semantics` (`:agentic` steps resume in
   place; `:rebuild`/`:publication` steps force a full merge-train rebuild).
 - **`adversarial_review`** — Independent critic agent that reads the issue

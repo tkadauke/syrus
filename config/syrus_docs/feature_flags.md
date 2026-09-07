@@ -2,7 +2,7 @@
 
 Syrus uses feature flags to gate experimental and operational behaviors. Flags are declared in `config/features.yml`, parsed through `FeatureRegistry`, and toggled in the admin UI under the Features tab (or via Rails console: `Feature.find_by(slug: 'slug').update(enabled: true)`).
 
-All current flags are typed booleans and default to `false` (disabled). Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
+All current flags are typed booleans; most default to `false` (disabled), and `epicless_job_bundling` defaults to `true` (enabled). Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
 
 ## terminal
 
@@ -110,19 +110,22 @@ queue and may produce wasted work when the front unit fails.
 
 **Category:** Labs
 
-Groundwork flag for landing multiple approved epicless Jobs together as one
-atomic bundle, the same way an Epic's children already land together via the
-merge train (`MergeTrain`/`MergeTrainMember`). `MergeTrain.epic_id` is
+Landing multiple approved epicless Jobs together as one atomic bundle, the
+same way an Epic's children already land together via the merge train
+(`MergeTrain`/`MergeTrainMember`) — Epic merge-trains and epicless Job
+bundling are two scopes of one generalized atomic-landing-unit concept
+(Epic-scoped or priority-tier-scoped), sharing the same underlying machinery
+rather than a parallel implementation. `MergeTrain.epic_id` is
 nullable and a `priority` column exists so a train row can be either
 epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
-nil, `priority` present), enforced by a model validation. `JobBundleAssembler`
-(candidate selection: same repository, epicless, approved, own-PR, grouped
+nil, `priority` present), enforced by a model validation. `LandingBundleAssembler`'s
+priority-tier scope (candidate selection: same repository, epicless, approved, own-PR, grouped
 into same-priority tiers, minimum 2 members, capped at
 `AppSetting.merge_train_max_size` without splitting a real `JobDependency`
 edge across bundles) and `JobBundleDispatcher` (transactional
 `MergeTrain`/`MergeTrainMember` creation, member locking, and dispatch of the
 existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) are
-now wired into `LandingQueueProcessor`: `blockage_for` routes a Job off the
+wired into `LandingQueueProcessor`: `blockage_for` routes a Job off the
 per-Job `auto_merge` path with a `waiting_epicless_bundle` blocked reason once
 its repository has at least two same-tier epicless own-PR candidates, and
 `try_land!`/`#call` dispatch `JobBundleDispatcher` for those Jobs the same way
@@ -133,9 +136,9 @@ active urgent bundle still blocks non-urgent Jobs from landing exactly like a
 lone active urgent Job always has. External-PR-tracked Jobs (`kind:
 "external_pr"`, landed via `Workflows::ExternalPrMerge`) are never bundle
 candidates and keep landing individually. Existing Epic merge trains are
-unaffected either way. Off by default; flip it on to try epicless bundling on
-a repository with several small approved Jobs pending in the same priority
-tier.
+unaffected either way. On by default; flip it off if a repository should keep
+landing several small approved same-priority Jobs one at a time instead of as
+a bundle.
 
 ## performance_logging
 
