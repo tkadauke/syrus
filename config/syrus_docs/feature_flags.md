@@ -82,6 +82,22 @@ text, tool calls, and bounded tool-result snippets. It is only applied to
 Supervisor chats; ordinary chats continue using their existing provider
 transcript behavior even when the flag is on.
 
+**Observability:** every actual compaction run (a new `ChatContextCheckpoint` is
+created) emits an `OperationalLogging` event with `source: "chat_context_compactor"`,
+queryable through the `admin_read_operational_logs` MCP tool (or
+`read_syrus_logs` for workflow/insight agents) when `operational_log_indexing`
+is on. The event's `context` records the chat session id and checkpoint id,
+how many messages were compacted this run vs. the cumulative total, how many
+raw messages remain uncompacted, an estimated JSON byte size for the compacted
+vs. kept content, and timing (`session_age_seconds`,
+`seconds_since_previous_checkpoint`) so an operator can judge how often
+compaction fires relative to a chat's age and length. This is intentionally
+just enough evidence to decide whether the extractive summary is pulling its
+weight or whether a real LLM-summarizer pass is worth building — not a
+dashboard. The same payload is also broadcast via
+`ActiveSupport::Notifications` as `chat_context_compactor.compacted` for local
+inspection.
+
 ## landing_validation_prefetch
 
 **Category:** Operations
