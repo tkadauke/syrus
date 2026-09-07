@@ -265,18 +265,18 @@ RSpec.describe WorkUnits::Ownership do
   end
 
   it "filters blocked job ids by blocked_reason when reasons: is given" do
-    admission_blocked = Factories.job_record(issue_number: 304)
-    dependency_blocked = Factories.job_record(repository: admission_blocked.repository, issue_number: 305)
-    admission_workflow = Workflow.create!(job: admission_blocked, trigger_kind: "initial", state: "running")
+    manually_paused = Factories.job_record(issue_number: 304)
+    dependency_blocked = Factories.job_record(repository: manually_paused.repository, issue_number: 305)
+    manual_pause_workflow = Workflow.create!(job: manually_paused, trigger_kind: "initial", state: "running")
     dependency_workflow = Workflow.create!(job: dependency_blocked, trigger_kind: "initial", state: "running")
-    attach_work_unit(admission_workflow, member_jobs: [ admission_blocked ], kind: "initial", state: "blocked", blocked_reason: "admission_control")
+    attach_work_unit(manual_pause_workflow, member_jobs: [ manually_paused ], kind: "initial", state: "blocked", blocked_reason: "manual_pause")
     attach_work_unit(dependency_workflow, member_jobs: [ dependency_blocked ], kind: "initial", state: "blocked", blocked_reason: "stack_dependencies_not_ready")
 
     scoped = described_class.all_blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS)
 
-    expect(scoped).to include(admission_blocked.id)
+    expect(scoped).to include(manually_paused.id)
     expect(scoped).not_to include(dependency_blocked.id)
-    expect(described_class.all_blocked_job_ids).to include(admission_blocked.id, dependency_blocked.id)
+    expect(described_class.all_blocked_job_ids).to include(manually_paused.id, dependency_blocked.id)
   end
 
   it "counts blocked jobs from an Active Record scope without materializing ids" do
