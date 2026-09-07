@@ -13,6 +13,8 @@ class Epic < ApplicationRecord
   NON_TERMINAL_STATES = %w[ backlog ready in_progress ].freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
+  # See Repository::EPIC_DEPENDENCY_POLICIES for why this stays a policy list
+  # despite the single current value.
   EPIC_DEPENDENCY_POLICIES = %w[ linear ].freeze
 
   attr_readonly :number
