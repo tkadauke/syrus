@@ -24,12 +24,12 @@ import { buildSourceTree } from "./sourceTree"
 // imports, so it carries no circular edge back to the route file. Unused header
 // imports were pruned after the move.
 
-export function SourceTab({ canReviewDiff = false, jobId, coverageInfo }: { canReviewDiff?: boolean; jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null }) {
-  const [mode, setMode] = useState<"browse" | "diff">("browse")
+export function SourceTab({ canReviewDiff = false, jobId, coverageInfo, initialDiff = null }: { canReviewDiff?: boolean; jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null; initialDiff?: { base: string; head: string } | null }) {
+  const [mode, setMode] = useState<"browse" | "diff">(initialDiff ? "diff" : "browse")
   const [sourceRef, setSourceRef] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
-  const [diffBaseRef, setDiffBaseRef] = useState<string | null>(null)
-  const [diffHeadRef, setDiffHeadRef] = useState<string | null>(null)
+  const [diffBaseRef, setDiffBaseRef] = useState<string | null>(initialDiff?.base ?? null)
+  const [diffHeadRef, setDiffHeadRef] = useState<string | null>(initialDiff?.head ?? null)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const search = sourceSearch(sourceRef, sourcePath)
   const diffSearch = sourceDiffSearch(diffBaseRef, diffHeadRef)

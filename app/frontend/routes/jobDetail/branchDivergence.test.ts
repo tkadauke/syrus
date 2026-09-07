@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { workflowBranchDivergence } from "./branchDivergence"
+import { diffRefsFromLocation } from "./queryKeys"
 import type { JobWorkflow } from "../../api/jobs"
 
 function workflowWith(artifacts: Record<string, unknown>): JobWorkflow {
@@ -52,5 +53,23 @@ describe("workflowBranchDivergence", () => {
       }))
       expect(parsed?.comparison).toBeNull()
     }
+  })
+})
+
+describe("diffRefsFromLocation", () => {
+  it("reads the ref pair the divergence banner links with", () => {
+    expect(diffRefsFromLocation("?diff_base=28a75d2&diff_head=6c4ddd6")).toEqual({
+      base: "28a75d2",
+      head: "6c4ddd6"
+    })
+  })
+
+  // A half-specified pair would silently diff against a default ref and show
+  // the operator a comparison that is not the one they clicked.
+  it("requires both refs", () => {
+    expect(diffRefsFromLocation("?diff_base=28a75d2")).toBeNull()
+    expect(diffRefsFromLocation("?diff_head=6c4ddd6")).toBeNull()
+    expect(diffRefsFromLocation("")).toBeNull()
+    expect(diffRefsFromLocation("?tab=source")).toBeNull()
   })
 })

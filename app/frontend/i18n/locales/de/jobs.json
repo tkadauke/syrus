@@ -678,5 +678,7 @@
   "workflow_divergence_published": "Beim Ersetzen veröffentlicht ({{count}})",
   "workflow_divergence_none": "Auf dieser Seite nichts.",
   "workflow_divergence_files": "{{count}} betroffene Datei(en)",
-  "workflow_divergence_truncated": "… weitere nicht angezeigt"
+  "workflow_divergence_truncated": "… weitere nicht angezeigt",
+  "workflow_divergence_view_discarded": "Diff ansehen →",
+  "workflow_divergence_view_published": "Diff ansehen →"
 }

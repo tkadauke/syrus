@@ -451,7 +451,18 @@ stale output. Two properties make that choice workable:
   hours later on a different worker, where neither side can be recomputed, so
   capturing it later is not an option. The comparison is best-effort — if it
   cannot be computed the divergence is still recorded and every action still
-  works, the banner just shows less.
+  works, the banner just shows less. Each side also links into the Source tab
+  with an explicit `?diff_base=&diff_head=` pair, so the operator can read the
+  real patch before choosing: GitHub compares three-dot, so replacing *discards*
+  `local...remote` and *publishes* `remote...local`. That diff is served by the
+  existing `source_diff` endpoint straight from GitHub, so it needs no workflow
+  workspace either.
+
+  Note `BranchDivergenceResolutionEvidence` does **not** back this banner. It is
+  consumed only by the three admin MCP tools, its `diff_summary` is
+  `base...HEAD` (what the workflow changed, not how the two candidates differ),
+  and it is workspace-gated. Don't reach for it to answer operator-facing
+  "which option do I pick" questions.
 - **Replace does not require the workflow's workspace.** Workspaces are
   node-local while the action runs on whichever worker is free, so requiring one
   made the button fail based on nothing but which pod picked up the job. When

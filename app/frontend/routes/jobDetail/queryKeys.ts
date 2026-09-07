@@ -50,3 +50,16 @@ export function tabFromLocation(pathname: string, search: string): JobTab {
   const value = new URLSearchParams(search).get("tab")
   return value === "review" || value === "workflows" || value === "conversation" || value === "attachments" || value === "source" || value === "tests" || value === "artifacts" ? value : "summary"
 }
+
+// The branch-divergence banner links into the source tab with an explicit pair
+// of refs so the operator can read the actual diff between the two candidates
+// before choosing. Both SHAs are on the remote (the PR branch head, and the
+// workflow's commit as a RunCheckpoint ref), so GitHub can compare them
+// directly -- no workflow workspace is involved.
+export function diffRefsFromLocation(search: string): { base: string; head: string } | null {
+  const params = new URLSearchParams(search)
+  const base = params.get("diff_base")
+  const head = params.get("diff_head")
+  if (!base || !head) return null
+  return { base, head }
+}

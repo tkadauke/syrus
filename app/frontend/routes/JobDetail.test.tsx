@@ -2267,6 +2267,46 @@ describe("SourceTab", () => {
     expect(screen.getByRole("button", { name: "user.rb" })).toBeInTheDocument()
   })
 
+  // The branch-divergence banner sends the operator here with an explicit ref
+  // pair so they can read the actual diff between the two candidates before
+  // choosing which branch survives. Opening in browse mode, or against default
+  // refs, would show them a different comparison than the one they clicked.
+  it("opens the linked diff when the banner supplies a ref pair", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input)
+      if (url.includes("source_diff")) {
+        return Promise.resolve(jsonResponse({
+          job_id: 1, base_ref: "28a75d2", head_ref: "6c4ddd6", merge_base_sha: "28a75d2",
+          default_ref: "main", branch_commits: [], truncated: false, diff_error: null,
+          files: [ { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+widget\n" } ]
+        }))
+      }
+      return Promise.resolve(jsonResponse(jobSourcePayload({})))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/1/source?diff_base=28a75d2&diff_head=6c4ddd6"]}>
+          <JobDetailView
+            activeTab="source"
+            initialDiff={{ base: "28a75d2", head: "6c4ddd6" }}
+            onSelectTab={() => {}}
+            payload={jobPayload()}
+            prefix="/app-shell"
+            queryKey={["jobs", "1", "detail", ""]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("app/models/widget.rb")).toBeInTheDocument()
+    const diffUrl = fetchSpy.mock.calls.map((call) => requestUrl(call[0])).find((url) => url.includes("source_diff"))
+    expect(diffUrl).toContain("base=28a75d2")
+    expect(diffUrl).toContain("head=6c4ddd6")
+  })
+
   it("highlights supported source file languages", async () => {
     mockJobSourceRequests()
     renderJobSource()

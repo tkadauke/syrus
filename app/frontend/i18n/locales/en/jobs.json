@@ -678,5 +678,7 @@
   "workflow_divergence_published": "Published by replacing ({{count}})",
   "workflow_divergence_none": "Nothing on this side.",
   "workflow_divergence_files": "{{count}} file(s) affected",
-  "workflow_divergence_truncated": "… more not shown"
+  "workflow_divergence_truncated": "… more not shown",
+  "workflow_divergence_view_discarded": "View this diff →",
+  "workflow_divergence_view_published": "View this diff →"
 }

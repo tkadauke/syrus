@@ -398,7 +398,12 @@ function BranchDivergencePanel({
         <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
         <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
       </dl>
-      {divergence.comparison ? <BranchDivergenceComparisonView comparison={divergence.comparison} /> : null}
+      <BranchDivergenceComparisonView
+        comparison={divergence.comparison}
+        localSha={divergence.local_sha}
+        remoteSha={divergence.remote_sha}
+        sourcePath={sourcePath}
+      />
       {divergence.recovery_pending ? (
         <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p>
       ) : null}
@@ -430,22 +435,36 @@ function BranchDivergencePanel({
 // commit lists are captured at detection time (see Steps::PrOpen), because by
 // the time anyone reads this the workspace they came from is usually on
 // another worker.
-function BranchDivergenceComparisonView({ comparison }: { comparison: BranchDivergenceComparison }) {
+function BranchDivergenceComparisonView({
+  comparison,
+  localSha,
+  remoteSha,
+  sourcePath
+}: {
+  comparison: BranchDivergenceComparison | null
+  localSha: string | null
+  remoteSha: string | null
+  sourcePath: string
+}) {
   const { t } = useT("jobs")
-  const discardedCount = comparison.discarded?.commits.length ?? 0
+  // GitHub compares three-dot, so base...head is "what head has that base does
+  // not". Replacing discards what the remote holds (local...remote); it
+  // publishes what this workflow holds (remote...local).
+  const discardsDiff = localSha && remoteSha ? `${sourcePath}?diff_base=${localSha}&diff_head=${remoteSha}` : null
+  const publishesDiff = localSha && remoteSha ? `${sourcePath}?diff_base=${remoteSha}&diff_head=${localSha}` : null
 
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">
-          {t("workflow_divergence_discarded", { count: discardedCount })}
+          {t("workflow_divergence_discarded", { count: comparison?.discarded?.commits.length ?? 0 })}
         </h4>
-        {comparison.discarded ? (
+        {comparison?.discarded ? (
           <BranchDivergenceCommitLines list={comparison.discarded} />
         ) : (
           <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
         )}
-        {comparison.discardedFiles ? (
+        {comparison?.discardedFiles ? (
           <details className="mt-1">
             <summary className="cursor-pointer text-xs text-amber-900 underline dark:text-amber-200">
               {t("workflow_divergence_files", { count: comparison.discardedFiles.files.length })}
@@ -456,16 +475,26 @@ function BranchDivergenceComparisonView({ comparison }: { comparison: BranchDive
             </ul>
           </details>
         ) : null}
+        {discardsDiff ? (
+          <Link className="mt-1 inline-block text-xs font-medium text-amber-900 underline dark:text-amber-200" to={discardsDiff}>
+            {t("workflow_divergence_view_discarded")}
+          </Link>
+        ) : null}
       </section>
       <section>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
-          {t("workflow_divergence_published", { count: comparison.published?.commits.length ?? 0 })}
+          {t("workflow_divergence_published", { count: comparison?.published?.commits.length ?? 0 })}
         </h4>
-        {comparison.published ? (
+        {comparison?.published ? (
           <BranchDivergenceCommitLines list={comparison.published} />
         ) : (
           <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
         )}
+        {publishesDiff ? (
+          <Link className="mt-1 inline-block text-xs font-medium text-amber-900 underline dark:text-amber-200" to={publishesDiff}>
+            {t("workflow_divergence_view_published")}
+          </Link>
+        ) : null}
       </section>
     </div>
   )

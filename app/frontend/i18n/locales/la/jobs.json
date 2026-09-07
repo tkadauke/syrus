@@ -674,5 +674,7 @@
   "workflow_divergence_published": "Edendum si substitueris ({{count}})",
   "workflow_divergence_none": "Nihil hac in parte.",
   "workflow_divergence_files": "{{count}} tabellae tactae",
-  "workflow_divergence_truncated": "… plura non monstrata"
+  "workflow_divergence_truncated": "… plura non monstrata",
+  "workflow_divergence_view_discarded": "Differentiam videre →",
+  "workflow_divergence_view_published": "Differentiam videre →"
 }

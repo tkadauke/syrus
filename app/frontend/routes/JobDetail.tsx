@@ -33,7 +33,7 @@ import { TagsPanel, NeedsAttentionBanner, TriageDecisionBanner, FeedbackSourceBa
 import { DeliveryPanel, deliveryPanelRelevant } from "./jobDetail/Delivery"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
-import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
+import { diffRefsFromLocation, jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
@@ -51,6 +51,7 @@ export function JobDetailRoute() {
   const navigate = useNavigate()
   const id = params.id || ""
   const activeTab = tabFromLocation(location.pathname, location.search)
+  const initialDiff = diffRefsFromLocation(location.search)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const detailSearch = jobDetailSearch(location.search)
   const queryKey = jobDetailQueryKey(id, detailSearch)
@@ -89,6 +90,7 @@ export function JobDetailRoute() {
       {payload ? (
         <JobDetailView
           activeTab={activeTab}
+          initialDiff={initialDiff}
           onSelectTab={selectTab}
           payload={payload}
           prefix={prefix}
@@ -102,7 +104,7 @@ export function JobDetailRoute() {
   )
 }
 
-export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsLoading = false, workflowsError = null, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; workflowsLoading?: boolean; workflowsError?: Error | null; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
+export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsLoading = false, workflowsError = null, activeTab, onSelectTab, prefix, initialDiff = null }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; workflowsLoading?: boolean; workflowsError?: Error | null; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string; initialDiff?: { base: string; head: string } | null }) {
   const { t } = useT("jobs")
   const { t: tTours } = useT("tours")
   const location = useLocation()
@@ -324,7 +326,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {activeTab === "conversation" ? <AgentConversationTab jobId={payload.job.id} prUrl={payload.job.pr_url} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
-      {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
+      {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} initialDiff={initialDiff} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
       <PluginUiSlot panels={(payload.ui_tabs ?? []).filter((tab) => tab.key === activeTab)} props={{ job: payload.job }} />
     </>
   )
