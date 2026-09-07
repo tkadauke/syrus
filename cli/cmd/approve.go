@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -37,17 +35,6 @@ func NewApproveCommand() *cobra.Command {
 }
 
 func normalizeJobID(value string) (string, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", errors.New("job ID is required")
-	}
-	upper := strings.ToUpper(trimmed)
-	if strings.HasPrefix(upper, "JOB-") {
-		rest := strings.TrimSpace(trimmed[4:])
-		if rest == "" {
-			return "", fmt.Errorf("invalid job ID %q", value)
-		}
-		return rest, nil
-	}
-	return trimmed, nil
+	_, id, err := parseRef(value, "JOB-", "job ID")
+	return id, err
 }

@@ -99,6 +99,39 @@ func TestPlanPrintsPendingMessageWhenNoTestPlanAvailable(t *testing.T) {
 	}
 }
 
+func TestPlanPrintsPendingMessageForSlugWithoutJobPrefix(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	var stdout bytes.Buffer
+	payload := `{
+		"job": {
+			"id": 456,
+			"issue_title": "Add user avatar upload"
+		},
+		"test_plan": null
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(payload))
+	}))
+	defer server.Close()
+	writeCredentials(t, home, server.URL, "secret-token")
+
+	command := NewTestPlanCommand()
+	command.SetOut(&stdout)
+	command.SetArgs([]string{"add-user-avatar-upload"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	expected := "No test plan available for add-user-avatar-upload yet — the job may still be implementing.\n"
+	if stdout.String() != expected {
+		t.Fatalf("unexpected output: %q", stdout.String())
+	}
+}
+
 func TestPlanDefaultsToCurrentSyrusJobBranch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

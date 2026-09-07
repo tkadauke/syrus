@@ -261,20 +261,7 @@ func epicCompleteFindTip(ctx context.Context, runner gitRunner, branches []strin
 }
 
 func parseEpicRef(input string) (string, string, error) {
-	ref := strings.TrimSpace(input)
-	if ref == "" {
-		return "", "", errors.New("epic id is required")
-	}
-	upper := strings.ToUpper(ref)
-	if strings.HasPrefix(upper, "EPIC-") {
-		id := strings.TrimSpace(ref[5:])
-		if id == "" {
-			return "", "", fmt.Errorf("invalid epic id %q", input)
-		}
-		return "EPIC-" + id, id, nil
-	}
-	// Treat as a human-readable slug; forward as-is to the API.
-	return ref, ref, nil
+	return parseRef(input, "EPIC-", "epic id")
 }
 
 type epicCandidate struct {
@@ -416,19 +403,7 @@ func epicJobLine(job api.JobItem, width int) string {
 }
 
 func parseJobRef(input string) (string, string, error) {
-	ref := strings.TrimSpace(input)
-	if ref == "" {
-		return "", "", errors.New("job id is required")
-	}
-	upper := strings.ToUpper(ref)
-	if strings.HasPrefix(upper, "JOB-") {
-		id := strings.TrimSpace(ref[4:])
-		if id == "" {
-			return "", "", fmt.Errorf("invalid job id %q", input)
-		}
-		return "JOB-" + id, id, nil
-	}
-	return "JOB-" + ref, ref, nil
+	return parseRef(input, "JOB-", "job id")
 }
 
 func checkoutJobBranch(ctx context.Context, runner gitRunner, repoSlug string, branchName string) error {

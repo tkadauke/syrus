@@ -13,8 +13,6 @@ import (
 	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
-var jobSlugPattern = regexp.MustCompile(`(?i)^JOB-(\d+)$`)
-var jobIDPattern = regexp.MustCompile(`(?i)^(?:JOB-)?(\d+)$`)
 var jobBranchPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^syrus/issue-\d+-(\d+)$`),
 	regexp.MustCompile(`^syrus/direct-(\d+)$`),
@@ -54,14 +52,8 @@ func NewTestPlanCommand() *cobra.Command {
 // JOB-<n> format, bare numeric IDs, and human-readable slugs. Numeric IDs
 // and the JOB- prefix are normalized; slugs are forwarded as-is to the API.
 func parseJobID(slug string) (string, error) {
-	trimmed := strings.TrimSpace(slug)
-	if trimmed == "" {
-		return "", errors.New("job ID is required")
-	}
-	if matches := jobIDPattern.FindStringSubmatch(trimmed); matches != nil {
-		return matches[1], nil
-	}
-	return trimmed, nil
+	_, id, err := parseRef(slug, "JOB-", "job ID")
+	return id, err
 }
 
 func runTestPlanCommand(cmd *cobra.Command, args []string) error {
