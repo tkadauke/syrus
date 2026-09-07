@@ -275,13 +275,14 @@ All signals are equivalent. On detection, `ForkReviewApprover`:
 
 **PR feedback iteration history** — each round of review feedback (a `pr_comment` or `chat_feedback` workflow) is stamped with a sequential iteration number in workflow artifacts (`pr_feedback_iteration`, `pr_feedback_auto`, `pr_feedback_source_handle`). The Job timeline (`Jobs::Timeline`) surfaces these as labeled "Feedback iteration N" events, showing whether each iteration was triggered automatically or confirmed by an operator, and who sent the triggering comment.
 
-## Next: DAG Workflows
+## Next: Workflow Engine V3
 
-Today's linear chain is the v1 implementation of a broader DAG model. The
-roadmap keeps v2/v3 focused on explicit parallel branches and
-agent-authored edges via MCP, where the template becomes the minimum graph
-and the agent can append test plans, graders, or review steps as it learns
-what the change needs.
-
-Read the canonical roadmap entry:
-[Job as execution DAG](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#job-as-execution-dag-phased-agent-execution).
+The chain shapes above are data-defined per trigger kind, not a fixed
+linear pipeline — an implementing agent can already extend its own running
+workflow at runtime via the `patch_workflow` MCP tool (append-only: it can
+add a check like `visual_review` but can't remove a step or add one that
+publishes). The active engine-level initiative is
+[Workflow Engine V3](https://github.com/tkadauke/syrus/blob/main/docs/plans/workflow-engine-v3.md),
+which consolidates the separate vocabularies that chain composition,
+admission, failure classification, and reconciliation each use for the
+same failure event into one shared `Problem` code and remediation table.
