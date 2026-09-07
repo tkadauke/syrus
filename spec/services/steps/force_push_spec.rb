@@ -203,6 +203,7 @@ RSpec.describe Steps::ForcePush do
         grader_fingerprint: "fp",
         changed_files_fingerprint: LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
       )
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/workspace")).and_return(TargetGraph.new)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
     end
 
