@@ -1,9 +1,9 @@
 module AgentActivity
   # One row per Run whose Step is agentic (Step::AGENTIC_KINDS) -- sessions
-  # only, no checks/triggers. `scope: :mine` restricts to repositories the
-  # user belongs to (Current.user.repositories.active) plus Jobs the user
-  # effectively owns (Job.effectively_owned_by, app/models/job.rb); `scope:
-  # :admin` sees every session on the instance.
+  # only, no checks/triggers. `scope: :mine` restricts to Jobs visible via
+  # `Job.accessible_to` (direct/Team repository membership plus upstream
+  # repositories) or effectively owned by the user (`Job.effectively_owned_by`,
+  # app/models/job.rb); `scope: :admin` sees every session on the instance.
   class SessionsQuery
     DEFAULT_PER = 25
     MAX_PER = 100
@@ -47,9 +47,8 @@ module AgentActivity
     def visibility_scoped(relation)
       return relation if @visibility_scope == :admin
 
-      repo_ids = @user.repositories.active.select(:id)
-      owned_job_ids = Job.effectively_owned_by(@user).select(:id)
-      relation.where(jobs: { repository_id: repo_ids }).or(relation.where(job_id: owned_job_ids))
+      visible_job_ids = Job.accessible_to(@user).or(Job.effectively_owned_by(@user)).select(:id)
+      relation.where(job_id: visible_job_ids)
     end
   end
 end
