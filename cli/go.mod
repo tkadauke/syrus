@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
+	github.com/tkadauke/syrus/plugins/design_docs/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/global_search/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/k8s_cluster/cli v0.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -59,3 +60,5 @@ replace github.com/tkadauke/syrus/plugins/scheduled_tasks/cli => ../plugins/sche
 replace github.com/tkadauke/syrus/plugins/k8s_cluster/cli => ../plugins/k8s_cluster/cli
 
 replace github.com/tkadauke/syrus/plugins/global_search/cli => ../plugins/global_search/cli
+
+replace github.com/tkadauke/syrus/plugins/design_docs/cli => ../plugins/design_docs/cli

@@ -531,6 +531,30 @@ UI's search page uses.
 A query under two characters is rejected by the server; the CLI surfaces
 that error message as-is rather than duplicating the validation.
 
+## Design Docs
+
+`syrus docs` is contributed by the bundled `design_docs` plugin and reads
+the same app API the web UI's Design Docs page and the chat
+`read_design_doc`/`list_design_docs` MCP tools call:
+
+```bash
+syrus docs list
+syrus docs list --repo acme/widgets
+syrus docs show DOC-10
+syrus docs show 10
+```
+
+`docs list` scopes to the current checkout when possible (or to
+`--repo owner/name` when given) and otherwise lists every doc you can
+see; an unrecognized `--repo` is an error, but a checkout-detected repo
+that Syrus doesn't know about quietly falls back to the unscoped list.
+`docs show` accepts either a `DOC-<id>` reference or a bare numeric id
+and pages the doc's rendered body through `$PAGER`, the same as
+`syrus job log`. This command group is read-only — proposing a doc,
+commenting, or suggesting a change are chat/proposal-flow features with
+no CLI equivalent. If the `design_docs` plugin is disabled, both
+commands surface the API's `plugin_disabled` error message as-is.
+
 ## Claude Code skill
 
 The CLI can teach Claude Code how to drive Syrus:
