@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Decisions::Escalator do
+RSpec.describe AttentionItems::Escalator do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.first }
   let(:step) { workflow.steps.first }
@@ -44,7 +44,7 @@ RSpec.describe Decisions::Escalator do
     expect(described_class.call(workflow: workflow).decision.urgency).to eq("low")
 
     workflow.update!(trigger_kind: "auto_merge")
-    Decision.delete_all
+    AttentionItem.delete_all
     expect(described_class.call(workflow: workflow).decision.urgency).to eq("urgent")
   end
 
@@ -63,6 +63,6 @@ RSpec.describe Decisions::Escalator do
     described_class.call(workflow: workflow)
 
     expect(described_class.call(workflow: workflow)).not_to be_created
-    expect(Decision.count).to eq(1)
+    expect(AttentionItem.count).to eq(1)
   end
 end

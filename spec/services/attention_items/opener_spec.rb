@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Decisions::Opener do
+RSpec.describe AttentionItems::Opener do
   let(:job) { Factories.job }
   let(:repo) { job.repository }
   let(:problem) { Problem[:grader_failure, evidence: { grader_name: "rspec" }] }
@@ -24,7 +24,7 @@ RSpec.describe Decisions::Opener do
 
     expect(result).not_to be_created
     expect(result.decision).to eq(first)
-    expect(Decision.count).to eq(1)
+    expect(AttentionItem.count).to eq(1)
   end
 
   # This is what makes attention compound rather than merely reformat.

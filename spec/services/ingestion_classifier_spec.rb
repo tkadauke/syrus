@@ -165,20 +165,20 @@ RSpec.describe IngestionClassifier do
     expect(job.classifier_attempts).to eq(1)
   end
 
-  # Decisions::Triage was written for exactly this case and had no caller, so
+  # AttentionItems::Triage was written for exactly this case and had no caller, so
   # uncertain Jobs accumulated while the decisions table stayed empty.
   it "opens a triage decision so a person sees the Job" do
     job = Job.create!(user: user, repository: repository, issue_number: 17)
     stub_agent_text("not json")
 
     expect { described_class.call(job: job, github_client: github_client) }
-      .to change { Decision.where(queue: "triage").count }.by(1)
+      .to change { AttentionItem.where(queue: "triage").count }.by(1)
   end
 
   it "does not fail the classification when the decision cannot be opened" do
     job = Job.create!(user: user, repository: repository, issue_number: 18)
     stub_agent_text("not json")
-    allow(Decisions::Triage).to receive(:call).and_raise(StandardError, "decisions unavailable")
+    allow(AttentionItems::Triage).to receive(:call).and_raise(StandardError, "decisions unavailable")
 
     expect { described_class.call(job: job, github_client: github_client) }.not_to raise_error
     expect(job.reload.triaging_reason).to eq("classifier_uncertain")
