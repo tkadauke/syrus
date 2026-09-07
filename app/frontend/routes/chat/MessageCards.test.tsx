@@ -623,7 +623,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
   })
 
-  it("renders typed success, proposal, and state outputs instead of raw JSON", () => {
+  it("renders typed success and record outputs instead of raw JSON", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Actions",
@@ -640,19 +640,6 @@ describe("tool result rendering", () => {
           result_error: false,
           result_kind: "record",
           result_summary: "1 bookmark"
-        },
-        {
-          message_id: 2,
-          tool_name: "propose_job",
-          raw_name: "propose_job",
-          detail: "Fix output",
-          display_label: "Propose job",
-          progress_label: "Making changes",
-          raw_payload: { title: "Fix output" },
-          result_body: JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "pending", repository: "tkadauke/syrus" }),
-          result_error: false,
-          result_kind: "record",
-          result_summary: "1 proposal"
         },
         {
           message_id: 3,
@@ -674,16 +661,13 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     expect(screen.getByText("1 bookmark")).toBeInTheDocument()
-    expect(screen.getByText("1 proposal")).toBeInTheDocument()
     expect(screen.getByText("1 Job")).toBeInTheDocument()
     expect(screen.queryByText("Bookmark added: Launch notes")).not.toBeInTheDocument()
-    expect(screen.queryByText("Job proposal ready: Fix output")).not.toBeInTheDocument()
     expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
 
     expandToolGroup("Actions")
 
     expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
-    expect(screen.getByText("Job proposal ready: Fix output")).toBeInTheDocument()
     expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()

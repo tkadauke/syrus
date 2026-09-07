@@ -473,27 +473,6 @@ function TypedToolResultBody({ result }: { result: TypedToolResult }) {
           {result.label}
         </div>
       )
-    case "proposal_outcome":
-      return (
-        <div className="mt-1 rounded border border-info/30 bg-info/10 px-3 py-2 text-sm">
-          <div className="font-medium text-info">{result.label}: {result.title}</div>
-          {result.detail ? <div className="mt-1 font-mono text-xs text-info">{result.detail}</div> : null}
-        </div>
-      )
-    case "state_summary":
-      return (
-        <div className="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="font-medium text-gray-900 dark:text-gray-100">{result.label}</div>
-          <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-            {result.rows.map((row) => (
-              <div className="min-w-0" key={`${row.label}-${row.value}`}>
-                <dt className="text-2xs font-semibold uppercase text-gray-500 dark:text-gray-400">{row.label}</dt>
-                <dd className="truncate font-mono text-xs text-gray-700 dark:text-gray-300" title={row.value}>{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )
   }
 }
 
