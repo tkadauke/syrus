@@ -71,6 +71,16 @@ module Api
           false
         end
 
+        # Same write-tier gate as JobPolicy#write?'s repository half, for
+        # actions (like Coding Mode's `!` shell command execution) that act
+        # directly on a repository checkout rather than an existing Job.
+        def authorize_repository_write!(repository)
+          return true if RepositoryPolicy.new(Current.user, repository).write?
+
+          render_error("forbidden", "Only a repository member with write access, or an admin, can perform this action.", status: :forbidden)
+          false
+        end
+
         def plain_json(value)
           case value
           when ActionController::Parameters
