@@ -418,11 +418,7 @@ func renderChatHistoryMessage(out io.Writer, markdown render.MarkdownRenderer, m
 		}
 		fmt.Fprintln(out)
 	case "tool_use":
-		name := strings.TrimSpace(message.ToolName)
-		if name == "" {
-			name = "tool"
-		}
-		fmt.Fprintf(out, "%s %s\n\n", subtleStyle.Render("›"), name)
+		return api.RenderToolUseActivity(out, message.ToolName)
 	}
 	return nil
 }
