@@ -100,4 +100,35 @@ RSpec.describe ChatShellCommand do
       expect(command.cancellable?).to eq(false)
     end
   end
+
+  describe "#as_command_json" do
+    it "renders the shared wire shape while running" do
+      command = build_command
+
+      expect(command.as_command_json).to eq(
+        id: command.id,
+        chat_session_id: chat_session.id,
+        command: "echo hi",
+        output: nil,
+        outcome: nil,
+        exit_status: nil,
+        started_at: command.started_at.iso8601,
+        finished_at: nil,
+        running: true,
+        cancellable: false
+      )
+    end
+
+    it "reflects a finished outcome" do
+      command = build_command(finished_at: Time.current, outcome: "succeeded", output: "hi\n", exit_status: 0)
+
+      json = command.as_command_json
+
+      expect(json[:running]).to eq(false)
+      expect(json[:outcome]).to eq("succeeded")
+      expect(json[:output]).to eq("hi\n")
+      expect(json[:exit_status]).to eq(0)
+      expect(json[:finished_at]).to eq(command.finished_at.iso8601)
+    end
+  end
 end

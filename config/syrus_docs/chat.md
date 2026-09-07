@@ -318,10 +318,18 @@ message/enqueue path. Backspacing the draft back to empty reverts to a
 normal message. While a command is running, a second `!` submission is
 blocked client-side (mirroring the endpoint's one-in-flight rule) and the
 composer shows a stop control in place of the normal "stop agent" button,
-calling the cancel endpoint below. The composer has no read/poll endpoint
-for a running command's status; it infers completion once the
-`chat_shell_command_id`-carrying message below shows up in the transcript.
-This wiring is scoped to Coding Mode chats only — Local Mode's `!` handling
+calling the cancel endpoint below. There is still no dedicated read/poll
+endpoint for a running command's status; instead, the chat payload's
+`chat_shell_command_in_flight` field (the chat session's current running
+`ChatShellCommand`, or `null`, computed only for `coding`-mode chats —
+`ChatShellCommand#as_command_json`, also reused by the create/cancel
+endpoint responses) lets the composer rehydrate its stop control from
+whatever payload it mounts with, so a Compose remount mid-command (e.g. a
+desktop/mobile layout breakpoint crossing) doesn't silently drop the
+control. Moment-to-moment UI state (immediate feedback on submit/cancel)
+still comes from local component state; the composer infers completion by
+watching for the `chat_shell_command_id`-carrying message below to show up
+in the transcript. This wiring is scoped to Coding Mode chats only — Local Mode's `!` handling
 is a separate follow-up Job under EPIC-323, as is chat rendering of the
 command output itself (currently rendered as a plain message, not the
 monospace/ANSI-aware treatment the Epic calls for).
