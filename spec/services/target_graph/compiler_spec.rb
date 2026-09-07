@@ -195,6 +195,290 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.targets.keys).to eq(%w[//:repo])
     end
 
+    it "compiles a nested .syrus.yml's legacy sections into a directory-scoped project and targets" do
+      write("cli/.syrus.yml", <<~YAML)
+        prepare:
+          - go mod download
+        formatters:
+          - command: gofmt -w .
+            files: ["**/*.go"]
+        generated:
+          - command: go generate ./...
+            generates: ["gen/*.go"]
+        grade:
+          - name: tests
+            run: go test ./...
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      cli_project = graph.project("cli")
+      expect(cli_project.path).to eq("cli")
+      expect(cli_project.owner_config_path).to eq("cli/.syrus.yml")
+
+      prepare = graph.target(TargetGraph::Label.parse("//cli:prepare"))
+      expect(prepare.project_id).to eq("cli")
+      expect(prepare.command).to eq("go mod download")
+      expect(prepare.owner_config_path).to eq("cli/.syrus.yml")
+
+      formatter = graph.target(TargetGraph::Label.parse("//cli:format/0"))
+      expect(formatter.command).to eq("gofmt -w .")
+      expect(formatter.source_scope).to eq([ "cli/**/*.go" ])
+      expect(formatter.dependencies).to eq([ TargetGraph.root_label ])
+
+      generator = graph.target(TargetGraph::Label.parse("//cli:generate/0"))
+      expect(generator.command).to eq("go generate ./...")
+      expect(generator.source_scope).to eq([ "cli/**/*" ])
+
+      tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+      expect(tests.command).to eq("go test ./...")
+      expect(tests.project_id).to eq("cli")
+      expect(tests.owner_config_path).to eq("cli/.syrus.yml")
+      expect(tests.source_scope).to eq([ "cli/**/*" ])
+
+      # Root behavior is unaffected: still just the implicit root target.
+      expect(graph.target(TargetGraph.root_label)).not_to be_nil
+      expect(graph.validate!).to be(true)
+    end
+
+    describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do
+      it "keeps root-only declarations repo-wide, with or without an explicit selector" do
+        write(".syrus.yml", <<~YAML)
+          formatters:
+            - command: rubocop -a
+              files: ["**/*.rb"]
+          generated:
+            - command: bin/rails db:schema:dump
+              generates: ["db/schema.rb"]
+          grade:
+            - name: tests
+              run: bin/rspec
+        YAML
+
+        graph = described_class.compile(@dir)
+
+        formatter = graph.target(TargetGraph::Label.parse("//:format/0"))
+        expect(formatter.source_scope).to eq([ "**/*.rb" ])
+
+        generator = graph.target(TargetGraph::Label.parse("//:generate/0"))
+        expect(generator.source_scope).to eq([])
+
+        tests = graph.target(TargetGraph::Label.parse("//:grade/tests"))
+        expect(tests.source_scope).to eq([])
+      end
+
+      it "scopes a nested declaration with no explicit selector to its own directory" do
+        write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+        graph = described_class.compile(@dir)
+
+        tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(tests.source_scope).to eq([ "cli/**/*" ])
+      end
+
+      it "resolves a nested declaration's own narrower file selector relative to its directory" do
+        write("cli/.syrus.yml", <<~YAML)
+          formatters:
+            - command: gofmt -w .
+              files: ["**/*.go"]
+          generated:
+            - command: go generate ./...
+              sources: ["proto/**/*.proto"]
+              generates: ["gen/*.go"]
+          grade:
+            - name: tests
+              run: go test ./...
+              when_files_changed: ["**/*.go"]
+        YAML
+
+        graph = described_class.compile(@dir)
+
+        formatter = graph.target(TargetGraph::Label.parse("//cli:format/0"))
+        expect(formatter.source_scope).to eq([ "cli/**/*.go" ])
+
+        generator = graph.target(TargetGraph::Label.parse("//cli:generate/0"))
+        expect(generator.source_scope).to eq([ "cli/proto/**/*.proto" ])
+
+        tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(tests.source_scope).to eq([ "cli/**/*.go" ])
+      end
+
+      it "composes root and nested scopes additively: root stays repo-wide, nested stays directory-scoped" do
+        write(".syrus.yml", <<~YAML)
+          grade:
+            - name: root-tests
+              run: bin/rspec
+              when_files_changed: ["app/**/*.rb"]
+        YAML
+        write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+        graph = described_class.compile(@dir)
+
+        root_tests = graph.target(TargetGraph::Label.parse("//:grade/root-tests"))
+        expect(root_tests.source_scope).to eq([ "app/**/*.rb" ])
+
+        cli_tests = graph.target(TargetGraph::Label.parse("//cli:grade/tests"))
+        expect(cli_tests.source_scope).to eq([ "cli/**/*" ])
+
+        expect(graph.validate!).to be(true)
+      end
+    end
+
+    it "loads nested config after root config, in deterministic path-sorted order" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("zeta/.syrus.yml", "grade:\n  - name: tests\n    run: echo zeta\n")
+      write("alpha/.syrus.yml", "grade:\n  - name: tests\n    run: echo alpha\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.targets.keys).to eq(
+        %w[//:repo //:grade/root-tests //alpha:grade/tests //zeta:grade/tests]
+      )
+    end
+
+    it "supports a nested .syrus.yml several directories below the root" do
+      write("apps/desktop/.syrus.yml", "grade:\n  - name: tests\n    run: npm test\n")
+
+      graph = described_class.compile(@dir)
+
+      target = graph.target(TargetGraph::Label.parse("//apps/desktop:grade/tests"))
+      expect(target.project_id).to eq("apps-desktop")
+      expect(target.owner_config_path).to eq("apps/desktop/.syrus.yml")
+    end
+
+    it "skips only the offending nested .syrus.yml when it fails to parse, keeping root and other nested files" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("broken/.syrus.yml", "formatters:\n  not_an_array: true\n")
+      write("ok/.syrus.yml", "grade:\n  - name: tests\n    run: echo ok\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests"))).not_to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//ok:grade/tests"))).not_to be_nil
+      expect(graph.project("broken")).to be_nil
+      expect(graph.validate!).to be(true)
+    end
+
+    it "raises a validation error naming both files when two nested directories resolve to the same project id" do
+      write("foo/bar/.syrus.yml", "prepare: []\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("foo/bar/.syrus.yml")
+        expect(error.message).to include("foo-bar/.syrus.yml")
+      end
+    end
+
+    it "customizes the root project's label/kind from an explicit project: block" do
+      write(".syrus.yml", <<~YAML)
+        project:
+          id: repo
+          label: Syrus
+          kind: rails_app
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.id).to eq("repo")
+      expect(graph.root_project.label).to eq("Syrus")
+      expect(graph.root_project.kind).to eq("rails_app")
+      expect(graph.root_project.path).to eq("")
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+      expect(graph.root_project).to be_root
+    end
+
+    it "defaults the root project's label to Repository when project: omits it" do
+      write(".syrus.yml", "project:\n  kind: rails_app\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.label).to eq("Repository")
+      expect(graph.root_project.kind).to eq("rails_app")
+    end
+
+    it "raises when the root project: block declares an id other than the root project id" do
+      write(".syrus.yml", "project:\n  id: something-else\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError, /project\.id must be "repo"/)
+    end
+
+    it "raises when the root project: block declares a non-empty path" do
+      write(".syrus.yml", "project:\n  path: somewhere\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError, /project\.path must be empty/)
+    end
+
+    it "overrides a nested project's id, label, and kind from an explicit project: block" do
+      write("apps/desktop/.syrus.yml", <<~YAML)
+        project:
+          id: desktop
+          label: Desktop App
+          kind: desktop_app
+        grade:
+          - name: tests
+            run: npm test
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("desktop")
+      expect(project.label).to eq("Desktop App")
+      expect(project.kind).to eq("desktop_app")
+      expect(project.path).to eq("apps/desktop")
+      expect(project.owner_config_path).to eq("apps/desktop/.syrus.yml")
+
+      target = graph.target(TargetGraph::Label.parse("//apps/desktop:grade/tests"))
+      expect(target.project_id).to eq("desktop")
+    end
+
+    it "overrides a nested project's path scope metadata from an explicit project: block" do
+      write("apps/desktop/.syrus.yml", "project:\n  path: apps\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.project("apps-desktop").path).to eq("apps")
+    end
+
+    it "resolves a nested directory-derived id collision by declaring an explicit project.id" do
+      write("foo/bar/.syrus.yml", "project:\n  id: foo-bar-renamed\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.projects.keys).to match_array(%w[repo foo-bar-renamed foo-bar])
+    end
+
+    it "raises when two nested project.id declarations collide with each other" do
+      write("alpha/.syrus.yml", "project:\n  id: shared\n")
+      write("beta/.syrus.yml", "project:\n  id: shared\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("alpha/.syrus.yml")
+        expect(error.message).to include("beta/.syrus.yml")
+        expect(error.message).to include("shared")
+      end
+    end
+
+    it "raises when a nested project.id collides with the root project id" do
+      write("cli/.syrus.yml", "project:\n  id: repo\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("cli/.syrus.yml")
+        expect(error.message).to include(".syrus.yml")
+        expect(error.message).to include('"repo"')
+      end
+    end
+
+    it "does not infer a nested project from package.json, go.mod, or Rails conventions" do
+      write("cli/go.mod", "module example.com/cli\n")
+      write("api/package.json", "{}\n")
+      write("app/models/.gitkeep", "")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.projects.keys).to eq(%w[repo])
+    end
+
     it "produces a graph that validates cleanly end to end" do
       write(".syrus.yml", <<~YAML)
         prepare:
@@ -249,6 +533,51 @@ RSpec.describe TargetGraph::Compiler do
         "target_count" => 3,
         "error" => nil
       )
+    end
+
+    it "reports project/target labels compiled from a nested .syrus.yml alongside the root's own" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("cli/.syrus.yml", "grade:\n  - name: tests\n    run: go test ./...\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics.target_labels).to eq(%w[//:grade/root-tests //:repo //cli:grade/tests])
+      expect(diagnostics.project_count).to eq(2)
+      expect(diagnostics.error).to be_nil
+    end
+
+    it "names the offending nested file's path when it fails to parse, without failing the whole diagnosis" do
+      write("broken/.syrus.yml", "formatters:\n  not_an_array: true\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("broken/.syrus.yml")
+      # The rest of the graph -- here just the implicit root -- still compiles.
+      expect(diagnostics.target_labels).to eq(%w[//:repo])
+    end
+
+    it "reports both a root and a nested parse failure together" do
+      write(".syrus.yml", "formatters:\n  not_an_array: true\n")
+      write("broken/.syrus.yml", "generated:\n  not_an_array: true\n")
+
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include(".syrus.yml:")
+      expect(diagnostics.error).to include("broken/.syrus.yml:")
+    end
+
+    it "reports a duplicate nested project id declaration with both file paths, instead of raising" do
+      write("foo/bar/.syrus.yml", "prepare: []\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      diagnostics = nil
+      expect { diagnostics = described_class.diagnose(@dir) }.not_to raise_error
+
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("foo/bar/.syrus.yml")
+      expect(diagnostics.error).to include("foo-bar/.syrus.yml")
     end
 
     it "names the owning .syrus.yml path in the error message when the config fails to parse" do
