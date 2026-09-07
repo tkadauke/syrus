@@ -362,4 +362,54 @@ if Rails.env.development?
       JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
     end
   end
+
+  # Agent Insights sample report. The plugin is off by default
+  # (default_enabled: false), so a fresh preview shows it disabled on
+  # Admin -> Plugins, same as a real install -- but the repository's
+  # Insights tab has a real generated-looking report ready the moment an
+  # operator enables it, instead of an empty state. Referencing
+  # AgentInsights::Suggestion here is safe even while the plugin is
+  # disabled: a disabled plugin's app/ tree stays on the Zeitwerk autoload
+  # path, it just isn't eager loaded. Job#kind="agent_insight" is only a
+  # valid enum value while the plugin is enabled (Job::Kind reads
+  # kinds from enabled plugins), so the plugin is toggled on for just long
+  # enough to create the fixture, then restored to its default-off state.
+  insight_plugin = PluginRecord.find_or_create_by!(name: "agent_insights")
+  insight_plugin_was_enabled = insight_plugin.enabled
+  insight_plugin.update!(enabled: true) unless insight_plugin_was_enabled
+
+  begin
+    insight_job = Job.find_or_initialize_by(
+      repository: demo_repo,
+      kind: "agent_insight",
+      issue_title: "Insight analysis: #{demo_repo.slug}"
+    )
+    insight_job.assign_attributes(
+      user: demo_user,
+      owner_user: demo_user,
+      priority: "low",
+      state: "closed",
+      closure_reason: "agent_insight",
+      finished_at: 45.minutes.ago
+    )
+    insight_job.save!
+
+    failed_job = demo_jobs_by_title["Repair seeded background workflow"]
+
+    AgentInsights::Suggestion.find_or_create_by!(
+      job: insight_job,
+      repository: demo_repo,
+      title: "Repair workflows keep failing at the same implement step"
+    ) do |suggestion|
+      suggestion.category = "repeated_failure"
+      suggestion.severity = "medium"
+      suggestion.confidence = 0.78
+      suggestion.state = "pending"
+      suggestion.proposal_type = "create_job"
+      suggestion.suggested_prompt = "Investigate why the implement step keeps failing on retry workflows for demo/syrus-preview and add regression coverage for the underlying cause."
+      suggestion.evidence = failed_job ? [ { "job_id" => failed_job.id, "kind" => "repeated_failure" } ] : []
+    end
+  ensure
+    insight_plugin.update!(enabled: false) unless insight_plugin_was_enabled
+  end
 end
