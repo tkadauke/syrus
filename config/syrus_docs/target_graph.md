@@ -43,6 +43,30 @@ root project for the root file, or the directory-derived project for a
 nested file) a stable identity — it does not change which targets that file
 compiles into, or what those targets do.
 
+### The `builder` kind is reserved, not compiled
+
+`TargetGraph::Target::KINDS` already lists `builder` alongside
+`formatter`/`generator`/`grader`/`prepare` — DOC-20's Core Model names it as
+one of the eventual target kinds — but no `.syrus.yml` primitive compiles
+into it yet. There is no `build:` (or equivalent) legacy config section
+today, and none of the runtime pipelines this compiler mirrors
+(`RepoPrepPlan`, `Steps::Format`, `Steps::Generate`, `RepoGradePlan`) have a
+build-command concept to carry over. Constructing a `TargetGraph::Target`
+with `kind: "builder"` directly is supported by the model — the kind exists
+precisely so a later compiler change and this graph model don't need to land
+together — but `TargetGraph::Compiler` never produces one today.
+
+Until a `build:` section exists, model an explicit build step as whichever
+existing primitive matches its role: a `grade:` entry if a failed build
+should fail the workflow like any other required check, or a `generated:`
+entry if the build produces checked-in output that `Steps::Generate` should
+keep in sync (see "Shared generated clients: targets, not projects" below).
+A future `build:` section, if one is added, should compile the same way
+`grade:`/`formatters:`/`generated:` already do: one `kind=builder` target per
+declared entry, under whichever project (root or nested) declared it, with
+the same directory-based `source_scope` defaulting described in
+"Affected-file scope defaults" below.
+
 ## Explicit `project:`
 
 Level 0/1 (root-only repos, and nested `.syrus.yml` files with no `project:`
