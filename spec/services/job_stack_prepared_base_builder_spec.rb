@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe JobStackPreparedBaseBuilder do
   let(:user) { Factories.user(github_token: "token") }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
-  let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear") }
+  let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
   let(:job) { Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_number: 1577) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
   let(:git) { FakeGit.new }

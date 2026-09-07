@@ -67,7 +67,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(body.dig("epic", "repository", "slug")).to eq("acme/api")
     end
 
-    it "rejects newly setting the nonlinear Epic dependency policy" do
+    it "rejects an unknown Epic dependency policy" do
       owner = Factories.user
       Factories.repository(user: owner, owner: "acme", name: "api")
 
@@ -85,7 +85,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body.dig("error", "code")).to eq("validation_failed")
-      expect(parse_body.dig("error", "message")).to include("nonlinear")
+      expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
     end
 
     it "rejects invalid Epic create requests" do
@@ -215,18 +215,6 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       get "/api/v1/admin/epics/9999999", headers: auth(admin_token)
       expect(response).to have_http_status(:not_found)
       expect(parse_body.dig("error", "code")).to eq("not_found")
-    end
-
-    it "still reads back an existing nonlinear Epic dependency policy" do
-      nonlinear_epic = Factories.epic(user: admin, repository: repo, title: "Fan-in feature", epic_dependency_policy: "nonlinear")
-
-      get "/api/v1/admin/epics/#{nonlinear_epic.id}", headers: auth(admin_token)
-
-      expect(response).to have_http_status(:ok)
-      expect(parse_body).to include(
-        "epic_dependency_policy" => "nonlinear",
-        "resolved_epic_dependency_policy" => "nonlinear"
-      )
     end
   end
 end
