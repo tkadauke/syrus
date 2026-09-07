@@ -96,7 +96,10 @@ just enough evidence to decide whether the extractive summary is pulling its
 weight or whether a real LLM-summarizer pass is worth building — not a
 dashboard. The same payload is also broadcast via
 `ActiveSupport::Notifications` as `chat_context_compactor.compacted` for local
-inspection.
+inspection. Recording these metrics is best-effort: a failure there is caught
+and logged as a warning rather than propagated, so it can never take down the
+chat turn that triggered compaction — the checkpoint it reports on has
+already persisted by the time metrics are recorded.
 
 ## landing_validation_prefetch
 
