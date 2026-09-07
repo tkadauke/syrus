@@ -363,6 +363,34 @@ if Rails.env.development?
     end
   end
 
+  # Build Cache sample sccache stats capture. The plugin is enabled by
+  # default, but SCCACHE_BUCKET is normally unset in preview (no S3-compatible
+  # bucket configured), so the admin Build Cache page always renders its real
+  # "not configured" state -- worth exercising as-is rather than faking a
+  # bucket. The per-Job hit/miss card (BuildCache::UiSlots, job.detail slot)
+  # is driven entirely by a Workflow artifact instead, independent of the
+  # bucket being configured, so seed one capture on the implemented demo
+  # Job's prepare Run to give the Job Detail page real hit-rate data to render.
+  build_cache_workflow = implemented_job.workflows.order(:created_at).first
+  if build_cache_workflow && BuildCache::StatsArtifact.read(build_cache_workflow).empty?
+    prepare_run = build_cache_workflow.steps.find_by(kind: "prepare")&.runs&.first
+    if prepare_run
+      BuildCache::StatsArtifact.record!(
+        build_cache_workflow,
+        run: prepare_run,
+        step_kind: "prepare",
+        label: "bundle install",
+        stats: {
+          "cache_hits" => 42,
+          "cache_misses" => 8,
+          "cache_size" => "256 MiB",
+          "max_cache_size" => "10 GiB",
+          "cache_location" => "S3, bucket: sccache-demo"
+        }
+      )
+    end
+  end
+
   # Agent Insights sample report. The plugin is off by default
   # (default_enabled: false), so a fresh preview shows it disabled on
   # Admin -> Plugins, same as a real install -- but the repository's
