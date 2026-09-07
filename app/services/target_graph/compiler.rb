@@ -17,9 +17,16 @@ class TargetGraph
   # either. Root `.syrus.yml` compilation is unchanged by this: a repository
   # with no nested config compiles exactly as it did before nested discovery
   # existed. It exists so operator tooling and later graph-aware selection
-  # code (explicit projects/targets, default affected-file scope per
-  # package) have one real compiler to build on instead of a graph model
-  # nothing populates.
+  # code (explicit projects/targets) have one real compiler to build on
+  # instead of a graph model nothing populates.
+  #
+  # Step 3 of that same slice -- see #scoped_source_scope -- resolves each
+  # legacy executable declaration's affected-file scope by the directory of
+  # the `.syrus.yml` that declared it: a formatter/generated/grader entry's
+  # own file selector, when given, is relative to that directory, and a bare
+  # declaration with no selector at all defaults to the whole directory. The
+  # root file's directory is the repository root, so root declarations stay
+  # exactly as repo-wide as they always were.
   #
   # Grader compilation delegates to RepoGradePlan so the exact same
   # legacy-`ci:` expansion, duplicate-name detection, and failure-policy
@@ -171,6 +178,27 @@ class TargetGraph
       TargetGraph::Label.new(package: package, name: name)
     end
 
+    # Resolves the effective affected-file scope for one legacy executable
+    # declaration (a formatter's `files`, a generated entry's `sources`, a
+    # grader's `when_files_changed`) per DOC-20's "First Implementation
+    # Slice" step 3: an explicit selector's globs are relative to the
+    # declaring `.syrus.yml`'s own directory, so they're resolved by
+    # prefixing them with `package`; a declaration with no explicit selector
+    # defaults to that entire directory instead of Target's own unscoped
+    # default. The root file's directory is the repository root (`package`
+    # is ""), so both rules collapse to today's repo-wide behavior there --
+    # nothing here branches on "is this the root config."
+    #
+    # Prepare is deliberately not routed through this: it has no
+    # file-selector primitive and stays the unconditional pre-implementation
+    # baseline (see #compile_prepare!).
+    def scoped_source_scope(package, explicit_patterns)
+      patterns = Array(explicit_patterns).map(&:to_s).map(&:strip).reject(&:empty?)
+      patterns = [ "**/*" ] if patterns.empty? && package.present?
+
+      patterns.map { |pattern| package.present? ? "#{package}/#{pattern}" : pattern }
+    end
+
     # Discovers nested `.syrus.yml` files below the workspace root
     # (TargetGraph::NestedConfigDiscovery) and compiles each one into its
     # own directory-scoped project plus prepare/formatter/generator/grader
@@ -296,7 +324,7 @@ class TargetGraph
             label: label_for("format/#{index}", package: package),
             kind: "formatter",
             project_id: project_id,
-            source_scope: formatter.files,
+            source_scope: scoped_source_scope(package, formatter.files),
             command: formatter.command,
             dependencies: [ TargetGraph.root_label ],
             owner_config_path: config_path
@@ -315,7 +343,7 @@ class TargetGraph
             label: label_for("generate/#{index}", package: package),
             kind: "generator",
             project_id: project_id,
-            source_scope: entry.sources,
+            source_scope: scoped_source_scope(package, entry.sources),
             command: entry.command,
             dependencies: [ TargetGraph.root_label ],
             owner_config_path: config_path,
@@ -332,7 +360,7 @@ class TargetGraph
             label: label_for("grade/#{grader.name}", package: package),
             kind: "grader",
             project_id: project_id,
-            source_scope: grader.when_files_changed,
+            source_scope: scoped_source_scope(package, grader.when_files_changed),
             command: grader.command,
             dependencies: [ TargetGraph.root_label ],
             phases: grader.phases,
