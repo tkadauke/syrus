@@ -94,6 +94,27 @@ module Api
           render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload), released: released.map { |lease| RuntimeSessionPresenter.lease_payload(lease) } }
         end
 
+        # POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/renew_control
+        # Heartbeat for the Runtime panel's Take Control button. Leases are
+        # intentionally short (RuntimeControlLease::DEFAULT_DURATION/
+        # MAX_DURATION are 30s/60s, per DOC-17's "short-lived and
+        # auto-expire") so a sustained operator session extends its own
+        # still-active lease in place instead of losing control mid-task.
+        # Only ever touches the operator's own lease -- there is nothing to
+        # renew if the agent holds it or it has already lapsed.
+        def renew_control
+          lease = @runtime_session.runtime_control_leases.active.held_by("user").first
+          unless lease
+            render_error("validation_failed", "You do not currently hold control of this runtime session.", status: :unprocessable_content)
+            return
+          end
+
+          lease.renew!(duration_seconds: params[:duration_seconds])
+          render json: { runtime_session: RuntimeSessionPresenter.session_payload(@runtime_session.reload), lease: RuntimeSessionPresenter.lease_payload(lease) }
+        rescue RuntimeControlLease::NotRenewable => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         private
 
         def require_coding_mode_feature

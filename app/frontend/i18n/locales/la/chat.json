@@ -280,6 +280,8 @@
   "runtime_control_agent": "Legatus ({{mode}})",
   "runtime_control_you": "Tu ({{mode}})",
   "runtime_control_none": "Nullum",
+  "runtime_control_expires_label": "Desinit",
+  "runtime_control_lapsed": "Imperium ante renovationem exspiravit. Imperium iterum sume ut pergas.",
   "runtime_take_control": "Imperium sumere",
   "runtime_abort_agent_control": "Imperium legati rescindere",
   "runtime_release_control": "Imperium dimittere",

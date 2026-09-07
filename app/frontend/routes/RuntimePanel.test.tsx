@@ -1,9 +1,13 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { RuntimePanel } from "./RuntimePanel"
 import type { RuntimeControlLease, RuntimeSession } from "../api/chats"
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function sessionFixture(overrides: Partial<RuntimeSession> = {}): RuntimeSession {
   return {
@@ -147,6 +151,13 @@ describe("RuntimePanel capture action", () => {
 
 describe("RuntimePanel control ownership: starting -> running -> agent takes lease -> operator aborts", () => {
   it("walks through the full control lifecycle", async () => {
+    // Pin "now" to just before the mocked lease's acquired_at/expires_at
+    // below -- otherwise the control-lease heartbeat (which checks the
+    // real clock) sees an already-"expired" fixture lease and immediately
+    // fires an unmocked renew_control request.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-01-01T00:09:59Z"))
+
     let sessionCalls = 0
     mockFetch((url, method) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
@@ -196,5 +207,91 @@ describe("RuntimePanel control ownership: starting -> running -> agent takes lea
 
     expect(await screen.findByText("You (input)")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Release Control" })).toBeInTheDocument()
+  })
+})
+
+describe("RuntimePanel control lease heartbeat", () => {
+  function operatorLeaseFixture(overrides: Partial<RuntimeControlLease> = {}): RuntimeControlLease {
+    return {
+      id: 9,
+      owner: "user",
+      owner_ref: "operator:1",
+      mode: "input",
+      reason: "Operator took control from the Runtime panel.",
+      state: "active",
+      acquired_at: "2026-01-01T00:00:00.000Z",
+      expires_at: "2026-01-01T00:01:00.000Z",
+      cancellable: true,
+      ...overrides
+    }
+  }
+
+  it("renews the operator's own lease before it expires instead of letting it lapse", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
+
+    let renewCalls = 0
+    mockFetch((url, method) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      if (url.includes("/take_control") && method === "POST") {
+        return jsonResponse({ runtime_session: sessionFixture(), lease: operatorLeaseFixture() })
+      }
+      if (url.includes("/renew_control") && method === "POST") {
+        renewCalls += 1
+        return jsonResponse({
+          runtime_session: sessionFixture(),
+          lease: operatorLeaseFixture({ expires_at: "2026-01-01T00:01:50.000Z" })
+        })
+      }
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({})
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("running")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Take Control" }))
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+    expect(renewCalls).toBe(0)
+
+    // The lease was granted for 60s; jump to just inside the renewal margin
+    // (the heartbeat checks every 5s and renews once <=15s remain).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50_000)
+    })
+
+    expect(renewCalls).toBeGreaterThan(0)
+    expect(screen.getByText("You (input)")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Release Control" })).toBeInTheDocument()
+  })
+
+  it("shows a lapsed-control message and reverts to None when the heartbeat can't renew in time", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
+
+    mockFetch((url, method) => {
+      if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
+      if (url.includes("/take_control") && method === "POST") {
+        return jsonResponse({ runtime_session: sessionFixture(), lease: operatorLeaseFixture() })
+      }
+      if (url.includes("/renew_control") && method === "POST") {
+        return jsonResponse({ error: { code: "validation_failed", message: "lease already lapsed" } }, 422)
+      }
+      if (url.endsWith("/runtime_sessions") && method === "GET") return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
+      return jsonResponse({})
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("running")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Take Control" }))
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50_000)
+    })
+
+    expect(await screen.findByText("Control lapsed before it could be renewed. Take Control again to resume.")).toBeInTheDocument()
+    expect(screen.getByText("None")).toBeInTheDocument()
   })
 })

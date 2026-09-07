@@ -280,6 +280,8 @@
   "runtime_control_agent": "Agent ({{mode}})",
   "runtime_control_you": "You ({{mode}})",
   "runtime_control_none": "None",
+  "runtime_control_expires_label": "Expires",
+  "runtime_control_lapsed": "Control lapsed before it could be renewed. Take Control again to resume.",
   "runtime_take_control": "Take Control",
   "runtime_abort_agent_control": "Abort Agent Control",
   "runtime_release_control": "Release Control",

@@ -157,4 +157,39 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(parse_body["released"]).to eq([])
     end
   end
+
+  describe "POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/renew_control" do
+    it "extends the operator's own active lease" do
+      sign_in_as(user)
+      session = build_runtime_session
+      lease = RuntimeControlLease.acquire!(runtime_session: session, owner: "user", owner_ref: "operator:#{user.id}", mode: "input")
+      original_expires_at = lease.expires_at
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/renew_control"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("lease", "id")).to eq(lease.id)
+      expect(lease.reload.expires_at).to be > original_expires_at
+    end
+
+    it "rejects renewal when the operator holds no active lease" do
+      sign_in_as(user)
+      session = build_runtime_session
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/renew_control"
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "does not renew an agent-held lease" do
+      sign_in_as(user)
+      session = build_runtime_session
+      RuntimeControlLease.acquire!(runtime_session: session, owner: "agent", mode: "input")
+
+      post "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/renew_control"
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
 end
