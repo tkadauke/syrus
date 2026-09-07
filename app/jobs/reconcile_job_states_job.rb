@@ -147,6 +147,21 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :succeeded but Job stuck at :queued",
                   steps: %i[ start_running! mark_implemented! ])
 
+      when [ "queued", "failed" ]
+        # The pair every other queued/* case had except this one, and the one
+        # that matters most for visibility: a Workflow whose first Run fails
+        # before the Workflow starts leaves the Job at :queued, because
+        # `mark_failed` only transitions from :running and the propagation
+        # guard silently no-ops. The Job then reads healthy in every operator
+        # surface -- "Just failed" filters on Job state -- while nothing works
+        # on it and anything stacked behind it stays blocked. JOB-4253 sat
+        # like that for fifteen hours.
+        return nil if active_runtime_work?(job)
+
+        new(job, target_state: "failed",
+                  reason: "latest workflow :failed but Job stuck at :queued",
+                  steps: %i[ start_running! mark_failed! ])
+
       when [ "queued", "running" ]
         # Workflow#start normally transitions queued Jobs to running.
         # If that callback is interrupted or bypassed, the Job remains

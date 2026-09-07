@@ -58,6 +58,15 @@ module Workflows
     # that own their Job lifecycle (see Workflow::TriggerKind#owns_job_lifecycle?)
     # either own their own hooks or keep landing/ingest state through
     # dedicated services.
+    # Narrow on purpose: only a Workflow that never started at all. A Workflow
+    # that *did* start while the Job stayed :queued is a different drift (the
+    # start propagation was missed), the reconciler's ["queued", "running"]
+    # pair already corrects it, and failing the Job from here would cascade a
+    # workflow-scoped failure budget onto the Job.
+    def never_started_while_job_queued?
+      job.queued? && workflow.started_at.blank?
+    end
+
     def fail!
       return if Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)
       return if newer_active_workflow?
@@ -69,9 +78,22 @@ module Workflows
           job.close_with_reason!("no_changes")
         end
       else
-        return unless job.may_mark_failed?
-
         StateTransition.with_source("propagate") do
+          # A workflow can fail before it ever starts -- its first Run fails
+          # while the Workflow is still :queued, so propagate_start_to_job!
+          # never ran and the Job never left :queued. `mark_failed` only
+          # transitions from :running, and with whiny_transitions off the
+          # guard below simply returned, leaving the Workflow :failed and the
+          # Job :queued.
+          #
+          # That combination is invisible: "Just failed" filters on Job state,
+          # so the Job reads healthy while nothing is working on it and
+          # anything stacked behind it is blocked. JOB-4253 sat that way for
+          # fifteen hours with a three-Job chain waiting on it, and was only
+          # found by an operator going looking.
+          job.start_running! if never_started_while_job_queued? && job.may_start_running?
+          next unless job.may_mark_failed?
+
           job.mark_failed!
           job.save!
         end

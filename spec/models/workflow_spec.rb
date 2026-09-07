@@ -499,6 +499,20 @@ RSpec.describe Workflow, :ci_only do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    # A Workflow whose first Run fails before the Workflow starts leaves the
+    # Job at :queued: propagate_start_to_job! never ran, and `mark_failed`
+    # only transitions from :running, so the guard silently no-op'd. The
+    # resulting Workflow-failed / Job-queued pair is invisible -- "Just failed"
+    # filters on Job state, so the Job reads healthy while nothing works on it
+    # and anything stacked behind it stays blocked.
+    it "drives :queued → :failed when a workflow fails before it ever starts" do
+      job.update!(state: "queued")
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "queued")
+
+      expect { wf.fail!; wf.save! }
+        .to change { job.reload.state }.from("queued").to("failed")
+    end
+
     it "drives :running → :failed on workflow.cancel! for non-auto_merge workflows" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)

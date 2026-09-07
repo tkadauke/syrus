@@ -1019,6 +1019,18 @@ the live hook and retries a dead hook instead of parroting a stale mode.
 - **AASM events on Run** — call `start!`, `succeed!`, `fail!`, `cancel!`,
   always followed by `save!` (callbacks set timestamps but don't persist).
   See `Run` model.
+- **A failed Workflow must leave a failed Job.** `Job#mark_failed` only
+  transitions `from: :running`, so a Workflow whose first Run fails *before the
+  Workflow starts* (`started_at` nil, Job never left `:queued`) hit
+  `return unless job.may_mark_failed?` and silently propagated nothing —
+  leaving Workflow `failed` / Job `queued`. That pair is invisible to the
+  operator: the "Just failed" folder is `scope.where(state: "failed")` on the
+  **Job**, so it reads healthy while nothing works on it and anything stacked
+  behind it stays blocked (JOB-4253, fifteen hours, three Jobs waiting).
+  `Workflows::JobLifecyclePropagation#fail!` now starts a queued Job whose
+  Workflow never started before failing it, and `ReconcileJobStatesJob::Plan`
+  carries the `["queued", "failed"]` pair — the one drift pair from `queued`
+  that was missing — as the safety net.
 - **AASM event guards: ALWAYS `may_X?` before `state_X!`.** The Job
   (and Workflow, and Step) AASM machines run with
   `whiny_transitions: false` — `job.approve!` on a non-approvable Job
