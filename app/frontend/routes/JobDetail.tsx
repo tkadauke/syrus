@@ -37,6 +37,7 @@ import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkf
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { ArtifactBody, TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
+import { TimelineTab } from "./jobDetail/Timeline"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
 import { diffReviewFeedbackAllowed } from "./jobDetail/DiffReviewFeedback"
@@ -62,7 +63,7 @@ export function JobDetailRoute() {
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
     queryFn: () => fetchJobWorkflows(id, detailSearch),
-    enabled: id.length > 0 && activeTab === "workflows" && detail.isSuccess,
+    enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess ? mergeJobWorkflowsPayload(detail.data, workflows.data) : null
@@ -93,7 +94,7 @@ export function JobDetailRoute() {
           prefix={prefix}
           queryKey={queryKey}
           workflowsError={workflows.error}
-          workflowsLoading={activeTab === "workflows" && workflows.isPending}
+          workflowsLoading={(activeTab === "workflows" || activeTab === "timeline") && workflows.isPending}
           workflowsQueryKey={workflowsQueryKey}
         />
       ) : null}
@@ -320,6 +321,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} /> : null}
       {activeTab === "review" ? <ReviewWorkspace payload={payload} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
+      {activeTab === "timeline" ? <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? <SourceTab canReviewDiff={diffReviewFeedbackAllowed(payload.job.summary_state)} jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
@@ -334,6 +336,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, plug
     { id: "summary", label: t("tab_summary") },
     { id: "review", label: t("tab_review") },
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
+    { id: "timeline", label: t("tab_timeline") },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
     { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },
     { id: "source", label: t("tab_source") }

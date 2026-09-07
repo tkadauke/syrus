@@ -945,6 +945,47 @@ export type JobTimelinePayload = {
   }>
 }
 
+// Non-admin-safe per-Workflow execution waterfall (see App::JobWaterfallPayload)
+// backing the Job detail page's Timeline tab -- distinct from JobTimelinePayload
+// above, which is the admin-only Job Backlog lifecycle-events timeline.
+export type JobWaterfallRun = {
+  id: number
+  status: string
+  iteration: number
+  started_at: string | null
+  finished_at: string | null
+  last_heartbeat_at: string | null
+}
+
+export type JobWaterfallStep = {
+  id: number
+  kind: string
+  status: string
+  position: number
+  iteration: number
+  started_at: string | null
+  finished_at: string | null
+  hostname?: string | null
+  pid?: number | null
+  runs: JobWaterfallRun[]
+}
+
+export type JobWaterfallWorkflow = {
+  id: number
+  job_id: number
+  trigger_kind: string
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  hostname?: string | null
+  pid?: number | null
+}
+
+export type JobWaterfallPayload = {
+  workflow: JobWaterfallWorkflow
+  steps: JobWaterfallStep[]
+}
+
 export type JobSourcePayload = {
   job_id: number
   repository: Pick<JobRepository, "id" | "slug" | "default_branch" | "repository_path">
@@ -1087,6 +1128,10 @@ export function fetchJobDependencyOptions(path: string) {
 
 export function fetchJobTimeline(id: string) {
   return getJson<JobTimelinePayload>(`/api/v1/app/jobs/${id}/timeline`)
+}
+
+export function fetchJobWaterfall(id: string, workflowId: number) {
+  return getJson<JobWaterfallPayload>(`/api/v1/app/jobs/${id}/waterfall?workflow_id=${workflowId}`)
 }
 
 export function fetchJobSource(id: string, search = "") {

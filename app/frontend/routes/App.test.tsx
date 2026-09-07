@@ -9310,7 +9310,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "#43 Approve sibling aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/43")
     expect(screen.getByRole("button", { name: "Copy JOB-44 to clipboard" })).toBeInTheDocument()
     expect(screen.queryByText(/acme\/widgets JOB-44/)).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Timeline \(/ })).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText("Add tag")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
     expect(screen.getByText("No work claim")).toBeInTheDocument()
@@ -9640,6 +9640,103 @@ describe("App", () => {
       "/api/v1/app/jobs/42/workflows?workflows_page=2",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
     )
+  })
+
+  it("shares one workflow-list fetch between the Workflows and Timeline tabs and renders the selected workflow's waterfall", async () => {
+    const payload = jobDetailPayload()
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/jobs/42/waterfall")) {
+        return Promise.resolve(jsonResponse(jobWaterfallPayload({ admin: true })))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=timeline"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("combobox", { name: "Workflow" })).toHaveValue("5")
+    expect(await screen.findByText("Workflow #5 · initial · succeeded")).toBeInTheDocument()
+    expect(screen.getByText("ran on host worker-a")).toBeInTheDocument()
+
+    const workflowsFetchCount = () => fetchSpy.mock.calls.filter(([input]) => String(input).startsWith("/api/v1/app/jobs/42/workflows")).length
+    expect(workflowsFetchCount()).toBe(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Workflows (1)" }))
+    expect(await screen.findByText("WF-5")).toBeInTheDocument()
+    expect(workflowsFetchCount()).toBe(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }))
+    expect(await screen.findByText("Workflow #5 · initial · succeeded")).toBeInTheDocument()
+    expect(workflowsFetchCount()).toBe(1)
+  })
+
+  it("fetches a fresh waterfall when a different Workflow is selected on the Timeline tab", async () => {
+    const payload = jobDetailPayload({
+      job: { workflows_count: 2 },
+      workflows: [
+        { ...jobDetailPayload().workflows[0], id: 5, trigger_kind: "initial", state: "succeeded" },
+        { ...jobDetailPayload().workflows[0], id: 15, trigger_kind: "pr_comment", state: "running", started_at: "2026-06-01T09:00:00Z", finished_at: null }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/jobs/42/waterfall?workflow_id=15")) {
+        return Promise.resolve(jsonResponse(jobWaterfallPayload({ workflowId: 15, triggerKind: "pr_comment", status: "running" })))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/waterfall")) {
+        return Promise.resolve(jsonResponse(jobWaterfallPayload({ workflowId: 5 })))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=timeline"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Workflow #5 · initial · succeeded")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Workflow" }), { target: { value: "15" } })
+
+    expect(await screen.findByText("Workflow #15 · pr_comment · running")).toBeInTheDocument()
+  })
+
+  it("renders the Timeline tab waterfall without worker-identity fields for a non-admin payload", async () => {
+    const payload = jobDetailPayload()
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/jobs/42/waterfall")) {
+        return Promise.resolve(jsonResponse(jobWaterfallPayload({ admin: false })))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=timeline"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Workflow #5 · initial · succeeded")).toBeInTheDocument()
+    expect(screen.queryByText(/ran on host/)).not.toBeInTheDocument()
+    expect(screen.queryByText("undefined")).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toContain("undefined")
+
+    const runBar = screen.getByRole("img", { name: "Run #500 · succeeded" })
+    fireEvent.mouseEnter(runBar)
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Run #500")
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent("undefined")
   })
 
   it("renders running Job, Step, and Run pills with progress spinners", async () => {
@@ -16211,6 +16308,44 @@ function jobTimelinePayload() {
         ref: { workflow_id: 5 },
         ref_label: "WF-5",
         workflow_path: "/jobs/42?tab=workflows#workflow-5"
+      }
+    ]
+  }
+}
+
+function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: string; status?: string; admin?: boolean } = {}) {
+  const workflowId = overrides.workflowId ?? 5
+  const identityFields = overrides.admin ? { hostname: "worker-a", pid: 4242 } : {}
+  return {
+    workflow: {
+      id: workflowId,
+      job_id: 42,
+      trigger_kind: overrides.triggerKind ?? "initial",
+      status: overrides.status ?? "succeeded",
+      started_at: "2026-05-30T10:01:00Z",
+      finished_at: overrides.status === "running" ? null : "2026-05-30T12:00:00Z",
+      ...identityFields
+    },
+    steps: [
+      {
+        id: workflowId * 10,
+        kind: "implement",
+        status: "succeeded",
+        position: 1,
+        iteration: 1,
+        started_at: "2026-05-30T10:01:00Z",
+        finished_at: "2026-05-30T11:00:00Z",
+        ...identityFields,
+        runs: [
+          {
+            id: workflowId * 100,
+            status: "succeeded",
+            iteration: 1,
+            started_at: "2026-05-30T10:01:00Z",
+            finished_at: "2026-05-30T11:00:00Z",
+            last_heartbeat_at: "2026-05-30T10:59:00Z"
+          }
+        ]
       }
     ]
   }
