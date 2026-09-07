@@ -129,6 +129,11 @@ module Throughput
       @created_ats ||= jobs_scope.where(created_at: since..until_time).pluck(:created_at)
     end
 
+    # `Job::TERMINAL_STATES` also includes the legacy `no_change_needed`
+    # state. Current no-change closures land in `state: "closed"` with
+    # `closure_reason: "no_changes"` (see `Job#mark_no_change_needed`'s own
+    # comment); `no_change_needed` rows are old/operator-forced repair
+    # transitions and are intentionally not counted as "closed" here.
     def closed_ats
       @closed_ats ||= jobs_scope.where(state: "closed").where(finished_at: since..until_time).pluck(:finished_at)
     end

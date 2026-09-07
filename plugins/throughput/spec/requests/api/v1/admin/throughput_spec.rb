@@ -26,10 +26,15 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
 
   it "buckets instance-wide jobs created, closed, implemented, and pr_merged cycle time" do
     base = Time.utc(2026, 9, 6, 12, 0, 0)
+    # Outside the since..until window asserted below, so fixtures that don't
+    # care about their own created_at (only their finished_at/step timing)
+    # can't leak an implicit `Time.current` created_at into the jobs_created
+    # counts being asserted.
+    far_past = base - 3.days
     repository = Factories.repository
 
     Factories.job_record(repository: repository, state: "queued", created_at: base + 10.minutes)
-    Factories.job_record(repository: repository, state: "closed", finished_at: base + 20.minutes)
+    Factories.job_record(repository: repository, state: "closed", created_at: far_past, finished_at: base + 20.minutes)
     Factories.job_record(
       repository: repository,
       state: "closed",
@@ -39,6 +44,7 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
     )
     Factories.job_with_run(
       repository: repository,
+      created_at: far_past,
       workflow_attrs: { trigger_kind: "initial" },
       step_attrs: { kind: "pr_open", state: "succeeded", finished_at: base + 15.minutes }
     )
