@@ -19,5 +19,6 @@ module SyrusBrowser
 
     argument_aliases target: %i[ref]
     proxies "browser_take_screenshot", element: "element", target: "target"
+    captures_artifact!
   end
 end

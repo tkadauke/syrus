@@ -1,5 +1,6 @@
 require "mcp"
 require "json"
+require "base64"
 
 module SyrusBrowser
   # Base class for granular browser-control MCP tools (see McpToolSet).
@@ -23,15 +24,29 @@ module SyrusBrowser
         self.argument_alias_map = argument_alias_map
       end
 
+      # Opt-in flag for tools whose upstream response can carry captured
+      # evidence (image content blocks) that should be routed through the
+      # call's ArtifactSink -- see #translate. Most proxied tools (click,
+      # fill, navigate, ...) have nothing to capture and leave this false.
+      def captures_artifact!
+        @captures_artifact = true
+      end
+
+      def captures_artifact?
+        !!@captures_artifact
+      end
+
       def call(server_context:, **params)
         params = normalize_argument_aliases(params)
         missing = missing_required_arguments(params)
         return error(missing_arguments_message(missing)) if missing.any?
 
-        run = Mcp::Tools.run_from_context(server_context)
-        session = SessionRegistry.fetch(run.id)
+        context = SessionContext.resolve(server_context)
+        session = SessionRegistry.fetch(context.session_key)
         response = session.call_tool(name: upstream_tool_name, arguments: upstream_arguments(params))
-        translate(response)
+        translate(response, artifact_sink: context.artifact_sink)
+      rescue SessionContext::NoActiveSessionError => e
+        error(e.message)
       rescue MCP::Client::ServerError => e
         error("browser tool #{tool_name} failed: #{e.message}")
       rescue StandardError => e
@@ -89,12 +104,31 @@ module SyrusBrowser
         !(value.nil? || (value.respond_to?(:blank?) ? value.blank? : value.to_s.empty?))
       end
 
-      def translate(response)
+      def translate(response, artifact_sink: nil)
         result = response.is_a?(Hash) ? response["result"] : nil
         content = result.is_a?(Hash) ? Array(result["content"]) : []
         content = content.map { |block| block.is_a?(Hash) ? block.transform_keys(&:to_sym) : block }
         err = result.is_a?(Hash) && result["isError"] == true
+
+        capture_artifacts!(content, artifact_sink) if captures_artifact? && artifact_sink && !err
+
         MCP::Tool::Response.new(content.presence || [ { type: "text", text: "" } ], error: err)
+      end
+
+      # Best-effort: a capture failure must never turn a successful browser
+      # action into a tool error -- the agent already got its response.
+      def capture_artifacts!(content, artifact_sink)
+        content.each do |block|
+          next unless block.is_a?(Hash) && block[:type] == "image" && block[:data].present?
+
+          artifact_sink.capture(
+            bytes: Base64.decode64(block[:data].to_s),
+            content_type: block[:mimeType].presence || "image/png",
+            title: "#{tool_name} capture"
+          )
+        end
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{e.message}")
       end
     end
   end

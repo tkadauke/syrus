@@ -11,9 +11,11 @@ module SyrusBrowser
 
     class << self
       def call(server_context:, **_params)
-        run = Mcp::Tools.run_from_context(server_context)
-        SessionRegistry.kill(run.id)
+        context = SessionContext.resolve(server_context)
+        SessionRegistry.kill(context.session_key)
         ok(closed: true)
+      rescue SessionContext::NoActiveSessionError => e
+        error(e.message)
       rescue StandardError => e
         error("#{e.class}: #{e.message}")
       end

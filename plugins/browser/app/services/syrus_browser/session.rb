@@ -2,10 +2,11 @@ require "mcp"
 
 module SyrusBrowser
   # Spawns and owns a single @playwright/mcp stdio subprocess for the
-  # lifetime of a workflow Run. One browser (and one MCP::Client connection
-  # to it) is reused across every browser_* tool call within the Run, so a
-  # multi-step flow (navigate, then click, then screenshot) sees the same
-  # page Playwright left it in.
+  # lifetime of one owning session -- a workflow Run (visual_review) or a
+  # Coding Mode chat's RuntimeSession (see SessionContext). One browser (and
+  # one MCP::Client connection to it) is reused across every browser_* tool
+  # call for that owner, so a multi-step flow (navigate, then click, then
+  # screenshot) sees the same page Playwright left it in.
   #
   # `@playwright/mcp` is Microsoft's own MCP server for Playwright, baked
   # into the worker image (see Dockerfile's worker-deps stage) and bundled
@@ -29,8 +30,8 @@ module SyrusBrowser
       ENV.fetch("SYRUS_BROWSER_EXECUTABLE_PATH", DEFAULT_EXECUTABLE_PATH)
     end
 
-    def self.spawn(run_id, command: DEFAULT_COMMAND, args: default_args, env: nil)
-      new(run_id, command: command, args: args, env: default_env.merge(env.to_h))
+    def self.spawn(session_key, command: DEFAULT_COMMAND, args: default_args, env: nil)
+      new(session_key, command: command, args: args, env: default_env.merge(env.to_h))
     end
 
     def self.default_env
@@ -40,8 +41,8 @@ module SyrusBrowser
       }
     end
 
-    def initialize(run_id, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil)
-      @run_id = run_id
+    def initialize(session_key, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil)
+      @session_key = session_key
       @transport = MCP::Client::Stdio.new(command: command, args: args, env: env)
       @client = MCP::Client.new(transport: @transport)
       @connected = false
