@@ -809,6 +809,7 @@ function SidebarContent({
       <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
+            <span aria-hidden="true" className="text-gray-900 dark:text-white lg:hidden"><MenuIcon /></span>
             <Link className="text-lg font-semibold text-gray-900 dark:text-white" onClick={onCloseDrawer} to={prefix || "/"}><SyrusBrand /></Link>
             <TestChannelBadge />
           </div>
