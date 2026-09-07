@@ -62,6 +62,17 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const reopenAction = actions.find((action) => action.key === "reopen")
   const pinAction = actions.find((action) => action.key === "pin")
 
+  // Approve's own click path is `onApprove` (JobDetail.tsx), not a plain
+  // `command.mutate` -- it first runs the withPreviewStop check that offers
+  // to stop an active preview before approving. The shortcut must confirm,
+  // then fall through to that exact same path, or it would silently skip
+  // the preview-stop prompt the button always shows.
+  async function triggerApproveShortcut() {
+    if (!(await command.confirm({ message: t("confirm_approve_shortcut"), destructive: true }))) return
+    if (onApprove) onApprove()
+    else if (approveAction) command.mutate(approveAction.input)
+  }
+
   function handleActionClick(action: HeaderAction) {
     if (action.key === "approve" && onApprove) {
       onApprove()
@@ -111,7 +122,7 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
         ))}
         {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} onActionClick={handleActionClick} onRetryFeedback={(input) => { setRetryFeedbackInput(input); setRetryFeedbackOpen(true) }} /> : null}
       </div>
-      {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="a" onTrigger={() => command.mutate({ ...approveAction.input, confirm: t("confirm_approve_shortcut") })} /> : null}
+      {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="a" onTrigger={triggerApproveShortcut} /> : null}
       {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
       {retryAction ? <JobShortcut description={retryAction.label} group={shortcutGroup} keys="r" onTrigger={() => command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })} /> : null}
       {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
