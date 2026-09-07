@@ -62,6 +62,21 @@ RSpec.describe WorkflowAdmissionBudget do
   # -- its next Run may well be sitting in the queue this budget just delayed.
   # Only a Run that has actually started is pressure, so a fixture standing in
   # for "active work" has to have one.
+  # The floor admits one unit of work per healthy worker before any gate can
+  # bite, so a spec that wants to observe a gate has to fill it first.
+  def saturate_minimum_progress_floor!
+    other = Factories.job_record(user: user, repository: repository, state: "running", priority: "medium", issue_number: 900)
+    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+    other_workflow.update!(state: "running")
+    attach_work_unit(other_workflow, state: "running")
+    step = other_workflow.steps.find_by!(kind: "implement")
+    step.update!(state: "running")
+    step.runs.create!(
+      job: other, trigger_kind: other_workflow.trigger_kind,
+      agent_provider: other_workflow.agent_provider, state: "running", started_at: 1.minute.ago
+    )
+  end
+
   def executing_workflow_for(**kwargs)
     workflow = workflow_for(state: "running", **kwargs)
     step = workflow.steps.order(:position).first
@@ -110,11 +125,9 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.action).to eq("admit_now")
     expect(decision.reason).to eq("within_budget")
-    expect(decision.details).to include(
-      "decision_basis" => "fallback_host_correlated_profile",
-      "prediction_source" => "host_correlated"
-    )
-    expect(decision.pressure.dig("candidate", "profile_count")).to be >= 8
+    # The decision is now made by measuring the host, not by predicting what
+    # the workflow will cost, so there is no prediction source to report.
+    expect(decision.details).to include("decision_basis" => "measured_host_pressure")
   end
 
   it "uses an indexable worker role predicate for host telemetry" do
@@ -145,30 +158,7 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("candidate", "high_cost")).to be(true)
   end
 
-  it "records conservative defaults while bootstrapping steps with no matching profile" do
-    WorkflowStepResourceProfile.delete_all
-    workflow = workflow_for
 
-    decision = described_class.call(workflow: workflow)
-
-    expect(decision.action).to eq("admit_now")
-    expect(decision.reason).to eq("bootstrap_missing_profiles")
-    expect(decision.pressure.dig("candidate", "profile_count")).to eq(0)
-    expect(decision.pressure.dig("candidate", "missing_profile_count")).to be >= 1
-    expect(decision.pressure.dig("candidate", "fallback_reasons")).to include("missing_workflow_step_resource_profile")
-    expect(decision.pressure.dig("candidate", "predicted_command_cost", "cpu_pressure")).to be >= WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:cpu_pressure)
-  end
-
-  it "delays missing-profile work when another running workflow is already consuming the bootstrap budget" do
-    executing_workflow_for
-    candidate = workflow_for(trigger_kind: "retry")
-
-    decision = described_class.call(workflow: candidate)
-
-    expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
-    expect(decision.pressure.dig("active", "workflow_count")).to eq(1)
-  end
 
   it "does not count queued workflows as active predicted pressure" do
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 20.0, io: 10.0, memory: 40.0)
@@ -235,19 +225,6 @@ RSpec.describe WorkflowAdmissionBudget do
     end
   end
 
-  it "delays a medium-priority workflow when active predicted work already consumes the budget" do
-    profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    active = executing_workflow_for
-    candidate = workflow_for
-
-    decision = described_class.call(workflow: candidate)
-
-    expect(active.reload).to be_running
-    expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
-    expect(decision.delay_until).to be_present
-    expect(decision.pressure.dig("projected", "cpu_pressure")).to be >= 100.0
-  end
 
   it "ignores legacy landing workflows in admission pressure" do
     WorkflowStepResourceProfile.delete_all
@@ -265,25 +242,10 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details.fetch("repository_active_workflow_count")).to eq(0)
   end
 
-  it "counts WorkUnit-owned landing workflows in admission pressure" do
-    WorkflowStepResourceProfile.delete_all
-    seed_low_cost_profiles(except: [ "prepare" ])
-    profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    active = executing_workflow_for(trigger_kind: "auto_merge")
-    candidate = workflow_for
-
-    decision = described_class.call(workflow: candidate)
-
-    expect(active.reload.work_unit).to be_running
-    expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
-    expect(decision.pressure.dig("active", "workflow_count")).to eq(1)
-    expect(decision.details.fetch("repository_active_workflow_count")).to eq(1)
-  end
 
   it "admits a medium-priority auto-merge below the healthy-worker floor despite conservative default pressure" do
     WorkerHostHealthSample.delete_all
-    worker_sample(hostname: "worker-1")
+    worker_sample(hostname: "worker-1", cpu: 90.0)
     WorkflowStepResourceProfile.delete_all
     %w[mergeability_preflight grader_fanout grader_collect push auto_merge].each do |step_kind|
       profile(step_kind: step_kind, trigger_kind: "auto_merge", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
@@ -307,12 +269,12 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details).to include(
       "decision_basis" => "minimum_progress_floor",
       "minimum_progress_floor_used" => true,
-      "minimum_progress_floor_reason" => "predicted_budget_pressure_high",
+      "minimum_progress_floor_reason" => "worker_host_pressure_high",
       "healthy_worker_count" => 1,
       "active_agentic_run_count" => 0,
       "minimum_progress_floor_capacity" => 1
     )
-    expect(decision.details.fetch("soft_pressure_gates_present")).to include("predicted_budget_pressure_high")
+    expect(decision.details.fetch("soft_pressure_gates_present")).to include("worker_host_pressure_high")
   end
 
   it "reserves the next admission slot for blocked landing work before medium initial work" do
@@ -386,13 +348,18 @@ RSpec.describe WorkflowAdmissionBudget do
 
     decision = described_class.call(workflow: second)
 
+    # The point of the example is that a landing candidate is not held back by
+    # capacity reserved *for* landing. It is now simply admitted, rather than
+    # needing the floor to rescue it from a predicted-cost gate.
     expect(decision.action).to eq("admit_now")
-    expect(decision.reason).to eq("minimum_progress_floor")
+    expect(decision.reason).to eq("within_budget")
   end
 
+  # The floor is now a backstop against a *measured* block rather than a
+  # predicted one, so the host has to actually be loaded for it to be in play.
   it "resumes delaying once running agentic work reaches the healthy-worker floor" do
     WorkerHostHealthSample.delete_all
-    worker_sample(hostname: "worker-1")
+    worker_sample(hostname: "worker-1", cpu: 90.0)
     WorkflowStepResourceProfile.delete_all
     profile(step_kind: "prepare", trigger_kind: "retry", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
     active = workflow_for(state: "running")
@@ -410,7 +377,7 @@ RSpec.describe WorkflowAdmissionBudget do
     decision = described_class.call(workflow: candidate)
 
     expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.reason).to eq("worker_host_pressure_high")
     expect(decision.details).to include(
       "healthy_worker_count" => 1,
       "active_agentic_run_count" => 1,
@@ -421,7 +388,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "keeps a minimum-progress floor slot occupied after prepare until the first agentic run exists" do
     WorkerHostHealthSample.delete_all
-    worker_sample(hostname: "worker-1")
+    worker_sample(hostname: "worker-1", cpu: 90.0)
     WorkflowStepResourceProfile.delete_all
     profile(step_kind: "prepare", trigger_kind: "retry", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
     admitted = workflow_for(state: "running")
@@ -443,7 +410,7 @@ RSpec.describe WorkflowAdmissionBudget do
     decision = budget.call
 
     expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.reason).to eq("worker_host_pressure_high")
     expect(decision.details).to include(
       "active_agentic_run_count" => 0,
       "active_minimum_progress_handoff_count" => 1,
@@ -455,7 +422,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "releases a minimum-progress handoff slot once the first agentic run has been created" do
     WorkerHostHealthSample.delete_all
-    worker_sample(hostname: "worker-1")
+    worker_sample(hostname: "worker-1", cpu: 90.0)
     WorkflowStepResourceProfile.delete_all
     %w[prepare implement].each do |step_kind|
       profile(step_kind: step_kind, trigger_kind: "retry", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
@@ -633,58 +600,29 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end
 
-  it "explains host-correlated fallback when command attribution is unavailable" do
-    WorkflowStepResourceProfile.delete_all
-    seed_low_cost_profiles(except: [ "prepare" ])
-    profile(step_kind: "prepare", duration: 1_800, cpu: 100.0, attributed_samples: 9, attributed_cpu: 5.0)
-    workflow = workflow_for
 
-    decision = described_class.call(workflow: workflow)
 
-    expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
-    expect(decision.details).to include(
-      "decision_basis" => "fallback_host_correlated_profile",
-      "prediction_source" => "host_correlated"
-    )
-    expect(decision.details.fetch("fallback_reasons")).to include("command_attributed_profile_unavailable")
-    expect(decision.pressure.dig("candidate", "attribution_confidence_levels")).to eq([ "defaults_only" ])
-  end
-
-  it "bypasses conservative default prediction delays when admission control is disabled" do
+  # The kill switch bypasses the soft gates. Only the measured host gate and
+  # the landing reservation remain to bypass -- the predicted-cost throttles
+  # and the per-repository cap are gone.
+  it "bypasses the soft host-pressure gate when admission control is disabled" do
     AppSetting.current.update!(workflow_admission_control_enabled: false)
-    WorkflowStepResourceProfile.delete_all
-    executing_workflow_for
-    candidate = workflow_for(trigger_kind: "retry")
-
-    decision = described_class.call(workflow: candidate)
-
-    expect(decision.action).to eq("admit_now")
-    expect(decision.reason).to eq("admission_control_disabled")
-    expect(decision.details.fetch("bypassed_gates")).to include(
-      "bootstrap_missing_profiles",
-      "predicted_budget_pressure_high"
-    )
-  end
-
-  it "bypasses pending high-cost and repository concurrency throttles when admission control is disabled" do
-    AppSetting.current.update!(workflow_admission_control_enabled: false)
-    profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 20.0, io: 10.0, memory: 40.0)
-    2.times { executing_workflow_for }
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-1", cpu: 90.0)
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
 
     expect(decision.action).to eq("admit_now")
     expect(decision.reason).to eq("admission_control_disabled")
-    expect(decision.details.fetch("bypassed_gates")).to include(
-      "pending_high_cost_work",
-      "repository_concurrency_budget_exhausted"
-    )
+    expect(decision.details.fetch("bypassed_gates")).to include("worker_host_pressure_high")
   end
 
   it "re-enabling admission restores normal budgeting behavior" do
     AppSetting.current.update!(workflow_admission_control_enabled: true)
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-1", cpu: 90.0)
+    saturate_minimum_progress_floor!
     profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
     executing_workflow_for
     candidate = workflow_for
@@ -692,37 +630,9 @@ RSpec.describe WorkflowAdmissionBudget do
     decision = described_class.call(workflow: candidate)
 
     expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.reason).to eq("worker_host_pressure_high")
   end
 
-  it "labels mixed-source pressure by the source that drives the budget decision" do
-    WorkflowStepResourceProfile.delete_all
-    seed_low_cost_profiles(except: %w[prepare implement], attributed: true)
-    profile(
-      step_kind: "prepare",
-      duration: 60,
-      cpu: 90.0,
-      attributed_samples: 30,
-      attributed_duration: 20,
-      attributed_cpu: 2.0
-    )
-    profile(step_kind: "implement", duration: 1_800, cpu: 120.0, io: 10.0, memory: 30.0)
-    workflow = workflow_for
-
-    decision = described_class.call(workflow: workflow)
-
-    expect(decision.action).to eq("delay_until")
-    expect(decision.reason).to eq("predicted_budget_pressure_high")
-    expect(decision.details).to include(
-      "decision_basis" => "fallback_host_correlated_profile",
-      "prediction_source" => "host_correlated"
-    )
-    expect(decision.pressure.dig("candidate", "prediction_sources")).to include(
-      "command_attributed" => 10,
-      "host_correlated" => 1
-    )
-    expect(decision.pressure.dig("candidate", "prediction_source_contributions", "host_correlated", "cpu_pressure")).to eq(120.0)
-  end
 
   describe "telemetry_state" do
     it "does not hard-block admission when host telemetry is absent but step profiles are clean" do
@@ -740,22 +650,6 @@ RSpec.describe WorkflowAdmissionBudget do
       expect(decision.details.fetch("telemetry_state")).to eq("absent")
     end
 
-    it "still governs admission by profile-based pressure when host telemetry is absent" do
-      WorkerHostHealthSample.delete_all
-      profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-      active = executing_workflow_for
-      candidate = workflow_for
-
-      decision = described_class.call(workflow: candidate)
-
-      expect(active.reload).to be_running
-      expect(decision.action).to eq("delay_until")
-      expect(decision.reason).to eq("predicted_budget_pressure_high")
-      expect(decision.reason).not_to eq("worker_host_pressure_high")
-      expect(decision.pressure.dig("host", "telemetry_state")).to eq("absent")
-      expect(decision.pressure.dig("host", "max_cpu_pressure")).to eq(0.0)
-      expect(decision.details.fetch("telemetry_state")).to eq("absent")
-    end
 
     it "requires an override from genuinely maxed-out hosts, not merely from missing telemetry" do
       WorkerHostHealthSample.delete_all

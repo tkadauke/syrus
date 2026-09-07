@@ -28,6 +28,12 @@ class WorkflowAdmissionBudget
   SOFT_DELAY = 10.minutes
   HOST_SAMPLE_WINDOW = 2.minutes
   ACTIVE_WORKFLOW_WINDOW = 90.minutes
+  # Retained for the decision record only. As a *gate* it was never reachable
+  # on its own -- it fired only alongside a predicted-cost signal, so the value
+  # 2 was never tested against reality. Making it unconditional would have
+  # capped a repository at two concurrent workflows; production routinely runs
+  # 16-25. Per-user fairness lives in Admission::FairShare, and host capacity
+  # is now measured rather than rationed per repository.
   MAX_REPOSITORY_ACTIVE_WORKFLOWS = 2
   HIGH_COST_SECONDS = 20.minutes.to_i
   LOW_RISK_SECONDS = 8.minutes.to_i
@@ -73,29 +79,19 @@ class WorkflowAdmissionBudget
       return delay("landing_queue_capacity_reserved", pressure, details: details_payload(candidate, active, decision_basis: "landing_queue_capacity_reserved"))
     end
 
+    # Anti-stall backstop: keep at least one unit of work moving per healthy
+    # worker even when the gate below says no. It used to carry 88% of all
+    # admissions, which was the predictive gates refusing everything rather
+    # than the floor doing its job; against a measured gate it should be rare.
     if minimum_progress_floor_available?
       floor_reason = minimum_progress_floor_reason(candidate, active, pressure)
       return minimum_progress_floor_admit(floor_reason, candidate, active, pressure) if floor_reason
     end
 
+    # The one capacity question worth asking, and it is answered by measuring
+    # rather than predicting: is this host busy *right now*?
     if soft_host_pressure? && !urgent?
-      return low_risk_or_delay("worker_host_pressure_high", candidate, active, pressure, decision_basis: "ambient_pressure")
-    end
-
-    if bootstrap_missing_profiles?(candidate)
-      return admit("bootstrap_missing_profiles", pressure)
-    end
-
-    if over_budget?(pressure) && !urgent?
-      return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure, decision_basis: prediction_decision_basis(candidate))
-    end
-
-    if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower? && !urgent?
-      return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active, decision_basis: prediction_decision_basis(candidate)))
-    end
-
-    if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active) && !urgent?
-      return low_risk_or_delay("repository_concurrency_budget_exhausted", candidate, active, pressure, decision_basis: prediction_decision_basis(candidate))
+      return delay("worker_host_pressure_high", pressure, details: details_payload(candidate, active, decision_basis: "measured_host_pressure"))
     end
 
     admit("within_budget", pressure)
@@ -477,14 +473,12 @@ class WorkflowAdmissionBudget
       .distinct
   end
 
-  def minimum_progress_floor_reason(candidate, active, pressure)
+  # Which gate the floor is overriding, for the decision record. The floor is
+  # now a genuine anti-stall backstop rather than the main path -- when 88% of
+  # admissions came through it, that was the predictive gates refusing
+  # everything, not the floor doing its job.
+  def minimum_progress_floor_reason(_candidate, _active, _pressure)
     return "worker_host_pressure_high" if soft_host_pressure?
-    return "bootstrap_missing_profiles" if bootstrap_missing_profiles?(candidate)
-    return "predicted_budget_pressure_high" if over_budget?(pressure)
-    return "pending_high_cost_work" if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower?
-    if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active)
-      return "repository_concurrency_budget_exhausted"
-    end
 
     nil
   end
@@ -629,80 +623,12 @@ class WorkflowAdmissionBudget
       host_pressure.fetch("max_data_root_used_percent") >= SOFT_HOST_PRESSURE
   end
 
-  # CPU and IO pressure are summed across *concurrently active* workflows, so
-  # the ceiling has to be the fleet's capacity, not one machine's. Comparing a
-  # fleet-wide sum against a single host's 100% is what made a second
-  # concurrent workflow look like a budget breach on a fleet that was 87% idle.
-  #
-  # Memory stays per-host: it is a max across workflows, not a sum, so it is
-  # already expressed on one host's scale.
-  def over_budget?(pressure)
-    projected = pressure.fetch("projected")
-    projected.fetch("cpu_pressure") >= fleet_budget(CPU_BUDGET) ||
-      projected.fetch("io_pressure") >= fleet_budget(IO_BUDGET) ||
-      projected.fetch("memory_used_percent") >= MEMORY_BUDGET
-  end
-
-  # Falls back to a single host's worth of budget when no worker telemetry has
-  # been recorded, which keeps a fleet we cannot see from being treated as
-  # infinite.
-  def fleet_budget(per_host_budget)
-    per_host_budget * [ healthy_worker_count, 1 ].max
-  end
-
-  def pending_high_cost_work?(active)
-    active.fetch("high_cost_count").positive?
-  end
-
-  def high_cost?(candidate)
-    candidate.fetch("high_cost")
-  end
-
-  def bootstrap_missing_profiles?(candidate)
-    candidate.fetch("profile_count").zero? &&
-      active_workflow_pressure.fetch("profile_count").zero? &&
-      !urgent?
-  end
-
-  def low_risk?(candidate)
-    candidate.fetch("duration_seconds") <= LOW_RISK_SECONDS &&
-      candidate.fetch("cpu_pressure") <= LOW_RISK_PRESSURE &&
-      candidate.fetch("io_pressure") <= LOW_RISK_PRESSURE &&
-      candidate.fetch("memory_used_percent") <= LOW_RISK_PRESSURE
-  end
-
-  def low_risk_or_delay(reason, candidate, active, pressure, decision_basis:)
-    if low_risk?(candidate)
-      decision("admit_low_risk_only", reason, pressure, details: details_payload(candidate, active, decision_basis: decision_basis))
-    else
-      delay(reason, pressure, details: details_payload(candidate, active, decision_basis: decision_basis))
-    end
-  end
-
-  def prediction_decision_basis(candidate)
-    case candidate.fetch("primary_prediction_source")
-    when "command_attributed"
-      "predicted_process_attributed_phase_cost"
-    when "host_correlated"
-      "fallback_host_correlated_profile"
-    else
-      "conservative_defaults"
-    end
-  end
-
-  def admit_decision_basis(reason, candidate)
-    case reason
-    when "within_budget"
-      prediction_decision_basis(candidate)
-    when "bootstrap_missing_profiles"
-      "conservative_defaults"
-    else
-      reason
-    end
+  def admit_decision_basis(reason, _candidate)
+    reason == "within_budget" ? "measured_host_pressure" : reason
   end
 
   def pressure_detected?(pressure)
-    pressure.fetch("active").fetch("workflow_count").positive? || soft_host_pressure? || over_budget?(pressure)
+    pressure.fetch("active").fetch("workflow_count").positive? || soft_host_pressure?
   end
 
   def urgent_override(reason, pressure)
@@ -764,13 +690,7 @@ class WorkflowAdmissionBudget
   def disabled_bypassed_gates(candidate, active, pressure)
     gates = []
     gates << "worker_host_pressure_high" if soft_host_pressure?
-    gates << "bootstrap_missing_profiles" if bootstrap_missing_profiles?(candidate)
     gates << "landing_queue_capacity_reserved" if landing_capacity_reserved_for_queue?
-    gates << "predicted_budget_pressure_high" if over_budget?(pressure)
-    gates << "pending_high_cost_work" if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower?
-    if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active)
-      gates << "repository_concurrency_budget_exhausted"
-    end
     gates.uniq
   end
 

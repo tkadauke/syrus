@@ -378,7 +378,53 @@ whether a profile is process-attributed, host-correlated, mixed, or defaults
 only so Admin and Supervisor surfaces can audit top command consumers without
 conflating host pressure with process-owned cost.
 
-## How Workflow Admission Pressure Is Counted
+## How Workflow Admission Decides
+
+Admission measures the host instead of predicting the step.
+
+- **`RunHostAdmission`** (per Run, on the compute queues) defers anything when
+  the worker's own health sample reads critical — grader, agent or otherwise.
+  Beyond that it rations only *agentic* runs, `GUARDED_RUNS_PER_HOST` at a
+  time, and leaves `STAGGER_INTERVAL` between admissions on a host so each
+  decision sees a sample that reflects the previous one. Host readings lag the
+  work that produced them; the slot count and the stagger are there to bound
+  that lag, not to model capacity.
+- **`WorkflowAdmissionBudget`** (per Workflow/phase) keeps the hard
+  memory/disk gates, the urgent override, the landing-queue reservation, the
+  minimum-progress floor, and one soft gate: `soft_host_pressure?`, which is a
+  live reading of worker CPU, IO, memory and disk against `SOFT_HOST_PRESSURE`.
+
+**There are no predictions left in the decision path.** `WorkflowStepResourceProfile`
+rows are still recorded and are still useful for spotting a step whose cost
+regressed, but nothing admits or defers on them.
+
+They were removed because they measured the wrong thing. `p90_cpu_pressure` and
+`p90_memory_used_percent` recorded the *host's ambient state* while a step ran,
+not the step's own demand — so `mergeability_preflight`, a 52-second GitHub API
+call using 2.7% CPU, profiled at 84.1 cpu_pressure and 75.9% memory, and was
+rationed as if it were an agent. `p90_process_attributed_cpu_percent` is the
+real per-process figure, on a different scale again (0.3 for `prepare`, 230 for
+a multi-core rspec run). Three scales were being compared against budgets as if
+they were one.
+
+The result was self-reinforcing: ambient readings rise with load, so the
+throttle tightened exactly when it should have relaxed. Production sat at ~18%
+agent utilisation with hosts reporting 88% CPU headroom, 88% of admissions came
+through the minimum-progress floor rather than the budget, and one landing step
+deferred 73 times in 36 minutes.
+
+Two guard rails worth keeping in mind when changing this:
+
+- The per-repository cap (`MAX_REPOSITORY_ACTIVE_WORKFLOWS`) is **not** a gate.
+  It only ever fired alongside a predicted-cost signal, so its value was never
+  tested against reality; applying it unconditionally caps a repository at two
+  concurrent workflows, where production routinely runs 16-25. Per-user
+  fairness belongs to `Admission::FairShare`.
+- The minimum-progress floor is an anti-stall backstop, not a path. If most
+  admissions are arriving through it, the gate in front of it is refusing work
+  it should be admitting — that is exactly what the predictive model did.
+
+## How Workflow Admission Pressure Was Counted (historical)
 
 Three rules, and getting any of them wrong throttles a fleet that is mostly
 idle:

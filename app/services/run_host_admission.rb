@@ -6,20 +6,34 @@ class RunHostAdmission
 
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
   RETRY_DELAY = 30.seconds
-  GUARDED_RUNS_PER_HOST = 1
-  CPU_HEAVY_PRESSURE = 50.0
-  CPU_HEAVY_PROCESS_PERCENT = 75.0
 
-  # Only agentic steps are guarded on sight.
+  # A backstop for measurement lag, not a capacity model. Host readings trail
+  # by a sample interval, so a burst can be admitted against a stale "idle"
+  # reading; this bounds how far that can overshoot before the next sample
+  # lands. Sized to the `runs` thread pool -- the plumbing already allows this
+  # many, and 24h of production peaked at 2-4 agents per host.
   #
-  # `grader` and `preflight_grader` used to be here too, which made this a
-  # strict mutex: with one slot per host, a single grader excluded every agent
-  # AND every other grader on that pod. Production ran three compute tasks
-  # across three pods while Kubernetes had capacity to spare.
+  # It was 1, which made this a strict per-host mutex and was the single
+  # binding constraint on throughput: a 52-second GitHub API call using 2.7%
+  # CPU held the only slot on its pod, deferring landing 73 times in 36
+  # minutes while every host sat below 45% CPU.
+  GUARDED_RUNS_PER_HOST = 3
+
+  # The other half of the lag defence: after admitting, leave a gap so the next
+  # decision on this host sees a sample that reflects it. Cheaper and more
+  # honest than predicting what the admitted work will cost.
+  STAGGER_INTERVAL = 20.seconds
+
+  # Agentic steps are the expensive ones by nature and are guarded on sight.
   #
-  # Graders are now judged by what they actually cost (see #resource_guarded?),
-  # so a cheap check runs alongside other work and an expensive one -- or one
-  # with no profile yet, which predicts conservatively -- still takes a slot.
+  # Everything else is judged by the host's *current* state rather than by a
+  # prediction of what the step will cost. Predicting was worse than useless
+  # here: `WorkflowStepResourceProfile` records the host's ambient CPU and
+  # memory while a step ran, not the step's own demand, so `prepare` (0.3%
+  # process CPU) profiled at 93.5 cpu_pressure and `grader_collect` (3
+  # seconds) at 88.2. Guarding on those numbers throttled cheap work hardest
+  # and got worse the busier the fleet was -- the readings rise with load, so
+  # the throttle tightened exactly when it should have relaxed.
   ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
 
   def self.call(...) = new(...).call
@@ -34,9 +48,18 @@ class RunHostAdmission
     return admit("not_queued") unless run&.queued?
     return admit("non_compute_queue") unless compute_queue?
     return admit("missing_execution_graph") unless workflow && step
+
+    # Measured first, and for every kind of run: a host in trouble should stop
+    # taking work, not just stop taking *agentic* work. This is the gate that
+    # replaced the predicted-cost budget, so it has to be the one that
+    # actually decides.
+    return defer("local_worker_pressure_critical") if critical_local_pressure?
+
+    # Beyond that, only agentic runs are rationed per host, and only to bound
+    # how far a burst can overshoot a stale sample.
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if active_guarded_run_count >= GUARDED_RUNS_PER_HOST
-    return defer("local_worker_pressure_critical") if critical_local_pressure?
+    return defer("host_admission_staggering") if admitted_within_stagger_window?
 
     admit("host_capacity_available")
   end
@@ -78,6 +101,21 @@ class RunHostAdmission
     queue_name.to_s.start_with?("resume-")
   end
 
+  # Host readings trail the work that produced them, so admitting several runs
+  # against one sample overshoots before the next sample can object. Leaving a
+  # gap between admissions on a host means each decision sees a measurement
+  # that already reflects the previous one.
+  #
+  # Keyed on the most recently *started* guarded run rather than a separate
+  # ledger: the runs themselves are the record, so there is no new state to
+  # keep consistent, and a worker restart cannot lose it.
+  def admitted_within_stagger_window?
+    last_started = active_always_guarded_run_scope.maximum(:started_at)
+    return false if last_started.blank?
+
+    last_started > now - STAGGER_INTERVAL
+  end
+
   def critical_local_pressure?
     local_health.fetch(:level, local_health["level"]) == "critical"
   end
@@ -103,61 +141,17 @@ class RunHostAdmission
       .first
   end
 
+  # A straight count now that guarding is "is it agentic", rather than loading
+  # every candidate to ask a profile what it might cost.
   def active_guarded_run_count
-    @active_guarded_run_count ||= begin
-      if active_always_guarded_run_scope.exists?
-        1
-      else
-        active_run_scope
-          .where.not(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
-          .includes(:job, step: :workflow)
-          .to_a
-          .count { |candidate| resource_guarded?(candidate) }
-      end
-    end
+    @active_guarded_run_count ||= active_always_guarded_run_scope.count
   end
 
   def resource_guarded?(candidate)
     candidate_step = candidate.step
     return false unless candidate_step
-    return true if candidate_step.agentic?
 
-    prediction = prediction_for(candidate)
-    prediction.fetch(:cpu_pressure).to_f >= CPU_HEAVY_PRESSURE ||
-      prediction.fetch(:process_attributed_cpu_percent).to_f >= CPU_HEAVY_PROCESS_PERCENT ||
-      prediction.fetch(:duration_seconds).to_f >= WorkflowAdmissionBudget::HIGH_COST_SECONDS
-  end
-
-  def prediction_for(candidate)
-    candidate_step = candidate.step
-    profile = profiles_for(candidate).first
-    return profile.conservative_prediction if profile
-
-    Step::Kind.fetch(candidate_step.kind).resource_profile_defaults ||
-      WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
-  rescue ArgumentError
-    WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
-  end
-
-  def profiles_for(candidate)
-    candidate_step = candidate.step
-    profile_keys = Step::Kind.fetch(candidate_step.kind).resource_profile_keys_for(candidate_step)
-    step_kinds = profile_keys.map(&:first).uniq
-    base = WorkflowStepResourceProfile.where(
-      repository: candidate.job.repository,
-      agent_provider: candidate.workflow.agent_provider,
-      trigger_kind: candidate.workflow.trigger_kind,
-      job_kind: candidate.job.kind.to_s,
-      step_kind: step_kinds
-    )
-
-    base.to_a.select do |profile|
-      profile_keys.any? do |step_kind, grader_name|
-        profile.step_kind == step_kind && (grader_name.nil? || profile.grader_name.to_s == grader_name)
-      end
-    end
-  rescue ArgumentError
-    []
+    candidate_step.agentic?
   end
 
   def active_always_guarded_run_scope
