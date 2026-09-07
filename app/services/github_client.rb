@@ -785,13 +785,7 @@ class GithubClient
     else
       track_rate_limits { @client.org_repos(owner) }
     end
-    repos.map { |repo|
-      {
-        name: repo.name,
-        github_repository_id: repo.id,
-        github_owner_id: repo.owner&.id
-      }
-    }.sort_by { |repo| repo[:name].to_s.downcase }
+    repos.map { |repo| owner_repo_json(repo) }.sort_by { |repo| repo[:name].to_s.downcase }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited on #{owner} repos: #{e.message}")
     raise
@@ -891,6 +885,36 @@ class GithubClient
   end
 
   private
+
+  def owner_repo_json(repo)
+    fork = repo.fork == true
+    parent = fork ? repo_fork_parent(repo) : nil
+
+    {
+      name: repo.name,
+      github_repository_id: repo.id,
+      github_owner_id: repo.owner&.id,
+      fork: fork,
+      parent_full_name: parent&.full_name,
+      parent_default_branch: parent&.default_branch
+    }
+  end
+
+  # The list/org repos endpoints Octokit's #repos and #org_repos hit don't
+  # always include `parent` (it's populated reliably only on a single-repo
+  # fetch), so we only pay for the extra call when the repo is actually a
+  # fork and the list response omitted it.
+  def repo_fork_parent(repo)
+    return repo.parent if repo.respond_to?(:parent) && repo.parent
+
+    full_name = repo.full_name.presence || (repo.owner&.login && repo.name && "#{repo.owner.login}/#{repo.name}")
+    return nil if full_name.blank?
+
+    track_rate_limits { @client.repository(full_name) }.parent
+  rescue StandardError => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} could not resolve fork parent for #{full_name}: #{e.message}")
+    nil
+  end
 
   def summarize_check_runs(runs)
     return { any?: false, pending?: false, any_failed?: false, any_cancelled?: false, all_passed?: false, failed_checks: [] } if runs.empty?

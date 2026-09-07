@@ -141,9 +141,12 @@ its branches with `main`/`master` pre-selected. (There is no free-text entry —
 the dropdowns come from GitHub, so if they can't load you fix **Configure
 GitHub** first.) The modal applies the `syrus` trigger label by default,
 inherits the default agent you chose earlier, and turns on auto-merge plus the
-standard repository defaults. It skips the upstream/fork fields. Additional
-repositories — and any fine-tuning, including the trigger label — happen later
-from the full **Repositories** page.
+standard repository defaults. If the selected repository is a GitHub fork, the
+modal detects it automatically and pre-fills the upstream owner, name, and
+default branch — editable or clearable before you submit; a non-fork
+repository's upstream fields stay blank. Additional repositories — and any
+fine-tuning, including the trigger label — happen later from the full
+**Repositories** page.
 
 After the repository is added, Syrus offers the one optional step that's
 now actionable: **installing the Syrus GitHub App on that owner**, via a
