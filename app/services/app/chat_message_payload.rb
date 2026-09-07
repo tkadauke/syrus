@@ -17,11 +17,13 @@ module App
       @epics_by_user_and_id = {}
       @documents_by_id = {}
       @repositories_by_user_and_id = {}
+      @chat_shell_commands_by_id = {}
     end
 
     def messages(messages)
       records = messages.to_a
       preload_message_associations(records)
+      preload_chat_shell_commands(records)
       records.map { |message| message_json(message) }
     end
 
@@ -65,6 +67,13 @@ module App
       ).call
     end
 
+    def preload_chat_shell_commands(messages)
+      ids = messages.filter_map { |message| message.content["chat_shell_command_id"] if message.content.is_a?(Hash) }.map(&:to_i).uniq
+      return if ids.empty?
+
+      @chat_shell_commands_by_id = ChatShellCommand.where(id: ids).index_by(&:id)
+    end
+
     def message_json(message)
       text = text_from_content(message)
       payload = {
@@ -82,6 +91,10 @@ module App
 
       payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
       payload[:video_walkthrough_id] = message.content["video_walkthrough_id"] if message.content.is_a?(Hash) && message.content["video_walkthrough_id"].present?
+      if message.content.is_a?(Hash) && message.content["chat_shell_command_id"].present?
+        shell_command_payload = chat_shell_command_json(message)
+        payload[:chat_shell_command] = shell_command_payload if shell_command_payload
+      end
       payload[:sidechain] = true if message.sidechain
       payload[:parent_tool_use_id] = message.parent_tool_use_id if message.parent_tool_use_id.present?
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
@@ -97,6 +110,21 @@ module App
       return nil unless sender
 
       { id: sender.id, name: sender.display_name }
+    end
+
+    def chat_shell_command_json(message)
+      shell_command = @chat_shell_commands_by_id[message.content["chat_shell_command_id"].to_i]
+      return nil unless shell_command
+
+      {
+        id: shell_command.id,
+        command: shell_command.command,
+        output: shell_command.output,
+        outcome: shell_command.outcome,
+        exit_status: shell_command.exit_status,
+        started_at: shell_command.started_at&.iso8601,
+        finished_at: shell_command.finished_at&.iso8601
+      }
     end
 
     def pending_action_json(action, chat_session:)
