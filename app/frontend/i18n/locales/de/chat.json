@@ -311,6 +311,7 @@
   "field_title": "Titel",
   "field_body": "Text",
   "aria_stop_agent": "Agent stoppen",
+  "aria_stop_shell_command": "Befehl stoppen",
   "aria_mobile_tabs": "Chat-Mobil-Tabs",
   "aria_agent_questions": "Agent-Fragen",
   "aria_workspace_tabs": "Chat-Workspace-Tabs",

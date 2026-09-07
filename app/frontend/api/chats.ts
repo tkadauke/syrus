@@ -589,6 +589,22 @@ export type HiddenChatsPayload = {
   total_pages: number
 }
 
+export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
+
+// Mirrors ChatShellCommandsController#shell_command_json (EPIC-323).
+export type ChatShellCommandRecord = {
+  id: number
+  chat_session_id: number
+  command: string
+  output: string | null
+  outcome: ChatShellCommandOutcome | null
+  exit_status: number | null
+  started_at: string | null
+  finished_at: string | null
+  running: boolean
+  cancellable: boolean
+}
+
 export type ChatWalkthroughMedia = {
   id: number
   title: string
@@ -1125,6 +1141,18 @@ export function reorderScratchpadItems(chatId: string | number, ids: number[]) {
 
 export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+// EPIC-323 `!` command mode: run/cancel a one-shot shell command against a
+// Coding Mode chat session's persistent checkout. chatId is the numeric chat
+// session id (not a paths.* entry) since these routes were added after the
+// rest of the chat payload's path map was established.
+export function createChatShellCommand(chatId: string | number, command: string) {
+  return postJson<ChatShellCommandRecord>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/shell_commands`, { command })
+}
+
+export function cancelChatShellCommand(chatId: string | number, id: number) {
+  return postJson<ChatShellCommandRecord>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/shell_commands/${id}/cancel`)
 }
 
 

@@ -311,6 +311,7 @@
   "field_title": "Title",
   "field_body": "Body",
   "aria_stop_agent": "Stop agent",
+  "aria_stop_shell_command": "Stop command",
   "aria_mobile_tabs": "Chat mobile tabs",
   "aria_agent_questions": "Agent questions",
   "aria_workspace_tabs": "Chat workspace tabs",

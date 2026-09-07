@@ -311,6 +311,7 @@
   "field_title": "Titulus",
   "field_body": "Corpus",
   "aria_stop_agent": "Agentem sistere",
+  "aria_stop_shell_command": "Mandatum sistere",
   "aria_mobile_tabs": "Tabulae mobiles colloquii",
   "aria_agent_questions": "Quaestiones agentis",
   "aria_workspace_tabs": "Tabulae areae colloquii",
