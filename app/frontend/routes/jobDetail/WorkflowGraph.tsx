@@ -21,7 +21,7 @@ import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWar
 import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
-import type { BranchDivergence } from "./branchDivergence"
+import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 
 
@@ -398,6 +398,7 @@ function BranchDivergencePanel({
         <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_remote")}</dt><dd className="font-mono">{shortSha(divergence.remote_sha)}</dd></div>
         <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
       </dl>
+      {divergence.comparison ? <BranchDivergenceComparisonView comparison={divergence.comparison} /> : null}
       {divergence.recovery_pending ? (
         <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p>
       ) : null}
@@ -421,6 +422,69 @@ function BranchDivergencePanel({
         </CommandButton>
       </div>
     </div>
+  )
+}
+
+// The decision this banner asks for is destructive and irreversible, so it has
+// to show what is at stake rather than two SHAs the operator cannot diff. The
+// commit lists are captured at detection time (see Steps::PrOpen), because by
+// the time anyone reads this the workspace they came from is usually on
+// another worker.
+function BranchDivergenceComparisonView({ comparison }: { comparison: BranchDivergenceComparison }) {
+  const { t } = useT("jobs")
+  const discardedCount = comparison.discarded?.commits.length ?? 0
+
+  return (
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <section>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">
+          {t("workflow_divergence_discarded", { count: discardedCount })}
+        </h4>
+        {comparison.discarded ? (
+          <BranchDivergenceCommitLines list={comparison.discarded} />
+        ) : (
+          <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
+        )}
+        {comparison.discardedFiles ? (
+          <details className="mt-1">
+            <summary className="cursor-pointer text-xs text-amber-900 underline dark:text-amber-200">
+              {t("workflow_divergence_files", { count: comparison.discardedFiles.files.length })}
+            </summary>
+            <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
+              {comparison.discardedFiles.files.map((file) => <li key={file}>{file}</li>)}
+              {comparison.discardedFiles.truncated ? <li className="italic">{t("workflow_divergence_truncated")}</li> : null}
+            </ul>
+          </details>
+        ) : null}
+      </section>
+      <section>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+          {t("workflow_divergence_published", { count: comparison.published?.commits.length ?? 0 })}
+        </h4>
+        {comparison.published ? (
+          <BranchDivergenceCommitLines list={comparison.published} />
+        ) : (
+          <p className="mt-1 text-xs text-amber-900 dark:text-amber-200">{t("workflow_divergence_none")}</p>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function BranchDivergenceCommitLines({ list }: { list: BranchDivergenceCommitList }) {
+  const { t } = useT("jobs")
+
+  return (
+    <ul className="mt-1 space-y-1">
+      {list.commits.map((commit) => (
+        <li className="text-xs text-amber-950 dark:text-amber-100" key={commit.sha}>
+          <span className="font-mono text-amber-700 dark:text-amber-300">{commit.sha}</span>{" "}
+          <span>{commit.subject}</span>
+          {commit.author ? <span className="text-amber-700 dark:text-amber-400"> — {commit.author}</span> : null}
+        </li>
+      ))}
+      {list.truncated ? <li className="text-xs italic text-amber-800 dark:text-amber-300">{t("workflow_divergence_truncated")}</li> : null}
+    </ul>
   )
 }
 

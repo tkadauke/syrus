@@ -673,5 +673,10 @@
       "upstream_closed_without_merge": "Upstream closed without merge",
       "delivery_needs_attention": "Delivery needs attention"
     }
-  }
+  },
+  "workflow_divergence_discarded": "Discarded by replacing ({{count}})",
+  "workflow_divergence_published": "Published by replacing ({{count}})",
+  "workflow_divergence_none": "Nothing on this side.",
+  "workflow_divergence_files": "{{count}} file(s) affected",
+  "workflow_divergence_truncated": "… more not shown"
 }

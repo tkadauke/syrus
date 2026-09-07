@@ -109,6 +109,77 @@ RSpec.describe BranchDivergenceRecovery do
     )
   end
 
+  describe "when the workspace is on another worker" do
+    def checkpoint_for(sha)
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded")
+      run = Run.create!(
+        job: job, step: step, trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider, state: "succeeded", head_sha: sha
+      )
+      RunCheckpoint.create!(
+        run: run, workflow: workflow, step: step, job: job, repository: repository, user: job.user,
+        step_kind: "implement", commit_sha: sha, remote_ref: RunCheckpoint.remote_ref_for(run),
+        status: "published", published_at: Time.current
+      )
+    end
+
+    before do
+      allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new("/tmp/syrus-missing-workspace"))
+    end
+
+    # The commit is already on the remote as a checkpoint ref, so republishing
+    # the branch needs no clone. Requiring one made this fail purely because of
+    # which worker picked up the action.
+    it "republishes the branch from the published checkpoint" do
+      checkpoint_for("local-sha")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:update_branch_ref).and_return(true)
+
+      result = described_class.force_push!(workflow: workflow, user: user)
+
+      expect(result).to be_success
+      expect(client).to have_received(:update_branch_ref)
+        .with("acme/widgets", "syrus/issue-42-1", "local-sha", expected_sha: "remote-sha")
+      expect(workflow.reload.artifact("branch_divergence_recovery")).to include("action" => "force_pushed")
+      expect(job.reload).to be_implemented
+    end
+
+    it "surfaces a refused lease instead of overwriting a branch that moved again" do
+      checkpoint_for("local-sha")
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:update_branch_ref)
+        .and_raise(GithubClient::RefLeaseFailed, "acme/widgets@syrus/issue-42-1 moved to abc123def456")
+
+      result = described_class.force_push!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to include("Force-push refused")
+      expect(workflow.reload.artifact("branch_divergence_recovery")).to be_nil
+    end
+
+    # A checkpoint for some other commit is not this workflow's output;
+    # publishing it would push a tree the operator was never shown.
+    it "refuses a checkpoint that does not hold the diverged commit" do
+      checkpoint_for("some-other-sha")
+
+      result = described_class.force_push!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Workflow workspace is not available on this worker - retry from the current PR branch instead.")
+    end
+
+    it "refuses a checkpoint that was never published to the remote" do
+      checkpoint_for("local-sha").update!(status: "pending")
+
+      result = described_class.force_push!(workflow: workflow, user: user)
+
+      expect(result).not_to be_success
+      expect(result.error).to eq("Workflow workspace is not available on this worker - retry from the current PR branch instead.")
+    end
+  end
+
   it "reports unavailable workspaces without claiming they were cleaned up" do
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(Pathname.new("/tmp/syrus-missing-workspace"))
 

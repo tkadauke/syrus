@@ -830,6 +830,10 @@ RSpec.describe Steps::PrOpen, :ci_only do
     allow(git).to receive(:run)
       .with("merge-base", "--is-ancestor", "remote-sha", "HEAD", chdir: path.to_s)
       .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    # Recording a divergence also summarizes both sides; that is covered by its
+    # own examples below, so keep this one focused on the artifact itself.
+    allow(git).to receive(:run).with("log", any_args).and_return("")
+    allow(git).to receive(:run).with("diff", any_args).and_return("")
 
     expect {
       handler.send(:push_branch)
@@ -843,6 +847,87 @@ RSpec.describe Steps::PrOpen, :ci_only do
       "message" => "remote PR branch moved before push"
     )
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
+  end
+
+  # Choosing between these two branches is destructive and irreversible, and the
+  # operator usually faces the choice hours later on a worker that no longer has
+  # the workspace. Capture what each side holds while both are still readable,
+  # or the banner can only ever show two SHAs (JOB-4485).
+  it "records what replacing the branch would discard and publish" do
+    job.update!(state: "running", pr_number: 77)
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/issue-42-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path)
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("remote-sha\n")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("local-sha\n")
+    allow(git).to receive(:run).with("merge-base", "--is-ancestor", "remote-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    allow(git).to receive(:run)
+      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "local-sha..remote-sha", chdir: path.to_s)
+      .and_return("abc1234\x1fReviewer\x1f2026-09-07T10:00:00Z\x1fHand-edit on the PR branch\n")
+    allow(git).to receive(:run)
+      .with("log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s", "-n", "11", "remote-sha..local-sha", chdir: path.to_s)
+      .and_return("def5678\x1fSyrus\x1f2026-09-07T03:00:00Z\x1fImplement the thing\n")
+    allow(git).to receive(:run)
+      .with("diff", "--name-only", "local-sha...remote-sha", chdir: path.to_s)
+      .and_return("app/models/widget.rb\n")
+
+    expect { handler.send(:push_branch) }.to raise_error(Steps::PrOpen::BranchDiverged)
+
+    comparison = workflow.reload.artifact("branch_divergence")["comparison"]
+    expect(comparison["discarded"]["commits"].first).to include(
+      "sha" => "abc1234", "author" => "Reviewer", "subject" => "Hand-edit on the PR branch"
+    )
+    expect(comparison["discarded"]["truncated"]).to be(false)
+    expect(comparison["published"]["commits"].first).to include("subject" => "Implement the thing")
+    expect(comparison["discarded_files"]["files"]).to eq([ "app/models/widget.rb" ])
+  end
+
+  # The comparison is a nicety; losing it must never turn a recoverable
+  # divergence into an unrecoverable step crash.
+  it "still records the divergence when the comparison cannot be computed" do
+    job.update!(state: "running", pr_number: 77)
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    branch = "syrus/issue-42-#{job.id}"
+    workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path)
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("")
+    allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("remote-sha\n")
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("local-sha\n")
+    allow(git).to receive(:run).with("merge-base", "--is-ancestor", "remote-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+    allow(git).to receive(:run).with("log", any_args).and_raise(GitRunner::GitError.new([ "log" ], 128, "bad object"))
+    allow(git).to receive(:run).with("diff", any_args).and_raise(GitRunner::GitError.new([ "diff" ], 128, "bad object"))
+
+    expect { handler.send(:push_branch) }.to raise_error(Steps::PrOpen::BranchDiverged)
+
+    artifact = workflow.reload.artifact("branch_divergence")
+    expect(artifact).to include("remote_sha" => "remote-sha", "local_sha" => "local-sha")
+    expect(artifact["comparison"]).to be_nil
   end
 
   it "cancels an older retry pr_open when a newer workflow already published the PR branch" do

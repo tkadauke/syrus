@@ -245,6 +245,31 @@ class GithubClient
   # GitHub may have auto-deleted the branch after merge. Octokit's
   # delete_branch uses boolean_from_response, which catches 404
   # internally and returns false; 422 raises Octokit::UnprocessableEntity.
+  # Force-updates a branch ref to `sha`, but only while the branch still points
+  # at `expected_sha`. This is the GitHub-API equivalent of
+  # `git push --force-with-lease=<branch>:<expected_sha>`, and exists so a
+  # branch can be republished from a commit that is already on the remote (a
+  # RunCheckpoint ref) without a local clone -- workspaces are node-local, so
+  # requiring one makes the operation depend on which worker happens to run it.
+  #
+  # Raises RefLeaseFailed when the branch moved since `expected_sha` was
+  # observed, so a concurrent push is never silently overwritten.
+  class RefLeaseFailed < StandardError; end
+
+  def update_branch_ref(repo_slug, branch_name, sha, expected_sha:)
+    current = branch_head_sha(repo_slug, branch_name)
+    if current.blank?
+      raise RefLeaseFailed, "#{repo_slug}@#{branch_name} no longer exists on the remote"
+    end
+    unless current == expected_sha
+      raise RefLeaseFailed,
+            "#{repo_slug}@#{branch_name} moved to #{current[0, 12]} since #{expected_sha.to_s[0, 12]} was observed"
+    end
+
+    track_rate_limits { @client.update_ref(repo_slug, "heads/#{branch_name}", sha, true) }
+    true
+  end
+
   def delete_branch(repo_slug, branch_name)
     attempts = 0
 

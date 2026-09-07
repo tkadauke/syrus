@@ -21,22 +21,28 @@ class BranchDivergenceRecovery
     return failure("Unapprove before replacing the PR branch.") if job.approved? || job.landing?
     return failure("Closed Jobs cannot replace PR branches.") if job.closed?
     return failure("Cannot safely force-push without the observed remote branch SHA.") if remote_sha.blank?
-    return failure(workspace_unavailable_message) unless workspace_path.directory?
 
-    GithubAuthenticatedGit.run(repository: job.repository, user: job.user, git: git, operation_type: "git_branch_divergence_force_push") do |url|
-      git.run(
-        "push",
-        "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
-        url,
-        "HEAD:refs/heads/#{branch}",
-        chdir: workspace_path.to_s
-      )
+    if workspace_path.directory?
+      push_from_workspace!
+    elsif publishable_checkpoint
+      # The workflow's commit is already on the remote as a checkpoint ref, so
+      # republishing the branch is a pure ref update and needs no clone. This
+      # is the common case rather than the exotic one: workspaces are
+      # node-local while this action runs on whichever worker is free, so
+      # requiring the workspace made the button fail based on nothing more
+      # than which pod picked up the job.
+      push_from_checkpoint!(publishable_checkpoint)
+    else
+      return failure(workspace_unavailable_message)
     end
+
     record_recovery!("force_pushed")
     restore_job_to_implemented_if_possible!
     Result.new(error: nil)
   rescue GitRunner::GitError => e
     failure("Force-push failed: #{e.message}")
+  rescue GithubClient::RefLeaseFailed => e
+    failure("Force-push refused: #{e.message}")
   end
 
   def mark_force_push_pending!
@@ -120,6 +126,39 @@ class BranchDivergenceRecovery
     return job[:head_sha].presence if job.has_attribute?(:head_sha) && job[:head_sha].present?
 
     job.mergeability_head_sha.presence || job.pr_checks_sha.presence
+  end
+
+  def push_from_workspace!
+    GithubAuthenticatedGit.run(repository: job.repository, user: job.user, git: git, operation_type: "git_branch_divergence_force_push") do |url|
+      git.run(
+        "push",
+        "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
+        url,
+        "HEAD:refs/heads/#{branch}",
+        chdir: workspace_path.to_s
+      )
+    end
+  end
+
+  def push_from_checkpoint!(checkpoint)
+    GithubClient.for(repository: job.repository, user: job.user)
+      .update_branch_ref(job.repository.slug, branch, checkpoint.commit_sha, expected_sha: remote_sha)
+  end
+
+  # Only a checkpoint that is published (its ref is really on the remote) and
+  # that holds exactly the commit this divergence recorded as the workflow's
+  # output. Anything else would publish a different tree than the one the
+  # operator was shown.
+  def publishable_checkpoint
+    return @publishable_checkpoint if defined?(@publishable_checkpoint)
+
+    local = divergence["local_sha"].presence
+    @publishable_checkpoint =
+      if local.blank?
+        nil
+      else
+        RunCheckpoint.published.find_by(workflow_id: workflow.id, commit_sha: local)
+      end
   end
 
   def workspace_path

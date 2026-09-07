@@ -438,6 +438,32 @@ superseded/cancelled instead of surfacing a nonretryable branch-divergence
 failure. Real branch divergence with no newer successful publisher still
 requires operator review.
 
+**Branch divergence review.** When the remote PR branch moved and no newer
+workflow published it, `pr_open` records a `branch_divergence` artifact and the
+Job page offers four choices: retry from the current PR branch, replace the
+branch with this workflow's output, adopt the current PR head, or discard the
+stale output. Two properties make that choice workable:
+
+- The artifact carries a `comparison` captured **at detection time**, while the
+  workspace still exists: the commits each side has that the other does not
+  (`discarded` is what replacing would destroy, `published` is what it would
+  publish) plus the affected file list. The operator usually sees the banner
+  hours later on a different worker, where neither side can be recomputed, so
+  capturing it later is not an option. The comparison is best-effort — if it
+  cannot be computed the divergence is still recorded and every action still
+  works, the banner just shows less.
+- **Replace does not require the workflow's workspace.** Workspaces are
+  node-local while the action runs on whichever worker is free, so requiring one
+  made the button fail based on nothing but which pod picked up the job. When
+  the workspace is absent, `BranchDivergenceRecovery` republishes the branch
+  from the `RunCheckpoint` whose `commit_sha` matches the recorded `local_sha` —
+  that commit is already on the remote as a checkpoint ref, so the update is a
+  pure ref write through `GithubClient#update_branch_ref`. The lease is
+  preserved: the write is refused unless the branch still points at the
+  `remote_sha` the divergence recorded. Only a `published` checkpoint holding
+  exactly that commit qualifies; anything else falls back to the previous
+  "retry from the current PR branch instead" message.
+
 ### review_plan
 
 Agentic, but best-effort — never fails the parent Job/Workflow. Optional

@@ -412,16 +412,70 @@ module Steps
       false
     end
 
+    DIVERGENCE_COMMIT_LIMIT = 10
+
     def record_branch_divergence!(git, message, remote_sha: nil, local_sha: nil)
+      resolved_remote = remote_sha.presence || remote_branch_sha(git)
+      resolved_local = local_sha.presence || current_head_sha(git)
+
       workflow.set_artifact!("branch_divergence", {
         "branch" => workspace.branch_name,
-        "remote_sha" => remote_sha.presence || remote_branch_sha(git),
-        "local_sha" => local_sha.presence || current_head_sha(git),
+        "remote_sha" => resolved_remote,
+        "local_sha" => resolved_local,
         "detected_at" => Time.current.iso8601,
-        "message" => message.to_s
+        "message" => message.to_s,
+        # Captured here, while the workspace still exists, because this is the
+        # only moment both sides are cheaply readable. The operator who has to
+        # choose between these branches may see this hours later on a different
+        # worker, where neither side can be recomputed.
+        "comparison" => divergence_comparison(git, resolved_remote, resolved_local)
       }.compact)
       artifact = workflow.artifact("branch_divergence")
       log("pr_open: branch diverged for #{workspace.branch_name}; remote=#{artifact['remote_sha']} local=#{artifact['local_sha']}")
+    end
+
+    # What each side has that the other does not. `discarded` is the answer to
+    # the only question that actually matters when choosing "Replace PR
+    # branch": what does replacing destroy?
+    def divergence_comparison(git, remote_sha, local_sha)
+      return nil if remote_sha.blank? || local_sha.blank?
+
+      {
+        "discarded" => divergence_commits(git, "#{local_sha}..#{remote_sha}"),
+        "published" => divergence_commits(git, "#{remote_sha}..#{local_sha}"),
+        "discarded_files" => divergence_files(git, local_sha, remote_sha)
+      }.compact.presence
+    rescue StandardError => e
+      log("pr_open: could not summarize branch divergence: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def divergence_commits(git, range)
+      output = git.run(
+        "log", "--no-merges", "--format=%h\x1f%an\x1f%aI\x1f%s",
+        "-n", (DIVERGENCE_COMMIT_LIMIT + 1).to_s, range,
+        chdir: workspace.path.to_s
+      ).to_s
+      rows = output.lines.map(&:chomp).reject(&:blank?).map do |line|
+        sha, author, date, subject = line.split("\x1f", 4)
+        { "sha" => sha, "author" => author, "date" => date, "subject" => subject }
+      end
+      {
+        "commits" => rows.first(DIVERGENCE_COMMIT_LIMIT),
+        "truncated" => rows.length > DIVERGENCE_COMMIT_LIMIT
+      }
+    rescue GitRunner::GitError
+      nil
+    end
+
+    def divergence_files(git, local_sha, remote_sha)
+      files = git.run("diff", "--name-only", "#{local_sha}...#{remote_sha}", chdir: workspace.path.to_s)
+                 .to_s.lines.map(&:strip).reject(&:blank?)
+      return nil if files.empty?
+
+      { "files" => files.first(50), "truncated" => files.length > 50 }
+    rescue GitRunner::GitError
+      nil
     end
 
     def stale_publication_workflow?
