@@ -1750,11 +1750,13 @@ describe("JobDetailRoute", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/jobs/1?tab=coverage"]}>
-          <Routes>
-            <Route element={<JobDetailRoute />} path="/jobs/:id" />
-          </Routes>
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=coverage"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
 
@@ -1776,12 +1778,14 @@ describe("JobDetailRoute", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/jobs/1"]}>
-          <LocationProbe />
-          <Routes>
-            <Route element={<JobDetailRoute />} path="/jobs/:id" />
-          </Routes>
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <LocationProbe />
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
 
@@ -2357,16 +2361,18 @@ describe("SourceTab", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/app-shell/jobs/1/source?diff_base=28a75d2&diff_head=6c4ddd6"]}>
-          <JobDetailView
-            activeTab="source"
-            initialDiff={{ base: "28a75d2", head: "6c4ddd6" }}
-            onSelectTab={() => {}}
-            payload={jobPayload()}
-            prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
-          />
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1/source?diff_base=28a75d2&diff_head=6c4ddd6"]}>
+            <JobDetailView
+              activeTab="source"
+              initialDiff={{ base: "28a75d2", head: "6c4ddd6" }}
+              onSelectTab={() => {}}
+              payload={jobPayload()}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
 
@@ -3312,15 +3318,17 @@ describe("PrChecksBanner attribution", () => {
 
     return render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
-          <JobDetailView
-            activeTab="summary"
-            onSelectTab={() => {}}
-            payload={withChecks}
-            prefix="/app-shell"
-            queryKey={["jobs", "1", "detail", ""]}
-          />
-        </MemoryRouter>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+            <JobDetailView
+              activeTab="summary"
+              onSelectTab={() => {}}
+              payload={withChecks}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+          </MemoryRouter>
+        </ShortcutsProvider>
       </QueryClientProvider>
     )
   }
