@@ -1,12 +1,12 @@
 require "mcp"
-require "net/http"
 
 module Mcp::Tools
   # MCP tool for the implementing agent to start the target application as
-  # a background process in the workflow runner container. Resolves the
-  # preview start command from .syrus.yml or a registered plugin, runs any
-  # configured seed command, spawns the app, and polls the health check
-  # path until the app is ready (up to 60 s).
+  # a background process in the workflow runner container. Delegates the
+  # actual dev-server-start/health-check plumbing to PreviewProcessLauncher
+  # (shared with SyrusBrowser::RuntimeSessionProvider) keyed by this Run's
+  # id, so a repeat call within the same Run reuses the already-running
+  # process instead of double-spawning.
   #
   # State is tracked in AgentPreviewRegistry for the lifetime of the sidecar
   # process. Sidecar#run registers an at_exit hook that kills all tracked
@@ -33,9 +33,6 @@ module Mcp::Tools
       }
     )
 
-    HEALTH_CHECK_TIMEOUT_SECONDS = 60
-    HEALTH_CHECK_INTERVAL_SECONDS = 2
-
     class << self
       def call(port: 3001, server_context:)
         run = Mcp::Tools.run_from_context(server_context)
@@ -43,41 +40,15 @@ module Mcp::Tools
         workspace_path = workspace_path_for(run)
         return Mcp::Tools.invalid("no workflow workspace found") unless workspace_path
 
-        # Return the existing preview rather than double-spawning.
-        existing = AgentPreviewRegistry.get(run.id)
-        if existing
-          return MCP::Tool::Response.new([{
-            type: "text",
-            text: JSON.generate({ url: "http://localhost:#{existing[:port]}", pid: existing[:pid] })
-          }])
-        end
-
-        source = PreviewCommandSource.new(workspace_path).resolve
-        return Mcp::Tools.invalid("no preview command configured — add a preview: section to .syrus.yml") unless source
-
-        process_env = preview_process_env(source, workspace_path)
-
-        run_setup!(source, workspace_path, process_env)
-        run_seed!(source, workspace_path, process_env) if source.seed_command
-
-        command = source.start_command_for.call(port: port)
-        pid     = spawn_app(command, workspace_path, port, process_env)
-        AgentPreviewRegistry.register(run_id: run.id, pid: pid, port: port)
-
-        begin
-          health_path = source.health_check_path.presence || "/"
-          await_health_check!("http://127.0.0.1:#{port}#{health_path}")
-        rescue => e
-          AgentPreviewRegistry.kill(run.id)
-          raise e
-        end
-
-        Mcp::Tools.write_log(run, "[mcp] start_preview: pid=#{pid} port=#{port}")
+        result = PreviewProcessLauncher.new(workspace_path).launch!(key: run.id, port: port)
+        Mcp::Tools.write_log(run, "[mcp] start_preview: pid=#{result.pid} port=#{port}") unless result.reused
 
         MCP::Tool::Response.new([{
           type: "text",
-          text: JSON.generate({ url: "http://localhost:#{port}", pid: pid })
+          text: JSON.generate({ url: result.url, pid: result.pid })
         }])
+      rescue PreviewProcessLauncher::LaunchError => e
+        MCP::Tool::Response.new([{ type: "text", text: "Error: #{e.message}" }], error: true)
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::StartPreviewTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([{ type: "text", text: "Error: #{e.message}" }], error: true)
@@ -91,57 +62,6 @@ module Mcp::Tools
         workflow = step.workflow
         return nil unless workflow
         WorkflowWorkspace.path_for(workflow).to_s
-      end
-
-      def run_seed!(source, workspace_path, process_env)
-        run_preview_command!("seed", source.seed_command, workspace_path, process_env)
-      end
-
-      def run_setup!(source, workspace_path, process_env)
-        Array(source.setup_commands).each do |command|
-          run_preview_command!("setup", command, workspace_path, process_env)
-        end
-      end
-
-      def run_preview_command!(label, command, workspace_path, process_env)
-        result = system(process_env, "bash", "-c", command, chdir: workspace_path, exception: false, unsetenv_others: true)
-        raise "preview #{label} command exited non-zero: #{command}" unless result
-      end
-
-      def spawn_app(command, workspace_path, port, process_env = {})
-        env = process_env.merge("PORT" => port.to_s)
-        Process.spawn(env, command, chdir: workspace_path, pgroup: true,
-                                    out: "/dev/null", err: "/dev/null",
-                                    unsetenv_others: true)
-      end
-
-      def preview_process_env(source, workspace_path)
-        env = ProcessRunner.forwarded_env(
-          Steps::Prepare.prep_env_forward,
-          extra: WorkspaceDependencyEnv.for(workspace_path)
-        )
-        Array(source.unset_env).each { |name| env[name.to_s] = nil }
-        env.merge!(source.env || {})
-        env
-      end
-
-      def await_health_check!(url)
-        deadline = Time.current + HEALTH_CHECK_TIMEOUT_SECONDS
-        loop do
-          raise "preview health check timed out after #{HEALTH_CHECK_TIMEOUT_SECONDS}s" if Time.current > deadline
-          return if http_ok?(url)
-          sleep HEALTH_CHECK_INTERVAL_SECONDS
-        end
-      end
-
-      def http_ok?(url)
-        uri = URI.parse(url)
-        response = Net::HTTP.start(uri.host, uri.port, open_timeout: 1, read_timeout: 2) do |http|
-          http.get(uri.request_uri)
-        end
-        response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
-      rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Net::OpenTimeout, Net::ReadTimeout, SocketError
-        false
       end
     end
   end

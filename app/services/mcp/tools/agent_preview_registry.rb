@@ -1,25 +1,28 @@
 module Mcp::Tools
-  # In-process registry for background preview processes spawned by the
-  # start_preview MCP tool. Lives entirely in sidecar process memory:
-  # one registry per step execution, automatically cleared when the
-  # sidecar exits (via the at_exit hook registered in Sidecar#run).
+  # In-process registry for background preview processes spawned via
+  # PreviewProcessLauncher, keyed by an arbitrary caller-supplied identifier
+  # (a workflow Run id for the start_preview MCP tool; a RuntimeSession's
+  # workspace_ref for SyrusBrowser::RuntimeSessionProvider). Lives entirely
+  # in sidecar process memory: one registry per step execution, automatically
+  # cleared when the sidecar exits (via the at_exit hook registered in
+  # Sidecar#run).
   module AgentPreviewRegistry
     MUTEX = Mutex.new
     private_constant :MUTEX
 
-    @previews = {}  # run_id → { pid: Integer, port: Integer }
+    @previews = {}  # key → { pid: Integer, port: Integer }
 
     class << self
-      def register(run_id:, pid:, port:)
-        MUTEX.synchronize { @previews[run_id] = { pid: pid, port: port } }
+      def register(key:, pid:, port:)
+        MUTEX.synchronize { @previews[key] = { pid: pid, port: port } }
       end
 
-      def get(run_id)
-        MUTEX.synchronize { @previews[run_id]&.dup }
+      def get(key)
+        MUTEX.synchronize { @previews[key]&.dup }
       end
 
-      def kill(run_id)
-        preview = MUTEX.synchronize { @previews.delete(run_id) }
+      def kill(key)
+        preview = MUTEX.synchronize { @previews.delete(key) }
         kill_pgroup(preview[:pid]) if preview
       end
 
