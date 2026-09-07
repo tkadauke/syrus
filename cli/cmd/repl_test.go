@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,6 +68,31 @@ func TestLoadChatHistoryFetchesOlderPagesUpToLimit(t *testing.T) {
 	}
 	if !reflect.DeepEqual(paths, []string{"/api/v1/app/chats/42", "/api/v1/app/chats/42/messages?before=5"}) {
 		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestRunChatREPLRendersToolActivityDuringLiveTurn(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_use\",\"tool_name\":\"read_job\"}}\n\n"))
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_result\",\"tool_name\":\"read_job\",\"content\":{\"is_error\":false,\"content\":[{\"type\":\"text\",\"text\":\"Job JOB-42 open\"}]}}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := api.NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := &bytes.Buffer{}
+	reader := bufio.NewReader(strings.NewReader("check JOB-42\n"))
+	if err := runChatREPL(context.Background(), client, "42", reader, out, &bytes.Buffer{}); err != nil {
+		t.Fatalf("runChatREPL returned error: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "read_job") || !strings.Contains(got, "Job JOB-42 open") {
+		t.Fatalf("output = %q, expected live tool_use and tool_result activity", got)
 	}
 }
 

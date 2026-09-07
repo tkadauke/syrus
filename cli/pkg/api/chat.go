@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 type ChatRepository struct {
@@ -306,10 +308,134 @@ func handleChatStreamEvent(ctx context.Context, event ChatStreamEvent, out, debu
 			_, err := fmt.Fprintf(out, "Error: %s\n", payload.Message)
 			return err
 		}
+	case "message":
+		var payload struct {
+			Message ChatMessage `json:"message"`
+		}
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			return err
+		}
+		return renderLiveToolActivity(out, payload.Message)
 	case "turn_complete":
 		return nil
 	}
 	return nil
+}
+
+// renderLiveToolActivity renders the mid-turn activity events the server
+// emits for any message role that isn't "assistant" or "system" (those get
+// their own "text_chunk"/"proposal"/"error" events) — in practice tool_use
+// and tool_result. The initial "message" event of a turn echoes the user's
+// own message back (role "user"); that and any other role are a silent
+// no-op here, since the caller already knows what it sent and renders
+// assistant text itself.
+func renderLiveToolActivity(out io.Writer, message ChatMessage) error {
+	switch message.Role {
+	case "tool_use":
+		return RenderToolUseActivity(out, message.ToolName)
+	case "tool_result":
+		return renderToolResultActivity(out, message)
+	}
+	return nil
+}
+
+var toolActivityMarkerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+
+// RenderToolUseActivity writes a single compact "› toolname" line for a
+// tool_use chat message. Shared by the live SSE stream (above) and the
+// REPL's history-load renderer so a tool call renders identically whether
+// it arrives live or is replayed from history.
+func RenderToolUseActivity(out io.Writer, toolName string) error {
+	name := strings.TrimSpace(toolName)
+	if name == "" {
+		name = "tool"
+	}
+	_, err := fmt.Fprintf(out, "%s %s\n\n", toolActivityMarkerStyle.Render("›"), name)
+	return err
+}
+
+const maxToolResultSummaryRunes = 160
+
+// renderToolResultActivity writes a one-line summary of a tool_result
+// message ("  ⎿ <summary>", or "  ⎿ ✗ <summary>" on error). Tool results
+// carry no top-level "text" (ChatMessagePayload#text_from_content only
+// reads content["text"], and a tool_result's content Hash keys its payload
+// under "content" instead), so the summary is derived straight from
+// message.Content. A successful result with no extractable text summary
+// (a bare acknowledgement, a big structured payload with no text block) is
+// intentionally silent — full JSON dumps mid-turn are noise, not signal.
+func renderToolResultActivity(out io.Writer, message ChatMessage) error {
+	summary, isError := toolResultSummary(message.Content)
+	if summary == "" && !isError {
+		return nil
+	}
+	marker := "⎿"
+	if isError {
+		marker = "⎿ ✗"
+		if summary == "" {
+			summary = "error"
+		}
+	}
+	_, err := fmt.Fprintf(out, "  %s %s\n\n", toolActivityMarkerStyle.Render(marker), truncateToolResultSummary(summary))
+	return err
+}
+
+func toolResultSummary(content map[string]any) (summary string, isError bool) {
+	if content == nil {
+		return "", false
+	}
+	if v, ok := content["is_error"].(bool); ok {
+		isError = v
+	}
+	return toolResultBodySummary(content["content"]), isError
+}
+
+// toolResultBodySummary mirrors the Ruby AgentEventAbbreviator.result_body
+// shape: a plain string result, or the Anthropic content-blocks array
+// (only "text" and "tool_reference" blocks carry anything worth showing).
+// Anything else (numbers, bare objects, nil) summarizes to "" — silent by
+// design, see renderToolResultActivity.
+func toolResultBodySummary(body any) string {
+	switch v := body.(type) {
+	case string:
+		return firstLine(v)
+	case []any:
+		var parts []string
+		for _, item := range v {
+			block, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			switch block["type"] {
+			case "text":
+				if text, ok := block["text"].(string); ok {
+					parts = append(parts, text)
+				}
+			case "tool_reference":
+				if name, ok := block["tool_name"].(string); ok {
+					parts = append(parts, "→ "+name)
+				}
+			}
+		}
+		return firstLine(strings.Join(parts, " "))
+	default:
+		return ""
+	}
+}
+
+func firstLine(s string) string {
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		s = s[:idx]
+	}
+	return strings.TrimSpace(s)
+}
+
+func truncateToolResultSummary(s string) string {
+	runes := []rune(s)
+	if len(runes) <= maxToolResultSummaryRunes {
+		return s
+	}
+	return string(runes[:maxToolResultSummaryRunes-1]) + "…"
 }
 
 func hiddenChatSystemMessage(message string, record *chatStreamMessageRecord) bool {

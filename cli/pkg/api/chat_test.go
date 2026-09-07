@@ -234,6 +234,131 @@ func TestStreamTurnDispatchesProposalEventsWithoutRenderingPlaceholderText(t *te
 	}
 }
 
+func TestStreamTurnRendersToolUseDuringLiveTurn(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_use\",\"tool_name\":\"read_job\"}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	err = client.StreamTurn(context.Background(), "42", "check the job", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "read_job") {
+		t.Fatalf("output = %q, expected live tool_use activity", got)
+	}
+}
+
+func TestStreamTurnRendersToolResultSummaryDuringLiveTurn(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_result\",\"tool_name\":\"read_job\",\"content\":{\"is_error\":false,\"content\":[{\"type\":\"text\",\"text\":\"Job JOB-42 open\"}]}}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	err = client.StreamTurn(context.Background(), "42", "check the job", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "Job JOB-42 open") {
+		t.Fatalf("output = %q, expected a tool_result summary", got)
+	}
+}
+
+func TestStreamTurnRendersFailedToolResultAsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_result\",\"tool_name\":\"read_job\",\"content\":{\"is_error\":true}}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	err = client.StreamTurn(context.Background(), "42", "check the job", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "✗") {
+		t.Fatalf("output = %q, expected a failure marker for the errored tool_result", got)
+	}
+}
+
+func TestStreamTurnStaysSilentOnUninterestingToolResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"tool_result\",\"tool_name\":\"write_memory\",\"content\":{\"is_error\":false,\"content\":{\"ok\":true}}}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	err = client.StreamTurn(context.Background(), "42", "remember this", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("output = %q, expected a boring successful tool_result to render nothing", got)
+	}
+}
+
+func TestStreamTurnIgnoresUserEchoMessageEvent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"role\":\"user\",\"content\":\"hello\",\"message\":{\"role\":\"user\",\"text\":\"hello\"}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	err = client.StreamTurn(context.Background(), "42", "hello", StreamTurnOptions{
+		Out:      out,
+		Renderer: stubRenderer{},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("output = %q, expected the turn's own user echo to render nothing", got)
+	}
+}
+
 func TestStreamTurnHidesSystemTelemetryByDefault(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
