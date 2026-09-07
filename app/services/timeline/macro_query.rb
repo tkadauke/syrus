@@ -10,9 +10,13 @@ module Timeline
   # reported separately under `pending`, along with why they're still
   # waiting via WorkUnits::StartBlock#explanation -- the same blocked-reason
   # source Admin::StuckJobExplainer uses, so this doesn't reimplement the
-  # WorkUnit/admission-block lookup.
+  # WorkUnit/admission-block lookup. A queued Workflow older than
+  # STALE_PENDING_THRESHOLD is dropped from `pending` entirely -- it's not
+  # going to start any time soon and just clutters the "waiting to start"
+  # list; it's still reachable through the Job/Workflow admin views.
   class MacroQuery
     DEFAULT_WINDOW = 1.hour
+    STALE_PENDING_THRESHOLD = 1.week
     JOB_TYPE_ALIASES = {
       "infra" => "system",
       "infrastructure" => "system",
@@ -145,7 +149,9 @@ module Timeline
 
     def pending_workflows
       @pending_workflows ||= begin
-        scope = Workflow.where(started_at: nil, state: "queued").includes(:job, :work_unit).order(:created_at)
+        scope = Workflow.where(started_at: nil, state: "queued")
+          .where("workflows.created_at > ?", STALE_PENDING_THRESHOLD.ago)
+          .includes(:job, :work_unit).order(:created_at)
         apply_filters(scope).to_a
       end
     end
