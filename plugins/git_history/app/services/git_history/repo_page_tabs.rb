@@ -9,11 +9,11 @@ module GitHistory
           label: "Git History",
           label_key: "git_history:nav_git_history",
           path: "/repositories/#{repository.id}/plugin/git_history",
-          # PluginRouteResolver#repo_page_tab_route? matches on `paths`, and it
-          # is what gates the "repositories/:repository_id/plugin/*path"
-          # wildcard -- so a tab that declares only `path` 404s on hard
-          # reload. That is the exact bug this extension point was built to
-          # prevent, and this tab still had it.
+          # React derives its client-side route from `paths`, not `path` --
+          # so a tab that declares only `path` reaches the SPA shell on hard
+          # reload (the host's blanket route covers that) but renders nothing,
+          # because React has no route for it. That is the exact bug this
+          # extension point was built to prevent, and this tab still had it.
           paths: [ "/repositories/#{repository.id}/plugin/git_history" ],
           component: "git_history/GitHistory",
           order: 40
