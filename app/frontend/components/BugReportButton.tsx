@@ -159,7 +159,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }), [])
 
   async function openDialog(options: BugReportOpenOptions = {}) {
-    if (capturing) return
+    if (capturing || open) return
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
     setTitle(`${context} bug`)
