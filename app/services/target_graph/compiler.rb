@@ -94,6 +94,7 @@ class TargetGraph
 
     def compile
       graph = TargetGraph.new(root_project: root_project_override)
+      compile_explicit_targets!(graph)
       compile_prepare!(graph)
       compile_formatters!(graph)
       compile_generated!(graph)
@@ -254,6 +255,7 @@ class TargetGraph
           )
         )
 
+        compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_prepare!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_formatters!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_generated!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -322,6 +324,24 @@ class TargetGraph
       )
     end
 
+    def compile_explicit_targets!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+
+      syrus_config.targets.each do |target|
+        graph.add_target(
+          TargetGraph::Target.new(
+            label: label_for(target.name, package: package),
+            kind: target.kind,
+            project_id: project_id,
+            source_scope: scoped_source_scope(package, target.sources),
+            command: target.command,
+            dependencies: resolved_dependencies(target.deps, package: package),
+            owner_config_path: config_path
+          )
+        )
+      end
+    end
+
     def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
       return unless syrus_config
       return unless syrus_config.formatters.is_a?(Array)
@@ -334,7 +354,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, formatter.files),
             command: formatter.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(formatter.deps, package: package),
             owner_config_path: config_path
           )
         )
@@ -353,7 +373,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, entry.sources),
             command: entry.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(entry.deps, package: package),
             owner_config_path: config_path,
             metadata: { "generates" => entry.generates, "codegen_ignore" => entry.codegen_ignore }
           )
@@ -370,7 +390,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, grader.when_files_changed),
             command: grader.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(grader.deps, package: package),
             phases: grader.phases,
             required: grader.required,
             timeout_minutes: positive_timeout(grader.timeout_minutes),
@@ -390,6 +410,16 @@ class TargetGraph
     # shouldn't blow up compilation of an otherwise-valid legacy config.
     def positive_timeout(timeout_minutes)
       timeout_minutes if timeout_minutes.is_a?(Integer) && timeout_minutes.positive?
+    end
+
+    def legacy_dependencies(raw_dependencies, package:)
+      [ TargetGraph.root_label, *resolved_dependencies(raw_dependencies, package: package) ].uniq
+    end
+
+    def resolved_dependencies(raw_dependencies, package:)
+      Array(raw_dependencies).map { |dependency| TargetGraph::Label.resolve(dependency, package: package) }
+    rescue TargetGraph::Label::ParseError => e
+      raise TargetGraph::ValidationError, e.message
     end
   end
 end

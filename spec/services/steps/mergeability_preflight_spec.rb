@@ -238,8 +238,10 @@ RSpec.describe Steps::MergeabilityPreflight, :ci_only do
     allow(client).to receive(:commit_tree_sha).with("acme/widgets", "def").and_return("tree-def")
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
+    target_graph = TargetGraph.new
     allow(handler).to receive(:workspace).and_return(workspace)
-    allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+    allow(TargetGraph::Compiler).to receive(:compile).with(Rails.root).and_return(target_graph)
+    expect(GraderConclusionCache).to receive(:fingerprint_for_plan).with(anything, target_graph: target_graph).and_return("fp")
     allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner, run: "app/models/job.rb\n"))
 
     handler.call

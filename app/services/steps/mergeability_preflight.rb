@@ -282,7 +282,7 @@ module Steps
       workspace.setup
       plan = RepoGradePlan.for(workspace.path)
       plan = fast_grader_plan(plan)
-      GraderConclusionCache.fingerprint_for_plan(plan)
+      GraderConclusionCache.fingerprint_for_plan(plan, target_graph: TargetGraph::Compiler.compile(workspace.path))
     rescue StandardError => e
       log("auto_merge: could not fingerprint current landing graders: #{e.message}", kind: "system")
       nil

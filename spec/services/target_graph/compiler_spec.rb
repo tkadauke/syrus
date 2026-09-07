@@ -346,6 +346,84 @@ RSpec.describe TargetGraph::Compiler do
       expect(target.owner_config_path).to eq("apps/desktop/.syrus.yml")
     end
 
+    it "compiles explicit targets and resolves relative dependency labels" do
+      write("desktop/.syrus.yml", <<~YAML)
+        targets:
+          - name: renderer
+            kind: library
+            sources: ["src/**/*.ts"]
+          - name: typecheck
+            kind: grader
+            run: npm run typecheck
+            deps: [":renderer"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      renderer = graph.target(TargetGraph::Label.parse("//desktop:renderer"))
+      expect(renderer.kind).to eq("library")
+      expect(renderer.source_scope).to eq([ "desktop/src/**/*.ts" ])
+
+      typecheck = graph.target(TargetGraph::Label.parse("//desktop:typecheck"))
+      expect(typecheck.kind).to eq("grader")
+      expect(typecheck.command).to eq("npm run typecheck")
+      expect(typecheck.dependencies).to eq([ TargetGraph::Label.parse("//desktop:renderer") ])
+    end
+
+    it "wires legacy executable deps to generated graph node dependencies" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: app
+            kind: library
+            sources: ["app/**/*.rb"]
+        formatters:
+          - command: rubocop -a
+            files: ["**/*.rb"]
+            deps: [":app"]
+        generated:
+          - command: bin/rails db:schema:dump
+            sources: ["db/migrate/**/*.rb"]
+            generates: ["db/schema.rb"]
+            deps: [":app"]
+        grade:
+          - name: tests
+            run: bin/rspec
+            deps: [":app"]
+      YAML
+
+      graph = described_class.compile(@dir)
+      app = TargetGraph::Label.parse("//:app")
+
+      expect(graph.target(TargetGraph::Label.parse("//:format/0")).dependencies).to eq([ TargetGraph.root_label, app ])
+      expect(graph.target(TargetGraph::Label.parse("//:generate/0")).dependencies).to eq([ TargetGraph.root_label, app ])
+      expect(graph.target(TargetGraph::Label.parse("//:grade/tests")).dependencies).to eq([ TargetGraph.root_label, app ])
+    end
+
+    it "raises a clear validation error for missing dependency labels" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            deps: [":missing"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//:grade/tests").and include("//:missing").and include(".syrus.yml")
+      end
+    end
+
+    it "raises a clear validation error for obvious dependency cycles" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: one
+            deps: [":two"]
+          - name: two
+            deps: [":one"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError, /dependency cycle/)
+    end
+
     it "skips only the offending nested .syrus.yml when it fails to parse, keeping root and other nested files" do
       write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
       write("broken/.syrus.yml", "formatters:\n  not_an_array: true\n")

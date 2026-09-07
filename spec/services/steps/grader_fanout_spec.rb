@@ -82,7 +82,10 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   end
 
   def current_fingerprint
-    GraderConclusionCache.fingerprint_for_plan(RepoGradePlan.for(@ws_path))
+    GraderConclusionCache.fingerprint_for_plan(
+      RepoGradePlan.for(@ws_path),
+      target_graph: TargetGraph::Compiler.compile(@ws_path)
+    )
   end
 
   # --- when_files_changed skip (PR #1791) ---------------------------------
@@ -457,6 +460,87 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     grader_steps = workflow.steps.where(kind: "grader").order(:position)
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec])
+  end
+
+  it "runs a grader when an explicitly-declared dependency target changed" do
+    write_config(<<~YAML)
+      targets:
+        - name: library
+          kind: library
+          sources: ["lib/**"]
+      grade:
+        - name: library-tests
+          run: bin/rspec spec/lib
+          when_files_changed:
+            - "spec/lib/**"
+          deps: [":library"]
+    YAML
+    stub_changed_files("lib/service.rb")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[library-tests])
+    expect(grader_steps.first.details["target_label"]).to eq("//:grade/library-tests")
+  end
+
+  it "keeps skipping a dependency-aware grader when neither the grader nor dependency target changed" do
+    write_config(<<~YAML)
+      targets:
+        - name: library
+          kind: library
+          sources: ["lib/**"]
+      grade:
+        - name: library-tests
+          run: bin/rspec spec/lib
+          when_files_changed:
+            - "spec/lib/**"
+          deps: [":library"]
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(0)
+  end
+
+  it "stores prepare dependency commands for the materialized grader" do
+    write_config(<<~YAML)
+      targets:
+        - name: deps
+          kind: prepare
+          run: npm ci
+        - name: library
+          kind: library
+          sources: ["lib/**"]
+          deps: [":deps"]
+      grade:
+        - name: library-tests
+          run: bin/rspec spec/lib
+          when_files_changed:
+            - "spec/lib/**"
+          deps: [":library"]
+    YAML
+    stub_changed_files("lib/service.rb")
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details["prepare_commands"]).to eq([ "npm ci" ])
+  end
+
+  it "fails clearly when configured dependency labels are missing" do
+    write_config(<<~YAML)
+      grade:
+        - name: library-tests
+          run: bin/rspec spec/lib
+          when_files_changed:
+            - "spec/lib/**"
+          deps: [":missing"]
+    YAML
+    stub_changed_files("lib/service.rb")
+
+    expect { handler.call }.to raise_error(TargetGraph::ValidationError, /depends on unknown target \/\/:missing/)
   end
 
   it "logs a message for each skipped grader" do

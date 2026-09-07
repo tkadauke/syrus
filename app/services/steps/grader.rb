@@ -24,6 +24,7 @@ module Steps
       name = definition.fetch("name") { raise StepFailed, "grader Step missing details[name]" }
       command = definition.fetch("command") { raise StepFailed, "grader Step missing details[command]" }
       timeout_minutes = (definition["timeout_minutes"] || 15).to_i
+      run_prepare_dependencies!(definition)
 
       log("[grader:#{name}] $ #{command}")
 
@@ -112,6 +113,39 @@ module Steps
     end
 
     private
+
+    def run_prepare_dependencies!(definition)
+      commands = Array(definition["prepare_commands"]).map(&:to_s).map(&:strip).reject(&:empty?)
+      return if commands.empty?
+
+      name = definition["name"].to_s
+      commands.each_with_index do |command, index|
+        log("[grader:#{name}] prepare dependency (#{index + 1}/#{commands.size}) $ #{command}")
+        result = ProcessRunner.new(
+          env: env,
+          command: [ "bash", "-c", command ],
+          chdir: workspace.path,
+          timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
+          kind: "prepare",
+          run: run,
+          workflow: workflow,
+          display_command: command,
+          on_output_chunk: ->(chunk) { log(chunk, kind: "prepare_log") }
+        ).run
+        publish_command_completed!(step_kind: "prepare", label: command)
+        next if result.success? && !result.timed_out
+
+        raise StepFailed, "prepare dependency for grader #{name} failed (#{prepare_dependency_status(result)}): #{command}"
+      end
+    end
+
+    def prepare_dependency_status(result)
+      return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?
+      return "operator killed" if result.operator_killed?
+      return "stopped" if result.stopped?
+
+      "exit #{result.exit_status || "unknown"}"
+    end
 
     def run_with_span_recording(runner_command:, display_command:, timeout_minutes:, span_recorder:, file:, sink:)
       ProcessRunner.new(
