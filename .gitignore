@@ -65,3 +65,9 @@ tmp/mcp_repro/
 # Playwright MCP browser-verification scratch (screenshots, console logs)
 # from manual preview testing -- not product artifacts.
 .playwright-mcp/
+
+# Playwright run artifacts from bin/test-e2e. `.last-run.json` records the ids
+# of the previous run's failures (so --last-failed works) and so changes on
+# every local run; keeping it tracked meant running the suite always dirtied
+# the working tree.
+/test-results/

@@ -6,12 +6,47 @@
 #   bin/test-e2e                        # core + every plugin
 #   bin/test-e2e --project=browser      # just the browser plugin
 #   bin/test-e2e --project=core         # just core
+#
+# Works both in the worker image, which already ships a Chromium under
+# /opt/ms-playwright, and on a developer's machine, where it does not: the
+# browser, the npm install, and the demo seed rows the specs sign in as are all
+# provisioned here when missing.
 set -euo pipefail
 
-export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/ms-playwright}"
+# Only adopt the image's shared browser directory when it actually exists.
+# Exporting it unconditionally pointed Playwright at an empty path on macOS and
+# every local run failed to launch Chromium.
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d /opt/ms-playwright ]; then
+  export PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+fi
 
 if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then
   npm ci
+fi
+
+# The image bakes its browser in; anywhere else Playwright manages its own copy
+# and the first run has to download it. `install` is idempotent and quick once
+# the browser is present, so just ask for it rather than trying to probe a
+# platform-specific cache layout.
+#
+# Both binaries are required: `headless: true` launches the separate
+# chromium-headless-shell build, not the full chromium, and installing only
+# "chromium" leaves the shell missing -- which fails at browser launch, well
+# after the server has booted.
+if [ ! -d /opt/ms-playwright ]; then
+  npx playwright install chromium chromium-headless-shell
+fi
+
+# The specs sign in as demo@syrus.local and assert on the seeded epic and
+# repository. Those rows come from db/seeds.rb, which only creates them in
+# development and is idempotent, so seeding here adds the demo fixtures and
+# changes nothing else. Without them the suite fails at the login form with
+# nothing explaining why.
+if [ -z "${E2E_BASE_URL:-}" ] && [ "${E2E_SKIP_SEED:-0}" != "1" ]; then
+  if ! bin/rails runner 'exit(User.exists?(email_address: "demo@syrus.local") ? 0 : 1)' >/dev/null 2>&1; then
+    echo "[test-e2e] Seeding development demo data (demo@syrus.local and friends) for the E2E specs."
+    bin/rails db:seed
+  fi
 fi
 
 exec npx playwright test "$@"

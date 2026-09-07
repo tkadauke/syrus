@@ -19,7 +19,15 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-bin/rails tailwindcss:watch > log/tailwind.log 2>&1 &
+# Build Tailwind once, synchronously, before starting the watcher. The watcher
+# alone is not reliable here: with its output redirected to a log there is no
+# TTY, and it emits its banner and then nothing, so wait_for_file below times
+# out after two minutes and the server never starts. A one-shot build takes a
+# couple of seconds and guarantees the file exists; the watcher still follows,
+# so a preview that edits CSS still rebuilds.
+bin/rails tailwindcss:build > log/tailwind.log 2>&1
+
+bin/rails tailwindcss:watch >> log/tailwind.log 2>&1 &
 pids+=("$!")
 
 npm run build -- --watch > log/vite.log 2>&1 &
