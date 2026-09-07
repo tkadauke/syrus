@@ -58,4 +58,24 @@ module AgentRole
     INFRASTRUCTURE_MAIN_REPAIR,
     AGENT_INSIGHT
   ]).freeze
+
+  # Structural role derivation from a Step kind — no transcript text
+  # involved. Shared by McpToolContext (which agent-facing role a Run's
+  # session gets) and anything else that needs to label a Run's session
+  # (e.g. the agent_activity plugin's sessions feed).
+  def self.for_step_kind(kind)
+    case kind
+    when "agent_rebase", "stack_agent_rebase", "push_agent_rebase", "merge_train_agent_rebase"
+      WORKFLOW_REBASE_CONFLICT
+    when "summarize", "summarize_amend", "test_plan", "refresh_job_metadata", "review_plan"
+      WORKFLOW_SUMMARY_TEST_PLAN
+    when "adversarial_review"
+      WORKFLOW_ADVERSARIAL_REVIEWER
+    when "visual_review"
+      WORKFLOW_VISUAL_REVIEWER
+    else
+      # Plugin-owned agentic steps declare their role on the Step::Kind entry.
+      Step::Kind.by_kind[kind]&.agent_role || WORKFLOW_IMPLEMENT
+    end
+  end
 end

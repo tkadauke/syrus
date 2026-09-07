@@ -99,6 +99,7 @@ Rails.application.routes.draw do
         get "jobs/:id/workflows", to: "jobs#workflows", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/agent_conversation", to: "jobs#agent_conversation", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/diff_review_comments", to: "diff_review_comments#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -572,6 +573,8 @@ Rails.application.routes.draw do
   get "k8s_clusters", to: "spa#show", as: :k8s_clusters
   get "worker_timeline", to: "spa#show", as: :worker_timeline
   get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
+  get "agent_activity", to: "spa#show", as: :agent_activity
+  get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|
     query = request.query_parameters.except("subject").to_query

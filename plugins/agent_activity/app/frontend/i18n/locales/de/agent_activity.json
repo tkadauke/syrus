@@ -1,0 +1,22 @@
+{
+  "nav_agent_activity": "Agentenaktivität",
+  "nav_admin_agent_activity": "Agentenaktivität",
+  "eyebrow": "Betrieb",
+  "heading": "Agentenaktivität",
+  "admin_heading": "Agentenaktivität (alle Repositories)",
+  "description": "Ein Live-Feed der Agentensitzungen in den Repositories, die Sie sehen können -- eine Karte pro Sitzung, mit dem, was tatsächlich entschieden wurde, als Überschrift.",
+  "admin_description": "Ein Live-Feed jeder Agentensitzung auf dieser Instanz -- eine Karte pro Sitzung, mit dem, was tatsächlich entschieden wurde, als Überschrift.",
+  "aria_page": "Agentenaktivität",
+  "loading": "Sitzungen werden geladen…",
+  "error_loading": "Agentensitzungen konnten nicht geladen werden.",
+  "empty": "Keine Agentensitzung entspricht diesem Filter.",
+  "running_now_count": "{{count}} laufen gerade",
+  "quick_filter_running_now": "Läuft gerade",
+  "quick_filter_needs_work": "Braucht Arbeit",
+  "quick_filter_all": "Gesamter Verlauf",
+  "no_summary_submitted": "Für diese Sitzung wurde keine Zusammenfassung übermittelt.",
+  "transcript_heading": "Transkript",
+  "transcript_hide": "Transkript ausblenden",
+  "no_transcript": "Für diese Sitzung wurde kein Transkript erfasst.",
+  "loading_transcript": "Transkript wird geladen…"
+}
