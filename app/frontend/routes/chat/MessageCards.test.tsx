@@ -214,6 +214,70 @@ describe("sender attribution", () => {
   })
 })
 
+describe("shell command rendering", () => {
+  it("renders a completed `!` command distinctly from a normal chat bubble, with ANSI output resolved to colored text", () => {
+    renderChatMessageItem(userMessage("", {
+      chat_shell_command: {
+        id: 501,
+        command: "git status",
+        output: "[32mnothing to commit, working tree clean[0m",
+        outcome: "succeeded",
+        exit_status: 0,
+        started_at: "2026-09-07T10:00:00Z",
+        finished_at: "2026-09-07T10:00:01Z"
+      }
+    }))
+
+    const card = screen.getByTestId("shell-command-card")
+    expect(within(card).getByText("git status")).toBeInTheDocument()
+    expect(within(card).getByText("nothing to commit, working tree clean")).toHaveClass("text-emerald-700")
+    expect(within(card).getByText("Succeeded")).toBeInTheDocument()
+    expect(within(card).getByText("exit 0")).toBeInTheDocument()
+    // No plain-prose bubble should render alongside the card for an empty-text shell command message.
+    expect(screen.queryByText("git status", { selector: ".whitespace-pre-wrap" })).not.toBeInTheDocument()
+  })
+
+  it("shows a failed command's exit status and a distinct outcome badge", () => {
+    renderChatMessageItem(userMessage("", {
+      chat_shell_command: {
+        id: 502,
+        command: "bin/rspec",
+        output: "1 example, 1 failure",
+        outcome: "failed",
+        exit_status: 1,
+        started_at: "2026-09-07T10:00:00Z",
+        finished_at: "2026-09-07T10:00:05Z"
+      }
+    }))
+
+    const card = screen.getByTestId("shell-command-card")
+    expect(within(card).getByText("exit 1")).toBeInTheDocument()
+    expect(within(card).getByText("Failed")).toBeInTheDocument()
+  })
+
+  it("shows a placeholder when a command produced no output", () => {
+    renderChatMessageItem(userMessage("", {
+      chat_shell_command: {
+        id: 503,
+        command: "true",
+        output: "",
+        outcome: "succeeded",
+        exit_status: 0,
+        started_at: "2026-09-07T10:00:00Z",
+        finished_at: "2026-09-07T10:00:00Z"
+      }
+    }))
+
+    expect(within(screen.getByTestId("shell-command-card")).getByText("(no output)")).toBeInTheDocument()
+  })
+
+  it("does not render a shell command card for ordinary messages", () => {
+    renderChatMessageItem(userMessage("Just a normal message."))
+
+    expect(screen.queryByTestId("shell-command-card")).not.toBeInTheDocument()
+  })
+})
+
 describe("system message retry", () => {
   it("shows a Retry now button under a non-prominent error system message and resends the given text", () => {
     const onRetry = vi.fn()

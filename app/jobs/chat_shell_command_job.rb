@@ -84,7 +84,11 @@ class ChatShellCommandJob < ApplicationJob
       chat_session.update!(last_message_at: Time.current)
       message = chat_session.messages.create!(
         role: "user",
-        content: { "text" => "", "chat_shell_command_id" => @command_record.id },
+        content: {
+          "text" => "",
+          "chat_shell_command_id" => @command_record.id,
+          "internal_prompt" => Prompts::ChatShellCommandResult.new(chat_shell_command: @command_record).to_s
+        },
         sender_user_id: @command_record.user_id
       )
     end

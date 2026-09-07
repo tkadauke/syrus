@@ -319,6 +319,7 @@ export type ChatMessageItem = {
   created_at?: string
   attachments?: Array<{ name: string; mime_type: string; data: string }>
   video_walkthrough_id?: number
+  chat_shell_command?: ChatShellCommandResult | null
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
   sender_user?: { id: number; name: string } | null
@@ -590,6 +591,20 @@ export type HiddenChatsPayload = {
 }
 
 export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
+
+// Embedded on the completion message a `!` command posts to the chat
+// transcript (App::ChatMessagePayload#chat_shell_command_json, EPIC-323).
+// Unlike ChatShellCommandRecord below, this is always a finished command —
+// there is no `running`/`cancellable` state to track once it's rendered here.
+export type ChatShellCommandResult = {
+  id: number
+  command: string
+  output: string | null
+  outcome: ChatShellCommandOutcome | null
+  exit_status: number | null
+  started_at: string | null
+  finished_at: string | null
+}
 
 // Mirrors ChatShellCommandsController#shell_command_json (EPIC-323).
 export type ChatShellCommandRecord = {
