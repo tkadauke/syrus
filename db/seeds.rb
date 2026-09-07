@@ -362,4 +362,25 @@ if Rails.env.development?
       JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
     end
   end
+
+  # Mockups (plugins/mockups) has no in-app "create" action -- a mockup only
+  # comes to exist via chat's show_preview MCP tool -- so the Mockups sidebar
+  # page would otherwise be empty in every fresh preview. Seed one through the
+  # same PreviewPanel::Service + Mockups::Mockup.record_publish! path the real
+  # tool uses, guarded so re-running db:seed doesn't create a second copy.
+  if Mockups::Mockup.where(user: demo_user).none?
+    mockup_panel = PreviewPanel::Service.open!(
+      chat_session: demo_chat,
+      title: "Dashboard onboarding sketch",
+      files: {
+        "index.html" => "<!doctype html><html><body><h1>Dashboard onboarding sketch</h1></body></html>"
+      }
+    )
+    Mockups::Mockup.record_publish!(
+      panel: mockup_panel,
+      user: demo_user,
+      title: "Dashboard onboarding sketch",
+      chat_session: demo_chat
+    )
+  end
 end
