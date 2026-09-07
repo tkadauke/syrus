@@ -734,16 +734,26 @@ module App
       }
     end
 
+    # anchor: false -- the header renders this alongside origin_chat's
+    # message-anchored "View in chat" deeplink, so this link stays a plain,
+    # generic pointer to the chat instead of duplicating that same target.
     def source_chat_payload
-      @source_chat_payload ||= App::JobSourceChat.for(@job)
+      @source_chat_payload ||= App::JobSourceChat.for(@job, anchor: false)
     end
 
     # The "Chat about this" link (see JobChatsController), distinct from
     # source_chat_payload's proposal-provenance chat. Present once a chat has
-    # been attached, whether or not the Job was itself proposed from a chat.
+    # been attached, whether or not the Job was itself proposed from a chat --
+    # except when it's the very same chat as source_chat_payload:
+    # ChatProposalFiler auto-attaches the proposing chat session to the Job it
+    # files, so confirming a proposal makes discussion_chat and source_chat
+    # resolve to the identical ChatSession. Rendering both then showed the
+    # same chat linked twice under different labels (JOB-3676-shaped bug
+    # report: "Redundant links to chat").
     def discussion_chat_json
       chat = discussion_chat
       return nil unless chat
+      return nil if source_chat_payload&.fetch(:chat_id) == chat.id
 
       {
         chat_id: chat.id,

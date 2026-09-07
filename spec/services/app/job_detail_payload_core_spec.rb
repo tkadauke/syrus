@@ -410,7 +410,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload_for(job).fetch(:job)).not_to have_key(:deployment_stages)
     end
 
-    it "links a chat-created Job back to the proposal message" do
+    it "links a chat-created Job back to the proposal chat, leaving the message deeplink to origin_chat" do
       chat = ChatSession.create!(user: user, repository: repo, title: "Release planning")
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
       proposal = chat.proposals.create!(
@@ -430,7 +430,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         proposal_id: proposal.id,
         proposal_kind: "syrus_issue",
         message_id: message.id,
-        path: "/chats/#{chat.id}#message-#{message.id}",
+        path: "/chats/#{chat.id}",
         label: "Job proposal in Release planning"
       )
     end
@@ -456,7 +456,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         proposal_id: proposal.id,
         proposal_kind: "epic",
         message_id: message.id,
-        path: "/chats/#{chat.id}#message-#{message.id}",
+        path: "/chats/#{chat.id}",
         label: "Epic proposal"
       )
     end
@@ -644,6 +644,30 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       expect(payload.dig(:job, :source_chat, :chat_id)).to eq(proposal_chat.id)
       expect(payload.dig(:job, :discussion_chat, :chat_id)).to eq(discussion_chat.id)
+    end
+
+    it "omits the discussion chat when it is the same chat as the proposal source (JOB-3676 redundant links)" do
+      chat = ChatSession.create!(user: user, repository: repo, title: "Fix smart folder paused/queued filter")
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
+      proposal = chat.proposals.create!(
+        slug: "map-auth",
+        title: "Map auth",
+        body: "Trace the auth flow.",
+        job: job,
+        state: "confirmed",
+        filed_at: Time.current,
+        confirmed_at: Time.current
+      )
+      chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+      # ChatProposalFiler#attach_to_chat_session! auto-attaches the proposing
+      # chat to the confirmed Job, so discussion_chat resolves to the same
+      # ChatSession as source_chat.
+      job.chat_attachments.create!(chat_session: chat)
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:job, :source_chat, :chat_id)).to eq(chat.id)
+      expect(payload.dig(:job, :discussion_chat)).to be_nil
     end
   end
 
