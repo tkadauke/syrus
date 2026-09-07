@@ -1,11 +1,11 @@
 import type { ScaleTime } from "d3-scale"
 import { useState } from "react"
 import { useT } from "@app/hooks/useT"
+import { TimeAxis } from "@app/components/timeline/TimeAxis"
+import { TimelineBar } from "@app/components/timeline/TimelineBar"
+import { TooltipCard } from "@app/components/timeline/TooltipCard"
 import type { WorkerTimelineLane, WorkerTimelineMacroPayload, WorkerTimelineSpan } from "../api/workerTimeline"
 import { CHART_WIDTH, ROW_HEIGHT, STATUS_COLORS } from "./timeline/constants"
-import { TimeAxis } from "./timeline/TimeAxis"
-import { TimelineBar } from "./timeline/TimelineBar"
-import { TooltipCard } from "./timeline/TooltipCard"
 import { blockedMessage, formatDuration } from "./timeline/spanFormatting"
 import { useZoomableTimeScale } from "./timeline/useZoomableTimeScale"
 
@@ -59,7 +59,7 @@ export function TimelineLanes({
   return (
     <div className="relative">
       <div ref={axisRef} style={{ touchAction: "none" }}>
-        <TimeAxis scale={xScale} />
+        <TimeAxis scale={xScale} width={CHART_WIDTH} />
       </div>
       <div
         aria-label={t("lanes_aria")}
