@@ -1,7 +1,8 @@
 module Steps
-  # Agentic repair pass for pre-PR Coding Mode handoffs. Runs inside the
-  # coding_handoff grade retry loop, after the initial committed handoff branch
-  # has failed required graders and before PR creation.
+  # Agentic repair pass for pre-PR Coding Mode handoffs. Plays the
+  # "agent_step" role for coding_handoff's adversarial/visual review loops
+  # (repairing a needs_work verdict) and its grader retry loop (repairing a
+  # required grader failure), all before PR creation.
   class CodingHandoffFix < Base
     def call
       perform_agentic_change_step(
@@ -26,7 +27,7 @@ module Steps
         job: job
       ).to_s
 
-      append_grade_failure_feedback(prompt)
+      append_grade_failure_feedback(append_review_feedback(prompt))
     end
   end
 end

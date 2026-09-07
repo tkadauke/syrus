@@ -96,10 +96,16 @@ internals gated by `AppSetting.show_work_unit_debug?`.
 - `coding_handoff` — triggered after a coding-mode chat session commits
   and hands off via `complete_implement_step` (existing Job) or
   `submit_coding_changes` (creates a new direct Job); requires operator
-  confirmation before dispatching. On grader pass, opens the PR and
-  notifies the linked chat. Grader failures are repaired by
-  `coding_handoff_fix`; terminal failure posts a passive chat report and
-  marks the Job failed for the normal Retry path.
+  confirmation before dispatching. Gets the same optional adversarial/visual
+  review loops and opt-in `review_plan` step `initial`/`retry` get; since
+  there's no bare leading `implement`/`respond` step (the chat session
+  already produced the diff), `coding_handoff_fix` plays that repair role,
+  and the reviewers fall back to a fresh `git diff` against the default
+  branch instead of reading a prior step's diff. On grader pass, opens the
+  PR and notifies the linked chat. Review `needs_work` verdicts and grader
+  failures are both repaired by `coding_handoff_fix`; terminal grader
+  failure posts a passive chat report and marks the Job failed for the
+  normal Retry path.
 - `local_mode_handoff` — triggered after an operator confirms a Local Mode
   handoff. Graders run in a workflow-owned retry loop repaired by
   `local_mode_handoff_fix`; exhausted grader failures post a passive chat
@@ -135,7 +141,7 @@ auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair:
 landing_validation: speculative_landing_build → prepare → graders
 merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
 merge_train_validation: speculative_merge_train_build → prepare → graders
-coding_handoff: prepare → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
+coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
 local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect

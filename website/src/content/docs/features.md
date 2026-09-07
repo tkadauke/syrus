@@ -157,7 +157,8 @@ the chat checkout back to the repository default branch tip and queues
 preparation again, so the next unrelated Coding Mode request starts from a
 fresh baseline instead of accidentally carrying over handoff commits. The
 `complete_implement_step` chat tool signals that a coding session on an
-existing Job branch is complete and ready for graders, summarize, and PR open.
+existing Job branch is complete and ready for review, grading, summarize, and
+PR open.
 The `reset_workspace` chat tool is available for abandoned experiments: without
 confirmation it only reports the checkout path, current branch/ref, dirty state,
 commits ahead of the default branch, and prep status. When called with explicit

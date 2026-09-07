@@ -1,6 +1,7 @@
 module Prompts
-  # Prompt for a fresh workflow agent repairing pre-PR Coding Mode handoff
-  # grader failures. Later loop iterations append Prompts::GradeFailureFeedback.
+  # Prompt for a fresh workflow agent repairing pre-PR Coding Mode handoffs:
+  # a review's needs_work verdict, a required grader failure, or both. Later
+  # loop iterations append Prompts::ReviewFeedback and/or Prompts::GradeFailureFeedback.
   class CodingHandoffFix
     def initialize(issue:, repo_slug:, branch_name:, handoff_snapshot:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
@@ -32,7 +33,7 @@ module Prompts
         This is a Coding Mode handoff repair for `#{@repo_slug}` on branch `#{@branch_name}`.
 
         A chat agent already committed the original implementation and Syrus is validating it before opening a PR.
-        Required graders failed, so this fresh workflow agent owns the repair.
+        A review flagged issues and/or required graders failed, so this fresh workflow agent owns the repair.
 
         Do not route work back to the original chat.
       SECTION
@@ -84,10 +85,10 @@ module Prompts
 
     def directives_section
       [
-        "Use the grader failure details below as the source of truth for what to repair.",
-        "Fix the smallest concrete problem that makes the required graders pass.",
+        "Use the grader failure and/or review feedback details below as the source of truth for what to repair.",
+        "Fix the smallest concrete problem that addresses the feedback and makes the required graders pass.",
         "Preserve the original handoff's intended behavior; do not broaden the feature or rewrite unrelated code.",
-        "Do not ask the chat agent to take over. This workflow owns the repair until graders pass or the retry budget is exhausted.",
+        "Do not ask the chat agent to take over. This workflow owns the repair until it passes review and graders, or the retry budget is exhausted.",
         "Commit to the current branch only when you actually change files."
       ].join("\n")
     end

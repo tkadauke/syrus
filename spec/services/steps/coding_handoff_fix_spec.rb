@@ -80,6 +80,25 @@ RSpec.describe Steps::CodingHandoffFix do
     expect(run.prompt).to include("expected handoff repair to pass")
   end
 
+  it "appends needs_work adversarial_review/visual_review findings to the prompt" do
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "iteration" => 1, "verdict" => "needs_work", "critique" => "The rescue clause swallows a real error." },
+      { "iteration" => 2, "verdict" => "approved", "critique" => "Looks fine now." }
+    ])
+    workflow.set_artifact!("visual_review_iterations", [
+      { "iteration" => 1, "verdict" => "needs_work", "critique" => "The button overlaps the header on mobile." }
+    ])
+
+    handler.call
+
+    prompt = run.reload.prompt
+    expect(prompt).to include("An independent adversarial-review agent examined the previous iteration")
+    expect(prompt).to include("The rescue clause swallows a real error.")
+    expect(prompt).not_to include("Looks fine now.")
+    expect(prompt).to include("An independent visual-QA agent drove a browser")
+    expect(prompt).to include("The button overlaps the header on mobile.")
+  end
+
   it "commits through the shared agentic change path and captures the diff" do
     expect(handler).to receive(:commit_agent_changes).with("Syrus coding handoff grader fix")
     expect(handler).to receive(:assert_branch_history_intact!)
