@@ -6,7 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
+	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
+	globalsearch "github.com/tkadauke/syrus/plugins/global_search/cli"
+	k8scluster "github.com/tkadauke/syrus/plugins/k8s_cluster/cli"
 	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
+	spendinginsights "github.com/tkadauke/syrus/plugins/spending_insights/cli"
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
@@ -54,6 +58,12 @@ func NewRootCommand() *cobra.Command {
 	// compiled in here. No runtime gating: when the plugin is disabled the
 	// instance already answers its routes with a "plugin_disabled" error.
 	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
+	rootCmd.AddCommand(k8scluster.NewK8sCommand())
+	rootCmd.AddCommand(globalsearch.NewSearchCommand())
+	rootCmd.AddCommand(designdocs.NewDocsCommand())
+	insightsCmd := NewInsightsCommand()
+	insightsCmd.AddCommand(spendinginsights.NewSpendingCommand())
+	rootCmd.AddCommand(insightsCmd)
 	rootCmd.AddCommand(NewSkillCommand())
 	rootCmd.AddCommand(NewLocalCommand())
 	return rootCmd

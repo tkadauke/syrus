@@ -9,7 +9,11 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
+	github.com/tkadauke/syrus/plugins/design_docs/cli v0.0.0
+	github.com/tkadauke/syrus/plugins/global_search/cli v0.0.0
+	github.com/tkadauke/syrus/plugins/k8s_cluster/cli v0.0.0
 	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
+	github.com/tkadauke/syrus/plugins/spending_insights/cli v0.0.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/term v0.45.0
 )
@@ -53,3 +57,11 @@ require (
 // go.work). Neither module is published, so the relative replace resolves
 // them from the working tree and keeps `GOWORK=off` builds working.
 replace github.com/tkadauke/syrus/plugins/scheduled_tasks/cli => ../plugins/scheduled_tasks/cli
+
+replace github.com/tkadauke/syrus/plugins/k8s_cluster/cli => ../plugins/k8s_cluster/cli
+
+replace github.com/tkadauke/syrus/plugins/global_search/cli => ../plugins/global_search/cli
+
+replace github.com/tkadauke/syrus/plugins/design_docs/cli => ../plugins/design_docs/cli
+
+replace github.com/tkadauke/syrus/plugins/spending_insights/cli => ../plugins/spending_insights/cli

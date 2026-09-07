@@ -475,6 +475,116 @@ otherwise shows all schedules. `schedule create` must run from a
 configured repository checkout because scheduled tasks are
 repository-owned.
 
+## Kubernetes clusters
+
+`syrus k8s` commands are contributed by the bundled `k8s_cluster` plugin
+and browse clusters registered from Admin -> Kubernetes Clusters, using
+the same admin API the web UI's cluster browser and the agent's
+`k8s_cluster_*` chat/workflow tools call:
+
+```bash
+syrus k8s clusters
+syrus k8s namespaces --cluster 1
+syrus k8s pods --cluster 1 --namespace web
+syrus k8s deployments --cluster 1
+syrus k8s services --cluster 1
+syrus k8s nodes --cluster 1
+syrus k8s pvcs --cluster 1
+syrus k8s events --cluster 1
+syrus k8s logs web-abc123 --cluster 1 --namespace web --container app --tail 100
+syrus k8s overview --cluster 1
+```
+
+`--cluster` is required whenever more than one cluster is registered;
+with exactly one registered cluster it is inferred automatically. All
+resource commands except `nodes` and `overview` accept `--namespace` to
+restrict the listing; omitting it lists across every namespace, the same
+as `kubectl get <kind> -A`. These commands require an admin API token,
+same as `syrus test-plan`.
+
+This command group is read-only. The plugin's cluster actions (deleting a
+pod, restarting a rollout, scaling a deployment, cordoning a node) are
+only exposed as MCP tools today, with no backing REST endpoint for the
+CLI to call — the CLI does not duplicate them.
+
+## Search
+
+`syrus search` is contributed by the bundled `global_search` plugin and
+calls the same unified search endpoint the app's search bar uses to rank
+results across Jobs, Epics, and chats in one query:
+
+```bash
+syrus search "dark mode"
+syrus search deploy --type job,chat
+syrus search deploy --limit 10
+syrus search deploy --json
+```
+
+`--type` restricts the search to a comma-separated list of `job`, `epic`,
+and/or `chat`; omitting it searches all three. `--limit` caps the number
+of results (server default: 30, capped at 100). Results print as a
+compact one-line-per-result table grouped by type, in the order each
+type first appears in the server's relevance ranking. `--json` prints
+the raw API response instead, including the facet/filter payload the web
+UI's search page uses.
+
+A query under two characters is rejected by the server; the CLI surfaces
+that error message as-is rather than duplicating the validation.
+
+## Design Docs
+
+`syrus docs` is contributed by the bundled `design_docs` plugin and reads
+the same app API the web UI's Design Docs page and the chat
+`read_design_doc`/`list_design_docs` MCP tools call:
+
+```bash
+syrus docs list
+syrus docs list --repo acme/widgets
+syrus docs show DOC-10
+syrus docs show 10
+```
+
+`docs list` scopes to the current checkout when possible (or to
+`--repo owner/name` when given) and otherwise lists every doc you can
+see; an unrecognized `--repo` is an error, but a checkout-detected repo
+that Syrus doesn't know about quietly falls back to the unscoped list.
+`docs show` accepts either a `DOC-<id>` reference or a bare numeric id
+and pages the doc's rendered body through `$PAGER`, the same as
+`syrus job log`. This command group is read-only — proposing a doc,
+commenting, or suggesting a change are chat/proposal-flow features with
+no CLI equivalent. If the `design_docs` plugin is disabled, both
+commands surface the API's `plugin_disabled` error message as-is.
+
+## Spending insights
+
+`syrus insights spending` is contributed by the bundled `spending_insights`
+plugin and reads the same app API that backs the web UI's `/insights/spending`
+page — cost rollups from `Run#cost_usd` and `ChatSession#cumulative_cost_usd`:
+
+```bash
+syrus insights spending
+syrus insights spending --since 2026-06-01 --until 2026-06-30
+syrus insights spending --group-by user
+syrus insights spending --group-by epic
+syrus insights spending --group-by trigger_kind
+syrus insights spending --json
+```
+
+`--since`/`--until` take `YYYY-MM-DD` dates and are passed straight through
+as the API's date window; omitting either lets the server apply its own
+default (a 90-day trailing window). `--group-by` picks which breakdown table
+prints below the headline totals: `repo` (default), `user`, `epic`, or
+`trigger_kind` — the same breakdowns the web page's dashboard shows. There is
+no `agent_provider` breakdown in the API response (only an `agent_provider`
+*filter*, which this v1 command does not expose), so it is not a `--group-by`
+option. `--json` prints the full raw API response instead of the summary,
+including the top-runs and trend detail the text summary omits.
+
+Access control is entirely server-side and this command does not try to work
+around it: non-admins always see only their own spend, and admins see
+instance-wide totals across every user — the command renders whichever scope
+the API says it used.
+
 ## Claude Code skill
 
 The CLI can teach Claude Code how to drive Syrus:
