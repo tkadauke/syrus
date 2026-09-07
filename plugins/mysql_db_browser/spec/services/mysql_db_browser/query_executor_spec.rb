@@ -83,6 +83,25 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       expect(payload[:read_only]).to be(false)
     end
 
+    it "gates writes through MysqlDbBrowser::AgenticAccess.connection_with_write_access! rather than an inline allow_writes? check" do
+      connection.update!(allow_writes: true)
+      stub_client_factory(fake_client(affected_rows: 1))
+      allow(MysqlDbBrowser::AgenticAccess).to receive(:connection_with_write_access!).and_call_original
+
+      described_class.new(connection).execute("DELETE FROM users WHERE id = 1", user: user)
+
+      expect(MysqlDbBrowser::AgenticAccess).to have_received(:connection_with_write_access!).with(connection)
+    end
+
+    it "does not consult the write gate at all for read-only statements" do
+      stub_client_factory(fake_client(rows: [ { "id" => 1 } ]))
+      allow(MysqlDbBrowser::AgenticAccess).to receive(:connection_with_write_access!).and_call_original
+
+      described_class.new(connection).execute("SELECT * FROM users", user: user)
+
+      expect(MysqlDbBrowser::AgenticAccess).not_to have_received(:connection_with_write_access!)
+    end
+
     it "raises Unavailable and still audits nothing extra when the connection itself fails" do
       original = described_class.client_factory
       described_class.client_factory = ->(**) { raise Mysql2::Error, "Access denied for user 'app'@'db.internal'" }
