@@ -252,6 +252,21 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
         expect(response).to have_http_status(:not_found)
       end
 
+      it "404s when a daemon session row exists but the daemon has never actually handshaken (JOB-4509 visual review)" do
+        sign_in_as(user)
+        chat = local_chat
+        enable_local_mode!
+        # Mirrors LocalDaemonSessionsController#create: minting the session
+        # row to hand the operator a connect token, before `syrus local` has
+        # ever dialed in and completed the "connect" handshake.
+        LocalDaemonSession.create!(chat_session: chat, user: user)
+
+        post "/api/v1/app/chats/#{chat.id}/shell_commands", params: { command: "echo hi" }
+
+        expect(response).to have_http_status(:not_found)
+        expect(ChatShellCommand.where(chat_session: chat)).to be_empty
+      end
+
       it "creates a ChatShellCommand and enqueues the run once a daemon is connected" do
         sign_in_as(user)
         chat = local_chat

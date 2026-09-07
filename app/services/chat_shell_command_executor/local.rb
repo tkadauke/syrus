@@ -11,7 +11,7 @@ module ChatShellCommandExecutor
     end
 
     def precondition_error(chat_session)
-      return DISCONNECTED_ERROR unless chat_session.local_daemon_session&.connected?
+      return DISCONNECTED_ERROR unless daemon_actually_connected?(chat_session)
 
       nil
     end
@@ -19,7 +19,7 @@ module ChatShellCommandExecutor
     def run!(command_record)
       chat_session = command_record.chat_session
       session = chat_session.local_daemon_session
-      return Result.new(outcome: "error", output: DISCONNECTED_ERROR) unless session&.connected?
+      return Result.new(outcome: "error", output: DISCONNECTED_ERROR) unless daemon_actually_connected?(chat_session)
 
       tool_call = session.dispatch_tool_call!("run_command", { command: command_record.command })
       command_record.update_columns(local_tool_call_id: tool_call.id)
@@ -39,6 +39,17 @@ module ChatShellCommandExecutor
     end
 
     private
+
+    # `LocalDaemonSession#connected?` (`disconnected_at.nil?`) is true from the
+    # moment `LocalDaemonSessionsController#create` mints the row to hand the
+    # operator a connect token -- well before the daemon has actually dialed
+    # in. `ChatSession#daemon_connected?` is the flag `mark_connected!` /
+    # `mark_disconnected!` flip on the real "connect" handshake over
+    # LocalTunnelChannel (the same signal the "not connected" banner reads),
+    # so gate on that instead of the session row's mere existence.
+    def daemon_actually_connected?(chat_session)
+      chat_session.daemon_connected? && chat_session.local_daemon_session&.connected?
+    end
 
     # `outcome` is the daemon's raw run_command result hash
     # (executeLocalRunCommand in cli/cmd/local.go): { stdout:, stderr:,
