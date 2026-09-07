@@ -139,6 +139,27 @@ describe("FilterBar", () => {
     expect(screen.getByRole("dialog", { name: "State filter settings" })).toHaveClass("dark:border-gray-700", "dark:bg-gray-900")
   })
 
+  it("keeps a single chip's field, operator, and value on one line", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    const chip = screen.getByRole("button", { name: "State is Open" }).closest("span")
+    expect(chip).not.toHaveClass("flex-wrap")
+    expect(chip).toHaveClass("flex-nowrap", "whitespace-nowrap")
+
+    const valueButton = screen.getByRole("button", { name: "State is Open" })
+    expect(valueButton).not.toHaveClass("flex-col")
+    expect(valueButton).toHaveClass("flex-nowrap")
+  })
+
   it("uses a custom link builder for filter and clear navigation", async () => {
     const buildLink = vi.fn((path: string, search: string, updates: Record<string, string | number | null | undefined>) => {
       const params = new URLSearchParams(search)
