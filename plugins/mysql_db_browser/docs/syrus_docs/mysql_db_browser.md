@@ -185,7 +185,10 @@ each tool's own `#call`, via `MysqlDbBrowser::AgenticAccess.connection!(id)` -
 it resolves the `mysql_connection_id` named in that call's params and raises
 unless that specific row has `agentic_access_enabled: true`, mirroring
 `Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
-first-party tools.
+first-party tools. `AgenticAccess.connection!`/`.connection_with_write_access!`
+delegate their gating logic to the shared `Syrus::Plugin::AgenticConnection`
+concern, which `K8sCluster::AgenticAccess` also extends - see the K8s Cluster
+docs' Agentic write-access gating section for the parallel shape.
 
 ## Read-only guardrails and audit log
 
@@ -200,7 +203,12 @@ escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
   `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
   the statement while collecting runtime plan data. Anything else is rejected
   with `403 write_not_allowed` unless the connection's `allow_writes` is
-  `true`. The check runs before opening a connection.
+  `true`. The check runs before opening a connection, via an explicit
+  `MysqlDbBrowser::AgenticAccess.connection_with_write_access!(connection)`
+  call rather than `QueryExecutor` inlining an `allow_writes?` check itself -
+  the same shared-concern gate `K8sCluster::AgenticAccess.cluster_with_write_access!`
+  uses, applied to the connection `ExecuteQueryTool` already resolved via
+  `.connection!` rather than re-resolving by id.
 - **Statement-timeout hint** - literal `SELECT` statements get
   `SELECT /*+ MAX_EXECUTION_TIME(5000) */ ...` prepended (skipped for `WITH`
   CTEs, since the hint must immediately follow `SELECT`).
