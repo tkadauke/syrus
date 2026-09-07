@@ -39,7 +39,7 @@ func runInteractiveChat(cmd *cobra.Command) error {
 		return err
 	}
 	if terminalPair(input, out) {
-		reader = bufio.NewReader(input)
+		return runChatREPLInteractive(cmd.Context(), client, chat, input, out, cmd.ErrOrStderr())
 	}
 
 	chatID := strconv.FormatInt(chat.ID, 10)

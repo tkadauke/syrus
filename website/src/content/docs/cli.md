@@ -170,10 +170,25 @@ a new session:
 syrus
 ```
 
-The terminal picker groups sessions for the current checkout first. The
-REPL uses a compact `>` prompt, loads recent history, streams the
-assistant response, and shows a single Latin busy phrase for the whole
-turn. Ctrl+C stops the active turn; Ctrl+D exits.
+The terminal picker groups sessions for the current checkout first. On a
+real terminal, the chat itself opens as a full-screen frame with three
+regions: a scrollable history pane, a multi-line input area, and a thin
+status line showing the chat title/repository and a busy indicator (a
+single Latin phrase) while a turn is streaming.
+
+- **Enter** sends the message; **Ctrl+J** inserts a literal newline for a
+  multi-line message instead of sending.
+- **Up/Down** at the first or last line of the input recalls previously
+  sent messages from this session (an in-memory list, not saved across
+  sessions); otherwise the arrow keys move the cursor between lines as
+  usual.
+- **PgUp/PgDn** or the mouse wheel scroll the history pane.
+- **Ctrl+C** interrupts the in-flight turn; press it again once idle to
+  exit.
+
+When stdin/stdout aren't a real terminal (piped input, scripted use),
+Syrus falls back to a plain line-based prompt instead: a compact `>`
+prompt, no alt-screen frame, and Ctrl+D to exit.
 
 Pass `--debug` when you need raw stream diagnostics such as MCP sidecar
 events and provider result events:
@@ -189,7 +204,7 @@ syrus chat 123 "Inspect the queued proposals"
 ```
 
 When a chat turn proposes a Job or Epic, the CLI pauses and asks whether
-to confirm or skip the proposal before returning to the prompt.
+to confirm (`c`) or skip (`s`) the proposal before returning to the input.
 
 ## Inbox
 
