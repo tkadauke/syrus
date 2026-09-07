@@ -22,6 +22,12 @@ class ChatShellCommandJob < ApplicationJob
     @output = +""
 
     run_command!
+  rescue ActiveRecord::RecordNotFound
+    # Let `discard_on` (above) handle this directly instead of falling into
+    # the blanket rescue below, which would call `finalize!` with
+    # `@command_record` still nil (NoMethodError) since the `find` that
+    # raised this never completed the assignment.
+    raise
   rescue StandardError => e
     Rails.logger.error("[ChatShellCommandJob] chat_shell_command=#{chat_shell_command_id} #{e.class}: #{e.message}")
     finalize!(outcome: "error", output: "#{@output}\n[chat_shell_command] #{e.class}: #{e.message}")
