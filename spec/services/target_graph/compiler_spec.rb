@@ -284,6 +284,106 @@ RSpec.describe TargetGraph::Compiler do
       end
     end
 
+    it "customizes the root project's label/kind from an explicit project: block" do
+      write(".syrus.yml", <<~YAML)
+        project:
+          id: repo
+          label: Syrus
+          kind: rails_app
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.id).to eq("repo")
+      expect(graph.root_project.label).to eq("Syrus")
+      expect(graph.root_project.kind).to eq("rails_app")
+      expect(graph.root_project.path).to eq("")
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+      expect(graph.root_project).to be_root
+    end
+
+    it "defaults the root project's label to Repository when project: omits it" do
+      write(".syrus.yml", "project:\n  kind: rails_app\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.label).to eq("Repository")
+      expect(graph.root_project.kind).to eq("rails_app")
+    end
+
+    it "raises when the root project: block declares an id other than the root project id" do
+      write(".syrus.yml", "project:\n  id: something-else\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError, /project\.id must be "repo"/)
+    end
+
+    it "raises when the root project: block declares a non-empty path" do
+      write(".syrus.yml", "project:\n  path: somewhere\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError, /project\.path must be empty/)
+    end
+
+    it "overrides a nested project's id, label, and kind from an explicit project: block" do
+      write("apps/desktop/.syrus.yml", <<~YAML)
+        project:
+          id: desktop
+          label: Desktop App
+          kind: desktop_app
+        grade:
+          - name: tests
+            run: npm test
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("desktop")
+      expect(project.label).to eq("Desktop App")
+      expect(project.kind).to eq("desktop_app")
+      expect(project.path).to eq("apps/desktop")
+      expect(project.owner_config_path).to eq("apps/desktop/.syrus.yml")
+
+      target = graph.target(TargetGraph::Label.parse("//apps/desktop:grade/tests"))
+      expect(target.project_id).to eq("desktop")
+    end
+
+    it "overrides a nested project's path scope metadata from an explicit project: block" do
+      write("apps/desktop/.syrus.yml", "project:\n  path: apps\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.project("apps-desktop").path).to eq("apps")
+    end
+
+    it "resolves a nested directory-derived id collision by declaring an explicit project.id" do
+      write("foo/bar/.syrus.yml", "project:\n  id: foo-bar-renamed\n")
+      write("foo-bar/.syrus.yml", "prepare: []\n")
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.projects.keys).to match_array(%w[repo foo-bar-renamed foo-bar])
+    end
+
+    it "raises when two nested project.id declarations collide with each other" do
+      write("alpha/.syrus.yml", "project:\n  id: shared\n")
+      write("beta/.syrus.yml", "project:\n  id: shared\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("alpha/.syrus.yml")
+        expect(error.message).to include("beta/.syrus.yml")
+        expect(error.message).to include("shared")
+      end
+    end
+
+    it "raises when a nested project.id collides with the root project id" do
+      write("cli/.syrus.yml", "project:\n  id: repo\n")
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("cli/.syrus.yml")
+        expect(error.message).to include(".syrus.yml")
+        expect(error.message).to include('"repo"')
+      end
+    end
+
     it "does not infer a nested project from package.json, go.mod, or Rails conventions" do
       write("cli/go.mod", "module example.com/cli\n")
       write("api/package.json", "{}\n")

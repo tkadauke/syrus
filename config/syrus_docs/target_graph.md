@@ -14,10 +14,80 @@ implicit root project (`//:repo`), then does the same for every nested
 `.syrus.yml` it discovers below the root (see "Nested `.syrus.yml`
 discovery" below). Nothing in the runtime prepare, format, generate, or
 grader pipelines reads from the compiled graph — root or nested — and
-compiling it does not change what those pipelines run. Explicit
-`project:`/`targets:` declarations and build-system plugin import (later
-adoption levels in `DOC-20`) do not exist yet — do not describe them as
-available.
+compiling it does not change what those pipelines run. Explicit `targets:`
+declarations and build-system plugin import (later adoption levels in
+`DOC-20`) do not exist yet — do not describe them as available. The
+`project:` primitive described below does exist, but it only names/labels a
+project; it carries no targets of its own yet.
+
+## Projects vs. targets
+
+DOC-20 draws a hard line between the two graph concepts, and it matters when
+deciding whether something belongs in `project:` or in a future `targets:`
+block:
+
+- **Project** — an operator-facing *workflow* boundary. A project answers
+  "what would an operator call this part of the repository," and later
+  becomes the thing that decides which preview to start, which hooks to run
+  on checkout, and which visual review/coverage policy applies. Declaring a
+  project does not run anything.
+- **Target** — an execution graph node: a grader, formatter, generator,
+  prepare action, or (eventually) a build node. Targets answer "what
+  command runs, depending on what." Every executable thing Syrus already
+  runs from `.syrus.yml` (`grade:`, `formatters:`, `generated:`, `prepare:`)
+  compiles into targets, whether or not the file that declared them also
+  declares a `project:` block.
+
+A `.syrus.yml` file's `project:` block just gives its implicit project (the
+root project for the root file, or the directory-derived project for a
+nested file) a stable identity — it does not change which targets that file
+compiles into, or what those targets do.
+
+## Explicit `project:`
+
+Level 0/1 (root-only repos, and nested `.syrus.yml` files with no `project:`
+block) need no configuration: every project is implicit, with an id/label
+derived from the file's position (`repo` for the root, the directory path
+for a nested file — e.g. `apps/desktop/.syrus.yml` implies id
+`apps-desktop`, label `apps/desktop`).
+
+An explicit `project:` block overrides that derivation for layouts where the
+default isn't the right operator-facing boundary — a directory-derived id
+that collides with another directory, or a label an operator would rather
+see than a raw path:
+
+```yaml
+# desktop/.syrus.yml
+project:
+  id: desktop
+  label: Desktop App
+  kind: desktop_app
+```
+
+All fields are optional and independently overridable:
+
+- `id` — must match `[A-Za-z0-9_-]+`. Overrides the directory-derived id.
+  Two files (nested or root) that resolve to the same id — whether by
+  directory derivation, explicit declaration, or one of each — raise
+  `TargetGraph::ValidationError` naming both owning files; nothing is
+  silently merged or overwritten.
+- `label` — free-form operator-facing display text. Defaults to the
+  directory path (nested) or `"Repository"` (root).
+- `kind` — free-form, e.g. `desktop_app`. No default.
+- `path` — overrides the project's scope metadata, which otherwise defaults
+  to the directory containing the file. This is metadata only in the
+  current implementation slice: it does not change which directory's files
+  compile into this file's targets, and does not affect target labels
+  (`//<package>:<name>` package segments always match the file's actual
+  directory) — see "Projects vs. targets" above for why label/kind/path on
+  a project never touches target compilation.
+
+The root `.syrus.yml` may also declare `project:`, but only to customize
+`label`/`kind` — the root project's `id` (`repo`) and `path` (empty) are
+structural, since there is exactly one repository root. An explicit
+`project.id`/`project.path` in the root file that disagrees with that raises
+`TargetGraph::ValidationError` naming the root config, the same way a
+nested id collision does.
 
 ## Nested `.syrus.yml` discovery
 
@@ -38,8 +108,9 @@ order — and always after the root `.syrus.yml`, which `TargetGraph::Compiler`
 compiles first.
 
 Each discovered nested `.syrus.yml` becomes its own directory-scoped
-`Project` (id and label derived from its relative path, e.g. `cli` for
-`cli/.syrus.yml`, `apps-desktop` for `apps/desktop/.syrus.yml`), and its
+`Project` (id and label derived from its relative path by default, e.g.
+`cli` for `cli/.syrus.yml`, `apps-desktop` for `apps/desktop/.syrus.yml` —
+see "Explicit `project:`" above for overriding that derivation), and its
 `prepare`/`formatters`/`generated`/`grade` sections compile into targets
 under that project the exact same way the root file's sections do —
 `//cli:prepare`, `//cli:format/0`, `//cli:grade/tests`, and so on. Root
@@ -56,12 +127,14 @@ ways it can be broken have different severity:
   `Diagnostics#error` naming the offending file's path (e.g.
   `cli/.syrus.yml: formatters: must be an array`) — this never raises from
   `TargetGraph::Compiler#compile` or `#diagnose`.
-- **A structural collision across files** — most concretely, two different
-  nested directories whose paths reduce to the same project id (a directory
+- **A structural collision across files** — two different nested
+  directories whose paths reduce to the same project id (a directory
   literally named `foo-bar` alongside a nested `foo/bar/.syrus.yml`, both of
-  which need to become project id `foo-bar`) — is a real graph-construction
-  problem and raises `TargetGraph::ValidationError` naming both files, the
-  same way any other duplicate project/target declaration does.
+  which need to become project id `foo-bar`), or any other pair of files
+  (nested or root) that resolve to the same id once explicit `project.id`
+  overrides are taken into account — is a real graph-construction problem
+  and raises `TargetGraph::ValidationError` naming both files, the same way
+  any other duplicate project/target declaration does.
   `TargetGraph::Compiler#compile` propagates this; `#diagnose` catches it
   (matching its documented never-raises contract) and reports it through
   `Diagnostics#error` instead.
