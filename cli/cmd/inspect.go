@@ -49,11 +49,12 @@ func newJobListCommand(search bool) *cobra.Command {
 	var state string
 	var limit int
 	var jsonOut bool
+	var repo string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List jobs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, "", jsonOut)
+			return runJobList(cmd, state, limit, "", jsonOut, repo)
 		},
 	}
 	if search {
@@ -61,12 +62,13 @@ func newJobListCommand(search bool) *cobra.Command {
 		cmd.Short = "Search jobs by title"
 		cmd.Args = cobra.ExactArgs(1)
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, args[0], jsonOut)
+			return runJobList(cmd, state, limit, args[0], jsonOut, repo)
 		}
 	}
 	cmd.Flags().StringVar(&state, "state", "open", "open, closed, or all")
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print jobs as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
 	return cmd
 }
 
@@ -262,6 +264,7 @@ func newEpicCreateCommand() *cobra.Command {
 func newEpicListCommand(search bool) *cobra.Command {
 	var limit int
 	var jsonOut bool
+	var repo string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List epics",
@@ -270,7 +273,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 			if search {
 				query = args[0]
 			}
-			return runEpicList(cmd, limit, query, jsonOut)
+			return runEpicList(cmd, limit, query, jsonOut, repo)
 		},
 	}
 	if search {
@@ -280,6 +283,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 	}
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print epics as JSON")
+	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
 	return cmd
 }
 
@@ -395,7 +399,7 @@ func NewWhoamiCommand() *cobra.Command {
 	return cmd
 }
 
-func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool) error {
+func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
@@ -403,7 +407,10 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	filters := url.Values{}
 	filters.Set("state", state)
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
+	if repo = strings.TrimSpace(repo); repo == "" {
+		repo = cliplugin.DetectCurrentRepoSlug()
+	}
+	if repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListJobs(cmd.Context(), filters)
@@ -428,14 +435,17 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	return tw.Flush()
 }
 
-func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool) error {
+func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo string) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
 	}
 	filters := url.Values{}
 	filters.Set("limit", strconv.Itoa(limit))
-	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
+	if repo = strings.TrimSpace(repo); repo == "" {
+		repo = cliplugin.DetectCurrentRepoSlug()
+	}
+	if repo != "" {
 		filters.Set("repo", repo)
 	}
 	list, err := client.ListEpics(cmd.Context(), filters)

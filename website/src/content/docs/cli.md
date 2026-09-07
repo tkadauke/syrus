@@ -231,6 +231,7 @@ Use `syrus job` commands for direct Job work:
 
 ```bash
 syrus job list --state open --limit 20
+syrus job list --repo tkadauke/myapp
 syrus job search "dark mode"
 syrus job show 456
 syrus job log 456
@@ -267,6 +268,11 @@ JSON on stdout for scripting and the desktop app. `--json` disables the
 polling behavior of `job log` and `job watch` — each prints a single
 snapshot of the current transcript or Job state and exits rather than
 following it.
+
+`job list`/`job search` also accept `--repo owner/name` to scope results to
+one repository, overriding auto-detection from the current checkout; without
+it they fall back to the detected repository (or all repositories visible to
+the user, outside a checkout), same as `syrus jobs` and `syrus inbox`.
 
 `job checkout` verifies that the current checkout matches the Job's
 repository, fetches the Syrus branch from `origin`, and checks it out. If the
@@ -358,6 +364,7 @@ Use `syrus epic` to inspect and create Epics:
 
 ```bash
 syrus epic list
+syrus epic list --repo tkadauke/myapp
 syrus epic search "launch"
 syrus epic show 12
 syrus epic create
@@ -369,7 +376,9 @@ and multi-line description, confirms the repository, creates the Epic,
 and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
 
 `epic list`/`epic search` and `epic show` also accept `--json` for the
-same JSON-on-stdout behavior as the Job commands above.
+same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic
+search` also accept `--repo owner/name`, overriding auto-detection the same
+way as `job list`/`job search`.
 
 ## Repositories and Identity
 

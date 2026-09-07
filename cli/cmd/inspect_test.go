@@ -659,6 +659,98 @@ func TestWhoamiTextOutputUnchangedWithoutJSON(t *testing.T) {
 	}
 }
 
+func TestJobListCommandRepoFlagOverridesAutoDetection(t *testing.T) {
+	var gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":0,"jobs":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "acme/widgets")
+
+	output := &bytes.Buffer{}
+	command := NewJobCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"list", "--repo", "tkadauke/myapp"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
+		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
+func TestJobSearchCommandRepoFlagOverridesAutoDetection(t *testing.T) {
+	var gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":0,"jobs":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "acme/widgets")
+
+	output := &bytes.Buffer{}
+	command := NewJobCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "login", "--repo", "tkadauke/myapp"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
+		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
+func TestEpicListCommandRepoFlagOverridesAutoDetection(t *testing.T) {
+	var gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":0,"epics":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "acme/widgets")
+
+	output := &bytes.Buffer{}
+	command := NewEpicCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"list", "--repo", "tkadauke/myapp"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
+		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
+func TestEpicSearchCommandRepoFlagOverridesAutoDetection(t *testing.T) {
+	var gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":0,"epics":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "acme/widgets")
+
+	output := &bytes.Buffer{}
+	command := NewEpicCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "launch", "--repo", "tkadauke/myapp"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
+		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
 func withCredentials(t *testing.T, url string, token string) {
 	t.Helper()
 	cliplugintest.WithCredentials(t, url, token)
