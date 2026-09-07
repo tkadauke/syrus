@@ -49,6 +49,9 @@
   "mark_valid": "Als gültig markieren",
   "pin": "Anheften",
   "unpin": "Lösen",
+  "shortcuts": {
+    "group": "Job-Details"
+  },
   "open_terminal_in_workspace": "Terminal im Workspace öffnen",
   "open_in_coding_mode": "Im Coding-Modus öffnen",
   "retry_failed_step": "Fehlgeschlagenen Schritt erneut versuchen",
@@ -59,6 +62,9 @@
   "confirm_retry_pr_ingestion": "PR-Übernahme gegen den aktuellen PR-Stand erneut ausführen? Dies startet einen neuen Übernahme-Workflow.",
   "confirm_rebase_cancels_running": "Für diese Aufgabe läuft gerade ein Workflow. Ein Rebase jetzt bricht ihn ab und startet stattdessen den Rebase. Fortfahren?",
   "confirm_unapprove": "Diese Aufgabe zurück auf implementiert setzen?",
+  "confirm_approve_shortcut": "Diese Aufgabe genehmigen?",
+  "confirm_reopen_shortcut": "Diese Aufgabe wieder öffnen?",
+  "confirm_retry_shortcut": "Diese Aufgabe jetzt erneut versuchen?",
   "confirm_cancel": "Laufende Arbeit abbrechen und diese Aufgabe schließen?",
   "confirm_remove_from_backlog": "Diese Aufgabe aus dem Backlog entfernen und schließen?",
   "confirm_stop_landing": "Landung dieser Aufgabe stoppen? Sie wird zurück auf implementiert gesetzt und muss erneut genehmigt werden.",
