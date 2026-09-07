@@ -7,15 +7,22 @@ import { SceneCountsCard, sceneCountsSummary, type SceneCounts } from "../whiteb
 // -- the replacement element/file counts come from the tool call's own input
 // instead, which update_scene_tool.rb requires (`elements`) or accepts
 // optionally (`files`).
+//
+// Collapsed-row dispatch never carries `input` at all (see
+// app/frontend/routes/chat/toolRendering.ts's toolResultPresentation and the
+// ToolCardContext.input doc comment in @app/pluginToolCards) -- only the
+// expanded view gets it. Without a real input object we have no counts to
+// report, so this must fall back to null (the generic renderer) rather than
+// silently claiming "0 elements", which would misrepresent every real
+// replacement in the collapsed summary.
 function sceneCounts(context: ToolCardContext): SceneCounts | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || parsed.replaced !== true) return null
+  if (!isPlainObject(context.input) || !Array.isArray(context.input.elements)) return null
 
-  const input = isPlainObject(context.input) ? context.input : {}
-  const elements = Array.isArray(input.elements) ? input.elements : []
-  const files = isPlainObject(input.files) ? input.files : {}
+  const files = isPlainObject(context.input.files) ? context.input.files : {}
 
-  return { elementCount: elements.length, fileCount: Object.keys(files).length, version: numberValue(parsed.version) }
+  return { elementCount: context.input.elements.length, fileCount: Object.keys(files).length, version: numberValue(parsed.version) }
 }
 
 function collapsedSummary(context: ToolCardContext) {
