@@ -307,8 +307,8 @@ export function translateBucket(bucket: string, t: (key: string, opts?: Record<s
 
 export function filterChipClass(negated: boolean) {
   return negated
-    ? "inline-flex flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-rose-300 bg-rose-50 px-1.5 py-1 text-sm dark:border-rose-800 dark:bg-rose-950"
-    : "inline-flex flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-gray-300 bg-gray-50 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+    ? "inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-rose-300 bg-rose-50 px-1.5 py-1 text-sm dark:border-rose-800 dark:bg-rose-950"
+    : "inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-gray-300 bg-gray-50 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
 }
 
 export function filterNotClass(negated: boolean) {
