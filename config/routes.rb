@@ -353,6 +353,12 @@ Rails.application.routes.draw do
           get "stuck", to: "stuck#index"
           get "activity", to: "workflow_activity#index"
           get "work_units", to: "work_units#index"
+          resources :attention_items, only: %i[ index ] do
+            member do
+              post :decide
+              post :act
+            end
+          end
           get "reconciler_activity", to: "reconciler_activity#index"
           get "browser_errors", to: "browser_errors#index"
           get "backend_exceptions", to: "backend_exceptions#index"
@@ -612,6 +618,7 @@ Rails.application.routes.draw do
   get "admin/scoped_chat_events", to: "spa#show", as: :admin_scoped_chat_events
   get "admin/activity", to: "spa#show", as: :admin_activity
   get "admin/work_units", to: "spa#show", as: :admin_work_units
+  get "admin/attention_items", to: "spa#show", as: :admin_attention_items
   get "admin/reconciler_activity", to: "spa#show", as: :admin_reconciler_activity
   get "admin/browser_errors", to: "spa#show", as: :admin_browser_errors
   get "admin/backend_exceptions", to: "spa#show", as: :admin_backend_exceptions
