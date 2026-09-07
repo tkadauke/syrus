@@ -161,6 +161,32 @@ describe("renderChatMessages tool grouping", () => {
     expect(toolGroup.calls[1].result_body).toBe("class B")
   })
 
+  it("parses a long single-line JSON tool result from its untruncated text, not the truncated display body (JOB-4223)", () => {
+    // A real design doc's markdown easily exceeds the 2,000-char per-line
+    // display-preview cap (toolResultPreview/TOOL_RESULT_PREVIEW_LINE_CHARS)
+    // once serialized into the tool result's single-line JSON. Truncating
+    // that string before parsing corrupts the JSON mid-object, so both the
+    // collapsed summary and the expanded card must parse from the complete
+    // text (result_json), not the display-bounded result_body.
+    const markdown = "word ".repeat(1000)
+    const rawResult = JSON.stringify({ design_doc: { doc_ref: "DOC-99", title: "Big Design Doc", markdown } })
+
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "read_design_doc", input: { doc_ref: "DOC-99" } }),
+      toolResult(2, { toolUseId: "tu_1", content: rawResult })
+    ])
+
+    const call = group(items[0]).calls[0]
+
+    // Sanity-check the scenario is real: the display body really is cut
+    // mid-object and is no longer valid JSON on its own.
+    expect(call.result_body.length).toBeLessThan(rawResult.length)
+    expect(() => JSON.parse(call.result_body)).toThrow()
+
+    expect(call.result_json).toMatchObject({ design_doc: { doc_ref: "DOC-99", title: "Big Design Doc" } })
+    expect(call.result_summary).toBe("DOC-99 — Big Design Doc")
+  })
+
   it("groups consecutive read-only calls under a compact inspection summary", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

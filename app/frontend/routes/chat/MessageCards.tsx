@@ -487,12 +487,18 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
 
+  // result_json parses the tool result's complete, untruncated text;
+  // result_body is a display-bounded preview that can cut a long single-line
+  // JSON result mid-object, so plugin cards must not re-derive parsedResult
+  // from it (JOB-4223). Builders that haven't computed result_json (e.g. the
+  // admin transcript grouper) leave it undefined -- fall back to parsing the
+  // body they did set, same as before.
   const pluginBody = call.result_error ? null : pluginToolCardExpandedBody({
     toolName: call.tool_name,
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
     resultError: call.result_error,
-    parsedResult: parseJsonText(call.result_body)
+    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
   })
   if (pluginBody != null) return <>{pluginBody}</>
 
