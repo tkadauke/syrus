@@ -149,12 +149,12 @@ class IngestionClassifier
     failure(reason)
   end
 
-  # `Decisions::Triage` was written for exactly this and never had a caller, so
-  # the decisions table stayed empty while uncertain Jobs accumulated. It is
-  # advisory -- a decision we cannot open must not turn a soft "needs a human"
-  # into a hard failure.
+  # `AttentionItems::Triage` was written for exactly this and never had a
+  # caller, so the attention_items table stayed empty while uncertain Jobs
+  # accumulated. It is advisory -- a decision we cannot open must not turn a
+  # soft "needs a human" into a hard failure.
   def open_triage_decision!
-    Decisions::Triage.call(job: job.reload)
+    AttentionItems::Triage.call(job: job.reload)
   rescue StandardError => e
     Rails.logger.warn("[IngestionClassifier] could not open a triage decision for #{job.slug}: #{e.class}: #{e.message}")
   end

@@ -1,9 +1,9 @@
-module Decisions
-  # Turns a Problem into a Decision, or declines to (workflow-engine-v3 B2/B3).
+module AttentionItems
+  # Turns a Problem into an AttentionItem, or declines to (workflow-engine-v3 B2/B3).
   #
   # Two things stop the queue from growing without bound:
   #
-  #   * an open Decision with the same signature is reused, so the tenth
+  #   * an open AttentionItem with the same signature is reused, so the tenth
   #     occurrence of one problem is one row, not ten;
   #   * a prior decision on the same signature -- still in scope and not
   #     expired -- answers the question without asking anyone again. This is
@@ -53,12 +53,12 @@ module Decisions
 
     attr_reader :problem, :repository, :job, :workflow, :step, :user
 
-    def signature = @signature ||= Decisions::Signature.for(problem)
+    def signature = @signature ||= AttentionItems::Signature.for(problem)
 
     # A decision already made about this exact problem, in this repository,
     # that has not expired.
     def matching_prior_decision
-      Decision.where(signature: signature, state: "decided")
+      AttentionItem.where(signature: signature, state: "decided")
               .where(repository_id: repository&.id)
               .unexpired
               .order(decided_at: :desc)
@@ -66,11 +66,11 @@ module Decisions
     end
 
     def open_duplicate
-      Decision.open_decisions.where(signature: signature, repository_id: repository&.id).first
+      AttentionItem.open_decisions.where(signature: signature, repository_id: repository&.id).first
     end
 
     def create!
-      Decision.create!(
+      AttentionItem.create!(
         problem_code: problem.code,
         signature: signature,
         evidence: problem.evidence,

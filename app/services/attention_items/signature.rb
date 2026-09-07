@@ -1,6 +1,6 @@
 require "digest"
 
-module Decisions
+module AttentionItems
   # A problem's identity for the purpose of "have we decided this before"
   # (workflow-engine-v3 B3).
   #

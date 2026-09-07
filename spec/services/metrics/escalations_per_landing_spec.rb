@@ -11,7 +11,7 @@ RSpec.describe Metrics::EscalationsPerLanding do
   end
 
   def escalation!(created_at: 1.hour.ago, problem_code: "grader_failure")
-    Decision.create!(
+    AttentionItem.create!(
       problem_code: problem_code, signature: "#{problem_code}:#{SecureRandom.hex(4)}",
       title: "t", repository: repo, created_at: created_at
     )

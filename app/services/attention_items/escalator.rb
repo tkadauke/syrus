@@ -1,10 +1,10 @@
-module Decisions
-  # Turns a terminally failed Workflow into a Decision (workflow-engine-v3 B2).
+module AttentionItems
+  # Turns a terminally failed Workflow into an AttentionItem (workflow-engine-v3 B2).
   #
   # This is rung 4 -- the human -- reached only after the cheaper rungs
   # declined. It is also the thing the escalations-per-landing metric counts,
-  # so it deliberately files one Decision per distinct problem rather than per
-  # occurrence: `Decisions::Opener` reuses an open decision for the same
+  # so it deliberately files one AttentionItem per distinct problem rather than per
+  # occurrence: `AttentionItems::Opener` reuses an open decision for the same
   # signature and declines entirely when the same problem was already decided.
   #
   # Nothing here decides anything. It records that a person has to.
@@ -21,7 +21,7 @@ module Decisions
       problem = problem_for(failed_step)
       return nil unless problem
 
-      Decisions::Opener.call(
+      AttentionItems::Opener.call(
         problem: problem,
         title: title_for(problem),
         summary: @workflow.failure_reason.presence,
