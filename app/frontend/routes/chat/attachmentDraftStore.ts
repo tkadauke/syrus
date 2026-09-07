@@ -31,6 +31,24 @@ export function clearDraftAttachments(chatId: string): void {
   draftAttachmentsByChatId.delete(chatId)
 }
 
+// Shared by Compose's own file/paste/drag intake and attachMediaLibraryImage.ts
+// so both read a File into the same ChatComposeAttachment shape.
+export function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve({
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: String(reader.result || ""),
+        size: file.size
+      })
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
 // Test-only: the module-level map otherwise outlives any single test (by
 // design — that's what makes it survive a remount), so specs that attach a
 // draft must reset it or leak state into later specs reusing the same chat id.
