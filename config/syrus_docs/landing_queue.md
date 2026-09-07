@@ -71,9 +71,21 @@ repository's most recent settled CI poll.
 **An inherited verdict is evidence, not proof.** Check-run names are coarse: a
 single `rspec` check can be red on main for spec A and red on a PR for specs A
 *and* B, and by name alone those are indistinguishable. That is why `inherited`
-downgrades the block to overridable rather than landing the Job automatically —
-auto-landing on that signal would let a second breakage through while main is
-already red, which is the failure mode the distinction exists to prevent.
+downgrades the block to overridable by default rather than landing the Job
+automatically — auto-landing on that signal can let a second breakage through
+while main is already red.
+
+`Repository#land_on_inherited_check_failure` (default `false`, per repository,
+in the repository settings form) opts out of the hold: an `inherited` verdict
+then clears the checks gate outright and the Job keeps moving while main is red.
+Whether that is safe depends on how granular the repository's check names are —
+a repo with one monolithic `tests` check gets very little signal from a name
+match, a repo with per-suite checks gets a lot — which is why it is a
+per-repository setting rather than an instance-wide one.
+
+The opt-in clears the **checks** gate only. Every later gate still applies
+(mergeability, rebase cap, epic siblings, parent Job, dependencies), and it never
+excuses an `own` or `unknown` verdict.
 
 The verdict and its evidence are surfaced in three places so an operator and an
 agent see the same thing: the Job page's PR-checks banner (which checks fail

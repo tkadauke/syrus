@@ -594,7 +594,8 @@
     "insight_scheduling_discard": "Verwerfen",
     "insight_scheduling_saved": "Insight-Planungseinstellungen gespeichert.",
     "insight_scheduling_save_error": "Insight-Planungseinstellungen konnten nicht gespeichert werden.",
-    "insight_scheduling_min_max_error": "Mindestanzahl Jobs muss kleiner als die Höchstanzahl sein."
+    "insight_scheduling_min_max_error": "Mindestanzahl Jobs muss kleiner als die Höchstanzahl sein.",
+    "check_land_inherited_failure": "Landen, wenn fehlschlagende Checks bereits auf dem Basis-Branch fehlschlagen"
   },
   "github_token": {
     "title": "GitHub-Integration",

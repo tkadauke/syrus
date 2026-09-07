@@ -1074,6 +1074,64 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(LandingBlockerOverride.overridable?("pr_checks_failing")).to be(false)
     end
 
+    it "lands through an inherited failure when the repository opts in" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.repository.update!(land_on_inherited_check_failure: true)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to be_nil
+    end
+
+    # Opting in clears the *checks* gate only. Returning "not blocked" from that
+    # branch would have skipped every gate after it -- mergeability, rebase cap,
+    # epic siblings, parent, dependencies -- and landed Jobs that are blocked for
+    # entirely unrelated reasons.
+    it "keeps every other landing gate when opted in" do
+      parent = queue_job(issue_number: 9, approved_at: 5.minutes.ago)
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.repository.update!(land_on_inherited_check_failure: true)
+      job.update!(parent_job: parent)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).not_to be_nil
+      expect(entry.blocked_reason[:key]).to eq("waiting_to_merge")
+    end
+
+    it "does not let the opt-in excuse a failure the job introduced" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.repository.update!(land_on_inherited_check_failure: true)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec", "mine" ], mergeability_base_sha: "base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
+    end
+
     it "still blames the job when it fails a check the base passes" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(

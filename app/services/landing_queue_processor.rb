@@ -807,14 +807,22 @@ class LandingQueueProcessor
       # equally guilty while main was broken.
       attribution = PrCheckAttribution.for(job)
       if attribution.inherited?
-        return override_or_block(
-          job,
-          { key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } },
-          consume: consume_override
-        )
+        # Repositories whose check names are granular enough that "same check
+        # name" really does mean "same failure" can opt out of this hold and keep
+        # landing while main is red. Note this only clears the *checks* gate --
+        # execution falls through to the remaining ones (mergeability, rebase
+        # cap, epic siblings, parent, dependencies) rather than declaring the Job
+        # landable, which returning an empty blockage here would wrongly do.
+        unless job.repository.land_on_inherited_check_failure?
+          return override_or_block(
+            job,
+            { key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: attribution.failing_names.join(", ") } },
+            consume: consume_override
+          )
+        end
+      else
+        return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
       end
-
-      return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
     when "pending"
       return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })
     end

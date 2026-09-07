@@ -594,7 +594,8 @@
     "insight_scheduling_discard": "Reicere",
     "insight_scheduling_saved": "Optiones ordinationis perspicientiae servatae.",
     "insight_scheduling_save_error": "Optiones ordinationis perspicientiae servari non potuerunt.",
-    "insight_scheduling_min_max_error": "Officia minima minora esse debent quam officia maxima."
+    "insight_scheduling_min_max_error": "Officia minima minora esse debent quam officia maxima.",
+    "check_land_inherited_failure": "Emittere cum probationes cadentes iam in ramo basis cadant"
   },
   "github_token": {
     "title": "Integratio GitHub",

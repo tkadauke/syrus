@@ -129,6 +129,22 @@ throughput. Landing logs name the reuse path (`exact_head`,
 `same_tree`, or `clean_rebase_carry_forward`) or explain why graders ran
 again.
 
+When a pull request's CI checks are red, Syrus distinguishes a failure the Job
+introduced from one it inherited from a base branch that was already broken. It
+compares the checks failing on the PR against the checks already failing on its
+base: if every failing check is also red on the base, the Job did not cause the
+breakage. That verdict, and the evidence behind it (which checks fail here,
+which fail on the base, and the base commit compared against), appears on the
+Job page and in the API.
+
+By default an inherited failure still holds the Job, but an operator can
+override it — unlike a failure the Job introduced, which cannot be overridden.
+Repositories can opt into **Land when failing checks are already failing on the
+base branch** (`land_on_inherited_check_failure`) to skip that hold entirely and
+keep landing while the base is broken. Check names are coarse, so how safe this
+is depends on how granular a repository's checks are; it never excuses a check
+that is red only on the PR.
+
 In the dashboard, the landing queue treats each Epic as one contiguous
 landing unit. The Epic's child Jobs stay grouped together, with their
 internal order still following parent and dependency relationships, so the

@@ -55,6 +55,7 @@ export type RepositoryFormRecord = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
+  land_on_inherited_check_failure: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean
@@ -120,6 +121,7 @@ export type RepositoryInput = {
   pr_cost_footer_enabled: boolean
   auto_merge_enabled: boolean
   trust_clean_rebase_grade: boolean
+  land_on_inherited_check_failure: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
   main_branch_repair_blocks_work: boolean

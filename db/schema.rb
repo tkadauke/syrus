@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_181636) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2017,6 +2017,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_181636) do
     t.bigint "github_repository_id"
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.boolean "land_on_inherited_check_failure", default: false, null: false
     t.boolean "landing_paused", default: false, null: false
     t.string "last_ci_evaluated_sha"
     t.string "last_graded_sha"

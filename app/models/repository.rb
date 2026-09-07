@@ -22,6 +22,12 @@ class Repository < ApplicationRecord
   # rebase instead of re-running the landing graders. Trades a small
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
+  # Opt-in: land a Job whose failing checks are ALL already failing on its base
+  # instead of holding it for an operator override. Off by default because
+  # check-run names are coarse -- one "rspec" check can be red on main for spec A
+  # and red on a PR for specs A *and* B -- so how safe this is depends on how
+  # granular a repository's check names are. See PrCheckAttribution.
+  attribute :land_on_inherited_check_failure, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
   attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24

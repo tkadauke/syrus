@@ -449,6 +449,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           <Checkbox label={t('repository_form.check_cost_footer')} onChange={(checked) => setValues({ ...values, pr_cost_footer_enabled: checked })} value={values.pr_cost_footer_enabled} />
           <Checkbox id="auto-merge" label={t('repository_form.check_auto_merge')} onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })} value={values.auto_merge_enabled} />
           <Checkbox label={t('repository_form.check_trust_rebase')} onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })} value={values.trust_clean_rebase_grade} />
+          <Checkbox label={t('repository_form.check_land_inherited_failure')} onChange={(checked) => setValues({ ...values, land_on_inherited_check_failure: checked })} value={values.land_on_inherited_check_failure} />
           <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({
             ...values,
             main_branch_health_enabled: checked,
@@ -806,6 +807,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     pr_cost_footer_enabled: payload.repository.pr_cost_footer_enabled,
     auto_merge_enabled: payload.repository.auto_merge_enabled,
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
+    land_on_inherited_check_failure: payload.repository.land_on_inherited_check_failure,
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,
