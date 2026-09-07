@@ -920,6 +920,21 @@ describe("AppChromeV2 mobile header pinning", () => {
       restoreMatchMedia()
     }
   })
+
+  it("gives the mobile sidebar-open button a visible menu icon, not just the wordmark", () => {
+    // The button previously wrapped only the Syrus logo/name with no icon
+    // affordance, so nothing signaled it opens navigation on mobile.
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      const openSidebarButton = screen.getByRole("button", { name: "Open sidebar" })
+      expect(openSidebarButton.querySelector("svg")).not.toBeNull()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
 })
 
 describe("AppChromeV2 bug report trigger placement", () => {
