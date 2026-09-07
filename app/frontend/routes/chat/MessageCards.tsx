@@ -4,7 +4,8 @@ import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
+import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatShellCommandResult, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
+import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
@@ -67,6 +68,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
               <span>{t("walkthrough_shared_chip")}</span>
             </div>
           ) : null}
+          {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
           {item.text.trim().length > 0 ? (
             <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} />
           ) : null}
@@ -395,6 +397,38 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
           </div>
         </form>
       ) : null}
+    </div>
+  )
+}
+
+// Renders a completed `!` command (EPIC-323): the command line and its
+// captured stdout+stderr, ANSI-aware. This is a user-initiated shell command,
+// not an agent tool call, so it deliberately does not reuse ToolGroup's
+// collapsible pill card — a dark terminal-style block reads as distinct at a
+// glance from both a normal chat bubble and a "the agent ran a tool" card,
+// even though both this and ToolGroup render monospace text.
+const SHELL_COMMAND_OUTCOME_TONE: Record<string, string> = {
+  succeeded: "bg-emerald-500/20 text-emerald-300",
+  failed: "bg-red-500/20 text-red-300",
+  killed: "bg-amber-500/20 text-amber-300",
+  error: "bg-red-500/20 text-red-300"
+}
+
+function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResult }) {
+  const { t } = useT("chat")
+  const outcomeTone = (shellCommand.outcome && SHELL_COMMAND_OUTCOME_TONE[shellCommand.outcome]) || "bg-gray-700/40 text-gray-300"
+
+  return (
+    <div className="w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-950 text-gray-100 shadow-sm" data-testid="shell-command-card">
+      <div className="flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-3 py-1.5 text-xs">
+        <span aria-hidden="true" className="shrink-0 text-gray-500">$</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-gray-200">{shellCommand.command}</span>
+        {shellCommand.exit_status != null ? <span className="shrink-0 font-mono text-gray-500">{t("shell_command_exit_status", { code: shellCommand.exit_status })}</span> : null}
+        {shellCommand.outcome ? <span className={`shrink-0 rounded-full px-2 py-0.5 font-sans text-2xs font-medium ${outcomeTone}`}>{t(`shell_command_outcome_${shellCommand.outcome}`)}</span> : null}
+      </div>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-relaxed">
+        {shellCommand.output ? <AnsiText text={shellCommand.output} /> : <span className="italic text-gray-500">{t("shell_command_no_output")}</span>}
+      </pre>
     </div>
   )
 }

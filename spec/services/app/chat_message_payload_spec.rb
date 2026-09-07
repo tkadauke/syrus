@@ -77,6 +77,39 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:attachments)).to eq([ attachment ])
   end
 
+  it "includes the full chat shell command record for a message referencing one" do
+    shell_command = chat.chat_shell_commands.create!(
+      user: user,
+      command: "bin/rspec",
+      output: "\e[32m10 examples, 0 failures\e[0m",
+      outcome: "succeeded",
+      exit_status: 0,
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+    message = chat.messages.create!(role: "user", content: { "text" => "", "chat_shell_command_id" => shell_command.id })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:chat_shell_command)
+
+    expect(payload).to eq(
+      id: shell_command.id,
+      command: "bin/rspec",
+      output: "\e[32m10 examples, 0 failures\e[0m",
+      outcome: "succeeded",
+      exit_status: 0,
+      started_at: shell_command.started_at.iso8601,
+      finished_at: shell_command.finished_at.iso8601
+    )
+  end
+
+  it "omits chat_shell_command when the referenced record no longer exists" do
+    message = chat.messages.create!(role: "user", content: { "text" => "", "chat_shell_command_id" => 999_999 })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload).not_to have_key(:chat_shell_command)
+  end
+
   it "includes sender_user details for a human message with a sender" do
     message = chat.messages.create!(role: "user", content: { "text" => "Hi there." }, sender_user: user)
 
