@@ -4,13 +4,13 @@ Syrus uses feature flags to gate experimental and operational behaviors. Flags a
 
 All current flags are typed booleans; most default to `false` (disabled), and `epicless_job_bundling` defaults to `true` (enabled). Keep the YAML declaration, `FeatureRegistry` metadata, and this reference aligned when adding or changing a flag.
 
-## terminal
+## chat_speech_to_text
 
 **Category:** Labs
 
-Enables interactive terminal access inside workflow runs. When enabled, operators can open a PTY session attached to the agent's workspace from the Job detail page.
+Enables microphone dictation in Syrus Chat. `ChatSpeechToText::Capability` combines the flag with a configured backend provider to expose up to three modes: `backend_streaming` (an ActionCable channel, `ChatDictationChannel`, which rejects the subscription unless the flag is enabled), `backend_batch` (`POST /api/v1/app/chats/:chat_id/speech_to_text`, gated by a `require_speech_to_text_feature` `before_action`), and a client-side Web Speech API `browser` fallback that needs no backend.
 
-The terminal relay address is configured via `SYRUS_TERMINAL_HOST`. See the Terminal documentation for architecture details and how to enable.
+The only registered backend today is `whisper_cpp`, a local subprocess (via `ProcessRunner`), not a hosted API — there is no encrypted API key involved. It supports batch transcription only (no streaming), so streaming mode is currently always unavailable and falls back to batch or browser. `SYRUS_STT_PROVIDER` selects the backend (default `whisper_cpp`); `SYRUS_STT_WHISPER_CPP_EXECUTABLE` / `SYRUS_STT_WHISPER_CPP_MODEL` override the binary/model paths, otherwise Syrus tries the baked-in image paths and reports the backend unavailable (`unavailable_reason: "provider_unset"`) if neither resolves. Audio is capped at 10 MB / 120s per request.
 
 ## coding_mode
 
@@ -160,3 +160,27 @@ The admin performance endpoint returns the raw recent events plus grouped summar
 When the `syrus_dev` plugin is enabled, Admin → Performance and the admin performance API expose the same diagnostics payload. The slow-request table can drill into retained request events and show matching slow phases plus the bounded top SQL fingerprints captured for both the request and each phase; these samples are capped and are diagnostic context, not an exhaustive query log. The SQL tab includes an Explain action for captured SQL samples. It opens a modal with a visual query-plan view, raw EXPLAIN rows, raw JSON, and normalized SQL. The backend endpoint is `POST /api/v1/app/admin/performance/explain` or `POST /api/v1/admin/performance/explain`; it accepts a single read-only SELECT/CTE statement, substitutes `?` bind placeholders with `NULL`, rejects comments/multiple statements/write statements, and returns whether `EXPLAIN ANALYZE` is safe. Analyze is intentionally conservative: it is MySQL-only, must be read-only, rejects user variables, and runs with a short statement timeout because it executes the query.
 
 Implementation workflow agents working on `tkadauke/syrus` or a registered fork whose upstream is `tkadauke/syrus` receive the read-only `read_performance_diagnostics` MCP tool through that plugin. Scheduled prompts that ask agents to improve Syrus performance can tell the agent to call this tool before changing code. It returns the same current-revision/all-revisions filtering semantics as the admin performance payload, plus bounded grouped slow-request, slow-phase, browser-trace, and SQL fingerprint summaries. The payload also includes a current-deploy versus previous-retained-deploy baseline comparison so agents can focus on regressions instead of stale slow paths. Raw recent events are omitted unless `include_events` is true, still capped by `limit`, and sanitized to omit SQL samples, query strings, and obvious secret-bearing metadata.
+
+## operational_log_indexing
+
+**Category:** Operations
+
+Indexes short-lived structured Rails application log events so Syrus implementation agents can search their own instance's recent logs while working on Syrus itself. `OperationalLogging.enabled_for_instance?` requires both the flag and at least one registered repository recognized as the Syrus repository itself (slug or upstream slug `tkadauke/syrus`, case-insensitive) — the feature never activates for ordinary target repositories. When both conditions hold, `ActiveSupport::Notifications` subscribers on `process_action.action_controller` and `perform.active_job` ingest structured request/job events into `OperationalLogIndex`/`OperationalLogEvent`, redacting secret-shaped values before storage.
+
+The `read_syrus_logs` MCP tool (bundled in the `syrus_dev` plugin) exposes search over this index, but only to workflow agents in the `workflow_implement` or `agent_insight` roles working on a recognized Syrus repository, and only while the flag and the repository check both pass; there's a matching admin-chat tool for Supervisor use. Indexed events are retained 6 hours (`OperationalLogEvent::RETENTION`) and pruned by a recurring job. `SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS` (default 1000 ms) suppresses noisy fast successful job events from ingestion. Off by default; only useful when running (or forked from) `tkadauke/syrus` itself.
+
+## browser_error_auto_reports
+
+**Category:** Operations
+
+Automatically files one bug-report Job per unique browser-error fingerprint and app revision, so a recurring frontend error becomes a tracked Job instead of a silent log line. `BrowserErrorEvent` rows (client-reported, 14-day retention) enqueue `BrowserErrorAutoReportJob` on creation when the flag is enabled; the job claims a `BrowserErrorAutoReport` row guarded by a database-level unique index on `(fingerprint, app_revision)`, so duplicate events for the same error on the same revision silently no-op via `ActiveRecord::RecordNotUnique` rather than filing repeat Jobs.
+
+On a successful claim, the report routes through `Observability::EventJobFiler` / `BugReports::Router`, producing a Job titled `Fix browser error: <message>` with a Markdown description embedding the event id, path, route, app revision, fingerprint, and full JSON payload; the report record is updated to `status: "reported"` with the resulting Job/issue URL, or `status: "failed"` with the error. Filing permission (`EventJobFiler#permitted?`) requires the acting user to be an admin or the original event's owner. No dedicated env vars or `AppSetting` fields — dedup is purely the fingerprint/revision unique index. Off by default.
+
+## persistent_mcp_sidecar
+
+**Category:** Labs
+
+Enables a worker-local persistent MCP sidecar daemon (`PersistentMcpDaemon`, built on `Puma::Server`) that boots once per worker, holds an in-memory `MCP::Server`, and serves `/healthz` plus a stateless `/mcp` HTTP transport bound to loopback only (`SYRUS_PERSISTENT_MCP_HOST`, default `127.0.0.1`; `SYRUS_PERSISTENT_MCP_PORT`, default `4805`). The goal is to avoid re-spawning a fresh stdio MCP sidecar process for every chat turn or workflow Run.
+
+`ChatMcpTransportSelector` and `WorkflowMcpTransportSelector` each independently decide whether to route to the daemon (`:persistent`) or fall back to the existing per-run/per-turn stdio sidecar (`:stdio`); routing to the daemon requires the flag enabled, a passing daemon health check, and the daemon advertising the relevant capability. Today the daemon only advertises the chat-tools capability, so workflow agent Runs always fall back to the per-run stdio sidecar regardless of the flag — persistent routing currently only applies to chat. On the chat side it's further restricted to the Claude provider (Codex chat sessions have no persistent HTTP MCP wiring); the resulting transport decision and reason are recorded on the chat's `artifacts["mcp_transport"]` for diagnostics. No `AppSetting`/DB column controls this flag; when disabled, every agent context keeps using the default per-run/per-session stdio sidecars unchanged. Off by default.
