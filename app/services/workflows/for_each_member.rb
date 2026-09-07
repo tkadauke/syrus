@@ -4,7 +4,7 @@ module Workflows
   # `WorkUnit` already models members and locks honestly, but the graph does
   # not run over them -- a merge train executes against a representative Job,
   # so its real shape lives inside `Steps::MergeTrainBuild` and needs its own
-  # retry policy, failure handler, `EpicLandingRetrier`, and the `:rebuild`
+  # retry policy, failure handler, `LandingRetrier`, and the `:rebuild`
   # repair semantics value. A node that fans out over members is what lets that
   # shape live in a template instead.
   #

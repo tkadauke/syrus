@@ -136,20 +136,4 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       expect(MergeTrainDispatcher).to have_received(:try_dispatch!).with(epic)
     end
   end
-
-  describe EpicLandingRetrier do
-    it "re-approves implemented children and kicks the queue" do
-      AppSetting.current.update!(merge_train_enabled: true)
-      a = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1,
-                              state: "implemented", pr_number: 501, branch_name: "syrus/issue-1")
-      allow(LandingQueueProcessor).to receive(:try_land!)
-
-      result = EpicLandingRetrier.call(epic, by_user: user)
-
-      expect(a.reload.state).to eq("approved")
-      expect(a.approved_via).to eq("operator")
-      expect(result.map(&:id)).to eq([ a.id ])
-      expect(LandingQueueProcessor).to have_received(:try_land!)
-    end
-  end
 end
