@@ -327,7 +327,10 @@ Each bucket reports:
 - `bucket_start` / `bucket_end` - UTC ISO-8601 boundaries.
 - `jobs_created` - Jobs whose `created_at` falls in the bucket.
 - `jobs_closed` - Jobs whose `state = "closed"` and `finished_at` falls in
-  the bucket, any closure reason.
+  the bucket, any closure reason. `Job::TERMINAL_STATES` also includes the
+  legacy `no_change_needed` state; those rows are old/operator-forced repair
+  transitions (current no-change closures already land in `state: "closed"`
+  with `closure_reason: "no_changes"`) and are intentionally not counted.
 - `jobs_implemented` - Jobs reaching `implemented` in the bucket. Jobs have
   no durable "reached implemented" timestamp column (the AASM transition is
   not event-logged), so this counts the first successful `pr_open` Step's
