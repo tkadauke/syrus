@@ -1,5 +1,6 @@
 require "find"
 require "set"
+require "open3"
 
 class TargetGraph
   # Walks a workspace below its root looking for nested `.syrus.yml` files --
@@ -9,14 +10,13 @@ class TargetGraph
   # from `package.json`, `go.mod`, Rails directory conventions, or any other
   # repository-structure signal.
   class NestedConfigDiscovery
-    # Directories whose contents are never real project configuration: VCS
-    # internals, the workspace's own scratch directory, and common
-    # dependency/vendor caches and build outputs. Mirrors the exclusion
-    # lists ChatWorkspace and Skills::SecurityReview already use for the
-    # same kind of repository-wide walk.
-    IGNORED_DIR_NAMES = %w[
-      .git .syrus node_modules vendor .bundle tmp log coverage dist build .next .cache
-    ].to_set.freeze
+    # Directories that are never real project configuration regardless of
+    # what the repository's .gitignore says: VCS internals and the
+    # workspace's own scratch directory. Everything else is excluded purely
+    # by asking git whether the directory is gitignored -- a nested
+    # `.syrus.yml` sitting in a gitignored directory can never be committed,
+    # so it can never be an effective declaration.
+    ALWAYS_IGNORED_DIR_NAMES = %w[.git .syrus].to_set.freeze
 
     def self.call(workspace_path)
       new(workspace_path).call
@@ -32,13 +32,25 @@ class TargetGraph
     # workspace root itself is never included -- its `.syrus.yml` is the
     # existing root config, not a nested declaration.
     def call
+      candidate_dirs = find_candidate_dirs
+      return [] if candidate_dirs.empty?
+
+      ignored = gitignored_dirs(candidate_dirs)
+      candidate_dirs.reject { |dir| ignored.include?(dir) }.sort
+    end
+
+    private
+
+    attr_reader :workspace_path
+
+    def find_candidate_dirs
       relative_dirs = []
 
       Find.find(workspace_path.to_s) do |path|
         pathname = Pathname.new(path)
 
         if pathname.directory?
-          Find.prune if pathname != workspace_path && IGNORED_DIR_NAMES.include?(pathname.basename.to_s)
+          Find.prune if pathname != workspace_path && ALWAYS_IGNORED_DIR_NAMES.include?(pathname.basename.to_s)
           next
         end
 
@@ -50,11 +62,27 @@ class TargetGraph
         relative_dirs << relative_dir
       end
 
-      relative_dirs.sort
+      relative_dirs
     end
 
-    private
+    # Batches every candidate through one `git check-ignore` call (stdin/-z,
+    # NUL-delimited both ways) instead of spawning a process per directory.
+    # A trailing slash on each candidate tells git to match it as a
+    # directory, so directory-only .gitignore patterns (e.g. `build/`) match
+    # correctly. Exit status 1 just means "nothing matched" -- not a
+    # failure -- and a workspace that isn't a git checkout (or has no git
+    # binary) degrades to "nothing is gitignored" rather than raising.
+    def gitignored_dirs(relative_dirs)
+      stdin_payload = relative_dirs.map { |dir| "#{dir}/\0" }.join
+      stdout, = Open3.capture3(
+        "git", "check-ignore", "--stdin", "-z",
+        chdir: workspace_path.to_s,
+        stdin_data: stdin_payload
+      )
 
-    attr_reader :workspace_path
+      stdout.split("\0").map { |dir| dir.delete_suffix("/") }.to_set
+    rescue Errno::ENOENT
+      Set.new
+    end
   end
 end
