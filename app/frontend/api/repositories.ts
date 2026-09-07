@@ -165,6 +165,9 @@ export type GitHubRepositoryOption = {
   name: string
   github_repository_id: number | null
   github_owner_id: number | null
+  fork?: boolean
+  parent_full_name?: string | null
+  parent_default_branch?: string | null
 }
 
 export type GitHubRepositoriesPayload = {

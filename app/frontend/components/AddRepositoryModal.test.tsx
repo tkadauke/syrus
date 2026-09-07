@@ -41,12 +41,12 @@ const newFormPayload = {
   repositories_path: "/repositories"
 }
 
-function mockRoutes(over: { owners?: () => Response; create?: () => Response; detail?: () => Response } = {}) {
+function mockRoutes(over: { owners?: () => Response; create?: () => Response; detail?: () => Response; repos?: () => Response } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
     if (url.includes("/repositories/new")) return jsonResponse(newFormPayload)
     if (url.includes("/repositories/owners")) return over.owners?.() ?? jsonResponse({ user: "octocat", orgs: ["acme"] })
-    if (url.includes("/repositories/repos")) return jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
+    if (url.includes("/repositories/repos")) return over.repos?.() ?? jsonResponse({ repos: [{ name: "hello-world", github_repository_id: 7, github_owner_id: 3 }] })
     if (url.includes("/repositories/branches")) return jsonResponse({ branches: ["main", "dev"], default_branch: "main" })
     if (url.endsWith("/admin/github_app/sync_installations")) return jsonResponse({ enqueued: true })
     if (/\/api\/v1\/app\/repositories\/\d+$/.test(url) && init?.method !== "POST") {
@@ -219,6 +219,90 @@ describe("AddRepositoryModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(onSaved).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(/Optional: install the Syrus GitHub App/)).not.toBeInTheDocument()
+  })
+
+  it("pre-fills and shows editable upstream fields when the selected repository is a fork", async () => {
+    const fetchSpy = mockRoutes({
+      repos: () => jsonResponse({
+        repos: [
+          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+        ]
+      })
+    })
+    renderModal()
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "User/Org" }), { target: { value: "octocat" } })
+    fireEvent.change(await screen.findByRole("combobox", { name: "Repository" }), { target: { value: "hello-world" } })
+
+    expect(await screen.findByText(/This repository is a fork of tkadauke\/syrus/)).toBeInTheDocument()
+    const upstreamOwner = (await screen.findByRole("textbox", { name: "Upstream owner" })) as HTMLInputElement
+    const upstreamName = screen.getByRole("textbox", { name: "Upstream name" }) as HTMLInputElement
+    const upstreamBranch = screen.getByRole("textbox", { name: "Upstream default branch" }) as HTMLInputElement
+    expect(upstreamOwner.value).toBe("tkadauke")
+    expect(upstreamName.value).toBe("syrus")
+    expect(upstreamBranch.value).toBe("main")
+
+    fireEvent.click(screen.getByRole("button", { name: "Add repository" }))
+
+    await waitFor(() => {
+      const createCall = fetchSpy.mock.calls.find(([u, i]) => String(u).endsWith("/api/v1/app/repositories") && (i as RequestInit)?.method === "POST")
+      expect(createCall).toBeDefined()
+    })
+    const createCall = fetchSpy.mock.calls.find(([u, i]) => String(u).endsWith("/api/v1/app/repositories") && (i as RequestInit)?.method === "POST")
+    const repo = JSON.parse((createCall?.[1] as RequestInit).body as string).repository
+    expect(repo).toMatchObject({
+      upstream_owner: "tkadauke",
+      upstream_name: "syrus",
+      upstream_default_branch: "main"
+    })
+  })
+
+  it("lets the user edit or clear detected upstream fields, and submits what they typed", async () => {
+    const fetchSpy = mockRoutes({
+      repos: () => jsonResponse({
+        repos: [
+          { name: "hello-world", github_repository_id: 7, github_owner_id: 3, fork: true, parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+        ]
+      })
+    })
+    renderModal()
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "User/Org" }), { target: { value: "octocat" } })
+    fireEvent.change(await screen.findByRole("combobox", { name: "Repository" }), { target: { value: "hello-world" } })
+
+    const upstreamOwner = await screen.findByRole("textbox", { name: "Upstream owner" })
+    fireEvent.change(upstreamOwner, { target: { value: "someone-else" } })
+    // Editing dismisses the detection note but keeps the fields visible/editable.
+    expect(screen.queryByText(/This repository is a fork of/)).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "Upstream name" })).toBeInTheDocument()
+
+    const upstreamName = screen.getByRole("textbox", { name: "Upstream name" })
+    fireEvent.change(upstreamName, { target: { value: "" } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Add repository" }))
+
+    await waitFor(() => {
+      const createCall = fetchSpy.mock.calls.find(([u, i]) => String(u).endsWith("/api/v1/app/repositories") && (i as RequestInit)?.method === "POST")
+      expect(createCall).toBeDefined()
+    })
+    const createCall = fetchSpy.mock.calls.find(([u, i]) => String(u).endsWith("/api/v1/app/repositories") && (i as RequestInit)?.method === "POST")
+    const repo = JSON.parse((createCall?.[1] as RequestInit).body as string).repository
+    expect(repo).toMatchObject({
+      upstream_owner: "someone-else",
+      upstream_name: ""
+    })
+  })
+
+  it("leaves upstream fields blank and hidden for a non-fork repository", async () => {
+    mockRoutes()
+    renderModal()
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "User/Org" }), { target: { value: "octocat" } })
+    fireEvent.change(await screen.findByRole("combobox", { name: "Repository" }), { target: { value: "hello-world" } })
+
+    await screen.findByRole("combobox", { name: "Default branch" })
+    expect(screen.queryByRole("textbox", { name: "Upstream owner" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/is a fork of/)).not.toBeInTheDocument()
   })
 
   it("shows a notice (no manual entry) when GitHub owners can't be loaded", async () => {

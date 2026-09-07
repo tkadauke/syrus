@@ -842,8 +842,8 @@ RSpec.describe GithubClient do
 
       result = client.owner_repos("john", owner_type: "user")
       expect(result).to eq([
-        { name: "repo-a", github_repository_id: nil, github_owner_id: nil },
-        { name: "repo-b", github_repository_id: nil, github_owner_id: nil }
+        { name: "repo-a", github_repository_id: nil, github_owner_id: nil, fork: false, parent_full_name: nil, parent_default_branch: nil },
+        { name: "repo-b", github_repository_id: nil, github_owner_id: nil, fork: false, parent_full_name: nil, parent_default_branch: nil }
       ])
     end
 
@@ -855,8 +855,66 @@ RSpec.describe GithubClient do
 
       result = client.owner_repos("my-org", owner_type: "org")
       expect(result).to eq([
-        { name: "a-repo", github_repository_id: nil, github_owner_id: nil },
-        { name: "z-repo", github_repository_id: nil, github_owner_id: nil }
+        { name: "a-repo", github_repository_id: nil, github_owner_id: nil, fork: false, parent_full_name: nil, parent_default_branch: nil },
+        { name: "z-repo", github_repository_id: nil, github_owner_id: nil, fork: false, parent_full_name: nil, parent_default_branch: nil }
+      ])
+    end
+
+    it "reports fork parent metadata already included in the list response without an extra call" do
+      stub_request(:get, "https://api.github.com/user/repos")
+        .with(query: hash_including("type" => "owner"))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [
+          {
+            name: "syrus", full_name: "skadauke/syrus", fork: true,
+            owner: { login: "skadauke" },
+            parent: { full_name: "tkadauke/syrus", default_branch: "main" }
+          }
+        ].to_json)
+
+      result = client.owner_repos("skadauke", owner_type: "user")
+
+      expect(result).to eq([
+        { name: "syrus", github_repository_id: nil, github_owner_id: nil, fork: true,
+          parent_full_name: "tkadauke/syrus", parent_default_branch: "main" }
+      ])
+    end
+
+    it "fetches the individual repo for fork parent metadata only when the list response omits it, and only for forks" do
+      stub_request(:get, "https://api.github.com/user/repos")
+        .with(query: hash_including("type" => "owner"))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [
+          { name: "syrus", full_name: "skadauke/syrus", fork: true, owner: { login: "skadauke" } },
+          { name: "other-repo", full_name: "skadauke/other-repo", fork: false, owner: { login: "skadauke" } }
+        ].to_json)
+      fork_stub = stub_request(:get, "https://api.github.com/repos/skadauke/syrus")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { full_name: "skadauke/syrus", parent: { full_name: "tkadauke/syrus", default_branch: "main" } }.to_json)
+
+      result = client.owner_repos("skadauke", owner_type: "user")
+
+      expect(result).to contain_exactly(
+        { name: "syrus", github_repository_id: nil, github_owner_id: nil, fork: true,
+          parent_full_name: "tkadauke/syrus", parent_default_branch: "main" },
+        { name: "other-repo", github_repository_id: nil, github_owner_id: nil, fork: false,
+          parent_full_name: nil, parent_default_branch: nil }
+      )
+      expect(fork_stub).to have_been_requested
+      expect(a_request(:get, "https://api.github.com/repos/skadauke/other-repo")).not_to have_been_made
+    end
+
+    it "degrades gracefully when the fork parent lookup fails, without failing the whole list" do
+      stub_request(:get, "https://api.github.com/user/repos")
+        .with(query: hash_including("type" => "owner"))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [
+          { name: "syrus", full_name: "skadauke/syrus", fork: true, owner: { login: "skadauke" } }
+        ].to_json)
+      stub_request(:get, "https://api.github.com/repos/skadauke/syrus")
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" }, body: { message: "Not Found" }.to_json)
+
+      result = client.owner_repos("skadauke", owner_type: "user")
+
+      expect(result).to eq([
+        { name: "syrus", github_repository_id: nil, github_owner_id: nil, fork: true, parent_full_name: nil, parent_default_branch: nil }
       ])
     end
   end
