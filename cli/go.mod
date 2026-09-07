@@ -3,18 +3,20 @@ module github.com/tkadauke/syrus/cli
 go 1.25.0
 
 require (
-	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
+	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
+	github.com/tkadauke/syrus/plugins/scheduled_tasks/cli v0.0.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/term v0.45.0
 )
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
