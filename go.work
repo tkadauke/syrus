@@ -18,3 +18,4 @@ use ./plugins/scheduled_tasks/cli
 use ./plugins/k8s_cluster/cli
 use ./plugins/global_search/cli
 use ./plugins/design_docs/cli
+use ./plugins/spending_insights/cli

@@ -473,6 +473,36 @@ commenting, or suggesting a change are chat/proposal-flow features with
 no CLI equivalent. If the `design_docs` plugin is disabled, both
 commands surface the API's `plugin_disabled` error message as-is.
 
+## Spending insights
+
+`syrus insights spending` is contributed by the bundled `spending_insights`
+plugin and reads the same app API that backs the web UI's `/insights/spending`
+page — cost rollups from `Run#cost_usd` and `ChatSession#cumulative_cost_usd`:
+
+```bash
+syrus insights spending
+syrus insights spending --since 2026-06-01 --until 2026-06-30
+syrus insights spending --group-by user
+syrus insights spending --group-by epic
+syrus insights spending --group-by trigger_kind
+syrus insights spending --json
+```
+
+`--since`/`--until` take `YYYY-MM-DD` dates and are passed straight through
+as the API's date window; omitting either lets the server apply its own
+default (a 90-day trailing window). `--group-by` picks which breakdown table
+prints below the headline totals: `repo` (default), `user`, `epic`, or
+`trigger_kind` — the same breakdowns the web page's dashboard shows. There is
+no `agent_provider` breakdown in the API response (only an `agent_provider`
+*filter*, which this v1 command does not expose), so it is not a `--group-by`
+option. `--json` prints the full raw API response instead of the summary,
+including the top-runs and trend detail the text summary omits.
+
+Access control is entirely server-side and this command does not try to work
+around it: non-admins always see only their own spend, and admins see
+instance-wide totals across every user — the command renders whichever scope
+the API says it used.
+
 ## Claude Code skill
 
 The CLI can teach Claude Code how to drive Syrus:
