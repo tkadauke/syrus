@@ -970,6 +970,43 @@ describe("AppChromeV2 bug report trigger placement", () => {
       expect(button.className).not.toContain("cursor-grab")
     })
   })
+
+  it("opens the bug report dialog on the Cmd-B global shortcut", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("opens the bug report dialog on the Ctrl-B global shortcut", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("fires the bug report shortcut even while focus is inside a text field", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    const searchInput = screen.getByLabelText("Search Syrus")
+    searchInput.focus()
+
+    fireEvent.keyDown(searchInput, { key: "b", metaKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("ignores a bare 'b' keypress with no modifier", () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b" })
+
+    expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
+  })
 })
 
 describe("AppChromeV2 primary nav reordering", () => {

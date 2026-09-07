@@ -96,6 +96,20 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     return () => setBugReportAttachments((current) => current === attachments ? [] : current)
   }, [])
   const bugReportContextValue = useMemo(() => ({ openBugReport, registerBugReportAttachments }), [openBugReport, registerBugReportAttachments])
+
+  useEffect(() => {
+    if (!user) return
+
+    function handleBugReportShortcut(event: globalThis.KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "b") return
+
+      event.preventDefault()
+      openBugReport()
+    }
+
+    window.addEventListener("keydown", handleBugReportShortcut)
+    return () => window.removeEventListener("keydown", handleBugReportShortcut)
+  }, [user, openBugReport])
   const pageContent = redirectsToSetup(data, normalizedPath)
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
