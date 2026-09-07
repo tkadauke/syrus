@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tkadauke/syrus/cli/pkg/api"
@@ -93,6 +95,65 @@ func TestRunChatREPLRendersToolActivityDuringLiveTurn(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "read_job") || !strings.Contains(got, "Job JOB-42 open") {
 		t.Fatalf("output = %q, expected live tool_use and tool_result activity", got)
+	}
+}
+
+func TestRunChatREPLStopsTurnOnInterruptAndReturnsToPrompt(t *testing.T) {
+	started := make(chan struct{})
+	var stopCalled int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/app/chats/42/message", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		close(started)
+		<-r.Context().Done()
+	})
+	mux.HandleFunc("/api/v1/app/chats/42/stop", func(w http.ResponseWriter, r *http.Request) {
+		atomic.StoreInt32(&stopCalled, 1)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := api.NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	reader := bufio.NewReader(strings.NewReader("hello\n"))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runChatREPL(ctx, client, "42", reader, out, errOut)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn never reached the server")
+	}
+
+	// Simulate a Ctrl+C delivered while the turn is in flight.
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runChatREPL returned error after interrupt: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("runChatREPL did not return to its prompt loop after interrupt")
+	}
+
+	if atomic.LoadInt32(&stopCalled) != 1 {
+		t.Fatal("expected StopChat to be called after interrupt")
 	}
 }
 
