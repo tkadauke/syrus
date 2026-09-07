@@ -37,9 +37,13 @@ module MysqlDbBrowser
       raise BlankStatement, "SQL statement is blank" if statement.blank?
 
       read_only = read_only_statement?(statement)
-      if !read_only && !connection.allow_writes?
-        audit!(statement: statement, read_only: read_only, user: user, success: false, error_message: "Rejected: this connection is read-only.")
-        raise WriteNotAllowed, "This connection is read-only. Enable write access on the connection to run non-SELECT statements."
+      unless read_only
+        begin
+          AgenticAccess.connection_with_write_access!(connection)
+        rescue AgenticAccess::WriteAccessDisabled
+          audit!(statement: statement, read_only: read_only, user: user, success: false, error_message: "Rejected: this connection is read-only.")
+          raise WriteNotAllowed, "This connection is read-only. Enable write access on the connection to run non-SELECT statements."
+        end
       end
 
       with_client { |client| run_and_audit(client, statement, read_only: read_only, user: user, limit: limit) }
