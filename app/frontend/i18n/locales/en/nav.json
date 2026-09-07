@@ -295,6 +295,7 @@
     "open_help": "Show keyboard shortcuts",
     "group_global": "Global",
     "title": "Keyboard shortcuts",
-    "empty": "No keyboard shortcuts are active right now."
+    "close": "Close keyboard shortcuts",
+    "empty": "No shortcuts are active right now."
   }
 }
