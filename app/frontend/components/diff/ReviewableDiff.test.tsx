@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 const files = [
@@ -32,6 +32,17 @@ const files = [
     status: "modified"
   }
 ]
+
+// Word highlighting wraps each token in its own <span>, so a multi-token
+// line's text is spread across siblings and getByText's default (which only
+// looks at an element's direct text-node children) can't find it as one
+// string. Match on the code cell's full textContent instead.
+function findCodeCellText(text: string) {
+  return screen.findByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
+}
+function getCodeCellText(text: string) {
+  return screen.getByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
+}
 
 describe("ReviewableDiff", () => {
   it("renders only the selected file in single-file mode", () => {
@@ -354,6 +365,317 @@ describe("ReviewableDiff", () => {
     const addedKeyword = await screen.findByText("def")
     expect(addedKeyword.style.color).toMatch(/^var\(--shiki-token-/)
     expect(addedKeyword.closest("tr")).toHaveClass("bg-green-50")
+  })
+})
+
+describe("large-file gating", () => {
+  it("hides a file whose parsed row count exceeds the threshold, and loads it independently of other large files", () => {
+    render(<ReviewableDiff files={files} largeFileRowThreshold={1} mode="continuous" showFileHeaders />)
+
+    expect(screen.queryByText("new")).not.toBeInTheDocument()
+    expect(screen.queryByText("added")).not.toBeInTheDocument()
+    const loadButtons = screen.getAllByRole("button", { name: "Load diff for this file" })
+    expect(loadButtons).toHaveLength(2)
+
+    fireEvent.click(loadButtons[0])
+
+    expect(screen.getByText("new")).toBeInTheDocument()
+    expect(screen.queryByText("added")).not.toBeInTheDocument()
+  })
+
+  it("shows the file path and additions/deletions in the placeholder along with an estimated row count", () => {
+    render(<ReviewableDiff files={[files[0]]} largeFileRowThreshold={1} mode="continuous" showFileHeaders />)
+
+    const placeholderPath = screen.getByText("app/models/job.rb", { selector: "p" })
+    const placeholder = placeholderPath.parentElement as HTMLElement
+    expect(within(placeholder).getByText("+1", { exact: false })).toBeInTheDocument()
+    expect(within(placeholder).getByText("-1", { exact: false })).toBeInTheDocument()
+    expect(within(placeholder).getByText(/rendered lines/)).toBeInTheDocument()
+  })
+
+  it("renders normally when a file's row count is at or under the threshold", () => {
+    render(<ReviewableDiff files={[files[0]]} largeFileRowThreshold={100} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByText("new")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load diff for this file" })).not.toBeInTheDocument()
+  })
+
+  function fileWithContextRowCount(rowCount: number) {
+    // total rows = 3 header rows (diff/---/+++) + 1 hunk row + N context rows
+    const contextRows = rowCount - 4
+    const patch = [
+      "diff --git a/big.rb b/big.rb",
+      "--- a/big.rb",
+      "+++ b/big.rb",
+      `@@ -1,${contextRows} +1,${contextRows} @@`,
+      ...Array.from({ length: contextRows }, (_, i) => ` line ${i + 1}`)
+    ].join("\n")
+    return { additions: 0, deletions: 0, patch, path: "big.rb", status: "modified" }
+  }
+
+  it("respects the ~300-row default threshold with no override needed", () => {
+    render(<ReviewableDiff files={[fileWithContextRowCount(300)]} mode="continuous" showFileHeaders />)
+    expect(screen.queryByRole("button", { name: "Load diff for this file" })).not.toBeInTheDocument()
+  })
+
+  it("gates a file just past the default threshold", () => {
+    render(<ReviewableDiff files={[fileWithContextRowCount(301)]} mode="continuous" showFileHeaders />)
+    expect(screen.getByRole("button", { name: "Load diff for this file" })).toBeInTheDocument()
+  })
+})
+
+describe("changed-file count cap", () => {
+  function manyFiles(count: number) {
+    return Array.from({ length: count }, (_, index) => ({
+      additions: 1,
+      deletions: 0,
+      patch: [
+        `diff --git a/file${index}.rb b/file${index}.rb`,
+        `--- a/file${index}.rb`,
+        `+++ b/file${index}.rb`,
+        "@@ -1,1 +1,2 @@",
+        " keep",
+        "+added"
+      ].join("\n"),
+      path: `file${index}.rb`,
+      status: "modified"
+    }))
+  }
+
+  it("renders only the first maxVisibleFiles files by default, with a control to load the rest", () => {
+    render(<ReviewableDiff files={manyFiles(5)} maxVisibleFiles={2} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByTitle("file0.rb")).toBeInTheDocument()
+    expect(screen.getByTitle("file1.rb")).toBeInTheDocument()
+    expect(screen.queryByTitle("file2.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Load 2 more files (3 remaining)" }))
+
+    expect(screen.getByTitle("file2.rb")).toBeInTheDocument()
+    expect(screen.getByTitle("file3.rb")).toBeInTheDocument()
+    expect(screen.queryByTitle("file4.rb")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Load 1 more files (1 remaining)" }))
+
+    expect(screen.getByTitle("file4.rb")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()
+  })
+
+  it("does not show the load-more control for diffs smaller than the cap", () => {
+    render(<ReviewableDiff files={manyFiles(3)} mode="continuous" showFileHeaders />)
+
+    expect(screen.queryByRole("button", { name: /Load .* more files/ })).not.toBeInTheDocument()
+  })
+})
+
+describe("hidden-context expansion", () => {
+  function fileWithHunkAt(startLine: number) {
+    return {
+      additions: 1,
+      deletions: 0,
+      patch: [
+        "diff --git a/f.rb b/f.rb",
+        "--- a/f.rb",
+        "+++ b/f.rb",
+        `@@ -${startLine},1 +${startLine},2 @@`,
+        " keep",
+        "+added"
+      ].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+  }
+
+  it("skips the up-arrow at the file's start boundary without needing a fetch", () => {
+    const onLoadFileContext = vi.fn()
+    render(<ReviewableDiff files={[fileWithHunkAt(1)]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Load 20 more lines below")).toBeInTheDocument()
+    expect(onLoadFileContext).not.toHaveBeenCalled()
+  })
+
+  it("shows the up-arrow when a hunk starts past line 1, loads real context on click, and hides once the gap is exhausted", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(<ReviewableDiff files={[fileWithHunkAt(5)]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines above"))
+
+    await findCodeCellText("line 1")
+    expect(onLoadFileContext).toHaveBeenCalledTimes(1)
+    expect(getCodeCellText("line 4")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+  })
+
+  it("preserves existing line-comment anchors after expanding context above them", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(
+      <ReviewableDiff
+        comments={{ "f.rb": { "right::6": [{ id: 1, author: "Ada", body: "still here", state: "draft" }] } }}
+        files={[fileWithHunkAt(5)]}
+        mode="continuous"
+        onLoadFileContext={onLoadFileContext}
+        showFileHeaders
+      />
+    )
+
+    expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("still here")
+
+    fireEvent.click(screen.getByLabelText("Load 20 more lines above"))
+    await findCodeCellText("line 1")
+
+    expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("still here")
+  })
+
+  it("loads the whole file via the header action, revealing all hidden context at once", async () => {
+    const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
+    render(<ReviewableDiff files={[fileWithHunkAt(5)]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Load whole file" }))
+
+    await findCodeCellText("line 1")
+    expect(getCodeCellText("line 2")).toBeInTheDocument()
+    expect(getCodeCellText("line 3")).toBeInTheDocument()
+    expect(getCodeCellText("line 4")).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Whole file loaded" })).toBeDisabled()
+  })
+
+  it("hides context-expansion controls entirely when no loader is provided", () => {
+    render(<ReviewableDiff files={[fileWithHunkAt(5)]} mode="continuous" showFileHeaders />)
+
+    expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Load 20 more lines below")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load whole file" })).not.toBeInTheDocument()
+  })
+
+  it("hides context-expansion controls for a removed file, since its content no longer exists at the head ref", () => {
+    const onLoadFileContext = vi.fn()
+    const removedFile = { ...fileWithHunkAt(5), status: "removed" }
+    render(<ReviewableDiff files={[removedFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    expect(screen.queryByLabelText("Load 20 more lines above")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Load 20 more lines below")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load whole file" })).not.toBeInTheDocument()
+    expect(onLoadFileContext).not.toHaveBeenCalled()
+  })
+})
+
+describe("word-occurrence highlighting", () => {
+  const highlightFiles = [
+    {
+      additions: 1,
+      deletions: 1,
+      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token"].join("\n"),
+      path: "a.rb"
+    },
+    {
+      additions: 1,
+      deletions: 1,
+      patch: ["diff --git a/b.rb b/b.rb", "--- a/b.rb", "+++ b/b.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token"].join("\n"),
+      path: "b.rb"
+    }
+  ]
+
+  it("highlights every occurrence of a clicked token across all rendered files, and clears on re-click", () => {
+    render(<ReviewableDiff files={highlightFiles} mode="continuous" showFileHeaders />)
+
+    const occurrences = screen.getAllByText("shared_token")
+    expect(occurrences).toHaveLength(2)
+
+    fireEvent.click(occurrences[0])
+    occurrences.forEach((el) => expect(el).toHaveClass("bg-amber-200"))
+
+    fireEvent.click(occurrences[0])
+    occurrences.forEach((el) => expect(el).not.toHaveClass("bg-amber-200"))
+  })
+
+  it("clears the highlight from the explicit clear affordance", () => {
+    render(<ReviewableDiff files={highlightFiles} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByText("shared_token")[0])
+    expect(screen.getByText("Clear highlight")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Clear highlight"))
+
+    expect(screen.queryByText("Clear highlight")).not.toBeInTheDocument()
+    screen.getAllByText("shared_token").forEach((el) => expect(el).not.toHaveClass("bg-amber-200"))
+  })
+
+  it("never turns punctuation into a clickable highlight target", () => {
+    const punctFiles = [{
+      additions: 1,
+      deletions: 1,
+      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+foo();"].join("\n"),
+      path: "a.rb"
+    }]
+    render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
+
+    expect(screen.getByText("(")).not.toHaveClass("cursor-pointer")
+    expect(screen.getByText(")")).not.toHaveClass("cursor-pointer")
+  })
+})
+
+describe("changed files menu placement", () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+  const originalInnerHeight = Object.getOwnPropertyDescriptor(window, "innerHeight")
+
+  afterEach(() => {
+    if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    else Reflect.deleteProperty(window, "matchMedia")
+    if (originalInnerHeight) Object.defineProperty(window, "innerHeight", originalInnerHeight)
+  })
+
+  function stubMobile(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches, removeEventListener: () => undefined })
+    })
+  }
+
+  function rect(overrides: Partial<DOMRect>): DOMRect {
+    return { bottom: 0, height: 0, left: 0, right: 0, top: 0, toJSON: () => ({}), width: 0, x: 0, y: 0, ...overrides }
+  }
+
+  it("opens below the Files button when there is enough space, sized to cover the diff area", () => {
+    stubMobile(false)
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 })
+    vi.spyOn(screen.getByTestId("agent-diff-viewer"), "getBoundingClientRect").mockReturnValue(rect({ left: 40, width: 500 }))
+    const filesButton = screen.getAllByRole("button", { name: "Browse changed files" })[0]
+    vi.spyOn(filesButton, "getBoundingClientRect").mockReturnValue(rect({ bottom: 120, top: 100 }))
+
+    fireEvent.click(filesButton)
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveStyle({ left: "40px", top: "128px", width: "500px" })
+  })
+
+  it("opens above the Files button when there isn't enough space below", () => {
+    stubMobile(false)
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 })
+    vi.spyOn(screen.getByTestId("agent-diff-viewer"), "getBoundingClientRect").mockReturnValue(rect({ left: 40, width: 500 }))
+    const filesButton = screen.getAllByRole("button", { name: "Browse changed files" })[0]
+    vi.spyOn(filesButton, "getBoundingClientRect").mockReturnValue(rect({ bottom: 720, top: 700 }))
+
+    fireEvent.click(filesButton)
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.style.top).toBe("")
+    expect(dialog).toHaveStyle({ bottom: "108px" })
+  })
+
+  it("renders a fullscreen modal instead of a floating menu on mobile", () => {
+    stubMobile(true)
+    render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog).toHaveClass("fixed", "inset-0")
+    expect(screen.getByRole("button", { name: "Close changed files" })).toBeInTheDocument()
   })
 })
 

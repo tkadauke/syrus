@@ -9384,9 +9384,13 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Diff" }))
     expect(await screen.findByText(/diff --git a\/app.rb b\/app.rb/)).toBeInTheDocument()
     expect(screen.getByTestId("agent-diff-viewer").closest("section")).toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:h-[100dvh]")
-    expect(screen.getByText("puts 'old forum'").closest("tr")).toHaveAttribute("data-diff-kind", "delete")
-    expect(screen.getByText("puts 'forum'").closest("tr")).toHaveAttribute("data-diff-kind", "add")
-    expect(screen.getByText("context").closest("tr")).toHaveAttribute("data-diff-kind", "context")
+    // Word highlighting wraps each token in its own <span>, so a multi-token
+    // line's text is spread across siblings; match on the code cell's full
+    // textContent instead of getByText's direct-text-node-only default.
+    const codeCellText = (text: string) => screen.getByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
+    expect(codeCellText("puts 'old forum'").closest("tr")).toHaveAttribute("data-diff-kind", "delete")
+    expect(codeCellText("puts 'forum'").closest("tr")).toHaveAttribute("data-diff-kind", "add")
+    expect(codeCellText("context").closest("tr")).toHaveAttribute("data-diff-kind", "context")
 
     fireEvent.click(screen.getByRole("button", { name: "Grade log" }))
     await waitFor(() => {

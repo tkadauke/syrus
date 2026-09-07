@@ -1093,6 +1093,15 @@ export function fetchJobSource(id: string, search = "") {
   return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source${search}`)
 }
 
+// Full current file text at a given ref, for on-demand diff-context expansion
+// (hidden hunk context, "load whole file"). Reuses the existing source-browser
+// endpoint rather than a dedicated one, so it's fetched only when a reviewer
+// actually asks for more context on one specific file.
+export function fetchJobSourceFileContent(id: string | number, ref: string, path: string) {
+  const params = new URLSearchParams({ ref, path })
+  return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source?${params.toString()}`).then((payload) => payload.file?.content ?? null)
+}
+
 export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
 }
