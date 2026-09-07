@@ -28,8 +28,13 @@ class LandingBundleAssembler::Scopes::PriorityTier
   # its owner's credentials for changes it didn't own. An owner with only
   # one eligible Job in a tier falls through to the per-Job auto_merge path,
   # same as today's behavior for a repo/tier with too few eligible Jobs.
+  #
+  # Lazy so LandingBundleAssembler#call's early return on the first ready
+  # partition also short-circuits candidate fetching: once e.g. `urgent` is
+  # ready, `high`/`medium`/`low` are never queried, matching the original
+  # JobBundleAssembler#call's per-tier early return.
   def partitions
-    Job::PRIORITIES.flat_map do |priority|
+    Job::PRIORITIES.lazy.flat_map do |priority|
       eligible_candidates(priority)
         .group_by { |job| effective_owner_id(job) }
         .values
