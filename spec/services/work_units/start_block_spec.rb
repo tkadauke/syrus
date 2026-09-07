@@ -112,6 +112,23 @@ RSpec.describe WorkUnits::StartBlock do
     expect(block.blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)).to be(true)
   end
 
+  describe ".pause_reason?" do
+    it "is true only for canonical WorkUnit::PAUSE_BLOCKED_REASONS values" do
+      expect(described_class.pause_reason?("manual_pause")).to be(true)
+      expect(described_class.pause_reason?("provider_availability")).to be(true)
+      expect(described_class.pause_reason?("admission_control")).to be(false)
+      expect(described_class.pause_reason?("resource_safety")).to be(false)
+      expect(described_class.pause_reason?(nil)).to be(false)
+      expect(described_class.pause_reason?("")).to be(false)
+    end
+
+    it "resolves raw legacy artifact reason strings to their canonical form before checking" do
+      expect(described_class.pause_reason?("workflow_admission_budget")).to be(false)
+      expect(described_class.pause_reason?("main_branch_broken")).to be(false)
+      expect(described_class.pause_reason?("landing start blocked: workflow admission budget")).to be(false)
+    end
+  end
+
   describe ".explain" do
     it "reports a currently-blocked WorkUnit with the real reason" do
       blocked_until = 10.minutes.from_now

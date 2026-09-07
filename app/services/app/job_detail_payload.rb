@@ -1167,11 +1167,19 @@ module App
 
     def job_apparently_paused?(job)
       return false if job_running_runtime_work?
-      return true if job_work_unit_blocked_data[:reason].present?
+      # Reuses job_work_unit_blocked_data (already fetched for
+      # start_blocked_reason display) instead of issuing a separate
+      # Ownership query; WorkUnits::StartBlock.pause_reason? resolves the
+      # reason to canonical form and checks it against the same
+      # PAUSE_BLOCKED_REASONS allowlist the "Paused" smart folder uses, so
+      # an admission_control/resource_safety/etc. block doesn't read as
+      # "paused" here either. See App::DashboardPayload#workflow_pause_artifact?.
+      return true if WorkUnits::StartBlock.pause_reason?(job_work_unit_blocked_data[:reason])
       return false if job_has_active_runtime_work?
 
       workflow = job.latest_workflow
-      workflow&.running? && !workflow.landing_workflow? && WorkUnits::StartBlock.for(workflow).reason.present?
+      workflow&.running? && !workflow.landing_workflow? &&
+        WorkUnits::StartBlock.pause_reason?(WorkUnits::StartBlock.for(workflow).reason)
     end
 
     def job_running_runtime_work?

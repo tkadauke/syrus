@@ -663,7 +663,12 @@ module App
     def paused_job_ids(job_ids, work_unit_snapshot: nil)
       return [] if job_ids.empty?
 
-      blocked_work_unit_ids = work_unit_snapshot&.blocked_job_ids || WorkUnits::Ownership.blocked_job_ids(job_ids)
+      # Scope to WorkUnit::PAUSE_BLOCKED_REASONS (manual_pause,
+      # provider_availability) so the per-row "paused" summary_state matches
+      # the "Paused" smart folder — a job blocked for admission_control or
+      # other ordinary scheduling contention is not "paused" here either.
+      blocked_work_unit_ids = work_unit_snapshot&.blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS) ||
+        WorkUnits::Ownership.blocked_job_ids(job_ids, reasons: WorkUnit::PAUSE_BLOCKED_REASONS)
       latest_by_job = @job_runtime_latest_workflows_by_job_id || latest_workflows_by_job_id(job_ids)
       artifact_paused_ids = latest_by_job.values.select do |workflow|
         workflow.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)
@@ -856,7 +861,7 @@ module App
       end
 
       return false if job_running_runtime_work?(job)
-      return true if WorkUnits::Ownership.blocked_for_job?(job)
+      return true if WorkUnits::Ownership.blocked_for_job?(job, reasons: WorkUnit::PAUSE_BLOCKED_REASONS)
       return false if job.active_runtime_work?
 
       workflow = job.latest_workflow
@@ -872,8 +877,16 @@ module App
         WorkUnits::Ownership.active_units_for_job(job).any?(&:running?)
     end
 
+    # Presence alone isn't enough here: WorkUnits::StartBlock#reason returns
+    # the live WorkUnit's blocked_reason when present, or else a raw legacy
+    # artifact reason string (e.g. "workflow_admission_budget") -- either way
+    # it can be any BLOCKED_REASONS-equivalent value, not just a genuine
+    # pause. WorkUnits::StartBlock.pause_reason? resolves to the canonical
+    # WorkUnit reason and checks it against the same PAUSE_BLOCKED_REASONS
+    # allowlist the "Paused" smart folder uses, so an admission_control/
+    # resource_safety/etc. artifact doesn't read as "paused" here either.
     def workflow_pause_artifact?(workflow)
-      WorkUnits::StartBlock.for(workflow).reason.present?
+      WorkUnits::StartBlock.pause_reason?(WorkUnits::StartBlock.for(workflow).reason)
     end
 
     def ownership_param_present?

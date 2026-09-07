@@ -24,8 +24,8 @@ module WorkUnits
         job_ids_for(states: "running", kinds: kinds).to_set
       end
 
-      def blocked_job_ids(kinds: nil, include_landing: false)
-        blocked_units(kinds: kinds, include_landing: include_landing)
+      def blocked_job_ids(kinds: nil, include_landing: false, reasons: nil)
+        blocked_units(kinds: kinds, include_landing: include_landing, reasons: reasons)
           .map(&:job_id)
           .to_set
       end
@@ -57,13 +57,15 @@ module WorkUnits
         end.uniq
       end
 
-      def blocked_units(kinds:, include_landing:)
+      def blocked_units(kinds:, include_landing:, reasons: nil)
         allowed_kinds = Array(kinds).map(&:to_s).presence&.to_set
+        allowed_reasons = Array(reasons).map(&:to_s).presence&.to_set
         landing_kinds = WorkDefinitions.landing_lock_kinds.map(&:to_s).to_set unless include_landing
         members.filter_map do |member|
           unit = member.work_unit
           next unless unit.state == "blocked"
           next if allowed_kinds && !allowed_kinds.include?(unit.kind)
+          next if allowed_reasons && !allowed_reasons.include?(unit.blocked_reason.to_s)
           next if landing_kinds&.include?(unit.kind)
 
           member
@@ -269,10 +271,10 @@ module WorkUnits
         .uniq
     end
 
-    def self.blocked_for_job?(job, kinds: nil, include_landing: false)
+    def self.blocked_for_job?(job, kinds: nil, include_landing: false, reasons: nil)
       return false unless job
 
-      blocked_job_ids([ job&.id ], kinds: kinds, include_landing: include_landing).include?(job.id)
+      blocked_job_ids([ job&.id ], kinds: kinds, include_landing: include_landing, reasons: reasons).include?(job.id)
     end
 
     def self.blocked_job_count(job_scope, kinds: nil, include_landing: false)
@@ -282,11 +284,11 @@ module WorkUnits
         .count(:job_id)
     end
 
-    def self.blocked_job_ids(job_ids, kinds: nil, include_landing: false)
+    def self.blocked_job_ids(job_ids, kinds: nil, include_landing: false, reasons: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?
 
-      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing, reasons: reasons)
         .where(job_id: ids)
         .distinct
         .pluck(:job_id)
