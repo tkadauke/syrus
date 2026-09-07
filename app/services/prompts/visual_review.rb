@@ -130,11 +130,11 @@ module Prompts
            data above doesn't cover the feature under test, you may run additional ad hoc seed
            commands yourself via your normal shell access to reach the state you need.
         3. Use your browser tools (navigate, snapshot, click, fill, hover, wait_for, resize, screenshot,
-           evaluate, file_upload, drag) to drive the running app against your own improvised test plan
-           targeting what changed. Don't just load the homepage — exercise the actual feature. Use `hover`
-           for `:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards, hover-revealed controls)
-           that `click` cannot exercise — don't default to "skipped" just because the behavior only appears
-           on hover.
+           evaluate, file_upload, drop, drag) to drive the running app against your own improvised test
+           plan targeting what changed. Don't just load the homepage — exercise the actual feature. Use
+           `hover` for `:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards, hover-revealed
+           controls) that `click` cannot exercise — don't default to "skipped" just because the behavior
+           only appears on hover.
            For click/fill/hover/single-element screenshots, call `browser_snapshot` first and copy the exact
            `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
            refs, pass an undefined target, or call click/fill/hover when the element is absent. If the element
@@ -142,20 +142,23 @@ module Prompts
            with missing arguments.
            For drag/drop-shaped features, pick the right tool for what's actually being dragged:
              - Native file drag-and-drop onto a drop zone (e.g. dragging a file so a `drop` event with
-               populated `DataTransfer.files` fires): construct a synthetic `File` + `DataTransfer` via
-               `browser_evaluate` and dispatch the `dragenter`/`dragover`/`drop` event sequence on the
-               target element found via `browser_snapshot` — the same pattern the codebase's own RTL tests
-               already use (`fireEvent.drop(target, { dataTransfer: { files } })`) to exercise the same
-               production drop handlers.
+               populated `DataTransfer.files` fires): use `browser_drop` with the target element found via
+               `browser_snapshot` and the absolute path(s) to drop — it synthesizes a real drag/drop via
+               Playwright itself, dropping actual files backed by real bytes on disk. Only fall back to
+               `browser_evaluate` (constructing a synthetic `File` + `DataTransfer` and dispatching
+               `dragenter`/`dragover`/`drop` yourself, the same pattern the codebase's own RTL tests use via
+               `fireEvent.drop(target, { dataTransfer: { files } })`) when the scenario needs something
+               `browser_drop`'s paths/data model doesn't cover, such as inspecting an intermediate drag
+               state or a custom `DataTransfer` configuration.
              - File-picker / `<input type="file">` attachment: `browser_file_upload` with the absolute
                path(s) to upload.
              - Non-file element-to-element dragging (list reordering, sliders, resizable panels):
                `browser_drag` between the start and end elements.
              - A scenario that's specifically about a literal OS-level drag of a file from the desktop
                file system into the browser (as opposed to the DOM `drop` event a page can be made to
-               receive) is permanently unverifiable by any browser automation tool — it happens below the
-               browser's event model. Call `submit_visual_review` with verdict "skipped" and say so
-               plainly; do not spend retries hunting for a way around it.
+               receive, which `browser_drop`/`browser_evaluate` both cover) is permanently unverifiable
+               by any browser automation tool — it happens below the browser's event model. Call
+               `submit_visual_review` with verdict "skipped" and say so plainly; do not spend retries hunting for a way around it.
            If browser automation itself appears unavailable or broken (for example click/fill/navigate
            repeatedly return tool errors despite valid snapshot refs, or the browser crashes), make at
            most two focused retries, read preview logs if useful, then call `submit_visual_review` with

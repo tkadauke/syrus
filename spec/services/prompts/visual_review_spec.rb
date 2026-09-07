@@ -84,11 +84,17 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("never reuse refs captured at the previous viewport size")
   end
 
-  it "describes when to use browser_evaluate for native file drag-and-drop" do
+  it "describes browser_drop as the preferred tool for native file drag-and-drop" do
+    expect(prompt).to include("browser_drop")
+    expect(prompt).to include("synthesizes a real drag/drop via")
+  end
+
+  it "describes browser_evaluate as a fallback for drag-and-drop cases browser_drop doesn't cover" do
     expect(prompt).to include("browser_evaluate")
     expect(prompt).to include("synthetic `File` + `DataTransfer`")
     expect(prompt).to include("dragenter`/`dragover`/`drop`")
     expect(prompt).to include("fireEvent.drop(target, { dataTransfer: { files } })")
+    expect(prompt).to include("doesn't cover")
   end
 
   it "describes when to use browser_file_upload for file-picker attachment" do
