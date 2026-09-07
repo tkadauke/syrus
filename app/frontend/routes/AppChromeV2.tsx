@@ -34,6 +34,8 @@ import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
+import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
+import { ShortcutsHelpModal } from "../components/ShortcutsHelpModal"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
@@ -252,8 +254,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   return (
+    <ShortcutsProvider>
     <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
     <BugReportContext.Provider value={bugReportContextValue}>
+    <GlobalShortcutsHelp />
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
         <SidebarContent
@@ -358,7 +362,21 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     </div>
     </BugReportContext.Provider>
     </ThemeProvider>
+    </ShortcutsProvider>
   )
+}
+
+function GlobalShortcutsHelp() {
+  const { t } = useTranslation("nav")
+  const [helpOpen, setHelpOpen] = useState(false)
+
+  useShortcut("?", () => setHelpOpen(true), {
+    description: t("nav:shortcuts.open_help"),
+    group: t("nav:shortcuts.group_global"),
+    groupOrder: 0
+  })
+
+  return <ShortcutsHelpModal onClose={() => setHelpOpen(false)} open={helpOpen} />
 }
 
 function BugReportTriggerButton({ onClick }: { onClick: () => void }) {
