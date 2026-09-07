@@ -475,6 +475,38 @@ otherwise shows all schedules. `schedule create` must run from a
 configured repository checkout because scheduled tasks are
 repository-owned.
 
+## Kubernetes clusters
+
+`syrus k8s` commands are contributed by the bundled `k8s_cluster` plugin
+and browse clusters registered from Admin -> Kubernetes Clusters, using
+the same admin API the web UI's cluster browser and the agent's
+`k8s_cluster_*` chat/workflow tools call:
+
+```bash
+syrus k8s clusters
+syrus k8s namespaces --cluster 1
+syrus k8s pods --cluster 1 --namespace web
+syrus k8s deployments --cluster 1
+syrus k8s services --cluster 1
+syrus k8s nodes --cluster 1
+syrus k8s pvcs --cluster 1
+syrus k8s events --cluster 1
+syrus k8s logs web-abc123 --cluster 1 --namespace web --container app --tail 100
+syrus k8s overview --cluster 1
+```
+
+`--cluster` is required whenever more than one cluster is registered;
+with exactly one registered cluster it is inferred automatically. All
+resource commands except `nodes` and `overview` accept `--namespace` to
+restrict the listing; omitting it lists across every namespace, the same
+as `kubectl get <kind> -A`. These commands require an admin API token,
+same as `syrus test-plan`.
+
+This command group is read-only. The plugin's cluster actions (deleting a
+pod, restarting a rollout, scaling a deployment, cordoning a node) are
+only exposed as MCP tools today, with no backing REST endpoint for the
+CLI to call — the CLI does not duplicate them.
+
 ## Claude Code skill
 
 The CLI can teach Claude Code how to drive Syrus:
