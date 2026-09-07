@@ -26,6 +26,12 @@ module Terminal
     route :delete, "/api/v1/app/terminal_sessions/:id", to: "api/v1/app/terminal_sessions#destroy"
     route :post,   "/api/v1/app/terminal_sessions/:id/kill", to: "api/v1/app/terminal_sessions#kill"
 
+    # Bearer-token, admin-scoped surface — mirrors core's
+    # /api/v1/admin/processes for external operator tooling.
+    route :get,    "/api/v1/admin/terminal_sessions", to: "api/v1/admin/terminal_sessions#index"
+    route :get,    "/api/v1/admin/terminal_sessions/:id", to: "api/v1/admin/terminal_sessions#show"
+    route :post,   "/api/v1/admin/terminal_sessions/:id/kill", to: "api/v1/admin/terminal_sessions#kill"
+
     frontend routes:   { "terminal/Terminal" => "app/frontend/routes/Terminal.tsx" },
              ui_slots: { "terminal/OpenWorkspaceButton" => "app/frontend/ui_slots/OpenWorkspaceButton.tsx" }
 

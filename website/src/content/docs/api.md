@@ -48,6 +48,20 @@ that session killed so the relay terminates the PTY. Session payloads include
 `id`, `name`, `working_directory`, `relay_address`, timestamps, `outcome`,
 and `workflow_id`; they never include the relay auth token.
 
+Admin API clients get the same surface across every user:
+`GET /api/v1/admin/terminal_sessions` lists sessions, filterable by
+`?state=running|finished`, `?user=<email substring>`, and `?hostname=<relay
+host>`; `GET /api/v1/admin/terminal_sessions/:id` returns one session; `POST
+/api/v1/admin/terminal_sessions/:id/kill` kills it through the same write
+path the app API uses. Admin payloads add `state`, `hostname`, `age_s`, and
+an owning `user` summary. With the plugin disabled, every endpoint —
+app and admin — returns `plugin_disabled`.
+
+```bash
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  "https://syrus.example.com/api/v1/admin/terminal_sessions?state=running"
+```
+
 ## Throughput Metrics
 
 When the `throughput` plugin is enabled, admin API clients can pull
