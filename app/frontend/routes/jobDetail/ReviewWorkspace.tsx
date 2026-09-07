@@ -33,6 +33,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     enabled: sourceDiff.isSuccess,
     headRef: sourceDiff.data?.head_ref,
     jobId,
+    onNavigateToFile: setSelectedPath,
     supportsGlobalComments: true,
     surface: SURFACE
   })

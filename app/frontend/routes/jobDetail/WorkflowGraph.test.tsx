@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload } from "../../api/jobs"
+import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { WorkflowsTab } from "./WorkflowGraph"
+
+stubVirtualizerMeasurements()
 
 function payload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
   return {

@@ -282,6 +282,7 @@ function SourceDiffBrowser({
     enabled: canReviewDiff && Boolean(payload.base_ref && payload.head_ref),
     headRef: payload.head_ref,
     jobId: payload.job_id,
+    onNavigateToFile: setSelectedPath,
     surface: "job_source_diff"
   })
 

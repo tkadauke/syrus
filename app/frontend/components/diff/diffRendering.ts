@@ -27,6 +27,19 @@ export const DEFAULT_LARGE_FILE_ROW_THRESHOLD = 300
 export const DEFAULT_MAX_VISIBLE_FILES = 100
 export const CONTEXT_EXPAND_LINE_INCREMENT = 20
 
+// File-level virtualization defaults (see ReviewableDiff's windowing). Rows
+// are estimated, not measured, before a file section first mounts -- these
+// are pixel guesses close enough to keep scroll position stable and avoid a
+// visible jump once the real height is measured after mount.
+export const DEFAULT_FILE_ROW_HEIGHT_PX = 21
+export const DEFAULT_FILE_HEADER_HEIGHT_PX = 37
+export const DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX = 150
+export const DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX = 90
+// Overscan is in *files*, not rows: how many extra file sections above/below
+// the viewport stay mounted so ordinary scrolling never shows a blank gap
+// while a newly-scrolled-to file's real height is still being measured.
+export const DEFAULT_FILE_VIRTUALIZATION_OVERSCAN = 6
+
 export function diffCoverageBorderClass(annotation: LineAnnotation | undefined) {
   if (annotation === "covered") return "border-l-2 border-emerald-500"
   if (annotation === "uncovered") return "border-l-2 border-red-500"
