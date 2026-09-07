@@ -42,6 +42,7 @@ import {
   type DesignDocFormattingCommand,
   type DesignDocFormattingSelection
 } from "./designDocFormattingCommands"
+import { computeRailLayout, RAIL_CARD_GAP, type RailLayout } from "./designDocRailLayout"
 
 type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
@@ -65,6 +66,9 @@ type AnchorHighlight = {
   start: number
   end: number
 }
+type RailEntry =
+  | { kind: "thread"; id: string; anchorStart: number; thread: DesignDocThread }
+  | { kind: "suggestion"; id: string; anchorStart: number; suggestion: DesignDocSuggestion }
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, initialDesignDocId, initialDesignDocs = [], mode, repositoryId }: {
   chatId?: number
@@ -327,10 +331,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const saveDisabled = effectiveChangeMode === "suggest" && !canSuggest
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
+  const markdownMirrorRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const railStackRef = useRef<HTMLDivElement | null>(null)
   const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
@@ -423,6 +429,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     () => draft === (doc.rendered_markdown || doc.markdown) ? highlights : [],
     [doc.markdown, doc.rendered_markdown, draft, highlights]
   )
+  const historicalVersionForRail = isViewingHistoricalVersion ? versionThreadsQuery.data ?? null : null
+  const historicalVersionLoadingForRail = isViewingHistoricalVersion && versionThreadsQuery.isPending
+  const { entries: railEntries, viewingHistory: railViewingHistory } = useMemo(
+    () => activeRailEntries({ doc, historicalVersion: historicalVersionForRail, historicalVersionLoading: historicalVersionLoadingForRail }),
+    [doc, historicalVersionForRail, historicalVersionLoadingForRail]
+  )
+  const [railLayout, setRailLayout] = useState<RailLayout>({ stackShift: 0, margins: {} })
 
   function updateSelection(event?: ChangeEvent<HTMLTextAreaElement>) {
     const target = event?.target ?? textareaRef.current
@@ -514,6 +527,66 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId, focusedSuggestionId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
   }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights])
+
+  // Declared after (and thus, within this component, always flushed after)
+  // the Rich Text sync effect above: that effect is what actually inserts
+  // the data-thread-id/data-suggestion-id marker elements into the WYSIWYG
+  // DOM via innerHTML, and React flushes same-component passive effects in
+  // declaration order. Measuring here any earlier -- e.g. from a child
+  // component's own effect, or a useLayoutEffect that runs before this one
+  // regardless of source order -- would read the previous commit's markers.
+  useEffect(() => {
+    if (railViewingHistory || railEntries.length === 0) {
+      setRailLayout({ stackShift: 0, margins: {} })
+      return
+    }
+
+    function recompute() {
+      const stackEl = railStackRef.current
+      if (!stackEl) return
+
+      const containerTop = stackEl.getBoundingClientRect().top
+      const markerRoot = editorMode === "rich_text" ? wysiwygRef.current : markdownMirrorRef.current
+      const measurements = railEntries.map((entry) => {
+        const marker = markerRoot?.querySelector(
+          entry.kind === "thread" ? `[data-thread-id="${entry.thread.id}"]` : `[data-suggestion-id="${entry.suggestion.id}"]`
+        ) as HTMLElement | null
+        const cardEl = entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]
+        return {
+          id: entry.id,
+          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : null,
+          height: cardEl?.getBoundingClientRect().height ?? 0
+        }
+      })
+
+      const pivotId = focusedThreadId != null
+        ? `thread-${focusedThreadId}`
+        : focusedSuggestionId != null
+          ? `suggestion-${focusedSuggestionId}`
+          : null
+      setRailLayout(computeRailLayout(measurements, pivotId, RAIL_CARD_GAP))
+    }
+
+    recompute()
+
+    const observedElements = [
+      railStackRef.current,
+      editorMode === "rich_text" ? wysiwygRef.current : markdownMirrorRef.current,
+      ...railEntries.map((entry) => (entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]))
+    ].filter((element): element is HTMLDivElement => element != null)
+
+    window.addEventListener("resize", recompute)
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", recompute)
+    }
+
+    const observer = new ResizeObserver(recompute)
+    observedElements.forEach((element) => observer.observe(element))
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", recompute)
+    }
+  }, [editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
@@ -669,7 +742,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           {editorMode === "markdown" ? (
             <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
               <span className="sr-only">Markdown editor</span>
-              <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} scrollTop={markdownScrollTop} />
+              <MarkdownHighlightMirror draft={draft} focusedSuggestionId={focusedSuggestionId} focusedThreadId={focusedThreadId} highlights={activeHighlights} mirrorRef={markdownMirrorRef} scrollTop={markdownScrollTop} />
               <textarea
                 aria-label="Markdown editor"
                 className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 outline-none selection:bg-brand/20 dark:caret-gray-100"
@@ -732,10 +805,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           commentPending={commentMutation.isPending}
           composerRef={newThreadComposerRef}
           doc={doc}
-          historicalVersion={isViewingHistoricalVersion ? versionThreadsQuery.data ?? null : null}
-          historicalVersionLoading={isViewingHistoricalVersion && versionThreadsQuery.isPending}
+          historicalVersion={historicalVersionForRail}
+          historicalVersionLoading={historicalVersionLoadingForRail}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
+          railEntries={railEntries}
+          railLayout={railLayout}
+          railStackRef={railStackRef}
           replyBodies={replyBodies}
           selection={selection}
           suggestionRefs={suggestionRefs}
@@ -902,12 +978,13 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   )
 }
 
-function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, highlights, scrollTop }: { draft: string; focusedSuggestionId: number | null; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {
+function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, highlights, mirrorRef, scrollTop }: { draft: string; focusedSuggestionId: number | null; focusedThreadId: number | null; highlights: AnchorHighlight[]; mirrorRef?: React.MutableRefObject<HTMLDivElement | null>; scrollTop: number }) {
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 z-0 min-h-[36rem] whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
       data-testid="markdown-highlight-mirror"
+      ref={mirrorRef}
       style={{ transform: scrollTop > 0 ? `translateY(-${scrollTop}px)` : undefined }}
     >
       {highlightTextSegments(draft, highlights).map((segment, index) => {
@@ -921,6 +998,7 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
                 className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-amber-100 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"}`}
                 data-anchor-status={segment.highlight.status}
                 data-block-suggestion-state={segment.highlight.suggestionState}
+                data-suggestion-id={segment.highlight.suggestionId}
                 key={index}
               >
                 {segment.text}
@@ -934,6 +1012,7 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
               className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-surface-raised"}`}
               data-anchor-status={segment.highlight.status}
               data-inline-suggestion-state={segment.highlight.suggestionState}
+              data-suggestion-id={segment.highlight.suggestionId}
               key={index}
             >
               <MarkdownSuggestionDiff diff={diff} sourceText={segment.text} />
@@ -945,6 +1024,7 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
           <mark
             className={`rounded-sm px-0.5 ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-yellow-200/70 dark:bg-yellow-500/30"}`}
             data-anchor-status={segment.highlight.status}
+            data-thread-id={segment.highlight.threadId}
             key={index}
           >
             {segment.text}
@@ -1185,7 +1265,48 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   )
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }: {
+  doc: DesignDocDetail
+  historicalVersion: { version: DesignDocVersion; threads: DesignDocThread[]; suggestions: DesignDocSuggestion[] } | null
+  historicalVersionLoading: boolean
+}) {
+  const viewingHistory = historicalVersionLoading || historicalVersion != null
+  // While a historical version's threads are still loading, show nothing
+  // rather than flashing the current document's (differently-filtered)
+  // threads under the "as of vN" heading.
+  const suggestionSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.suggestions : doc.suggestions
+  const threadSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.threads : doc.threads
+  const activeSuggestions = viewingHistory
+    ? suggestionSource
+    : suggestionSource.filter((suggestion) => suggestion.state === "pending" && suggestion.anchor.status === "active")
+  const suggestionThreadIds = new Set(suggestionSource.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
+  const activeCommentThreads = viewingHistory
+    ? threadSource.filter((thread) => !suggestionThreadIds.has(thread.id))
+    : threadSource.filter((thread) => thread.state === "open" && thread.anchor.status === "active" && !suggestionThreadIds.has(thread.id))
+
+  // Comments and suggestions are combined into one document-order list --
+  // not rendered as two separate groups -- so the rail reads top to bottom
+  // in the same order the anchors appear in the document, and the layout
+  // cascade below can treat them uniformly.
+  const entries: RailEntry[] = [
+    ...activeCommentThreads.map((thread): RailEntry => ({
+      kind: "thread",
+      id: `thread-${thread.id}`,
+      anchorStart: thread.anchor.last_known_start_offset ?? thread.anchor.start_offset ?? 0,
+      thread
+    })),
+    ...activeSuggestions.map((suggestion): RailEntry => ({
+      kind: "suggestion",
+      id: `suggestion-${suggestion.id}`,
+      anchorStart: suggestion.anchor.last_known_start_offset ?? suggestion.anchor.start_offset ?? 0,
+      suggestion
+    }))
+  ].sort((a, b) => a.anchorStart - b.anchorStart)
+
+  return { viewingHistory, entries }
+}
+
+function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
@@ -1194,6 +1315,9 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
   historicalVersionLoading: boolean
   focusedSuggestionId: number | null
   focusedThreadId: number | null
+  railEntries: RailEntry[]
+  railLayout: RailLayout
+  railStackRef: React.MutableRefObject<HTMLDivElement | null>
   replyBodies: Record<number, string>
   selection: SelectionRange
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1209,19 +1333,6 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const hasSelection = selection.end > selection.start && !viewingHistory
-  // While a historical version's threads are still loading, show nothing
-  // rather than flashing the current document's (differently-filtered)
-  // threads under the "as of vN" heading.
-  const suggestionSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.suggestions : doc.suggestions
-  const threadSource = historicalVersionLoading ? [] : historicalVersion ? historicalVersion.threads : doc.threads
-  const activeSuggestions = viewingHistory
-    ? suggestionSource
-    : suggestionSource.filter((suggestion) => suggestion.state === "pending" && suggestion.anchor.status === "active")
-  const suggestionThreadIds = new Set(suggestionSource.map((suggestion) => suggestion.thread?.id).filter((id): id is number => id != null))
-  const activeCommentThreads = viewingHistory
-    ? threadSource.filter((thread) => !suggestionThreadIds.has(thread.id))
-    : threadSource.filter((thread) => thread.state === "open" && thread.anchor.status === "active" && !suggestionThreadIds.has(thread.id))
-  const activeCount = activeCommentThreads.length + activeSuggestions.length
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
@@ -1267,45 +1378,54 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
           </div>
         ) : null}
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
-        {!historicalVersionLoading && activeCount === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
-        {activeCommentThreads.map((thread) => (
-          <CommentThreadCard
-            focused={focusedThreadId === thread.id}
-            key={`thread-${thread.id}`}
-            readOnly={viewingHistory}
-            replyBody={replyBodies[thread.id] ?? ""}
-            thread={thread}
-            threadRefs={threadRefs}
-            onFocus={onFocus}
-            onReply={onReply}
-            onReplyChange={onReplyChange}
-            onResolve={onResolve}
-          />
-        ))}
-        {activeSuggestions.map((suggestion) => (
-          <SuggestionThreadCard
-            canReview={!viewingHistory && doc.permissions.can_review_suggestions}
-            focused={focusedSuggestionId === suggestion.id}
-            key={`suggestion-${suggestion.id}`}
-            readOnly={viewingHistory}
-            replyBody={suggestion.thread ? replyBodies[suggestion.thread.id] ?? "" : ""}
-            suggestion={suggestion}
-            suggestionRefs={suggestionRefs}
-            onFocus={onFocusSuggestion}
-            onReply={onReply}
-            onReplyChange={onReplyChange}
-            onReview={onReview}
-          />
-        ))}
+        {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
+        <div
+          className="space-y-3"
+          data-testid="design-doc-rail-stack"
+          ref={railStackRef}
+          style={{ transform: !viewingHistory && railLayout.stackShift !== 0 ? `translateY(${railLayout.stackShift}px)` : undefined }}
+        >
+          {railEntries.map((entry, index) => entry.kind === "thread" ? (
+            <CommentThreadCard
+              focused={focusedThreadId === entry.thread.id}
+              key={entry.id}
+              readOnly={viewingHistory}
+              replyBody={replyBodies[entry.thread.id] ?? ""}
+              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+              thread={entry.thread}
+              threadRefs={threadRefs}
+              onFocus={onFocus}
+              onReply={onReply}
+              onReplyChange={onReplyChange}
+              onResolve={onResolve}
+            />
+          ) : (
+            <SuggestionThreadCard
+              canReview={!viewingHistory && doc.permissions.can_review_suggestions}
+              focused={focusedSuggestionId === entry.suggestion.id}
+              key={entry.id}
+              readOnly={viewingHistory}
+              replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
+              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+              suggestion={entry.suggestion}
+              suggestionRefs={suggestionRefs}
+              onFocus={onFocusSuggestion}
+              onReply={onReply}
+              onReplyChange={onReplyChange}
+              onReview={onReview}
+            />
+          ))}
+        </div>
       </div>
     </Panel>
   )
 }
 
-function CommentThreadCard({ focused, readOnly = false, replyBody, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+function CommentThreadCard({ focused, readOnly = false, replyBody, style, thread, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
   focused: boolean
   readOnly?: boolean
   replyBody: string
+  style?: React.CSSProperties
   thread: DesignDocThread
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   onFocus: (threadId: number) => void
@@ -1319,7 +1439,7 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, thread, threa
       data-anchor-offset={thread.anchor.last_known_start_offset ?? thread.anchor.start_offset}
       onClick={() => onFocus(thread.id)}
       ref={(element) => { threadRefs.current[thread.id] = element }}
-      style={{ marginTop: railOffset(thread) }}
+      style={style}
     >
       <ThreadCardHeader labels={<><StatusLabel value="comment" />{thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}</>} action={readOnly ? null : (
         <Button
@@ -1349,11 +1469,12 @@ function CommentThreadCard({ focused, readOnly = false, replyBody, thread, threa
   )
 }
 
-function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
+function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody, style, suggestion, suggestionRefs, onFocus, onReply, onReplyChange, onReview }: {
   canReview: boolean
   focused: boolean
   readOnly?: boolean
   replyBody: string
+  style?: React.CSSProperties
   suggestion: DesignDocSuggestion
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
   onFocus: (suggestionId: number) => void
@@ -1369,7 +1490,7 @@ function SuggestionThreadCard({ canReview, focused, readOnly = false, replyBody,
       data-anchor-offset={suggestion.anchor.last_known_start_offset ?? suggestion.anchor.start_offset}
       onClick={() => onFocus(suggestion.id)}
       ref={(element) => { suggestionRefs.current[suggestion.id] = element }}
-      style={{ marginTop: railOffset(suggestion) }}
+      style={style}
     >
       <ThreadCardHeader labels={<><StatusLabel value="suggestion" /><StatusLabel value={suggestion.render_mode === "block" ? "block" : "inline"} />{suggestion.anchor.status !== "active" ? <StatusLabel value={suggestion.anchor.status} /> : null}{readOnly && suggestion.state !== "pending" ? <StatusLabel value={suggestion.state} /> : null}</>} action={<p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={suggestion.created_at} /></p>} />
       {thread ? <ThreadAgentRunStatus run={thread.agent_run} /> : null}
@@ -2380,9 +2501,4 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
     top: rangeRect.bottom - containerRect.top,
     containerWidth: containerRect.width
   }
-}
-
-function railOffset(item: { anchor: DesignDocThread["anchor"] }) {
-  const offset = item.anchor.last_known_start_offset ?? item.anchor.start_offset ?? 0
-  return `${Math.min(Math.max(Math.floor(offset / 8), 0), 96)}px`
 }
