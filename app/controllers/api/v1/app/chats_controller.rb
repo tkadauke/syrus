@@ -1762,6 +1762,7 @@ module Api
             confirmed_proposal_count: counts.fetch(:confirmed_proposals),
             linked_direct_job_count: counts.fetch(:linked_direct_jobs),
             scratchpad_items_count: counts.fetch(:scratchpad_items),
+            runtime_session_count: counts.fetch(:runtime_sessions),
             typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
             has_chat_images: PerformanceLogging.phase("chat_json.has_chat_images", chat_id: chat_session.id) { ChatMediaLibrary.any_inline_images?(chat_session) },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
@@ -1779,7 +1780,8 @@ module Api
               (SELECT COUNT(*) FROM chat_pending_actions WHERE chat_session_id = #{id} AND state = 'pending') AS pending_actions,
               (SELECT COUNT(*) FROM chat_proposals WHERE chat_session_id = #{id} AND state = 'confirmed') AS confirmed_proposals,
               (SELECT COUNT(*) FROM jobs WHERE linked_chat_id = #{id} AND kind = 'direct') AS linked_direct_jobs,
-              (SELECT COUNT(*) FROM chat_scratchpad_items WHERE chat_session_id = #{id}) AS scratchpad_items
+              (SELECT COUNT(*) FROM chat_scratchpad_items WHERE chat_session_id = #{id}) AS scratchpad_items,
+              (SELECT COUNT(*) FROM runtime_sessions WHERE chat_session_id = #{id}) AS runtime_sessions
           SQL
 
           row = ActiveRecord::Base.connection.select_one(sql) || {}
@@ -1788,7 +1790,8 @@ module Api
             pending_actions: row.fetch("pending_actions", 0).to_i,
             confirmed_proposals: row.fetch("confirmed_proposals", 0).to_i,
             linked_direct_jobs: row.fetch("linked_direct_jobs", 0).to_i,
-            scratchpad_items: row.fetch("scratchpad_items", 0).to_i
+            scratchpad_items: row.fetch("scratchpad_items", 0).to_i,
+            runtime_sessions: row.fetch("runtime_sessions", 0).to_i
           }
         end
 

@@ -694,8 +694,35 @@ enforcement point regardless of which tool surface an agent uses to drive
 input. Every acquire/release/cancel/expire and delivered input event is
 audited via `JobLog` (when the session has a `run`) and broadcast live over
 `runtime_session_<id>_control` for the operator's Take Control / Abort Agent
-Control affordance — a bypass this Job does not add an MCP tool for, since
-that path is operator-only per DOC-17.
+Control affordance.
+
+**Operator surface: the Coding Mode Runtime panel.** The right sidebar's
+`runtime` tab (`app/frontend/routes/RuntimePanel.tsx`, wired into
+`ChatWorkspacePanel` in `WorkspacePanels.tsx`) is a human-facing mirror of the
+agent's `runtime_*` tools, not an MCP tool itself -- it is intentionally
+operator-only per DOC-17, so it goes through the ordinary app-scoped JSON API
+instead: `Api::V1::App::RuntimeSessionsController`
+(`/api/v1/app/chats/:chat_id/runtime_sessions[...]`), gated the same way as
+the MCP tools (`Feature.coding_mode_enabled?` and `chat_session.coding?`).
+`index`/`show`/`logs` mirror `runtime_list_sessions`/`runtime_status`/
+`runtime_logs` (same `RuntimeSessionPresenter` JSON shape both surfaces
+share); `capture` mirrors `runtime_capture_artifact`; `take_control` is the
+operator's `RuntimeControlLease.acquire!(owner: "user", ...)`, and always
+calls `RuntimeControlLease.abort_agent_control!` first so an operator's Take
+Control / Abort Agent Control click immediately preempts whatever the agent
+was holding, per DOC-17's "the operator can always abort agent control
+immediately"; `release_control` releases the operator's own active lease(s).
+The tab only appears once the chat has at least one `RuntimeSession`
+(`runtimeTabVisible` in `app/frontend/routes/chat/utils.ts`, backed by
+`chat.runtime_session_count` in the chat payload). A dedicated `frame` action
+streams the session's `latest_frame_url` -- `SyrusBrowser::ArtifactSinks::ChatMedia`
+now accepts an optional `runtime_session:` and, when a capture is attributed
+to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
+`runtime_capture_artifact`/`browser_screenshot`), stamps
+`latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
+endpoint so the panel's periodic-screenshot polling has something to show --
+those two columns existed on `RuntimeSession` since JOB-4472 but were never
+written until this wiring landed.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 

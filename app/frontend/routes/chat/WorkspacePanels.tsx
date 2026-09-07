@@ -16,6 +16,7 @@ import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPane
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
+import { RuntimePanel } from "../RuntimePanel"
 import { errorMessage } from "../../lib/errorMessage"
 import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
@@ -184,6 +185,7 @@ export function ChatWorkspacePanel({
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
+        {activeTab === "runtime" ? <RuntimePanel chatId={payload.chat.id} /> : null}
         {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
     </aside>

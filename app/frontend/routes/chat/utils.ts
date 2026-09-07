@@ -139,6 +139,18 @@ export function jobsTabVisible(payload: ChatPayload): boolean {
     (payload.chat.linked_direct_job_count ?? 0) > 0
 }
 
+// DOC-17 "Coding Mode Right Sidebar": the Runtime panel only appears once at
+// least one Runtime Session exists for this chat -- there is no "start a
+// session" affordance in the panel itself yet (sessions are started by the
+// agent via runtime_start), so an empty tab would have nothing useful to show.
+export function runtimeTabVisible(payload: ChatPayload): boolean {
+  return Boolean(
+    payload.coding_mode_enabled &&
+    payload.chat.mode === "coding" &&
+    (payload.chat.runtime_session_count ?? 0) > 0
+  )
+}
+
 export function currentRecentChat(payload: ChatPayload) {
   return payload.recent_chats.find((chat) => chat.id === payload.chat.id) || payload.chat
 }
