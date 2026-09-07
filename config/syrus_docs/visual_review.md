@@ -10,12 +10,12 @@ for another implementation pass.
 
 ## Feature flag
 
-Visual review is gated by the `visual_review` Labs feature flag
-(`config/features.yml`), off by default. Enable it from Admin → Features,
+Visual review is gated by the `visual_review` feature flag
+(`config/features.yml`), on by default. Disable it from Admin → Features,
 or via Rails console:
 
 ```ruby
-Feature.find_by(slug: "visual_review").update(enabled: true)
+Feature.find_by(slug: "visual_review").update(enabled: false)
 ```
 
 `Feature.visual_review_enabled?` is the instance-wide default that applies

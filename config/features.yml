@@ -12,7 +12,7 @@ features:
     name_i18n_key: "features.slugs.coding_mode.name"
     description: "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning."
     description_i18n_key: "features.slugs.coding_mode.description"
-    default: false
+    default: true
   - slug: performance_logging
     category: "Operations"
     name: "Performance logging"
@@ -40,7 +40,7 @@ features:
     name_i18n_key: "features.slugs.local_mode.name"
     description: "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
     description_i18n_key: "features.slugs.local_mode.description"
-    default: false
+    default: true
   - slug: admin_supervisor_chat
     category: "Operations"
     name: "Admin supervisor chat"
@@ -68,7 +68,7 @@ features:
     name_i18n_key: "features.slugs.visual_review.name"
     description: "Enables the visual_review step: an independent agent drives a headless browser against the worker's own in-step preview to catch visible defects and capture screenshot artifacts before graders run. A repository's .syrus.yml can override this instance-wide default per repo."
     description_i18n_key: "features.slugs.visual_review.description"
-    default: false
+    default: true
   - slug: epicless_job_bundling
     category: "Labs"
     name: "Epicless Job bundling"
