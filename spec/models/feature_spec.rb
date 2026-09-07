@@ -152,9 +152,19 @@ RSpec.describe Feature, type: :model do
   end
 
   describe "declarations" do
-    it "declares the visual_review labs flag default-off in config/features.yml" do
+    it "declares the visual_review labs flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+    end
+
+    it "declares the coding_mode labs flag default-on in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "coding_mode" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+    end
+
+    it "declares the local_mode labs flag default-on in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "local_mode" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
 
 

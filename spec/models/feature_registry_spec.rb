@@ -17,11 +17,18 @@ RSpec.describe FeatureRegistry do
     defaults = described_class.declarations.index_by(&:slug).transform_values(&:default_enabled)
 
     expect(defaults).to include(
-      "coding_mode" => false,
       "performance_logging" => false,
-      "local_mode" => false,
-      "landing_validation_prefetch" => false,
-      "visual_review" => false
+      "landing_validation_prefetch" => false
+    )
+  end
+
+  it "pins coding_mode, local_mode, and visual_review as default-on" do
+    defaults = described_class.declarations.index_by(&:slug).transform_values(&:default_enabled)
+
+    expect(defaults).to include(
+      "coding_mode" => true,
+      "local_mode" => true,
+      "visual_review" => true
     )
   end
 
