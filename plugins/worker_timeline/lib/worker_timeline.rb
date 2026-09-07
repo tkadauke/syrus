@@ -23,6 +23,8 @@ module WorkerTimeline
     provides sidebar_page: "WorkerTimeline::SidebarPages"
     route :get, "/api/v1/app/admin/worker_timeline/macro", to: "api/v1/app/admin/worker_timeline#macro"
     route :get, "/api/v1/app/admin/worker_timeline/workflow", to: "api/v1/app/admin/worker_timeline#workflow"
+    route :get, "/api/v1/admin/worker_timeline/macro", to: "api/v1/admin/worker_timeline#macro"
+    route :get, "/api/v1/admin/worker_timeline/workflow", to: "api/v1/admin/worker_timeline#workflow"
     frontend routes: {
           "worker_timeline/WorkerTimeline" => "app/frontend/routes/WorkerTimeline.tsx"
         },

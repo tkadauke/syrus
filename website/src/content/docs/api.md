@@ -571,3 +571,29 @@ Write endpoints are owner-only unless the authenticated user is an admin:
 `POST /api/v1/app/memories`, `PATCH /api/v1/app/memories/:id`,
 `DELETE /api/v1/app/memories/:id`, `POST /api/v1/app/memories/:id/publish`,
 and `DELETE /api/v1/app/memories/:id/publish`.
+
+## Worker Timeline
+
+When the `worker_timeline` plugin is enabled, admin API clients can read the
+same multi-lane worker activity data the Worker Timeline sidebar page
+renders. Both endpoints require an admin API token; a disabled plugin
+answers a `plugin_disabled` error.
+
+`GET /api/v1/admin/worker_timeline/macro` returns worker lanes and pending
+Workflows for a time window. Query params: `from`/`to` (ISO8601, default
+window is the last hour), `repository_id`, `epic_id`, `job_id`, `hostname`,
+`status` (comma-separated Workflow states), and `job_type` (`user` or
+`system`, with `infra`/`infrastructure` accepted as aliases for `system`).
+
+```bash
+curl "https://syrus.example.com/api/v1/admin/worker_timeline/macro?status=running" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/admin/worker_timeline/workflow` returns the ordered Step/Run
+waterfall for one Workflow, given `?id=<workflow_id>`.
+
+```bash
+curl "https://syrus.example.com/api/v1/admin/worker_timeline/workflow?id=123" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
