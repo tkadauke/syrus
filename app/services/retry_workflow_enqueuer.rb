@@ -9,7 +9,7 @@ class RetryWorkflowEnqueuer
   # orders of magnitude cheaper.
   #
   # Deliberately only the pure-maintenance kinds. auto_merge and merge_train own
-  # job lifecycle and have their own retry paths (EpicLandingRetrier), so they
+  # job lifecycle and have their own retry paths (LandingRetrier), so they
   # are not in scope here.
   SELF_RETRYING_TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze
 

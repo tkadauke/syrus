@@ -195,9 +195,9 @@ class RetryFailedStepEnqueuer
 
   def rebuild_train(train)
     if train.bundle_backed?
-      JobBundleRetrier.rebuild_merge_train!(train.repository, source_train: train)
+      LandingRetrier.rebuild_job_bundle!(train.repository, source_train: train)
     else
-      EpicLandingRetrier.rebuild_merge_train!(train.epic, source_train: train)
+      LandingRetrier.rebuild_epic_merge_train!(train.epic, source_train: train)
     end
   end
 
