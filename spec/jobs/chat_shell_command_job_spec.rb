@@ -190,4 +190,58 @@ RSpec.describe ChatShellCommandJob do
   it "discards instead of raising when the ChatShellCommand no longer exists" do
     expect { described_class.perform_now(-1) }.not_to raise_error
   end
+
+  describe "Local Mode" do
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "local") }
+
+    def connected_daemon_session
+      session = LocalDaemonSession.create!(chat_session: chat_session, user: user)
+      session.mark_connected!(repo: "acme/widgets", branch: "main")
+      session
+    end
+
+    it "records an error outcome when no daemon is connected" do
+      command = create_command
+      expect(ProcessRunner).not_to receive(:new)
+
+      described_class.perform_now(command.id)
+
+      expect(command.reload.outcome).to eq("error")
+      expect(command.output).to include("Local daemon not connected")
+    end
+
+    it "dispatches the command over the tunnel and records the daemon's result" do
+      connected_daemon_session
+      command = create_command(command: "echo hi")
+
+      Thread.new do
+        sleep 0.05
+        LocalToolCall.find_by(chat_session: chat_session).complete!(result: { "stdout" => "hi\n", "stderr" => "", "exit_code" => 0 })
+      end
+
+      expect {
+        described_class.perform_now(command.id)
+      }.to have_enqueued_job(ChatTurnJob)
+
+      command.reload
+      expect(command.outcome).to eq("succeeded")
+      expect(command.output).to eq("hi\n")
+      expect(command.exit_status).to eq(0)
+      expect(command.local_tool_call).to be_present
+    end
+
+    it "records a killed outcome when the daemon reports the command was cancelled" do
+      connected_daemon_session
+      command = create_command(command: "sleep 100")
+
+      Thread.new do
+        sleep 0.05
+        LocalToolCall.find_by(chat_session: chat_session).complete!(result: { "stdout" => "", "stderr" => "", "exit_code" => -1, "killed" => true })
+      end
+
+      described_class.perform_now(command.id)
+
+      expect(command.reload.outcome).to eq("killed")
+    end
+  end
 end

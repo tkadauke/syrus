@@ -332,6 +332,46 @@ func TestExecuteLocalRunCommandRespectTimeout(t *testing.T) {
 	if !hasOutcome {
 		t.Fatalf("expected result to contain error or exit_code, got: %v", result)
 	}
+	if result["killed"] != true {
+		t.Fatalf("expected killed=true on timeout, got: %v", result)
+	}
+}
+
+// runCommandParams' JSON key must be "command" to match the real wire shape
+// LocalTunnelChannel#dispatch_tool_call transmits (RunCommandTool's MCP
+// input_schema uses `command`, not `cmd`) -- decoding from a literal JSON
+// string here, instead of round-tripping through the same struct, is what
+// would have caught the "cmd"/"command" key mismatch this fixes.
+func TestExecuteLocalRunCommandDecodesCommandKey(t *testing.T) {
+	root := t.TempDir()
+	result := executeLocalRunCommand(context.Background(), root, json.RawMessage(`{"command":"echo hello"}`))
+	if result["error"] != nil {
+		t.Fatalf("unexpected error: %v", result["error"])
+	}
+	if !strings.Contains(result["stdout"].(string), "hello") {
+		t.Fatalf("stdout = %q", result["stdout"])
+	}
+}
+
+func TestExecuteLocalRunCommandCancelledByContext(t *testing.T) {
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	params, _ := json.Marshal(runCommandParams{Command: "sleep 60"})
+
+	done := make(chan map[string]any, 1)
+	go func() { done <- executeLocalRunCommand(ctx, root, params) }()
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case result := <-done:
+		if result["killed"] != true {
+			t.Fatalf("expected killed=true on cancellation, got: %v", result)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("executeLocalRunCommand did not return promptly after cancellation")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -563,6 +603,80 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 	content, _ := toolResultReceived["content"].(map[string]any)
 	if content["content"] != "hi there" {
 		t.Fatalf("content = %v", content["content"])
+	}
+}
+
+// TestLocalConnectAndServeCancelsInFlightRunCommand exercises the
+// EPIC-323 `!` command stop control end-to-end at the daemon level: a
+// "cancel_tool_call" frame (LocalTunnelChannel#handle_cancel_broadcast) for
+// an in-flight run_command tool_use_id must kill just that command and
+// return a "killed": true result promptly, without waiting for the command's
+// own (much longer) natural completion.
+func TestLocalConnectAndServeCancelsInFlightRunCommand(t *testing.T) {
+	root := t.TempDir()
+	var toolResultReceived map[string]any
+	start := make(chan struct{})
+
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message":    map[string]any{"type": "connected"},
+		})
+
+		input, _ := json.Marshal(runCommandParams{Command: "sleep 60"})
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message": map[string]any{
+				"type":        "tool_call",
+				"tool_use_id": "call-cancel-1",
+				"tool":        "run_command",
+				"input":       json.RawMessage(input),
+			},
+		})
+		close(start)
+
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message": map[string]any{
+				"type":        "cancel_tool_call",
+				"tool_use_id": "call-cancel-1",
+			},
+		})
+
+		_, raw, _ := conn.ReadMessage()
+		var envelope struct {
+			Data string `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err == nil {
+			json.Unmarshal([]byte(envelope.Data), &toolResultReceived)
+		}
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	startedAt := time.Now()
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+	elapsed := time.Since(startedAt)
+
+	<-start
+	if elapsed > 5*time.Second {
+		t.Fatalf("cancelled command did not return promptly: %v", elapsed)
+	}
+	if toolResultReceived == nil {
+		t.Fatal("did not receive tool result")
+	}
+	if toolResultReceived["tool_use_id"] != "call-cancel-1" {
+		t.Fatalf("tool_use_id = %v", toolResultReceived["tool_use_id"])
+	}
+	content, _ := toolResultReceived["content"].(map[string]any)
+	if content["killed"] != true {
+		t.Fatalf("content = %v", content)
 	}
 }
 

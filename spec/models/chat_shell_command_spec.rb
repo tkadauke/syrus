@@ -99,6 +99,28 @@ RSpec.describe ChatShellCommand do
 
       expect(command.cancellable?).to eq(false)
     end
+
+    context "in a Local Mode chat" do
+      let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "local") }
+
+      it "is false while no local_tool_call has been attached yet" do
+        expect(build_command.cancellable?).to eq(false)
+      end
+
+      it "is true once a dispatched local_tool_call is attached" do
+        session = LocalDaemonSession.create!(chat_session: chat_session, user: user)
+        call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat_session, tool_use_id: "x", tool_name: "run_command", state: "dispatched")
+
+        expect(build_command(local_tool_call: call).cancellable?).to eq(true)
+      end
+
+      it "is false once the local_tool_call has completed" do
+        session = LocalDaemonSession.create!(chat_session: chat_session, user: user)
+        call = LocalToolCall.create!(local_daemon_session: session, chat_session: chat_session, tool_use_id: "x", tool_name: "run_command", state: "completed")
+
+        expect(build_command(local_tool_call: call).cancellable?).to eq(false)
+      end
+    end
   end
 
   describe "#as_command_json" do

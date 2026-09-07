@@ -29,6 +29,17 @@ class LocalToolCall < ApplicationRecord
     update!(state: "failed", error: error, completed_at: Time.current)
   end
 
+  # Asks the daemon to interrupt this call mid-flight (EPIC-323's `!` command
+  # cancel control). Only meaningful once the daemon has actually started
+  # working on it -- LocalTunnelChannel#receive_from_subscription re-checks
+  # state is still "dispatched" before transmitting, so a call that already
+  # completed/failed between this broadcast and delivery is a silent no-op.
+  def request_cancel!
+    return unless state == "dispatched"
+
+    ActionCable.server.broadcast(stream_name, { type: "cancel", tool_call_id: id })
+  end
+
   def wait_for_result(timeout: RESPONSE_TIMEOUT)
     deadline = Time.current + timeout
     loop do
@@ -45,9 +56,10 @@ class LocalToolCall < ApplicationRecord
   private
 
   def notify_channel
-    ActionCable.server.broadcast(
-      "local_daemon_session_#{local_daemon_session_id}_tool_calls",
-      { type: "dispatch", tool_call_id: id }
-    )
+    ActionCable.server.broadcast(stream_name, { type: "dispatch", tool_call_id: id })
+  end
+
+  def stream_name
+    "local_daemon_session_#{local_daemon_session_id}_tool_calls"
   end
 end

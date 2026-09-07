@@ -19,6 +19,7 @@ class ChatShellCommand < ApplicationRecord
   belongs_to :chat_session
   belongs_to :user
   belongs_to :spawned_process, optional: true
+  belongs_to :local_tool_call, optional: true
 
   validates :command, presence: true
   validates :started_at, presence: true
@@ -36,7 +37,7 @@ class ChatShellCommand < ApplicationRecord
   end
 
   def cancellable?
-    running? && spawned_process.present? && spawned_process.running?
+    running? && ChatShellCommandExecutor::Base.for(chat_session.mode).cancellable?(self)
   end
 
   # Shared wire shape for this record: the create/cancel endpoint responses

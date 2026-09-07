@@ -3385,6 +3385,15 @@ describe("bang command mode (EPIC-323)", () => {
     expect(textarea.className).not.toMatch(/border-red-300/)
   })
 
+  it("flips into warning-styled command mode when ! is typed as the first character, in a Local Mode chat", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "local" } }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "!npm test" } })
+    expect(textarea.className).toMatch(/border-red-300/)
+  })
+
   it("rehydrates the stop control from the payload when the composer mounts with a command already running (JOB-4507 remount fix)", async () => {
     mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
       chat_shell_command_in_flight: {
@@ -3409,7 +3418,7 @@ describe("bang command mode (EPIC-323)", () => {
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled()
   })
 
-  it("does not enter command mode outside Coding Mode chats", async () => {
+  it("does not enter command mode outside Coding Mode and Local Mode chats", async () => {
     const fetchMock = mockChatRouteFetch(chatPayload({ chat: { mode: "planning" } }))
     renderRoute()
 

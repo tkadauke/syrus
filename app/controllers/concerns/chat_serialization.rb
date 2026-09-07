@@ -30,8 +30,8 @@ module ChatSerialization
         chat_session.agent_busy?
       end
       chat_shell_command_in_flight = PerformanceLogging.phase("chat_payload.chat_shell_command_in_flight", chat_id: chat_session.id) do
-        # Coding-mode-only feature (EPIC-323); skip the query for every other chat.
-        chat_session.coding? ? chat_session.chat_shell_commands.running.order(id: :desc).first&.as_command_json : nil
+        # Coding Mode and Local Mode only (EPIC-323); skip the query for every other chat.
+        chat_session.coding? || chat_session.local? ? chat_session.chat_shell_commands.running.order(id: :desc).first&.as_command_json : nil
       end
 
       {
