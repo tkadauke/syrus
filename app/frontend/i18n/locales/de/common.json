@@ -20,6 +20,10 @@
     "binary": "Binärdateien können nicht angezeigt werden.",
     "too_large": "Diese Datei ist zu groß für die Vorschau. Nutze „Rohdatei öffnen“, um sie direkt anzusehen."
   },
+  "diff_review_composer": {
+    "title": "Kommentar",
+    "close": "Kommentarformular schließen"
+  },
   "onboarding": {
     "loading": "Setup-Status wird geladen...",
     "setup_label": "Ersteinrichtung",

@@ -193,7 +193,7 @@ describe("ReviewableDiff", () => {
     const overlay = within(composer).getByLabelText("Comment").closest("div.max-md\\:fixed")
     expect(overlay).toHaveClass("max-md:inset-0", "max-md:z-50", "max-md:h-[100dvh]")
 
-    fireEvent.click(within(composer).getByRole("button", { name: "Close" }))
+    fireEvent.click(within(composer).getByRole("button", { name: "Close comment form" }))
     expect(onCancelComposing).toHaveBeenCalled()
   })
 
