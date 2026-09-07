@@ -5,7 +5,7 @@
 // re-rendering every tool_use/tool_result as its own unrelated flat card.
 import type { ChatToolGroupItem } from "../api/chats"
 import type { TranscriptEvent } from "../api/adminTranscript"
-import { fullResultBody, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
+import { fullResultBody, fullResultBodyUnbounded, parseJsonText, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
 export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
@@ -79,10 +79,12 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
       const open = toolUseId != null ? openCalls.get(String(toolUseId)) : undefined
 
       if (open) {
+        const unboundedBody = fullResultBodyUnbounded(data.content)
         const body = fullResultBody(data.content)
         open.call.result_body = body
+        open.call.result_json = parseJsonText(unboundedBody)
         open.call.result_error = data.error === true
-        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error, unboundedBody)
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata

@@ -97,6 +97,18 @@ describe("toolResultPresentation", () => {
 
     expect(result).toMatchObject({ kind: "text", summary: "" })
   })
+
+  it("parses from the explicit parseBody argument instead of the (possibly truncated) display body", () => {
+    // Simulates a caller that only has a truncated display preview for
+    // `body` (e.g. fullResultBody's output) but kept the complete text
+    // separately (fullResultBodyUnbounded) for parsing -- see JOB-4223.
+    const truncatedBody = '{"design_docs": [{"id": 1, "doc_ref": "DOC-1'
+    const fullBody = JSON.stringify({ design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }] })
+
+    const result = toolResultPresentation("list_design_docs", truncatedBody, false, fullBody)
+
+    expect(result).toMatchObject({ kind: "text", summary: "1 design doc" })
+  })
 })
 
 describe("typedToolResult", () => {
