@@ -1,5 +1,5 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, EpicIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, EpicIcon, GripIcon, MenuIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
@@ -314,10 +314,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
-              className="inline-flex min-h-[44px] min-w-0 items-center text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
+              className="inline-flex min-h-[44px] min-w-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
               onClick={() => setDrawerOpen(true)}
               type="button"
             >
+              <MenuIcon />
               <SyrusBrand />
             </button>
             <TestChannelBadge />

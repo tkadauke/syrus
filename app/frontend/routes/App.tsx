@@ -578,7 +578,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
-        <nav aria-label={tCommon("shell.settings_nav_aria")} className="flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4">
+        <nav aria-label={tCommon("shell.settings_nav_aria")} className="scroll-fade-x flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4 lg:[mask-image:none] lg:[-webkit-mask-image:none]">
           {settingsNavigationItems(t, simpleMode, pluginSettingsItems).map((item) => (
             <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
               {item.label}
