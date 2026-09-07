@@ -5,6 +5,10 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
   FEEDBACK_POLICIES = %w[ auto confirm ].freeze
+  # Single value today. Kept as a policy list rather than dropped outright
+  # because removing the concept means dropping epic_dependency_policy from
+  # both this table and epics, plus its admin/app API and frontend surface —
+  # a separate cleanup, tracked apart from retiring "nonlinear" here.
   EPIC_DEPENDENCY_POLICIES = %w[ linear ].freeze
   CI_HEALTH_STATES = %w[ unknown healthy broken not_configured inconclusive ].freeze
   GRADER_HEALTH_STATES = %w[ unknown healthy broken inconclusive ].freeze
