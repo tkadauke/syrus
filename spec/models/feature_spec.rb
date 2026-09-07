@@ -169,9 +169,9 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
     end
 
-    it "declares the epicless_job_bundling labs flag default-off in config/features.yml" do
+    it "declares the epicless_job_bundling labs flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "epicless_job_bundling" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
     end
 
     it "declares the admin supervisor chat operations flag default-off in config/features.yml" do
