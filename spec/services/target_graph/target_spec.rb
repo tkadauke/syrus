@@ -47,6 +47,12 @@ RSpec.describe TargetGraph::Target do
       expect(target).to be_executable
     end
 
+    it "accepts the reserved builder kind even though no compiler produces it yet" do
+      target = described_class.new(label: label, kind: "builder", project_id: "cli")
+
+      expect(target.kind).to eq("builder")
+    end
+
     it "rejects non-Hash metadata" do
       expect { described_class.new(label: label, kind: "grader", project_id: "cli", metadata: "bogus") }
         .to raise_error(ArgumentError, /metadata/)

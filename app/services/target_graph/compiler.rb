@@ -9,6 +9,14 @@ class TargetGraph
   # project, with its legacy sections compiled into targets under that
   # project the exact same way the root file's sections are.
   #
+  # There is no `#compile_builders!` here on purpose: `builder` is a
+  # reserved TargetGraph::Target kind (see its KINDS comment) with no
+  # `.syrus.yml` primitive behind it yet. A future `build:` section should
+  # add a `#compile_builders!` alongside the methods below, following the
+  # same per-section shape (root + nested, `scoped_source_scope` for its
+  # affected-file default) -- see "The `builder` kind is reserved, not
+  # compiled" in config/syrus_docs/target_graph.md.
+  #
   # This is representation only: nothing in the runtime prepare/format/
   # generate/grader pipelines (RepoPrepPlan, Steps::Format, Steps::Generate,
   # RepoGradePlan/grader_fanout) reads from the compiled graph yet, and this
