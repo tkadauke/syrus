@@ -45,10 +45,10 @@ const TONE_CLASSES: Record<Tone, string> = {
 
 export function stateTone(state: string | null | undefined): Tone {
   const normalized = (state || "").toLowerCase()
-  if (["succeeded", "success", "approved", "merged", "current", "repaired"].includes(normalized)) return "success"
-  if (["failed", "failure", "error", "alarm", "cancelled", "canceled", "no_effective_ci_repair"].includes(normalized)) return "failure"
-  if (["blocked", "paused", "stale", "operator_action_required", "auto_repairable", "waiting"].includes(normalized)) return "warning"
-  if (["running", "queued", "pending", "landing"].includes(normalized)) return "info"
+  if (["succeeded", "success", "approved", "merged", "current", "repaired", "confirmed", "fired"].includes(normalized)) return "success"
+  if (["failed", "failure", "error", "alarm", "cancelled", "canceled", "no_effective_ci_repair", "rejected", "withdrawn"].includes(normalized)) return "failure"
+  if (["blocked", "paused", "auto_paused", "stale", "operator_action_required", "auto_repairable", "waiting"].includes(normalized)) return "warning"
+  if (["running", "queued", "pending", "landing", "proposed", "confirming", "scheduled"].includes(normalized)) return "info"
   return "neutral"
 }
 
