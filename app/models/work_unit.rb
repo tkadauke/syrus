@@ -30,10 +30,18 @@ class WorkUnit < ApplicationRecord
     preempted
   ].freeze
 
-  # Genuine pause / infra-hold reasons — a human paused the Job, or the
-  # system halted it for an infra reason. Excludes the dependency-wait
-  # reasons above so "Paused" doesn't double up with "Blocked".
-  PAUSE_BLOCKED_REASONS = (BLOCKED_REASONS - DEPENDENCY_BLOCKED_REASONS).freeze
+  # Genuine pause reasons — a human paused the Job (manual_pause), or the
+  # agent provider is unavailable/over quota (provider_availability). This
+  # is a deliberate allowlist, not `BLOCKED_REASONS - DEPENDENCY_BLOCKED_REASONS`:
+  # every other blocked reason (admission_control, resource_safety, locks,
+  # backoff, etc.) is normal scheduling contention already surfaced via the
+  # "Queued" folder's blocked badge, not a genuine pause. Keeping this an
+  # allowlist means a newly added BLOCKED_REASONS value defaults to NOT
+  # showing under "Paused" unless explicitly opted in here.
+  PAUSE_BLOCKED_REASONS = %w[
+    manual_pause
+    provider_availability
+  ].freeze
 
   belongs_to :work_intent
   belongs_to :repository, optional: true

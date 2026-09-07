@@ -333,15 +333,15 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "stale")).to contain_exactly(stale_queued)
     end
 
-    it "paused: returns manually paused jobs and WorkUnit-paused jobs" do
+    it "paused: returns manually paused jobs and provider-availability-blocked jobs" do
       manual = Factories.job_record(repository: repo, issue_number: 30, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
       work_unit_paused = Factories.job_record(repository: repo, issue_number: 31, state: "running")
       landing_paused = Factories.job_record(repository: repo, issue_number: 32, state: "landing")
       repair_paused = Factories.job_record(repository: repo, issue_number: 37, state: "failed")
       Factories.job_record(repository: repo, issue_number: 33, state: "queued")
-      create_blocked_work_unit_for(work_unit_paused)
-      create_blocked_work_unit_for(landing_paused, kind: "auto_merge")
-      create_blocked_work_unit_for(repair_paused, kind: "ci_failure")
+      create_blocked_work_unit_for(work_unit_paused, blocked_reason: "provider_availability")
+      create_blocked_work_unit_for(landing_paused, kind: "auto_merge", blocked_reason: "provider_availability")
+      create_blocked_work_unit_for(repair_paused, kind: "ci_failure", blocked_reason: "provider_availability")
 
       expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, work_unit_paused, repair_paused)
     end
@@ -356,7 +356,7 @@ RSpec.describe "Filters::Chips" do
         state: "running",
         artifacts: { "start_blocked_reason" => "workflow_admission_budget" }
       )
-      create_blocked_work_unit_for(work_unit_paused)
+      create_blocked_work_unit_for(work_unit_paused, blocked_reason: "provider_availability")
 
       expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(work_unit_paused)
       expect(run(field: "has_start_blocked_reason", op: "is_true", value: nil)).to contain_exactly(work_unit_paused)
@@ -364,7 +364,7 @@ RSpec.describe "Filters::Chips" do
 
     it "paused: excludes jobs blocked only for a dependency-wait reason" do
       genuinely_paused = Factories.job_record(repository: repo, issue_number: 40, state: "running")
-      create_blocked_work_unit_for(genuinely_paused, blocked_reason: "admission_control")
+      create_blocked_work_unit_for(genuinely_paused, blocked_reason: "provider_availability")
 
       WorkUnit::DEPENDENCY_BLOCKED_REASONS.each_with_index do |reason, index|
         dependency_waiting = Factories.job_record(repository: repo, issue_number: 41 + index, state: "approved")
@@ -372,6 +372,22 @@ RSpec.describe "Filters::Chips" do
 
         result = run(field: "attention", op: "is", value: "paused")
         expect(result).not_to include(dependency_waiting), "expected #{reason.inspect}-blocked job to be excluded from paused"
+      end
+
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(genuinely_paused)
+    end
+
+    it "paused: excludes jobs blocked for ordinary scheduling-contention reasons" do
+      genuinely_paused = Factories.job_record(repository: repo, issue_number: 60, state: "running")
+      create_blocked_work_unit_for(genuinely_paused, blocked_reason: "manual_pause")
+
+      non_pause_reasons = WorkUnit::BLOCKED_REASONS - WorkUnit::PAUSE_BLOCKED_REASONS
+      non_pause_reasons.each_with_index do |reason, index|
+        not_paused = Factories.job_record(repository: repo, issue_number: 61 + index, state: "approved")
+        create_blocked_work_unit_for(not_paused, blocked_reason: reason)
+
+        result = run(field: "attention", op: "is", value: "paused")
+        expect(result).not_to include(not_paused), "expected #{reason.inspect}-blocked job to be excluded from paused"
       end
 
       expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(genuinely_paused)
