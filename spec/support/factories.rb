@@ -229,6 +229,16 @@ module Factories
       job(**attrs).initial_run
     end
   end
+
+  def attention_item(**attrs)
+    repo = attrs[:repository] || repository
+    AttentionItem.create!({
+      problem_code: "grader_failure",
+      signature: "grader_failure:#{SecureRandom.hex(4)}",
+      title: "rspec failed on JOB-#{SecureRandom.hex(2)}",
+      repository: repo
+    }.merge(attrs))
+  end
 end
 
 RSpec.configure do |config|

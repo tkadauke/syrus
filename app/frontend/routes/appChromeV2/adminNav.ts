@@ -37,6 +37,7 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "overview", labelKey: "nav_overview", to: "/admin", paths: ["/admin"], groupId: null, order: 0 },
   { id: "queue", labelKey: "nav_queue", to: "/admin/queue", paths: ["/admin/queue"], groupId: "operations", order: 10 },
   { id: "stuck", labelKey: "nav_stuck", to: "/admin/stuck", paths: ["/admin/stuck"], groupId: "operations", order: 20 },
+  { id: "attention_items", labelKey: "nav_attention_items", to: "/admin/attention_items", paths: ["/admin/attention_items"], groupId: "operations", order: 25 },
   { id: "activity", labelKey: "nav_activity", to: "/admin/activity", paths: ["/admin/activity"], groupId: "operations", order: 30 },
   { id: "reconciler_activity", labelKey: "nav_reconciler_activity", to: "/admin/reconciler_activity", paths: ["/admin/reconciler_activity"], groupId: "operations", order: 40 },
   { id: "work_units", labelKey: "nav_work_units", to: "/admin/work_units", paths: ["/admin/work_units"], groupId: "operations", order: 50 },
