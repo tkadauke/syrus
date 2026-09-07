@@ -307,9 +307,24 @@ resolution, Coding Mode gating, and handoff-confirmation behavior.
 `POST /api/v1/app/chats/:chat_id/shell_commands` runs a single, user-supplied
 shell command against a Coding Mode chat session's persistent `ChatWorkspace`
 checkout (the same long-lived clone Coding Mode turns edit — not an ephemeral
-workspace). It is currently an API-level primitive only: the composer's `!`
-trigger and the chat rendering of command output are separate follow-up Jobs
-under EPIC-323.
+workspace).
+
+Typing `!` as the first character of an empty composer, in a `coding`-mode
+chat, flips it into command-mode styling (red border/background/text —
+`isBangCommandMode` in `app/frontend/lib/bangCommand.ts`, modeled on the
+slash-command derived-state pattern; shown every time, no one-time
+dismissal) and routes Send to this endpoint instead of the normal
+message/enqueue path. Backspacing the draft back to empty reverts to a
+normal message. While a command is running, a second `!` submission is
+blocked client-side (mirroring the endpoint's one-in-flight rule) and the
+composer shows a stop control in place of the normal "stop agent" button,
+calling the cancel endpoint below. The composer has no read/poll endpoint
+for a running command's status; it infers completion once the
+`chat_shell_command_id`-carrying message below shows up in the transcript.
+This wiring is scoped to Coding Mode chats only — Local Mode's `!` handling
+is a separate follow-up Job under EPIC-323, as is chat rendering of the
+command output itself (currently rendered as a plain message, not the
+monospace/ANSI-aware treatment the Epic calls for).
 
 Requirements enforced by the endpoint and `ChatShellCommandJob`:
 

@@ -3360,6 +3360,189 @@ describe("composer next-step suggestion", () => {
   })
 })
 
+describe("bang command mode (EPIC-323)", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("flips into warning-styled command mode when ! is typed as the first character, in a Coding Mode chat", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(textarea.className).not.toMatch(/border-red-300/)
+
+    fireEvent.change(textarea, { target: { value: "!" } })
+    expect(textarea.className).toMatch(/border-red-300/)
+    expect(textarea.className).toMatch(/bg-red-50/)
+    expect(textarea.className).toMatch(/text-red-700/)
+
+    fireEvent.change(textarea, { target: { value: "!ls -la" } })
+    expect(textarea.className).toMatch(/border-red-300/)
+
+    fireEvent.change(textarea, { target: { value: "" } })
+    expect(textarea.className).not.toMatch(/border-red-300/)
+  })
+
+  it("does not enter command mode outside Coding Mode chats", async () => {
+    const fetchMock = mockChatRouteFetch(chatPayload({ chat: { mode: "planning" } }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "!ls -la" } })
+    expect(textarea.className).not.toMatch(/border-red-300/)
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) =>
+        String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit)?.method === "POST"
+      )).toBe(true)
+    })
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/shell_commands")).toBe(false)
+  })
+
+  it("submits a ! command to the shell command endpoint, clears the composer, and surfaces a stop control while it runs", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: 501,
+          chat_session_id: 8,
+          command: "ls -la",
+          output: null,
+          outcome: null,
+          exit_status: null,
+          started_at: "2026-09-07T00:00:00Z",
+          finished_at: null,
+          running: true,
+          cancellable: false
+        }, 201))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "!ls -la" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) =>
+        String(call[0]) === "/api/v1/app/chats/8/shell_commands" &&
+        (call[1] as RequestInit)?.method === "POST" &&
+        (call[1] as RequestInit)?.body === JSON.stringify({ command: "ls -la" })
+      )).toBe(true)
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    expect(await screen.findByRole("button", { name: "Stop command" })).toBeInTheDocument()
+  })
+
+  it("blocks a second ! submission while one is already running", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: 501,
+          chat_session_id: 8,
+          command: "ls -la",
+          output: null,
+          outcome: null,
+          exit_status: null,
+          started_at: "2026-09-07T00:00:00Z",
+          finished_at: null,
+          running: true,
+          cancellable: false
+        }, 201))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "!ls -la" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await screen.findByRole("button", { name: "Stop command" })
+
+    const shellCommandPosts = () => fetchMock.mock.calls.filter((call) =>
+      String(call[0]) === "/api/v1/app/chats/8/shell_commands" && (call[1] as RequestInit)?.method === "POST"
+    ).length
+    expect(shellCommandPosts()).toBe(1)
+
+    fireEvent.change(textarea, { target: { value: "!pwd" } })
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    expect(shellCommandPosts()).toBe(1)
+  })
+
+  it("cancels the running command via the stop control", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/shell_commands" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: 501,
+          chat_session_id: 8,
+          command: "sleep 100",
+          output: null,
+          outcome: null,
+          exit_status: null,
+          started_at: "2026-09-07T00:00:00Z",
+          finished_at: null,
+          running: true,
+          cancellable: true
+        }, 201))
+      }
+      if (path === "/api/v1/app/chats/8/shell_commands/501/cancel" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          id: 501,
+          chat_session_id: 8,
+          command: "sleep 100",
+          output: null,
+          outcome: null,
+          exit_status: null,
+          started_at: "2026-09-07T00:00:00Z",
+          finished_at: null,
+          running: true,
+          cancellable: true
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { mode: "coding" } })))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "!sleep 100" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    const stopButton = await screen.findByRole("button", { name: "Stop command" })
+    fireEvent.click(stopButton)
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) =>
+        String(call[0]) === "/api/v1/app/chats/8/shell_commands/501/cancel" && (call[1] as RequestInit)?.method === "POST"
+      )).toBe(true)
+    })
+  })
+})
+
 describe("scratchpad stash button", () => {
   beforeEach(() => {
     window.localStorage.clear()
