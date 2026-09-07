@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import type { ChangeEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
+import type { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { createBugReport } from "../api/bugReports"
 import { useShakeToReport } from "../hooks/useShakeToReport"
@@ -88,6 +88,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const [optionalAttachments, setOptionalAttachments] = useState<BugReportOptionalAttachment[]>([])
   const [selectedOptionalAttachmentIds, setSelectedOptionalAttachmentIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<ReactNode>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const [bugContext, setBugContext] = useState<BugReportContext | null>(null)
 
@@ -122,6 +123,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       setBugContext(null)
       setOptionalAttachments([])
       setSelectedOptionalAttachmentIds(new Set())
+      setIsDragOver(false)
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -175,6 +177,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setSelectedOptionalAttachmentIds(new Set(mergedOptionalAttachments.filter((attachment) => attachment.defaultChecked).map((attachment) => attachment.id)))
     setNotice(null)
     setBugContext(collectContext(chatId, featureFlags))
+    setIsDragOver(false)
     setCapturing(true)
 
     try {
@@ -226,6 +229,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setAttachmentError(null)
     setOptionalAttachments([])
     setSelectedOptionalAttachmentIds(new Set())
+    setIsDragOver(false)
     setOpen(false)
   }
 
@@ -243,10 +247,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setAnnotatingChoice(null)
   }
 
-  function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+  function handleAttachmentChange(fileList: FileList | File[] | null) {
     if (bugReport.isPending) return
-    const files = Array.from(event.target.files ?? [])
-    event.target.value = ""
+    const files = Array.from(fileList ?? [])
+    if (files.length === 0) return
 
     const oversized = files.find((f) => f.size > MAX_ATTACHMENT_SIZE)
     if (oversized) {
@@ -273,6 +277,35 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     if (bugReport.isPending) return
     setAttachments((current) => current.filter((_, i) => i !== index))
     setAttachmentError(null)
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (bugReport.isPending) return
+    setIsDragOver(true)
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+
+    setIsDragOver(false)
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    if (bugReport.isPending || event.dataTransfer.files.length === 0) return
+
+    handleAttachmentChange(event.dataTransfer.files)
   }
 
   function toggleOptionalAttachment(id: string, checked: boolean) {
@@ -314,7 +347,23 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-html2canvas-ignore>
-          <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">
+          <section
+            aria-labelledby="bug-report-title"
+            aria-modal="true"
+            className={`relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            role="dialog"
+          >
+            {isDragOver ? (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-brand/10">
+                <p className="rounded-md bg-white dark:bg-gray-900 px-4 py-2 text-sm font-semibold text-brand shadow">
+                  {t("bug_report.drop_to_attach")}
+                </p>
+              </div>
+            ) : null}
             <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -417,7 +466,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                       className="sr-only"
                       disabled={formDisabled || attachments.length >= MAX_EXTRA_ATTACHMENTS}
                       multiple
-                      onChange={handleAttachmentChange}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                        handleAttachmentChange(event.target.files)
+                        event.target.value = ""
+                      }}
                       type="file"
                     />
                   </label>
