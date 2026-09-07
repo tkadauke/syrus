@@ -355,7 +355,13 @@ Key steps:
   indexing.
 - **`pr_open`** —
   Non-agentic: run service code (`PullRequestOpener`) to push the branch and
-  open the PR if needed.
+  open the PR if needed. First restores the validated implementation from its
+  `RunCheckpoint` when the workspace lacks it: a Job's branch is local-only
+  until this step pushes it, and workspaces are node-local while Runs go to any
+  free worker, so a hop between `implement` and here yields a fresh clone off
+  the base with no implementation (JOB-4453/4463/4470).
+  `RunCheckpointPublisher` already publishes every mutation step's commit for
+  this purpose — only `summarize`/`summarize_amend` used to restore from it.
 - **`review_plan`** — Optional, best-effort agentic step after `pr_open` in
   chains ending with `initial_pr_finish_steps`. Opt-in via `.syrus.yml`
   `review_plan: true` (a bare boolean, not a nested block); materialized

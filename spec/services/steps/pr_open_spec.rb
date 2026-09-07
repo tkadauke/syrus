@@ -455,6 +455,63 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(workflow.reload.artifact("no_pr_reason")).to be_nil
   end
 
+  # A Job's work branch lives only in the workspace until pr_open pushes it,
+  # and workspaces are node-local while Runs go to whichever worker is free. A
+  # Workflow that hops between `implement` and here gets a fresh clone off the
+  # base with no implementation in it. RunCheckpointPublisher already pushes
+  # every mutation step's commit to a durable ref for exactly this case, and
+  # only summarize/summarize_amend ever restored from it -- so the one step
+  # that publishes the branch was the one that could not recover.
+  # JOB-4453/4463/4470 all reached here empty.
+  it "restores the validated implementation from its checkpoint before publishing" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
+    implement_run = Run.create!(
+      job: job, step: implement_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "succeeded", head_sha: "validated-sha"
+    )
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    allow(handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"))
+    )
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(true)
+    allow(handler).to receive(:restore_run_checkpoint_if_needed!)
+
+    handler.call
+
+    expect(handler).to have_received(:restore_run_checkpoint_if_needed!)
+      .with(implement_run, context: "pr_open")
+  end
+
+  # The recovery is opportunistic. If it cannot run, the step must behave
+  # exactly as it did before rather than turning a repairable state into a
+  # worse failure -- close_empty_new_publication_branch! still guards the
+  # outcome.
+  it "publishes as before when the checkpoint restore cannot run" do
+    job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
+    Run.create!(
+      job: job, step: implement_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider, state: "succeeded", head_sha: "validated-sha"
+    )
+    pr_open_run = Run.create!(
+      job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    allow(handler).to receive(:workspace).and_return(
+      instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/direct-#{job.id}", path: Pathname.new("/tmp/syrus-pr-open-spec"))
+    )
+    allow(handler).to receive(:push_branch).and_return(:pushed)
+    allow(handler).to receive(:close_empty_new_publication_branch!).and_return(true)
+    allow(handler).to receive(:restore_run_checkpoint_if_needed!).and_raise(Errno::ENOENT, "/tmp/syrus-pr-open-spec")
+
+    expect { handler.call }.not_to raise_error
+  end
+
   it "fails with the validated and publication heads when an empty branch no longer contains the implementation head" do
     job.update!(state: "running", kind: "direct", issue_number: nil, issue_title: "Retry task", pr_number: nil)
     Run.create!(

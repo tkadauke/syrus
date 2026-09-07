@@ -417,6 +417,19 @@ Agentic. Asks the agent to call the available `submit_test_plan` MCP tool name w
 
 ### pr_open
 
+
+Before doing anything else, `pr_open` restores the validated implementation from
+its `RunCheckpoint` if the workspace does not already contain it. A Job's work
+branch exists only in the workspace until this step pushes it, and workspaces
+are node-local while each Run is claimed by whichever worker is free — so a
+Workflow that hops workers between `implement` and `pr_open` gets a fresh clone
+off the base with no implementation in it. `RunCheckpointPublisher` already
+pushes every mutation step's commit to a durable remote ref for exactly this
+case; until now only `summarize`/`summarize_amend` restored from it, which left
+the step that actually publishes the branch as the one step that could not
+recover. The restore is opportunistic: if it cannot run, the step behaves as it
+did before and `close_empty_new_publication_branch!` still refuses to publish an
+empty branch or file the Job as `no_changes`.
 Non-agentic. Pushes the branch and opens the PR using the title/body from workflow artifacts. Falls back to `PrSummarizer`, then to a templated default if no agent-authored copy is available.
 
 When a duplicate retry workflow reaches `pr_open` after a newer workflow has

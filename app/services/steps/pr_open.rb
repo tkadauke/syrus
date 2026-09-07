@@ -32,6 +32,7 @@ module Steps
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
+      restore_validated_implementation_if_missing!
       workflow.set_artifact!("publication_branch", workspace.branch_name)
       log("pr_open: checking PR open preconditions (#{workflow.slug})")
 
@@ -365,6 +366,37 @@ module Steps
 
     def expected_publication_head_sha
       latest_succeeded_run_for(%w[implement run_skill])&.head_sha.to_s.presence
+    end
+
+    # A Job's work branch lives only in the workspace until this step pushes
+    # it, and workspaces sit on node-local disk while each Run is claimed by
+    # whichever worker is free. A Workflow that hops workers between
+    # `implement` and here gets a fresh clone, finds no such branch on the
+    # remote, and checks out a new one off the base -- so HEAD is the base tip
+    # and the implementation is simply not present.
+    #
+    # `RunCheckpointPublisher` already pushes every mutation step's commit to a
+    # durable remote ref for exactly this reason, and
+    # `restore_run_checkpoint_if_needed!` already knows how to pull it back.
+    # Only `summarize`/`summarize_amend` ever called it, so the step that
+    # actually publishes the branch was the one step that could not recover --
+    # JOB-4453, JOB-4463 and JOB-4470 all reached here with an empty workspace
+    # and were caught by close_empty_new_publication_branch! only after the
+    # empty branch had been pushed.
+    #
+    # Restoring is safe and cheap: it no-ops when the workspace already
+    # contains the validated head, which is the overwhelmingly common case.
+    def restore_validated_implementation_if_missing!
+      source_run = latest_succeeded_run_for(%w[implement run_skill])
+      return if source_run.nil?
+
+      restore_run_checkpoint_if_needed!(source_run, context: "pr_open")
+    rescue StandardError => e
+      # Opportunistic recovery: if it cannot run, the step proceeds exactly as
+      # it did before and close_empty_new_publication_branch! still refuses to
+      # publish or to file the Job as "no_changes". A failed rescue attempt
+      # must not become a worse failure than the one it was trying to repair.
+      log("pr_open: could not restore the validated implementation checkpoint: #{e.class}: #{e.message}", kind: "system")
     end
 
     def verify_existing_pr_branch_not_diverged!(git, push_url)
