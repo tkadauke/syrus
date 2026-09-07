@@ -134,19 +134,31 @@ none survives). Clicking a Workflow span navigates to
 That route renders `WorkflowWaterfall.tsx`: one lane per Step (in position
 order), with that Step's Run attempt(s) drawn as spans within the lane so
 retries are visible as sequential bars. It reuses the macro view's
-`useZoomableTimeScale` hook, `TimeAxis`, `TimelineBar`, and the
-`formatDuration`/`blockedMessage` tooltip helpers (extracted under
-`components/timeline/`) rather than reimplementing pan/zoom or tooltip
-logic, but — unlike the macro view — still virtualizes its Step rows via
-`useVirtualizedRows` inside a fixed-height, vertically scrollable container,
-since a single workflow's Step list is not expected to grow the way the
-macro view's worker lanes can. A Step with no
+`useZoomableTimeScale` hook, the `formatDuration`/`blockedMessage` tooltip
+helpers (extracted under `components/timeline/`), and the shared `TimeAxis`,
+`TimelineBar`, and `TooltipCard` rendering primitives rather than
+reimplementing pan/zoom or tooltip logic, but — unlike the macro view — still
+virtualizes its Step rows via `useVirtualizedRows` inside a fixed-height,
+vertically scrollable container, since a single workflow's Step list is not
+expected to grow the way the macro view's worker lanes can. A Step with no
 started Run yet renders as a hoverable "not started" marker instead of a
 bar (there's no timestamp to place a bar at); its tooltip reuses the same
 blocked-reason explanation the macro view shows for a pending Workflow. If
 the Workflow itself hasn't started, the waterfall skips the time axis
 entirely (there's no meaningful scale yet) and shows every Step as a
 "not started" marker.
+
+`TimeAxis`, `TimelineBar`, and `TooltipCard` themselves live in core at
+`app/frontend/components/timeline/` (not under this plugin), since they have
+no `worker_timeline`-specific behavior — this plugin's `TimelineLanes.tsx` and
+`WorkflowWaterfall.tsx` import them from `@app/components/timeline/*` the same
+way `test_insights` imports shared core components.
+`components/timeline/constants.ts` (`CHART_WIDTH`, `ROW_HEIGHT`,
+`STATUS_COLORS`) stays plugin-local; `TimeAxis` takes chart `width` as a prop
+rather than importing a plugin constant. See
+`config/syrus_docs/worker_activity_timeline.md` for the separate,
+non-admin-safe `GET /api/v1/app/jobs/:id/waterfall` endpoint that also wraps
+`Timeline::WorkflowWaterfallQuery` for a Job detail page Timeline tab.
 
 The macro view wires `FilterBar`'s `suggestionSearch` to
 `surface: "worker_timeline", subject: "worker_timeline"` and records
