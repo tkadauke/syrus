@@ -12,7 +12,7 @@ module Jobs
   # reporting per-Job success/failure lets the caller exclude a Job
   # that lost the race instead of silently reporting it as approved.
   # Mirrors the lock-then-check pattern already used by
-  # EpicLandingRetrier/JobBundleRetrier/LandingQueueProcessor.
+  # LandingRetrier/LandingQueueProcessor.
   class BulkApprover
     Result = Data.define(:approved, :failed) do
       def success? = approved.any?
