@@ -395,7 +395,7 @@ func epicJobLine(job api.JobItem, width int) string {
 		title = "Untitled"
 	}
 	prefix := fmt.Sprintf("JOB-%d · ", job.ID)
-	suffix := fmt.Sprintf("  [%s]", inspectColorState(job.State))
+	suffix := fmt.Sprintf("  [%s]", inspectColorState(job.State, true))
 	if width > len(prefix)+len(job.State)+5 {
 		title = truncate(title, width-len(prefix)-len(job.State)-5)
 	}
