@@ -195,6 +195,35 @@ func TestJobCreateRejectsNonNumericOwner(t *testing.T) {
 	}
 }
 
+func TestJobCreateFailsFastOnInvalidRepoWithoutPrompting(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/app/repositories":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"active_repositories":[{"id":12,"slug":"acme/widgets"}]}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetIn(strings.NewReader(""))
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"job", "create", "--repo", "acme/bogus", "--yes"})
+
+	err := command.Execute()
+	if err == nil || err.Error() != "repository acme/bogus is not configured for this Syrus account" {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(output.String(), "Title:") {
+		t.Fatalf("expected no prompt output, got %q", output.String())
+	}
+}
+
 func TestJobActionPostsEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/app/jobs/456/approve" {
