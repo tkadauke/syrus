@@ -396,6 +396,40 @@ describe("WorkerTimeline macro view", () => {
     expect(tooltip).toHaveTextContent("Blocked: provider_availability")
   })
 
+  it("keeps the hover tooltip within the viewport when hovering a span near the right edge", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
+    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+    })
+    setupFetchMock()
+    renderTimeline()
+
+    const span = await screen.findByRole("button", { name: "JOB-43 · pr_comment" })
+    fireEvent.mouseEnter(span, { clientX: 1010, clientY: 100 })
+
+    const tooltip = await screen.findByRole("tooltip")
+    const left = Number.parseFloat(tooltip.style.left)
+    expect(left + 320).toBeLessThanOrEqual(1024)
+  })
+
+  it("keeps the default cursor-offset placement for a tooltip hovered away from any edge", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
+    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 320, height: 120, top: 0, left: 0, right: 320, bottom: 120, x: 0, y: 0, toJSON: () => ({})
+    })
+    setupFetchMock()
+    renderTimeline()
+
+    const span = await screen.findByRole("button", { name: "JOB-43 · pr_comment" })
+    fireEvent.mouseEnter(span, { clientX: 200, clientY: 200 })
+
+    const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip.style.left).toBe("212px")
+    expect(tooltip.style.top).toBe("212px")
+  })
+
   it("shows restart dividers when the pid changes within a durable lane", async () => {
     const payload = macroPayload()
     const firstLane = payload.lanes[0] as Record<string, unknown>
