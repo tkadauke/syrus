@@ -43,6 +43,23 @@ if Rails.env.development?
   demo_user.password = "password" if demo_user.new_record? || demo_user.password_digest.blank?
   demo_user.save!
 
+  # Team Directory (plugins/team_directory) hides its sidebar nav entry and
+  # collapses the page to a "single user" empty state below two users, so a
+  # fresh preview needs a second lightweight teammate for the directory list
+  # (and the demo user's own card within it) to actually be reachable.
+  teammate_user = User.find_or_initialize_by(email_address: "ada@syrus.local")
+  teammate_user.assign_attributes(
+    name: "Ada Lovelace",
+    first_name: "Ada",
+    last_name: "Lovelace",
+    github_handle: "ada",
+    profile_bio: "Keeps the analytical engines honest.",
+    agent_provider: "codex",
+    chat_provider: "codex"
+  )
+  teammate_user.password = "password" if teammate_user.new_record? || teammate_user.password_digest.blank?
+  teammate_user.save!
+
   demo_repo = Repository.find_or_initialize_by(owner: "demo", name: "syrus-preview")
   demo_repo.assign_attributes(
     user: demo_user,
