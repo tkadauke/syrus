@@ -55,7 +55,7 @@ class Remediation
     # anything reached through a retry. Asking the policy rather than
     # reimplementing it is what makes this a refactor.
     def work_definition_policy
-      policy = workflow&.work_definition&.retry_policy
+      policy = work_definition_retry_policy
       return nil unless policy
 
       if policy.respond_to?(:rebuild_unit?) && policy.rebuild_unit?(step)
@@ -72,6 +72,20 @@ class Remediation
       return Remediation[:fail, source: :problem_default] unless problem
 
       Remediation[problem.default_remediation, source: :problem_default]
+    end
+
+    # A Workflow's own trigger_kind can differ from the WorkUnit that actually
+    # owns its retry policy -- a `merge_train` trigger_kind Workflow can be a
+    # member attempt owned by a `job_bundle` WorkUnit, for example. Prefer the
+    # WorkUnit's kind the same way WorkEngine::RepairPlanner already does, so
+    # routing that reconciliation-plane decision through this resolver doesn't
+    # change which retry policy answers.
+    def work_definition_retry_policy
+      return nil unless workflow
+
+      WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind).retry_policy
+    rescue WorkDefinitions::UnknownKind
+      nil
     end
 
     def template_node_remediation
