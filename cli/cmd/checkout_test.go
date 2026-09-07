@@ -480,6 +480,310 @@ func TestCheckoutCommandRejectsWrongRepository(t *testing.T) {
 	}
 }
 
+func TestCheckoutCommandFallsBackToPlainBranchOn404(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/jobs/main" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+	repoRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoRoot, ".syrus.yml"), []byte("hooks:\n  post_checkout:\n    - echo hook-ran\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", fmt.Errorf("exit status 1")
+		case "checkout --track -b main refs/remotes/origin/main":
+			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	var hookCalls []string
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		hookCalls = append(hookCalls, command)
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+	if !reflect.DeepEqual(hookCalls, []string{"echo hook-ran"}) {
+		t.Fatalf("hook calls = %#v", hookCalls)
+	}
+}
+
+func TestCheckoutCommandPlainBranchFallbackRespectsNoHooksFlag(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/main:refs/remotes/origin/main":
+			return "", nil
+		case "show-ref --verify --quiet refs/heads/main":
+			return "", fmt.Errorf("exit status 1")
+		case "checkout --track -b main refs/remotes/origin/main":
+			return "", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		t.Fatalf("hook command should not run")
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "--no-hooks", "main"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.String() != "Checked out main.\n" {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestCheckoutCommandFoundJobAndEpicDoNotFallBackToBranch(t *testing.T) {
+	t.Run("job", func(t *testing.T) {
+		var apiCalls int
+		server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+			apiCalls++
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"job":{"id":456,"state":"running","branch_name":"syrus/issue-42-456"},"repository":{"slug":"acme/widgets"}}`)
+		})
+		writeTestCredentials(t, server.URL)
+
+		var calls [][]string
+		checkoutRunGit = checkoutGitStub(t, "syrus/issue-42-456", &calls)
+		t.Cleanup(func() { checkoutRunGit = runGit })
+
+		command := NewRootCommand()
+		command.SetOut(&bytes.Buffer{})
+		command.SetErr(&bytes.Buffer{})
+		command.SetArgs([]string{"checkout", "JOB-456"})
+
+		if err := command.Execute(); err != nil {
+			t.Fatalf("Execute returned error: %v", err)
+		}
+		if apiCalls != 1 {
+			t.Fatalf("apiCalls = %d, want 1", apiCalls)
+		}
+		wantCalls := checkoutGitCalls("syrus/issue-42-456")
+		if !reflect.DeepEqual(calls, wantCalls) {
+			t.Fatalf("git calls = %#v", calls)
+		}
+	})
+
+	t.Run("epic", func(t *testing.T) {
+		var apiCalls int
+		server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+			apiCalls++
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"epic":{"id":42,"number":42,"title":"Add auth","repository_slug":"acme/widgets"},"jobs":[{"id":45,"state":"open","title":"Add OAuth","branch_name":"syrus/issue-45","depends_on_job_ids":[]}]}`)
+		})
+		writeTestCredentials(t, server.URL)
+
+		var calls [][]string
+		checkoutRunGit = checkoutGitStub(t, "syrus/issue-45", &calls)
+		t.Cleanup(func() { checkoutRunGit = runGit })
+
+		command := NewRootCommand()
+		command.SetOut(&bytes.Buffer{})
+		command.SetErr(&bytes.Buffer{})
+		command.SetArgs([]string{"checkout", "EPIC-42"})
+
+		if err := command.Execute(); err != nil {
+			t.Fatalf("Execute returned error: %v", err)
+		}
+		if apiCalls != 1 {
+			t.Fatalf("apiCalls = %d, want 1", apiCalls)
+		}
+		wantCalls := checkoutGitCalls("syrus/issue-45")
+		if !reflect.DeepEqual(calls, wantCalls) {
+			t.Fatalf("git calls = %#v", calls)
+		}
+	})
+}
+
+func TestCheckoutCommandDoesNotFallBackOnNon404Error(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"error":{"message":"boom"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		t.Fatalf("git should not be called")
+		return "", nil
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "boom" {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestCheckoutCommandDoesNotFallBackOnNetworkError(t *testing.T) {
+	writeTestCredentials(t, "http://127.0.0.1:1")
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		t.Fatalf("git should not be called")
+		return "", nil
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "network error") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestCheckoutCommandPlainBranchRejectsDirtyWorktree(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	var calls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		calls = append(calls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return " M app/models/job.rb\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "main"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := "cannot check out main because the current worktree has local changes; commit or stash them first"
+	if err.Error() != want {
+		t.Fatalf("error = %q", err.Error())
+	}
+
+	wantCalls := [][]string{
+		{"rev-parse", "--is-inside-work-tree"},
+		{"status", "--porcelain"},
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("git calls = %#v", calls)
+	}
+}
+
+func TestCheckoutCommandPlainBranchReportsMissingBranch(t *testing.T) {
+	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"message":"Job not found"}}`)
+	})
+	writeTestCredentials(t, server.URL)
+
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "status --porcelain":
+			return "", nil
+		case "fetch origin +refs/heads/nonexistent-branch:refs/remotes/origin/nonexistent-branch":
+			return "", fmt.Errorf("fatal: couldn't find remote ref nonexistent-branch")
+		case "show-ref --verify --quiet refs/heads/nonexistent-branch":
+			return "", fmt.Errorf("exit status 1")
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	command := NewRootCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs([]string{"checkout", "nonexistent-branch"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	want := `branch "nonexistent-branch" was not found locally or on origin`
+	if err.Error() != want {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
 func TestCheckoutCommandChecksOutSingleSinkEpicJob(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/app/epics/42" {

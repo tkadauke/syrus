@@ -309,6 +309,21 @@ committed or stashed first. After a successful checkout, the CLI runs any
 stops if one fails. Pass `--no-hooks` to skip those commands for one
 checkout.
 
+If `<arg>` doesn't resolve to a Job or Epic (the API responds 404), `syrus
+checkout` falls back to treating it as a plain git branch name — e.g. `syrus
+checkout main` or `syrus checkout a-teammates-feature-branch`. This fallback
+is a plain fetch + checkout with no repository-slug matching (there's no Job
+to compare against) and none of the force-reset/backup-branch behavior a Job
+branch checkout uses (that machinery exists only because Syrus force-pushes
+agent commits onto Job branches). It fails with a clear error instead of
+silently discarding work if local changes would be overwritten or the local
+branch has diverged from `origin`, and it fails with a "not found" error if
+the branch doesn't exist locally or on `origin`. It still runs
+`.syrus.yml` `hooks.post_checkout` commands afterward (respecting
+`--no-hooks`), but has no Job to report a test-plan hint for. A non-404 API
+error (e.g. a network failure or server error) is surfaced as-is and does not
+trigger the branch fallback.
+
 `syrus checkout EPIC-N --complete` (where `N` is a numeric ID or a
 human-readable slug such as `EPIC-add-auth-system`) automatically selects the single branch
 that contains all of the Epic's implemented changes and checks it out, without
