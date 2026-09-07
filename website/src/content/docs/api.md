@@ -48,6 +48,26 @@ that session killed so the relay terminates the PTY. Session payloads include
 `id`, `name`, `working_directory`, `relay_address`, timestamps, `outcome`,
 and `workflow_id`; they never include the relay auth token.
 
+## Throughput Metrics
+
+When the `throughput` plugin is enabled, admin API clients can pull
+instance-wide throughput without writing SQL against production:
+
+```bash
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  "https://syrus.example.com/api/v1/admin/throughput?since=2026-08-30T00:00:00Z&until=2026-09-06T00:00:00Z"
+```
+
+`GET /api/v1/admin/throughput` returns Jobs created versus closed per
+bucket, Jobs reaching `implemented` per bucket, and the median/p90 cycle
+time from Job creation to `pr_merged`, bucketed by both hour and day so the
+same call covers incident work and trend watching. Pass `repository` (a
+numeric id or `owner/name` slug) to scope to one repository instead of the
+whole instance, and `since`/`until` (ISO-8601, consistent with
+`/api/v1/admin/runs?since=`) to bound the window -- default is the trailing
+7 days, clamped to at most 90. All timestamps in the response are UTC. With
+the plugin disabled this endpoint returns `plugin_disabled`.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
