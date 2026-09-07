@@ -332,6 +332,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const markdownMirrorRef = useRef<HTMLDivElement | null>(null)
+  const wysiwygRenderRef = useRef<{ highlights: AnchorHighlight[]; focusedThreadId: number | null; focusedSuggestionId: number | null }>({ highlights: [], focusedThreadId: null, focusedSuggestionId: null })
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -526,6 +527,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
     const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId, focusedSuggestionId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
+    wysiwygRenderRef.current = { highlights: activeHighlights, focusedThreadId, focusedSuggestionId }
   }, [draft, editorMode, focusedThreadId, focusedSuggestionId, activeHighlights])
 
   // Declared after (and thus, within this component, always flushed after)
@@ -777,7 +779,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 const marker = target.closest("[data-thread-id]") as HTMLElement | null
                 if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
               }}
-              onInput={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onInput={() => {
+                if (!wysiwygRef.current) return
+                const markdown = wysiwygHtmlToMarkdown(wysiwygRef.current)
+                const rendered = wysiwygRenderRef.current
+                resyncWysiwygSourceOffsets(wysiwygRef.current, markdown, rendered.highlights, rendered.focusedThreadId, rendered.focusedSuggestionId)
+                setDraft(markdown)
+              }}
               onKeyUp={updateWysiwygSelection}
               onMouseUp={updateWysiwygSelection}
               ref={wysiwygRef}
@@ -2243,6 +2251,29 @@ function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
 
 function sourceSpan(text: string, sourceStart: number) {
   return `<span data-source-start="${sourceStart}" data-source-end="${sourceStart + text.length}">${escapeHtml(text)}</span>`
+}
+
+// The Rich Text editor's full re-render (which bakes fresh data-source-start/end
+// attributes) is skipped while the contentEditable has focus, so it never touches the
+// live DOM mid-keystroke -- otherwise every input event would clobber the cursor. That
+// leaves those attributes stale as soon as the user types, so a selection made right
+// after an edit (without blurring first) resolves to the pre-edit offsets. Typing plain
+// text never changes the DOM's element structure, only text-node contents, so we can
+// keep the attributes correct without touching a single node: re-render the same
+// decoration into a detached template, and if it produced the same number of annotated
+// elements in the same order, copy their fresh offsets onto the live elements in place.
+function resyncWysiwygSourceOffsets(root: HTMLElement, markdown: string, highlights: AnchorHighlight[], focusedThreadId: number | null, focusedSuggestionId: number | null) {
+  const template = document.createElement("div")
+  template.innerHTML = markdownToWysiwygHtml(markdown, highlights, focusedThreadId, focusedSuggestionId)
+  const freshNodes = Array.from(template.querySelectorAll("[data-source-start][data-source-end]")) as HTMLElement[]
+  const liveNodes = Array.from(root.querySelectorAll("[data-source-start][data-source-end]")) as HTMLElement[]
+  if (freshNodes.length !== liveNodes.length) return false
+
+  liveNodes.forEach((liveNode, index) => {
+    liveNode.dataset.sourceStart = freshNodes[index].dataset.sourceStart
+    liveNode.dataset.sourceEnd = freshNodes[index].dataset.sourceEnd
+  })
+  return true
 }
 
 function sourceOffsetForSelectionBoundary(root: HTMLElement, container: Node, offset: number, affinity: "start" | "end") {
