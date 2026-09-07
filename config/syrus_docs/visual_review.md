@@ -231,11 +231,11 @@ manual visual-review semantics.
 ## Which workflows include visual review
 
 The automatic visual_review loop runs in `initial`, `retry`, `pr_comment`,
-and `chat_feedback` workflows when visual review resolves enabled and
-`rounds > 0`. It does not run in `ci_failure`, `auto_merge`, or maintenance
-workflows (`rebase`, `stack_rebase`). The manual trigger's standalone
-`manual_visual_review` Workflow is available independently of those chains
-wherever the Job state and repository configuration allow it.
+`chat_feedback`, and `coding_handoff` workflows when visual review resolves
+enabled and `rounds > 0`. It does not run in `ci_failure`, `auto_merge`, or
+maintenance workflows (`rebase`, `stack_rebase`). The manual trigger's
+standalone `manual_visual_review` Workflow is available independently of
+those chains wherever the Job state and repository configuration allow it.
 
 ### Feedback workflows (pr_comment, chat_feedback)
 
@@ -251,3 +251,20 @@ respond → visual_review(1) → [respond → visual_review(2) → ...] → grad
 The reviewer prompt includes a note that this is a feedback workflow and the
 full feedback history (PR comments or chat message) being addressed, and
 reads the diff from the `respond` step rather than an `implement` step.
+
+### Coding handoff workflow
+
+`coding_handoff` has no bare leading `implement`/`respond` step — a chat
+coding session already produced the diff before the workflow started, so
+`coding_handoff_fix` plays the "agent_step" role instead, the same shape
+`implement`/`respond` play elsewhere:
+
+```
+visual_review(1) → [coding_handoff_fix → visual_review(2) → ...] → graders
+```
+
+Because the chain has no `implement`/`respond` step at all,
+`Steps::VisualReview#latest_agentic_diff` falls back to a fresh `git diff`
+against the default branch — the same fallback path used by the standalone
+`manual_visual_review` workflow. A `needs_work` verdict is repaired by
+`coding_handoff_fix`, which also handles the workflow's grader retry loop.

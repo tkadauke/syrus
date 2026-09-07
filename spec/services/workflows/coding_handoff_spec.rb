@@ -65,6 +65,60 @@ RSpec.describe Workflows::CodingHandoff do
         expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
       end
     end
+
+    context "when adversarial review is enabled" do
+      before do
+        allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+          RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
+        )
+      end
+
+      it "inserts a review-first adversarial_review loop, repaired by coding_handoff_fix, before the grader retry chain" do
+        allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare adversarial_review grader_fanout grader_collect summarize test_plan pr_open ]
+        )
+        expect(workflow.steps.where(kind: "coding_handoff_fix").count).to eq(0)
+        expect(workflow.chain_template).to include(
+          { "type" => "loop", "max_iterations" => 2, "steps" => %w[ coding_handoff_fix adversarial_review ] }
+        )
+      end
+    end
+
+    context "when visual review is enabled" do
+      before do
+        allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+          RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+        )
+      end
+
+      it "inserts a review-first visual_review loop before the grader retry chain" do
+        allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare visual_review grader_fanout grader_collect summarize test_plan pr_open ]
+        )
+      end
+
+      context "and adversarial review is also enabled" do
+        before do
+          allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+            RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
+          )
+        end
+
+        it "places the visual_review loop after the adversarial_review loop and before the grader retry chain" do
+          workflow = described_class.instantiate(job: job)
+
+          expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+            %w[ prepare adversarial_review visual_review grader_fanout grader_collect summarize test_plan pr_open ]
+          )
+        end
+      end
+    end
   end
 
   describe ".after_success" do

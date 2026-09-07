@@ -4,7 +4,7 @@ Adversarial review adds an independent critic agent to the implementation loop. 
 
 ## How it works
 
-When adversarial review is enabled (rounds > 0), Syrus inserts a bounded, review-first loop before the grader step chain. Every workflow that has this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`) leads with a bare top-level `implement`/`respond` step — implementation or feedback-response happens regardless of whether adversarial review or a grade loop are configured — so the loop itself always starts with the reviewer, never a redundant repeat of that work:
+When adversarial review is enabled (rounds > 0), Syrus inserts a bounded, review-first loop before the grader step chain. Most workflows that have this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`) lead with a bare top-level `implement`/`respond` step — implementation or feedback-response happens regardless of whether adversarial review or a grade loop are configured — so the loop itself always starts with the reviewer, never a redundant repeat of that work. `coding_handoff` has no such leading step (a chat coding session already produced the diff before the workflow started), so its reviewer falls back to a fresh `git diff` against the default branch instead, and `coding_handoff_fix` plays the repair role — see [Coding handoff workflow](#coding-handoff-workflow) below.
 
 ```
 adversarial_review(1)
@@ -86,7 +86,7 @@ The adversarial reviewer resumes its session from the previous `adversarial_revi
 
 ## Which workflows include adversarial review
 
-Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
+Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`, and `coding_handoff` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
 
 ### Retry workflow
 
@@ -109,3 +109,13 @@ The reviewer prompt includes:
 - The full feedback history (PR comments or chat message) being addressed
 
 The reviewer reads the `respond` step diff rather than an `implement` step diff, and has visibility into what feedback the agent was asked to handle.
+
+### Coding handoff workflow
+
+`coding_handoff` validates work a Coding Mode chat session already committed, before opening a PR. It has no bare leading `implement`/`respond` step to review — `coding_handoff_fix` plays the "agent_step" role instead, the same shape `implement`/`respond` play elsewhere:
+
+```
+adversarial_review(1) → [coding_handoff_fix → adversarial_review(2) → ...] → visual_review? → graders
+```
+
+`Steps::AdversarialReview#latest_agentic_diff` falls back to a fresh `git diff` against the default branch whenever the chain has no `implement`/`respond` step at all — the same fallback `Steps::VisualReview` already uses for the standalone `manual_visual_review` workflow. A `needs_work` verdict is repaired by `coding_handoff_fix`, which also handles the workflow's grader retry loop, so one repair step reacts to both review feedback and grader failures.
