@@ -13,7 +13,13 @@ debugging possible without shelling into pods first.
 Admin Performance shows slow browser traces, requests, jobs, SQL statements,
 phases, and event writes for the current revision. Request details can group
 SQL under the request and under the deepest active phase, so a slow endpoint is
-traceable to the actual work it performed.
+traceable to the actual work it performed. Browser traces include both
+passive observations (long tasks, slow input, event-loop lag) and explicit
+frontend markers that frontend code places with the `performanceMarkers`
+API — named spans like `diff_review.parse_diff` or
+`diff_review.syntax_highlight` that break a slow UI surface down into the
+specific phase responsible, the same way backend phase events do for
+requests.
 
 Use it when:
 
@@ -83,6 +89,14 @@ For a slow page:
 2. Inspect grouped SQL and phase timing for that request.
 3. Explain the slowest SQL if the statement is safe.
 4. Check Browser traces if backend time is low but the page still feels slow.
+5. For a specific slow UI surface (e.g. the diff review tab), look at the
+   grouped browser traces named for that surface (`diff_review.*`) instead
+   of only the generic `browser.slow_input` entry -- they share the same
+   `path`, app revision, and timestamp window, so a slow input event on
+   `/jobs/4348?tab=review` can be lined up against nearby
+   `diff_review.parse_diff`/`diff_review.syntax_highlight`/
+   `diff_review.viewport_render` markers to see which phase actually
+   dominated.
 
 For a stuck Job:
 
