@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { ReviewWorkspace } from "./ReviewWorkspace"
+
+stubVirtualizerMeasurements()
 import {
   createDiffReviewComment,
   deleteDiffReviewComment,
@@ -95,9 +98,9 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
     expect(screen.getByText("Changed files")).toBeInTheDocument()
 
-    const target = document.querySelector('[data-diff-file="app/models/run.rb"]') as HTMLElement
-    const scrollSpy = vi.fn()
-    target.scrollIntoView = scrollSpy
+    // The review workspace uses natural (window) scroll, so ReviewableDiff's
+    // file-level virtualizer scrolls the window itself, not a container div.
+    const scrollSpy = vi.spyOn(window, "scrollTo")
 
     fireEvent.click(screen.getByTitle("app/models/run.rb (+1 -0)"))
 

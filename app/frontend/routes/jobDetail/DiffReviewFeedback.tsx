@@ -24,6 +24,12 @@ type DiffReviewFeedbackOptions = {
   enabled: boolean
   headRef?: string | null
   jobId: number | string
+  // Called with a comment's file path when the caller clicks "View in
+  // diff". The reviewable diff itself owns navigation (including scrolling
+  // a virtualized, not-currently-mounted file into view), so this should
+  // route into whatever state that diff's `selectedPath` prop is bound to,
+  // e.g. `setSelectedPath`.
+  onNavigateToFile?: (path: string) => void
   runId?: number | null
   supportsGlobalComments?: boolean
   surface: string
@@ -34,16 +40,13 @@ export function diffReviewFeedbackAllowed(jobState: string) {
   return jobState === "implemented" || jobState === "approved" || jobState === "failed"
 }
 
-function scrollToDiffAnchor(path: string) {
-  document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" })
-}
-
 export function useDiffReviewFeedback({
   baseRef,
   buildContext,
   enabled,
   headRef,
   jobId,
+  onNavigateToFile,
   runId,
   supportsGlobalComments = false,
   surface,
@@ -261,7 +264,7 @@ export function useDiffReviewFeedback({
         onSave={saveComment}
         onStartReply={startReply}
         onSubmit={submitFeedback}
-        onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
+        onViewInDiff={(comment) => comment.path && onNavigateToFile?.(comment.path)}
         replyBody={replyBody}
         replyError={replyToComment.error}
         replyPending={replyToComment.isPending}

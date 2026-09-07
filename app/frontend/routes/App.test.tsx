@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { slashCommandPrompt } from "../lib/slashCommands"
+import { stubVirtualizerMeasurementsForTest } from "../test/virtualizerMeasurements"
 import { App } from "./App"
 import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
@@ -9196,6 +9197,9 @@ describe("App", () => {
   })
 
   it("renders a Job detail page and runs commands through the app API", async () => {
+    // Renders a workflow-artifact diff, which goes through ReviewableDiff's
+    // file-level virtualizer -- see virtualizerMeasurements.ts.
+    stubVirtualizerMeasurementsForTest()
     const payload = jobDetailPayload({
       landing_queue_entry: {
         position: 1,
@@ -9826,6 +9830,9 @@ describe("App", () => {
   })
 
   it("switches the Job source browser into diff mode", async () => {
+    // Renders the source-browser diff through ReviewableDiff's file-level
+    // virtualizer -- see virtualizerMeasurements.ts.
+    stubVirtualizerMeasurementsForTest()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/source_diff") {
