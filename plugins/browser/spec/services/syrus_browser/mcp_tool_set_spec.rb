@@ -257,7 +257,7 @@ RSpec.describe SyrusBrowser::McpToolSet do
 
       response = tool_set.handle("browser_close", {}, ctx)
 
-      expect(SyrusBrowser::SessionRegistry).to have_received(:kill).with(42)
+      expect(SyrusBrowser::SessionRegistry).to have_received(:kill).with("run:42")
       expect(session).not_to have_received(:call_tool)
       expect(response).not_to be_error
     end
