@@ -1491,10 +1491,15 @@ export function captureRuntimeArtifact(chatId: string | number, sessionId: numbe
   return postJson<{ runtime_session: RuntimeSession }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/capture`)
 }
 
-export function takeRuntimeControl(chatId: string | number, sessionId: number, options: { mode?: RuntimeControlLeaseMode; reason?: string } = {}) {
+export function takeRuntimeControl(chatId: string | number, sessionId: number, options: { mode?: RuntimeControlLeaseMode; reason?: string; duration_seconds?: number } = {}) {
   return postJson<{ runtime_session: RuntimeSession; lease: RuntimeControlLease }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/take_control`, options)
 }
 
 export function releaseRuntimeControl(chatId: string | number, sessionId: number) {
   return postJson<{ runtime_session: RuntimeSession; released: RuntimeControlLease[] }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/release_control`)
+}
+
+// Heartbeat for a still-active operator lease -- see RuntimeControlLease#renew!.
+export function renewRuntimeControl(chatId: string | number, sessionId: number, options: { duration_seconds?: number } = {}) {
+  return postJson<{ runtime_session: RuntimeSession; lease: RuntimeControlLease }>(`${runtimeSessionsBasePath(chatId)}/${sessionId}/renew_control`, options)
 }

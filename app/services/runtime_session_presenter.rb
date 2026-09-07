@@ -5,6 +5,13 @@
 module RuntimeSessionPresenter
   module_function
 
+  # Bookkeeping keys `metadata` carries for Syrus's own use (e.g.
+  # `SyrusBrowser::ArtifactSinks::ChatMedia#stamp_latest_frame!` stashes the
+  # captured frame's Document id there so the `frame` action can look it up)
+  # but that no consumer -- agent or operator -- should see rendered back as
+  # if it were provider-reported metadata like `url`/`port`.
+  INTERNAL_METADATA_KEYS = %w[latest_frame_document_id].freeze
+
   def session_payload(session)
     {
       id: session.id,
@@ -14,7 +21,7 @@ module RuntimeSessionPresenter
       primary: session.primary,
       workspace_ref: session.workspace_ref,
       capabilities: session.capabilities,
-      metadata: session.metadata,
+      metadata: session.metadata.except(*INTERNAL_METADATA_KEYS),
       stream_url: session.stream_url,
       latest_frame_url: session.latest_frame_url,
       latest_frame_at: session.latest_frame_at&.iso8601,

@@ -49,6 +49,7 @@ class RuntimeControlLease < ApplicationRecord
 
   class Conflict < StandardError; end
   class NotCancellable < StandardError; end
+  class NotRenewable < StandardError; end
 
   # Acquires a new lease for a runtime session, raising Conflict when another
   # active lease already holds the same serialization group (input, or
@@ -155,6 +156,23 @@ class RuntimeControlLease < ApplicationRecord
 
     update!(state: "expired", released_at: Time.current)
     finish(event: "expire")
+    self
+  end
+
+  # Heartbeat/renewal — extends this same lease's expiry in place instead of
+  # releasing and re-acquiring, so a sustained operator Take Control session
+  # (Coding Mode Runtime panel) doesn't need a release/acquire gap that could
+  # let another party grab the serialization group in between. Only the
+  # still-active holder may renew; a lease that already expired or was
+  # aborted/released/cancelled must go through acquire! again like any other
+  # new claim, per DOC-17's "leases should be short-lived and auto-expire" --
+  # renewal keeps that ceiling per-renewal, it doesn't lift it.
+  def renew!(duration_seconds: nil)
+    raise NotRenewable, "lease #{id} is not active" unless active?
+
+    duration = (duration_seconds || DEFAULT_DURATION).to_i.clamp(MIN_DURATION.to_i, MAX_DURATION.to_i)
+    update!(expires_at: duration.seconds.from_now)
+    notify_channel(event: "renew")
     self
   end
 
