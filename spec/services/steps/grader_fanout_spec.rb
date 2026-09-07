@@ -437,6 +437,57 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("skipped website-build (no matching files changed)")
   end
 
+  it "logs the target label alongside each skipped grader" do
+    write_config(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm --prefix website run build
+          when_files_changed:
+            - "website/**"
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped website-build (no matching files changed) [//:grade/website-build]")
+  end
+
+  it "logs each selected grader with its reason and target label" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("selected rspec (repo-wide (no source scope declared)) [//:grade/rspec]")
+  end
+
+  it "explains a dependency-triggered selection by the dependency's target label" do
+    write_config(<<~YAML)
+      targets:
+        - name: library
+          kind: library
+          sources: ["lib/**"]
+      grade:
+        - name: library-tests
+          run: bin/rspec spec/lib
+          when_files_changed:
+            - "spec/lib/**"
+          deps: [":library"]
+    YAML
+    stub_changed_files("lib/service.rb")
+
+    handler.call
+
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("selected library-tests (dependency //:library source scope matched a changed file) [//:grade/library-tests]")
+  end
+
   it "stores when_files_changed in the materialized Step details" do
     write_config(<<~YAML)
       grade:

@@ -12,12 +12,33 @@ reads a repository's root `.syrus.yml` legacy sections (`prepare`,
 `formatters`, `generated`, `grade`) and compiles them into targets under an
 implicit root project (`//:repo`), then does the same for every nested
 `.syrus.yml` it discovers below the root (see "Nested `.syrus.yml`
-discovery" below). Runtime grader fanout also reads the compiled graph for
-dependency-only semantics declared in the root `.syrus.yml`: a grader with
-`deps:` runs when its own selector matches or when a dependency target's
-source scope matches the diff, and any transitive prepare targets execute
-before that grader command. Formatter/generator runtime selection is still
-legacy-config driven; their graph nodes carry dependency metadata for
+discovery" below). `Steps::GraderFanout` reads the compiled graph through
+`TargetGraph#affected`/`#affected_targets` to decide which root grader is
+affected by the current diff: a grader is affected when it declares no
+source scope at all (repo-wide, the legacy no-`when_files_changed`
+default), when its own source scope (`when_files_changed`) matches a
+changed file, or — transitively, through `deps:` — when a dependency
+target's source scope matches a changed file (a dependency with an empty
+source scope, such as the implicit root target every legacy declaration
+depends on, never counts as a match on its own). Any transitive `prepare`
+target still executes before that grader command. `#affected`/
+`#affected_targets` are kind-agnostic (`grader`, `formatter`, `generator`,
+`builder`, ...) and work across the whole graph, root and nested projects
+alike, so they're the one place this selection logic lives — but only
+`Steps::GraderFanout`'s root graders are wired to them today. Nested
+projects already compile into the same graph (their own source scope
+correctly resolved relative to the directory that declared them — see
+"Affected-file scope defaults" below), but nothing yet materializes a
+nested project's formatter/generator/builder/grader targets as workflow
+Steps: doing so needs an execution-directory story (does a nested target's
+command run from the repo root or its own project directory?) that hasn't
+been decided yet. `Steps::GraderFanout` logs both outcomes by name and
+target label — `[grader_fanout] selected rspec (repo-wide (no source scope
+declared)) [//:grade/rspec]` / `... skipped website-build (no matching
+files changed) [//:grade/website-build]` — so an operator can see why a
+grader ran or didn't without reading `.syrus.yml`. Formatter/generator
+runtime selection (`Steps::Format`/`Steps::Generate`) is still legacy-config
+driven and root-only; their graph nodes carry dependency metadata for
 diagnostics and later target-aware execution.
 
 Explicit `targets:` declarations are available for hand-authored dependency
