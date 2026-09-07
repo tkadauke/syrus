@@ -20,7 +20,7 @@ module Steps
     def call
       workspace.setup
       plan = effective_plan(RepoGradePlan.for(workspace.path))
-      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan)
+      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
 
       workflow.set_artifact!("preflight_grade_plan_source", plan.source)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, grader_fingerprint)
@@ -66,6 +66,7 @@ module Steps
             iteration: step.iteration,
             details: {
               "name" => grader.name,
+              "target_label" => target_label_for(grader),
               "command" => grader.command,
               "phase" => grader.metadata["phase"],
               "configured_phases" => grader.metadata["configured_phases"],
@@ -73,7 +74,8 @@ module Steps
               "legacy_source_grader" => grader.metadata["legacy_source_grader"],
               "description" => grader.description,
               "required" => grader.required,
-              "timeout_minutes" => grader.timeout_minutes
+              "timeout_minutes" => grader.timeout_minutes,
+              "prepare_commands" => prepare_commands_for(grader)
             }
           )
         end
@@ -87,6 +89,18 @@ module Steps
       workflow.steps
         .where(kind: "preflight_grader", iteration: step.iteration)
         .where("position > ?", step.position)
+    end
+
+    def prepare_commands_for(grader)
+      target_graph.prepare_dependencies_for(target_label_for(grader)).map { |target| target.metadata.fetch("commands") { [ target.command ] } }.flatten
+    end
+
+    def target_label_for(grader)
+      "//:grade/#{grader.name}"
+    end
+
+    def target_graph
+      @target_graph ||= TargetGraph::Compiler.compile(workspace.path)
     end
   end
 end

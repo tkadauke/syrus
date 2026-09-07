@@ -5,8 +5,8 @@ class GraderConclusionCache
   ARTIFACT_CACHE_HIT_KEY = "grader_conclusion_cache_hit".freeze
   ARTIFACT_HEAD_SHA_KEY = "grade_plan_head_sha".freeze
 
-  def self.fingerprint_for_plan(plan)
-    fingerprint_for_graders(plan.graders)
+  def self.fingerprint_for_plan(plan, target_graph: nil)
+    fingerprint_for_graders(plan.graders, target_graph: target_graph)
   end
 
   def self.fingerprint_for_steps(grader_steps)
@@ -17,7 +17,8 @@ class GraderConclusionCache
         "command" => details["command"].to_s,
         "required" => !!details["required"],
         "timeout_minutes" => details["timeout_minutes"].to_i,
-        "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort
+        "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort,
+        "prepare_commands" => Array(details["prepare_commands"]).map(&:to_s)
       }
     end
 
@@ -168,19 +169,38 @@ class GraderConclusionCache
     "failed"
   end
 
-  def self.fingerprint_for_graders(graders)
-    payload = Array(graders).map do |grader|
-      {
-        "name" => grader.name.to_s,
-        "command" => grader.command.to_s,
-        "required" => !!grader.required,
-        "timeout_minutes" => grader.timeout_minutes.to_i,
-        "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort
-      }
-    end
+  def self.fingerprint_for_graders(graders, target_graph: nil)
+    payload = {
+      "graders" => Array(graders).map do |grader|
+        {
+          "name" => grader.name.to_s,
+          "command" => grader.command.to_s,
+          "required" => !!grader.required,
+          "timeout_minutes" => grader.timeout_minutes.to_i,
+          "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort,
+          "deps" => Array(grader.deps).map(&:to_s).sort
+        }
+      end,
+      "target_graph" => target_graph_payload(target_graph)
+    }
 
     digest(payload)
   end
+
+  def self.target_graph_payload(target_graph)
+    return nil unless target_graph
+
+    target_graph.targets.values.map do |target|
+      {
+        "label" => target.label.to_s,
+        "kind" => target.kind,
+        "source_scope" => Array(target.source_scope).map(&:to_s).sort,
+        "command" => target.command.to_s,
+        "dependencies" => Array(target.dependencies).map(&:to_s).sort
+      }
+    end.sort_by { |entry| entry["label"] }
+  end
+  private_class_method :target_graph_payload
 
   def self.digest(payload)
     Digest::SHA256.hexdigest(JSON.generate(payload))

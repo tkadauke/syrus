@@ -24,7 +24,7 @@ module Steps
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
-      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan)
+      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
       apply_loop_max_iterations!(plan.max_iterations)
 
@@ -101,10 +101,31 @@ module Steps
     end
 
     def files_match?(grader, changed_files)
+      return true if dependency_files_match?(grader, changed_files)
       return true if grader.when_files_changed.nil? || grader.when_files_changed.empty?
       changed_files.any? do |file|
         grader.when_files_changed.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
       end
+    end
+
+    def dependency_files_match?(grader, changed_files)
+      dependency_patterns = dependency_source_scope_for(grader)
+      return false if dependency_patterns.empty?
+
+      changed_files.any? do |file|
+        dependency_patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
+      end
+    end
+
+    def dependency_source_scope_for(grader)
+      graph = target_graph
+
+      target_label = target_label_for(grader)
+      explicit_dependencies = Array(grader.deps).map do |dependency|
+        TargetGraph::Label.resolve(dependency, package: "")
+      end
+      closure = explicit_dependencies.flat_map { |dependency| [ dependency, *graph.dependency_closure_for(dependency) ] }
+      graph.source_scopes_for(closure)
     end
 
     # Expands the raw diff's changed files with any :affected_test_analyzer
@@ -250,6 +271,7 @@ module Steps
             loop_id: step.loop_id,
             details: {
               "name" => grader.name,
+              "target_label" => target_label_for(grader),
               "command" => grader.command,
               "phase" => grader.metadata["phase"],
               "configured_phases" => grader.metadata["configured_phases"],
@@ -259,6 +281,7 @@ module Steps
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes,
               "when_files_changed" => grader.when_files_changed,
+              "prepare_commands" => prepare_commands_for(grader),
               "junit_output" => grader.junit_output,
               "failures" => grader.failures
             }
@@ -287,6 +310,22 @@ module Steps
 
     def effective_plan(plan)
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+    end
+
+    def prepare_commands_for(grader)
+      graph = target_graph
+
+      graph.prepare_dependencies_for(target_label_for(grader)).map { |target| target.metadata.fetch("commands") { [ target.command ] } }.flatten
+    end
+
+    def target_label_for(grader)
+      "//:grade/#{grader.name}"
+    end
+
+    def target_graph
+      return @target_graph if defined?(@target_graph)
+
+      @target_graph = TargetGraph::Compiler.compile(workspace.path)
     end
 
     def review_grader_context?

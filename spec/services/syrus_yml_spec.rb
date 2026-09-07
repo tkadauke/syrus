@@ -30,8 +30,8 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict"),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", deps: []),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict", deps: [])
     ])
   end
 
@@ -47,7 +47,7 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict", deps: [])
     ])
   end
 
@@ -1949,6 +1949,52 @@ RSpec.describe SyrusYml do
       YAML
 
       expect(config.project).to eq(described_class::ProjectConfig.new(id: nil, label: nil, kind: nil, path: nil))
+    end
+  end
+
+  describe "targets: key" do
+    it "defaults to an empty target list when absent" do
+      expect(parse("grade: []").targets).to eq([])
+    end
+
+    it "parses explicit targets and dependencies" do
+      config = parse(<<~YAML)
+        targets:
+          - name: renderer
+            kind: library
+            sources: ["src/**/*.ts"]
+          - name: typecheck
+            kind: grader
+            run: npm run typecheck
+            deps: [":renderer"]
+      YAML
+
+      expect(config.targets).to eq([
+        described_class::TargetConfig.new(name: "renderer", kind: "library", command: nil, sources: [ "src/**/*.ts" ], deps: []),
+        described_class::TargetConfig.new(name: "typecheck", kind: "grader", command: "npm run typecheck", sources: [], deps: [ ":renderer" ])
+      ])
+    end
+
+    it "rejects duplicate target names in one file" do
+      expect {
+        parse(<<~YAML)
+          targets:
+            - name: renderer
+            - name: renderer
+        YAML
+      }.to raise_error(SyrusYml::ParseError, /targets\[1\]\.name.*duplicated/)
+    end
+
+    it "rejects unknown target kinds" do
+      expect {
+        parse("targets:\n  - name: renderer\n    kind: magical\n")
+      }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.kind/)
+    end
+
+    it "rejects dependency refs that are not labels" do
+      expect {
+        parse("targets:\n  - name: tests\n    deps: [renderer]\n")
+      }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.deps/)
     end
   end
 end

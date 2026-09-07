@@ -156,6 +156,29 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(captured_command).to eq([ "bash", "-c", "bin/rspec spec/models --format json --out custom.json" ])
   end
 
+  it "runs prepare dependency commands before the grader command" do
+    step.update!(details: step.details.merge(
+      "command" => "bin/rspec",
+      "prepare_commands" => [ "npm ci" ]
+    ))
+    commands = []
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      commands << kwargs[:command]
+      instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false,
+        silent_timed_out: false, operator_killed: false,
+        aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+      ))
+    end
+
+    handler.call
+
+    expect(commands).to eq([
+      [ "bash", "-c", "npm ci" ],
+      [ "bash", "-c", "bin/rspec" ]
+    ])
+  end
+
   it "records spans for successful composite grader phases without writing markers to grade logs" do
     step.update!(details: step.details.merge("command" => "printf check && printf install && printf spec"))
 

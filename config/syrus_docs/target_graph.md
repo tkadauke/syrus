@@ -7,18 +7,23 @@ canonically labeled `Project`s and `Target`s (`//package:name`, e.g.
 project-aware workflow work has one real graph to build on instead of a model
 nothing populates.
 
-**This is internal plumbing, not a feature yet.** `TargetGraph::Compiler`
+`TargetGraph::Compiler`
 reads a repository's root `.syrus.yml` legacy sections (`prepare`,
 `formatters`, `generated`, `grade`) and compiles them into targets under an
 implicit root project (`//:repo`), then does the same for every nested
 `.syrus.yml` it discovers below the root (see "Nested `.syrus.yml`
-discovery" below). Nothing in the runtime prepare, format, generate, or
-grader pipelines reads from the compiled graph — root or nested — and
-compiling it does not change what those pipelines run. Explicit `targets:`
-declarations and build-system plugin import (later adoption levels in
-`DOC-20`) do not exist yet — do not describe them as available. The
-`project:` primitive described below does exist, but it only names/labels a
-project; it carries no targets of its own yet.
+discovery" below). Runtime grader fanout also reads the compiled graph for
+dependency-only semantics declared in the root `.syrus.yml`: a grader with
+`deps:` runs when its own selector matches or when a dependency target's
+source scope matches the diff, and any transitive prepare targets execute
+before that grader command. Formatter/generator runtime selection is still
+legacy-config driven; their graph nodes carry dependency metadata for
+diagnostics and later target-aware execution.
+
+Explicit `targets:` declarations are available for hand-authored dependency
+nodes. Build-system plugin import (later adoption levels in `DOC-20`) does
+not exist yet — do not describe it as available. The `project:` primitive
+described below names/labels the project that owns a config file's targets.
 
 ## Projects vs. targets
 
@@ -42,6 +47,42 @@ A `.syrus.yml` file's `project:` block just gives its implicit project (the
 root project for the root file, or the directory-derived project for a
 nested file) a stable identity — it does not change which targets that file
 compiles into, or what those targets do.
+
+## Explicit `targets:`
+
+A config file can declare explicit target nodes. Relative dependency labels
+(`:renderer`) resolve within the same `.syrus.yml` package; absolute labels
+(`//desktop:renderer`) resolve from the repository root.
+
+```yaml
+targets:
+  - name: renderer
+    kind: library
+    sources: ["src/**/*.ts", "src/**/*.tsx"]
+
+  - name: deps
+    kind: prepare
+    run: npm ci
+
+grade:
+  - name: typecheck
+    run: npm run typecheck
+    when_files_changed: ["src/**/*.ts", "src/**/*.tsx"]
+    deps: [":renderer", ":deps"]
+```
+
+Supported target kinds are `default`, `library`, `binary`, `application`,
+`formatter`, `builder`, `grader`, `prepare`, `generator`, and `repo_check`.
+Dependencies use one edge only: `deps` (or the equivalent spelling
+`dependencies`). Missing labels, duplicate labels, and dependency cycles are
+reported as `TargetGraph::ValidationError` messages naming the target label
+and owning `.syrus.yml` path where possible.
+
+Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
+also accept `deps:`. For graders, runtime fanout uses those dependency
+targets to decide whether the grader is affected by the diff. If a dependency
+chain includes an executable `kind: prepare` target, the materialized grader
+step runs that prepare command before the grader command.
 
 ### The `builder` kind is reserved, not compiled
 

@@ -74,6 +74,24 @@ class TargetGraph
     target(self.class.root_label)
   end
 
+  def dependency_closure_for(label)
+    label = label.to_s
+    seen = []
+    collect_dependencies(label, seen)
+    seen
+  end
+
+  def prepare_dependencies_for(label)
+    dependency_closure_for(label).filter_map do |dependency_label|
+      dependency = target(dependency_label)
+      dependency if dependency&.kind == "prepare" && dependency.executable?
+    end
+  end
+
+  def source_scopes_for(labels)
+    Array(labels).filter_map { |label| target(label)&.source_scope }.flatten.uniq
+  end
+
   # Confirms the graph is internally consistent: every declared dependency
   # label resolves to a real target, and the dependency edges contain no
   # cycles. Collects every problem instead of raising on the first one so
@@ -125,6 +143,16 @@ class TargetGraph
     nodes = cycle[0...-1]
     rotations = nodes.each_index.map { |index| nodes.rotate(index) }
     rotations.min.join("\0")
+  end
+
+  def collect_dependencies(label, seen)
+    Array(@targets[label]&.dependencies).each do |dependency|
+      dependency_label = dependency.to_s
+      next if seen.include?(dependency_label)
+
+      seen << dependency_label
+      collect_dependencies(dependency_label, seen)
+    end
   end
 
   def seed_implicit_root!(custom_root_project)
