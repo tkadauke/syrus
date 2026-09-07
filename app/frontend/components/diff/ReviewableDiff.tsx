@@ -853,22 +853,30 @@ export function UnifiedDiffTable({
               ) : null}
               {isComposingHere ? (
                 <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20" colSpan={2} />
-                  <td className="text-brand">*</td>
-                  <td className="px-3 py-2" colSpan={2}>
-                    <div className="space-y-2">
-                      <textarea
-                        aria-label="Comment"
-                        autoFocus
-                        className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                        onChange={(event) => onChangeComposingBody?.(event.target.value)}
-                        value={composingBody ?? ""}
-                      />
-                      <div className="flex gap-2">
-                        <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
-                        <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                  <td className="border-r border-brand/20 max-md:hidden" colSpan={2} />
+                  <td className="text-brand max-md:hidden">*</td>
+                  <td className="px-3 py-2 max-md:p-0" colSpan={2}>
+                    <div className="space-y-2 max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:space-y-0 max-md:bg-white max-md:dark:bg-gray-950">
+                      <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Comment</h4>
+                        <button aria-label="Close" className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
+                          <CloseIcon className="h-5 w-5" />
+                        </button>
                       </div>
-                      {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                      <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:gap-2 max-md:overflow-auto max-md:p-3">
+                        <textarea
+                          aria-label="Comment"
+                          autoFocus
+                          className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
+                          onChange={(event) => onChangeComposingBody?.(event.target.value)}
+                          value={composingBody ?? ""}
+                        />
+                        <div className="flex gap-2">
+                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
+                          <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                        </div>
+                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                      </div>
                     </div>
                   </td>
                 </tr>
