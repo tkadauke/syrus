@@ -366,6 +366,40 @@ When the current branch is not a Syrus Job branch, it prints `Not on a
 Syrus job branch.` or returns `{"job_id":0,"branch":"","behind":0}` with
 `--json`.
 
+## Local Mode
+
+`syrus local` pairs this machine to a Syrus chat session so the chat agent
+can read and write files, run shell commands, and inspect git state
+directly on your machine instead of a server-side clone:
+
+```bash
+syrus local --chat 123 --token abc123...
+```
+
+It requires the `local_mode` Labs feature flag to be enabled on your Syrus
+instance and a chat session already switched to Local mode. Pairing starts
+from the chat UI, not the CLI: while a chat is in Local mode and not yet
+connected, Syrus shows a banner with the exact `syrus local --chat
+<chat_session_id> --token <auth_token>` command to copy and run. Running it
+opens a persistent reverse WebSocket tunnel from your checkout to the Syrus
+backend and reconnects automatically (with backoff) if the connection
+drops; press Ctrl+C to disconnect cleanly.
+
+Flags:
+
+| Flag | Description |
+| --- | --- |
+| `--chat` | Syrus chat session id from the pairing command (required) |
+| `--token` | Pairing auth token from the pairing command (required) |
+| `--dir` | Path to the git repository (defaults to the current directory) |
+
+The command must run inside a git repository (or point `--dir` at one); it
+derives the repository slug from the `origin` remote and reports the
+current branch when it connects. Local Mode intentionally bypasses graders,
+the landing queue, and other Syrus automation, so treat the pairing token
+as sensitive — it grants file and command access to this machine for the
+lifetime of the paired chat session.
+
 ## Epics
 
 Use `syrus epic` to inspect and create Epics:
