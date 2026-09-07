@@ -25,7 +25,20 @@ module Api
             return
           end
 
-          job = create_direct_job(repository: repository, agent_provider: agent_provider, prompt_text: prompt_text)
+          if params[:epic_id].present? && (epic = repository.epics.find_by(id: params[:epic_id])).nil?
+            render_error("validation_failed", "Epic not found in that repository.", status: :unprocessable_content)
+            return
+          end
+
+          if params[:owner_user_id].present?
+            owner = User.find_by(id: params[:owner_user_id])
+            if owner.nil? || !repository.member_at_least?(owner, "read")
+              render_error("validation_failed", "Owner must have repository access.", status: :unprocessable_content)
+              return
+            end
+          end
+
+          job = create_direct_job(repository: repository, agent_provider: agent_provider, prompt_text: prompt_text, epic: epic, owner: owner)
           attachment_errors = attach_initial_job_attachments(job)
           if attachment_errors.any?
             job.destroy!
@@ -42,6 +55,8 @@ module Api
             redirect_to: direct_job_redirect_path(job),
             job: job_json(job)
           }, status: :created
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         private
@@ -61,7 +76,7 @@ module Api
           }
         end
 
-        def create_direct_job(repository:, agent_provider:, prompt_text:)
+        def create_direct_job(repository:, agent_provider:, prompt_text:, epic: nil, owner: nil)
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
@@ -79,6 +94,8 @@ module Api
             agent_provider: selected_agent_provider,
             job_provider_setting: agent_provider || "default",
             priority: priority,
+            epic: epic,
+            owner_user: owner,
             target_branch: target_branch,
             delivery_track: delivery_track,
             state: Job.initial_state_for_creator(Current.user)
