@@ -145,6 +145,19 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 		ownerUserID = parsed
 	}
 
+	client, _, err := apiClient()
+	if err != nil {
+		return err
+	}
+	repositories, err := client.ListRepositories(cmd.Context())
+	if err != nil {
+		return err
+	}
+	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
+	if !ok {
+		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
+	}
+
 	reader := bufio.NewReader(cmd.InOrStdin())
 	title, description, err := promptJob(reader, cmd.OutOrStdout())
 	if err != nil {
@@ -165,19 +178,6 @@ func runJobCreate(cmd *cobra.Command, repo string, yes bool, priority string, ag
 			fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
 			return nil
 		}
-	}
-
-	client, _, err := apiClient()
-	if err != nil {
-		return err
-	}
-	repositories, err := client.ListRepositories(cmd.Context())
-	if err != nil {
-		return err
-	}
-	repositoryID, ok := repositoryIDForSlug(repositories.AvailableRepositories(), repo)
-	if !ok {
-		return fmt.Errorf("repository %s is not configured for this Syrus account", repo)
 	}
 
 	var epicID int64
@@ -319,12 +319,7 @@ func epicSlug(number any) string {
 // displayJobRef formats a job identifier for user-facing output. Numeric IDs
 // are shown with the JOB- prefix; slugs are shown as-is.
 func displayJobRef(ref string) string {
-	for _, r := range ref {
-		if r < '0' || r > '9' {
-			return ref
-		}
-	}
-	return "JOB-" + ref
+	return displayRef(ref, "JOB-")
 }
 
 type testPlanStep struct {

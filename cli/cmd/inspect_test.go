@@ -522,37 +522,6 @@ func TestEpicListPrintsJSON(t *testing.T) {
 	}
 }
 
-func TestEpicListJSONRespectsSearchQuery(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"count":2,"epics":[{"id":1,"title":"Alpha launch"},{"id":2,"title":"Beta launch"}]}`))
-	}))
-	defer server.Close()
-	withCredentials(t, server.URL, "secret-token")
-	withRepoSlug(t, "")
-
-	output := &bytes.Buffer{}
-	command := NewEpicCommand()
-	command.SetOut(output)
-	command.SetArgs([]string{"search", "alpha", "--json"})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("Execute returned error: %v", err)
-	}
-
-	var decoded struct {
-		Count int `json:"count"`
-		Epics []struct {
-			Title string `json:"title"`
-		} `json:"epics"`
-	}
-	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
-		t.Fatalf("output is not valid JSON: %v\n%s", err, output.String())
-	}
-	if decoded.Count != 1 || len(decoded.Epics) != 1 || decoded.Epics[0].Title != "Alpha launch" {
-		t.Fatalf("decoded = %+v", decoded)
-	}
-}
-
 func TestRepoListPrintsJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -748,6 +717,187 @@ func TestEpicSearchCommandRepoFlagOverridesAutoDetection(t *testing.T) {
 	}
 	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
 		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
+func TestJobListSendsStateAndLimit(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"jobs":[{"id":42,"state":"open","title":"Fix the aqueduct","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/jobs")
+	}
+	if got := seen.URL.Query().Get("state"); got != "open" {
+		t.Fatalf("state = %q", got)
+	}
+	if got := seen.URL.Query().Get("limit"); got != "20" {
+		t.Fatalf("limit = %q", got)
+	}
+	if got := seen.URL.Query().Get("q"); got != "" {
+		t.Fatalf("q = %q, expected empty for job list", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Fix the aqueduct") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestJobListOutputHasNoAnsiEscapesWhenNotATTY(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":2,"jobs":[{"id":42,"state":"running","title":"Fix the aqueduct","repository_slug":"acme/widgets"},{"id":43,"state":"failed","title":"Repair the forum","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "running") || !strings.Contains(got, "failed") {
+		t.Fatalf("output missing expected states:\n%s", got)
+	}
+	if strings.Contains(got, "\033[") {
+		t.Fatalf("output should not include ANSI color escapes when not a TTY:\n%q", got)
+	}
+}
+
+func TestJobSearchSendsQueryToServer(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"jobs":[{"id":7,"state":"open","title":"Repair the aqueduct","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "aqueduct"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/jobs")
+	}
+	if got := seen.URL.Query().Get("q"); got != "aqueduct" {
+		t.Fatalf("q = %q", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Repair the aqueduct") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestEpicListSendsLimit(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":9,"state":"open","title":"Raise the forum","done_jobs_count":1,"total_jobs_count":2}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/epics")
+	}
+	if got := seen.URL.Query().Get("limit"); got != "20" {
+		t.Fatalf("limit = %q", got)
+	}
+	if got := seen.URL.Query().Get("q"); got != "" {
+		t.Fatalf("q = %q, expected empty for epic list", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Raise the forum") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestEpicListOutputHasNoAnsiEscapesWhenNotATTY(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":9,"state":"open","title":"Raise the forum","done_jobs_count":1,"total_jobs_count":2}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "open") {
+		t.Fatalf("output missing expected state:\n%s", got)
+	}
+	if strings.Contains(got, "\033[") {
+		t.Fatalf("output should not include ANSI color escapes when not a TTY:\n%q", got)
+	}
+}
+
+func TestEpicSearchSendsQueryToServer(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":11,"state":"open","title":"Raise the forum","done_jobs_count":0,"total_jobs_count":3}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "forum"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/epics")
+	}
+	if got := seen.URL.Query().Get("q"); got != "forum" {
+		t.Fatalf("q = %q", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Raise the forum") {
+		t.Fatalf("output = %q", got)
 	}
 }
 
