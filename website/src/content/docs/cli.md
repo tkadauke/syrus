@@ -278,6 +278,14 @@ running transcripts until the Job finishes or the command is interrupted.
 `job diff` fetches the pull request diff through Syrus' GitHub
 credential; if no GitHub token is available, it prints the PR URL.
 
+`job show`, `job list`/`job search`, `job log`, `job watch`, and `job diff`
+all accept `--json`, matching `syrus status --json`: instead of the
+human-readable rendering, they print the already-fetched API response as
+JSON on stdout for scripting and the desktop app. `--json` disables the
+polling behavior of `job log` and `job watch` — each prints a single
+snapshot of the current transcript or Job state and exits rather than
+following it.
+
 `job checkout` verifies that the current checkout matches the Job's
 repository, fetches the Syrus branch from `origin`, and checks it out. If the
 remote Syrus branch was force-pushed, checkout refreshes the local branch to the
@@ -378,6 +386,9 @@ syrus epic open 12
 and multi-line description, confirms the repository, creates the Epic,
 and prints the Epic URL. Use `--yes` to skip the confirmation prompt.
 
+`epic list`/`epic search` and `epic show` also accept `--json` for the
+same JSON-on-stdout behavior as the Job commands above.
+
 ## Repositories and Identity
 
 These commands show the configured account and visible repositories:
@@ -389,6 +400,8 @@ syrus jobs
 syrus jobs --repo acme/widgets
 syrus jobs --closed
 ```
+
+`syrus whoami` and `syrus repo list` accept `--json` too.
 
 `jobs` lists active Jobs across repositories by default and can scope
 to one repository.
