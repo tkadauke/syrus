@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { recordBrowserTrace, resetBrowserPerformanceObserversForTest, startBrowserPerformanceObservers } from "./performanceTrace"
+import { postBrowserTraces, recordBrowserTrace, resetBrowserPerformanceObserversForTest, startBrowserPerformanceObservers } from "./performanceTrace"
 import { jsonResponse } from "../testSupport"
 
 describe("recordBrowserTrace", () => {
@@ -64,6 +64,52 @@ describe("recordBrowserTrace", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/performance_events", expect.objectContaining({
       body: expect.stringContaining("browser.long_task")
     }))
+  })
+
+  it("does not send an empty batch", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+
+    postBrowserTraces([], { enabled: true })
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("posts a batch of traces in one request", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+
+    postBrowserTraces([
+      { trace_id: "trace-1", name: "diff_review.parse_diff", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" },
+      { trace_id: "trace-2", name: "diff_review.syntax_highlight", path: "/jobs/1?tab=review", duration_ms: 40, visibility_state: "visible" }
+    ], { enabled: true })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
+    expect(body.performance_events).toHaveLength(2)
+  })
+
+  it("falls back to fetch when sendBeacon is unavailable even though beacon was requested", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    vi.stubGlobal("navigator", { ...navigator, sendBeacon: undefined })
+
+    postBrowserTraces([
+      { trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }
+    ], { beacon: true, enabled: true })
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("sends a batch via sendBeacon instead of fetch when requested and available", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    const sendBeacon = vi.fn().mockReturnValue(true)
+    vi.stubGlobal("navigator", { ...navigator, sendBeacon })
+
+    postBrowserTraces([
+      { trace_id: "trace-1", name: "diff_review.anchor_scroll", path: "/jobs/1?tab=review", duration_ms: 5, visibility_state: "visible" }
+    ], { beacon: true, enabled: true })
+
+    expect(sendBeacon).toHaveBeenCalledTimes(1)
+    expect(sendBeacon.mock.calls[0][0]).toBe("/api/v1/app/performance_events")
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("does not start browser observers when performance logging is disabled", () => {

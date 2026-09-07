@@ -18,6 +18,13 @@ export type BrowserTraceSpan = {
 
 export type BrowserTracePayload = {
   trace_id: string
+  // Optional correlation ids for the "stable envelope" -- `parent_id` groups
+  // several markers under one enclosing operation (e.g. a viewport render
+  // caused by an anchor scroll can reference the scroll's trace_id), and
+  // `interaction_id` groups markers under the same user interaction. Neither
+  // is a foreign key; both are opaque strings the admin UI groups/filters by.
+  parent_id?: string | null
+  interaction_id?: string | number | null
   name: string
   path: string
   duration_ms: number
@@ -70,8 +77,8 @@ export function recordBrowserTrace(payload: BrowserTracePayload, options: { enab
   if (options.enabled === false) return
   if (options.enabled !== true && !performanceLoggingEnabled()) return
 
-  const csrfToken = readInitialBootstrap()?.csrf_token || document.querySelector<HTMLMetaElement>("meta[name='csrf-token']")?.content
-  const body = JSON.stringify({ performance_event: payload })
+  const csrfToken = currentCsrfToken()
+  const body = JSON.stringify({ performance_event: payload, authenticity_token: csrfToken })
   void fetch("/api/v1/app/performance_events", {
     method: "POST",
     credentials: "same-origin",
@@ -83,6 +90,46 @@ export function recordBrowserTrace(payload: BrowserTracePayload, options: { enab
     },
     body
   }).catch(() => {})
+}
+
+// Batched sibling of recordBrowserTrace, used by the generic marker API's
+// queued flush (see performanceMarkers.ts) so a burst of markers becomes one
+// request instead of one per marker. `beacon: true` sends via
+// `navigator.sendBeacon` instead of `fetch` -- the only delivery mechanism
+// that can still complete after the page starts unloading, which is exactly
+// when a queued batch needs to go out. A beacon request cannot carry custom
+// headers, so the CSRF token travels in the JSON body instead of the
+// `X-CSRF-Token` header; Rails accepts either (see `authenticity_token` in
+// recordBrowserTrace above, and PerformanceEventsController).
+export function postBrowserTraces(payloads: BrowserTracePayload[], options: { beacon?: boolean; enabled?: boolean } = {}): boolean {
+  if (payloads.length === 0) return true
+  if (options.enabled === false) return false
+  if (options.enabled !== true && !performanceLoggingEnabled()) return false
+
+  const csrfToken = currentCsrfToken()
+  const body = JSON.stringify({ performance_events: payloads, authenticity_token: csrfToken })
+
+  if (options.beacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+    const blob = new Blob([ body ], { type: "application/json" })
+    if (navigator.sendBeacon("/api/v1/app/performance_events", blob)) return true
+  }
+
+  void fetch("/api/v1/app/performance_events", {
+    method: "POST",
+    credentials: "same-origin",
+    keepalive: body.length < 60_000,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
+    },
+    body
+  }).catch(() => {})
+  return true
+}
+
+function currentCsrfToken(): string | undefined {
+  return readInitialBootstrap()?.csrf_token || document.querySelector<HTMLMetaElement>("meta[name='csrf-token']")?.content
 }
 
 export function startBrowserPerformanceObservers(options: BrowserObserverOptions = {}): void {
