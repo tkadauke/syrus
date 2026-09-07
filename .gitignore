@@ -65,3 +65,8 @@ tmp/mcp_repro/
 # Playwright MCP browser-verification scratch (screenshots, console logs)
 # from manual preview testing -- not product artifacts.
 .playwright-mcp/
+
+# bin/test-e2e (Playwright) run output -- traces/screenshots/HTML report
+# from local or agent test runs, not product artifacts.
+/test-results/
+/playwright-report/
