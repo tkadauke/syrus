@@ -756,6 +756,32 @@ func TestJobListSendsStateAndLimit(t *testing.T) {
 	}
 }
 
+func TestJobListOutputHasNoAnsiEscapesWhenNotATTY(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":2,"jobs":[{"id":42,"state":"running","title":"Fix the aqueduct","repository_slug":"acme/widgets"},{"id":43,"state":"failed","title":"Repair the forum","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "running") || !strings.Contains(got, "failed") {
+		t.Fatalf("output missing expected states:\n%s", got)
+	}
+	if strings.Contains(got, "\033[") {
+		t.Fatalf("output should not include ANSI color escapes when not a TTY:\n%q", got)
+	}
+}
+
 func TestJobSearchSendsQueryToServer(t *testing.T) {
 	var seen *http.Request
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -816,6 +842,32 @@ func TestEpicListSendsLimit(t *testing.T) {
 	}
 	if got := output.String(); !strings.Contains(got, "Raise the forum") {
 		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestEpicListOutputHasNoAnsiEscapesWhenNotATTY(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":9,"state":"open","title":"Raise the forum","done_jobs_count":1,"total_jobs_count":2}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	got := output.String()
+	if !strings.Contains(got, "open") {
+		t.Fatalf("output missing expected state:\n%s", got)
+	}
+	if strings.Contains(got, "\033[") {
+		t.Fatalf("output should not include ANSI color escapes when not a TTY:\n%q", got)
 	}
 }
 

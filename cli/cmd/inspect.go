@@ -426,9 +426,10 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.JobList{Count: len(jobs), Jobs: jobs})
 	}
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	color := supportsColor(cmd.OutOrStdout())
 	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
 	for _, job := range jobs {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State), job.RepositorySlug, truncate(job.Title, 80), prText(job))
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State, color), job.RepositorySlug, truncate(job.Title, 80), prText(job))
 	}
 	return tw.Flush()
 }
@@ -459,9 +460,10 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(api.EpicList{Count: len(epics), Epics: epics})
 	}
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	color := supportsColor(cmd.OutOrStdout())
 	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
 	for _, epic := range epics {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State, color), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
 	}
 	return tw.Flush()
 }
@@ -616,7 +618,10 @@ func prText(job api.JobItem) string {
 	return fmt.Sprintf("#%d", job.PRNumber)
 }
 
-func inspectColorState(state string) string {
+func inspectColorState(state string, color bool) string {
+	if !color {
+		return state
+	}
 	switch state {
 	case "running", "open", "in_progress":
 		return "\033[34m" + state + "\033[0m"
