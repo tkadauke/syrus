@@ -346,6 +346,9 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string) error
 	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
+	if query != "" {
+		filters.Set("q", query)
+	}
 	list, err := client.ListJobs(cmd.Context(), filters)
 	if err != nil {
 		return err
@@ -353,9 +356,6 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string) error
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
 	for _, job := range list.Jobs {
-		if query != "" && !strings.Contains(strings.ToLower(job.Title), strings.ToLower(query)) {
-			continue
-		}
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State), job.RepositorySlug, truncate(job.Title, 80), prText(job))
 	}
 	return tw.Flush()
@@ -371,6 +371,9 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 	if repo := cliplugin.DetectCurrentRepoSlug(); repo != "" {
 		filters.Set("repo", repo)
 	}
+	if query != "" {
+		filters.Set("q", query)
+	}
 	list, err := client.ListEpics(cmd.Context(), filters)
 	if err != nil {
 		return err
@@ -378,9 +381,6 @@ func runEpicList(cmd *cobra.Command, limit int, query string) error {
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tSTATE\tTITLE\tJOBS")
 	for _, epic := range list.Epics {
-		if query != "" && !strings.Contains(strings.ToLower(epic.Title), strings.ToLower(query)) {
-			continue
-		}
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d done\n", epic.ID, inspectColorState(epic.State), truncate(epic.Title, 80), epic.DoneJobsCount, epic.TotalJobsCount)
 	}
 	return tw.Flush()

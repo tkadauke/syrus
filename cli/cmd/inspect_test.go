@@ -211,6 +211,135 @@ func TestEpicOpenUsesConfiguredInstanceURL(t *testing.T) {
 	}
 }
 
+func TestJobListSendsStateAndLimit(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"jobs":[{"id":42,"state":"open","title":"Fix the aqueduct","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/jobs")
+	}
+	if got := seen.URL.Query().Get("state"); got != "open" {
+		t.Fatalf("state = %q", got)
+	}
+	if got := seen.URL.Query().Get("limit"); got != "20" {
+		t.Fatalf("limit = %q", got)
+	}
+	if got := seen.URL.Query().Get("q"); got != "" {
+		t.Fatalf("q = %q, expected empty for job list", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Fix the aqueduct") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestJobSearchSendsQueryToServer(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"jobs":[{"id":7,"state":"open","title":"Repair the aqueduct","repository_slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewJobCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "aqueduct"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/jobs")
+	}
+	if got := seen.URL.Query().Get("q"); got != "aqueduct" {
+		t.Fatalf("q = %q", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Repair the aqueduct") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestEpicListSendsLimit(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":9,"state":"open","title":"Raise the forum","done_jobs_count":1,"total_jobs_count":2}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"list"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/epics")
+	}
+	if got := seen.URL.Query().Get("limit"); got != "20" {
+		t.Fatalf("limit = %q", got)
+	}
+	if got := seen.URL.Query().Get("q"); got != "" {
+		t.Fatalf("q = %q, expected empty for epic list", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Raise the forum") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestEpicSearchSendsQueryToServer(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"count":1,"epics":[{"id":11,"state":"open","title":"Raise the forum","done_jobs_count":0,"total_jobs_count":3}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+
+	command := NewEpicCommand()
+	output := &bytes.Buffer{}
+	command.SetOut(output)
+	command.SetArgs([]string{"search", "forum"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("expected a request to /api/v1/app/epics")
+	}
+	if got := seen.URL.Query().Get("q"); got != "forum" {
+		t.Fatalf("q = %q", got)
+	}
+	if got := output.String(); !strings.Contains(got, "Raise the forum") {
+		t.Fatalf("output = %q", got)
+	}
+}
+
 func withCredentials(t *testing.T, url string, token string) {
 	t.Helper()
 	cliplugintest.WithCredentials(t, url, token)
