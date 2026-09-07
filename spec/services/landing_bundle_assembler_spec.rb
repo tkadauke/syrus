@@ -82,6 +82,28 @@ RSpec.describe LandingBundleAssembler do
       expect(result.job_ids).to contain_exactly(urgent_a.id, urgent_b.id)
     end
 
+    it "does not query lower-priority tiers once a higher tier is ready (partitions stays lazy)" do
+      approved(issue_number: 1, priority: "urgent")
+      approved(issue_number: 2, priority: "urgent")
+      approved(issue_number: 3, priority: "medium")
+      approved(issue_number: 4, priority: "medium")
+
+      scope = LandingBundleAssembler::Scopes::PriorityTier.new(repository)
+      allow(LandingBundleAssembler::Scopes::PriorityTier).to receive(:new).with(repository).and_return(scope)
+      original_eligible_candidates = scope.method(:eligible_candidates)
+      queried_priorities = []
+      allow(scope).to receive(:eligible_candidates) do |priority|
+        queried_priorities << priority
+        original_eligible_candidates.call(priority)
+      end
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.priority).to eq("urgent")
+      expect(queried_priorities).to eq([ "urgent" ])
+    end
+
     it "does not bundle same-tier Jobs from different owners together" do
       other_owner = Factories.user
       approved(issue_number: 1, owner_user: user)
