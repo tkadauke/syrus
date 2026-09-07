@@ -7,7 +7,11 @@ import type { ChatPayload } from "../../api/chats"
 import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import type { WorkspaceTab } from "./workspaceTabs"
-import { type AttachMediaToComposerDetail, CHAT_ATTACH_MEDIA_EVENT } from "./constants"
+import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
+
+vi.mock("./attachMediaLibraryImage", () => ({
+  attachMediaLibraryImage: vi.fn()
+}))
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -586,7 +590,7 @@ describe("MediaGallery images", () => {
     expect(screen.getByRole("dialog", { name: "old.png" })).toBeInTheDocument()
   })
 
-  it("dispatches an attach-to-composer event and a notice when the gallery's attach action is clicked", async () => {
+  it("attaches the media-library image to the target chat's draft and shows a notice when the gallery's attach action is clicked", async () => {
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [
@@ -602,27 +606,46 @@ describe("MediaGallery images", () => {
       typed_artifacts: [],
       whiteboard_has_unsaved_content: false
     })
-    const onAttachEvent = vi.fn()
-    window.addEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachEvent)
+    vi.mocked(attachMediaLibraryImage).mockResolvedValue({ ok: true })
     const onNotice = vi.fn()
 
-    try {
-      renderWorkspacePanel(makePayload(), { activeTab: "media", onNotice })
+    renderWorkspacePanel(makePayload(), { activeTab: "media", onNotice })
 
-      fireEvent.click(await screen.findByRole("button", { name: "Attach old.png to message" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Attach old.png to message" }))
 
-      expect(onAttachEvent).toHaveBeenCalledTimes(1)
-      const detail = (onAttachEvent.mock.calls[0][0] as CustomEvent<AttachMediaToComposerDetail>).detail
-      expect(detail).toEqual({
-        chatId: "1",
-        url: "/api/v1/app/repository_documents/1/file",
-        name: "old.png",
-        mimeType: "image/png"
-      })
-      expect(onNotice).toHaveBeenCalledWith("Added to message composer")
-    } finally {
-      window.removeEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachEvent)
-    }
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Added to message composer"))
+    expect(attachMediaLibraryImage).toHaveBeenCalledWith({
+      chatId: "1",
+      url: "/api/v1/app/repository_documents/1/file",
+      name: "old.png",
+      mimeType: "image/png"
+    })
+  })
+
+  it("shows an error notice when the media-library attach fails", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 1,
+          title: "old.png",
+          filename: "old.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
+          image_url: "/api/v1/app/repository_documents/1/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+    vi.mocked(attachMediaLibraryImage).mockResolvedValue({ ok: false, reason: "fetch_failed" })
+    const onNotice = vi.fn()
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media", onNotice })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Attach old.png to message" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Could not attach that image to the message."))
   })
 
   it("also offers the attach action from the lightbox preview", async () => {
@@ -641,21 +664,21 @@ describe("MediaGallery images", () => {
       typed_artifacts: [],
       whiteboard_has_unsaved_content: false
     })
-    const onAttachEvent = vi.fn()
-    window.addEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachEvent)
+    vi.mocked(attachMediaLibraryImage).mockResolvedValue({ ok: true })
 
-    try {
-      renderWorkspacePanel(makePayload(), { activeTab: "media" })
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
 
-      fireEvent.click(await screen.findByRole("button", { name: "Open old.png" }))
-      const dialog = screen.getByRole("dialog", { name: "old.png" })
+    fireEvent.click(await screen.findByRole("button", { name: "Open old.png" }))
+    const dialog = screen.getByRole("dialog", { name: "old.png" })
 
-      fireEvent.click(within(dialog).getByRole("button", { name: "Attach to message" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Attach to message" }))
 
-      expect(onAttachEvent).toHaveBeenCalledTimes(1)
-    } finally {
-      window.removeEventListener(CHAT_ATTACH_MEDIA_EVENT, onAttachEvent)
-    }
+    await waitFor(() => expect(attachMediaLibraryImage).toHaveBeenCalledWith({
+      chatId: "1",
+      url: "/api/v1/app/repository_documents/1/file",
+      name: "old.png",
+      mimeType: "image/png"
+    }))
   })
 })
 

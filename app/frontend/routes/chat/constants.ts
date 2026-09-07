@@ -47,18 +47,30 @@ export const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
 
 export const WHITEBOARD_MAX_ELEMENTS = 1000
 
-// Cross-panel signal from the media gallery's "Attach to message" action
-// (WorkspacePanels.tsx) to the composer (Compose.tsx) — the two live as
-// siblings under ChatWorkspace, several layers apart from the gallery, so a
-// window CustomEvent avoids threading a callback prop through every
-// intermediate component. Same technique already used for
-// syrus:video-walkthrough events (see appEvents.ts).
-export const CHAT_ATTACH_MEDIA_EVENT = "syrus:attach-media-to-composer"
-
+// Input to attachMediaLibraryImage.ts: identifies which chat's draft to
+// update and which media-library image to fetch and attach.
 export type AttachMediaToComposerDetail = {
   chatId: string
   url: string
   name: string
   mimeType: string
 }
+
+// Fired by attachMediaLibraryImage.ts after it writes a fetched media-library
+// image straight into attachmentDraftStore.ts, so an already-mounted Compose
+// for the same chat re-syncs its attachment state from the store. This is a
+// resync signal only -- the fetch/validate/persist work already happened by
+// the time it fires, so it's safe to dispatch (and safe for nothing to be
+// listening) regardless of whether Compose is currently mounted. That matters
+// because the mobile single-pane layout renders the Media tab and the
+// composer as mutually exclusive alternatives (see Chat.tsx's
+// activeMobileTab branch) -- a Compose instance may not exist yet when the
+// user taps "Attach to message" there, and will only mount (and read the
+// already-updated store) once they switch back to the Chat tab.
+export const CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT = "syrus:chat-draft-attachments-changed"
+
+export type ChatDraftAttachmentsChangedDetail = {
+  chatId: string
+}
+
 export type ChatQueryKey = readonly ["chats", string, string]
