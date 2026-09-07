@@ -2415,6 +2415,7 @@ Bundled plugins:
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools
   (`browser_navigate`, `browser_click`, `browser_fill`, `browser_hover`,
   `browser_snapshot`, `browser_screenshot`, `browser_wait_for`, `browser_resize`,
+  `browser_evaluate`, `browser_file_upload`, `browser_drag`,
   `browser_close`) for workflow agents, backed by a bundled `@playwright/mcp`
   stdio subprocess (Chromium ships in the worker Docker image only — see
   `Dockerfile`'s `worker-deps` stage). One browser session is spawned per Run
