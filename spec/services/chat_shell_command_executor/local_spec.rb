@@ -39,6 +39,13 @@ RSpec.describe ChatShellCommandExecutor::Local do
       expect(executor.precondition_error(chat_session)).to eq(described_class::DISCONNECTED_ERROR)
     end
 
+    it "returns the disconnected error when the session row exists but the daemon has never actually handshaken (JOB-4509 visual review)" do
+      LocalDaemonSession.create!(chat_session: chat_session, user: user)
+      expect(chat_session.reload.daemon_connected?).to eq(false)
+
+      expect(executor.precondition_error(chat_session)).to eq(described_class::DISCONNECTED_ERROR)
+    end
+
     it "returns nil once a daemon session is connected" do
       connected_daemon_session
       expect(executor.precondition_error(chat_session)).to be_nil
@@ -52,6 +59,18 @@ RSpec.describe ChatShellCommandExecutor::Local do
 
       expect(result.outcome).to eq("error")
       expect(result.output).to eq(described_class::DISCONNECTED_ERROR)
+    end
+
+    it "returns an error result, and never dispatches a tool call, when the session row exists but the daemon hasn't handshaken yet (JOB-4509 visual review)" do
+      LocalDaemonSession.create!(chat_session: chat_session, user: user)
+      command = command_record
+
+      result = executor.run!(command)
+
+      expect(result.outcome).to eq("error")
+      expect(result.output).to eq(described_class::DISCONNECTED_ERROR)
+      expect(command.reload.local_tool_call).to be_nil
+      expect(LocalToolCall.where(chat_session: chat_session)).to be_empty
     end
 
     it "dispatches a run_command tool call, stores it on the record, and reports success" do

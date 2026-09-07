@@ -347,8 +347,11 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   a repository attached, the same repository write-tier check Job mutations
   use (`RepositoryPolicy#write?` via `BaseController#authorize_repository_write!`),
   and the mode's own readiness check (`ChatShellCommandExecutor#precondition_error`)
-  — an active coding checkout for Coding Mode, a connected daemon
-  (`LocalDaemonSession#connected?`) for Local Mode.
+  — an active coding checkout for Coding Mode, a daemon that has completed the
+  real "connect" handshake for Local Mode (`ChatSession#daemon_connected?`,
+  not merely `LocalDaemonSession#connected?`'s row-exists/not-yet-disconnected
+  check — a session row is minted as soon as the operator requests a connect
+  token, before `syrus local` has actually dialed in).
 - Only one command may run at a time per chat session, and a command is
   refused while an agent turn already owns the checkout
   (`turn_in_flight?`/`agent_busy?`). `ChatShellCommandJob` also joins
