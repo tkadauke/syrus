@@ -19,7 +19,7 @@ module WorkerTimeline
     # No "window" chip applied -> every worker lane and every workflow
     # from the last 3 hours (issue default; independent of
     # MacroQuery::DEFAULT_WINDOW, which stays the documented 1-hour
-    # default for the separate bearer-token /api/v1/timeline/macro API).
+    # default for the separate bearer-token /api/v1/admin/worker_timeline/macro API).
     DEFAULT_WINDOW = 3.hours
 
     def self.schema

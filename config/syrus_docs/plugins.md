@@ -2584,8 +2584,8 @@ Bundled plugins:
   `Api::V1::App::Admin::WorkerTimelineController`'s
   `GET /api/v1/app/admin/worker_timeline/macro` — a session-authenticated
   wrapper around the same `Timeline::MacroQuery` the bearer-token
-  `/api/v1/timeline/macro` endpoint uses, since the plugin's browser SPA
-  frontend has no API token to send. Renders one horizontal lane per worker
+  `/api/v1/admin/worker_timeline/macro` endpoint uses, since the plugin's
+  browser SPA frontend has no API token to send. Renders one horizontal lane per worker
   hostname+pid as hand-rolled React+SVG bars, using `d3-scale` for the time
   axis and `d3-zoom`/`d3-selection` for pan/zoom, and the app-wide shared
   `FilterBar` for repository/epic/hostname/status/time-window filtering
