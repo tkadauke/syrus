@@ -155,6 +155,19 @@ RSpec.describe Timeline::MacroQuery do
     )
   end
 
+  it "excludes stale pending workflows older than a week from the pending list" do
+    fresh = WorkUnits::Launcher.instantiate(kind: "initial", job: Factories.job_record(user: user, repository: repository, state: "queued"))
+    stale_job = Factories.job_record(user: user, repository: repository, state: "queued")
+    stale = WorkUnits::Launcher.instantiate(kind: "initial", job: stale_job)
+    stale.update_column(:created_at, 8.days.ago)
+
+    result = described_class.call(from: 1.hour.ago, to: Time.current)
+
+    pending_ids = result[:pending].map { |entry| entry[:workflow_id] }
+    expect(pending_ids).to include(fresh.id)
+    expect(pending_ids).not_to include(stale.id)
+  end
+
   it "excludes spans entirely outside the requested time range" do
     outside = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", started_at: 3.hours.ago, finished_at: 2.hours.ago, worker_hostname: "worker-a")
 

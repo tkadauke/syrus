@@ -31,6 +31,12 @@ The plugin reads:
   (iso8601-encoding the Time fields) lives in `Timeline::BlockedExplanation`,
   shared by both query services below.
 
+A queued Workflow that has been waiting to start for longer than
+`Timeline::MacroQuery::STALE_PENDING_THRESHOLD` (1 week) is dropped from the
+`pending` list entirely — it's unlikely to start any time soon and just
+clutters the "Waiting to start" panel. It's still visible through the normal
+Job/Workflow admin views; this only affects the timeline's pending list.
+
 `WorkflowActivityEvent` now captures `queue_role` for `RunJob` executions,
 which lets the macro query distinguish separate worker processes that share
 one storage volume, such as `runs` and `merges`. `Workflow#worker_storage_key`
