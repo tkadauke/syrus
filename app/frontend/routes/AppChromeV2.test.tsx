@@ -935,6 +935,25 @@ describe("AppChromeV2 mobile header pinning", () => {
       restoreMatchMedia()
     }
   })
+
+  it("keeps the menu icon next to the wordmark when the mobile drawer opens, so it doesn't shift left", () => {
+    // Previously the drawer header rendered only the wordmark with no
+    // leading icon, so opening the sidebar looked like the hamburger
+    // vanished and the logo jumped to the left.
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+
+      const drawer = document.querySelector(".fixed.inset-0.z-40") as HTMLElement
+      expect(drawer).not.toBeNull()
+      expect(within(drawer).getByText("Syrus").closest("div")?.querySelector("svg")).not.toBeNull()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
 })
 
 describe("AppChromeV2 bug report trigger placement", () => {
