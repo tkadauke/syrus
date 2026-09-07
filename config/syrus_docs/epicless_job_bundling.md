@@ -30,11 +30,15 @@ switch once turned on instance-wide), this is a per-instance experimental
 toggle in the same family as `visual_review` or `landing_validation_prefetch` —
 operators opt in from Admin → Features.
 
-## Assembly (`JobBundleAssembler`)
+## Assembly (`LandingBundleAssembler`, priority-tier scope)
 
-`JobBundleAssembler.call(repository)` looks for a ready bundle, trying each
-`Job::PRIORITIES` tier in order (`urgent` first) and returning as soon as one
-tier has enough candidates:
+`LandingBundleAssembler` is a single scope-keyed query class shared with
+Epic merge-train assembly (see [`merge_train.md`](merge_train.md#assembly-requirements));
+`LandingBundleAssembler::Scopes::PriorityTier` is the strategy for this
+feature (`LandingBundleAssembler::Scopes::Epic` is the Epic-backed one).
+`LandingBundleAssembler.for_repository(repository)` looks for a ready
+bundle, trying each `Job::PRIORITIES` tier in order (`urgent` first) and
+returning as soon as one tier has enough candidates:
 
 - **Epicless only** — candidates are `epic_id: nil`.
 - **Own-PR only** — `kind: "external_pr"` Jobs are excluded. Externally
@@ -61,14 +65,14 @@ tier has enough candidates:
   tier behaves the same as today's "not enough candidates" case: it falls
   through to the per-Job `auto_merge` path rather than waiting on other
   owners' Jobs to bundle with.
-- **Minimum bundle size is 2** (`JobBundleAssembler::MIN_BUNDLE_SIZE`),
+- **Minimum bundle size is 2** (`LandingBundleAssembler::Scopes::PriorityTier::MIN_BUNDLE_SIZE`),
   evaluated per owner-partition. A single ready epicless Job — urgent or
   not — falls through to the existing per-Job `auto_merge` path instead of
   spinning up a merge-train-style pipeline for one member. `LandingQueueProcessor`
   only routes a Job to `JobBundleDispatcher` once `bundle_eligible_epicless_job?`
   finds at least `MIN_BUNDLE_SIZE` same-tier, same-owner, epicless, own-PR
   approved siblings for the repository. `bundle_eligible_epicless_job?` calls
-  `JobBundleAssembler.ready_for_job?(job)` — which checks readiness of that
+  `LandingBundleAssembler.ready_for_job?(job)` — which checks readiness of that
   specific Job's own effective-owner partition — rather than
   `.ready_for_priority?(repository, priority)`, which only answers "is *some*
   owner in this tier ready." Gating on the tier-wide query would block/misroute
@@ -80,8 +84,8 @@ tier has enough candidates:
   the cut so a resolved `JobDependency` pair is never split across the cap
   boundary.
 
-`JobBundleAssembler` is a pure query with no side effects; the flag check
-lives in its caller, `JobBundleDispatcher`.
+`LandingBundleAssembler` is a pure query with no side effects; the flag
+check lives in its caller, `JobBundleDispatcher`.
 
 ## Dispatch (`JobBundleDispatcher`)
 

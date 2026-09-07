@@ -178,13 +178,13 @@ class LandingValidationPrefetcher
     # `unit.jobs.first` is not necessarily the Job carrying the Epic. The guard
     # above only requires that the unit's *non-nil* epic_ids agree, so a unit
     # mixing one Epic child with epicless Jobs passes it while the first Job
-    # has no Epic at all -- and `MergeTrainAssembler.call(nil)` then dies with
-    # "undefined method 'work_jobs' for nil", which failed 13 bundle trains in
-    # a single day. Ask the Job that actually has one.
+    # has no Epic at all -- and `LandingBundleAssembler.for_epic(nil)` then dies
+    # with "undefined method 'work_jobs' for nil", which failed 13 bundle
+    # trains in a single day. Ask the Job that actually has one.
     epic = unit.jobs.filter_map(&:epic).first
     return if epic.nil?
 
-    result = MergeTrainAssembler.call(epic)
+    result = LandingBundleAssembler.for_epic(epic)
     return unless result.ready?
     return unless result.job_ids == unit.job_ids
 
@@ -212,8 +212,8 @@ class LandingValidationPrefetcher
   # JobBundleDispatcher has actually persisted it, so a same-tier candidate
   # pool still appears as individual "job:<id>" units beforehand. Checking
   # bundle eligibility on the lone job of a singleton unit lets prefetch
-  # discover the bundle the same way MergeTrainAssembler lets it discover an
-  # Epic's not-yet-dispatched train.
+  # discover the bundle the same way LandingBundleAssembler's Epic scope
+  # lets it discover an Epic's not-yet-dispatched train.
   def job_bundle_unit?(unit)
     return false unless Feature.epicless_job_bundling_enabled?
 
@@ -227,7 +227,7 @@ class LandingValidationPrefetcher
     return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("job_bundle")).any?
 
     repository = unit.jobs.first.repository
-    result = JobBundleAssembler.call(repository)
+    result = LandingBundleAssembler.for_repository(repository)
     return unless result.ready?
     return unless (unit.job_ids - result.job_ids).empty?
 

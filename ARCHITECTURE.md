@@ -1272,7 +1272,7 @@ Git and GitHub:
 | `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
 | `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
-| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows (or a `job_bundle` Workflow via `JobBundleAssembler`/`JobBundleDispatcher` for epicless same-tier siblings, see [Rebase and landing](#rebase-and-landing)), and applies landing state transitions. |
+| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows (or a `job_bundle` Workflow via `LandingBundleAssembler`/`JobBundleDispatcher` for epicless same-tier siblings, see [Rebase and landing](#rebase-and-landing)), and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
 | `DeploymentStageDetector` | Compares landed merge commits (`Job#landed_sha`) against `.syrus.yml` `deployment_stages` tags and records `JobDeploymentStageStatus` rows. |
 | `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
@@ -1316,9 +1316,12 @@ PRs as an all-or-nothing unit.
 **Epicless job bundling** (`epicless_job_bundling` Labs flag, default
 off) generalizes the same mechanism to non-Epic Jobs: `MergeTrain` now
 validates exactly one of `epic` or a nullable `priority` tier is set.
-`JobBundleAssembler` finds two-or-more same-priority-tier, epicless,
-non-external-PR, approved Jobs per repository (ordered topologically,
-capped at `AppSetting.merge_train_max_size`); `JobBundleDispatcher`
+`LandingBundleAssembler`'s priority-tier scope (the same scope-keyed query
+class whose Epic scope replaced the former `MergeTrainAssembler`, see
+[`epicless_job_bundling.md`](config/syrus_docs/epicless_job_bundling.md))
+finds two-or-more same-priority-tier, epicless, non-external-PR, approved
+Jobs per repository (ordered topologically, capped at
+`AppSetting.merge_train_max_size`); `JobBundleDispatcher`
 creates the `MergeTrain`/`MergeTrainMember` rows, locks members into
 `landing`, and starts a `job_bundle` Workflow on the tip member — the
 same integration-branch build/validate/land path merge trains use. A

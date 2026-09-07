@@ -722,16 +722,16 @@ class LandingQueueProcessor
   # epicless own-PR candidates exist for the repo, the Job lands only as
   # part of JobBundleDispatcher's bundle rather than racing for the landing
   # slot on its own. A single ready candidate falls through to the ordinary
-  # per-Job auto_merge path (JobBundleAssembler::MIN_BUNDLE_SIZE). Uses
-  # #ready_for_job? (not #ready_for_priority?) so a Job is only blocked on
-  # a bundle that its own effective owner is actually part of — a ready
+  # per-Job auto_merge path (LandingBundleAssembler::Scopes::PriorityTier::MIN_BUNDLE_SIZE).
+  # Uses #ready_for_job? (not #ready_for_priority?) so a Job is only blocked
+  # on a bundle that its own effective owner is actually part of — a ready
   # bundle among a different owner's Jobs in the same tier must not block
   # or misroute this Job.
   def bundle_eligible_epicless_job?(job)
     return false unless Feature.epicless_job_bundling_enabled?
     return false if job.epic_id.present? || job.external_pr?
 
-    JobBundleAssembler.ready_for_job?(job)
+    LandingBundleAssembler.ready_for_job?(job)
   end
 
   def blockage_for(job, consume_override: false)
@@ -895,7 +895,7 @@ class LandingQueueProcessor
   # Generalized from "is a single urgent Job active" to "does the active
   # landing unit for this repo contain an urgent-priority member" so an
   # urgent epicless bundle (grouped under one job_bundle: landing unit,
-  # never mixed-tier per JobBundleAssembler) preempts non-urgent Jobs the
+  # never mixed-tier per LandingBundleAssembler's priority-tier scope) preempts non-urgent Jobs the
   # same way a lone urgent Job always has. Grouping (rather than checking
   # each urgent Job individually) matters once landing units exist: if
   # `job` is a prerequisite for *any* member of an active urgent unit,
