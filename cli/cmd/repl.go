@@ -39,7 +39,7 @@ func runInteractiveChat(cmd *cobra.Command) error {
 		return err
 	}
 	if terminalPair(input, out) {
-		reader = bufio.NewReader(input)
+		return runChatREPLInteractive(cmd.Context(), client, chat, input, out, cmd.ErrOrStderr())
 	}
 
 	chatID := strconv.FormatInt(chat.ID, 10)
@@ -418,11 +418,7 @@ func renderChatHistoryMessage(out io.Writer, markdown render.MarkdownRenderer, m
 		}
 		fmt.Fprintln(out)
 	case "tool_use":
-		name := strings.TrimSpace(message.ToolName)
-		if name == "" {
-			name = "tool"
-		}
-		fmt.Fprintf(out, "%s %s\n\n", subtleStyle.Render("›"), name)
+		return api.RenderToolUseActivity(out, message.ToolName)
 	}
 	return nil
 }
