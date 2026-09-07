@@ -359,6 +359,14 @@ export type ChatToolGroupCall = {
   progress_label: string
   raw_payload: unknown
   result_body: string
+  // Best-effort JSON.parse of the tool result's complete, untruncated text
+  // (see fullResultBodyUnbounded) -- `result_body` itself is a
+  // display-bounded preview (fullResultBody/toolResultPreview) that can cut
+  // a long single-line JSON result mid-object, so plugin tool cards must
+  // parse from here, not from result_body (JOB-4223). Undefined for
+  // builders (e.g. the admin transcript grouper) that haven't computed it;
+  // treat that the same as null.
+  result_json?: unknown
   result_error: boolean
   result_kind: ChatToolResultKind
   result_summary: string

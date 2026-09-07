@@ -272,11 +272,19 @@ export function typedToolResult(name: string, body: string, error = false): Type
   }
 }
 
-export function toolResultPresentation(name: string, body: string, error = false): ToolResultPresentation {
+// `parseBody` defaults to `body` but callers that already have the tool
+// result's complete, untruncated text (see `fullResultBodyUnbounded`) should
+// pass it explicitly: `body` itself is frequently the display-bounded
+// preview `fullResultBody` produces, and MCP tool results are typically
+// emitted as a single long `JSON.generate(data)` line, so truncating that
+// string before parsing corrupts the JSON mid-object -- `parseJsonText` then
+// returns null and both the generic and any plugin tool card silently lose
+// the whole result (JOB-4223).
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
   if (error) return { kind: "error", summary: "" }
 
   const normalizedName = normalizedToolName(name)
-  const parsed = parseJsonText(body)
+  const parsed = parseJsonText(parseBody)
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -399,7 +407,12 @@ export function fullResultBody(content: unknown): string {
   return toolResultPreview(fullResultBodyUnbounded(content))
 }
 
-function fullResultBodyUnbounded(content: unknown): string {
+// Unbounded counterpart of fullResultBody, exported so callers building a
+// ChatToolGroupCall can keep the complete tool result text around for JSON
+// parsing (see toolResultPresentation's `parseBody` param and
+// MessageCards.tsx's ToolResultBody) instead of only the display-bounded
+// preview.
+export function fullResultBodyUnbounded(content: unknown): string {
   if (typeof content === "string") return shortenWorkspacePaths(content)
   if (Array.isArray(content)) {
     return content.map((item) => {
