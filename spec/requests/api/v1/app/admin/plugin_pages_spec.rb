@@ -87,6 +87,24 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
     )
   end
 
+  it "returns the admin-wide Agent Activity page metadata from the plugin contract", requires_plugin: "agent_activity" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_pages"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("pages")).to include(
+      include(
+        "id" => "agent_activity.admin",
+        "label_key" => "agent_activity:nav_admin_agent_activity",
+        "path" => "/admin/agent_activity",
+        "paths" => [ "/admin/agent_activity" ],
+        "component" => "agent_activity/AdminAgentActivity",
+        "group_id" => "operations"
+      )
+    )
+  end
+
   it "omits the syrus_dev operational logs page while operational log indexing is disabled", requires_plugin: "syrus_dev" do
     sign_in_as(admin)
     PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)

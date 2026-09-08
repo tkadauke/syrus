@@ -2602,12 +2602,12 @@ Bundled plugins:
   fixed-height scrollable container — see
   `plugins/worker_timeline/docs/syrus_docs/worker_timeline.md`.
 - `agent_activity` — default-enabled; the fourth `sidebar_page` plugin, and
-  the first to register two pages from one provider class
-  (`AgentActivity::SidebarPages`): `agent_activity.mine` (`path`
+  the first to pair a primary sidebar page with an admin page
+  (`AgentActivity::SidebarPages` and `AgentActivity::AdminPages`): `agent_activity.mine` (`path`
   `/agent_activity`, any signed-in user, `component:
   "agent_activity/AgentActivity"`) and, only when `Current.user&.admin?`,
   `agent_activity.admin` (`path` `/admin/agent_activity`, `component:
-  "agent_activity/AdminAgentActivity"`). Both `icon: "activity"`. Unlike
+  "agent_activity/AdminAgentActivity"`). Unlike
   `mysql_db_browser`/`worker_timeline`, this plugin has no separate feature
   gate at all — `PluginRecord.enabled` (default on) is the only toggle, and
   both pages share one component (`AgentActivityFeed.tsx`, parameterized by
