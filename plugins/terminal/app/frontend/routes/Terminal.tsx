@@ -5,7 +5,7 @@ import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { CloseIcon } from "@app/components/CloseIcon"
-import { TerminalStream, type TerminalConnectionState } from "../components/TerminalStream"
+import { TerminalStream, type TerminalConnectionState } from "@app/components/TerminalStream"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
 

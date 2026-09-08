@@ -16,7 +16,7 @@ import { StatusPill } from "../components/StatusPill"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
 import { errorMessage } from "../lib/errorMessage"
-import { TerminalStream, type TerminalConnectionState } from "@plugins/terminal/app/frontend/components/TerminalStream"
+import { TerminalStream, type TerminalConnectionState } from "../components/TerminalStream"
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
