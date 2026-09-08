@@ -25,8 +25,8 @@ module Workflows
       syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
         job,
-        adversarial_review_loop(job, agent_step: :coding_handoff_fix),
-        visual_review_loop(job, agent_step: :coding_handoff_fix),
+        adversarial_review_loop(job, agent_step: :coding_handoff_fix, syrus_yml: syrus_yml),
+        visual_review_loop(job, agent_step: :coding_handoff_fix, syrus_yml: syrus_yml),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair_first: false,
