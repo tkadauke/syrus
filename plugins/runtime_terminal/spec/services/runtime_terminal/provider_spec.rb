@@ -16,6 +16,10 @@ RSpec.describe RuntimeTerminal::Provider do
   end
   let(:provider) { described_class.new }
 
+  after do
+    described_class.reset_relay_clients!
+  end
+
   describe ".provider_key and .display_name" do
     it "identifies itself as DOC-17's CLI/TUI provider" do
       expect(described_class.provider_key).to eq("cli_tui")
@@ -30,11 +34,11 @@ RSpec.describe RuntimeTerminal::Provider do
   end
 
   describe ".capabilities" do
-    it "advertises lifecycle-only terminal capabilities for now" do
+    it "advertises terminal input and scrollback inspection capabilities" do
       expect(described_class.capabilities(repository, {})).to eq(
         stream: "none",
-        input: [],
-        inspect: [ "none" ],
+        input: %w[keyboard stdin pointer resize],
+        inspect: [ "scrollback" ],
         build: [ "none" ],
         artifacts: [ "logs" ]
       )
@@ -60,8 +64,86 @@ RSpec.describe RuntimeTerminal::Provider do
         outcome: nil
       )
       expect(terminal_session.started_at).to be_present
-      expect(RuntimeTerminal::SessionLink.find_by!(runtime_session: runtime_session).terminal_session).to eq(terminal_session)
+      expect(RuntimeTerminal::SessionLink.find_by!(runtime_session: runtime_session).terminal_session)
+        .to eq(terminal_session)
       expect(TerminalSessionJob).to have_received(:perform_later).with(terminal_session.id)
+    end
+  end
+
+  describe "#inspect" do
+    it "returns the relay replay buffer and output received after connection" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "booted\n")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      first = provider.inspect(runtime_session.id)
+      relay.write_output("prompt> ")
+      second = provider.inspect(runtime_session.id)
+
+      expect(relay.auth_payload).to eq("token" => terminal_session.auth_token)
+      expect(first).to include(kind: "terminal_scrollback", scrollback: "booted\n", bytes: 7)
+      expect(second).to include(scrollback: "booted\nprompt> ", bytes: 15)
+    ensure
+      relay&.stop
+    end
+  end
+
+  describe "#input" do
+    it "rejects input without an active agent control lease before connecting to the relay" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect(provider.input(runtime_session.id, { type: "stdin", data: "whoami\n" }))
+        .to include(error: "lease_required")
+      expect(relay.auth_payload).to be_nil
+    ensure
+      relay&.stop
+    end
+
+    it "writes stdin, resize, and pointer control frames to the mapped relay socket" do
+      relay = RuntimeTerminalFakeRelay.new
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      RuntimeControlLease.acquire!(
+        runtime_session: runtime_session,
+        owner: "agent",
+        mode: "input",
+        reason: "drive terminal"
+      )
+
+      expect(provider.input(runtime_session.id, { type: "stdin", data: "whoami\n" })).to eq(delivered: true)
+      expect(provider.input(runtime_session.id, { type: "resize", cols: 100, rows: 40 })).to eq(delivered: true)
+      expect(provider.input(runtime_session.id, { type: "pointer", action: "click", x: 12, y: 5, button: "left" }))
+        .to eq(delivered: true)
+
+      expect(relay.next_control).to eq("type" => "input", "data" => "whoami\n")
+      expect(relay.next_control).to eq("type" => "resize", "cols" => 100, "rows" => 40)
+      expect(relay.next_control).to eq("type" => "input", "data" => "\e[<0;12;5M")
+      expect(relay.next_control).to eq("type" => "input", "data" => "\e[<3;12;5m")
+    ensure
+      relay&.stop
     end
   end
 
