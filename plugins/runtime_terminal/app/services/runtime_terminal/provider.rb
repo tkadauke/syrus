@@ -2,6 +2,9 @@ module RuntimeTerminal
   class Provider
     include Syrus::Plugin::RuntimeSessionProvider
 
+    RELAY_ADDRESS_TIMEOUT = 10.seconds
+    RELAY_ADDRESS_POLL_INTERVAL = 0.2.seconds
+
     class << self
       def provider_key = "cli_tui"
       def display_name = "Terminal"
@@ -85,7 +88,7 @@ module RuntimeTerminal
       raise NotImplementedError, "#{self.class}#inspect requires a session_id" if session_id.nil?
 
       runtime_session = runtime_session_for(session_id)
-      terminal_session = terminal_session_for(runtime_session)
+      terminal_session = relay_ready_terminal_session_for(runtime_session)
       scrollback = relay_client_for(runtime_session, terminal_session).inspect_scrollback
 
       { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
@@ -104,7 +107,7 @@ module RuntimeTerminal
         }
       end
 
-      terminal_session = terminal_session_for(runtime_session)
+      terminal_session = relay_ready_terminal_session_for(runtime_session)
       relay_client_for(runtime_session, terminal_session).input(event)
       lease.record_input!(event)
 
@@ -136,6 +139,18 @@ module RuntimeTerminal
 
     def terminal_session_for(runtime_session)
       RuntimeTerminal::SessionLink.find_by!(runtime_session_id: runtime_session.id).terminal_session
+    end
+
+    def relay_ready_terminal_session_for(runtime_session)
+      terminal_session = terminal_session_for(runtime_session)
+      deadline = Time.current + RELAY_ADDRESS_TIMEOUT
+
+      until terminal_session.relay_ready? || Time.current > deadline
+        sleep RELAY_ADDRESS_POLL_INTERVAL
+        terminal_session.reload
+      end
+
+      terminal_session
     end
 
     def relay_client_for(runtime_session, terminal_session)

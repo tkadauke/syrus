@@ -93,6 +93,31 @@ RSpec.describe RuntimeTerminal::Provider do
     ensure
       relay&.stop
     end
+
+    it "waits for TerminalSessionJob to publish the relay address before connecting" do
+      relay = RuntimeTerminalFakeRelay.new(replay: "ready after reload\n")
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: nil,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      allow(provider).to receive(:sleep).with(described_class::RELAY_ADDRESS_POLL_INTERVAL)
+      allow(terminal_session).to receive(:reload) do
+        terminal_session.relay_address = relay.address
+        terminal_session
+      end
+      allow(provider).to receive(:terminal_session_for).with(runtime_session).and_return(terminal_session)
+
+      expect(provider.inspect(runtime_session.id)).to include(scrollback: "ready after reload\n")
+      expect(provider).to have_received(:sleep).with(described_class::RELAY_ADDRESS_POLL_INTERVAL)
+    ensure
+      relay&.stop
+    end
   end
 
   describe "#input" do
