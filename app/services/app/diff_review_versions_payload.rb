@@ -49,6 +49,7 @@ module App
         reason: version.reason,
         truncated: version.truncated,
         files_count: Array(version.files_snapshot).size,
+        comments_count: version.diff_review_comments.size,
         metadata: version.metadata || {},
         created_at: version.created_at&.iso8601
       }

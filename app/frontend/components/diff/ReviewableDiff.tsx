@@ -765,13 +765,15 @@ export function UnifiedDiffTable({
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
-            const threads = commentSide ? comments?.[anchorKeyForLine(line, commentSide)] || [] : []
-            const isComposingHere = Boolean(commentSide && composingKey && composingKey === anchorKeyForLine(line, commentSide))
+            const lineAnchorKey = commentSide ? anchorKeyForLine(line, commentSide) : null
+            const threads = lineAnchorKey ? comments?.[lineAnchorKey] || [] : []
+            const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
               <tr
                 className={`group ${diffLineClass(line.kind)}`}
                 data-coverage={annotation}
+                data-diff-anchor={lineAnchorKey || undefined}
                 data-diff-kind={line.kind}
               >
                 <td className={`relative ${diffGutterClass(line.kind)}`}>

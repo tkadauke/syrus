@@ -206,11 +206,27 @@ module App
 
       {
         id: version.id,
+        job_id: version.job_id,
         version_index: version.version_index,
         base_sha: version.base_sha,
         head_sha: version.head_sha,
+        base_ref: version.base_ref,
+        head_ref: version.head_ref,
+        workflow_id: version.workflow_id,
+        workflow: version.workflow ? {
+          id: version.workflow.id,
+          trigger_kind: version.workflow.trigger_kind,
+          state: version.workflow.state
+        } : nil,
+        run_id: version.run_id,
+        trigger_kind: version.trigger_kind,
         label: version.label,
-        reason: version.reason
+        reason: version.reason,
+        truncated: version.truncated,
+        files_count: Array(version.files_snapshot).size,
+        comments_count: version.diff_review_comments.size,
+        metadata: version.metadata || {},
+        created_at: version.created_at&.iso8601
       }
     end
 
@@ -221,8 +237,22 @@ module App
           version_index: version.version_index,
           base_sha: version.base_sha,
           head_sha: version.head_sha,
+          base_ref: version.base_ref,
+          head_ref: version.head_ref,
+          workflow_id: version.workflow_id,
+          workflow: version.workflow ? {
+            id: version.workflow.id,
+            trigger_kind: version.workflow.trigger_kind,
+            state: version.workflow.state
+          } : nil,
+          run_id: version.run_id,
+          trigger_kind: version.trigger_kind,
           label: version.label,
           reason: version.reason,
+          truncated: version.truncated,
+          files_count: Array(version.files_snapshot).size,
+          comments_count: version.diff_review_comments.size,
+          metadata: version.metadata || {},
           created_at: version.created_at&.iso8601
         }
       end

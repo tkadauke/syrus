@@ -1016,6 +1016,27 @@ export type JobSourcePayload = {
   paths: Pick<JobPaths, "job_path" | "source_path" | "app_source_path">
 }
 
+export type DiffReviewVersion = {
+  id: number
+  job_id?: number
+  version_index: number
+  base_sha: string
+  head_sha: string
+  base_ref: string | null
+  head_ref: string | null
+  workflow_id: number | null
+  workflow: { id: number; trigger_kind: string; state: string } | null
+  run_id: number | null
+  trigger_kind: string | null
+  label: string | null
+  reason: string | null
+  truncated: boolean
+  files_count: number
+  comments_count: number
+  metadata: Record<string, unknown>
+  created_at: string | null
+}
+
 export type JobSourceDiffPayload = {
   job_id: number
   base_ref: string | null
@@ -1026,8 +1047,21 @@ export type JobSourceDiffPayload = {
   files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null }>
   truncated: boolean
   diff_error: string | null
-  version: { id: number; version_index: number; base_sha: string; head_sha: string; label: string | null; reason: string | null } | null
-  versions: Array<{ id: number; version_index: number; base_sha: string; head_sha: string; label: string | null; reason: string | null; created_at: string | null }>
+  version: DiffReviewVersion | null
+  versions: DiffReviewVersion[]
+}
+
+export type DiffReviewVersionsPayload = {
+  job_id: number
+  versions: DiffReviewVersion[]
+  latest_version_id: number | null
+}
+
+export type DiffReviewVersionPayload = DiffReviewVersion & {
+  job_id: number
+  default_ref: string
+  files: JobSourceDiffPayload["files"]
+  diff_error: string | null
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
@@ -1220,6 +1254,14 @@ export function fetchJobSourceFileContent(id: string | number, ref: string, path
 
 export function fetchJobSourceDiff(id: string, search = "") {
   return getJson<JobSourceDiffPayload>(`/api/v1/app/jobs/${id}/source_diff${search}`)
+}
+
+export function fetchDiffReviewVersions(jobId: string | number) {
+  return getJson<DiffReviewVersionsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_versions`)
+}
+
+export function fetchDiffReviewVersion(jobId: string | number, versionId: number) {
+  return getJson<DiffReviewVersionPayload>(`/api/v1/app/jobs/${jobId}/diff_review_versions/${versionId}`)
 }
 
 export function fetchDiffReviewComments(jobId: string | number, search = "") {
