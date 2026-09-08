@@ -4,6 +4,7 @@ import { tabFromLocation } from "./queryKeys"
 describe("tabFromLocation", () => {
   it("recognizes core tabs from the ?tab= query param", () => {
     expect(tabFromLocation("/jobs/1", "?tab=workflows")).toBe("workflows")
+    expect(tabFromLocation("/jobs/1", "?tab=conversation")).toBe("conversation")
     expect(tabFromLocation("/jobs/1", "?tab=attachments")).toBe("attachments")
   })
 
