@@ -1165,7 +1165,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       # RepoGradeLoopPlan reports something configured (see Workflows::Base
       # .grader_retry_loop); these tests exercise the grade-log endpoints
       # directly against a grader_collect step, so force that step to exist.
-      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
         RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: true, source: ".syrus.yml", note: nil)
       )
     end
