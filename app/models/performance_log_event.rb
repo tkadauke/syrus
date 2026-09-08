@@ -84,6 +84,8 @@ class PerformanceLogEvent < ApplicationRecord
       "exception_class" => attrs["exception_class"].to_s.safe_byteslice(0, 200).presence,
       "exception_message" => attrs["exception_message"].to_s.safe_byteslice(0, 300).presence,
       "visibility_state" => attrs["visibility_state"],
+      "parent_id" => attrs["parent_id"].to_s.safe_byteslice(0, 100).presence,
+      "interaction_id" => attrs["interaction_id"].to_s.safe_byteslice(0, 100).presence,
       "self_sql_count" => attrs["self_sql_count"],
       "self_sql_duration_ms" => attrs["self_sql_duration_ms"],
       "self_slow_sql_count" => attrs["self_slow_sql_count"],

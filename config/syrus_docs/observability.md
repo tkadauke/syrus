@@ -170,6 +170,57 @@ inclusive of nested work, but phase SQL fingerprint drilldowns are exclusive:
 each query is attributed to the deepest active phase so the same statement does
 not appear under multiple nested phases.
 
+### Frontend performance markers
+
+`app/frontend/lib/performanceMarkers.ts` is a generic marker API frontend code
+uses to place named timing spans -- the browser-side counterpart to
+`PerformanceLogging.phase`. It deliberately reuses the existing browser trace
+ingestion path (`POST /api/v1/app/performance_events` ->
+`PerformanceLogging.record_browser_trace` -> `performance_log_events`) instead
+of a parallel stream, so marker events show up in the same
+`grouped_browser_traces` summaries the passive `PerformanceObserver`-driven
+traces (`browser.long_task`, `browser.slow_input`, `browser.event_loop_lag`)
+already use.
+
+Helpers: `measureSync`/`measureAsync` (time a block, sync or async),
+`startMarker`/`endMarker` (an explicit span that doesn't fit one function
+call), `recordCount` (count-based context with no timing), and the
+`useMarkedRender` React hook (a component's render/commit or render/paint
+boundary, via a double `requestAnimationFrame` for the paint phase). Every
+call produces one `BrowserTracePayload` sharing the same stable envelope as
+the passive traces: `trace_id`, `name`, `path`, `duration_ms`,
+`visibility_state`, `metadata`, plus optional `parent_id`/`interaction_id` for
+correlating several markers under one enclosing operation or user
+interaction. `app_revision` is stamped server-side in `base_event`, not sent
+by the client.
+
+Each call accepts `thresholdMs` (drop samples faster than this instead of
+sending a zero-value row), `sampleRate` (probabilistic keep, 0..1), and
+`maxPerSession` (a hard cap on how many events a given marker `name` may send
+per page session) -- a marker placed in per-scroll-frame or per-keystroke code
+needs all three to stay bounded. Events queue in memory and flush together
+(debounced by size/time, or immediately via `navigator.sendBeacon` on
+`visibilitychange`/`pagehide`) rather than opening one request per marker;
+`postBrowserTraces` in `performanceTrace.ts` is the shared batched sender
+underneath both the marker queue and this doc's passive observers. A beacon
+request cannot carry the `X-CSRF-Token` header, so the CSRF token also travels
+as an `authenticity_token` field in the JSON body, which Rails accepts from
+either place; `PerformanceEventsController#create` accepts a single
+`performance_event` (the passive observers' shape) or a batched
+`performance_events` array.
+
+The diff review surface (`ReviewWorkspace`/`ReviewableDiff`) is the first
+consumer: `diff_review.fetch_source_diff`, `diff_review.parse_diff`,
+`diff_review.initial_render`, `diff_review.syntax_highlight`,
+`diff_review.viewport_render`, `diff_review.comment_threads_render`,
+`diff_review.files_menu_open`, and `diff_review.anchor_scroll`, each carrying
+metadata relevant to that phase (file/row counts, hunk counts, syntax token
+span counts, thread counts, virtualization mode). Query them the same way as
+any other browser trace: the `syrus_dev` plugin's `SyrusDev::PerformancePayload`
+groups `grouped_browser_traces` by `[name, path]`, or filter
+`PerformanceLogEvent.where(event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
+name: "diff_review.parse_diff")` directly.
+
 `operational_log_events` contain structured process/request/job logs. They
 retain 6 hours and can be indexed for full-text search when
 `operational_log_indexing` is enabled.

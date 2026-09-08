@@ -19,7 +19,8 @@ module AgentActivity
     author "Thomas Kadauke"
     category "observability"
 
-    provides sidebar_page: "AgentActivity::SidebarPages"
+    provides sidebar_page: "AgentActivity::SidebarPages",
+             admin_page: "AgentActivity::AdminPages"
 
     route :get, "/api/v1/app/agent_activity/sessions", to: "api/v1/app/agent_activity#sessions"
     route :get, "/api/v1/app/admin/agent_activity/sessions", to: "api/v1/app/admin/agent_activity#sessions"

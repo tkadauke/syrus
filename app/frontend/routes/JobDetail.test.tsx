@@ -1733,6 +1733,38 @@ describe("JobDetailRoute", () => {
     vi.restoreAllMocks()
   })
 
+  it("keeps the Agent Conversation tab selected on a direct visit", async () => {
+    const payload = jobPayload()
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(payload))
+      if (path === "/api/v1/app/jobs/1/agent_conversation") {
+        return Promise.resolve(jsonResponse({ job_id: 1, nodes: [], edges: [] }))
+      }
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=conversation"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    const conversationTab = await screen.findByRole("button", { name: "Agent Conversation" })
+    expect(conversationTab).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Summary" })).not.toHaveClass("border-brand")
+    expect(await screen.findByText("No agent activity recorded for this Job yet.")).toBeInTheDocument()
+  })
+
   // Regression test for a plugin registering a `.tab` ui_slot whose key isn't
   // in JobDetail's hardcoded tab literal (e.g. a future "coverage" tab, only
   // "tests" happened to be pre-whitelisted). tabFromLocation must accept any
@@ -1759,6 +1791,65 @@ describe("JobDetailRoute", () => {
         </ShortcutsProvider>
       </QueryClientProvider>
     )
+
+    const coverageTab = await screen.findByRole("button", { name: "Coverage" })
+    expect(coverageTab).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Summary" })).not.toHaveClass("border-brand")
+  })
+
+  it("falls back to Summary for an unclaimed plugin tab URL", async () => {
+    const payload = jobPayload({
+      ui_tabs: [
+        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=not-a-real-tab"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Summary" })).toHaveClass("border-brand")
+    expect(screen.getByRole("button", { name: "Coverage" })).not.toHaveClass("border-brand")
+  })
+
+  it("keeps a direct plugin tab URL selected once ui_tabs load", async () => {
+    const payload = jobPayload({
+      ui_tabs: [
+        { id: "coverage-plugin-tab", component: "coverage_plugin/coverage_tab", order: 1, key: "coverage", label: "Coverage" }
+      ]
+    })
+    let resolveDetail: (response: Response) => void = () => {}
+    vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>((resolve) => { resolveDetail = resolve }))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=coverage"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByText("Loading Job...")).toBeInTheDocument()
+    resolveDetail(jsonResponse(payload))
 
     const coverageTab = await screen.findByRole("button", { name: "Coverage" })
     expect(coverageTab).toHaveClass("border-brand")

@@ -20,6 +20,10 @@
     "binary": "Plicae binariae praevideri non possunt.",
     "too_large": "Haec plica nimis magna est ad praevidendum. Utere \"Plicam crudam aperire\" ut eam directe inspicias."
   },
+  "diff_review_composer": {
+    "title": "Commentarium",
+    "close": "Formam commentarii claudere"
+  },
   "onboarding": {
     "loading": "Status constitutionis oneratur...",
     "setup_label": "Constitutio Prima",

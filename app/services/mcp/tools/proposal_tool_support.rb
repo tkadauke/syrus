@@ -10,6 +10,15 @@ module Mcp::Tools
       Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
     end
 
+    # Models occasionally write the literal two-character sequence
+    # backslash-n into a tool-call string when they intend a line break,
+    # instead of an actual embedded newline. Proposal descriptions render as
+    # Markdown, so without this the literal escape shows up verbatim instead
+    # of producing a line break.
+    def normalize_line_breaks(text)
+      text.to_s.gsub('\n', "\n")
+    end
+
     def repository_for(chat_session, repo)
       token = repo.to_s.strip
       if token.blank?

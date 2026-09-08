@@ -83,6 +83,26 @@ RSpec.describe PerformanceLogEvent do
         "exception_message" => "query interrupted"
       )
     end
+
+    it "round-trips a browser marker's parent/interaction correlation ids through durable storage" do
+      event = described_class.create!(
+        described_class.from_event_hash(
+          "occurred_at" => 1.minute.ago.iso8601,
+          "event" => PerformanceLogging::BROWSER_TRACE_EVENT,
+          "trace_id" => "diff-review-marker",
+          "parent_id" => "diff-review-root",
+          "interaction_id" => "interaction-7",
+          "name" => "diff_review.parse_diff",
+          "path" => "/jobs/4348?tab=review",
+          "duration_ms" => 12.5
+        )
+      )
+
+      expect(event.as_event_hash).to include(
+        "parent_id" => "diff-review-root",
+        "interaction_id" => "interaction-7"
+      )
+    end
   end
 
   describe ".persist_observability_events!" do

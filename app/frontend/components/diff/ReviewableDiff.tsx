@@ -1,14 +1,23 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
+import { useT } from "../../hooks/useT"
 import { detectHighlighterLanguage, tokenizeLines, type HighlighterLanguageId } from "../../lib/highlighter"
+import { endMarker, measureSync, recordCount, startMarker, type PerformanceMarkerHandle } from "../../lib/performanceMarkers"
 import {
   CONTEXT_EXPAND_LINE_INCREMENT,
+  DEFAULT_FILE_HEADER_HEIGHT_PX,
+  DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX,
+  DEFAULT_FILE_ROW_HEIGHT_PX,
+  DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX,
+  DEFAULT_FILE_VIRTUALIZATION_OVERSCAN,
   DEFAULT_LARGE_FILE_ROW_THRESHOLD,
   DEFAULT_MAX_VISIBLE_FILES,
   contextGapsForHunks,
+  countDiffRows,
   diffCoverageBorderClass,
   diffGutterClass,
   diffLineClass,
@@ -108,6 +117,50 @@ type FilesPopupPlacement = {
 const FILES_POPUP_MARGIN = 8
 const FILES_POPUP_MIN_HEIGHT = 200
 
+// Per-file state that must survive a file section unmounting and remounting
+// as the user scrolls it out of, then back into, the virtualized window --
+// otherwise expanded hidden-context and fetched Shiki tokens would silently
+// redo their work (or reset visually) every time a file leaves the overscan
+// range. Held in a Map on the parent ReviewableDiff (keyed by file path, not
+// component state), so the entry itself survives across DiffFileSection
+// mount/unmount cycles; only the whole diff changing (see `fileCache.current
+// = new Map()` below) clears it.
+type FileCacheEntry = {
+  contextState: FileContextState
+  forceLoaded: boolean
+  tokensByHunk: Map<number, ThemedToken[][]>
+}
+
+function createFileCacheEntry(): FileCacheEntry {
+  return { contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" }, forceLoaded: false, tokensByHunk: new Map() }
+}
+
+// Mutates the shared cache entry in place and forces a re-render, rather
+// than mirroring it into component state -- so the entry (and thus its
+// contents) has one persistent identity per file path regardless of how
+// many times its DiffFileSection mounts and unmounts.
+function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
+  if (!cache.has(path)) cache.set(path, createFileCacheEntry())
+  const entry = cache.get(path)!
+  const [, forceUpdate] = useReducer((count: number) => count + 1, 0)
+  function update(patch: Partial<FileCacheEntry>) {
+    Object.assign(entry, patch)
+    forceUpdate()
+  }
+  return [entry, update]
+}
+
+// A pixel estimate used only until a file section actually mounts and
+// reports its real height (see `virtualizer.measureElement`). Close enough
+// that ordinary scrolling doesn't jump once the real measurement lands.
+function estimateFileSectionHeight(file: ReviewableDiffFile, { forceLoaded, largeFileRowThreshold, showHeader }: { forceLoaded: boolean; largeFileRowThreshold: number; showHeader: boolean }): number {
+  const header = showHeader ? DEFAULT_FILE_HEADER_HEIGHT_PX : 0
+  if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
+  const rowCount = countDiffRows(file.patch)
+  if (rowCount > largeFileRowThreshold && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
+  return header + rowCount * DEFAULT_FILE_ROW_HEIGHT_PX
+}
+
 export function ReviewableDiff({
   annotations,
   changedFilesPopup = false,
@@ -142,25 +195,34 @@ export function ReviewableDiff({
   wordHighlighting = true
 }: ReviewableDiffProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [filesPopupOpen, setFilesPopupOpen] = useState(false)
   const [filesPopupPlacement, setFilesPopupPlacement] = useState<FilesPopupPlacement | null>(null)
+  // Started when the Files menu opens, ended once its popup has actually
+  // been positioned and rendered -- open-to-render latency, not just the
+  // click handler's own (near-zero) synchronous cost.
+  const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
+  // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
+  // path -- survives a file section unmounting when it scrolls out of the
+  // virtualized window. Reset below whenever the diff itself changes.
+  const fileCache = useRef(new Map<string, FileCacheEntry>())
 
   const renderFiles = filesForMode(files, mode, selectedPath)
   const filesSignature = renderFiles.map((file) => file.path).join("\n")
 
-  // Reset the "how many files are revealed" cap whenever the underlying file
-  // list actually changes (not on every re-render, since query refetches can
-  // hand back a fresh array reference for the same data).
+  // Reset the "how many files are revealed" cap (and the per-file cache)
+  // whenever the underlying file list actually changes (not on every
+  // re-render, since query refetches can hand back a fresh array reference
+  // for the same data).
   const [visibleState, setVisibleState] = useState(() => ({ count: Math.min(renderFiles.length, maxVisibleFiles), signature: filesSignature }))
   let visibleFileCount = visibleState.count
   if (visibleState.signature !== filesSignature) {
     visibleFileCount = Math.min(renderFiles.length, maxVisibleFiles)
     setVisibleState({ count: visibleFileCount, signature: filesSignature })
+    fileCache.current = new Map()
   }
-
-  if (renderFiles.length === 0) return <>{emptyState}</>
 
   const containerClass = scroll === "natural"
     ? "bg-white font-mono text-xs dark:bg-gray-950"
@@ -168,28 +230,121 @@ export function ReviewableDiff({
 
   const visibleFiles = renderFiles.slice(0, visibleFileCount)
   const remainingFileCount = renderFiles.length - visibleFiles.length
+  const showHeader = showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")
 
-  function scrollToDiffFile(path: string) {
-    document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" })
+  // Distance from the top of the document to the top of the scroll
+  // container, needed to convert `useWindowVirtualizer`'s document-relative
+  // offsets back into container-relative ones. Irrelevant (and left at 0)
+  // for bounded/element scrolling, where the container itself is the
+  // scrollport.
+  const scrollMargin = scroll === "natural" ? (scrollContainerRef.current?.offsetTop ?? 0) : 0
+
+  function estimateSize(index: number) {
+    const file = visibleFiles[index]
+    if (!file) return DEFAULT_FILE_HEADER_HEIGHT_PX
+    return estimateFileSectionHeight(file, { forceLoaded: fileCache.current.get(file.path)?.forceLoaded ?? false, largeFileRowThreshold, showHeader })
   }
+
+  function getItemKey(index: number) {
+    return visibleFiles[index]?.path ?? index
+  }
+
+  // Both variants are constructed unconditionally (hooks can't be called
+  // conditionally); only the one matching `scroll` is actually used below.
+  // `scroll` is a per-call-site constant in practice, so the unused instance
+  // costs a bit of idle bookkeeping, never a real second scrollport.
+  // `enabled: false` keeps the inactive instance from touching its scroll
+  // element at all (no listeners, no initial-offset sync) -- without it, the
+  // unused window virtualizer would still call `window.scrollTo()` on mount
+  // even for a "bounded" container diff, since `window` is always available.
+  const windowVirtualizer = useWindowVirtualizer({ count: visibleFiles.length, enabled: scroll === "natural", estimateSize, getItemKey, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN, scrollMargin })
+  const elementVirtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
+  const virtualizer = scroll === "natural" ? windowVirtualizer : elementVirtualizer
+
+  // Navigates the virtualized list to `selectedPath` whenever it changes
+  // (Files menu selection, a header click round-tripping back through
+  // `onSelectFile`, or a sidebar comment's "View in diff") -- unlike the old
+  // `data-diff-file` DOM query, this works even when the target file isn't
+  // currently mounted. `pendingScrollTarget` survives across the render
+  // where a beyond-the-cap file first gets included in `visibleFiles`, so
+  // the scroll happens once the file is actually part of the virtualized
+  // range instead of being silently dropped.
+  const pendingScrollTarget = useRef<string | null>(null)
+  useEffect(() => {
+    if (selectedPath) pendingScrollTarget.current = selectedPath
+  }, [selectedPath])
+  useEffect(() => {
+    const target = pendingScrollTarget.current
+    if (!target) return
+    const index = renderFiles.findIndex((file) => file.path === target)
+    if (index === -1) return
+    if (index >= visibleFileCount) {
+      setVisibleState({ count: index + 1, signature: filesSignature })
+      return
+    }
+    pendingScrollTarget.current = null
+    measureSync("diff_review.anchor_scroll", () => virtualizer.scrollToIndex(index, { align: "start" }), {
+      maxPerSession: 200,
+      metadata: { selected_path: target, virtualization_mode: scroll }
+    })
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  // Throttled by the effect's own dependency array, not a timer: this only
+  // fires when the *count* of virtualized (mounted) files actually changes
+  // -- initial mount, "load more files", or files scrolling in/out of the
+  // overscan range -- not on every scroll-position pixel.
+  useEffect(() => {
+    const mountedFiles = virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
+    const mountedRows = mountedFiles.reduce((sum, file) => sum + (file.patch ? countDiffRows(file.patch) : 0), 0)
+    recordCount("diff_review.viewport_render", {
+      maxPerSession: 300,
+      metadata: {
+        mounted_files: virtualItems.length,
+        mounted_rows: mountedRows,
+        total_files: visibleFiles.length,
+        virtualization_mode: scroll
+      }
+    })
+  }, [virtualItems.length, visibleFiles.length, scroll])
+
+  useEffect(() => {
+    if (!comments) return
+    const threadCount = Object.values(comments).reduce(
+      (sum, byAnchor) => sum + Object.values(byAnchor).reduce((innerSum, threads) => innerSum + threads.length, 0),
+      0
+    )
+    if (threadCount === 0) return
+    recordCount("diff_review.comment_threads_render", {
+      maxPerSession: 200,
+      metadata: { comment_composer_active: Boolean(composingSelection), thread_count: threadCount }
+    })
+  }, [comments, composingSelection])
+
+  useEffect(() => {
+    const marker = filesMenuMarkerRef.current
+    if (!filesPopupOpen || !filesPopupPlacement || !marker) return
+    endMarker(marker, { metadata: { total_files: files.length } })
+    filesMenuMarkerRef.current = null
+  }, [filesPopupOpen, filesPopupPlacement, files.length])
+
+  if (renderFiles.length === 0) return <>{emptyState}</>
 
   function toggleFilesPopup(event: MouseEvent<HTMLButtonElement>) {
     const buttonRect = event.currentTarget.getBoundingClientRect()
     const containerRect = containerRef.current?.getBoundingClientRect() ?? buttonRect
     setFilesPopupPlacement(computeFilesPopupPlacement(buttonRect, containerRect))
-    setFilesPopupOpen((open) => !open)
+    setFilesPopupOpen((open) => {
+      const next = !open
+      if (next) filesMenuMarkerRef.current = startMarker("diff_review.files_menu_open", { maxPerSession: 200 })
+      return next
+    })
   }
 
   function selectFileFromPopup(path: string) {
     onSelectFile?.(path)
     setFilesPopupOpen(false)
-    const index = renderFiles.findIndex((file) => file.path === path)
-    if (index >= 0 && index >= visibleFileCount) {
-      setVisibleState({ count: index + 1, signature: filesSignature })
-      requestAnimationFrame(() => scrollToDiffFile(path))
-      return
-    }
-    scrollToDiffFile(path)
   }
 
   function toggleHighlightToken(token: string) {
@@ -204,41 +359,55 @@ export function ReviewableDiff({
           <button className="font-medium underline hover:no-underline" onClick={() => setHighlightedToken(null)} type="button">Clear highlight</button>
         </div>
       ) : null}
-      <div className={containerClass}>
-        {visibleFiles.map((file, index) => (
-          <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path}>
-            <DiffFileSection
-              annotations={annotationsForFile(annotations, file.path)}
-              comments={comments?.[file.path]}
-              composingBody={composingBody}
-              composingError={composingError}
-              composingPending={composingPending}
-              composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
-              editingThreadBody={editingThreadBody}
-              editingThreadId={editingThreadId}
-              file={file}
-              highlightedToken={wordHighlighting ? highlightedToken : null}
-              largeFileRowThreshold={largeFileRowThreshold}
-              onCancelComposing={onCancelComposing}
-              onCancelEditThread={onCancelEditThread}
-              onChangeComposingBody={onChangeComposingBody}
-              onChangeEditingThreadBody={onChangeEditingThreadBody}
-              onCommentLine={onCommentLine}
-              onDeleteThread={onDeleteThread}
-              onLoadFileContext={onLoadFileContext}
-              onSaveComposing={onSaveComposing}
-              onSaveEditThread={onSaveEditThread}
-              onSelectFile={onSelectFile}
-              onStartEditThread={onStartEditThread}
-              onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
-              onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
-              selected={selectedPath === file.path}
-              showFilesPopupTrigger={changedFilesPopup}
-              showHeader={showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")}
-              unavailableState={unavailableState}
-            />
-          </section>
-        ))}
+      <div className={containerClass} data-rendered-file-count={virtualItems.length} data-total-file-count={visibleFiles.length} ref={scrollContainerRef}>
+        <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+          {virtualItems.map((virtualItem) => {
+            const file = visibleFiles[virtualItem.index]
+            if (!file) return null
+            return (
+              <div
+                data-index={virtualItem.index}
+                key={virtualItem.key}
+                ref={virtualizer.measureElement}
+                style={{ left: 0, position: "absolute", top: 0, transform: `translateY(${virtualItem.start - scrollMargin}px)`, width: "100%" }}
+              >
+                <section className={virtualItem.index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path}>
+                  <DiffFileSection
+                    annotations={annotationsForFile(annotations, file.path)}
+                    cache={fileCache.current}
+                    comments={comments?.[file.path]}
+                    composingBody={composingBody}
+                    composingError={composingError}
+                    composingPending={composingPending}
+                    composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
+                    editingThreadBody={editingThreadBody}
+                    editingThreadId={editingThreadId}
+                    file={file}
+                    highlightedToken={wordHighlighting ? highlightedToken : null}
+                    largeFileRowThreshold={largeFileRowThreshold}
+                    onCancelComposing={onCancelComposing}
+                    onCancelEditThread={onCancelEditThread}
+                    onChangeComposingBody={onChangeComposingBody}
+                    onChangeEditingThreadBody={onChangeEditingThreadBody}
+                    onCommentLine={onCommentLine}
+                    onDeleteThread={onDeleteThread}
+                    onLoadFileContext={onLoadFileContext}
+                    onSaveComposing={onSaveComposing}
+                    onSaveEditThread={onSaveEditThread}
+                    onSelectFile={onSelectFile}
+                    onStartEditThread={onStartEditThread}
+                    onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
+                    onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
+                    selected={selectedPath === file.path}
+                    showFilesPopupTrigger={changedFilesPopup}
+                    showHeader={showHeader}
+                    unavailableState={unavailableState}
+                  />
+                </section>
+              </div>
+            )
+          })}
+        </div>
         {remainingFileCount > 0 ? (
           <div className="border-t border-gray-200 px-4 py-3 text-center font-sans dark:border-gray-800">
             <Button
@@ -433,6 +602,7 @@ type FileContextState = {
 // list) whenever the underlying file actually changes.
 function DiffFileSection({
   annotations,
+  cache,
   comments,
   composingBody,
   composingError,
@@ -462,6 +632,7 @@ function DiffFileSection({
   unavailableState
 }: {
   annotations?: Record<string, LineAnnotation>
+  cache: Map<string, FileCacheEntry>
   comments?: Record<string, DiffReviewThread[]>
   composingBody?: string
   composingError?: Error | null
@@ -490,11 +661,23 @@ function DiffFileSection({
   showHeader: boolean
   unavailableState: ReactNode
 }) {
-  const lines = useMemo(() => parseUnifiedDiff(file.patch || ""), [file.patch])
+  const lines = useMemo(() => {
+    const marker = startMarker("diff_review.parse_diff", { maxPerSession: 300, thresholdMs: 1 })
+    const parsed = parseUnifiedDiff(file.patch || "")
+    endMarker(marker, { metadata: { path: file.path, rows: parsed.length } })
+    return parsed
+  }, [file.patch])
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
-  const [forceLoaded, setForceLoaded] = useState(false)
-  const [contextState, setContextState] = useState<FileContextState>({ fullyExpanded: false, gaps: [], lines: null, status: "idle" })
+  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path)
+  const forceLoaded = cacheEntry.forceLoaded
+  const contextState = cacheEntry.contextState
+  function setForceLoaded(value: boolean) {
+    updateCacheEntry({ forceLoaded: value })
+  }
+  function setContextState(updater: (prev: FileContextState) => FileContextState) {
+    updateCacheEntry({ contextState: updater(cacheEntry.contextState) })
+  }
 
   const gapsMeta = useMemo<ContextGap[]>(() => contextGapsForHunks(hunks, contextState.lines?.length ?? null), [hunks, contextState.lines])
 
@@ -620,6 +803,7 @@ function DiffFileSection({
           onSaveEditThread={onSaveEditThread}
           onStartEditThread={onStartEditThread}
           onToggleHighlightToken={onToggleHighlightToken}
+          tokenCache={cacheEntry.tokensByHunk}
         />
       ) : (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
@@ -650,43 +834,71 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
 // whose opening line falls outside the visible hunk can highlight
 // incorrectly at the hunk boundary, because Shiki has no grammar state
 // from before the hunk to continue from.
-function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null): (ThemedToken[] | undefined)[] {
-  const [tokensByIndex, setTokensByIndex] = useState<(ThemedToken[] | undefined)[]>([])
+//
+// Results are cached in `tokensByHunk`, keyed by hunk id rather than by raw
+// line index: hunk ids are stable across hidden-context expansion (expanded
+// context lines get hunkId -1, so they never shift an existing hunk's id or
+// its cached tokens), and the caller may pass a cache that outlives this
+// component's own mount -- see FileCacheEntry -- so a file that scrolls out
+// of the virtualized window and back doesn't redo Shiki work it already
+// paid for.
+function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null, tokensByHunk: Map<number, ThemedToken[][]>): (ThemedToken[] | undefined)[] {
+  // Bumped after a fetch populates `tokensByHunk` (mutated in place, so its
+  // reference never changes on its own) to tell the memo below new entries
+  // landed.
+  const [version, bumpVersion] = useReducer((count: number) => count + 1, 0)
 
-  useEffect(() => {
-    setTokensByIndex([])
-    if (!lang) return
-
-    const hunkLineIndexes = new Map<number, number[]>()
+  const hunkLineIndexes = useMemo(() => {
+    const groups = new Map<number, number[]>()
     lines.forEach((line, index) => {
       if (line.hunkId < 0 || !isDiffCodeLine(line.kind)) return
-      const indexes = hunkLineIndexes.get(line.hunkId) ?? []
+      const indexes = groups.get(line.hunkId) ?? []
       indexes.push(index)
-      hunkLineIndexes.set(line.hunkId, indexes)
+      groups.set(line.hunkId, indexes)
     })
+    return groups
+  }, [lines])
+
+  useEffect(() => {
+    if (!lang) return
+    const missing = Array.from(hunkLineIndexes.entries()).filter(([hunkId]) => !tokensByHunk.has(hunkId))
+    if (missing.length === 0) return
 
     let cancelled = false
+    const marker = startMarker("diff_review.syntax_highlight", { maxPerSession: 300 })
     Promise.all(
-      Array.from(hunkLineIndexes.values()).map(async (indexes) => {
+      missing.map(async ([hunkId, indexes]) => {
         const code = indexes.map((index) => lines[index].code).join("\n")
         const tokens = await tokenizeLines(code, lang)
-        return indexes.map((lineIndex, tokenIndex) => [lineIndex, tokens[tokenIndex]] as const)
+        return [hunkId, tokens] as const
       })
-    ).then((groups) => {
+    ).then((results) => {
       if (cancelled) return
-      const result: (ThemedToken[] | undefined)[] = []
-      for (const group of groups) {
-        for (const [lineIndex, tokens] of group) result[lineIndex] = tokens
-      }
-      setTokensByIndex(result)
+      for (const [hunkId, tokens] of results) tokensByHunk.set(hunkId, tokens)
+      const tokenSpanCount = results.reduce((sum, [, tokens]) => sum + tokens.reduce((lineSum, lineTokens) => lineSum + lineTokens.length, 0), 0)
+      endMarker(marker, { metadata: { hunk_count: missing.length, language: lang, token_span_count: tokenSpanCount } })
+      bumpVersion()
     })
 
     return () => {
       cancelled = true
     }
-  }, [lines, lang])
+  }, [hunkLineIndexes, lang, lines, tokensByHunk])
 
-  return tokensByIndex
+  return useMemo(() => {
+    if (!lang) return []
+    const result: (ThemedToken[] | undefined)[] = []
+    for (const [hunkId, indexes] of hunkLineIndexes) {
+      const hunkTokens = tokensByHunk.get(hunkId)
+      if (!hunkTokens) continue
+      indexes.forEach((lineIndex, tokenIndex) => {
+        result[lineIndex] = hunkTokens[tokenIndex]
+      })
+    }
+    return result
+    // `version` (not tokensByHunk's identity, which never changes on its own
+    // since it's mutated in place) is what signals a completed fetch.
+  }, [hunkLineIndexes, lang, tokensByHunk, version])
 }
 
 function isDiffCodeLine(kind: DiffLine["kind"]) {
@@ -716,7 +928,8 @@ export function UnifiedDiffTable({
   onSaveEditThread,
   onStartEditThread,
   onToggleHighlightToken,
-  testId
+  testId,
+  tokenCache: tokenCacheProp
 }: {
   annotations?: Record<string, LineAnnotation>
   comments?: Record<string, DiffReviewThread[]>
@@ -741,10 +954,22 @@ export function UnifiedDiffTable({
   onStartEditThread?: (thread: DiffReviewThread) => void
   onToggleHighlightToken?: (token: string) => void
   testId?: string
+  // Optional external Shiki-token cache keyed by hunk id (see
+  // useHighlightedDiffLines) -- DiffFileSection passes its per-file cache
+  // entry so tokens survive the table unmounting when its file scrolls out
+  // of the virtualized window. Standalone callers (e.g. the chat workspace
+  // panel) that don't provide one get a component-local cache instead, reset
+  // whenever `file.patch` changes so it never serves stale tokens for a
+  // different file reusing the same mounted table.
+  tokenCache?: Map<number, ThemedToken[][]>
 }) {
   const lines = useMemo(() => linesProp ?? parseUnifiedDiff(file.patch || ""), [linesProp, file.patch])
+  const { t } = useT("common")
   const lang = detectHighlighterLanguage(file.path)
-  const tokensByLine = useHighlightedDiffLines(lines, lang)
+  const localTokenCache = useRef<{ patch: string | null; tokens: Map<number, ThemedToken[][]> }>({ patch: file.patch, tokens: new Map() })
+  if (localTokenCache.current.patch !== file.patch) localTokenCache.current = { patch: file.patch, tokens: new Map() }
+  const tokenCache = tokenCacheProp ?? localTokenCache.current.tokens
+  const tokensByLine = useHighlightedDiffLines(lines, lang, tokenCache)
   const [localHighlight, setLocalHighlight] = useState<string | null>(null)
   const activeHighlight = highlightedToken !== undefined ? highlightedToken : localHighlight
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
@@ -853,22 +1078,30 @@ export function UnifiedDiffTable({
               ) : null}
               {isComposingHere ? (
                 <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20" colSpan={2} />
-                  <td className="text-brand">*</td>
-                  <td className="px-3 py-2" colSpan={2}>
-                    <div className="space-y-2">
-                      <textarea
-                        aria-label="Comment"
-                        autoFocus
-                        className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                        onChange={(event) => onChangeComposingBody?.(event.target.value)}
-                        value={composingBody ?? ""}
-                      />
-                      <div className="flex gap-2">
-                        <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
-                        <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                  <td className="border-r border-brand/20 max-md:hidden" colSpan={2} />
+                  <td className="text-brand max-md:hidden">*</td>
+                  <td className="px-3 py-2 max-md:p-0" colSpan={2}>
+                    <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
+                      <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2 max-md:flex dark:border-gray-700">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("diff_review_composer.title")}</h4>
+                        <button aria-label={t("diff_review_composer.close")} className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onCancelComposing} type="button">
+                          <CloseIcon className="h-5 w-5" />
+                        </button>
                       </div>
-                      {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                      <div className="space-y-2 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:gap-2 max-md:overflow-auto max-md:p-3">
+                        <textarea
+                          aria-label="Comment"
+                          autoFocus
+                          className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 max-md:flex-1"
+                          onChange={(event) => onChangeComposingBody?.(event.target.value)}
+                          value={composingBody ?? ""}
+                        />
+                        <div className="flex gap-2">
+                          <Button disabled={!composingBody?.trim() || composingPending} onClick={onSaveComposing} size="sm">Create comment</Button>
+                          <Button onClick={onCancelComposing} size="sm" variant="secondary">Cancel</Button>
+                        </div>
+                        {composingError ? <p className="text-xs text-red-700 dark:text-red-300">Unable to create diff comment.</p> : null}
+                      </div>
                     </div>
                   </td>
                 </tr>

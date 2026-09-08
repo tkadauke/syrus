@@ -42,8 +42,10 @@ When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message. A Job
 with no chat link at all yet — a bug report, or a Job ingested from an
 external PR — instead shows a "Chat about this" action; using it starts a
-new chat, permanently attaches the Job to it (visible in that chat's Jobs
-list), and the Job page then links to that chat going forward.
+new chat scoped to the Job's repository, seeds an opening "I would like to
+chat about JOB-<id>." user turn so the agent responds immediately,
+permanently attaches the Job to it (visible in that chat's Jobs list), and
+the Job page then links to that chat going forward.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
@@ -1048,7 +1050,7 @@ cross the request SQL-count or SQL-duration thresholds are retained too, so
 many-query endpoints do not disappear from the performance view. Phase events cover expensive dashboard, chat,
 repository, job detail, bootstrap, spending, and admin payload builders, with
 total and self SQL counters plus top SQL fingerprints.
-Browser traces currently cover dashboard loads and include only structural
+Browser traces cover dashboard loads and include only structural
 timing data: route path, browser-observed duration until current rows render,
 document visibility state, row counts, and backend request IDs/durations/statuses
 for dashboard API calls. They do not include row content, titles, prompts, or
@@ -1056,7 +1058,33 @@ free-form filter text; route paths are sanitized before logging. Event-loop lag
 sampling only reports while the tab is visible, skips the interval spanning a
 return from the background, and discards implausibly long gaps: a timer that
 was throttled in a background tab or paused across system sleep measures the
-pause, not the page, and would otherwise swamp real jank. The
+pause, not the page, and would otherwise swamp real jank.
+
+Beyond those passive observers, `app/frontend/lib/performanceMarkers.ts` is a
+generic frontend performance marker API frontend code can use to place
+explicit timing markers, similar in spirit to the backend's `PerformanceLogging.phase`.
+It offers `measureSync`/`measureAsync` for timing a block of work,
+`startMarker`/`endMarker` for spans that don't fit one function call (e.g. a
+UI menu's open-to-render latency), `recordCount` for count-based context
+without timing anything, and the `useMarkedRender` hook for a React
+component's render/commit or render/paint boundary. Every marker reuses the
+same browser-trace envelope and ingestion path as the passive observers, so
+it shows up in the same Admin Performance browser-trace groupings without a
+separate diagnostics surface. Markers support a per-call `thresholdMs`
+(drop anything faster), `sampleRate` (probabilistic keep), and
+`maxPerSession` (a hard cap per marker name per page session) so a marker
+placed in hot UI code cannot flood production logs; events queue in memory
+and flush together (debounced, size-capped, or on tab hide via
+`navigator.sendBeacon`) instead of one request per marker. The diff review
+surface (`ReviewWorkspace`/`ReviewableDiff`) is instrumented with
+`diff_review.fetch_source_diff`, `diff_review.parse_diff`,
+`diff_review.initial_render`, `diff_review.syntax_highlight`,
+`diff_review.viewport_render`, `diff_review.comment_threads_render`,
+`diff_review.files_menu_open`, and `diff_review.anchor_scroll` markers, with
+metadata such as file/row counts, hunk counts, syntax token span counts, and
+thread counts, so a slow review session can be attributed to parsing,
+rendering, highlighting, comments, or navigation instead of just "the page
+was slow." The
 admin performance endpoint returns recent raw events plus grouped summaries for
 slow routes, phases, browser traces, and SQL fingerprints. Events are stamped with the running
 app revision, and the admin view defaults to the current revision so stale

@@ -377,9 +377,9 @@ function FilterNodeChip({
   if (isFilterChip(inner)) {
     return (
       <span className={filterChipClass(negated)}>
-        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
+        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={`shrink-0 ${filterNotClass(negated)}`} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
         <FilterChipButton chip={inner} controls={controls} negated={negated} onClick={() => onEdit([index])} />
-        <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(inner, controls) })} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={() => onRemove([index])} type="button">
+        <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(inner, controls) })} className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={() => onRemove([index])} type="button">
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </span>
@@ -389,15 +389,15 @@ function FilterNodeChip({
   if (inner && "or" in inner && Array.isArray(inner.or)) {
     return (
       <span className={negated ? "inline-flex flex-wrap items-center gap-1 rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-sm dark:border-rose-800 dark:bg-rose-950" : "inline-flex flex-wrap items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-1.5 py-0.5 text-sm dark:border-indigo-800 dark:bg-indigo-950"}>
-        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
+        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={`shrink-0 ${filterNotClass(negated)}`} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
         <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>(</span>
         {inner.or.map((child, childIndex) => (
-          <span className="inline-flex items-center gap-1" key={childIndex}>
-            {childIndex > 0 ? <span className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">{t("filter_bar.or")}</span> : null}
+          <span className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap" key={childIndex}>
+            {childIndex > 0 ? <span className="shrink-0 text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">{t("filter_bar.or")}</span> : null}
             {isFilterChip(child) ? (
-              <span className="inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
+              <span className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 whitespace-nowrap rounded border border-gray-300 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
                 <FilterChipButton chip={child} controls={controls} onClick={() => onEdit([index, childIndex])} />
-                <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(child, controls) })} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200" onClick={() => onRemove([index, childIndex])} type="button">
+                <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(child, controls) })} className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200" onClick={() => onRemove([index, childIndex])} type="button">
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
               </span>
@@ -426,17 +426,17 @@ function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: 
     : null
 
   return (
-    <button aria-label={label} className="inline-flex flex-col items-start gap-0.5 text-left sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-1" onClick={onClick} type="button">
-      <span className="font-medium text-gray-700 dark:text-gray-200">{fieldLabel}</span>
+    <button aria-label={label} className="inline-flex min-w-0 items-baseline gap-1 text-left" onClick={onClick} type="button">
+      <span className="shrink-0 whitespace-nowrap font-medium text-gray-700 dark:text-gray-200">{fieldLabel}</span>
       {isPredicateOp(chip.op) ? null : dateRange && dateRange.from && dateRange.to ? (
-        <span className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-1">
-          <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{opLabel} <span className="font-mono text-gray-900 dark:text-white">{dateRange.from}</span></span>
-          <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{t("filter_bar.and")} <span className="font-mono text-gray-900 dark:text-white">{dateRange.to}</span></span>
+        <span className="inline-flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+          <span className="shrink-0 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{opLabel} <span className="font-mono text-gray-900 dark:text-white">{dateRange.from}</span></span>
+          <span className="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">{t("filter_bar.and")} <span className="font-mono text-gray-900 dark:text-white">{dateRange.to}</span></span>
         </span>
       ) : (
         <>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
-          <span className="font-mono text-gray-900 dark:text-white">{formattedValue}</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-gray-900 dark:text-white">{formattedValue}</span>
         </>
       )}
     </button>

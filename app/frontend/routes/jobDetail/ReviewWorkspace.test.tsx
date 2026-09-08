@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
+import * as performanceMarkers from "../../lib/performanceMarkers"
 import { ReviewWorkspace } from "./ReviewWorkspace"
+
+stubVirtualizerMeasurements()
 import {
   createDiffReviewComment,
   deleteDiffReviewComment,
@@ -95,9 +99,9 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Browse changed files" })[0])
     expect(screen.getByText("Changed files")).toBeInTheDocument()
 
-    const target = document.querySelector('[data-diff-file="app/models/run.rb"]') as HTMLElement
-    const scrollSpy = vi.fn()
-    target.scrollIntoView = scrollSpy
+    // The review workspace uses natural (window) scroll, so ReviewableDiff's
+    // file-level virtualizer scrolls the window itself, not a container div.
+    const scrollSpy = vi.spyOn(window, "scrollTo")
 
     fireEvent.click(screen.getByTitle("app/models/run.rb (+1 -0)"))
 
@@ -469,6 +473,35 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.")
     })
+  })
+
+  it("marks the source diff fetch as a diff_review.fetch_source_diff span", async () => {
+    const measureAsyncSpy = vi.spyOn(performanceMarkers, "measureAsync")
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await waitFor(() => expect(measureAsyncSpy).toHaveBeenCalledWith(
+      "diff_review.fetch_source_diff",
+      expect.any(Function),
+      expect.objectContaining({ metadata: { job_id: 42 } })
+    ))
+    vi.restoreAllMocks()
+  })
+
+  it("marks the initial diff render once the source diff has loaded", async () => {
+    const useMarkedRenderSpy = vi.spyOn(performanceMarkers, "useMarkedRender")
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    await waitFor(() => expect(useMarkedRenderSpy).toHaveBeenCalledWith(
+      "diff_review.initial_render",
+      expect.objectContaining({ enabled: undefined, metadata: { total_files: sourceDiffPayload().files.length }, phase: "paint" })
+    ))
+    vi.restoreAllMocks()
   })
 })
 

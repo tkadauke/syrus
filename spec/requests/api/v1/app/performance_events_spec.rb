@@ -74,6 +74,26 @@ RSpec.describe "API: /api/v1/app/performance_events", type: :request do
     ))
   end
 
+  it "records a batch of browser traces sent as performance_events" do
+    sign_in_as(user)
+    post "/api/v1/app/performance_events", params: {
+      performance_events: [
+        { trace_id: "batch-1", name: "diff_review.parse_diff", path: "/jobs/4348?tab=review", duration_ms: 12.5, parent_id: "batch-root", interaction_id: "interaction-1" },
+        { trace_id: "batch-2", name: "diff_review.syntax_highlight", path: "/jobs/4348?tab=review", duration_ms: 40.1 }
+      ]
+    }
+
+    expect(response).to have_http_status(:accepted)
+    events = PerformanceLogging::Store.recent(limit: 10)
+    expect(events.map { |event| event["trace_id"] }).to contain_exactly("batch-1", "batch-2")
+    batch_one = events.find { |event| event["trace_id"] == "batch-1" }
+    expect(batch_one).to include(
+      "name" => "diff_review.parse_diff",
+      "parent_id" => "batch-root",
+      "interaction_id" => "interaction-1"
+    )
+  end
+
   it "does not record when performance logging is disabled" do
     Feature.find_by!(slug: "performance_logging").update!(enabled: false)
     Feature.clear_enabled_cache!("performance_logging")

@@ -39,6 +39,21 @@ function formatDuration(seconds: number | null) {
   return `${hours}h ${minutes % 60}m`
 }
 
+function pageLink(pathname: string, search: string, page: number, prefix: string) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.set("page", String(page))
+  params.set("per", "20")
+  return withRoutePrefix(`${pathname}?${params.toString()}`, prefix)
+}
+
+function withoutPagination(search: string) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.delete("page")
+  params.delete("per")
+  const query = params.toString()
+  return query ? `?${query}` : ""
+}
+
 export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   const { t } = useT("agent_activity")
   usePageTitle(t(scope === "admin" ? "admin_heading" : "heading"))
@@ -114,7 +129,38 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
           ))}
         </ol>
       ) : null}
+
+      {sessions.data ? <SessionsPagination payload={sessions.data} pathname={location.pathname} prefix={prefix} search={location.search} /> : null}
     </main>
+  )
+}
+
+function SessionsPagination({ payload, pathname, prefix, search }: { payload: { page: number; per: number; total: number; sessions: AgentActivitySession[] }; pathname: string; prefix: string; search: string }) {
+  const { t } = useT("agent_activity")
+  const totalPages = Math.max(1, Math.ceil(payload.total / payload.per))
+  const first = payload.total === 0 ? 0 : (payload.page - 1) * payload.per + 1
+  const last = Math.min(payload.total, first + payload.sessions.length - 1)
+  const currentSearch = withoutPagination(search)
+
+  if (payload.total <= payload.per && payload.page <= 1) return null
+
+  return (
+    <nav aria-label={t("pagination_label")} className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 text-sm dark:border-gray-700">
+      <p className="text-gray-600 dark:text-gray-400">{t("pagination_showing", { first, last, total: payload.total })}</p>
+      <div className="flex items-center gap-2">
+        {payload.page > 1 ? (
+          <Link className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" to={pageLink(pathname, currentSearch, payload.page - 1, prefix)}>{t("pagination_previous")}</Link>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-700 dark:text-gray-500">{t("pagination_previous")}</span>
+        )}
+        <span className="text-gray-500 dark:text-gray-400">{t("pagination_page_of", { page: payload.page, total: totalPages })}</span>
+        {payload.page < totalPages ? (
+          <Link className="rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" to={pageLink(pathname, currentSearch, payload.page + 1, prefix)}>{t("pagination_next")}</Link>
+        ) : (
+          <span className="rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-700 dark:text-gray-500">{t("pagination_next")}</span>
+        )}
+      </div>
+    </nav>
   )
 }
 

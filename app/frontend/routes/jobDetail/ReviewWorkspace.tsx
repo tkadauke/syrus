@@ -5,6 +5,7 @@ import { SectionHeading } from "../../components/Heading"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
 import { Markdown } from "../../lib/Markdown"
 import { errorMessage } from "../../lib/errorMessage"
+import { measureAsync, useMarkedRender } from "../../lib/performanceMarkers"
 import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
@@ -24,8 +25,17 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const jobId = payload.job.id
   const sourceDiff = useQuery({
     queryKey: ["jobs", String(jobId), "review_source_diff"],
-    queryFn: () => fetchJobSourceDiff(String(jobId)),
+    queryFn: () => measureAsync("diff_review.fetch_source_diff", () => fetchJobSourceDiff(String(jobId)), { metadata: { job_id: jobId } }),
     placeholderData: keepPreviousData
+  })
+  // Paint-phase (not just commit-phase) because the diff view keeps doing
+  // virtualizer/Shiki work across several frames after the initial commit;
+  // "paint" is a closer proxy for when the reviewer actually sees something.
+  useMarkedRender("diff_review.initial_render", {
+    deps: [jobId, sourceDiff.isSuccess],
+    enabled: sourceDiff.isSuccess ? undefined : false,
+    metadata: { total_files: sourceDiff.data?.files.length ?? 0 },
+    phase: "paint"
   })
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const feedback = useDiffReviewFeedback({
@@ -33,6 +43,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     enabled: sourceDiff.isSuccess,
     headRef: sourceDiff.data?.head_ref,
     jobId,
+    onNavigateToFile: setSelectedPath,
     supportsGlobalComments: true,
     surface: SURFACE
   })

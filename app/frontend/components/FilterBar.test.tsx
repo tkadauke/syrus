@@ -139,6 +139,53 @@ describe("FilterBar", () => {
     expect(screen.getByRole("dialog", { name: "State filter settings" })).toHaveClass("dark:border-gray-700", "dark:bg-gray-900")
   })
 
+  it("keeps a single chip's field, operator, and value on one line", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    const valueButton = screen.getByRole("button", { name: "State is Open" })
+    const chip = valueButton.closest("span")
+    expect(chip).not.toHaveClass("flex-wrap")
+    expect(chip).toHaveClass("flex-nowrap", "whitespace-nowrap")
+
+    expect(valueButton).not.toHaveClass("flex-col")
+
+    const [fieldSpan, opSpan, valueSpan] = Array.from(valueButton.children) as HTMLElement[]
+    expect(fieldSpan).toHaveClass("shrink-0", "whitespace-nowrap")
+    expect(opSpan).toHaveClass("shrink-0", "whitespace-nowrap")
+    expect(valueSpan).toHaveClass("truncate")
+  })
+
+  it("truncates an overlong chip value instead of letting it overflow or wrap", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "job_class", op: "contains", value: "Steps::AdversarialReviewLongClassNameThatWouldOtherwiseOverflow" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    const valueButton = screen.getByRole("button", { name: /Job class contains/ })
+    const chip = valueButton.closest("span")
+    expect(chip).toHaveClass("max-w-full", "min-w-0")
+    expect(valueButton).toHaveClass("min-w-0")
+
+    const valueSpan = Array.from(valueButton.children).find((child) => child.textContent?.includes("AdversarialReview"))
+    expect(valueSpan).toHaveClass("truncate", "min-w-0", "flex-1")
+    expect(valueSpan).not.toHaveClass("whitespace-nowrap")
+  })
+
   it("uses a custom link builder for filter and clear navigation", async () => {
     const buildLink = vi.fn((path: string, search: string, updates: Record<string, string | number | null | undefined>) => {
       const params = new URLSearchParams(search)

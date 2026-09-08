@@ -20,6 +20,10 @@
     "binary": "Binary files cannot be previewed.",
     "too_large": "This file is too large to preview. Use Open raw to inspect it directly."
   },
+  "diff_review_composer": {
+    "title": "Comment",
+    "close": "Close comment form"
+  },
   "onboarding": {
     "loading": "Loading setup status...",
     "setup_label": "First-run setup",

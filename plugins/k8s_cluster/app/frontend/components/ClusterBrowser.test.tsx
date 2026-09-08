@@ -30,9 +30,9 @@ const DEFAULT_NODES = {
       kubelet_version: "v1.30.0",
       internal_ip: "10.0.0.1",
       capacity_cpu: "4",
-      capacity_memory: "16Gi",
+      capacity_memory: "16373052Ki",
       allocatable_cpu: "3800m",
-      allocatable_memory: "15Gi",
+      allocatable_memory: "16373048Ki",
       created_at: GENERATED_AT
     }
   ]
@@ -445,8 +445,8 @@ describe("ClusterBrowser", () => {
 
       expect(await screen.findByText("node-1")).toBeInTheDocument()
       expect(screen.getByText("Ready")).toBeInTheDocument()
-      expect(screen.getByText("4 / 16Gi")).toBeInTheDocument()
-      expect(screen.getByText("3800m / 15Gi")).toBeInTheDocument()
+      expect(screen.getByText("4 vCPU / 15.6 GB")).toBeInTheDocument()
+      expect(screen.getByText("3.8 vCPU / 15.6 GB")).toBeInTheDocument()
     })
 
     it("shows the empty state when the cluster has no nodes", async () => {
