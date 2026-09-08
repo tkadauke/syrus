@@ -16,6 +16,10 @@ import { StatusPill } from "../components/StatusPill"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
 import { errorMessage } from "../lib/errorMessage"
+import {
+  pluginRuntimeSessionViewComponentFor,
+  runtimeSessionInputEnabled
+} from "../pluginRuntimeSessionViews"
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
@@ -261,7 +265,9 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
   const [ myLease, setMyLease ] = useState<RuntimeControlLease | null>(null)
   const [ captureError, setCaptureError ] = useState<string | null>(null)
   const active = sessionIsActive(session)
-  const logs = useRuntimeLogs(chatId, session.id, active)
+  const LiveView = pluginRuntimeSessionViewComponentFor(session.provider_key)
+  const hasLiveView = LiveView !== null
+  const logs = useRuntimeLogs(chatId, hasLiveView ? null : session.id, !hasLiveView && active)
 
   useEffect(() => {
     setMyLease(null)
@@ -296,8 +302,10 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
       </div>
 
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_latest_frame")}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {hasLiveView ? t("runtime_terminal_live") : t("runtime_latest_frame")}
+          </span>
           <Button
             disabled={capture.isPending}
             onClick={() => capture.mutate()}
@@ -308,7 +316,12 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
             {t("runtime_capture")}
           </Button>
         </div>
-        {session.latest_frame_url ? (
+        {LiveView ? (
+          <LiveView
+            inputEnabled={runtimeSessionInputEnabled(session, myLease)}
+            session={session}
+          />
+        ) : session.latest_frame_url ? (
           <div>
             <img
               alt={t("runtime_latest_frame")}
@@ -336,12 +349,14 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
         session={session}
       />
 
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_logs")}</span>
-        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-900 p-2 text-xs text-gray-100 dark:bg-black">
-          {logs.length > 0 ? logs.join("\n") : t("runtime_logs_empty")}
-        </pre>
-      </div>
+      {!hasLiveView ? (
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_logs")}</span>
+          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-900 p-2 text-xs text-gray-100 dark:bg-black">
+            {logs.length > 0 ? logs.join("\n") : t("runtime_logs_empty")}
+          </pre>
+        </div>
+      ) : null}
 
       <ProviderMetadata session={session} />
     </div>

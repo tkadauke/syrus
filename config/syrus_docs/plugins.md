@@ -535,13 +535,16 @@ lifecycle state, ownership, capabilities, artifacts — while a plugin per
 platform supplies the execution.
 
 The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
-concrete provider (EPIC-319): a headless-Chromium session driving the repo's
-own dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
+visual provider (EPIC-319): a headless-Chromium session driving the repo's own
+dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
 `start_preview` MCP tool uses — one dev-server start/health-check
 implementation, keyed by an arbitrary caller-supplied identifier in
 `Mcp::Tools::AgentPreviewRegistry` (a workflow Run id for `start_preview`, a
 `RuntimeSession`'s `workspace_ref` here), not two independently-drifting
-copies. This section documents the interface contributors implement.
+copies. The `runtime_terminal` plugin contributes the `cli_tui` provider by
+composing the existing `terminal` plugin instead of reimplementing PTY
+spawning, scrollback inspection, or input delivery. This section documents the interface
+contributors implement.
 
 `provider_key`, `display_name`, `detect`, and `capabilities` are class
 methods, so a provider can be selected for a repository/config before any
@@ -706,9 +709,13 @@ instead: `Api::V1::App::RuntimeSessionsController`
 the MCP tools (`Feature.coding_mode_enabled?` and `chat_session.coding?`).
 `index`/`show`/`logs` mirror `runtime_list_sessions`/`runtime_status`/
 `runtime_logs` (same `RuntimeSessionPresenter` JSON shape both surfaces
-share); `capture` mirrors `runtime_capture_artifact`; `take_control` is the
-operator's `RuntimeControlLease.acquire!(owner: "user", ...)`, and always
-calls `RuntimeControlLease.abort_agent_control!` first so an operator's Take
+share); `capture` mirrors `runtime_capture_artifact`; terminal-backed
+`cli_tui` sessions render live through the terminal plugin's shared xterm
+component and subscribe directly to `TerminalChannel` with the mapped
+`Terminal::Session#id` from `metadata["terminal_session_id"]` rather than
+polling `runtime_logs`; `take_control` is the operator's
+`RuntimeControlLease.acquire!(owner: "user", ...)`, and always calls
+`RuntimeControlLease.abort_agent_control!` first so an operator's Take
 Control / Abort Agent Control click immediately preempts whatever the agent
 was holding, per DOC-17's "the operator can always abort agent control
 immediately"; `release_control` releases the operator's own active lease(s).
@@ -736,9 +743,9 @@ now accepts an optional `runtime_session:` and, when a capture is attributed
 to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
 `runtime_capture_artifact`/`browser_screenshot`), stamps
 `latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
-endpoint so the panel's periodic-screenshot polling has something to show --
-those two columns existed on `RuntimeSession` since JOB-4472 but were never
-written until this wiring landed.
+endpoint so the panel's periodic-screenshot polling has something to show for
+browser-like providers -- those two columns existed on `RuntimeSession` since
+JOB-4472 but were never written until this wiring landed.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
@@ -2721,6 +2728,33 @@ Bundled plugins:
   the Action Cable channel guards itself, because Action Cable resolves a
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
+- `runtime_terminal` — **default-disabled** Runtime Session adapter over the
+  `terminal` plugin. It declares `depends_on ["terminal"]` and registers
+  `RuntimeTerminal::Provider` as the DOC-17 `cli_tui` runtime provider.
+  `runtime_start provider: "cli_tui"` creates a `Terminal::Session` for the
+  Coding Mode chat owner's writable workspace, enqueues `TerminalSessionJob`,
+  and records the
+  `RuntimeSession`/`Terminal::Session` pairing in
+  `runtime_terminal_session_links`; `runtime_stop` marks the mapped terminal
+  session `outcome: "killed"` with `finished_at`. `runtime_inspect` connects
+  to the mapped relay socket and returns terminal scrollback, while
+  `runtime_input` sends stdin/keyboard/pointer/resize control frames through
+  the same authenticated wire protocol the browser terminal uses, after the
+  shared `RuntimeControlLease` input gate passes.
+
+  The adapter intentionally does not modify `terminal_sessions` or
+  `Terminal::Session`/`Terminal::Relay`/`TerminalSessionJob`. The link table is
+  owned by `runtime_terminal`; an always-installed plugin data cleanup removes
+  links when their parent `RuntimeSession` is destroyed, and the table does not
+  add a database foreign key back into the terminal plugin's table, preserving
+  the terminal plugin's own schema boundary. Capabilities advertise
+  `stream: "none"`, `input: ["keyboard", "stdin", "pointer", "resize"]`,
+  `inspect: ["scrollback"]`, and `build: ["none"]`; live streaming still uses
+  the terminal plugin's existing UI path, with the Coding Mode Runtime panel
+  reusing its shared xterm/`TerminalChannel` renderer against the mapped
+  `Terminal::Session#id`. Because this is still a genuine shell on the worker,
+  the adapter stays off by default and inherits the terminal plugin's explicit
+  operator opt-in posture.
 - `whiteboard` — default-enabled, and owns the whiteboard end to end:
   `Whiteboard::Board` (table `whiteboard_boards`) and
   `Whiteboard::Snapshot` (`whiteboard_snapshots`) moved out of core
