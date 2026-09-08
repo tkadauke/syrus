@@ -104,7 +104,7 @@ class Feature < ApplicationRecord
     enabled?(:landing_validation_prefetch)
   end
 
-  # Instance-wide default for the visual_review Labs feature (headless-browser
+  # Instance-wide default for the visual_review feature (headless-browser
   # QA screenshots taken against the worker's own in-step preview). A
   # repository's .syrus.yml `visual_review.enabled` setting overrides this
   # default per repo.

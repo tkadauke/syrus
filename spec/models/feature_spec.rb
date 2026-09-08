@@ -89,7 +89,7 @@ RSpec.describe Feature, type: :model do
       Feature.where(slug: "visual_review").delete_all
       expect(Feature.visual_review_enabled?).to eq(false)
 
-      feature = Feature.create!(slug: "visual_review", category: "Labs", name: "Visual review", enabled: true)
+      feature = Feature.create!(slug: "visual_review", category: "Workflow", name: "Visual review", enabled: true)
       expect(Feature.visual_review_enabled?).to eq(true)
 
       feature.update!(enabled: false)
@@ -125,13 +125,13 @@ RSpec.describe Feature, type: :model do
 
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
-      Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
+      Feature.create!(slug: "coding_mode", category: "Chat", name: "Coding Mode", enabled: true)
       allow(AppSetting).to receive(:simple?).and_return(false)
       expect(Feature.coding_mode_enabled?).to be true
     end
 
     it "is forced off in simple mode regardless of the flag" do
-      Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
+      Feature.create!(slug: "coding_mode", category: "Chat", name: "Coding Mode", enabled: true)
       allow(AppSetting).to receive(:simple?).and_return(true)
       expect(Feature.coding_mode_enabled?).to be false
     end
@@ -139,32 +139,32 @@ RSpec.describe Feature, type: :model do
 
   describe ".local_mode_enabled?" do
     it "returns the flag value in advanced mode" do
-      Feature.create!(slug: "local_mode", category: "Labs", name: "Local Mode", enabled: true)
+      Feature.create!(slug: "local_mode", category: "Chat", name: "Local Mode", enabled: true)
       allow(AppSetting).to receive(:simple?).and_return(false)
       expect(Feature.local_mode_enabled?).to be true
     end
 
     it "is forced off in simple mode regardless of the flag" do
-      Feature.create!(slug: "local_mode", category: "Labs", name: "Local Mode", enabled: true)
+      Feature.create!(slug: "local_mode", category: "Chat", name: "Local Mode", enabled: true)
       allow(AppSetting).to receive(:simple?).and_return(true)
       expect(Feature.local_mode_enabled?).to be false
     end
   end
 
   describe "declarations" do
-    it "declares the visual_review labs flag default-on in config/features.yml" do
+    it "declares the visual_review workflow flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+      expect(declaration).to have_attributes(category: "Workflow", default_enabled: true, type: :boolean)
     end
 
-    it "declares the coding_mode labs flag default-on in config/features.yml" do
+    it "declares the coding_mode chat flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "coding_mode" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+      expect(declaration).to have_attributes(category: "Chat", default_enabled: true, type: :boolean)
     end
 
-    it "declares the local_mode labs flag default-on in config/features.yml" do
+    it "declares the local_mode chat flag default-on in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "local_mode" }
-      expect(declaration).to have_attributes(category: "Labs", default_enabled: true, type: :boolean)
+      expect(declaration).to have_attributes(category: "Chat", default_enabled: true, type: :boolean)
     end
 
 

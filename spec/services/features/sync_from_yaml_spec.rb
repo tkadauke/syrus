@@ -115,7 +115,7 @@ RSpec.describe Features::SyncFromYaml do
      "explicitly turned one off before their default flipped to true" do
     %w[coding_mode local_mode visual_review].each do |slug|
       Feature.find_or_create_by!(slug: slug) do |feature|
-        feature.category = "Labs"
+        feature.category = slug == "visual_review" ? "Workflow" : "Chat"
         feature.name = slug.titleize
       end.update!(enabled: false)
     end

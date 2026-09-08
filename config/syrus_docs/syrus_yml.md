@@ -279,7 +279,7 @@ adversarial_review:
 
 ## visual_review
 
-Configures the visual_review Labs feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects and capture screenshot artifacts.
+Configures the visual_review feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects and capture screenshot artifacts.
 
 ```yaml
 visual_review:

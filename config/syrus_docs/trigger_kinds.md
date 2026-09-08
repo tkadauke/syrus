@@ -229,7 +229,7 @@ it repairs a review's `needs_work` verdict and/or a required grader failure
 with a fresh workflow-agent turn. The `adversarial_review` loop only appears
 when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the
 `visual_review` loop only appears when `visual_review.enabled` is true (per
-`.syrus.yml` or the `visual_review` Labs feature flag); `review_plan` only
+`.syrus.yml` or the instance-wide `visual_review` feature flag); `review_plan` only
 appears when the repository has opted in via `.syrus.yml` `review_plan: true`
 — same conditional-materialization rules as `initial`/`retry`. Because the
 reviewers have no `implement`/`respond` step to read a diff off of, both
