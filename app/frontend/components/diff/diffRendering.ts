@@ -229,7 +229,7 @@ export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gap
   const resolvedFileLines = fileLines
   const result: DiffLine[] = []
 
-  function appendGap(gap: ContextGap | undefined, state: GapRevealState | undefined) {
+  function appendGap(gap: ContextGap | undefined, state: GapRevealState | undefined, hunkIds: { bottom: number; top: number }) {
     if (!gap) return
     const size = gapSize(gap)
     if (size <= 0 || !state) return
@@ -237,28 +237,28 @@ export function mergeContextIntoLines(lines: DiffLine[], gaps: ContextGap[], gap
     const fromBottom = Math.min(state.fromBottom, size - fromTop)
 
     for (let newLine = gap.startNew; newLine < gap.startNew + fromTop; newLine++) {
-      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines))
+      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkIds.top))
     }
     const bottomStart = Math.max(gap.startNew + fromTop, gap.endNew - fromBottom + 1)
     for (let newLine = bottomStart; newLine <= gap.endNew; newLine++) {
-      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines))
+      result.push(contextLineAt(newLine, gap.offset, resolvedFileLines, hunkIds.bottom))
     }
   }
 
-  let hunkIndex = -1
-  appendGap(gaps[0], gapStates[0])
+  let hunkIndex = 0
   for (const line of lines) {
-    result.push(line)
     if (line.kind === "hunk") {
+      appendGap(gaps[hunkIndex], gapStates[hunkIndex], { bottom: hunkIndex, top: Math.max(0, hunkIndex - 1) })
       hunkIndex += 1
-      appendGap(gaps[hunkIndex + 1], gapStates[hunkIndex + 1])
     }
+    result.push(line)
   }
+  appendGap(gaps[hunkIndex], gapStates[hunkIndex], { bottom: Math.max(0, hunkIndex - 1), top: Math.max(0, hunkIndex - 1) })
   return result
 }
 
-function contextLineAt(newLine: number, offset: number, fileLines: string[]): DiffLine {
-  return diffLine("context", fileLines[newLine - 1] ?? "", newLine - offset, newLine)
+function contextLineAt(newLine: number, offset: number, fileLines: string[], hunkId: number): DiffLine {
+  return diffLine("context", fileLines[newLine - 1] ?? "", newLine - offset, newLine, "", hunkId)
 }
 
 export function fullyRevealedGapStates(gaps: ContextGap[]): GapRevealState[] {
