@@ -82,6 +82,34 @@ module Steps
             "#{context}: could not update integration branch #{train.integration_branch}: #{e.message}"
     end
 
+    def publish_integration_head!(git, train, chdir:, context:, operation_type:)
+      branch = train.integration_branch.to_s
+      head_sha = ensure_integration_branch_ref_at_head!(git, train, chdir: chdir, context: context)
+
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: operation_type, log: method(:log)) do |url|
+        git.run("push", *integration_push_lease_args(git, chdir, branch, url), url, "HEAD:refs/heads/#{branch}", chdir: chdir)
+      end
+      git.run("update-ref", "refs/remotes/origin/#{branch}", head_sha, chdir: chdir)
+      workflow.set_artifact!(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT, branch)
+      head_sha
+    end
+
+    def integration_push_lease_args(git, chdir, branch, push_url)
+      expected = remote_integration_branch_sha(git, chdir, branch, push_url)
+      return [] if expected.blank?
+
+      [ "--force-with-lease=refs/heads/#{branch}:#{expected}" ]
+    end
+
+    def remote_integration_branch_sha(git, chdir, branch, push_url)
+      output = git.run("ls-remote", "--heads", push_url, "refs/heads/#{branch}", chdir: chdir)
+      output.to_s.split(/\s+/).first.presence
+    rescue GitRunner::GitError => e
+      log("#{branch}: could not read remote integration branch tip (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease",
+          kind: "system")
+      nil
+    end
+
     # LandedCommit attribution target for train-level (not per-member)
     # commits: the Epic for an Epic-backed train, the MergeTrain itself for a
     # bundle-backed train (there's no Epic to attach to). nil is unreachable

@@ -136,6 +136,88 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(run.head_sha).to eq("def456")
   end
 
+  it "publishes merge-train repair commits on the integration branch for later base-moved recovery" do
+    epic = Factories.epic(user: user, repository: repository)
+    member = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 100,
+      pr_number: 600,
+      branch_name: "syrus/issue-100",
+      state: "landing"
+    )
+    train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "master",
+      integration_branch: "syrus/merge-train-epic-#{epic.id}-repair",
+      integration_sha: "pre_fix_sha"
+    )
+    MergeTrainMember.create!(merge_train: train, job: member, position: 0)
+    merge_train_workflow = Workflow.create!(
+      job: member,
+      trigger_kind: "merge_train",
+      agent_provider: member.agent_provider,
+      chain_template: [],
+      artifacts: { "merge_train_id" => train.id }
+    )
+    merge_train_step = Step.create!(
+      workflow: merge_train_workflow,
+      kind: "landing_fix",
+      position: 3,
+      iteration: 2,
+      loop_id: SecureRandom.uuid
+    )
+    merge_train_run = merge_train_step.runs.create!(
+      job: member,
+      trigger_kind: "merge_train",
+      agent_provider: merge_train_workflow.agent_provider,
+      iteration: merge_train_step.iteration
+    )
+    merge_train_handler = described_class.new(merge_train_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    git = instance_double(GitRunner)
+
+    allow(merge_train_handler).to receive(:workspace).and_return(fake_ws)
+    allow(merge_train_handler).to receive(:run_agent)
+    allow(merge_train_handler).to receive(:commit_agent_changes)
+    allow(merge_train_handler).to receive(:assert_branch_history_intact!)
+    allow(merge_train_handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+ok")
+    allow(merge_train_handler).to receive(:diff_against_sha).and_return("diff --git a/app.rb b/app.rb\n+ok")
+    allow(merge_train_handler).to receive(:head_sha).and_return("landing_fix_sha")
+    allow(merge_train_handler).to receive(:recent_branch_commits).and_return([])
+    allow(merge_train_handler).to receive(:streaming_git).and_return(git)
+    allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: @ws_path.to_s).and_return("landing_fix_sha\n")
+    allow(git).to receive(:run)
+      .with("rev-parse", "--verify", "refs/heads/#{train.integration_branch}", chdir: @ws_path.to_s)
+      .and_return("pre_fix_sha\n")
+    allow(git).to receive(:run)
+      .with("rev-parse", "--abbrev-ref", "HEAD", chdir: @ws_path.to_s)
+      .and_return("#{train.integration_branch}\n")
+    allow(git).to receive(:run)
+      .with("ls-remote", "--heads", "https://push.example/repo.git", "refs/heads/#{train.integration_branch}", chdir: @ws_path.to_s)
+      .and_return("pre_fix_sha\trefs/heads/#{train.integration_branch}\n")
+
+    merge_train_handler.call
+
+    expect(git).to have_received(:run)
+      .with("checkout", "-B", train.integration_branch, "landing_fix_sha", chdir: @ws_path.to_s)
+    expect(git).to have_received(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/#{train.integration_branch}:pre_fix_sha",
+      "https://push.example/repo.git",
+      "HEAD:refs/heads/#{train.integration_branch}",
+      chdir: @ws_path.to_s
+    )
+    expect(git).to have_received(:run)
+      .with("update-ref", "refs/remotes/origin/#{train.integration_branch}", "landing_fix_sha", chdir: @ws_path.to_s)
+    expect(train.reload.integration_sha).to eq("landing_fix_sha")
+    expect(merge_train_workflow.reload.artifact(WorkflowWorkspace::REQUIRED_BRANCH_ARTIFACT)).to eq(train.integration_branch)
+  end
+
   def landing_fix_step
     workflow.steps.find_by(kind: "landing_fix") || begin
       grader_collect = workflow.steps.find_by!(kind: "grader_collect")
