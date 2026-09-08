@@ -836,6 +836,43 @@ describe("tool result rendering", () => {
     expect(screen.getByText("DOC-20")).toBeInTheDocument()
     expect(screen.getByText("Target Graphs")).toBeInTheDocument()
   })
+
+  it("still resolves a plugin-registered card when the tool call errored", () => {
+    // Regression for JOB-4226: ToolResultBody used to skip plugin card
+    // resolution entirely whenever result_error was true, so a plugin tool
+    // that reports a structured failure through the MCP error flag (rather
+    // than a bare "Error: ..." string) fell back to a raw JSON dump instead
+    // of the card it registered. list_design_docs's own parsing doesn't
+    // care about resultError, so it renders the same either way once the
+    // card gets the chance to see the payload at all.
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List design docs",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_design_docs",
+          raw_name: "list_design_docs",
+          detail: "No arguments",
+          display_label: "List design docs",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({ design_docs: [{ id: 21, doc_ref: "DOC-21", title: "K8s Cluster Viewer", state: "draft" }] }),
+          result_error: true,
+          result_kind: "error",
+          result_summary: "Error"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expandToolGroup("List design docs")
+
+    expect(screen.getByText("DOC-21")).toBeInTheDocument()
+    expect(screen.getByText("K8s Cluster Viewer")).toBeInTheDocument()
+  })
 })
 
 describe("pin control", () => {

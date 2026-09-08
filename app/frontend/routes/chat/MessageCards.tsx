@@ -504,7 +504,15 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // from it (JOB-4223). Builders that haven't computed result_json (e.g. the
   // admin transcript grouper) leave it undefined -- fall back to parsing the
   // body they did set, same as before.
-  const pluginBody = call.result_error ? null : pluginToolCardExpandedBody({
+  //
+  // An errored tool call still gets a chance to render through a registered
+  // card (JOB-4226): many tools (e.g. mysql_db_browser_execute_query) set
+  // the MCP response's error flag on an ordinary structured failure payload
+  // and expect their card to render that payload's own error/status
+  // section, not the raw-JSON fallback. A card can still return null for a
+  // shape it doesn't recognize, which falls through to HighlightedToolResult
+  // below exactly as an unregistered tool's error would.
+  const pluginBody = pluginToolCardExpandedBody({
     toolName: call.tool_name,
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
