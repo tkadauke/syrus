@@ -206,26 +206,64 @@ module App
 
       {
         id: version.id,
+        job_id: version.job_id,
         version_index: version.version_index,
         base_sha: version.base_sha,
         head_sha: version.head_sha,
+        base_ref: version.base_ref,
+        head_ref: version.head_ref,
+        workflow_id: version.workflow_id,
+        workflow: version.workflow ? {
+          id: version.workflow.id,
+          trigger_kind: version.workflow.trigger_kind,
+          state: version.workflow.state
+        } : nil,
+        run_id: version.run_id,
+        trigger_kind: version.trigger_kind,
         label: version.label,
-        reason: version.reason
+        reason: version.reason,
+        truncated: version.truncated,
+        files_count: Array(version.files_snapshot).size,
+        comments_count: comments_count_for(version),
+        metadata: version.metadata || {},
+        created_at: version.created_at&.iso8601
       }
     end
 
     def diff_versions_json
-      @job.diff_review_versions.ordered.map do |version|
+      @job.diff_review_versions.includes(:workflow, :run).ordered.map do |version|
         {
           id: version.id,
           version_index: version.version_index,
           base_sha: version.base_sha,
           head_sha: version.head_sha,
+          base_ref: version.base_ref,
+          head_ref: version.head_ref,
+          workflow_id: version.workflow_id,
+          workflow: version.workflow ? {
+            id: version.workflow.id,
+            trigger_kind: version.workflow.trigger_kind,
+            state: version.workflow.state
+          } : nil,
+          run_id: version.run_id,
+          trigger_kind: version.trigger_kind,
           label: version.label,
           reason: version.reason,
+          truncated: version.truncated,
+          files_count: Array(version.files_snapshot).size,
+          comments_count: comments_count_for(version),
+          metadata: version.metadata || {},
           created_at: version.created_at&.iso8601
         }
       end
+    end
+
+    def comments_count_for(version)
+      comments_count_by_version[version.id].to_i
+    end
+
+    def comments_count_by_version
+      @comments_count_by_version ||= @job.diff_review_comments.group(:diff_review_version_id).count
     end
   end
 end
