@@ -7,6 +7,28 @@ module Prompts
 
     DESKTOP_VIEWPORT = { width: 1280, height: 800 }.freeze
     MOBILE_VIEWPORT = { width: 390, height: 844 }.freeze
+    FULL_DIFF_CHARACTER_LIMIT = 40_000
+    SUMMARIZED_DIFF_CHARACTER_LIMIT = 24_000
+    FILE_LIST_LIMIT = 80
+    PER_FILE_EXCERPT_LIMIT = 6_000
+    UI_RELEVANT_PATH = %r{
+      (^|/)
+      (
+        app/frontend|
+        app/assets|
+        app/javascript|
+        app/views|
+        components|
+        frontend|
+        javascript|
+        pages|
+        stylesheets|
+        templates|
+        views
+      )/
+    }ix
+    UI_RELEVANT_EXTENSION = /\.(css|erb|haml|html|js|jsx|liquid|scss|slim|svelte|ts|tsx|vue)\z/i
+    LOW_SIGNAL_EXTENSION = /\.(csv|json|lock|log|sql|tsbuildinfo|txt|ya?ml)\z/i
 
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil,
                    test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil)
@@ -86,11 +108,109 @@ module Prompts
     def current_diff
       agentic_label = feedback_workflow? ? "respond" : "implement"
       [
-        "Current diff from the latest succeeded #{agentic_label} step:",
+        current_diff_label(agentic_label),
         "```diff",
-        @diff.presence || "(No diff captured.)",
+        diff_context,
         "```"
       ].join("\n")
+    end
+
+    def current_diff_label(agentic_label)
+      return "Current diff from the latest succeeded #{agentic_label} step:" unless oversized_diff?
+
+      "Current diff summary from the latest succeeded #{agentic_label} step (bounded for visual review prompt budget):"
+    end
+
+    def diff_context
+      return "(No diff captured.)" if @diff.blank?
+      return @diff unless oversized_diff?
+
+      [
+        "Full diff omitted because it is #{@diff.length} characters, above the #{FULL_DIFF_CHARACTER_LIMIT} character visual_review prompt budget.",
+        "Changed files:",
+        changed_file_lines,
+        "",
+        "UI-relevant diff excerpts:",
+        summarized_diff_excerpt
+      ].compact.join("\n")
+    end
+
+    def oversized_diff?
+      @diff.length > FULL_DIFF_CHARACTER_LIMIT
+    end
+
+    def changed_file_lines
+      files = changed_files
+      return "(Could not identify changed files from diff headers.)" if files.empty?
+
+      lines = files.first(FILE_LIST_LIMIT).map { |file| "- #{file}" }
+      omitted = files.size - FILE_LIST_LIMIT
+      lines << "- ... #{omitted} more files omitted" if omitted.positive?
+      lines.join("\n")
+    end
+
+    def changed_files
+      @changed_files ||= diff_file_sections.map(&:path).compact_blank.uniq
+    end
+
+    def summarized_diff_excerpt
+      excerpts = diff_file_sections
+        .sort_by { |section| section.ui_relevant? ? 0 : 1 }
+        .filter_map(&:excerpt)
+
+      return "(No compact diff excerpt available; rely on changed file names and inspect the workspace directly.)" if excerpts.empty?
+
+      excerpt = +""
+      excerpts.each do |candidate|
+        remaining = SUMMARIZED_DIFF_CHARACTER_LIMIT - excerpt.length
+        break if remaining <= 0
+
+        excerpt << "\n" if excerpt.present?
+        excerpt << candidate.first(remaining)
+      end
+      excerpt << "\n... additional diff hunks omitted for prompt budget" if excerpt.length >= SUMMARIZED_DIFF_CHARACTER_LIMIT
+      excerpt
+    end
+
+    DiffFileSection = Data.define(:path, :lines) do
+      def ui_relevant?
+        path.to_s.match?(Prompts::VisualReview::UI_RELEVANT_PATH) ||
+          path.to_s.match?(Prompts::VisualReview::UI_RELEVANT_EXTENSION)
+      end
+
+      def excerpt
+        kept = lines.select do |line|
+          line.start_with?("diff --git ", "@@ ", "+++ ", "--- ") ||
+            ui_relevant? ||
+            (line.start_with?("+", "-") && !path.to_s.match?(Prompts::VisualReview::LOW_SIGNAL_EXTENSION))
+        end
+        return nil if kept.empty?
+
+        text = kept.join("\n")
+        text = "#{text.first(Prompts::VisualReview::PER_FILE_EXCERPT_LIMIT)}\n... file excerpt omitted for prompt budget" if text.length > Prompts::VisualReview::PER_FILE_EXCERPT_LIMIT
+        text
+      end
+    end
+
+    def diff_file_sections
+      @diff_file_sections ||= begin
+        sections = []
+        current_path = nil
+        current_lines = []
+
+        @diff.each_line(chomp: true) do |line|
+          if line.start_with?("diff --git ")
+            sections << DiffFileSection.new(path: current_path, lines: current_lines) if current_lines.any?
+            current_path = line[/\Ab\/(.+)\z/, 1] || line.split.last&.sub(/\Ab\//, "")
+            current_lines = [ line ]
+          else
+            current_lines << line
+          end
+        end
+
+        sections << DiffFileSection.new(path: current_path, lines: current_lines) if current_lines.any?
+        sections
+      end
     end
 
     def implementer_test_plan_hint
