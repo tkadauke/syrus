@@ -535,13 +535,16 @@ lifecycle state, ownership, capabilities, artifacts — while a plugin per
 platform supplies the execution.
 
 The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
-concrete provider (EPIC-319): a headless-Chromium session driving the repo's
-own dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
+visual provider (EPIC-319): a headless-Chromium session driving the repo's own
+dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
 `start_preview` MCP tool uses — one dev-server start/health-check
 implementation, keyed by an arbitrary caller-supplied identifier in
 `Mcp::Tools::AgentPreviewRegistry` (a workflow Run id for `start_preview`, a
 `RuntimeSession`'s `workspace_ref` here), not two independently-drifting
-copies. This section documents the interface contributors implement.
+copies. The `runtime_terminal` plugin contributes the lifecycle-only
+`cli_tui` provider by composing the existing `terminal` plugin instead of
+reimplementing PTY spawning or streaming. This section documents the interface
+contributors implement.
 
 `provider_key`, `display_name`, `detect`, and `capabilities` are class
 methods, so a provider can be selected for a repository/config before any
@@ -2720,6 +2723,26 @@ Bundled plugins:
   the Action Cable channel guards itself, because Action Cable resolves a
   channel by constantizing the identifier and would otherwise reach a disabled
   plugin's channel.
+- `runtime_terminal` — **default-disabled** Runtime Session adapter over the
+  `terminal` plugin. It declares `depends_on ["terminal"]` and registers
+  `RuntimeTerminal::Provider` as the DOC-17 `cli_tui` runtime provider. The
+  provider is lifecycle-only for now: `runtime_start provider: "cli_tui"`
+  creates a `Terminal::Session` for the Coding Mode chat owner's writable
+  workspace, enqueues `TerminalSessionJob`, and records the
+  `RuntimeSession`/`Terminal::Session` pairing in
+  `runtime_terminal_session_links`; `runtime_stop` marks the mapped terminal
+  session `outcome: "killed"` with `finished_at`.
+
+  The adapter intentionally does not modify `terminal_sessions` or
+  `Terminal::Session`/`Terminal::Relay`/`TerminalSessionJob`. The link table is
+  owned by `runtime_terminal`; an always-installed plugin data cleanup removes
+  links when their parent `RuntimeSession` is destroyed, and the table does not
+  add a database foreign key back into the terminal plugin's table, preserving
+  the terminal plugin's own schema boundary. Capabilities advertise
+  `stream: "none"`, no input events, `inspect: ["none"]`, and `build: ["none"]`
+  until follow-up jobs wire terminal streaming and gated stdin/input control.
+  Because this is still a genuine shell on the worker, the adapter stays off by
+  default and inherits the terminal plugin's explicit operator opt-in posture.
 - `whiteboard` — default-enabled, and owns the whiteboard end to end:
   `Whiteboard::Board` (table `whiteboard_boards`) and
   `Whiteboard::Snapshot` (`whiteboard_snapshots`) moved out of core

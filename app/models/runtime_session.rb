@@ -1,4 +1,6 @@
 class RuntimeSession < ApplicationRecord
+  include PluginDataCleanup
+
   STATES = %w[starting building running idle failed stopping stopped].freeze
 
   belongs_to :repository
