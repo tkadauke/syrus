@@ -31,6 +31,7 @@ RSpec.describe Mcp::Tools::RuntimeBuildOrReloadTool do
     session.reload
     expect(session.state).to eq("running")
     expect(session.last_error).to be_nil
+    expect(session.metadata).to include("reloaded" => true)
   end
 
   it "marks the session failed with the error when the provider raises" do

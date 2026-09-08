@@ -30,7 +30,11 @@ module Mcp::Tools
 
         provider = provider_instance_for(session)
         result = provider.build_or_reload(session.id, normalize_options(options))
-        session.update!(state: "running", last_error: nil)
+        session.update!(
+          state: "running",
+          last_error: nil,
+          metadata: session.metadata.merge(result.to_h.deep_stringify_keys)
+        )
         Mcp::Tools.success(result)
       rescue RuntimeSessionProviders::ConfigurationError => e
         Mcp::Tools.invalid(e.message)
