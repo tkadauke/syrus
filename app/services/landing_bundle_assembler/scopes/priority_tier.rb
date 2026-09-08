@@ -61,7 +61,10 @@ class LandingBundleAssembler::Scopes::PriorityTier
   end
 
   # Whether `job`'s own effective-owner partition (within its own
-  # repository+priority tier) forms a ready bundle.
+  # repository+priority tier) forms a ready bundle. This deliberately returns
+  # true for same-partition Jobs outside the current cap, because letting them
+  # auto-merge solo would jump ahead of the bundle that should own the landing
+  # slot.
   def ready_for_job?(job)
     return false if job.epic_id.present? || job.external_pr?
 
@@ -69,7 +72,9 @@ class LandingBundleAssembler::Scopes::PriorityTier
     candidates = eligible_candidates(job.priority).select do |candidate|
       effective_owner_id(candidate) == owner_id
     end
-    members_for(candidates_with_satisfied_prerequisites(candidates)).any? { |member| member.id == job.id }
+    candidates = candidates_with_satisfied_prerequisites(candidates)
+
+    candidates.any? { |candidate| candidate.id == job.id } && members_for(candidates).any?
   end
 
   private

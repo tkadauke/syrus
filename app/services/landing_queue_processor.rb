@@ -724,9 +724,9 @@ class LandingQueueProcessor
   # slot on its own. A single ready candidate falls through to the ordinary
   # per-Job auto_merge path (LandingBundleAssembler::Scopes::PriorityTier::MIN_BUNDLE_SIZE).
   # Uses #ready_for_job? (not #ready_for_priority?) so a Job is only blocked
-  # on a bundle that its own effective owner is actually part of — a ready
-  # bundle among a different owner's Jobs in the same tier must not block
-  # or misroute this Job.
+  # on a bundle from its own effective owner/priority partition. Jobs outside
+  # the current bundle cap still wait here: otherwise they could bypass their
+  # partition's ready bundle and consume the repository landing slot solo.
   def bundle_eligible_epicless_job?(job)
     return false unless Feature.epicless_job_bundling_enabled?
     return false if job.epic_id.present? || job.external_pr?

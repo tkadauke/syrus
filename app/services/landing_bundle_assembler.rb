@@ -35,12 +35,10 @@ class LandingBundleAssembler
   def self.ready_for_priority?(repository, priority) = Scopes::PriorityTier.new(repository).ready_for_priority?(priority)
 
   # Whether `job`'s own effective-owner partition (within its own
-  # repository+priority tier) forms a ready bundle. LandingQueueProcessor
-  # uses this (rather than #ready_for_priority? or a raw candidate count)
-  # to decide whether a specific Job must wait for a bundle, so the queue
-  # gate can't block/misroute a Job over a different owner's ready bundle
-  # in the same tier, and can't disagree with #for_repository's own
-  # readiness math. Priority-tier-scope only.
+  # repository+priority tier) forms a ready bundle. This is partition
+  # readiness, not capped-member readiness: a same-partition Job beyond the
+  # current bundle cap must still wait for the bundle instead of bypassing it
+  # as a solo auto-merge.
   def self.ready_for_job?(job) = Scopes::PriorityTier.new(job.repository).ready_for_job?(job)
 
   def initialize(scope)

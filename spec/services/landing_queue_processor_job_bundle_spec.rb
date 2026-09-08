@@ -167,6 +167,34 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       expect(JobBundleDispatcher).to have_received(:try_dispatch!).with(repository)
     end
 
+    it "routes try_land! for a same-partition Job beyond the bundle cap to the bundle dispatcher" do
+      enable_flag
+      AppSetting.current.update!(merge_train_max_size: 2)
+      approved_job(1)
+      approved_job(2)
+      outside_cap = approved_job(3)
+      allow(JobBundleDispatcher).to receive(:try_dispatch!).and_return(nil)
+
+      described_class.new.try_land!(outside_cap)
+
+      expect(JobBundleDispatcher).to have_received(:try_dispatch!).with(repository)
+      expect(Workflow.where(job: outside_cap, trigger_kind: "auto_merge").count).to eq(0)
+    end
+
+    it "dispatches the ready bundle before landing same-partition Jobs beyond the bundle cap solo" do
+      enable_flag
+      AppSetting.current.update!(merge_train_max_size: 2)
+      approved_job(1)
+      approved_job(2)
+      approved_job(3)
+      allow(JobBundleDispatcher).to receive(:try_dispatch!).and_return(Object.new)
+
+      described_class.call
+
+      expect(JobBundleDispatcher).to have_received(:try_dispatch!).with(repository)
+      expect(Workflow.where(trigger_kind: "auto_merge").count).to eq(0)
+    end
+
     it "lands a solo owner's Job normally instead of routing it to the bundle dispatcher, even while a different owner's same-tier bundle is ready" do
       enable_flag
       other_owner = Factories.user

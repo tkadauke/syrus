@@ -308,6 +308,16 @@ RSpec.describe LandingBundleAssembler do
         expect(described_class.ready_for_job?(b)).to be true
       end
 
+      it "is true for same-partition Jobs beyond the current bundle cap" do
+        AppSetting.current.update!(merge_train_max_size: 2)
+        approved(issue_number: 1, owner_user: user)
+        approved(issue_number: 2, owner_user: user)
+        outside_cap = approved(issue_number: 3, owner_user: user)
+
+        expect(described_class.for_repository(repository).job_ids.size).to eq(2)
+        expect(described_class.ready_for_job?(outside_cap)).to be true
+      end
+
       it "is false for an Epic-backed Job" do
         epic = Factories.epic(user: user, repository: repository)
         member = Factories.job_record(user: user, owner_user: user, repository: repository, epic: epic, issue_number: 1, state: "approved", pr_number: 900)
