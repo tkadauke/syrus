@@ -15,14 +15,24 @@ RSpec.describe "App API job chats", type: :request do
       expect {
         post path(job), as: :json
       }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTitleJob).with(kind_of(Integer), kind_of(Integer))
+        .and have_enqueued_job(ChatTurnJob).with(kind_of(Integer), kind_of(Integer))
 
       expect(response).to have_http_status(:ok)
       chat = ChatSession.last
+      message = chat.messages.sole
       expect(chat.user_id).to eq(user.id)
       expect(chat.attached_repositories).to include(repo)
       expect(chat.attached_jobs).to contain_exactly(job)
+      expect(chat).to be_turn_in_flight
+      expect(message.role).to eq("user")
+      expect(message.sender_user_id).to eq(user.id)
+      expect(message.content).to eq("text" => "I would like to chat about JOB-#{job.id}.")
       expect(job.reload.discussion_chat).to eq(chat)
       expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
+      expect(ChatTitleJob).to have_been_enqueued.with(chat.id, message.id)
+      expect(ChatTurnJob).to have_been_enqueued.with(chat.id, message.id)
     end
 
     it "reuses the existing discussion chat instead of creating a duplicate" do
@@ -32,6 +42,9 @@ RSpec.describe "App API job chats", type: :request do
       expect {
         post path(job), as: :json
       }.not_to change(ChatSession, :count)
+      expect(ChatMessage.count).to eq(0)
+      expect(ChatTitleJob).not_to have_been_enqueued
+      expect(ChatTurnJob).not_to have_been_enqueued
 
       expect(parse_body["redirect_to"]).to eq("/chats/#{existing_chat.id}")
     end
@@ -49,8 +62,8 @@ RSpec.describe "App API job chats", type: :request do
   context "as a repository member who did not create the job" do
     it "allows a write-tier member to start the chat" do
       job # ensure the job's owner is created first -- the first User in a
-          # test example is auto-promoted to admin, which would make this
-          # test pass for the wrong reason
+      # test example is auto-promoted to admin, which would make this
+      # test pass for the wrong reason
       writer = Factories.user(admin: false)
       RepositoryMembership.create!(repository: repo, user: writer, role: "write")
       sign_in_as(writer)

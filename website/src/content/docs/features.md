@@ -42,8 +42,10 @@ When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message. A Job
 with no chat link at all yet — a bug report, or a Job ingested from an
 external PR — instead shows a "Chat about this" action; using it starts a
-new chat, permanently attaches the Job to it (visible in that chat's Jobs
-list), and the Job page then links to that chat going forward.
+new chat scoped to the Job's repository, seeds an opening "I would like to
+chat about JOB-<id>." user turn so the agent responds immediately,
+permanently attaches the Job to it (visible in that chat's Jobs list), and
+the Job page then links to that chat going forward.
 If an agent provider hits a current user's usage or quota limit, Jobs that use
 that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
