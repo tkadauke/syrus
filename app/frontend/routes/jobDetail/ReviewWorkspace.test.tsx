@@ -5,6 +5,7 @@ import { ReviewWorkspace } from "./ReviewWorkspace"
 import {
   createDiffReviewComment,
   deleteDiffReviewComment,
+  fetchDiffReviewVersion,
   fetchDiffReviewComments,
   fetchJobSourceDiff,
   replyToDiffReviewComment,
@@ -23,6 +24,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     createDiffReviewComment: vi.fn(),
     deleteDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
+    fetchDiffReviewVersion: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
     replyToDiffReviewComment: vi.fn(),
     resolveDiffReviewComment: vi.fn(),
@@ -35,11 +37,12 @@ beforeEach(() => {
   vi.mocked(createDiffReviewComment).mockReset()
   vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
+  vi.mocked(fetchDiffReviewVersion).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(replyToDiffReviewComment).mockReset()
   vi.mocked(submitDiffReviewComments).mockReset()
   vi.mocked(updateDiffReviewComment).mockReset()
-  Element.prototype.scrollIntoView = vi.fn()
+  HTMLElement.prototype.scrollIntoView = vi.fn()
 })
 
 function renderWorkspace(payload = jobPayload()) {
@@ -311,7 +314,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => {
-      expect(updateDiffReviewComment).toHaveBeenCalledWith(42, 1, { body: "Updated body." })
+      expect(updateDiffReviewComment).toHaveBeenCalledWith(42, 1, { body: "Updated body.", diff_review_version_id: 100 })
     })
   })
 
@@ -359,7 +362,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
 
     await waitFor(() => {
-      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 2)
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 2, 100)
     })
   })
 
@@ -401,7 +404,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
 
     await waitFor(() => {
-      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 1)
+      expect(deleteDiffReviewComment).toHaveBeenCalledWith(42, 1, 100)
     })
   })
 
@@ -470,12 +473,198 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send reply" }))
 
     await waitFor(() => {
-      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.")
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 1, "Fixed in the follow-up commit.", 100)
     })
+  })
+
+  it("renders a version selector with labels, metadata, and per-version comment counts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      versions: [
+        version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1, created_at: "2026-05-01T12:00:00Z" }),
+        version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+      ],
+      version: version({ id: 200, version_index: 2, label: "Chat feedback #1", reason: "chat_feedback", trigger_kind: "chat_feedback", workflow_id: 12, run_id: 34, comments_count: 2, created_at: "2026-05-02T12:00:00Z" })
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    const selector = await screen.findByLabelText("Diff version")
+    expect(selector).toHaveValue("200")
+    expect(selector).toHaveClass("max-w-full", "truncate")
+    expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
+    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - base-sh\.\.head-sh - 2 comments/ })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - base-sh\.\.head-sh - 1 comment/ })).toBeInTheDocument()
+    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - base-sh\.\.head-sh - 2 comments/)).toBeInTheDocument()
+  })
+
+  it("switches to an older stored diff version from the selector", async () => {
+    const latest = sourceDiffPayload({
+      version: version({ id: 200, version_index: 2, head_sha: "head-v2", label: "Chat feedback #1" }),
+      versions: [
+        version({ id: 100, version_index: 1, head_sha: "head-v1", label: "Initial implementation" }),
+        version({ id: 200, version_index: 2, head_sha: "head-v2", label: "Chat feedback #1" })
+      ],
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/latest.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+latest"
+      }]
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(latest)
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 100, version_index: 1, head_sha: "head-v1", label: "Initial implementation" }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/old.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+old-version"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.change(await screen.findByLabelText("Diff version"), { target: { value: "100" } })
+
+    expect(await screen.findByTitle("app/models/old.rb")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
+    expect(screen.queryByText("latest")).not.toBeInTheDocument()
+  })
+
+  it("keeps latest-version review behavior working while comment history is enabled", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ id: 1 })]))
+    vi.mocked(submitDiffReviewComments).mockResolvedValue({
+      message: "Diff comments submitted as chat feedback.",
+      workflow: { id: 7, trigger_kind: "chat_feedback", state: "queued" },
+      comments: []
+    })
+
+    renderWorkspace()
+
+    await screen.findByText("Please add a regression spec.")
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    await waitFor(() => {
+      expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace&all_versions=1")
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
+    })
+  })
+
+  it("shows old comments as historical and switches to their anchored diff line", async () => {
+    const oldComment = comment({
+      id: 10,
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1 }),
+      new_line: 1,
+      anchor_key: "right::1",
+      body: "Old v1 note."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 200, version_index: 2, label: "Chat feedback #1" }),
+      versions: [
+        version({ id: 100, version_index: 1, label: "Initial implementation", comments_count: 1 }),
+        version({ id: 200, version_index: 2, label: "Chat feedback #1", comments_count: 0 })
+      ]
+    }))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 100, version_index: 1, label: "Initial implementation" }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [{
+        additions: 1,
+        deletions: 0,
+        path: "app/models/user.rb",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n+new"
+      }]
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 200))
+
+    renderWorkspace()
+
+    await screen.findByText("v1 historical")
+    fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Diff version")).toHaveValue("100"))
+    expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
+    await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
+  })
+
+  it("sends historical comment mutations with the comment's own version id", async () => {
+    const oldComment = comment({
+      id: 12,
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1 }),
+      body: "Old comment needing a reply."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 200, version_index: 2 }),
+      versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
+    }))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 200))
+    vi.mocked(replyToDiffReviewComment).mockResolvedValue(commentsPayload([
+      comment({ id: 13, parent_id: 12, body: "Acknowledged." })
+    ]))
+
+    renderWorkspace()
+
+    await screen.findByText("Old comment needing a reply.")
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+    fireEvent.change(screen.getByLabelText("Reply"), { target: { value: "Acknowledged." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send reply" }))
+
+    await waitFor(() => {
+      expect(replyToDiffReviewComment).toHaveBeenCalledWith(42, 12, "Acknowledged.", 100)
+    })
+  })
+
+  it("switches whole-review old comments to their version and focuses the sidebar record", async () => {
+    const oldComment = comment({
+      id: 11,
+      anchor_kind: "review",
+      path: null,
+      side: null,
+      new_line: null,
+      anchor_key: "review",
+      diff_review_version_id: 100,
+      diff_review_version: version({ id: 100, version_index: 1 }),
+      body: "Old whole-review note."
+    })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({
+      version: version({ id: 200, version_index: 2 }),
+      versions: [version({ id: 100, version_index: 1, comments_count: 1 }), version({ id: 200, version_index: 2 })]
+    }))
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...version({ id: 100, version_index: 1 }),
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: sourceDiffPayload().files
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([oldComment], 200))
+
+    renderWorkspace()
+
+    await screen.findByText("Old whole-review note.")
+    fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
+
+    await waitFor(() => expect(screen.getByLabelText("Diff version")).toHaveValue("100"))
+    const record = document.querySelector('[data-diff-review-comment-id="11"]') as HTMLElement
+    expect(record).toBeInTheDocument()
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
   })
 })
 
-function sourceDiffPayload(): JobSourceDiffPayload {
+function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPayload {
   return {
     job_id: 42,
     base_ref: "base-sha",
@@ -485,9 +674,9 @@ function sourceDiffPayload(): JobSourceDiffPayload {
     branch_commits: [],
     truncated: false,
     diff_error: null,
-    version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
+    version: version(),
     versions: [
-      { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }
+      version()
     ],
     files: [
       {
@@ -518,12 +707,37 @@ function sourceDiffPayload(): JobSourceDiffPayload {
           "+added"
         ].join("\n")
       }
-    ]
+    ],
+    ...overrides
   }
 }
 
-function commentsPayload(comments: DiffReviewComment[]): DiffReviewCommentsPayload {
-  return { job_id: 42, diff_review_version_id: 100, latest_version_id: 100, comments, by_path: {} }
+function version(overrides: Partial<NonNullable<JobSourceDiffPayload["version"]>> = {}): NonNullable<JobSourceDiffPayload["version"]> {
+  return {
+    id: 100,
+    job_id: 42,
+    version_index: 1,
+    base_sha: "base-sha",
+    head_sha: "head-sha",
+    base_ref: "main",
+    head_ref: "syrus/issue-42",
+    workflow_id: null,
+    workflow: null,
+    run_id: null,
+    trigger_kind: "initial",
+    label: "Version 1",
+    reason: "initial",
+    truncated: false,
+    files_count: 2,
+    comments_count: 0,
+    metadata: {},
+    created_at: null,
+    ...overrides
+  }
+}
+
+function commentsPayload(comments: DiffReviewComment[], selectedVersionId = 100): DiffReviewCommentsPayload {
+  return { job_id: 42, diff_review_version_id: selectedVersionId, latest_version_id: selectedVersionId, comments, by_path: {} }
 }
 
 function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment {
@@ -531,17 +745,7 @@ function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment 
     id: 1,
     job_id: 42,
     diff_review_version_id: 100,
-    diff_review_version: {
-      id: 100,
-      version_index: 1,
-      base_sha: "base-sha",
-      head_sha: "head-sha",
-      base_ref: "main",
-      head_ref: "syrus/issue-42",
-      trigger_kind: "initial",
-      label: "Version 1",
-      reason: "initial"
-    },
+    diff_review_version: version(),
     parent_id: null,
     user_id: 5,
     user: { id: 5, display_name: "Ada", email_address: "ada@example.com", avatar_url: null },

@@ -49,6 +49,7 @@ module App
         reason: version.reason,
         truncated: version.truncated,
         files_count: Array(version.files_snapshot).size,
+        comments_count: comments_count_for(version),
         metadata: version.metadata || {},
         created_at: version.created_at&.iso8601
       }
@@ -62,6 +63,14 @@ module App
         trigger_kind: workflow.trigger_kind,
         state: workflow.state
       }
+    end
+
+    def comments_count_for(version)
+      comments_count_by_version[version.id].to_i
+    end
+
+    def comments_count_by_version
+      @comments_count_by_version ||= @job.diff_review_comments.group(:diff_review_version_id).count
     end
 
     def file_json(file)

@@ -24,7 +24,9 @@ type DiffReviewFeedbackOptions = {
   diffReviewVersionId?: number | null
   enabled: boolean
   headRef?: string | null
+  includeAllVersions?: boolean
   jobId: number | string
+  onViewCommentVersion?: (comment: DiffReviewComment) => void
   runId?: number | null
   supportsGlobalComments?: boolean
   surface: string
@@ -45,7 +47,9 @@ export function useDiffReviewFeedback({
   diffReviewVersionId,
   enabled,
   headRef,
+  includeAllVersions = false,
   jobId,
+  onViewCommentVersion,
   runId,
   supportsGlobalComments = false,
   surface,
@@ -63,7 +67,7 @@ export function useDiffReviewFeedback({
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const search = diffReviewCommentsSearch({ surface, baseRef, diffReviewVersionId, headRef, runId, workflowId })
+  const search = diffReviewCommentsSearch({ surface, baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
   const comments = useQuery({
     enabled,
@@ -72,11 +76,12 @@ export function useDiffReviewFeedback({
   })
 
   const commentList = comments.data?.comments ?? []
-  const counts = useMemo(() => commentCountsByPath(commentList), [commentList])
-  const diffThreads = useMemo(() => diffThreadsByPath(commentList), [commentList])
-  const actionableComments = commentList.filter(isSubmittableDiffComment)
-  const submittedComments = commentList.filter((comment) => comment.state === "submitted")
-  const handledComments = commentList.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
+  const selectedVersionComments = commentList.filter((comment) => comment.diff_review_version_id === diffReviewVersionId)
+  const counts = useMemo(() => commentCountsByPath(selectedVersionComments), [selectedVersionComments])
+  const diffThreads = useMemo(() => diffThreadsByPath(selectedVersionComments), [selectedVersionComments])
+  const actionableComments = selectedVersionComments.filter(isSubmittableDiffComment)
+  const submittedComments = selectedVersionComments.filter((comment) => comment.state === "submitted")
+  const handledComments = selectedVersionComments.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
   const workflowActive = submittedComments.some((comment) => comment.workflow && !terminalWorkflowStates.has(comment.workflow.state))
 
   const createComment = useMutation({
@@ -98,11 +103,11 @@ export function useDiffReviewFeedback({
     }
   })
   const resolveComment = useMutation({
-    mutationFn: (id: number) => resolveDiffReviewComment(jobId, id),
+    mutationFn: ({ id, versionId }: { id: number; versionId?: number | null }) => resolveDiffReviewComment(jobId, id, versionId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: commentQueryKey })
   })
   const replyToComment = useMutation({
-    mutationFn: ({ id, body: replyText }: { id: number; body: string }) => replyToDiffReviewComment(jobId, id, replyText),
+    mutationFn: ({ id, body: replyText, versionId }: { id: number; body: string; versionId?: number | null }) => replyToDiffReviewComment(jobId, id, replyText, versionId),
     onSuccess: () => {
       setReplyingId(null)
       setReplyBody("")
@@ -110,8 +115,8 @@ export function useDiffReviewFeedback({
     }
   })
   const deleteComment = useMutation({
-    mutationFn: (id: number) => deleteDiffReviewComment(jobId, id),
-    onSuccess: (_, id) => {
+    mutationFn: ({ id, versionId }: { id: number; versionId?: number | null }) => deleteDiffReviewComment(jobId, id, versionId),
+    onSuccess: (_, { id }) => {
       if (editing?.id === id) {
         setEditing(null)
         setBody("")
@@ -143,7 +148,7 @@ export function useDiffReviewFeedback({
     const trimmed = body.trim()
     if (!trimmed) return
     if (editing) {
-      updateComment.mutate({ id: editing.id, input: { body: trimmed } })
+      updateComment.mutate({ id: editing.id, input: { body: trimmed, diff_review_version_id: editing.diff_review_version_id } })
       return
     }
     if (!selection) return
@@ -204,7 +209,7 @@ export function useDiffReviewFeedback({
   function saveEditThread() {
     const trimmed = editingThreadBody.trim()
     if (!trimmed || editingThreadId == null) return
-    updateComment.mutate({ id: editingThreadId, input: { body: trimmed } })
+    updateComment.mutate({ id: editingThreadId, input: { body: trimmed, diff_review_version_id: diffReviewVersionId } })
   }
 
   function cancelEditThread() {
@@ -220,7 +225,8 @@ export function useDiffReviewFeedback({
   function saveReply() {
     const trimmed = replyBody.trim()
     if (!trimmed || replyingId == null) return
-    replyToComment.mutate({ id: replyingId, body: trimmed })
+    const comment = commentList.find((candidate) => candidate.id === replyingId)
+    replyToComment.mutate({ id: replyingId, body: trimmed, versionId: comment?.diff_review_version_id ?? diffReviewVersionId })
   }
 
   function cancelReply() {
@@ -228,14 +234,14 @@ export function useDiffReviewFeedback({
     setReplyBody("")
   }
 
-  async function requestDeleteComment(commentId: number) {
+  async function requestDeleteComment(commentId: number, versionId?: number | null) {
     const confirmed = await confirm({
       message: t("review_delete_comment_confirm"),
       confirmLabel: t("review_delete_comment"),
       destructive: true
     })
     if (!confirmed) return
-    deleteComment.mutate(commentId)
+    deleteComment.mutate({ id: commentId, versionId })
   }
 
   const panel = enabled ? (
@@ -244,6 +250,7 @@ export function useDiffReviewFeedback({
         actionableComments={actionableComments}
         body={body}
         comments={commentList}
+        currentVersionId={diffReviewVersionId ?? null}
         createError={createComment.error}
         createPending={createComment.isPending}
         deleteError={deleteComment.error}
@@ -256,15 +263,18 @@ export function useDiffReviewFeedback({
         onCancelReply={cancelReply}
         onChangeReplyBody={setReplyBody}
         onComment={commentOnReview}
-        onDelete={(comment) => requestDeleteComment(comment.id)}
+        onDelete={(comment) => requestDeleteComment(comment.id, comment.diff_review_version_id)}
         onEdit={editComment}
         onReply={saveReply}
-        onResolve={(comment) => resolveComment.mutate(comment.id)}
+        onResolve={(comment) => resolveComment.mutate({ id: comment.id, versionId: comment.diff_review_version_id })}
         onReviewCommentBodyChange={setReviewCommentBody}
         onSave={saveComment}
         onStartReply={startReply}
         onSubmit={submitFeedback}
-        onViewInDiff={(comment) => comment.path && scrollToDiffAnchor(comment.path)}
+        onViewInDiff={(comment) => {
+          onViewCommentVersion?.(comment)
+          if (!onViewCommentVersion && comment.path) scrollToDiffAnchor(comment.path)
+        }}
         replyBody={replyBody}
         replyError={replyToComment.error}
         replyPending={replyToComment.isPending}
@@ -298,7 +308,7 @@ export function useDiffReviewFeedback({
     onChangeEditingThreadBody: setEditingThreadBody,
     onCommentLine: enabled ? startComment : undefined,
     onSaveComposing: saveComment,
-    onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id) : undefined,
+    onDeleteThread: enabled ? (thread: DiffReviewThread) => requestDeleteComment(thread.id, diffReviewVersionId) : undefined,
     onSaveEditThread: saveEditThread,
     onStartEditThread: startEditThread,
     panel,
@@ -311,6 +321,7 @@ function DiffReviewFeedbackPanel({
   body,
   comments,
   createError,
+  currentVersionId,
   createPending,
   deleteError,
   deletePending,
@@ -348,6 +359,7 @@ function DiffReviewFeedbackPanel({
   body: string
   comments: DiffReviewComment[]
   createError: Error | null
+  currentVersionId: number | null
   createPending: boolean
   deleteError: Error | null
   deletePending: boolean
@@ -395,13 +407,17 @@ function DiffReviewFeedbackPanel({
       <div className="mt-3 space-y-3">
         {comments.length === 0 ? <p className="text-sm text-gray-400 dark:text-gray-500">{t("review_no_comments")}</p> : comments.map((comment) => {
           const isGlobal = comment.anchor_kind === "review"
+          const selectedVersion = comment.diff_review_version_id === currentVersionId
           return (
-          <div className="min-w-0 rounded border border-gray-200 p-3 text-sm dark:border-gray-800" key={comment.id}>
+          <div className={`min-w-0 rounded border p-3 text-sm ${selectedVersion ? "border-gray-200 dark:border-gray-800" : "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"}`} data-diff-review-comment-id={comment.id} key={comment.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="break-words font-mono text-xs text-gray-500 dark:text-gray-400">
                 {isGlobal ? t("review_global_comment_label") : `${comment.path}:${comment.side === "left" ? comment.old_line : comment.new_line}`}
               </span>
-              <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+              <div className="flex flex-wrap gap-2">
+                {!selectedVersion ? <ReviewStatePill label={t("review_version_historical_badge", { version: comment.diff_review_version?.version_index ?? "?" })} tone="submitted" /> : null}
+                <ReviewStatePill label={comment.workflow ? `${comment.state} · ${comment.workflow.state}` : comment.state} tone={comment.state === "resolved" ? "handled" : comment.state === "submitted" ? "submitted" : "pending"} />
+              </div>
             </div>
             {!isGlobal && comment.diff_hunk ? (
               <div className="mt-2">
@@ -411,7 +427,7 @@ function DiffReviewFeedbackPanel({
             <p className="mt-2 whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200">{comment.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {comment.state === "draft" && isGlobal ? <Button onClick={() => onEdit(comment)} size="sm" variant="secondary">{t("review_edit_comment")}</Button> : null}
-              {supportsGlobalComments && !isGlobal && comment.path ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
+              {supportsGlobalComments && (comment.path || isGlobal) ? <Button onClick={() => onViewInDiff(comment)} size="sm" variant="secondary">{t("review_view_in_diff")}</Button> : null}
               {comment.state !== "resolved" ? <Button disabled={resolvePending} onClick={() => onResolve(comment)} size="sm" variant="secondary">{t("review_resolve_comment")}</Button> : null}
               {replyingId !== comment.id ? <Button onClick={() => onStartReply(comment.id)} size="sm" variant="secondary">{t("review_reply_comment")}</Button> : null}
               {comment.state === "draft" && isGlobal ? <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">{t("review_delete_comment")}</Button> : null}
@@ -610,18 +626,23 @@ function diffThreadsByPath(comments: DiffReviewComment[]) {
   }, {})
 }
 
-function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, runId, surface, workflowId }: {
+function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, includeAllVersions, runId, surface, workflowId }: {
   baseRef?: string | null
   diffReviewVersionId?: number | null
   headRef?: string | null
+  includeAllVersions?: boolean
   runId?: number | null
   surface: string
   workflowId?: number | null
 }) {
   const params = new URLSearchParams({ surface })
-  if (diffReviewVersionId) params.set("diff_review_version_id", String(diffReviewVersionId))
-  if (baseRef) params.set("base_ref", baseRef)
-  if (headRef) params.set("head_ref", headRef)
+  if (includeAllVersions) {
+    params.set("all_versions", "1")
+  } else {
+    if (diffReviewVersionId) params.set("diff_review_version_id", String(diffReviewVersionId))
+    if (baseRef) params.set("base_ref", baseRef)
+    if (headRef) params.set("head_ref", headRef)
+  }
   if (runId) params.set("run_id", String(runId))
   if (workflowId) params.set("workflow_id", String(workflowId))
   return `?${params.toString()}`

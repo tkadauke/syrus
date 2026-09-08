@@ -113,6 +113,7 @@ module Api
         end
 
         def filtered_comments(job, version)
+          return all_version_comments(job) if ActiveModel::Type::Boolean.new.cast(params[:all_versions])
           return DiffReviewComment.none unless version
 
           job.diff_review_comments
@@ -123,6 +124,17 @@ module Api
              .for_state(params[:state])
              .for_base_ref(params[:base_ref])
              .for_head_ref(params[:head_ref])
+             .for_workflow(params[:workflow_id])
+             .for_run(params[:run_id])
+             .ordered
+        end
+
+        def all_version_comments(job)
+          job.diff_review_comments
+             .includes(:user, :workflow, :run, :diff_review_version)
+             .for_surface(params[:surface])
+             .for_path(params[:path])
+             .for_state(params[:state])
              .for_workflow(params[:workflow_id])
              .for_run(params[:run_id])
              .ordered

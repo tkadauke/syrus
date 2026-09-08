@@ -14,6 +14,7 @@ import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/Re
 import { refOptionsFor, sourceDiffSearch, sourceSearch } from "./sourceRefs"
 import { PanelMessage } from "./components"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
+import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
 import type { SourceTreeNode } from "./sourceTree"
 import { buildSourceTree } from "./sourceTree"
 
@@ -276,6 +277,9 @@ function SourceDiffBrowser({
   const [renderMode, setRenderMode] = useState<"single-file" | "continuous">("single-file")
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
+  const versions = payload.versions || []
+  const selectedVersionId = payload.version?.id ?? null
+  const latestVersionId = versions[versions.length - 1]?.id ?? payload.version?.id ?? null
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,
     buildContext: sourceBrowserCommentContext,
@@ -293,12 +297,27 @@ function SourceDiffBrowser({
     if (feedback.selectedCommentPath) setSelectedPath(feedback.selectedCommentPath)
   }, [feedback.selectedCommentPath])
 
+  function selectVersion(versionId: number) {
+    const version = versions.find((candidate) => candidate.id === versionId)
+    if (!version) return
+    onSelectBaseRef(version.base_sha)
+    onSelectHeadRef(version.head_sha)
+  }
+
   if (payload.diff_error) return <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}><PanelMessage tone="error">{payload.diff_error}</PanelMessage></SourceShell>
 
   return (
     <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
+          {versions.length > 0 ? (
+            <DiffReviewVersionSelector
+              latestVersionId={latestVersionId}
+              onChange={selectVersion}
+              selectedVersionId={selectedVersionId}
+              versions={versions}
+            />
+          ) : null}
           <label className="text-sm text-gray-600 dark:text-gray-300">
             {t("source_from_label")}
             <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
