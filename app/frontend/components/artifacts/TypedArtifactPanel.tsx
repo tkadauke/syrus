@@ -9,7 +9,7 @@ export function TypedArtifactPanel({ artifacts }: { artifacts: TypedArtifact[] }
   if (artifacts.length === 0) return null
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {artifacts.map((artifact) => (
         <ArtifactCard key={artifact.type} artifact={artifact} />
       ))}
@@ -19,12 +19,12 @@ export function TypedArtifactPanel({ artifacts }: { artifacts: TypedArtifact[] }
 
 function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
   return (
-    <div className="rounded border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-4 py-2">
-        <span className="font-semibold text-gray-800">{artifact.title}</span>
-        <span className="ml-2 text-xs text-gray-400">{artifact.type}</span>
+    <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-gray-100 px-4 py-2">
+        <span className="min-w-0 break-words font-semibold text-gray-800">{artifact.title}</span>
+        <span className="min-w-0 break-all text-xs text-gray-400">{artifact.type}</span>
       </div>
-      <div className="p-4">
+      <div className="overflow-x-auto p-4">
         <ArtifactBody artifact={artifact} />
       </div>
     </div>
@@ -95,12 +95,12 @@ function BeforeAfterDiffBody({ payload }: { payload: Record<string, unknown> }) 
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <div>
+    <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+      <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{before ?? "(empty)"}</pre>
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
       </div>

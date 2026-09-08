@@ -1385,11 +1385,11 @@ export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="min-w-0 space-y-4">
       {artifacts.map((artifact) => (
-        <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
-          <SectionHeading>{artifact.title}</SectionHeading>
-          <div className="mt-3">
+        <div className="min-w-0 overflow-hidden rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
+          <SectionHeading className="break-words">{artifact.title}</SectionHeading>
+          <div className="mt-3 overflow-x-auto">
             <ArtifactBody artifact={artifact} />
           </div>
         </div>
