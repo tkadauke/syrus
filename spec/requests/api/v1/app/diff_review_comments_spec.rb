@@ -94,6 +94,21 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(parse_body["comments"].map { |comment| comment["id"] }).to eq([ old_comment.id ])
     end
 
+    it "can list comments across every diff review version for history sidebars" do
+      old_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+      latest_comment = create_comment(diff_review_version: latest_version, base_ref: latest_version.base_sha, head_ref: latest_version.head_sha)
+
+      get comments_path, params: { surface: "job_source_diff", all_versions: "1" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["diff_review_version_id"]).to eq(latest_version.id)
+      expect(body["latest_version_id"]).to eq(latest_version.id)
+      expect(body["comments"].map { |comment| comment["id"] }).to match_array([ old_comment.id, latest_comment.id ])
+    end
+
     it "can scope run artifact comments to a concrete workflow and run" do
       workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude")
       step = Step.create!(workflow: workflow, kind: "implement", position: 1)
