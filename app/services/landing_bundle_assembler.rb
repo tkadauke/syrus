@@ -22,7 +22,7 @@ class LandingBundleAssembler
   def self.for_epic(epic) = call(Scopes::Epic.new(epic))
 
   # Priority-tier-backed scope: JobBundleAssembler's former entry point.
-  def self.for_repository(repository) = call(Scopes::PriorityTier.new(repository))
+  def self.for_repository(repository, include_active: false) = call(Scopes::PriorityTier.new(repository, include_active: include_active))
 
   # Whether `priority`'s own candidate pool forms a ready bundle on its
   # own — independent of whether a higher tier currently occupies the
