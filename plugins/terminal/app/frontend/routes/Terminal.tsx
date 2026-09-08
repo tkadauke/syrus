@@ -6,7 +6,6 @@ import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "xterm"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { fetchBootstrap, type BootstrapPayload } from "@app/api/bootstrap"
 import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -20,12 +19,6 @@ export function TerminalRoute() {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const bootstrap = useQuery<BootstrapPayload>({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    enabled: false
-  })
-  const terminalEnabled = Boolean(bootstrap.data?.feature_flags?.terminal)
   const [activeSessionId, setActiveSessionId] = useState<number | null>(() => {
     const id = Number(new URLSearchParams(location.search).get("session"))
     return Number.isFinite(id) && id > 0 ? id : null
@@ -35,8 +28,7 @@ export function TerminalRoute() {
   const sessionsQuery = useQuery({
     queryKey: terminalSessionsQueryKey,
     queryFn: ({ signal }) => fetchTerminalSessions({ signal }),
-    enabled: terminalEnabled,
-    refetchInterval: terminalEnabled ? 5000 : false
+    refetchInterval: 5000
   })
 
   const sessions = sessionsQuery.data?.sessions ?? []
@@ -149,7 +141,7 @@ export function TerminalRoute() {
           </div>
         </div>
 
-        {terminalEnabled && sessionsQuery.isPending ? (
+        {sessionsQuery.isPending ? (
           <div className="flex flex-1 items-center justify-center text-sm text-gray-400">{t("terminal.loading")}</div>
         ) : sessionsQuery.isError ? (
           <div className="flex flex-1 items-center justify-center text-sm text-red-300">{t("terminal.load_error")}</div>

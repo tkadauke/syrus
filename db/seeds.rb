@@ -8,12 +8,6 @@
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
 
-Feature.find_or_create_by!(slug: "terminal") do |feature|
-  feature.category = "labs"
-  feature.name = "Terminal"
-  feature.enabled = false
-end
-
 require_relative "seeds/themes"
 Seeds::Themes.seed!
 

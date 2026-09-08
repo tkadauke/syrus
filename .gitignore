@@ -65,3 +65,8 @@ tmp/mcp_repro/
 # Playwright MCP browser-verification scratch (screenshots, console logs)
 # from manual preview testing -- not product artifacts.
 .playwright-mcp/
+
+# Playwright test runner output (traces, screenshots, HTML report) from
+# running the e2e/ and plugins/*/e2e/ suites locally.
+/test-results/
+/playwright-report/
