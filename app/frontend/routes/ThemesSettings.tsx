@@ -74,9 +74,15 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     setOrderedThemes(customThemes)
     orderedThemesRef.current = customThemes
 
-    const nextSelectedId = selectedId && customThemes.some((theme) => theme.id === selectedId) ? selectedId : customThemes[0]?.id ?? null
-    const selected = customThemes.find((theme) => theme.id === nextSelectedId)
-    setSelectedId(nextSelectedId)
+    setSelectedId((currentSelectedId) => (
+      currentSelectedId && customThemes.some((theme) => theme.id === currentSelectedId)
+        ? currentSelectedId
+        : customThemes[0]?.id ?? null
+    ))
+  }, [customThemes])
+
+  useEffect(() => {
+    const selected = customThemes.find((theme) => theme.id === selectedId)
     setDraft(selected ? draftFromTheme(selected) : null)
     setContrastIssues([])
   }, [customThemes, selectedId])
