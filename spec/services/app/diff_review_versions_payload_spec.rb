@@ -17,6 +17,15 @@ RSpec.describe App::DiffReviewVersionsPayload do
       ],
       metadata: { "commit_count" => 1 }
     )
+    version.diff_review_comments.create!(
+      job: job,
+      user: job.user,
+      surface: "job_review_workspace",
+      path: "app/models/user.rb",
+      side: "right",
+      new_line: 1,
+      body: "Check this."
+    )
 
     index = described_class.index(job: job)
     show = described_class.show(version: version)
@@ -28,6 +37,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
       base_sha: "aabbccdd1234567",
       head_sha: "deadbeef12345678",
       files_count: 1,
+      comments_count: 1,
       metadata: { "commit_count" => 1 }
     ))
     expect(show).to include(
