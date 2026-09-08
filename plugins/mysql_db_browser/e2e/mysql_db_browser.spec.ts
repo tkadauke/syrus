@@ -154,6 +154,8 @@ async function fulfillQuery(route: Route) {
 }
 
 test("DB Browser lists connections, databases, and tables read-only with no write-action UI", async ({ page }) => {
+  const connectionLabel = `Reporting replica ${Date.now()}`
+
   await signInAsDemo(page)
   await mockSchemaBrowsing(page)
 
@@ -168,21 +170,20 @@ test("DB Browser lists connections, databases, and tables read-only with no writ
 
   await page.goto("/db_browser")
   await expect(page.getByRole("heading", { name: "DB Browser" })).toBeVisible()
-  await expect(page.getByText("No connections yet. Add one to get started.")).toBeVisible()
 
-  await page.getByLabel("Label", { exact: true }).fill("Reporting replica")
+  await page.getByLabel("Label", { exact: true }).fill(connectionLabel)
   await page.getByLabel("Host", { exact: true }).fill("127.0.0.1")
   await page.getByLabel("Port", { exact: true }).fill("3306")
   await page.getByLabel("Username", { exact: true }).fill("reporting")
   await page.getByLabel("Password", { exact: true }).fill("not-a-real-password")
   await page.getByRole("button", { name: "Add connection", exact: true }).click()
 
-  const connectionRow = page.getByRole("row", { name: /Reporting replica/ })
+  const connectionRow = page.getByRole("row", { name: new RegExp(connectionLabel) })
   await expect(connectionRow).toBeVisible()
   await expect(connectionRow.getByText("Read-only")).toBeVisible()
 
   await connectionRow.getByRole("button", { name: "Connect" }).click()
-  await expect(page.getByRole("heading", { name: "Browsing Reporting replica" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: `Browsing ${connectionLabel}` })).toBeVisible()
 
   const schemaTree = page.getByRole("navigation", { name: "Databases and tables" })
   await expect(schemaTree.getByText(DATABASE_NAME)).toBeVisible()
