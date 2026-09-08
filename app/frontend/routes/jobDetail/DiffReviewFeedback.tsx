@@ -21,6 +21,7 @@ import { DiffHunkSnippet, type DiffLineSelection, type DiffReviewThread } from "
 type DiffReviewFeedbackOptions = {
   baseRef?: string | null
   buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  diffReviewVersionId?: number | null
   enabled: boolean
   headRef?: string | null
   jobId: number | string
@@ -43,6 +44,7 @@ export function diffReviewFeedbackAllowed(jobState: string) {
 export function useDiffReviewFeedback({
   baseRef,
   buildContext,
+  diffReviewVersionId,
   enabled,
   headRef,
   jobId,
@@ -64,7 +66,7 @@ export function useDiffReviewFeedback({
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const [replyBody, setReplyBody] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const search = diffReviewCommentsSearch({ surface, baseRef, headRef, runId, workflowId })
+  const search = diffReviewCommentsSearch({ surface, baseRef, diffReviewVersionId, headRef, runId, workflowId })
   const commentQueryKey = ["jobs", String(jobId), "diff_review_comments", surface, search] as const
   const comments = useQuery({
     enabled,
@@ -125,7 +127,7 @@ export function useDiffReviewFeedback({
     }
   })
   const submitComments = useMutation({
-    mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids),
+    mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids, diffReviewVersionId),
     onSuccess: () => {
       setSubmitError(null)
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
@@ -152,6 +154,7 @@ export function useDiffReviewFeedback({
       baseRef,
       body: trimmed,
       buildContext,
+      diffReviewVersionId,
       headRef,
       runId,
       selection,
@@ -175,7 +178,7 @@ export function useDiffReviewFeedback({
   function commentOnReview() {
     const trimmed = reviewCommentBody.trim()
     if (!trimmed) return
-    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }), {
+    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
       onSuccess: () => setReviewCommentBody("")
     })
   }
@@ -186,7 +189,7 @@ export function useDiffReviewFeedback({
       submitComments.mutate(actionableComments.map((comment) => comment.id))
       return
     }
-    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, headRef, runId, surface, workflowId }), {
+    createComment.mutate(commentInputForGlobal({ baseRef, body: trimmed, diffReviewVersionId, headRef, runId, surface, workflowId }), {
       onSuccess: (payload) => {
         setReviewCommentBody("")
         const newCommentId = payload.comments[0]?.id
@@ -486,6 +489,7 @@ function commentInputForSelection({
   baseRef,
   body,
   buildContext,
+  diffReviewVersionId,
   headRef,
   runId,
   selection,
@@ -495,6 +499,7 @@ function commentInputForSelection({
   baseRef?: string | null
   body: string
   buildContext?: (selection: DiffLineSelection) => Record<string, unknown>
+  diffReviewVersionId?: number | null
   headRef?: string | null
   runId?: number | null
   selection: DiffLineSelection
@@ -504,6 +509,7 @@ function commentInputForSelection({
   const left = selection.side === "old"
   return {
     surface,
+    diff_review_version_id: diffReviewVersionId,
     base_ref: baseRef,
     head_ref: headRef,
     anchor_kind: "line",
@@ -528,6 +534,7 @@ function commentInputForSelection({
 function commentInputForGlobal({
   baseRef,
   body,
+  diffReviewVersionId,
   headRef,
   runId,
   surface,
@@ -535,6 +542,7 @@ function commentInputForGlobal({
 }: {
   baseRef?: string | null
   body: string
+  diffReviewVersionId?: number | null
   headRef?: string | null
   runId?: number | null
   surface: string
@@ -543,6 +551,7 @@ function commentInputForGlobal({
   const anchorKind: DiffReviewCommentAnchorKind = "review"
   return {
     surface,
+    diff_review_version_id: diffReviewVersionId,
     base_ref: baseRef,
     head_ref: headRef,
     anchor_kind: anchorKind,
@@ -604,14 +613,16 @@ function diffThreadsByPath(comments: DiffReviewComment[]) {
   }, {})
 }
 
-function diffReviewCommentsSearch({ baseRef, headRef, runId, surface, workflowId }: {
+function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, runId, surface, workflowId }: {
   baseRef?: string | null
+  diffReviewVersionId?: number | null
   headRef?: string | null
   runId?: number | null
   surface: string
   workflowId?: number | null
 }) {
   const params = new URLSearchParams({ surface })
+  if (diffReviewVersionId) params.set("diff_review_version_id", String(diffReviewVersionId))
   if (baseRef) params.set("base_ref", baseRef)
   if (headRef) params.set("head_ref", headRef)
   if (runId) params.set("run_id", String(runId))

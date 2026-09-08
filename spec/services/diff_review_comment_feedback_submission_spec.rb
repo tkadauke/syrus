@@ -6,12 +6,14 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented", issue_title: "Reviewable diff") }
+  let!(:version) { create_version(job: job, index: 1, base_sha: "base-sha", head_sha: "head-sha") }
 
   before { clear_enqueued_jobs }
 
   def create_comment(**attrs)
     job.diff_review_comments.create!({
       user: user,
+      diff_review_version: version,
       surface: "job_source_diff",
       base_ref: "base-sha",
       head_ref: "head-sha",
@@ -23,6 +25,23 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
       body: "Please add a regression spec.",
       state: "draft"
     }.merge(attrs))
+  end
+
+  def create_version(job:, index:, base_sha:, head_sha:)
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: index,
+      base_sha: base_sha,
+      head_sha: head_sha,
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      source_key: "spec:#{job.id}:#{index}",
+      trigger_kind: index == 1 ? "initial" : "chat_feedback",
+      label: "Version #{index}",
+      reason: index == 1 ? "initial" : "chat_feedback",
+      files_snapshot: [],
+      metadata: {}
+    )
   end
 
   it "creates chat feedback with readable text and structured diff comment artifacts" do
@@ -39,11 +58,20 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     expect(workflow.artifact("feedback_source")).to include(
       "kind" => "diff_review_comments",
       "diff_review_comment_ids" => [ second.id, first.id ],
+      "diff_review_version_ids" => [ version.id ],
       "submitted_by_user_id" => user.id
     )
     expect(workflow.artifact("diff_comments")).to contain_exactly(
       hash_including(
         "id" => first.id,
+        "diff_review_version" => include(
+          "id" => version.id,
+          "version_index" => 1,
+          "base_sha" => "base-sha",
+          "head_sha" => "head-sha",
+          "trigger_kind" => "initial",
+          "label" => "Version 1"
+        ),
         "path" => "app/models/widget.rb",
         "side" => "right",
         "new_line" => 12,
@@ -61,6 +89,7 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     line_comment = create_comment
     global_comment = job.diff_review_comments.create!(
       user: user,
+      diff_review_version: version,
       surface: "job_source_diff",
       anchor_kind: "review",
       body: "Overall this looks solid, just tighten the naming."
@@ -73,7 +102,7 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
     expect(result.workflow.artifact("chat_feedback")).to include("Overall this looks solid, just tighten the naming.")
     expect(result.workflow.artifact("diff_comments")).to contain_exactly(
       hash_including("id" => line_comment.id, "anchor_kind" => "line", "path" => "app/models/widget.rb"),
-      hash_including("id" => global_comment.id, "anchor_kind" => "review", "path" => nil, "line" => nil)
+      hash_including("id" => global_comment.id, "diff_review_version" => include("id" => version.id), "anchor_kind" => "review", "path" => nil, "line" => nil)
     )
     expect(global_comment.reload).to have_attributes(state: "submitted", workflow: result.workflow)
   end
@@ -142,8 +171,9 @@ RSpec.describe DiffReviewCommentFeedbackSubmission do
 
   it "unapproves approved jobs through ChatFeedbackSubmission" do
     approved = Factories.job_record(user: user, repository: repository, state: "approved", approved_at: Time.current)
+    approved_version = create_version(job: approved, index: 1, base_sha: "approved-base", head_sha: "approved-head")
     comment = create_comment
-    comment.update!(job: approved)
+    comment.update!(job: approved, diff_review_version: approved_version)
 
     result = described_class.call(job: approved, comment_ids: [ comment.id ], actor: user)
 

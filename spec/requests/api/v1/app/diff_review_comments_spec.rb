@@ -4,6 +4,7 @@ RSpec.describe "App API diff review comments", type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job_record(user: user, repository: repo, issue_number: 42, issue_title: "Review diff") }
+  let!(:version) { create_version(job: job, base_sha: "base-sha", head_sha: "head-sha", index: 1) }
 
   before { sign_in_as(user) }
 
@@ -11,9 +12,24 @@ RSpec.describe "App API diff review comments", type: :request do
   def comments_path(record = job) = "/api/v1/app/jobs/#{record.id}/diff_review_comments"
   def comment_path(comment, record = job) = "#{comments_path(record)}/#{comment.id}"
 
+  def create_version(job:, base_sha:, head_sha:, index:)
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: index,
+      base_sha: base_sha,
+      head_sha: head_sha,
+      source_key: "spec:#{job.id}:#{index}",
+      trigger_kind: index == 1 ? "initial" : "chat_feedback",
+      label: "Version #{index}",
+      files_snapshot: [],
+      metadata: {}
+    )
+  end
+
   def create_comment(**attrs)
     job.diff_review_comments.create!({
       user: user,
+      diff_review_version: version,
       surface: "job_source_diff",
       base_ref: "base-sha",
       head_ref: "head-sha",
@@ -47,6 +63,35 @@ RSpec.describe "App API diff review comments", type: :request do
         "new_line" => 12,
         "anchor_key" => "right::12"
       )
+    end
+
+    it "defaults to the latest diff review version when no version is selected" do
+      old_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+      latest_comment = create_comment(diff_review_version: latest_version, base_ref: latest_version.base_sha, head_ref: latest_version.head_sha)
+
+      get comments_path
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["diff_review_version_id"]).to eq(latest_version.id)
+      expect(body["latest_version_id"]).to eq(latest_version.id)
+      expect(body["comments"].map { |comment| comment["id"] }).to eq([ latest_comment.id ])
+      expect(body["comments"].map { |comment| comment["id"] }).not_to include(old_comment.id)
+    end
+
+    it "lists comments for an older selected diff review version" do
+      old_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+      create_comment(diff_review_version: latest_version, base_ref: latest_version.base_sha, head_ref: latest_version.head_sha)
+
+      get comments_path, params: { diff_review_version_id: old_version.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff_review_version_id"]).to eq(old_version.id)
+      expect(parse_body["comments"].map { |comment| comment["id"] }).to eq([ old_comment.id ])
     end
 
     it "can scope run artifact comments to a concrete workflow and run" do
@@ -91,6 +136,7 @@ RSpec.describe "App API diff review comments", type: :request do
              params: {
                diff_review_comment: {
                  surface: "job_source_diff",
+                 diff_review_version_id: version.id,
                  base_ref: "base-sha",
                  head_ref: "head-sha",
                  path: "app/models/widget.rb",
@@ -109,12 +155,41 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(response).to have_http_status(:created)
       comment = job.diff_review_comments.last
       expect(comment.user).to eq(user)
+      expect(comment.diff_review_version).to eq(version)
       expect(comment.workflow).to eq(workflow)
       expect(comment.run).to eq(run)
       expect(parse_body.dig("comments", 0)).to include(
         "id" => comment.id,
         "body" => "Please add a regression spec.",
         "context" => { "symbol" => "Widget#call" }
+      )
+    end
+
+    it "creates a line comment on the selected version instead of the latest version" do
+      selected_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+
+      post comments_path,
+           params: {
+             diff_review_comment: {
+               surface: "job_source_diff",
+               diff_review_version_id: selected_version.id,
+               path: "app/models/widget.rb",
+               side: "right",
+               new_line: 12,
+               body: "Keep this on v1."
+             }
+           },
+           as: :json
+
+      expect(response).to have_http_status(:created)
+      comment = job.diff_review_comments.last
+      expect(comment.diff_review_version).to eq(selected_version)
+      expect(comment.diff_review_version).not_to eq(latest_version)
+      expect(parse_body.dig("comments", 0)).to include(
+        "diff_review_version_id" => selected_version.id,
+        "base_ref" => selected_version.base_sha,
+        "head_ref" => selected_version.head_sha
       )
     end
 
@@ -156,6 +231,7 @@ RSpec.describe "App API diff review comments", type: :request do
              params: {
                diff_review_comment: {
                  surface: "job_review_workspace",
+                 diff_review_version_id: version.id,
                  anchor_kind: "review",
                  body: "Nice work overall."
                }
@@ -165,7 +241,7 @@ RSpec.describe "App API diff review comments", type: :request do
 
       expect(response).to have_http_status(:created)
       comment = job.diff_review_comments.last
-      expect(comment).to have_attributes(anchor_kind: "review", path: nil, side: nil)
+      expect(comment).to have_attributes(anchor_kind: "review", diff_review_version: version, path: nil, side: nil)
       expect(parse_body.dig("comments", 0)).to include("anchor_kind" => "review", "path" => nil, "anchor_key" => "review")
     end
 
@@ -205,6 +281,19 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(comment.state).to eq("submitted")
       expect(comment.submitted_at).to be_present
       expect(comment.context).to eq("severity" => "low")
+    end
+
+    it "does not update an old-version comment from the latest-version context" do
+      old_version = version
+      create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+
+      patch comment_path(old_comment),
+            params: { diff_review_comment: { body: "Wrong version." } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(old_comment.reload.body).to eq("Please tighten this up.")
     end
   end
 
@@ -268,6 +357,17 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(comment.reload.state).to eq("resolved")
       expect(comment.resolved_at).to be_present
       expect(parse_body.dig("comments", 0, "state")).to eq("resolved")
+    end
+
+    it "resolves an old-version comment when that version is selected" do
+      old_version = version
+      create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha, state: "submitted")
+
+      post "#{comment_path(old_comment)}/resolve", params: { diff_review_version_id: old_version.id }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(old_comment.reload.state).to eq("resolved")
     end
   end
 
@@ -334,6 +434,12 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(workflow).to have_attributes(trigger_kind: "chat_feedback")
       expect(workflow.artifact("diff_comments").first).to include(
         "id" => comment.id,
+        "diff_review_version" => include(
+          "id" => version.id,
+          "version_index" => 1,
+          "base_sha" => "base-sha",
+          "head_sha" => "head-sha"
+        ),
         "path" => "app/models/widget.rb",
         "side" => "right",
         "new_line" => 12,
@@ -345,6 +451,24 @@ RSpec.describe "App API diff review comments", type: :request do
       )
       expect(comment.reload).to have_attributes(state: "submitted", workflow: workflow)
       expect(body.dig("comments", 0, "state")).to eq("submitted")
+    end
+
+    it "submits only comments from the selected diff review version" do
+      job.update_columns(state: "implemented")
+      old_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+      latest_comment = create_comment(diff_review_version: latest_version, base_ref: latest_version.base_sha, head_ref: latest_version.head_sha)
+
+      post "#{comments_path}/submit",
+           params: { diff_review_version_id: old_version.id, comment_ids: [ old_comment.id, latest_comment.id ] },
+           as: :json
+
+      expect(response).to have_http_status(:created)
+      workflow = Workflow.find(parse_body.dig("workflow", "id"))
+      expect(workflow.artifact("diff_comments").map { |comment| comment["id"] }).to eq([ old_comment.id ])
+      expect(old_comment.reload).to have_attributes(state: "submitted", workflow: workflow)
+      expect(latest_comment.reload).to have_attributes(state: "draft", workflow: nil)
     end
 
     it "rejects a blank selection" do

@@ -1026,6 +1026,8 @@ export type JobSourceDiffPayload = {
   files: Array<{ path: string; status: string; additions: number; deletions: number; patch: string | null }>
   truncated: boolean
   diff_error: string | null
+  version: { id: number; version_index: number; base_sha: string; head_sha: string; label: string | null; reason: string | null } | null
+  versions: Array<{ id: number; version_index: number; base_sha: string; head_sha: string; label: string | null; reason: string | null; created_at: string | null }>
 }
 
 export type DiffReviewCommentState = "draft" | "submitted" | "resolved" | "superseded"
@@ -1034,6 +1036,18 @@ export type DiffReviewCommentAnchorKind = "line" | "review"
 export type DiffReviewComment = {
   id: number
   job_id: number
+  diff_review_version_id: number
+  diff_review_version: {
+    id: number
+    version_index: number
+    base_sha: string
+    head_sha: string
+    base_ref: string | null
+    head_ref: string | null
+    trigger_kind: string | null
+    label: string | null
+    reason: string | null
+  } | null
   parent_id: number | null
   user_id: number
   user: { id: number; display_name: string; email_address: string; avatar_url: string | null } | null
@@ -1062,12 +1076,15 @@ export type DiffReviewComment = {
 
 export type DiffReviewCommentsPayload = {
   job_id: number
+  diff_review_version_id: number | null
+  latest_version_id: number | null
   comments: DiffReviewComment[]
   by_path: Record<string, Record<string, DiffReviewComment[]>>
 }
 
 export type DiffReviewCommentInput = {
   surface: string
+  diff_review_version_id?: number | null
   base_ref?: string | null
   head_ref?: string | null
   workflow_id?: number | null
@@ -1112,6 +1129,7 @@ export type JobRunArtifactsPayload = {
   job_id: number
   workflow_id: number | null
   run_id: number
+  diff_review_version_id: number | null
   base_ref: string | null
   head_ref: string | null
   agent_diff: string | null
@@ -1228,8 +1246,11 @@ export function deleteDiffReviewComment(jobId: string | number, commentId: numbe
   return deleteJson<DiffReviewCommentDeletePayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/${commentId}`)
 }
 
-export function submitDiffReviewComments(jobId: string | number, commentIds: number[]) {
-  return postJson<DiffReviewCommentsSubmitPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/submit`, { comment_ids: commentIds })
+export function submitDiffReviewComments(jobId: string | number, commentIds: number[], diffReviewVersionId?: number | null) {
+  return postJson<DiffReviewCommentsSubmitPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/submit`, {
+    comment_ids: commentIds,
+    diff_review_version_id: diffReviewVersionId
+  })
 }
 
 export function fetchJobGradeLog(path: string) {

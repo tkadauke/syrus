@@ -1149,7 +1149,7 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
 function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canReviewDiff: boolean; payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
   const surface = view === "step_diff" ? "run_step_agent_diff" : "run_agent_diff"
-  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id)
+  const feedbackEnabled = canReviewDiff && view !== "transcript" && Boolean(payload.base_ref && payload.head_ref && payload.workflow_id && payload.run_id && payload.diff_review_version_id)
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,
     buildContext: (selection) => ({
@@ -1157,6 +1157,7 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
       source_surface: "run_artifact",
       file_status: selection.file.status || null
     }),
+    diffReviewVersionId: payload.diff_review_version_id,
     enabled: feedbackEnabled,
     headRef: payload.head_ref,
     jobId: payload.job_id,
