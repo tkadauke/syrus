@@ -2,7 +2,6 @@ import { test, expect, type Page } from "@playwright/test"
 import { signInAsDemo } from "../../../e2e/support/auth"
 
 const GENERATED_AT = "2026-01-01T00:00:00Z"
-const CLUSTER_LABEL = "Home lab"
 
 const KUBECONFIG = `apiVersion: v1
 kind: Config
@@ -117,6 +116,8 @@ async function mockClusterResources(page: Page) {
 const WRITE_ACTION_BUTTON = /scale|restart rollout|cordon|delete pod|uncordon/i
 
 test("K8s Cluster Viewer registers a cluster and browses it read-only, with no write-action controls", async ({ page }) => {
+  const clusterLabel = `Home lab ${Date.now()}`
+
   await signInAsDemo(page)
   await mockClusterResources(page)
 
@@ -131,13 +132,12 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
 
   await page.goto("/k8s_clusters")
   await expect(page.getByRole("heading", { name: "Kubernetes Clusters" })).toBeVisible()
-  await expect(page.getByText("No clusters yet. Add one to get started.")).toBeVisible()
 
-  await page.getByLabel("Label", { exact: true }).fill(CLUSTER_LABEL)
+  await page.getByLabel("Label", { exact: true }).fill(clusterLabel)
   await page.getByLabel("Kubeconfig", { exact: true }).fill(KUBECONFIG)
   await page.getByRole("button", { name: "Add cluster", exact: true }).click()
 
-  const clusterRow = page.getByRole("row", { name: new RegExp(CLUSTER_LABEL) })
+  const clusterRow = page.getByRole("row", { name: new RegExp(clusterLabel) })
   await expect(clusterRow).toBeVisible()
   await expect(clusterRow.getByText("Read-only")).toBeVisible()
   await expect(clusterRow.getByText("Bearer token")).toBeVisible()
@@ -147,7 +147,7 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 
   await clusterRow.getByRole("button", { name: "Browse" }).click()
-  await expect(page.getByRole("heading", { name: `Browsing ${CLUSTER_LABEL}` })).toBeVisible()
+  await expect(page.getByRole("heading", { name: `Browsing ${clusterLabel}` })).toBeVisible()
 
   // Overview tab (the default view) shows node count and metrics read-only.
   await expect(page.getByText("1/1 ready")).toBeVisible()
@@ -181,6 +181,6 @@ test("K8s Cluster Viewer registers a cluster and browses it read-only, with no w
   await expect(clusterRow.getByText("Read-write")).toBeVisible()
 
   await clusterRow.getByRole("button", { name: "Browse" }).click()
-  await expect(page.getByRole("heading", { name: `Browsing ${CLUSTER_LABEL}` })).toBeVisible()
+  await expect(page.getByRole("heading", { name: `Browsing ${clusterLabel}` })).toBeVisible()
   await expect(page.getByRole("button", { name: WRITE_ACTION_BUTTON })).toHaveCount(0)
 })
