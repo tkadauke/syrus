@@ -2953,7 +2953,7 @@ function mockReviewWorkspaceRequests() {
   return vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = requestUrl(input)
     if (url.includes("/diff_review_comments")) {
-      return Promise.resolve(jsonResponse({ job_id: 1, comments: [], by_path: {} }))
+      return Promise.resolve(jsonResponse({ job_id: 1, diff_review_version_id: 100, latest_version_id: 100, comments: [], by_path: {} }))
     }
 
     return Promise.resolve(jsonResponse({
@@ -2965,6 +2965,10 @@ function mockReviewWorkspaceRequests() {
       branch_commits: [],
       truncated: false,
       diff_error: null,
+      version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
+      versions: [
+        { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }
+      ],
       files: []
     }))
   })

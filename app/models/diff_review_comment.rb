@@ -5,6 +5,7 @@ class DiffReviewComment < ApplicationRecord
   REVIEW_ANCHOR_KEY = "review".freeze
 
   belongs_to :job
+  belongs_to :diff_review_version
   belongs_to :user
   belongs_to :workflow, optional: true
   belongs_to :run, optional: true
@@ -25,7 +26,9 @@ class DiffReviewComment < ApplicationRecord
   validate :workflow_belongs_to_job
   validate :run_belongs_to_job
   validate :run_belongs_to_workflow
+  validate :diff_review_version_belongs_to_job
   validate :parent_belongs_to_job
+  validate :parent_belongs_to_diff_review_version
 
   before_validation :normalize_strings
   before_validation :default_context
@@ -39,6 +42,7 @@ class DiffReviewComment < ApplicationRecord
   scope :for_surface, ->(surface) { where(surface: surface) if surface.present? }
   scope :for_path, ->(path) { where(path: path) if path.present? }
   scope :for_state, ->(state) { where(state: state) if state.present? }
+  scope :for_diff_review_version, ->(version_id) { where(diff_review_version_id: version_id) if version_id.present? }
   scope :for_base_ref, ->(base_ref) { where(base_ref: base_ref) if base_ref.present? }
   scope :for_head_ref, ->(head_ref) { where(head_ref: head_ref) if head_ref.present? }
   scope :for_workflow, ->(workflow_id) { where(workflow_id: workflow_id) if workflow_id.present? }
@@ -70,6 +74,7 @@ class DiffReviewComment < ApplicationRecord
     job.diff_review_comments.build(
       user: user,
       parent: self,
+      diff_review_version: diff_review_version,
       surface: surface,
       base_ref: base_ref,
       head_ref: head_ref,
@@ -137,10 +142,22 @@ class DiffReviewComment < ApplicationRecord
     errors.add(:run, "must belong to the same workflow")
   end
 
+  def diff_review_version_belongs_to_job
+    return unless diff_review_version && job_id && diff_review_version.job_id != job_id
+
+    errors.add(:diff_review_version, "must belong to the same job")
+  end
+
   def parent_belongs_to_job
     return unless parent && job_id && parent.job_id != job_id
 
     errors.add(:parent, "must belong to the same job")
+  end
+
+  def parent_belongs_to_diff_review_version
+    return unless parent && diff_review_version_id && parent.diff_review_version_id != diff_review_version_id
+
+    errors.add(:parent, "must belong to the same diff review version")
   end
 
   def stamp_lifecycle_transition

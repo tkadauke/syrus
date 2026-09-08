@@ -67,6 +67,7 @@ describe("WorkflowsTab", () => {
           job_id: 42,
           workflow_id: 10,
           run_id: 51,
+          diff_review_version_id: 100,
           base_ref: "base-sha",
           head_ref: "head-sha",
           agent_diff: [
@@ -119,6 +120,13 @@ describe("WorkflowsTab", () => {
         expect.objectContaining({
           method: "POST",
           body: expect.stringContaining("\"run_id\":51")
+        })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"diff_review_version_id\":100")
         })
       )
     })
