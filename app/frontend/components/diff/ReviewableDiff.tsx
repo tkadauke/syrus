@@ -862,7 +862,7 @@ function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId 
 
   useEffect(() => {
     if (!lang) return
-    const missing = Array.from(hunkLineIndexes.entries()).filter(([hunkId]) => !tokensByHunk.has(hunkId))
+    const missing = Array.from(hunkLineIndexes.entries()).filter(([hunkId, indexes]) => tokensByHunk.get(hunkId)?.length !== indexes.length)
     if (missing.length === 0) return
 
     let cancelled = false
