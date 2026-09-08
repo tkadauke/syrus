@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { TooltipCard, clampToViewport } from "./TooltipCard"
+import { TooltipCard, clampToViewport } from "@app/components/timeline/TooltipCard"
 
 describe("clampToViewport", () => {
   it("places the tooltip below-right of the cursor when it fits", () => {
