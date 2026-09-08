@@ -541,9 +541,9 @@ dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
 implementation, keyed by an arbitrary caller-supplied identifier in
 `Mcp::Tools::AgentPreviewRegistry` (a workflow Run id for `start_preview`, a
 `RuntimeSession`'s `workspace_ref` here), not two independently-drifting
-copies. The `runtime_terminal` plugin contributes the lifecycle-only
-`cli_tui` provider by composing the existing `terminal` plugin instead of
-reimplementing PTY spawning or streaming. This section documents the interface
+copies. The `runtime_terminal` plugin contributes the `cli_tui` provider by
+composing the existing `terminal` plugin instead of reimplementing PTY
+spawning, scrollback inspection, or input delivery. This section documents the interface
 contributors implement.
 
 `provider_key`, `display_name`, `detect`, and `capabilities` are class
@@ -2726,13 +2726,17 @@ Bundled plugins:
   plugin's channel.
 - `runtime_terminal` — **default-disabled** Runtime Session adapter over the
   `terminal` plugin. It declares `depends_on ["terminal"]` and registers
-  `RuntimeTerminal::Provider` as the DOC-17 `cli_tui` runtime provider. The
-  provider is lifecycle-only for now: `runtime_start provider: "cli_tui"`
-  creates a `Terminal::Session` for the Coding Mode chat owner's writable
-  workspace, enqueues `TerminalSessionJob`, and records the
+  `RuntimeTerminal::Provider` as the DOC-17 `cli_tui` runtime provider.
+  `runtime_start provider: "cli_tui"` creates a `Terminal::Session` for the
+  Coding Mode chat owner's writable workspace, enqueues `TerminalSessionJob`,
+  and records the
   `RuntimeSession`/`Terminal::Session` pairing in
   `runtime_terminal_session_links`; `runtime_stop` marks the mapped terminal
-  session `outcome: "killed"` with `finished_at`.
+  session `outcome: "killed"` with `finished_at`. `runtime_inspect` connects
+  to the mapped relay socket and returns terminal scrollback, while
+  `runtime_input` sends stdin/keyboard/pointer/resize control frames through
+  the same authenticated wire protocol the browser terminal uses, after the
+  shared `RuntimeControlLease` input gate passes.
 
   The adapter intentionally does not modify `terminal_sessions` or
   `Terminal::Session`/`Terminal::Relay`/`TerminalSessionJob`. The link table is
@@ -2740,10 +2744,11 @@ Bundled plugins:
   links when their parent `RuntimeSession` is destroyed, and the table does not
   add a database foreign key back into the terminal plugin's table, preserving
   the terminal plugin's own schema boundary. Capabilities advertise
-  `stream: "none"`, no input events, `inspect: ["none"]`, and `build: ["none"]`
-  until follow-up jobs wire terminal streaming and gated stdin/input control.
-  Because this is still a genuine shell on the worker, the adapter stays off by
-  default and inherits the terminal plugin's explicit operator opt-in posture.
+  `stream: "none"`, `input: ["keyboard", "stdin", "pointer", "resize"]`,
+  `inspect: ["scrollback"]`, and `build: ["none"]`; live streaming remains the
+  terminal plugin's UI concern. Because this is still a genuine shell on the
+  worker, the adapter stays off by default and inherits the terminal plugin's
+  explicit operator opt-in posture.
 - `whiteboard` — default-enabled, and owns the whiteboard end to end:
   `Whiteboard::Board` (table `whiteboard_boards`) and
   `Whiteboard::Snapshot` (`whiteboard_snapshots`) moved out of core
