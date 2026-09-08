@@ -28,7 +28,7 @@ module App
       base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
-      version = persist_current_version(
+      version = resolve_diff_review_version(
         base_sha: base,
         head_sha: head,
         files: diff_result[:files],
@@ -134,11 +134,13 @@ module App
       value.respond_to?(:iso8601) ? value.iso8601 : value&.to_s
     end
 
-    def persist_current_version(base_sha:, head_sha:, files:, truncated:)
-      return nil if @params[:base].present? || @params[:head].present?
+    def resolve_diff_review_version(base_sha:, head_sha:, files:, truncated:)
+      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
+      return existing_version if existing_version
 
       source_run = source_run_for(base_sha: base_sha, head_sha: head_sha)
-      source_workflow = source_run&.workflow || @job.latest_workflow
+      explicit_selection = @params[:base].present? || @params[:head].present?
+      source_workflow = source_run&.workflow || (explicit_selection ? nil : @job.latest_workflow)
       trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
       DiffReviewVersions::Creator.call(
         job: @job,
@@ -146,16 +148,23 @@ module App
         head_sha: head_sha,
         files: files,
         truncated: truncated,
-        base_ref: job_base_branch,
-        head_ref: @job.branch_name,
+        base_ref: explicit_selection ? base_sha : job_base_branch,
+        head_ref: explicit_selection ? head_sha : @job.branch_name,
         workflow: source_workflow,
         run: source_run,
         trigger_kind: trigger_kind,
-        reason: trigger_kind.to_s.presence || "source_diff"
+        reason: trigger_kind.to_s.presence || (explicit_selection ? "source_diff_selection" : "source_diff")
       )
     rescue => e
       Rails.logger.warn("[JobSourceDiffPayload] could not persist diff review version for #{@job.slug}: #{e.class}: #{e.message}")
       nil
+    end
+
+    def existing_version_for(base_sha:, head_sha:)
+      @job.diff_review_versions
+          .where(base_sha: base_sha, head_sha: head_sha)
+          .latest_first
+          .first
     end
 
     def source_run_for(base_sha:, head_sha:)

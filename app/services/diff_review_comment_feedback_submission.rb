@@ -6,14 +6,15 @@ class DiffReviewCommentFeedbackSubmission
     def success? = error.blank?
   end
 
-  def self.call(job:, comment_ids:, actor:)
-    new(job: job, comment_ids: comment_ids, actor: actor).call
+  def self.call(job:, comment_ids:, actor:, diff_review_version: nil)
+    new(job: job, comment_ids: comment_ids, actor: actor, diff_review_version: diff_review_version).call
   end
 
-  def initialize(job:, comment_ids:, actor:)
+  def initialize(job:, comment_ids:, actor:, diff_review_version:)
     @job = job
     @comment_ids = Array(comment_ids).filter_map { |id| id.to_s.presence&.to_i }.uniq
     @actor = actor
+    @diff_review_version = diff_review_version
   end
 
   def call
@@ -42,12 +43,13 @@ class DiffReviewCommentFeedbackSubmission
 
   private
 
-  attr_reader :job, :comment_ids, :actor
+  attr_reader :job, :comment_ids, :actor, :diff_review_version
 
   def selected_comments
     job.diff_review_comments
-       .includes(:user, :workflow)
+       .includes(:user, :workflow, :diff_review_version)
        .where(id: comment_ids)
+       .for_diff_review_version(diff_review_version&.id)
        .ordered
        .select { |comment| submittable_comment?(comment) }
        .to_a
@@ -89,6 +91,7 @@ class DiffReviewCommentFeedbackSubmission
     {
       "kind" => "diff_review_comments",
       "diff_review_comment_ids" => comments.map(&:id),
+      "diff_review_version_ids" => comments.map(&:diff_review_version_id).uniq,
       "confirmed_by" => "operator",
       "submitted_by_user_id" => actor&.id
     }
@@ -97,6 +100,7 @@ class DiffReviewCommentFeedbackSubmission
   def structured_comment(comment)
     {
       "id" => comment.id,
+      "diff_review_version" => structured_version(comment.diff_review_version),
       "anchor_kind" => comment.anchor_kind,
       "path" => comment.path,
       "side" => comment.side,
@@ -110,6 +114,22 @@ class DiffReviewCommentFeedbackSubmission
       "body" => comment.body,
       "author" => comment.user&.display_name || comment.user&.email_address,
       "created_at" => comment.created_at&.iso8601
+    }
+  end
+
+  def structured_version(version)
+    return nil unless version
+
+    {
+      "id" => version.id,
+      "version_index" => version.version_index,
+      "base_sha" => version.base_sha,
+      "head_sha" => version.head_sha,
+      "base_ref" => version.base_ref,
+      "head_ref" => version.head_ref,
+      "trigger_kind" => version.trigger_kind,
+      "label" => version.label,
+      "reason" => version.reason
     }
   end
 

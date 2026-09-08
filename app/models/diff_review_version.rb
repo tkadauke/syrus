@@ -2,6 +2,7 @@ class DiffReviewVersion < ApplicationRecord
   belongs_to :job
   belongs_to :workflow, optional: true
   belongs_to :run, optional: true
+  has_many :diff_review_comments, dependent: :restrict_with_exception
 
   attribute :files_snapshot, :json, default: -> { [] }
   attribute :metadata, :json, default: -> { {} }
