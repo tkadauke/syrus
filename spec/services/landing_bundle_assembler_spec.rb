@@ -124,6 +124,38 @@ RSpec.describe LandingBundleAssembler do
       expect(result.job_ids).to contain_exactly(a.id, b.id)
     end
 
+    it "excludes an epicless candidate whose prerequisite is outside the bundle and unmerged" do
+      epic = Factories.epic(user: user, repository: repository)
+      epic_child = Factories.job_record(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 10,
+        state: "landing",
+        pr_number: 1010
+      )
+      blocked = approved(issue_number: 1, parent_job: epic_child)
+      JobDependency.create!(job: blocked, depends_on_job: epic_child, source: "manual")
+      ready = approved(issue_number: 2)
+      sibling = approved(issue_number: 3)
+
+      expect(described_class.ready_for_job?(blocked)).to be false
+      expect(described_class.ready_for_job?(ready)).to be true
+      expect(described_class.for_repository(repository).job_ids).to contain_exactly(ready.id, sibling.id)
+    end
+
+    it "allows prerequisite chains that are fully contained in the bundle" do
+      parent = approved(issue_number: 1)
+      child = approved(issue_number: 2, parent_job: parent)
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual")
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to eq([ parent.id, child.id ])
+    end
+
     it "bundles the owner-partition that reaches the minimum, ignoring a lone Job from another owner" do
       other_owner = Factories.user
       a = approved(issue_number: 1, owner_user: user)

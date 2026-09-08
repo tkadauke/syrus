@@ -75,6 +75,28 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       expect(entry.blocked_reason).not_to eq({ key: "waiting_epicless_bundle" })
     end
 
+    it "shows the unmerged prerequisite instead of waiting_epicless_bundle when the prerequisite is outside the bundle" do
+      enable_flag
+      epic = Factories.epic(user: user, repository: repository)
+      prerequisite = Factories.job_record(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 10,
+        state: "landing",
+        pr_number: 510
+      )
+      blocked = approved_job(1)
+      blocked.update!(parent_job: prerequisite)
+      JobDependency.create!(job: blocked, depends_on_job: prerequisite, source: "manual")
+      approved_job(2)
+
+      entry = described_class.entries(Job.where(id: blocked.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "waiting_to_merge", params: { slug: prerequisite.slug } })
+    end
+
     it "does not block a solo owner's Job over a different owner's ready same-tier bundle" do
       enable_flag
       other_owner = Factories.user

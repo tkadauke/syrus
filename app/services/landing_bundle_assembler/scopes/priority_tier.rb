@@ -38,7 +38,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
       eligible_candidates(priority)
         .group_by { |job| effective_owner_id(job) }
         .values
-        .map { |candidates| [ priority, candidates ] }
+        .map { |candidates| [ priority, candidates_with_satisfied_prerequisites(candidates) ] }
     end
   end
 
@@ -55,7 +55,9 @@ class LandingBundleAssembler::Scopes::PriorityTier
     eligible_candidates(priority)
       .group_by { |job| effective_owner_id(job) }
       .each_value
-      .any? { |candidates| members_for(candidates).any? }
+      .any? do |candidates|
+        members_for(candidates_with_satisfied_prerequisites(candidates)).any?
+      end
   end
 
   # Whether `job`'s own effective-owner partition (within its own
@@ -64,8 +66,10 @@ class LandingBundleAssembler::Scopes::PriorityTier
     return false if job.epic_id.present? || job.external_pr?
 
     owner_id = effective_owner_id(job)
-    candidates = eligible_candidates(job.priority).select { |candidate| effective_owner_id(candidate) == owner_id }
-    members_for(candidates).any?
+    candidates = eligible_candidates(job.priority).select do |candidate|
+      effective_owner_id(candidate) == owner_id
+    end
+    members_for(candidates_with_satisfied_prerequisites(candidates)).any? { |member| member.id == job.id }
   end
 
   private
@@ -82,6 +86,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
       .approved
       .where(epic_id: nil, priority: priority)
       .where.not(kind: "external_pr")
+      .includes(:parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
       .to_a
   end
 
@@ -106,7 +111,12 @@ class LandingBundleAssembler::Scopes::PriorityTier
 
   def dependency_linked_pairs(candidates)
     ids = candidates.map(&:id)
-    JobDependency.resolved.where(job_id: ids, depends_on_job_id: ids).pluck(:job_id, :depends_on_job_id)
+    dependency_pairs = JobDependency.resolved
+                                    .where(job_id: ids, depends_on_job_id: ids)
+                                    .pluck(:job_id, :depends_on_job_id)
+    parent_pairs = candidates.filter_map { |job| [ job.id, job.parent_job_id ] if job.parent_job_id.in?(ids) }
+
+    dependency_pairs + parent_pairs
   end
 
   def crosses_dependency_edge?(ordered, cut, linked_pairs)
@@ -117,5 +127,37 @@ class LandingBundleAssembler::Scopes::PriorityTier
       (included_ids.include?(job_id) && excluded_ids.include?(depends_on_job_id)) ||
         (included_ids.include?(depends_on_job_id) && excluded_ids.include?(job_id))
     end
+  end
+
+  def candidates_with_satisfied_prerequisites(candidates)
+    remaining = candidates
+
+    loop do
+      candidate_ids = remaining.map(&:id).to_set
+      filtered = remaining.select { |candidate| prerequisites_satisfied_or_in_candidate_ids?(candidate, candidate_ids) }
+      return filtered if filtered.size == remaining.size
+
+      remaining = filtered
+    end
+  end
+
+  def prerequisites_satisfied_or_in_candidate_ids?(job, candidate_ids)
+    if job.parent_job_id.present? && !candidate_ids.include?(job.parent_job_id)
+      return false unless merged?(job.parent_job)
+    end
+
+    return true if job.dependencies_overridden_at.present?
+
+    job.dependencies.all? do |dependency|
+      if dependency.depends_on_job_id.present?
+        candidate_ids.include?(dependency.depends_on_job_id) || dependency.dependency_succeeded?
+      else
+        !dependency.pending? && dependency.dependency_succeeded?
+      end
+    end
+  end
+
+  def merged?(job)
+    job&.closed? && job.closure_reason == "pr_merged"
   end
 end
