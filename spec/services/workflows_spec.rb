@@ -204,8 +204,7 @@ RSpec.describe Workflows do
     end
 
     it "gives Retry a bare leading implement step and a check-first grade loop, matching Initial's shape" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
 
       wf = Workflows::Retry.instantiate(job: job)
@@ -225,8 +224,7 @@ RSpec.describe Workflows do
     end
 
     it "inserts a review-first adversarial review loop after the leading implement for Retry when enabled" do
-      allow(RepoAdversarialReviewPlan).to receive(:for_job)
-        .with(job)
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
 
       wf = Workflows::Retry.instantiate(job: job)
