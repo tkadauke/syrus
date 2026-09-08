@@ -48,6 +48,17 @@ RSpec.describe "App API job source diff browser", type: :request do
       include("path" => "app/models/user.rb", "status" => "modified", "additions" => 4, "deletions" => 1, "patch" => "@@ -1 +1 @@\n-old\n+new"),
       include("path" => "public/logo.png", "status" => "added", "patch" => nil)
     )
+    expect(body["version"]).to include(
+      "version_index" => 1,
+      "base_sha" => "aabbccdd1234567",
+      "head_sha" => "deadbeef12345678",
+      "label" => "Initial",
+      "reason" => "initial"
+    )
+    expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
+      include("path" => "app/models/user.rb", "patch" => "@@ -1 +1 @@\n-old\n+new"),
+      include("path" => "public/logo.png", "patch" => nil)
+    )
   end
 
   it "returns 404 for an unknown job" do

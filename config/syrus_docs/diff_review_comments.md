@@ -31,6 +31,25 @@ API endpoints live under the user-scoped app API:
 - `DELETE /api/v1/app/jobs/:job_id/diff_review_comments/:id`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/resolve`
 - `POST /api/v1/app/jobs/:job_id/diff_review_comments/:id/reply`
+- `GET /api/v1/app/jobs/:job_id/diff_review_versions`
+- `GET /api/v1/app/jobs/:job_id/diff_review_versions/:id`
+
+Diff review versions are persisted separately in `DiffReviewVersion`. Each
+version is immutable and pinned to exact `base_sha`/`head_sha` values, with
+optional display refs (`base_ref`/`head_ref`), source `workflow_id`/`run_id`,
+`trigger_kind`, a per-Job `version_index`, label/reason metadata, and a JSON
+`files_snapshot` containing the path/status/additions/deletions/patch payload
+needed to render that version later. Agentic change steps create a version as
+soon as they record `run.base_sha`/`run.head_sha`, so an initial implementation
+or feedback attempt is preserved even if the branch advances before an operator
+opens the source diff. The normal `source_diff` payload also idempotently
+persists the latest default comparison and now includes `version` plus
+`versions` summary fields for clients that already load that endpoint.
+
+`GET /diff_review_versions` lists stable version metadata in ascending
+`version_index` order and includes `latest_version_id`. `GET
+/diff_review_versions/:id` returns the selected version plus its stored
+`files` array; it does not call GitHub or depend on the current branch head.
 
 Listing follows normal Job visibility. Mutations use the existing Job write
 policy: the job owner, a global admin, or a write-tier-or-higher repository
