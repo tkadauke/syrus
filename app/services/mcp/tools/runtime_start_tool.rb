@@ -46,7 +46,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("no Coding Mode checkout found for this chat yet; the workspace may still be preparing")
         end
 
-        config = normalize_options(options).merge(workspace_path: workspace_path)
+        config = normalize_options(options).merge(chat_session: chat_session, workspace_path: workspace_path)
         provider_class, error = resolve_provider_class(provider, repository, config)
         return error if error
 
@@ -62,7 +62,7 @@ module Mcp::Tools
         )
 
         begin
-          result = provider_class.new.start_session(workspace_path, config)
+          result = provider_class.new.start_session(workspace_path, config.merge(runtime_session: runtime_session))
           runtime_session.update!(state: "running", metadata: runtime_session.metadata.merge(result.to_h.deep_stringify_keys))
         rescue StandardError => e
           runtime_session.update!(state: "failed", last_error: "#{e.class}: #{e.message}")
