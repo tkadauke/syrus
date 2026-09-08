@@ -110,4 +110,15 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("pages").map { |page| page.fetch("id") }).to include("fresh")
   end
+
+  it "does not include the admin-wide Agent Activity page in the primary sidebar payload", requires_plugin: "agent_activity" do
+    sign_in_as(Factories.user(admin: true))
+
+    get "/api/v1/app/sidebar_pages"
+
+    expect(response).to have_http_status(:ok)
+    ids = parse_body.fetch("pages").map { |page| page.fetch("id") }
+    expect(ids).to include("agent_activity.mine")
+    expect(ids).not_to include("agent_activity.admin")
+  end
 end

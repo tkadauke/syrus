@@ -20,6 +20,10 @@ RSpec.describe AgentActivity::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(AgentActivity::SidebarPages)
   end
 
+  it "registers the Agent Activity admin page provider" do
+    expect(Syrus::PluginRegistry.providers_for(:admin_page)).to include(AgentActivity::AdminPages)
+  end
+
   it "registers the agent_activity filter subject while enabled" do
     subject = Filters.subject(:agent_activity)
 

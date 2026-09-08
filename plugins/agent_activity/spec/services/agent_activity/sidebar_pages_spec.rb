@@ -17,12 +17,11 @@ RSpec.describe AgentActivity::SidebarPages do
     )
   end
 
-  it "declares both pages for an admin" do
+  it "declares only the operator-scoped page for an admin" do
     Current.api_user = admin
 
     expect(described_class.sidebar_pages).to contain_exactly(
-      include(id: "agent_activity.mine", path: "/agent_activity", component: "agent_activity/AgentActivity"),
-      include(id: "agent_activity.admin", path: "/admin/agent_activity", component: "agent_activity/AdminAgentActivity")
+      include(id: "agent_activity.mine", path: "/agent_activity", component: "agent_activity/AgentActivity")
     )
   end
 

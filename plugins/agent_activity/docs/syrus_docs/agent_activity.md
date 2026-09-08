@@ -89,12 +89,12 @@ carries its own `transcript_path`:
 
 ## Frontend
 
-Two `sidebar_page` registrations share one component
+The primary `sidebar_page` registration and admin `admin_page` registration share one component
 (`AgentActivityFeed.tsx`, parameterized by `scope`):
 
 - `agent_activity.mine` (`/agent_activity`) -- any signed-in user.
 - `agent_activity.admin` (`/admin/agent_activity`) -- admin-gated in
-  `AgentActivity::SidebarPages`; the route itself is additionally protected
+  `AgentActivity::AdminPages`; the route itself is additionally protected
   by `SpaController#admin_spa_path?` (any `/admin/*` path requires admin) and
   by the admin API controller's own `require_admin`.
 
