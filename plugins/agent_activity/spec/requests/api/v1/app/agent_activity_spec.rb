@@ -35,6 +35,25 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
       expect(parse_body.fetch("running_count")).to eq(1)
     end
 
+    it "paginates matching sessions at 20 per page by default" do
+      sign_in_as(operator)
+      21.times do |n|
+        Factories.job_with_run(
+          repository: repository,
+          issue_number: n + 1,
+          step_attrs: { kind: "implement" },
+          run_attrs: { state: "succeeded", started_at: (n + 1).minutes.ago, finished_at: n.minutes.ago }
+        )
+      end
+
+      get "/api/v1/app/agent_activity/sessions"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("sessions").size).to eq(20)
+      expect(parse_body.fetch("total")).to eq(21)
+      expect(parse_body.fetch("per")).to eq(20)
+    end
+
     it "excludes Runs whose step is not agentic" do
       sign_in_as(operator)
       Factories.job_with_run(

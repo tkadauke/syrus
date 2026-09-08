@@ -5,7 +5,7 @@ RSpec.describe AgentActivity::SessionsQuery do
   let(:my_repository) { Factories.repository(user: operator) }
   let(:other_repository) { Factories.repository(user: Factories.user) }
 
-  def sessions_for(scope:, user:, page: 1, per: 25)
+  def sessions_for(scope:, user:, page: 1, per: AgentActivity::SessionsQuery::DEFAULT_PER)
     filter = AgentActivity::Filter.new(nil, user: user)
     described_class.call(scope: scope, user: user, filter: filter, page: page, per: per)
   end
@@ -115,8 +115,18 @@ RSpec.describe AgentActivity::SessionsQuery do
   end
 
   describe "pagination" do
+    it "defaults to 20 rows per page" do
+      21.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+
+      result = sessions_for(scope: :mine, user: operator)
+
+      expect(result[:rows].size).to eq(20)
+      expect(result[:total]).to eq(21)
+      expect(result[:per]).to eq(20)
+    end
+
     it "limits and pages rows while total reflects the full filtered count" do
-      3.times { |n| Factories.job_with_run(repository: my_repository, user: operator, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+      3.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
 
       result = sessions_for(scope: :mine, user: operator, page: 1, per: 2)
 
