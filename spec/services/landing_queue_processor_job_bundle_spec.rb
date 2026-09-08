@@ -63,7 +63,7 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       expect(entry.blocked_reason).not_to eq({ key: "waiting_epicless_bundle" })
     end
 
-    it "does not strand Jobs on waiting_epicless_bundle when dependency-edge capping would drop the tier below the minimum" do
+    it "waits for an epicless bundle when the cap can include a prerequisite before its dependent" do
       enable_flag
       AppSetting.current.update!(merge_train_max_size: 2)
       a = approved_job(1)
@@ -72,7 +72,7 @@ RSpec.describe LandingQueueProcessor, "epicless job bundle integration" do
       JobDependency.create!(job: c, depends_on_job: b, source: "manual")
 
       entry = described_class.entries(Job.where(id: a.id)).first
-      expect(entry.blocked_reason).not_to eq({ key: "waiting_epicless_bundle" })
+      expect(entry.blocked_reason).to eq({ key: "waiting_epicless_bundle" })
     end
 
     it "shows the unmerged prerequisite instead of waiting_epicless_bundle when the prerequisite is outside the bundle" do

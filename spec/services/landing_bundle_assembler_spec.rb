@@ -228,7 +228,7 @@ RSpec.describe LandingBundleAssembler do
       expect(result.job_ids).to eq([ a.id, b.id ])
     end
 
-    it "shrinks the cap rather than splitting a dependency-linked pair across bundles" do
+    it "does not shrink the cap when the current bundle includes only the prerequisite" do
       AppSetting.current.update!(merge_train_max_size: 3)
       a = approved(issue_number: 1)
       b = approved(issue_number: 2)
@@ -239,10 +239,10 @@ RSpec.describe LandingBundleAssembler do
       result = described_class.for_repository(repository)
 
       expect(result).to be_ready
-      expect(result.job_ids).to eq([ a.id, b.id ])
+      expect(result.job_ids).to eq([ a.id, b.id, c.id ])
     end
 
-    it "is not ready when capping to respect a dependency edge drops below the minimum" do
+    it "can form a minimum-size bundle that includes a prerequisite without its dependent" do
       AppSetting.current.update!(merge_train_max_size: 2)
       a = approved(issue_number: 1)
       b = approved(issue_number: 2)
@@ -251,7 +251,8 @@ RSpec.describe LandingBundleAssembler do
 
       result = described_class.for_repository(repository)
 
-      expect(result).not_to be_ready
+      expect(result).to be_ready
+      expect(result.job_ids).to eq([ a.id, b.id ])
     end
 
     describe ".ready_for_priority?" do
@@ -262,14 +263,14 @@ RSpec.describe LandingBundleAssembler do
         expect(described_class.ready_for_priority?(repository, "medium")).to be true
       end
 
-      it "agrees with .for_repository when dependency-edge capping drops the tier below the minimum" do
+      it "agrees with .for_repository when the cap includes a prerequisite but excludes its dependent" do
         AppSetting.current.update!(merge_train_max_size: 2)
         approved(issue_number: 1)
         b = approved(issue_number: 2)
         c = approved(issue_number: 3)
         JobDependency.create!(job: c, depends_on_job: b, source: "manual")
 
-        expect(described_class.ready_for_priority?(repository, "medium")).to be false
+        expect(described_class.ready_for_priority?(repository, "medium")).to be true
       end
 
       it "returns false when same-tier candidates exist but belong to different owners" do

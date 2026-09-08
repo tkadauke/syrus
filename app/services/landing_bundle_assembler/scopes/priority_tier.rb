@@ -95,17 +95,17 @@ class LandingBundleAssembler::Scopes::PriorityTier
   end
 
   # Cap the ordered candidate list at AppSetting.merge_train_max_size.
-  # If the cap would fall between two candidates linked by a real
-  # (resolved) JobDependency edge, shrink the cut back so the pair
-  # stays together in this bundle rather than getting split — the
-  # excluded tail is left for a later bundle-formation pass.
+  # If the cap would include a dependent while excluding its prerequisite,
+  # shrink the cut back so the later bundle cannot land out of order. The
+  # reverse split is valid: landing a prerequisite now while leaving its
+  # dependent for a later bundle preserves dependency order.
   def capped_members(ordered)
     max = AppSetting.merge_train_max_size
     return ordered if ordered.size <= max
 
     linked_pairs = dependency_linked_pairs(ordered)
     cut = max
-    cut -= 1 while cut > 0 && crosses_dependency_edge?(ordered, cut, linked_pairs)
+    cut -= 1 while cut > 0 && cuts_off_prerequisite?(ordered, cut, linked_pairs)
     ordered.first(cut)
   end
 
@@ -119,13 +119,12 @@ class LandingBundleAssembler::Scopes::PriorityTier
     dependency_pairs + parent_pairs
   end
 
-  def crosses_dependency_edge?(ordered, cut, linked_pairs)
+  def cuts_off_prerequisite?(ordered, cut, linked_pairs)
     included_ids = ordered.first(cut).map(&:id).to_set
     excluded_ids = ordered[cut..].map(&:id).to_set
 
     linked_pairs.any? do |job_id, depends_on_job_id|
-      (included_ids.include?(job_id) && excluded_ids.include?(depends_on_job_id)) ||
-        (included_ids.include?(depends_on_job_id) && excluded_ids.include?(job_id))
+      included_ids.include?(job_id) && excluded_ids.include?(depends_on_job_id)
     end
   end
 
