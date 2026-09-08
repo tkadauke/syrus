@@ -206,6 +206,20 @@ RSpec.describe LandingBundleAssembler do
       expect(result).not_to be_ready
     end
 
+    it "excludes approved Jobs that already have active work" do
+      busy = approved(issue_number: 1)
+      ready_a = approved(issue_number: 2)
+      ready_b = approved(issue_number: 3)
+      workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: busy)
+      attach_work_unit(workflow, state: "running")
+
+      result = described_class.for_repository(repository)
+
+      expect(result).to be_ready
+      expect(result.job_ids).to contain_exactly(ready_a.id, ready_b.id)
+      expect(described_class.ready_for_job?(busy)).to be false
+    end
+
     it "orders members topologically (a prerequisite before its dependent)" do
       parent_placeholder = approved(issue_number: 1)
       dependent = approved(issue_number: 2, parent_job: parent_placeholder)

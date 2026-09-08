@@ -87,12 +87,15 @@ class LandingBundleAssembler::Scopes::PriorityTier
   end
 
   def eligible_candidates(priority)
-    @repository.jobs
+    candidates = @repository.jobs
       .approved
       .where(epic_id: nil, priority: priority)
       .where.not(kind: "external_pr")
       .includes(:parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
       .to_a
+
+    active_ids = WorkUnits::Ownership.active_job_ids(candidates.map(&:id))
+    candidates.reject { |candidate| active_ids.include?(candidate.id) }
   end
 
   def effective_owner_id(job)
