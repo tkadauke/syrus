@@ -1157,6 +1157,7 @@ function RunArtifactsPanel({ canReviewDiff, payload, view, onClose }: { canRevie
       source_surface: "run_artifact",
       file_status: selection.file.status || null
     }),
+    diffReviewVersionId: payload.diff_review_version_id,
     enabled: feedbackEnabled,
     headRef: payload.head_ref,
     jobId: payload.job_id,

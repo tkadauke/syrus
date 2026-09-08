@@ -71,6 +71,7 @@ describe("ReviewWorkspace", () => {
     await waitFor(() => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
         body: "Please add a regression spec.",
+        diff_review_version_id: 100,
         base_ref: "base-sha",
         head_ref: "head-sha",
         path: "app/models/user.rb",
@@ -168,6 +169,7 @@ describe("ReviewWorkspace", () => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
         anchor_kind: "review",
         body: "Looks great overall.",
+        diff_review_version_id: 100,
         surface: "job_review_workspace"
       }))
     })
@@ -198,11 +200,12 @@ describe("ReviewWorkspace", () => {
       expect(createDiffReviewComment).toHaveBeenCalledWith(42, expect.objectContaining({
         anchor_kind: "review",
         body: "One more thing.",
+        diff_review_version_id: 100,
         surface: "job_review_workspace"
       }))
     })
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2])
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100)
     })
   })
 
@@ -417,7 +420,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1])
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
     })
   })
 
@@ -448,7 +451,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2])
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
     })
   })
 
@@ -482,6 +485,10 @@ function sourceDiffPayload(): JobSourceDiffPayload {
     branch_commits: [],
     truncated: false,
     diff_error: null,
+    version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
+    versions: [
+      { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }
+    ],
     files: [
       {
         additions: 1,
@@ -516,13 +523,25 @@ function sourceDiffPayload(): JobSourceDiffPayload {
 }
 
 function commentsPayload(comments: DiffReviewComment[]): DiffReviewCommentsPayload {
-  return { job_id: 42, comments, by_path: {} }
+  return { job_id: 42, diff_review_version_id: 100, latest_version_id: 100, comments, by_path: {} }
 }
 
 function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment {
   return {
     id: 1,
     job_id: 42,
+    diff_review_version_id: 100,
+    diff_review_version: {
+      id: 100,
+      version_index: 1,
+      base_sha: "base-sha",
+      head_sha: "head-sha",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      trigger_kind: "initial",
+      label: "Version 1",
+      reason: "initial"
+    },
     parent_id: null,
     user_id: 5,
     user: { id: 5, display_name: "Ada", email_address: "ada@example.com", avatar_url: null },

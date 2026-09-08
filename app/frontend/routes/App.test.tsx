@@ -9892,6 +9892,13 @@ describe("App", () => {
           body: expect.stringContaining("\"source_surface\":\"source_browser\"")
         })
       )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/diff_review_comments",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"diff_review_version_id\":100")
+        })
+      )
     })
 
     fireEvent.click(screen.getByText("public/logo.png"))
@@ -16404,7 +16411,11 @@ function jobSourceDiffPayload(overrides: { baseRef?: string; headRef?: string } 
       { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: null }
     ],
     truncated: false,
-    diff_error: null
+    diff_error: null,
+    version: { id: 100, version_index: 1, base_sha: overrides.baseRef || "aabbccdd1234567", head_sha: overrides.headRef || "deadbeef12345678", label: "Version 1", reason: "initial" },
+    versions: [
+      { id: 100, version_index: 1, base_sha: overrides.baseRef || "aabbccdd1234567", head_sha: overrides.headRef || "deadbeef12345678", label: "Version 1", reason: "initial", created_at: null }
+    ]
   }
 }
 

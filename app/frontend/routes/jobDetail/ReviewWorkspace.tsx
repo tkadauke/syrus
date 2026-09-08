@@ -30,6 +30,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const feedback = useDiffReviewFeedback({
     baseRef: sourceDiff.data?.base_ref,
+    diffReviewVersionId: sourceDiff.data?.version?.id,
     enabled: sourceDiff.isSuccess,
     headRef: sourceDiff.data?.head_ref,
     jobId,
