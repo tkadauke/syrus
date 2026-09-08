@@ -37,6 +37,33 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include('<div class="banner">New</div>')
   end
 
+  context "with an oversized diff" do
+    let(:diff) do
+      [
+        "diff --git a/app/frontend/routes/Dashboard.tsx b/app/frontend/routes/Dashboard.tsx",
+        "--- a/app/frontend/routes/Dashboard.tsx",
+        "+++ b/app/frontend/routes/Dashboard.tsx",
+        "@@ -1,2 +1,3 @@",
+        "+<section className=\"banner\">New launch state</section>",
+        "diff --git a/config/catalog.yml b/config/catalog.yml",
+        "--- a/config/catalog.yml",
+        "+++ b/config/catalog.yml",
+        "@@ -1,2 +1,8000 @@",
+        ("+catalog_entry: generated-data\n" * 3_000)
+      ].join("\n")
+    end
+
+    it "summarizes changed files and preserves UI-relevant hunks without embedding huge data diffs" do
+      expect(prompt).to include("bounded for visual review prompt budget")
+      expect(prompt).to include("Full diff omitted because")
+      expect(prompt).to include("- app/frontend/routes/Dashboard.tsx")
+      expect(prompt).to include("- config/catalog.yml")
+      expect(prompt).to include('<section className="banner">New launch state</section>')
+      expect(prompt.scan("catalog_entry: generated-data").size).to be < 10
+      expect(prompt.length).to be < diff.length
+    end
+  end
+
   it "labels the diff as from an implement step by default" do
     expect(prompt).to include("implement step")
     expect(prompt).not_to include("respond step")

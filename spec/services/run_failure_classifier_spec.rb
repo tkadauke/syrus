@@ -345,6 +345,21 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies Codex context-window exhaustion before MCP sidecar failures" do
+    run.step.update!(kind: "visual_review")
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "mcp_sidecar_failed")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_visual_review")
+    JobLog.append!(
+      run: run,
+      chunk: "[codex error] Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+      kind: "system"
+    )
+
+    result = classification
+    expect(result.classification).to eq("provider_prompt_too_long")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies agent stdin delivery races as retryable infrastructure failures" do
     run.update!(state: "failed", agent_provider: "claude", agent_outcome: "turn_failed")
     JobLog.append!(

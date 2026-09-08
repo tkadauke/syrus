@@ -179,7 +179,7 @@ class RunFailureClassifier
   end
 
   def provider_prompt_too_long?
-    text_match?(/prompt is too long|context.*too long|maximum context|context length/i)
+    text_match?(/prompt is too long|context.*too long|maximum context|context length|ran out of room in the model's context window/i)
   end
 
   def stdin_race_failed?
