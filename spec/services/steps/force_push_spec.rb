@@ -46,7 +46,8 @@ RSpec.describe Steps::ForcePush do
   it "pushes with an explicit lease from the auto_rebase remote SHA" do
     workflow.set_artifact!("auto_rebase_result", {
       "reason" => "conflict",
-      "pre_sha" => "abc123"
+      "pre_sha" => "abc123",
+      "base_sha" => "base123"
     })
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace,
@@ -60,6 +61,16 @@ RSpec.describe Steps::ForcePush do
     allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
     allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
     allow(git).to receive(:run)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("head456\n")
+    allow(handler).to receive(:diff_against_sha).with("base123").and_return(<<~DIFF)
+      diff --git a/foo.rb b/foo.rb
+      index 1111111..2222222 100644
+      --- a/foo.rb
+      +++ b/foo.rb
+      @@ -1 +1,2 @@
+       old
+      +bar
+    DIFF
 
     handler.call
 
@@ -70,6 +81,40 @@ RSpec.describe Steps::ForcePush do
       "HEAD:refs/heads/syrus/issue-42",
       chdir: "/tmp/workspace"
     )
+    version = job.diff_review_versions.sole
+    expect(version).to have_attributes(
+      base_sha: "base123",
+      head_sha: "head456",
+      trigger_kind: "rebase",
+      label: "Rebase",
+      reason: "rebase"
+    )
+  end
+
+  it "does not create a rebase diff version when the visible diff is empty" do
+    workflow.set_artifact!("auto_rebase_result", {
+      "reason" => "conflict",
+      "pre_sha" => "abc123",
+      "base_sha" => "base123"
+    })
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace,
+                                setup: nil,
+                                branch_name: "syrus/issue-42",
+                                path: Pathname.new("/tmp/workspace"))
+    git = instance_double(GitRunner)
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+    allow(job.repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("head456\n")
+    allow(handler).to receive(:diff_against_sha).with("base123").and_return("")
+
+    handler.call
+
+    expect(job.diff_review_versions).to be_empty
   end
 
   it "leases against the post-rebase SHA after a clean deterministic auto-rebase already pushed" do

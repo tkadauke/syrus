@@ -632,6 +632,7 @@ module Steps
         head_ref: job.branch_name,
         files: files,
         trigger_kind: workflow.trigger_kind,
+        label: DiffReviewVersions::Labeler.call(job: job, workflow: workflow, run: run, trigger_kind: workflow.trigger_kind),
         reason: workflow.trigger_kind
       )
     rescue => e
