@@ -11,8 +11,9 @@ class LandingBundleAssembler::Scopes::PriorityTier
   # auto_merge path rather than spinning up a bundle for one member.
   MIN_BUNDLE_SIZE = 2
 
-  def initialize(repository)
+  def initialize(repository, exclude_active: true)
     @repository = repository
+    @exclude_active = exclude_active
   end
 
   def blocking_reason = nil
@@ -93,6 +94,7 @@ class LandingBundleAssembler::Scopes::PriorityTier
       .where.not(kind: "external_pr")
       .includes(:parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
       .to_a
+    return candidates unless @exclude_active
 
     active_ids = WorkUnits::Ownership.active_job_ids(candidates.map(&:id))
     candidates.reject { |candidate| active_ids.include?(candidate.id) }
