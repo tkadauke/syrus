@@ -2665,6 +2665,91 @@ describe("chat composer paste-to-attach", () => {
   })
 })
 
+describe("attaching a media gallery image to the composer", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("attaches a media library image (e.g. a Runtime Session screenshot) to the composer through the same funnel as a paste", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            { id: 1, title: "runtime-frame.png", filename: "runtime-frame.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
+      if (path === "/api/v1/app/repository_documents/1/file") {
+        return Promise.resolve(new Response("pixels", { status: 200, headers: { "Content-Type": "image/png" } }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { has_chat_images: true } })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Media" }))
+    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
+    await within(workspace).findByText("runtime-frame.png")
+
+    fireEvent.click(within(workspace).getByRole("button", { name: "Attach runtime-frame.png to message" }))
+
+    expect(await screen.findByRole("button", { name: "Remove runtime-frame.png" })).toBeInTheDocument()
+    expect(await screen.findByText("Added to message composer")).toBeInTheDocument()
+  })
+
+  it("attaches a media library image on mobile, where the Media tab and the composer are mutually exclusive views", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            { id: 1, title: "runtime-frame.png", filename: "runtime-frame.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
+      if (path === "/api/v1/app/repository_documents/1/file") {
+        return Promise.resolve(new Response("pixels", { status: 200, headers: { "Content-Type": "image/png" } }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { has_chat_images: true } })))
+    })
+
+    renderRoute()
+
+    // The mobile single-pane layout renders the Media tab and the composer
+    // (under the Chat tab) as mutually exclusive alternatives -- there is no
+    // mounted Compose to receive an event while the Media tab is active.
+    fireEvent.click(await screen.findByRole("button", { name: "Media" }))
+    await screen.findByText("runtime-frame.png")
+    expect(screen.queryByRole("textbox", { name: "Ask about this repository..." })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Attach runtime-frame.png to message" }))
+    expect(await screen.findByText("Added to message composer")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat" }))
+
+    expect(await screen.findByRole("button", { name: "Remove runtime-frame.png" })).toBeInTheDocument()
+  })
+})
+
 describe("chat message entrance", () => {
   beforeEach(() => {
     window.localStorage.clear()

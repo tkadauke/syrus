@@ -38,6 +38,7 @@ module Syrus
       repository_recommendation
       memory_store
       test_evidence
+      runtime_session_provider
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -78,7 +79,8 @@ module Syrus
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       repository_recommendation: -> { Syrus::Plugin::RepositoryRecommendation },
       test_evidence:           -> { Syrus::Plugin::TestEvidence },
-      memory_store:            -> { Syrus::Plugin::MemoryStore }
+      memory_store:            -> { Syrus::Plugin::MemoryStore },
+      runtime_session_provider: -> { Syrus::Plugin::RuntimeSessionProvider }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

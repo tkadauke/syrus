@@ -19,5 +19,6 @@ module SyrusBrowser
 
     argument_aliases target: %i[ref]
     proxies "browser_type", element: "element", target: "target", text: "text"
+    requires_input_lease!
   end
 end

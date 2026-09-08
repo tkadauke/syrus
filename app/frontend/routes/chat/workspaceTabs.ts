@@ -14,7 +14,7 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
-import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible } from "./utils"
+import { codingFilesTabVisible, jobsTabVisible, localDiffTabVisible, runtimeTabVisible } from "./utils"
 
 // Unlike every other workspace tab kind (a hardcoded singleton), preview
 // panels are multi-instance: one tab per open PreviewPanel, keyed by id
@@ -36,7 +36,7 @@ export function mediaTabVisible(payload: ChatPayload): boolean {
 // are namespaced under "plugin:" so a plugin's own tab id can never collide
 // with one of the fixed core tab names below.
 export type PluginTab = `plugin:${string}`
-export type WorkspaceTab = "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab | PluginTab
+export type WorkspaceTab = "context" | "media" | "pinned" | "files" | "diff" | "jobs" | "runtime" | PreviewTab | PluginTab
 export type MobileChatTab = "chat" | WorkspaceTab
 
 export function previewTabId(panelId: number): PreviewTab {
@@ -77,6 +77,7 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
   if (tab === "files") return t("tab_files")
   if (tab === "diff") return t("tab_diff")
   if (tab === "jobs") return t("tab_jobs")
+  if (tab === "runtime") return t("tab_runtime")
   if (isPreviewTab(tab)) {
     const panelId = previewPanelIdFromTab(tab)
     const panel = previewPanels.find((candidate) => candidate.id === panelId)
@@ -104,6 +105,7 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(localDiffTabVisible(payload) ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),
+    ...(runtimeTabVisible(payload) ? (["runtime"] as WorkspaceTab[]) : []),
     ...payload.preview_panels.map((panel) => previewTabId(panel.id)),
     ...payload.workspace_tabs.map((tab) => pluginTabId(tab.id))
   ] as WorkspaceTab[]
@@ -132,7 +134,7 @@ export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): W
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs") return value
+    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" || value === "runtime") return value
     // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard.canvas")
     // are dynamic, so they can't be listed above -- match the "plugin:"
     // namespace instead. Preserves the pre-migration behavior where the

@@ -167,6 +167,30 @@ tip, clears uncommitted work and local-only commits, and queues preparation
 again. After that reset, `submit_coding_changes` has no committed changes to
 capture until new work is done.
 
+Coding Mode chats also get a set of generic `runtime_*` tools for working
+with a live Runtime Session — a dev server, browser, or other running
+process attached to the chat's checkout — so the agent can start it, build or
+reload it, snapshot or inspect what's running, page through its logs, and
+tear it down when done: `runtime_list_sessions`, `runtime_start`,
+`runtime_status`, `runtime_build_or_reload`, `runtime_launch`,
+`runtime_snapshot`, `runtime_inspect`, and `runtime_logs`. Sending input to a
+Runtime Session (`runtime_input`, and the equivalent direct
+`browser_click`/`browser_fill`/`browser_hover` tools) requires the agent to
+first request a short-lived control lease with `runtime_acquire_control` and
+release it with `runtime_release_control` when finished, so agent-driven
+interaction never races an operator who is looking at the same session;
+`runtime_capture_artifact` files evidence (e.g. a screenshot) the same way,
+and `runtime_stop` tears the session down. This first slice covers a browser
+dev-server session, watchable from Coding Mode's right sidebar in a Runtime
+tab (once the chat has started a session): session state, the latest
+screenshot (refreshed periodically, not a live video stream, in this first
+slice), a scrolling log tail, and provider details like the dev server's URL.
+The panel also gives the operator a Take Control / Abort Agent Control button
+that immediately takes over input from the agent, and a button to capture a
+fresh screenshot on demand. Control leases are short-lived by design, but the
+panel renews an active operator lease automatically in the background, so
+staying on the tab keeps control without it silently expiring mid-task.
+
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
 conversation. If a retry is pushed to a replacement branch, pass that branch to
@@ -645,7 +669,11 @@ and open in a full-size preview. The chat workspace also includes a Media tab
 that gathers image attachments into a downloadable gallery and lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
-existing work.
+existing work. Every image in the gallery — including Runtime Session
+screenshots captured in Coding Mode — has an **Attach to message** action,
+available both on the thumbnail and in its full-size preview, that pulls the
+image into the composer through the same attachment mechanism as a pasted
+screenshot; further discussion or markup happens in chat once it's attached.
 Once at least one proposal in the current chat session has been confirmed, a
 Jobs tab appears in the workspace panel. It groups confirmed proposals into
 their respective Epics (collapsible, with a done/total progress pill) and

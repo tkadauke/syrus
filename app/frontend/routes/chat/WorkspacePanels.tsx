@@ -16,10 +16,12 @@ import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPane
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
+import { RuntimePanel } from "../RuntimePanel"
 import { errorMessage } from "../../lib/errorMessage"
 import { SourceCodeTable } from "../../components/FilePreviewModal"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
+import { attachMediaLibraryImage } from "./attachMediaLibraryImage"
 import { chatDisplayTitle, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
@@ -184,6 +186,7 @@ export function ChatWorkspacePanel({
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
+        {activeTab === "runtime" ? <RuntimePanel chatId={payload.chat.id} /> : null}
         {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
     </aside>
@@ -959,6 +962,26 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     }
   }
 
+  // Fetches the image and merges it into the target chat's attachment draft
+  // directly (attachMediaLibraryImage.ts), independent of whether that chat's
+  // Compose is currently mounted -- on the mobile single-pane layout the
+  // Media tab and the composer are mutually exclusive (see Chat.tsx's
+  // activeMobileTab branch), so a mounted-Compose-only path silently no-ops
+  // there. The result is awaited so the notice reflects what actually
+  // happened rather than assuming success.
+  async function attachImageToComposer(image: ChatMediaImage) {
+    const src = image.image_url || image.file_path || ""
+    if (!src) return
+
+    const result = await attachMediaLibraryImage({
+      chatId: String(payload.chat.id),
+      url: src,
+      name: image.title || image.filename || "image attachment",
+      mimeType: image.content_type || "image/png"
+    })
+    onNotice(result.ok ? t("image_attached_notice") : t("media_attach_error"))
+  }
+
   if (images.length === 0 && snapshotItems.length === 0 && walkthroughs.length === 0 && artifactItems.length === 0 && !snapshots.isPending && !snapshots.isError && !media.isPending && !media.isError) {
     return <PanelMessage>{t("media_empty")}</PanelMessage>
   }
@@ -1094,6 +1117,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                     >
                       {t("image_download")}
                     </a>
+                    <button
+                      aria-label={`Attach ${name} to message`}
+                      className="absolute bottom-1 right-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+                      onClick={() => void attachImageToComposer(image)}
+                      type="button"
+                    >
+                      {t("image_attach_to_message")}
+                    </button>
                   </div>
                   <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>{name}</figcaption>
                 </figure>
@@ -1102,7 +1133,14 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           </div>
         </section>
       ) : null}
-      {lightboxImage ? <ImageLightbox name={lightboxImage.title || lightboxImage.filename || "Image attachment"} onClose={() => setLightboxImage(null)} src={lightboxImage.image_url || lightboxImage.file_path || ""} /> : null}
+      {lightboxImage ? (
+        <ImageLightbox
+          extraAction={{ label: t("image_attach_to_message"), onClick: () => void attachImageToComposer(lightboxImage) }}
+          name={lightboxImage.title || lightboxImage.filename || "Image attachment"}
+          onClose={() => setLightboxImage(null)}
+          src={lightboxImage.image_url || lightboxImage.file_path || ""}
+        />
+      ) : null}
     </div>
   )
 }

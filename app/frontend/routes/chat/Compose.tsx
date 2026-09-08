@@ -28,11 +28,11 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
-import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
+import { type ChatDraftAttachmentsChangedDetail, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, contentRecord, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
-import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
+import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -1013,6 +1013,27 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     window.addEventListener("syrus:video-walkthrough", onWalkthroughEvent)
     return () => window.removeEventListener("syrus:video-walkthrough", onWalkthroughEvent)
   }, [payload.chat.id, onNotice, t, queryClient, queryKey])
+
+  // The media gallery's "Attach to message" action (WorkspacePanels.tsx)
+  // fetches and persists the image straight into attachmentDraftStore.ts via
+  // attachMediaLibraryImage.ts, then dispatches this event so an
+  // already-mounted Compose for the same chat re-syncs its `attachments`
+  // state from the store. Compose doesn't do the fetching itself: on the
+  // mobile single-pane layout the Media tab and the composer are mutually
+  // exclusive (see Chat.tsx's activeMobileTab branch), so there may be no
+  // mounted Compose to receive an event at all -- the store write is what
+  // actually matters, and this listener is just how an already-mounted
+  // instance notices it happened without polling.
+  useEffect(() => {
+    function onDraftAttachmentsChanged(event: Event) {
+      const detail = (event as CustomEvent<ChatDraftAttachmentsChangedDetail>).detail
+      if (!detail || detail.chatId !== chatId) return
+      setAttachments(getDraftAttachments(chatId))
+    }
+
+    window.addEventListener(CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, onDraftAttachmentsChanged)
+    return () => window.removeEventListener(CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, onDraftAttachmentsChanged)
+  }, [chatId])
 
   async function uploadWalkthrough(note: string) {
     if (!walkthrough || walkthrough.status !== "ready") return
@@ -2591,22 +2612,6 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
       ) : null}
     </div>
   )
-}
-
-function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      resolve({
-        name: file.name,
-        mimeType: file.type || "application/octet-stream",
-        dataUrl: String(reader.result || ""),
-        size: file.size
-      })
-    }
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
 }
 
 function prefillScheduleModal(argsText: string) {

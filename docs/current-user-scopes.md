@@ -178,6 +178,7 @@ per-user/private:
   - plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/repository_preview_controller.rb
+  - app/controllers/api/v1/app/runtime_sessions_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/concerns/repository_tabs_serialization.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -384,6 +385,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/teams_controller.rb` | team-tier | Team CRUD, scoped through `TeamPolicy`/`policy_scope(Team)`: visible to any team member or global admin, mutable by owner-tier `TeamMembership` or global admin. Any authenticated user may create a team. |
 | `app/controllers/api/v1/app/team_memberships_controller.rb` | team-tier | Lists, adds, changes the role of, and removes `TeamMembership` rows, gated by `TeamPolicy#write?` (owner-tier or global admin). Refuses to remove or demote the last `owner`-tier member of a team. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
+| `app/controllers/api/v1/app/runtime_sessions_controller.rb` | per-user/private | Runtime Session read/control endpoints first find the Coding Mode chat through `Current.user.accessible_chat_sessions`, then scope Runtime Session rows and captured frames through that chat. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb` | per-user/private | Agent insight suggestions are listed and acted on through `Current.user.repositories`, so only the repository owner sees or resolves a repository's backlog. |
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |

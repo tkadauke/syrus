@@ -26,7 +26,7 @@ RSpec.describe Mcp::Tools::StopPreviewTool do
   end
 
   context "when a preview is registered" do
-    before { Mcp::Tools::AgentPreviewRegistry.register(run_id: run.id, pid: 9999, port: 3001) }
+    before { Mcp::Tools::AgentPreviewRegistry.register(key: run.id, pid: 9999, port: 3001) }
 
     it "removes the run from the registry" do
       call

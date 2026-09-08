@@ -525,6 +525,221 @@ Postgres container, the repo's `config/database.yml` must use
 `adapter: sqlite3` for the `development` environment. Postgres preview
 environments are not yet supported.
 
+## `:runtime_session_provider`
+
+Runtime session providers back DOC-17's Interactive Runtime Sessions for
+Coding Mode: a live process, app, device, emulator, or service stack attached
+to a Coding Mode workspace (a browser dev server, an iOS Simulator build, a
+CLI/TUI process, and so on). Core owns the `RuntimeSession` record —
+lifecycle state, ownership, capabilities, artifacts — while a plugin per
+platform supplies the execution.
+
+The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
+concrete provider (EPIC-319): a headless-Chromium session driving the repo's
+own dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
+`start_preview` MCP tool uses — one dev-server start/health-check
+implementation, keyed by an arbitrary caller-supplied identifier in
+`Mcp::Tools::AgentPreviewRegistry` (a workflow Run id for `start_preview`, a
+`RuntimeSession`'s `workspace_ref` here), not two independently-drifting
+copies. This section documents the interface contributors implement.
+
+`provider_key`, `display_name`, `detect`, and `capabilities` are class
+methods, so a provider can be selected for a repository/config before any
+session exists. The remaining lifecycle methods are instance methods, called
+on a provider instance scoped to one running session. Include
+`Syrus::Plugin::RuntimeSessionProvider` and implement:
+
+| Method | Signature | Description |
+|---|---|---|
+| `self.provider_key` | `() → String` | Unique stable identifier (e.g. `"browser"`) |
+| `self.display_name` | `() → String` | Shown in the Coding Mode runtime panel |
+| `self.detect` | `(repository, config) → truthy/falsy` | Whether this provider applies |
+| `self.capabilities` | `(repository, config) → RuntimeCapability Hash` | stream/input/inspect/build/artifacts this provider offers |
+| `#start_session` | `(workspace_ref, config) → Hash` | Starts a session; return value seeds the `RuntimeSession` record |
+| `#build_or_reload` | `(session_id, options)` | Restarts/recompiles/hot-reloads the target |
+| `#launch` | `(session_id, options)` | Launches (or relaunches) the target inside the session |
+| `#snapshot` | `(session_id, options)` | Captures a point-in-time view (e.g. a screenshot) |
+| `#inspect` | `(session_id = nil, options = nil)` | Structural inspection (DOM, accessibility tree, view hierarchy) |
+| `#input` | `(session_id, event)` | Delivers a pointer/keyboard/touch/stdin event |
+| `#logs` | `(session_id, cursor, options)` | Next chunk of log output after `cursor` |
+| `#stop_session` | `(session_id)` | Tears down the underlying process/device/VM lease |
+
+`#inspect` shadows `Kernel#inspect` to match DOC-17's interface naming; its
+arguments default to `nil` so anything that calls plain `.inspect` with no
+arguments (RSpec failure output, pry, logging) raises `NotImplementedError`
+instead of `ArgumentError`.
+
+Register via a gem manifest, the same as any other extension point:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { runtime_session_provider: MyPlugin::RuntimeSessionProvider }
+)
+```
+
+Look providers up through `RuntimeSessionProviders`:
+
+```ruby
+RuntimeSessionProviders.for("browser")              # => provider class, or raises ConfigurationError
+RuntimeSessionProviders.detect_for(repository, {})   # => first provider class whose .detect matches, or nil
+RuntimeSessionProviders.all                          # => every registered provider class
+```
+
+**Context-aware tools: two independent axes.** The browser provider does not
+reimplement browser automation — its `#snapshot`/`#inspect` delegate into the
+same `browser_*` MCP tool classes (`SyrusBrowser::ScreenshotTool`,
+`SyrusBrowser::SnapshotTool`, ...) that workflow `visual_review` steps already
+call, by passing a `server_context` shaped `{ runtime_session: session }`.
+Making a tool that already assumed "the current session is a workflow Run"
+usable from a Coding Mode chat's `RuntimeSession` splits into two independent
+resolutions, both derived from the same call context — don't conflate them:
+
+- **Session-owner routing** (`SyrusBrowser::SessionContext.resolve`) — which
+  live browser session (keyed in `SyrusBrowser::SessionRegistry`) does this
+  call operate on? Checks, in order: an explicit `:runtime_session` key (set
+  by the provider itself when delegating), then `:chat_session` (a live chat
+  MCP call, resolved to that chat's active browser `RuntimeSession`), then
+  falls back to the existing Run-based resolution. Local Mode's daemon-routed
+  browser is a deliberately unimplemented third branch here — DOC-16's own
+  broker work adds it later.
+- **Artifact-sink routing** (`SyrusBrowser::ArtifactSinks`) — where does
+  captured evidence (a screenshot) get filed? A `Null` sink for the Run path
+  (unchanged — the `visual_review` agent still files evidence explicitly via
+  `submit_visual_artifact`) or a `ChatMedia` sink for Coding Mode, which
+  writes a chat-visible `Document` via `ChatMediaLibrary.materialize_captured_image!`.
+
+A tool opts into the artifact-sink axis with `captures_artifact!` (see
+`SyrusBrowser::BrowserTool`); most proxied actions (click, fill, navigate)
+have nothing to capture and leave it off.
+
+**Input-lease enforcement: the same axis gates both entry points.** `click`,
+`fill`, and `hover` are the only working way to deliver real pointer/keyboard
+input to a browser `RuntimeSession` today (`RuntimeSessionProvider#input`
+itself still answers `not_yet_supported`), and they are reachable two ways —
+directly as `browser_click`/`browser_fill`/`browser_hover` via
+`SyrusBrowser::ChatToolSet`, and indirectly as the (currently unimplemented)
+backing for the generic `runtime_input` tool. A tool opts into the check with
+`requires_input_lease!` (see `SyrusBrowser::BrowserTool#call`); enforcement
+is a no-op unless `SessionContext#owner` is an actual `RuntimeSession` (the
+workflow Run path used by `visual_review` has no lease concept and is
+unaffected), and rejects the call as `lease_required` unless
+`RuntimeSession#active_agent_input_lease` is present — the exact same lease a
+`runtime_acquire_control(mode: "input")` call grants. This closes what would
+otherwise be a bypass: without it, a Coding Mode agent could call
+`browser_click`/`browser_fill` directly and skip DOC-17's Shared Human/Agent
+Control entirely, racing the operator instead of coordinating with them.
+`navigate` (also how `runtime_launch` drives the initial page load, which
+must not itself require a pre-acquired lease), `resize`, `close`, `snapshot`,
+`screenshot`, and `wait_for` stay ungated — they are either lifecycle/
+observational actions with no "input" analog in DOC-17's capability sense, or
+(navigate) already used internally by a flow that must not be gated.
+
+### Generic `runtime_*` MCP tools and Runtime Control Lease
+
+Coding Mode chat agents reach Runtime Sessions through thirteen generic
+`runtime_*` core MCP tools (`app/services/mcp/tools/runtime_*_tool.rb`,
+registered in `McpToolRegistry#chat_entries` with
+`feature_flag: :coding_mode, required_roles: [AgentRole::CHAT_CODING]` — same
+gate as `reset_workspace`/`complete_implement_step`/`submit_coding_changes` —
+so they are never advertised to a planning or Local Mode chat, or when the
+`coding_mode` feature is off):
+
+| Tool | Delegates to |
+|---|---|
+| `runtime_list_sessions` | `chat_session.runtime_sessions` (core-only, no provider call) |
+| `runtime_start` | `RuntimeSessionProviders.for`/`.detect_for`, then `#start_session` |
+| `runtime_status` | core-only: the `RuntimeSession` row + its active lease |
+| `runtime_build_or_reload` | `#build_or_reload` |
+| `runtime_launch` | `#launch` |
+| `runtime_snapshot` | `#snapshot` |
+| `runtime_inspect` | `#inspect` |
+| `runtime_logs` | `#logs` |
+| `runtime_acquire_control` | `RuntimeControlLease.acquire!(owner: "agent", ...)` |
+| `runtime_release_control` | releases the agent's active lease(s) |
+| `runtime_input` | `#input` (the provider itself enforces the lease gate below) |
+| `runtime_capture_artifact` | `#snapshot` (the only capture-capable provider method today) |
+| `runtime_stop` | `#stop_session` |
+
+All thirteen accept an optional `session_id`; when omitted,
+`Mcp::Tools::RuntimeSessionToolSupport#resolve_runtime_session` defaults to
+the calling chat's primary active session, falling back to its most recently
+started active session, mirroring `SyrusBrowser::SessionContext`'s own
+provider-scoped default. `runtime_start` is the one write that also owns
+`RuntimeSession` lifecycle bookkeeping: it resolves `ChatWorkspace.repo_path_for`
+as `workspace_ref`, creates the row (`primary: true` only when the chat has no
+other active session), and transitions it `starting` → `running` on success or
+`failed` (with `last_error`) if the provider raises. `runtime_build_or_reload`
+and `runtime_stop` make the same `running`/`failed`/`stopped` transitions on
+their own outcomes; the read/interact tools (`snapshot`, `inspect`, `logs`,
+`launch`, `input`, `capture_artifact`) leave session state untouched and wrap
+provider errors as an `invalid` tool response instead of raising.
+
+**Runtime Control Lease (`RuntimeControlLease`, DOC-17's Shared Human/Agent
+Control)** gates input so the operator and agent never race each other on the
+same session. `mode` is `input`, `build`, or `lifecycle` (`observe_only` never
+needs a lease); input is serialized on its own `SERIALIZATION_GROUPS` key
+while `build`/`lifecycle` share a second group, so an agent can hold an input
+lease and a build lease at once but never two input leases. Leases are
+short-lived (`MIN_DURATION`/`MAX_DURATION` clamp to 15-60s, default 30s) and a
+second `acquire!` for an already-held group raises `RuntimeControlLease::Conflict`
+(surfaced as an `invalid` tool response). `runtime_acquire_control` always
+acquires as `owner: "agent"`; `runtime_input` does not check the lease
+itself — it delegates straight to the provider's own `#input`, which is what
+actually enforces the gate (see `SyrusBrowser::RuntimeSessionProvider#input`,
+returning `{error: "lease_required"}` with no active agent input lease). The
+same lease also gates the raw `browser_click`/`browser_fill`/`browser_hover`
+tools directly (see `requires_input_lease!` above) so there is exactly one
+enforcement point regardless of which tool surface an agent uses to drive
+input. Every acquire/release/cancel/expire and delivered input event is
+audited via `JobLog` (when the session has a `run`) and broadcast live over
+`runtime_session_<id>_control` for the operator's Take Control / Abort Agent
+Control affordance.
+
+**Operator surface: the Coding Mode Runtime panel.** The right sidebar's
+`runtime` tab (`app/frontend/routes/RuntimePanel.tsx`, wired into
+`ChatWorkspacePanel` in `WorkspacePanels.tsx`) is a human-facing mirror of the
+agent's `runtime_*` tools, not an MCP tool itself -- it is intentionally
+operator-only per DOC-17, so it goes through the ordinary app-scoped JSON API
+instead: `Api::V1::App::RuntimeSessionsController`
+(`/api/v1/app/chats/:chat_id/runtime_sessions[...]`), gated the same way as
+the MCP tools (`Feature.coding_mode_enabled?` and `chat_session.coding?`).
+`index`/`show`/`logs` mirror `runtime_list_sessions`/`runtime_status`/
+`runtime_logs` (same `RuntimeSessionPresenter` JSON shape both surfaces
+share); `capture` mirrors `runtime_capture_artifact`; `take_control` is the
+operator's `RuntimeControlLease.acquire!(owner: "user", ...)`, and always
+calls `RuntimeControlLease.abort_agent_control!` first so an operator's Take
+Control / Abort Agent Control click immediately preempts whatever the agent
+was holding, per DOC-17's "the operator can always abort agent control
+immediately"; `release_control` releases the operator's own active lease(s).
+`RuntimeControlLease::DEFAULT_DURATION`/`MAX_DURATION` (30s/60s) are
+intentionally short per DOC-17 ("leases should be short-lived and
+auto-expire"), so the panel requests the max duration up front and then
+heartbeats a `renew_control` call (`RuntimeControlLease#renew!`, extending
+`expires_at` on the same lease row in place rather than releasing and
+re-acquiring) roughly every 5s once within 15s of expiry, for as long as the
+operator's tab stays open holding the lease. If a heartbeat ever fails to
+renew in time (network hiccup, or something else claimed the group), the
+panel stops pretending it still holds control and shows an explicit
+"control lapsed" message instead of leaving a stale "You (input)" badge.
+`RuntimeSessionPresenter.session_payload`'s `metadata` excludes
+`INTERNAL_METADATA_KEYS` (currently just `latest_frame_document_id`, the
+`frame` action's own lookup key -- see below) so Syrus's internal
+bookkeeping never renders next to genuinely useful provider fields like
+`url`/`port` in the panel or in the agent's `runtime_status`/`runtime_inspect`
+payloads.
+The tab only appears once the chat has at least one `RuntimeSession`
+(`runtimeTabVisible` in `app/frontend/routes/chat/utils.ts`, backed by
+`chat.runtime_session_count` in the chat payload). A dedicated `frame` action
+streams the session's `latest_frame_url` -- `SyrusBrowser::ArtifactSinks::ChatMedia`
+now accepts an optional `runtime_session:` and, when a capture is attributed
+to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
+`runtime_capture_artifact`/`browser_screenshot`), stamps
+`latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
+endpoint so the panel's periodic-screenshot polling has something to show --
+those two columns existed on `RuntimeSession` since JOB-4472 but were never
+written until this wiring landed.
+
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
