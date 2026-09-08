@@ -26,7 +26,7 @@ class JobBundleDispatcher
   def try_dispatch!
     return if blocker_reason
 
-    result = LandingBundleAssembler.for_repository(@repository)
+    result = LandingBundleAssembler.for_repository(@repository, include_active: true)
     return unless result.ready?
 
     workflow = nil
@@ -82,7 +82,7 @@ class JobBundleDispatcher
       return cooldown_reason(failed_bundle)
     end
 
-    readiness = LandingBundleAssembler.for_repository(@repository)
+    readiness = LandingBundleAssembler.for_repository(@repository, include_active: true)
     return readiness.reason unless readiness.ready?
 
     if (active_work = active_member_work(readiness.members))

@@ -89,7 +89,7 @@ RSpec.describe LandingBundleAssembler do
       approved(issue_number: 4, priority: "medium")
 
       scope = LandingBundleAssembler::Scopes::PriorityTier.new(repository)
-      allow(LandingBundleAssembler::Scopes::PriorityTier).to receive(:new).with(repository).and_return(scope)
+      allow(LandingBundleAssembler::Scopes::PriorityTier).to receive(:new).with(repository, include_active: false).and_return(scope)
       original_eligible_candidates = scope.method(:eligible_candidates)
       queried_priorities = []
       allow(scope).to receive(:eligible_candidates) do |priority|
