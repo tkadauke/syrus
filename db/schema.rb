@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_083000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -969,6 +969,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_000100) do
     t.json "context", null: false
     t.datetime "created_at", null: false
     t.text "diff_hunk"
+    t.integer "diff_review_version_id", null: false
     t.string "head_ref"
     t.integer "job_id", null: false
     t.integer "new_line"
@@ -985,6 +986,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_000100) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.integer "workflow_id"
+    t.index ["diff_review_version_id"], name: "index_diff_review_comments_on_diff_review_version_id"
+    t.index ["job_id", "diff_review_version_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_version_surface_path_state"
     t.index ["job_id", "path", "side", "old_line", "new_line"], name: "idx_diff_review_comments_line_anchor"
     t.index ["job_id", "surface", "path", "state", "id"], name: "idx_diff_review_comments_job_surface_path_state"
     t.index ["job_id"], name: "index_diff_review_comments_on_job_id"

@@ -14,6 +14,7 @@ module App
         job_id: run.job_id,
         workflow_id: run.step&.workflow_id,
         run_id: run.id,
+        diff_review_version_id: diff_review_version_for(run)&.id,
         base_ref: run.base_sha,
         head_ref: run.head_sha,
         agent_diff: run.agent_diff,
@@ -22,6 +23,10 @@ module App
         logs_count: logs.size,
         logs: logs
       }
+    end
+
+    def self.diff_review_version_for(run)
+      DiffReviewVersion.where(job_id: run.job_id, run_id: run.id).latest_first.first
     end
 
     def self.serialize_logs(run)

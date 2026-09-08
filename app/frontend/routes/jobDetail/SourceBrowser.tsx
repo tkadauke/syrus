@@ -279,7 +279,8 @@ function SourceDiffBrowser({
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,
     buildContext: sourceBrowserCommentContext,
-    enabled: canReviewDiff && Boolean(payload.base_ref && payload.head_ref),
+    diffReviewVersionId: payload.version?.id,
+    enabled: canReviewDiff && Boolean(payload.base_ref && payload.head_ref && payload.version?.id),
     headRef: payload.head_ref,
     jobId: payload.job_id,
     surface: "job_source_diff"

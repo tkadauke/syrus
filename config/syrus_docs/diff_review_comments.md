@@ -6,12 +6,14 @@ audit model; local review UI comments use the generic table so the job review
 workspace, source-browser diff mode, and run artifact diff panels can share the
 same storage contract.
 
-Each comment belongs to a Job and authoring User, and can optionally point at
-the Workflow and Run that produced the diff under review. Anchors store the
-review surface, base/head refs, file path, side, old/new line coordinate, a
-diff hunk snapshot, and a free-form JSON context hash for nearby symbols or
-future re-anchoring metadata. State is one of `draft`, `submitted`,
-`resolved`, or `superseded`.
+Each comment belongs to a Job, authoring User, and `DiffReviewVersion`, and
+can optionally point at the Workflow and Run that produced the diff under
+review. The version is the authoritative scope for both line comments and
+whole-review comments; stored base/head refs remain on the comment as
+compatibility/display fields. Anchors store the review surface, file path,
+side, old/new line coordinate, a diff hunk snapshot, and a free-form JSON
+context hash for nearby symbols or future re-anchoring metadata. State is one
+of `draft`, `submitted`, `resolved`, or `superseded`.
 
 `anchor_kind` is `"line"` (the default) for a comment tied to a specific
 file/side/line, or `"review"` for a whole-review comment that critiques the
@@ -42,8 +44,9 @@ optional display refs (`base_ref`/`head_ref`), source `workflow_id`/`run_id`,
 needed to render that version later. Agentic change steps create a version as
 soon as they record `run.base_sha`/`run.head_sha`, so an initial implementation
 or feedback attempt is preserved even if the branch advances before an operator
-opens the source diff. The normal `source_diff` payload also idempotently
-persists the latest default comparison and now includes `version` plus
+opens the source diff. The `source_diff` payload also resolves or idempotently
+persists a version for the displayed comparison, including explicit `base`/
+`head` selections from the source browser, and now includes `version` plus
 `versions` summary fields for clients that already load that endpoint.
 
 `GET /diff_review_versions` lists stable version metadata in ascending
@@ -53,21 +56,27 @@ persists the latest default comparison and now includes `version` plus
 
 Listing follows normal Job visibility. Mutations use the existing Job write
 policy: the job owner, a global admin, or a write-tier-or-higher repository
-member. The list endpoint accepts `surface`, `base_ref`, `head_ref`, `path`,
-`state`, `workflow_id`, and `run_id` filters and returns both a flat
-`comments` array and `by_path`, keyed as `by_path[path][anchor_key]`, where
-anchor keys are `side:old:new` with blank coordinates left empty.
+member. The list endpoint defaults to the latest diff review version and also
+accepts `diff_review_version_id` (or `version_id`) to view comments from an
+older version. It still accepts `surface`, `base_ref`, `head_ref`, `path`,
+`state`, `workflow_id`, and `run_id` filters within the selected version and
+returns both a flat `comments` array and `by_path`, keyed as
+`by_path[path][anchor_key]`, where anchor keys are `side:old:new` with blank
+coordinates left empty. Serialized comments include `diff_review_version_id`
+and a compact `diff_review_version` block with version number, SHAs, display
+refs, trigger kind, label, and reason.
 
 A comment optionally belongs to a `parent` (`DiffReviewComment#parent_id`, no
 DB-level foreign key, same as every other association on this model). The
 reply endpoint takes a `body` and creates a new comment authored by the
 current user, threaded under the target comment via `parent_id` and
-inheriting its surface, base/head refs, workflow/run links, and anchor
-(`anchor_kind`/`path`/`side`/`old_line`/`new_line`/`diff_hunk`) — the replier
-does not resupply anchor data. Any user who passes the same write policy as
-other mutations can reply, regardless of who authored the original comment.
-Replies start in `draft` state like any other comment and share the parent's
-`anchor_key`, so they render in the same thread ordered by `created_at`.
+inheriting its diff review version, surface, base/head refs, workflow/run
+links, and anchor (`anchor_kind`/`path`/`side`/`old_line`/`new_line`/
+`diff_hunk`) — the replier does not resupply anchor data. Any user who passes
+the same write policy as other mutations can reply, regardless of who authored
+the original comment. Replies start in `draft` state like any other comment
+and share the parent's `anchor_key`, so they render in the same thread ordered
+by `created_at`.
 `comment_json` exposes `parent_id` (`null` for top-level comments) for
 clients that want to render explicit reply structure.
 
@@ -94,14 +103,17 @@ share the same base/head pair. The model validates that optional Workflow and
 Run links belong to the comment's Job, and that a supplied Run belongs to the
 supplied Workflow.
 
-The submit endpoint accepts `comment_ids` and sends selected unresolved
-comments through the normal `chat_feedback` workflow path. The workflow stores
-a readable `chat_feedback` body plus structured `diff_comments` artifacts with
-the durable anchor data: path, side, old/new line coordinates, base/head refs,
-diff hunk snapshot, context, author, and comment body. Once the feedback
-workflow is accepted, selected comments are marked `submitted` and linked to
-that workflow. Duplicate active submissions are rejected by the same active
-`chat_feedback` guard used by chat-submitted feedback.
+The submit endpoint accepts `comment_ids` and defaults to submitting comments
+from the latest diff review version; pass `diff_review_version_id` to submit
+comments from an older selected version. It sends selected unresolved comments
+through the normal `chat_feedback` workflow path. The workflow stores a
+readable `chat_feedback` body plus structured `diff_comments` artifacts with
+the durable version and anchor data: version id/number, base/head SHAs,
+display refs, trigger label/reason, path, side, old/new line coordinates,
+base/head refs, diff hunk snapshot, context, author, and comment body. Once
+the feedback workflow is accepted, selected comments are marked `submitted`
+and linked to that workflow. Duplicate active submissions are rejected by the
+same active `chat_feedback` guard used by chat-submitted feedback.
 
 ## Review workspace layout
 
