@@ -82,6 +82,22 @@ class JobBundleDispatcher
       return cooldown_reason(failed_bundle)
     end
 
+    potential_members = potential_member_candidates
+    if (active_work = active_member_work(potential_members))
+      return active_member_work_reason(active_work)
+    end
+
+    if (workflow = RebaseWorkflowSelector.active_for_jobs(potential_members).order(:id).first)
+      return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
+    end
+    if RebaseWorkflowSelector.active_for_jobs?(potential_members)
+      return "active rebase workflow must finish before the job bundle starts"
+    end
+
+    if (active_lock = active_member_lock(potential_members))
+      return active_member_lock_reason(active_lock)
+    end
+
     readiness = LandingBundleAssembler.for_repository(@repository, include_active: true)
     return readiness.reason unless readiness.ready?
 
@@ -130,6 +146,27 @@ class JobBundleDispatcher
     end
 
     Job.landing.where(repository_id: @repository.id).order(:id).first
+  end
+
+  def potential_member_candidates
+    Job::PRIORITIES.each do |priority|
+      candidates = @repository.jobs
+        .approved
+        .where(epic_id: nil, priority: priority)
+        .where.not(kind: "external_pr")
+        .to_a
+        .group_by { |job| effective_owner_id(job) }
+        .values
+        .find { |group| group.size >= LandingBundleAssembler::Scopes::PriorityTier::MIN_BUNDLE_SIZE }
+
+      return candidates if candidates
+    end
+
+    []
+  end
+
+  def effective_owner_id(job)
+    job.owner_user_id.presence || job.user_id
   end
 
   def active_member_work?(members)
