@@ -66,8 +66,8 @@ tmp/mcp_repro/
 # from manual preview testing -- not product artifacts.
 .playwright-mcp/
 
-# bin/test-e2e (Playwright) run output -- traces/screenshots/HTML report
-# from local or agent test runs, not product artifacts. `.last-run.json`
-# records previous failure ids and changes on every local run.
+# Playwright test runner output (traces, screenshots, HTML report) from
+# local or agent bin/test-e2e runs across e2e/ and plugins/*/e2e/.
+# `.last-run.json` records previous failure ids and changes on every local run.
 /test-results/
 /playwright-report/

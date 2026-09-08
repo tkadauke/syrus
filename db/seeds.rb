@@ -8,12 +8,6 @@
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
 
-Feature.find_or_create_by!(slug: "terminal") do |feature|
-  feature.category = "labs"
-  feature.name = "Terminal"
-  feature.enabled = false
-end
-
 require_relative "seeds/themes"
 Seeds::Themes.seed!
 
@@ -42,6 +36,23 @@ if Rails.env.development?
   )
   demo_user.password = "password" if demo_user.new_record? || demo_user.password_digest.blank?
   demo_user.save!
+
+  # Team Directory (plugins/team_directory) hides its sidebar nav entry and
+  # collapses the page to a "single user" empty state below two users, so a
+  # fresh preview needs a second lightweight teammate for the directory list
+  # (and the demo user's own card within it) to actually be reachable.
+  teammate_user = User.find_or_initialize_by(email_address: "ada@syrus.local")
+  teammate_user.assign_attributes(
+    name: "Ada Lovelace",
+    first_name: "Ada",
+    last_name: "Lovelace",
+    github_handle: "ada",
+    profile_bio: "Keeps the analytical engines honest.",
+    agent_provider: "codex",
+    chat_provider: "codex"
+  )
+  teammate_user.password = "password" if teammate_user.new_record? || teammate_user.password_digest.blank?
+  teammate_user.save!
 
   demo_repo = Repository.find_or_initialize_by(owner: "demo", name: "syrus-preview")
   demo_repo.assign_attributes(
@@ -597,5 +608,26 @@ if Rails.env.development?
 
       identity.refresh_summary!
     end
+  end
+
+  # Mockups (plugins/mockups) has no in-app "create" action -- a mockup only
+  # comes to exist via chat's show_preview MCP tool -- so the Mockups sidebar
+  # page would otherwise be empty in every fresh preview. Seed one through the
+  # same PreviewPanel::Service + Mockups::Mockup.record_publish! path the real
+  # tool uses, guarded so re-running db:seed doesn't create a second copy.
+  if Mockups::Mockup.where(user: demo_user).none?
+    mockup_panel = PreviewPanel::Service.open!(
+      chat_session: demo_chat,
+      title: "Dashboard onboarding sketch",
+      files: {
+        "index.html" => "<!doctype html><html><body><h1>Dashboard onboarding sketch</h1></body></html>"
+      }
+    )
+    Mockups::Mockup.record_publish!(
+      panel: mockup_panel,
+      user: demo_user,
+      title: "Dashboard onboarding sketch",
+      chat_session: demo_chat
+    )
   end
 end

@@ -1,6 +1,14 @@
 class PluginRouteResolver
   Route = Data.define(:verb, :path, :controller, :params, :plugin_name, :enabled)
 
+  # What an `:id`/`:*_id` sidebar path segment is allowed to look like: a bare
+  # Rails id, or a "PREFIX-<digits>" slug like "MOCKUP-1"/"JOB-1" (the same
+  # shape Job/Epic detail routes already accept via their own hand-written
+  # `constraints: { id: /[a-zA-Z0-9_-]+/ }`). Deliberately not open alnum, so a
+  # static segment like "scheduled_tasks/legacy" still can't slip through as a
+  # match for "/scheduled_tasks/:id" -- see #sidebar_path_matches?.
+  ID_SEGMENT_SOURCE = '\d+|[A-Za-z]+-\d+'.freeze
+
   class << self
     def find(request, controller_prefix:)
       plugin_routes(enabled: true).find do |route|
@@ -60,15 +68,16 @@ class PluginRouteResolver
       declared_sidebar_paths.any? { |declared| sidebar_path_matches?(declared, path) }
     end
 
-    # `:id` and `:*_id` segments must be numeric, matching the `constraints:
-    # { id: /\d+/ }` every hand-written SPA route for these pages carried.
+    # `:id` and `:*_id` segments must look like ID_SEGMENT_SOURCE, matching the
+    # `constraints: { id: /\d+/ }` (or, for slug-shaped ids like Mockups',
+    # `/[a-zA-Z0-9_-]+/`) every hand-written SPA route for these pages carried.
     # Without it `/scheduled_tasks/legacy` matches `/scheduled_tasks/:id` and a
     # retired endpoint starts answering 200 instead of 404.
     def sidebar_path_matches?(pattern, path)
       regex_source = pattern.split("/").map do |segment|
         next Regexp.escape(segment) unless segment.start_with?(":")
 
-        segment.delete_prefix(":").end_with?("id") ? "(\\d+)" : "([^/]+)"
+        segment.delete_prefix(":").end_with?("id") ? "(#{ID_SEGMENT_SOURCE})" : "([^/]+)"
       end.join("/")
 
       /\A#{regex_source}\z/.match?(path)
