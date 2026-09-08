@@ -8,7 +8,7 @@ import {
   fetchKubernetesDeployments,
   fetchKubernetesPods
 } from "../../api/kubernetesResources"
-import { formatAge } from "../../lib/k8sFormat"
+import { explainCronSchedule, formatAge, type CronScheduleExplanation } from "../../lib/k8sFormat"
 import { Dropdown } from "../Dropdown"
 import { StatusBadge } from "../StatusBadge"
 
@@ -147,7 +147,9 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
             <tr key={`${cronJob.namespace}/${cronJob.name}`}>
               <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{cronJob.name}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{cronJob.namespace}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">{cronJob.schedule}</td>
+              <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">
+                <CronSchedule schedule={cronJob.schedule} />
+              </td>
               <td className="px-4 py-2">
                 <StatusBadge tone={cronJob.suspended ? "warning" : "success"}>
                   {cronJob.suspended ? t("yes") : t("no")}
@@ -161,4 +163,21 @@ function CronJobsTable({ clusterId, namespace }: { clusterId: number; namespace:
       </table>
     </div>
   )
+}
+
+function CronSchedule({ schedule }: { schedule: string | null }) {
+  const { t } = useT("k8s_cluster")
+  const explanation = explainCronSchedule(schedule)
+  const label = schedule || "-"
+  const title = explanation ? cronScheduleTitle(explanation, t) : null
+
+  return title ? <span className="cursor-help" title={title}>{label}</span> : <span>{label}</span>
+}
+
+function cronScheduleTitle(explanation: CronScheduleExplanation, t: (key: string, options?: Record<string, unknown>) => string) {
+  const values = { ...(explanation.values || {}) }
+  if (typeof values.weekday === "string") values.weekday = t(values.weekday)
+  if (typeof values.month === "string") values.month = t(values.month)
+
+  return t(explanation.key, values)
 }
