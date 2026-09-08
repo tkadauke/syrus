@@ -247,14 +247,18 @@ ingested Job, neither of which was proposed from a chat -- offers a
 either kind of chat link: the proposal-provenance `source_chat`/`origin_chat`
 above, or a discussion chat already started this way.
 
-Starting one creates an ordinary chat scoped to the Job's repository and
-attaches the Job to it via the same `ChatAttachment` polymorphic join that
-backs the sidebar attachment lists in this doc -- so the link is immediately
-visible both ways: the chat's Jobs attachment list includes the Job, and the
-Job detail page's chat link now points at this chat going forward
-(`Job#discussion_chat`, the earliest-attached chat session; see
+Starting one creates an ordinary chat scoped to the Job's repository, seeds a
+first user turn (`I would like to chat about JOB-<id>.`), pins the chat
+provider, and enqueues the title-generation and chat-turn jobs so the agent
+responds immediately after redirect. It also attaches the Job via the same
+`ChatAttachment` polymorphic join that backs the sidebar attachment lists in
+this doc -- so the link is immediately visible both ways: the chat's Jobs
+attachment list includes the Job, and the Job detail page's chat link now
+points at this chat going forward (`Job#discussion_chat`, the
+earliest-attached chat session; see
 `App::JobDetailPayload#discussion_chat_json`). Re-running the action once a
-discussion chat exists reuses it instead of creating a second one. The
+discussion chat exists reuses it instead of creating a second one and does not
+seed another opening turn. The
 endpoint itself requires write access to the Job (creator, write-tier
 repository member, or admin -- the same `authorize_job_mutation!` gate other
 Job actions use); `ChatAttachment`'s validation only requires read access to
