@@ -1,15 +1,11 @@
-import "xterm/css/xterm.css"
-
-import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FitAddon } from "@xterm/addon-fit"
-import { Terminal } from "xterm"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { CloseIcon } from "@app/components/CloseIcon"
+import { TerminalStream, type TerminalConnectionState } from "../components/TerminalStream"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
 
@@ -157,11 +153,8 @@ export function TerminalRoute() {
 
 export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
   const { t } = useT("common")
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const queryClient = useQueryClient()
   const [connected, setConnected] = useState(true)
-  const [ended, setEnded] = useState(false)
-  const [paneReady, setPaneReady] = useState(false)
   const elapsed = useElapsedTime(session.started_at)
   const killMutation = useMutation({
     mutationFn: () => killTerminalSession(session.id),
@@ -176,110 +169,13 @@ export function TerminalPane({ session }: { session: TerminalSessionRecord }) {
     }
   })
 
-  useLayoutEffect(() => {
-    if (!containerRef.current) return
-
-    const element = containerRef.current
-    let measureFrame: number | null = null
-    const markReady = (width: number, height: number) => {
-      if (width > 0 && height > 0) setPaneReady(true)
-    }
-    const measure = () => {
-      const rect = element.getBoundingClientRect()
-      markReady(rect.width, rect.height)
-    }
-
-    measureFrame = window.requestAnimationFrame(measure)
-    window.addEventListener("resize", measure)
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver((entries) => {
-            for (const entry of entries) markReady(entry.contentRect.width, entry.contentRect.height)
-          })
-    resizeObserver?.observe(element)
-
-    return () => {
-      if (measureFrame !== null) window.cancelAnimationFrame(measureFrame)
-      window.removeEventListener("resize", measure)
-      resizeObserver?.disconnect()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!containerRef.current || !paneReady) return
-
-    const terminal = new Terminal({
-      convertEol: true,
-      theme: {
-        background: "#111827",
-        foreground: "#e5e7eb",
-        cursor: "#e8c3b3",
-        selectionBackground: "#374151"
-      }
-    })
-    const fitAddon = new FitAddon()
-    terminal.loadAddon(fitAddon)
-    terminal.open(containerRef.current)
-
-    const doFit = () => {
-      fitAddon.fit()
-    }
-
-    doFit()
-
-    const subscription: Subscription = createConsumer().subscriptions.create(
-      { channel: "TerminalChannel", session_id: session.id },
-      {
-        connected() {
-          subscription.perform("receive", { type: "resize", cols: terminal.cols, rows: terminal.rows })
-        },
-        received(data: { type?: string; data?: string }) {
-          if (data.type === "output" && data.data) {
-            terminal.write(Uint8Array.from(atob(data.data), (character) => character.charCodeAt(0)))
-          } else if (data.type === "replay" && data.data) {
-            terminal.write(Uint8Array.from(atob(data.data), (character) => character.charCodeAt(0)))
-          } else if (data.type === "disconnected") {
-            setConnected(false)
-            setEnded(true)
-          }
-        }
-      }
-    )
-
-    const inputDisposable = terminal.onData((data) => {
-      subscription.perform("receive", { type: "input", data })
-    })
-    const resizeDisposable = terminal.onResize(({ cols, rows }) => {
-      subscription.perform("receive", { type: "resize", cols, rows })
-    })
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              if (entry.contentRect.width > 0 && entry.contentRect.height > 0) doFit()
-            }
-          })
-    resizeObserver?.observe(containerRef.current)
-
-    return () => {
-      resizeObserver?.disconnect()
-      inputDisposable.dispose()
-      resizeDisposable.dispose()
-      subscription.unsubscribe()
-      terminal.dispose()
-    }
-  }, [paneReady, session.id])
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-hidden bg-gray-900 p-2" ref={containerRef} />
-      {ended ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-950/60 text-sm text-gray-300">
-          Session ended - reload to reconnect
-        </div>
-      ) : null}
+      <TerminalStream
+        className="relative flex min-h-0 flex-1 flex-col"
+        onConnectionChange={(state: TerminalConnectionState) => setConnected(state.connected)}
+        terminalSessionId={session.id}
+      />
       <div className="flex shrink-0 items-center gap-3 border-t border-gray-800 bg-gray-900 px-3 py-2 text-xs text-gray-300">
         <span className={connected ? "text-emerald-300" : "text-gray-500"}>{connected ? `● ${t("terminal.connected")}` : `○ ${t("terminal.disconnected")}`}</span>
         <span className="min-w-0 flex-1 truncate font-mono">{session.working_directory}</span>
