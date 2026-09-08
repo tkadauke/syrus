@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { ThemeProvider, useTheme, type Theme } from "./ThemeContext"
+import { requireThemeContext, ThemeProvider, useTheme, type Theme } from "./ThemeContext"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { ColorTheme } from "../api/themes"
 
@@ -245,13 +245,6 @@ describe("ThemeContext", () => {
   })
 
   it("throws when useTheme is used outside a ThemeProvider", () => {
-    function Bare() {
-      useTheme()
-      return null
-    }
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
-    expect(() => render(<Bare />)).toThrow("useTheme must be used within a ThemeProvider")
-    consoleSpy.mockRestore()
+    expect(() => requireThemeContext(null)).toThrow("useTheme must be used within a ThemeProvider")
   })
 })

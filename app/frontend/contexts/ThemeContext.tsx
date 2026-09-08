@@ -143,8 +143,11 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
   return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, colorTheme, previewColorTheme, setColorTheme }}>{children}</ThemeContext.Provider>
 }
 
-export function useTheme() {
-  const context = useContext(ThemeContext)
+export function requireThemeContext(context: ThemeContextValue | null) {
   if (!context) throw new Error("useTheme must be used within a ThemeProvider")
   return context
+}
+
+export function useTheme() {
+  return requireThemeContext(useContext(ThemeContext))
 }
