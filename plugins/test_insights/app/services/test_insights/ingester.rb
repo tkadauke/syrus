@@ -12,8 +12,10 @@ module TestInsights
     def ingest!
       test_run = nil
       touched_test_identity_ids = []
+      heartbeat!
 
       TestRun.transaction do
+        heartbeat!
         previous_test_runs = TestRun.where(run: @run, grader_name: @grader_name)
         touched_test_identity_ids.concat(TestCase.where(test_run_id: previous_test_runs.select(:id)).where.not(test_identity_id: nil).distinct.pluck(:test_identity_id))
 
@@ -21,6 +23,7 @@ module TestInsights
         TestCase.where(test_run_id: previous_test_run_ids).delete_all if previous_test_run_ids.present?
         previous_test_runs.delete_all
 
+        heartbeat!
         test_run = TestRun.create!(
           run: @run,
           repository: @repository,
@@ -34,14 +37,19 @@ module TestInsights
         )
 
         touched_test_identity_ids.concat(insert_test_cases(test_run))
+        heartbeat!
 
         test_run
       end
 
       touched_test_identity_ids.uniq!
+      heartbeat!
       refresh_test_identities(touched_test_identity_ids)
+      heartbeat!
       refresh_runtime_summaries(touched_test_identity_ids)
+      heartbeat!
       refresh_search_index(touched_test_identity_ids)
+      heartbeat!
       test_run
     end
 
@@ -105,9 +113,18 @@ module TestInsights
         end
 
         TestCase.insert_all!(rows) if rows.present?
+        heartbeat!
       end
 
       touched_identity_ids
+    end
+
+    def heartbeat!
+      RunHeartbeat.touch(@run, force: true)
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[TestInsights::Ingester] heartbeat failed for Run #{@run.id} grader #{@grader_name}: #{e.class}: #{e.message}"
+      )
     end
   end
 end
