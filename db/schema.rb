@@ -994,6 +994,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_094522) do
     t.index ["workflow_id"], name: "index_diff_review_comments_on_workflow_id"
   end
 
+  create_table "diff_review_versions", force: :cascade do |t|
+    t.string "base_ref"
+    t.string "base_sha", null: false
+    t.datetime "created_at", null: false
+    t.json "files_snapshot", null: false
+    t.string "head_ref"
+    t.string "head_sha", null: false
+    t.integer "job_id", null: false
+    t.string "label"
+    t.json "metadata", null: false
+    t.string "reason"
+    t.integer "run_id"
+    t.string "source_key", null: false
+    t.string "trigger_kind"
+    t.boolean "truncated", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.integer "version_index", null: false
+    t.integer "workflow_id"
+    t.index ["job_id", "base_sha", "head_sha", "source_key"], name: "idx_diff_review_versions_identity", unique: true
+    t.index ["job_id", "created_at", "id"], name: "index_diff_review_versions_on_job_id_and_created_at_and_id"
+    t.index ["job_id", "version_index"], name: "index_diff_review_versions_on_job_id_and_version_index", unique: true
+    t.index ["run_id"], name: "index_diff_review_versions_on_run_id"
+    t.index ["workflow_id"], name: "index_diff_review_versions_on_workflow_id"
+  end
+
   create_table "documents", force: :cascade do |t|
     t.integer "attachable_id", null: false
     t.string "attachable_type", null: false
