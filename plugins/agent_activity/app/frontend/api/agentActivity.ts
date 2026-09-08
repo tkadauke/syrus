@@ -58,9 +58,14 @@ export type AgentActivityRunArtifacts = {
   logs: Array<{ id: number; sequence: number; kind: string | null; chunk: string; created_at: string | null }>
 }
 
+const SESSIONS_PER_PAGE = 20
+
 export function fetchAgentActivitySessions(scope: "mine" | "admin", search = "") {
   const path = scope === "admin" ? "/api/v1/app/admin/agent_activity/sessions" : "/api/v1/app/agent_activity/sessions"
-  return getJson<AgentActivitySessionsPayload>(`${path}${search}`)
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.set("per", String(SESSIONS_PER_PAGE))
+  const query = params.toString()
+  return getJson<AgentActivitySessionsPayload>(`${path}${query ? `?${query}` : ""}`)
 }
 
 export function fetchAgentActivityTranscript(transcriptPath: string) {

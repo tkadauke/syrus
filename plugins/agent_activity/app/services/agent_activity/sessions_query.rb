@@ -5,7 +5,7 @@ module AgentActivity
   # effectively owns (Job.effectively_owned_by, app/models/job.rb); `scope:
   # :admin` sees every session on the instance.
   class SessionsQuery
-    DEFAULT_PER = 25
+    DEFAULT_PER = 20
     MAX_PER = 100
 
     def self.call(...) = new(...).call
@@ -15,7 +15,7 @@ module AgentActivity
       @user = user
       @filter = filter
       @page = [ page.to_i, 1 ].max
-      @per = per.to_i.clamp(1, MAX_PER)
+      @per = (per.presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
     end
 
     def call
