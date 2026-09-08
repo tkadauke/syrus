@@ -6,6 +6,7 @@ describe("tabFromLocation", () => {
     expect(tabFromLocation("/jobs/1", "?tab=workflows")).toBe("workflows")
     expect(tabFromLocation("/jobs/1", "?tab=conversation")).toBe("conversation")
     expect(tabFromLocation("/jobs/1", "?tab=attachments")).toBe("attachments")
+    expect(tabFromLocation("/jobs/1", "?tab=conversation")).toBe("conversation")
   })
 
   it("prioritizes the /source path suffix over the query param", () => {
