@@ -13,11 +13,38 @@ module RuntimeTerminal
       def capabilities(_repository, _config)
         {
           stream: "none",
-          input: [],
-          inspect: [ "none" ],
+          input: %w[keyboard stdin pointer resize],
+          inspect: [ "scrollback" ],
           build: [ "none" ],
           artifacts: [ "logs" ]
         }
+      end
+
+      def reset_relay_clients!
+        relay_clients_lock.synchronize do
+          relay_clients.each_value(&:close)
+          relay_clients.clear
+        end
+      end
+
+      def close_relay_client!(runtime_session_id)
+        relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
+      end
+
+      def relay_client_for(runtime_session_id, terminal_session)
+        relay_clients_lock.synchronize do
+          relay_clients[runtime_session_id.to_i] ||= RelayClient.new(terminal_session)
+        end
+      end
+
+      private
+
+      def relay_clients
+        @relay_clients ||= {}
+      end
+
+      def relay_clients_lock
+        @relay_clients_lock ||= Mutex.new
       end
     end
 
@@ -57,11 +84,33 @@ module RuntimeTerminal
     def inspect(session_id = nil, _options = nil)
       raise NotImplementedError, "#{self.class}#inspect requires a session_id" if session_id.nil?
 
-      not_supported("inspect")
+      runtime_session = runtime_session_for(session_id)
+      terminal_session = terminal_session_for(runtime_session)
+      scrollback = relay_client_for(runtime_session, terminal_session).inspect_scrollback
+
+      { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
     end
 
-    def input(_session_id, _event)
-      not_supported("input")
+    def input(session_id, event)
+      runtime_session = runtime_session_for(session_id)
+      event = event.to_h.symbolize_keys
+      lease = runtime_session.active_agent_input_lease
+
+      unless lease
+        RuntimeControlLease.audit_input_rejected!(runtime_session: runtime_session, event: event)
+        return {
+          error: "lease_required",
+          message: "the agent must hold an active input lease before sending input events"
+        }
+      end
+
+      terminal_session = terminal_session_for(runtime_session)
+      relay_client_for(runtime_session, terminal_session).input(event)
+      lease.record_input!(event)
+
+      { delivered: true }
+    rescue RelayClient::ConnectionError, RelayClient::UnsupportedInput => e
+      { error: e.class.name.demodulize.underscore, message: e.message }
     end
 
     def logs(_session_id, cursor, _options)
@@ -69,7 +118,9 @@ module RuntimeTerminal
     end
 
     def stop_session(session_id)
-      terminal_session = terminal_session_for(session_id)
+      runtime_session = runtime_session_for(session_id)
+      self.class.close_relay_client!(runtime_session.id)
+      terminal_session = terminal_session_for(runtime_session)
       terminal_session.update!(finished_at: Time.current, outcome: "killed") if terminal_session.running?
 
       true
@@ -77,12 +128,18 @@ module RuntimeTerminal
 
     private
 
-    def terminal_session_for(session_id)
-      RuntimeTerminal::SessionLink.find_by!(runtime_session_id: runtime_session_id(session_id)).terminal_session
+    def runtime_session_for(session_id)
+      return session_id if session_id.is_a?(RuntimeSession)
+
+      RuntimeSession.find(session_id)
     end
 
-    def runtime_session_id(session_id)
-      session_id.is_a?(RuntimeSession) ? session_id.id : session_id
+    def terminal_session_for(runtime_session)
+      RuntimeTerminal::SessionLink.find_by!(runtime_session_id: runtime_session.id).terminal_session
+    end
+
+    def relay_client_for(runtime_session, terminal_session)
+      self.class.relay_client_for(runtime_session.id, terminal_session)
     end
 
     def not_supported(operation)

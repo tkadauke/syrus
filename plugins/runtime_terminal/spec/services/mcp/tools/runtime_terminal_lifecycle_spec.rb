@@ -54,4 +54,51 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
       expect(terminal_session.finished_at).to be_present
     end
   end
+
+  it "routes runtime_inspect and runtime_input through the terminal relay with lease enforcement" do
+    relay = RuntimeTerminalFakeRelay.new(replay: "ready\n")
+
+    Dir.mktmpdir do |workspace|
+      allow(ChatWorkspace).to receive(:repo_path_for).with(chat_session, repository).and_return(Pathname.new(workspace))
+
+      start_response = Mcp::Tools::RuntimeStartTool.call(
+        provider: "cli_tui",
+        server_context: { chat_session: chat_session }
+      )
+      runtime_session = RuntimeSession.find(parse_tool_response(start_response).fetch("id"))
+      terminal_session = RuntimeTerminal::SessionLink.find_by!(runtime_session: runtime_session).terminal_session
+      terminal_session.update!(relay_address: relay.address)
+
+      inspect_response = Mcp::Tools::RuntimeInspectTool.call(
+        session_id: runtime_session.id,
+        server_context: { chat_session: chat_session }
+      )
+
+      expect(parse_tool_response(inspect_response)).to include(
+        "kind" => "terminal_scrollback",
+        "scrollback" => "ready\n",
+        "bytes" => 6
+      )
+
+      rejected_input = Mcp::Tools::RuntimeInputTool.call(
+        session_id: runtime_session.id,
+        event: { type: "stdin", data: "whoami\n" },
+        server_context: { chat_session: chat_session }
+      )
+      expect(parse_tool_response(rejected_input)).to include("error" => "lease_required")
+
+      RuntimeControlLease.acquire!(runtime_session: runtime_session, owner: "agent", mode: "input", reason: "typing")
+      accepted_input = Mcp::Tools::RuntimeInputTool.call(
+        session_id: runtime_session.id,
+        event: { type: "stdin", data: "whoami\n" },
+        server_context: { chat_session: chat_session }
+      )
+
+      expect(parse_tool_response(accepted_input)).to eq("delivered" => true)
+      expect(relay.next_control).to eq("type" => "input", "data" => "whoami\n")
+    end
+  ensure
+    RuntimeTerminal::Provider.reset_relay_clients!
+    relay&.stop
+  end
 end
