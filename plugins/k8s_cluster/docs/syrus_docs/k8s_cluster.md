@@ -53,6 +53,11 @@ page, `K8sCluster::SidebarPages`) via `GET/POST/PATCH/DELETE
 (`POST .../test` or `.../:id/test`, backed by `K8sCluster::ConnectionTester`)
 that never persists a draft cluster.
 
+In the cluster browser's **Workloads -> CronJobs** table, the `Schedule`
+column keeps the raw Kubernetes cron expression visible for copy/paste and
+adds a localized hover tooltip for common five-field schedules and CronJob
+macros.
+
 ## Kubeconfig parsing (`K8sCluster::KubeconfigParser`)
 
 The create/update actions never accept `api_server_url` or credential
