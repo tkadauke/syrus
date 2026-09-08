@@ -69,7 +69,7 @@ function sessionsPayload(overrides: Record<string, unknown> = {}) {
     sessions: [ session() ],
     total: 1,
     page: 1,
-    per: 25,
+    per: 20,
     running_count: 1,
     filter: { and: [] },
     filter_schema: filterSchema(),
@@ -233,5 +233,28 @@ describe("AgentActivityFeed", () => {
     await waitFor(() => {
       expect(calls.some((url) => url.startsWith("/api/v1/app/admin/agent_activity/sessions"))).toBe(true)
     })
+  })
+
+  it("requests and renders paginated sessions at 20 per page", async () => {
+    const pageSessions = Array.from({ length: 20 }, (_, index) => session({
+      id: 501 + index,
+      job: { id: 42 + index, slug: `JOB-${42 + index}`, title: `Session ${index + 1}`, state: "running" }
+    }))
+    const calls = setupFetchMock({ total: 21, per: 20, sessions: pageSessions })
+    renderFeed()
+
+    expect(await screen.findByText("Showing 1-20 of 21")).toBeInTheDocument()
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/agent_activity?page=2&per=20")
+    expect(calls[0]).toBe("/api/v1/app/agent_activity/sessions?per=20")
+  })
+
+  it("preserves the filter query when paging", async () => {
+    const q = "eyJhbmQiOltdfQ"
+    setupFetchMock({ total: 21, page: 2, per: 20 })
+    renderFeed("mine", `/agent_activity?q=${q}&page=2`)
+
+    expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute("href", `/agent_activity?q=${q}&page=1&per=20`)
   })
 })
