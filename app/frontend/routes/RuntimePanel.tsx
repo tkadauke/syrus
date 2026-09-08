@@ -16,6 +16,7 @@ import { StatusPill } from "../components/StatusPill"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
 import { errorMessage } from "../lib/errorMessage"
+import { TerminalStream, type TerminalConnectionState } from "@plugins/terminal/app/frontend/components/TerminalStream"
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
@@ -37,6 +38,14 @@ function runtimeSessionsQueryKey(chatId: string | number) {
 
 function sessionIsActive(session: RuntimeSession | undefined): boolean {
   return Boolean(session && RUNTIME_SESSION_ACTIVE_STATES.includes(session.state))
+}
+
+function runtimeTerminalSessionId(session: RuntimeSession): number | null {
+  if (session.provider_key !== "cli_tui") return null
+
+  const value = session.metadata?.terminal_session_id
+  const id = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN
+  return Number.isInteger(id) && id > 0 ? id : null
 }
 
 // Cursor-based log tailing (DOC-17's "logs with cursor-based refresh"):
@@ -259,12 +268,15 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [ myLease, setMyLease ] = useState<RuntimeControlLease | null>(null)
+  const [ terminalConnection, setTerminalConnection ] = useState<TerminalConnectionState>({ connected: true, ended: false })
   const [ captureError, setCaptureError ] = useState<string | null>(null)
   const active = sessionIsActive(session)
-  const logs = useRuntimeLogs(chatId, session.id, active)
+  const terminalSessionId = runtimeTerminalSessionId(session)
+  const logs = useRuntimeLogs(chatId, terminalSessionId == null ? session.id : null, terminalSessionId == null && active)
 
   useEffect(() => {
     setMyLease(null)
+    setTerminalConnection({ connected: true, ended: false })
   }, [ session.id ])
 
   function patchSession(updated: RuntimeSession) {
@@ -296,8 +308,10 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
       </div>
 
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_latest_frame")}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {terminalSessionId == null ? t("runtime_latest_frame") : t("runtime_terminal_live")}
+          </span>
           <Button
             disabled={capture.isPending}
             onClick={() => capture.mutate()}
@@ -308,7 +322,20 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
             {t("runtime_capture")}
           </Button>
         </div>
-        {session.latest_frame_url ? (
+        {terminalSessionId != null ? (
+          <div>
+            <TerminalStream
+              className="relative h-72 min-h-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700"
+              containerClassName="h-full overflow-hidden bg-gray-900 p-2"
+              inputEnabled={Boolean(myLease && myLease.owner === "user" && myLease.mode === "input" && !session.active_agent_input_lease)}
+              onConnectionChange={setTerminalConnection}
+              terminalSessionId={terminalSessionId}
+            />
+            <p className={`mt-1 text-xs ${terminalConnection.connected ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}>
+              {terminalConnection.connected ? t("runtime_terminal_connected") : t("runtime_terminal_disconnected")}
+            </p>
+          </div>
+        ) : session.latest_frame_url ? (
           <div>
             <img
               alt={t("runtime_latest_frame")}
@@ -336,12 +363,14 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
         session={session}
       />
 
-      <div className="space-y-1">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_logs")}</span>
-        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-900 p-2 text-xs text-gray-100 dark:bg-black">
-          {logs.length > 0 ? logs.join("\n") : t("runtime_logs_empty")}
-        </pre>
-      </div>
+      {terminalSessionId == null ? (
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t("runtime_logs")}</span>
+          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-gray-900 p-2 text-xs text-gray-100 dark:bg-black">
+            {logs.length > 0 ? logs.join("\n") : t("runtime_logs_empty")}
+          </pre>
+        </div>
+      ) : null}
 
       <ProviderMetadata session={session} />
     </div>

@@ -1,13 +1,115 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RuntimePanel } from "./RuntimePanel"
 import type { RuntimeControlLease, RuntimeSession } from "../api/chats"
 
+const actionCable = vi.hoisted(() => ({
+  createSubscription: vi.fn(() => ({ perform: vi.fn(), unsubscribe: vi.fn() }))
+}))
+
+const xtermMock = vi.hoisted(() => ({
+  open: vi.fn(),
+  write: vi.fn(),
+  dispose: vi.fn(),
+  onData: vi.fn(),
+  onResize: vi.fn(),
+  loadAddon: vi.fn(),
+  fit: vi.fn()
+}))
+
+vi.mock("@rails/actioncable", () => ({
+  createConsumer: () => ({
+    subscriptions: {
+      create: actionCable.createSubscription
+    }
+  })
+}))
+
+vi.mock("xterm", () => ({
+  Terminal: class {
+    cols = 132
+    element: HTMLElement | null = null
+    rows = 43
+
+    loadAddon(addon: unknown) {
+      xtermMock.loadAddon(addon)
+    }
+
+    open(element: HTMLElement) {
+      this.element = element
+      xtermMock.open(element)
+    }
+
+    write(data: string | Uint8Array) {
+      xtermMock.write(data)
+      if (this.element) {
+        const text = typeof data === "string" ? data : new TextDecoder().decode(data)
+        this.element.append(document.createTextNode(text))
+      }
+    }
+
+    onData(callback: (data: string) => void) {
+      xtermMock.onData(callback)
+      return { dispose: vi.fn() }
+    }
+
+    onResize(callback: (size: { cols: number; rows: number }) => void) {
+      xtermMock.onResize(callback)
+      return { dispose: vi.fn() }
+    }
+
+    dispose() {
+      xtermMock.dispose()
+    }
+  }
+}))
+
+vi.mock("@xterm/addon-fit", () => ({
+  FitAddon: class {
+    fit() {
+      xtermMock.fit()
+    }
+  }
+}))
+
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    bottom: 400,
+    height: 400,
+    left: 0,
+    right: 800,
+    top: 0,
+    width: 800,
+    x: 0,
+    y: 0,
+    toJSON: () => ({})
+  })
+  actionCable.createSubscription.mockClear()
+  xtermMock.open.mockClear()
+  xtermMock.write.mockClear()
+  xtermMock.dispose.mockClear()
+  xtermMock.onData.mockClear()
+  xtermMock.onResize.mockClear()
+  xtermMock.loadAddon.mockClear()
+  xtermMock.fit.mockClear()
+})
+
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
+
+function terminalSessionFixture(overrides: Partial<RuntimeSession> = {}): RuntimeSession {
+  return sessionFixture({
+    provider_key: "cli_tui",
+    display_name: "Terminal",
+    capabilities: { input: [ "keyboard", "stdin", "resize" ] },
+    metadata: { terminal_session_id: 404 },
+    ...overrides
+  })
+}
 
 function sessionFixture(overrides: Partial<RuntimeSession> = {}): RuntimeSession {
   return {
@@ -146,6 +248,98 @@ describe("RuntimePanel capture action", () => {
     fireEvent.click(screen.getByRole("button", { name: "Capture" }))
 
     expect(await screen.findByAltText("Latest screenshot")).toBeInTheDocument()
+  })
+})
+
+describe("RuntimePanel terminal live view", () => {
+  it("subscribes terminal runtime sessions to TerminalChannel and renders live output", async () => {
+    const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
+    actionCable.createSubscription.mockReturnValue(subscription)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("/logs")) return Promise.resolve(jsonResponse({ entries: [ "should-not-poll" ], cursor: 1 }))
+      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText("Live terminal")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(actionCable.createSubscription).toHaveBeenCalledWith(
+        { channel: "TerminalChannel", session_id: 404 },
+        expect.objectContaining({ connected: expect.any(Function), received: expect.any(Function) })
+      )
+    })
+    expect(fetchSpy.mock.calls.some(([ input ]) => String(input).includes("/logs"))).toBe(false)
+
+    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [
+      unknown,
+      { connected(): void; received(data: { type: string; data?: string }): void }
+    ])[1]
+    mixin.connected()
+    expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "resize", cols: 132, rows: 43 })
+
+    mixin.received({ type: "replay", data: btoa("history\n") })
+    mixin.received({ type: "output", data: btoa("live line\n") })
+
+    expect(await screen.findByText(/history/)).toBeInTheDocument()
+    expect(screen.getByText(/live line/)).toBeInTheDocument()
+    expect(xtermMock.write).toHaveBeenCalledWith(Uint8Array.from(Array.from("live line\n", (character) => character.charCodeAt(0))))
+  })
+
+  it("handles terminal relay disconnects gracefully", async () => {
+    actionCable.createSubscription.mockReturnValue({ perform: vi.fn(), unsubscribe: vi.fn() })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+
+    renderPanel()
+
+    await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
+    const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
+    mixin.received({ type: "disconnected" })
+
+    expect(await screen.findByText("Session ended - reload to reconnect")).toBeInTheDocument()
+    expect(screen.getByText("Terminal disconnected")).toBeInTheDocument()
+  })
+
+  it("only forwards terminal keyboard input after the operator takes control", async () => {
+    const subscription = { perform: vi.fn(), unsubscribe: vi.fn() }
+    actionCable.createSubscription.mockReturnValue(subscription)
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      const method = (init?.method || "GET").toUpperCase()
+      if (url.includes("/take_control") && method === "POST") {
+        return Promise.resolve(
+          jsonResponse({
+            runtime_session: terminalSessionFixture(),
+            lease: {
+              id: 9,
+              owner: "user",
+              owner_ref: "operator:1",
+              mode: "input",
+              reason: "Operator took control from the Runtime panel.",
+              state: "active",
+              acquired_at: "2026-01-01T00:00:00Z",
+              expires_at: "2099-01-01T00:00:00Z",
+              cancellable: true
+            }
+          })
+        )
+      }
+      return Promise.resolve(jsonResponse({ runtime_sessions: [ terminalSessionFixture() ] }))
+    })
+
+    renderPanel()
+
+    await waitFor(() => expect(xtermMock.onData).toHaveBeenCalled())
+    const onData = xtermMock.onData.mock.calls[0][0] as (data: string) => void
+    onData("before\n")
+    expect(subscription.perform).not.toHaveBeenCalledWith("receive", { type: "input", data: "before\n" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Take Control" }))
+    expect(await screen.findByText("You (input)")).toBeInTheDocument()
+    onData("after\n")
+
+    expect(subscription.perform).toHaveBeenCalledWith("receive", { type: "input", data: "after\n" })
   })
 })
 
