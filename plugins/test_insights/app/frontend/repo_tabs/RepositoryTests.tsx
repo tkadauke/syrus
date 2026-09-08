@@ -61,7 +61,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
             </label>
             {selectedTestId ? (
               <Button
-                onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}?tab=tests`, prefix))}
+                onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}/plugin/tests`, prefix))}
                 variant="secondary"
               >
                 Back to tests
@@ -107,7 +107,7 @@ function TestList({ error, isError, isFetching, payload, prefix, query }: { erro
           {payload.tests.map((test) => (
             <tr className="text-gray-700 dark:text-gray-300" key={test.id}>
               <td className="max-w-md px-4 py-3">
-                <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}?tab=tests&test_id=${test.id}`, prefix)}>
+                <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}/plugin/tests?test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
                 {test.interesting_reasons.length > 0 ? (

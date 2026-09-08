@@ -362,4 +362,240 @@ if Rails.env.development?
       JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
     end
   end
+
+  # Build Cache sample sccache stats capture. The plugin is enabled by
+  # default, but SCCACHE_BUCKET is normally unset in preview (no S3-compatible
+  # bucket configured), so the admin Build Cache page always renders its real
+  # "not configured" state -- worth exercising as-is rather than faking a
+  # bucket. The per-Job hit/miss card (BuildCache::UiSlots, job.detail slot)
+  # is driven entirely by a Workflow artifact instead, independent of the
+  # bucket being configured, so seed one capture on the implemented demo
+  # Job's prepare Run to give the Job Detail page real hit-rate data to render.
+  build_cache_workflow = implemented_job.workflows.order(:created_at).first
+  if build_cache_workflow && BuildCache::StatsArtifact.read(build_cache_workflow).empty?
+    prepare_run = build_cache_workflow.steps.find_by(kind: "prepare")&.runs&.first
+    if prepare_run
+      BuildCache::StatsArtifact.record!(
+        build_cache_workflow,
+        run: prepare_run,
+        step_kind: "prepare",
+        label: "bundle install",
+        stats: {
+          "cache_hits" => 42,
+          "cache_misses" => 8,
+          "cache_size" => "256 MiB",
+          "max_cache_size" => "10 GiB",
+          "cache_location" => "S3, bucket: sccache-demo"
+        }
+      )
+    end
+  end
+
+  # Rails plugin typed artifact renderer sample data. The rails plugin
+  # (enabled by default) renders rails_schema_erd/rails_migration_diff typed
+  # artifacts on the Job detail Review tab (SyrusRails::SchemaErdRenderer /
+  # MigrationDiffRenderer, dispatched through TypedArtifactPanel), but a
+  # fresh preview never runs a real agent turn that calls submit_artifact --
+  # seed both on the implemented demo Job's workflow so the ERD diagram and
+  # migration diff renderers have real data to show.
+  rails_artifact_workflow = implemented_job.workflows.order(:created_at).first
+  if rails_artifact_workflow
+    existing_typed_artifact_types = Array(rails_artifact_workflow.artifact("typed_artifacts")).map { |entry| entry["type"] }
+
+    unless existing_typed_artifact_types.include?("rails_schema_erd")
+      rails_artifact_workflow.set_typed_artifact!(
+        type: "rails_schema_erd",
+        title: "Schema ERD",
+        payload: {
+          "tables" => [
+            {
+              "name" => "users",
+              "columns" => [
+                { "name" => "id", "type" => "integer" },
+                { "name" => "email", "type" => "string" },
+                { "name" => "account_id", "type" => "integer" }
+              ],
+              "indexes" => [
+                { "name" => "index_users_on_email", "columns" => [ "email" ], "unique" => true }
+              ],
+              "foreign_keys" => [
+                { "from_column" => "account_id", "to_table" => "accounts", "to_column" => "id" }
+              ]
+            },
+            {
+              "name" => "accounts",
+              "columns" => [
+                { "name" => "id", "type" => "integer" },
+                { "name" => "name", "type" => "string" }
+              ],
+              "indexes" => [],
+              "foreign_keys" => []
+            }
+          ]
+        }
+      )
+    end
+
+    unless existing_typed_artifact_types.include?("rails_migration_diff")
+      rails_artifact_workflow.set_typed_artifact!(
+        type: "rails_migration_diff",
+        title: "Migration: AddNeedsAttentionCountToUsers",
+        payload: {
+          "migration_name" => "AddNeedsAttentionCountToUsers",
+          "before" => {
+            "table_name" => "users",
+            "columns" => [
+              { "name" => "id", "type" => "integer" },
+              { "name" => "email", "type" => "string" }
+            ]
+          },
+          "after" => {
+            "table_name" => "users",
+            "columns" => [
+              { "name" => "id", "type" => "integer" },
+              { "name" => "email", "type" => "string" },
+              { "name" => "needs_attention_count", "type" => "integer" }
+            ]
+          },
+          "changes" => [
+            { "type" => "added", "column" => { "name" => "needs_attention_count", "type" => "integer" } }
+          ]
+        }
+      )
+    end
+  end
+
+  # Agent Insights sample report. The plugin is off by default
+  # (default_enabled: false), so a fresh preview shows it disabled on
+  # Admin -> Plugins, same as a real install -- but the repository's
+  # Insights tab has a real generated-looking report ready the moment an
+  # operator enables it, instead of an empty state. Referencing
+  # AgentInsights::Suggestion here is safe even while the plugin is
+  # disabled: a disabled plugin's app/ tree stays on the Zeitwerk autoload
+  # path, it just isn't eager loaded. Job#kind="agent_insight" is only a
+  # valid enum value while the plugin is enabled (Job::Kind reads
+  # kinds from enabled plugins), so the plugin is toggled on for just long
+  # enough to create the fixture, then restored to its default-off state.
+  insight_plugin = PluginRecord.find_or_create_by!(name: "agent_insights")
+  insight_plugin_was_enabled = insight_plugin.enabled
+  insight_plugin.update!(enabled: true) unless insight_plugin_was_enabled
+
+  begin
+    insight_job = Job.find_or_initialize_by(
+      repository: demo_repo,
+      kind: "agent_insight",
+      issue_title: "Insight analysis: #{demo_repo.slug}"
+    )
+    insight_job.assign_attributes(
+      user: demo_user,
+      owner_user: demo_user,
+      priority: "low",
+      state: "closed",
+      closure_reason: "agent_insight",
+      finished_at: 45.minutes.ago
+    )
+    insight_job.save!
+
+    failed_job = demo_jobs_by_title["Repair seeded background workflow"]
+
+    AgentInsights::Suggestion.find_or_create_by!(
+      job: insight_job,
+      repository: demo_repo,
+      title: "Repair workflows keep failing at the same implement step"
+    ) do |suggestion|
+      suggestion.category = "repeated_failure"
+      suggestion.severity = "medium"
+      suggestion.confidence = 0.78
+      suggestion.state = "pending"
+      suggestion.proposal_type = "create_job"
+      suggestion.suggested_prompt = "Investigate why the implement step keeps failing on retry workflows for demo/syrus-preview and add regression coverage for the underlying cause."
+      suggestion.evidence = failed_job ? [ { "job_id" => failed_job.id, "kind" => "repeated_failure" } ] : []
+    end
+  ensure
+    insight_plugin.update!(enabled: false) unless insight_plugin_was_enabled
+  end
+
+  # Test Insights sample data. The plugin is enabled by default, but it only
+  # ever writes rows when a real grader run parses JUnit output -- a fresh
+  # preview never runs graders, so the repository's Tests tab would render
+  # its empty state forever without a fixture. Seed one failing, one flaky,
+  # and one slow test identity with a short run history so the "interesting
+  # tests" list (failing / flaky / slow) has something real to show.
+  if TestInsights::TestIdentity.for_repository(demo_repo).none?
+    test_fixture_job = demo_jobs_by_title.fetch("Inspect preview dashboard states")
+    run_offsets = [ 4.days, 3.days, 2.days, 1.day ]
+
+    [
+      {
+        suite_name: "Billing::DiscountCalculatorTest",
+        name: "raises when the discount exceeds the order total",
+        file_path: "spec/services/billing/discount_calculator_spec.rb",
+        statuses: %w[failed failed failed failed],
+        duration_ms: 180,
+        failure_message: "expected DiscountExceedsTotalError to be raised, but nothing was raised"
+      },
+      {
+        suite_name: "Webhooks::DeliveryWorkerTest",
+        name: "retries once before giving up on a flaky webhook delivery",
+        file_path: "spec/workers/webhooks/delivery_worker_spec.rb",
+        statuses: %w[passed failed passed failed],
+        duration_ms: 220,
+        failure_message: "Timeout::Error: execution expired"
+      },
+      {
+        suite_name: "DashboardPayloadTest",
+        name: "renders the full dashboard summary payload",
+        file_path: "spec/services/dashboard_payload_spec.rb",
+        statuses: %w[passed passed passed passed],
+        duration_ms: 2150,
+        failure_message: nil
+      }
+    ].each do |fixture|
+      identity = TestInsights::TestIdentity.create!(
+        repository: demo_repo,
+        fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: fixture.fetch(:suite_name), name: fixture.fetch(:name)),
+        suite_name: fixture.fetch(:suite_name),
+        name: fixture.fetch(:name),
+        file_path: fixture.fetch(:file_path)
+      )
+
+      fixture.fetch(:statuses).each_with_index do |status, index|
+        occurred_at = run_offsets.fetch(index).ago
+        fixture_run = Run.create!(
+          job: test_fixture_job,
+          user: demo_user,
+          trigger_kind: "initial",
+          agent_provider: "codex",
+          state: "succeeded",
+          started_at: occurred_at,
+          finished_at: occurred_at + 3.minutes
+        )
+        test_run = TestInsights::TestRun.create!(
+          run: fixture_run,
+          repository: demo_repo,
+          grader_name: "rspec",
+          total_count: 1,
+          passed_count: status == "passed" ? 1 : 0,
+          failed_count: status == "failed" ? 1 : 0,
+          skipped_count: 0,
+          error_count: 0,
+          duration_ms: fixture.fetch(:duration_ms)
+        )
+        TestInsights::TestCase.create!(
+          test_run: test_run,
+          repository: demo_repo,
+          test_identity: identity,
+          suite_name: fixture.fetch(:suite_name),
+          name: fixture.fetch(:name),
+          status: status,
+          duration_ms: fixture.fetch(:duration_ms),
+          failure_message: status == "passed" ? nil : fixture[:failure_message],
+          created_at: occurred_at,
+          updated_at: occurred_at
+        )
+      end
+
+      identity.refresh_summary!
+    end
+  end
 end
