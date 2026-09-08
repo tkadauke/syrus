@@ -61,6 +61,33 @@ function setupFetchMock(initial = [stagingCluster()]) {
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/nodes$/.test(url) && method === "GET") {
       return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, nodes: [] }))
     }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/namespaces$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        available: true,
+        generated_at: "2026-01-01T00:00:00Z",
+        truncated: false,
+        namespaces: [{ name: "default", status: "Active", created_at: "2026-01-01T00:00:00Z" }]
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/pods$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({ available: true, generated_at: "2026-01-01T00:00:00Z", truncated: false, pods: [] }))
+    }
+    if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/cronjobs$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        available: true,
+        generated_at: "2026-01-01T00:00:00Z",
+        truncated: false,
+        cron_jobs: [{
+          name: "nightly-backup",
+          namespace: "default",
+          schedule: "0 2 * * *",
+          suspended: false,
+          active_count: 0,
+          last_schedule_time: null,
+          created_at: "2026-01-01T00:00:00Z"
+        }]
+      }))
+    }
     if (/\/api\/v1\/app\/admin\/kubernetes_clusters\/\d+\/overview$/.test(url) && method === "GET") {
       return Promise.resolve(jsonResponse({
         generated_at: "2026-01-01T00:00:00Z",
@@ -178,6 +205,21 @@ describe("KubernetesClusters", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Browse" }))
 
     expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+  })
+
+  it("shows a human-readable CronJob schedule explanation on hover", async () => {
+    setupFetchMock()
+    renderClusters()
+
+    const row = (await screen.findByText("Staging")).closest("tr") as HTMLElement
+    fireEvent.click(within(row).getByRole("button", { name: "Browse" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Cluster view" }))
+    fireEvent.click(await screen.findByRole("option", { name: "Workloads" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Workload kind" }))
+    fireEvent.click(await screen.findByRole("option", { name: "CronJobs" }))
+
+    expect(await screen.findByText("nightly-backup")).toBeInTheDocument()
+    expect(screen.getByText("0 2 * * *")).toHaveAttribute("title", "Every day at 02:00")
   })
 
   it("lets the page scroll instead of clipping the list/edit form vertically", async () => {

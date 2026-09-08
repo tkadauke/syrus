@@ -34,3 +34,130 @@ export function formatBytes(bytes: number): string {
   const value = bytes / 1024 ** exponent
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
+
+export type CronScheduleExplanation = {
+  key:
+    | "cron_explanation_every_day_at"
+    | "cron_explanation_every_hour"
+    | "cron_explanation_every_month_day_at"
+    | "cron_explanation_every_n_hours_at_minute"
+    | "cron_explanation_every_n_minutes"
+    | "cron_explanation_every_weekday_at"
+    | "cron_explanation_every_year_month_day_at"
+  values?: Record<string, number | string>
+}
+
+export function explainCronSchedule(schedule: string | null | undefined): CronScheduleExplanation | null {
+  if (!schedule) return null
+
+  const expression = schedule.trim().replace(/\s+/g, " ")
+  const macro = explainCronMacro(expression)
+  if (macro) return macro
+
+  const parts = expression.split(" ")
+  if (parts.length !== 5) return null
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
+
+  if (minute.startsWith("*/") && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    const interval = parsePositiveInteger(minute.slice(2))
+    return interval && interval <= 59 ? { key: "cron_explanation_every_n_minutes", values: { count: interval } } : null
+  }
+
+  if (isInteger(minute) && hour.startsWith("*/") && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+    const interval = parsePositiveInteger(hour.slice(2))
+    return interval && interval <= 23 && isValidMinute(minute)
+      ? { key: "cron_explanation_every_n_hours_at_minute", values: { count: interval, minute: padTimePart(minute) } }
+      : null
+  }
+
+  if (!isValidMinute(minute) || !isValidHour(hour)) return null
+
+  const time = `${padTimePart(hour)}:${padTimePart(minute)}`
+  if (dayOfMonth === "*" && month === "*" && dayOfWeek === "*") return { key: "cron_explanation_every_day_at", values: { time } }
+
+  if (dayOfMonth === "*" && month === "*" && isSingleWeekday(dayOfWeek)) {
+    return { key: "cron_explanation_every_weekday_at", values: { weekday: `cron_weekday_${normalizedWeekday(dayOfWeek)}`, time } }
+  }
+
+  if (isValidDayOfMonth(dayOfMonth) && month === "*" && dayOfWeek === "*") {
+    return { key: "cron_explanation_every_month_day_at", values: { day: Number(dayOfMonth), time } }
+  }
+
+  if (isValidDayOfMonth(dayOfMonth) && isValidMonth(month) && dayOfWeek === "*") {
+    return {
+      key: "cron_explanation_every_year_month_day_at",
+      values: { month: `cron_month_${Number(month)}`, day: Number(dayOfMonth), time }
+    }
+  }
+
+  return null
+}
+
+function explainCronMacro(expression: string): CronScheduleExplanation | null {
+  switch (expression) {
+    case "@hourly":
+      return { key: "cron_explanation_every_hour" }
+    case "@daily":
+    case "@midnight":
+      return { key: "cron_explanation_every_day_at", values: { time: "00:00" } }
+    case "@weekly":
+      return { key: "cron_explanation_every_weekday_at", values: { weekday: "cron_weekday_0", time: "00:00" } }
+    case "@monthly":
+      return { key: "cron_explanation_every_month_day_at", values: { day: 1, time: "00:00" } }
+    case "@yearly":
+    case "@annually":
+      return { key: "cron_explanation_every_year_month_day_at", values: { month: "cron_month_1", day: 1, time: "00:00" } }
+    default:
+      return null
+  }
+}
+
+function isSingleWeekday(value: string): boolean {
+  if (!isInteger(value)) return false
+  const day = normalizedWeekday(value)
+  return day >= 0 && day <= 6
+}
+
+function normalizedWeekday(value: string): number {
+  const day = Number(value)
+  return day === 7 ? 0 : day
+}
+
+function parsePositiveInteger(value: string): number | null {
+  if (!isInteger(value)) return null
+  const number = Number(value)
+  return number > 0 ? number : null
+}
+
+function isInteger(value: string): boolean {
+  return /^\d+$/.test(value)
+}
+
+function isValidMinute(value: string): boolean {
+  if (!isInteger(value)) return false
+  const number = Number(value)
+  return number >= 0 && number <= 59
+}
+
+function isValidHour(value: string): boolean {
+  if (!isInteger(value)) return false
+  const number = Number(value)
+  return number >= 0 && number <= 23
+}
+
+function isValidDayOfMonth(value: string): boolean {
+  if (!isInteger(value)) return false
+  const number = Number(value)
+  return number >= 1 && number <= 31
+}
+
+function isValidMonth(value: string): boolean {
+  if (!isInteger(value)) return false
+  const number = Number(value)
+  return number >= 1 && number <= 12
+}
+
+function padTimePart(value: string): string {
+  return value.padStart(2, "0")
+}
