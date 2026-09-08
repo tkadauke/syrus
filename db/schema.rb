@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_094522) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2362,6 +2362,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
     t.index ["workflow_id"], name: "index_runtime_sessions_on_workflow_id"
   end
 
+  create_table "runtime_terminal_session_links", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "runtime_session_id", null: false
+    t.bigint "terminal_session_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["runtime_session_id"], name: "index_runtime_terminal_session_links_on_runtime_session_id", unique: true
+    t.index ["terminal_session_id"], name: "index_runtime_terminal_session_links_on_terminal_session_id", unique: true
+  end
+
   create_table "scheduled_chat_messages", force: :cascade do |t|
     t.text "body", null: false
     t.integer "chat_session_id", null: false
@@ -3115,4 +3124,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_185321) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "runtime_terminal_session_links", "runtime_sessions"
 end
