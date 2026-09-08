@@ -58,16 +58,16 @@ RSpec.describe "Scheduled tasks", type: :request do
     end
 
     describe "legacy HTML endpoints" do
+      it "serves the SPA shell for retired scheduled-task legacy GET paths instead of 404ing" do
+        [ "/scheduled_tasks/legacy", "/scheduled_tasks/legacy/1", "/scheduled_tasks/legacy/1/edit" ].each do |path|
+          get path
+
+          expect(response).to be_successful, "expected #{path} to serve the SPA shell"
+          expect(response.body).to include('id="syrus-spa-root"')
+        end
+      end
+
       it "does not route retired scheduled-task HTML endpoints" do
-        expect {
-          Rails.application.routes.recognize_path("/scheduled_tasks/legacy", method: :get)
-        }.to raise_error(ActionController::RoutingError)
-        expect {
-          Rails.application.routes.recognize_path("/scheduled_tasks/legacy/1", method: :get)
-        }.to raise_error(ActionController::RoutingError)
-        expect {
-          Rails.application.routes.recognize_path("/scheduled_tasks/legacy/1/edit", method: :get)
-        }.to raise_error(ActionController::RoutingError)
         expect {
           Rails.application.routes.recognize_path("/scheduled_tasks/1", method: :patch)
         }.to raise_error(ActionController::RoutingError)

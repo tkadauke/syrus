@@ -1192,7 +1192,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       backfill_work_unit(
         workflow,
         state: "blocked",
-        blocked_reason: "admission_control",
+        blocked_reason: "provider_availability",
         blocked_details: { "start_blocked_reason" => "workflow_admission_budget" }
       )
 
@@ -1217,7 +1217,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       workflow.update!(state: "running")
       next_check = 5.minutes.from_now
       workflow.work_unit.block!(
-        reason: "admission_control",
+        reason: "provider_availability",
         blocked_until: next_check,
         details: { "reason" => "worker_host_pressure_high", "source" => "spec" }
       )
@@ -1225,7 +1225,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       rows = call(subject: "job", section: "rows")
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
-      expect(item[:start_blocked_reason]).to eq("admission_control")
+      expect(item[:start_blocked_reason]).to eq("provider_availability")
       expect(item[:start_blocked_next_check_at]).to eq(next_check.iso8601)
       expect(item[:start_blocked_details]).to include("reason" => "worker_host_pressure_high")
 
@@ -1237,6 +1237,30 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(paused[:items].map { |row| row[:id] }).to include(job.id)
       expect(in_progress[:items].map { |row| row[:id] }).not_to include(job.id)
+    end
+
+    it "does not show a summary_state of paused for jobs blocked on ordinary scheduling contention" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+      workflow.update!(state: "running")
+      workflow.work_unit.block!(
+        reason: "admission_control",
+        details: { "reason" => "worker_host_pressure_high", "source" => "spec" }
+      )
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+
+      # The job must not disappear from the dashboard entirely just because
+      # it's no longer "paused" -- it still shows up with its real state.
+      expect(item).to be_present
+      expect(item[:summary_state]).not_to eq("paused")
+      expect(item[:summary_state]).to eq("running")
+
+      paused_folder = SmartFolder.find_builtin_by_attention("paused")
+      paused = call(subject: "job", smart_folder_id: paused_folder.id, section: "rows")
+
+      expect(paused[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
     it "shows blocked WorkUnits with running Runs as in progress" do

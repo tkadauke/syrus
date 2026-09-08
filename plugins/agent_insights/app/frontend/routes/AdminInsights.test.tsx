@@ -54,9 +54,7 @@ function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ 
   return { suggestions, meta }
 }
 
-function renderRoute(suggestions?: unknown[], metaOverrides?: Record<string, unknown>) {
-  const meta = makeMeta({ total: suggestions?.length ?? 1, ...metaOverrides })
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta)))
+function renderInsightsRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -69,8 +67,45 @@ function renderRoute(suggestions?: unknown[], metaOverrides?: Record<string, unk
   )
 }
 
+function renderRoute(suggestions?: unknown[], metaOverrides?: Record<string, unknown>) {
+  const meta = makeMeta({ total: suggestions?.length ?? 1, ...metaOverrides })
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta)))
+  renderInsightsRoute()
+}
+
 describe("AdminInsightsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
+
+  describe("chrome", () => {
+    it("renders the page heading and eyebrow while the suggestions are loading", () => {
+      vi.spyOn(window, "fetch").mockReturnValue(new Promise(() => {}))
+
+      renderInsightsRoute()
+
+      expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
+      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+      expect(screen.getByText("Loading insights…")).toBeInTheDocument()
+    })
+
+    it("renders the page heading and eyebrow when the suggestions fail to load", async () => {
+      vi.spyOn(window, "fetch").mockRejectedValue(new Error("network down"))
+
+      renderInsightsRoute()
+
+      expect(await screen.findByText("Unable to load insights.")).toBeInTheDocument()
+      expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
+      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+    })
+
+    it("renders the page heading and eyebrow once the suggestions load", async () => {
+      renderRoute([makeSuggestion()])
+
+      await screen.findByText("Cross-repo cache miss")
+
+      expect(screen.getByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
+      expect(screen.getByText("Agent Insights")).toBeInTheDocument()
+    })
+  })
 
   describe("pagination controls", () => {
     it("does not render pagination when total_pages is 1", async () => {

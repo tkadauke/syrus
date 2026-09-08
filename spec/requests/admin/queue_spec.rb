@@ -39,13 +39,18 @@ RSpec.describe "Admin queue inspector", type: :request do
     end
   end
 
+  it "serves the SPA shell for retired legacy HTML queue GET paths instead of 404ing" do
+    sign_in_as(admin)
+
+    [ "/admin/queue/legacy", "/admin/queue/legacy/active" ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
+  end
+
   it "does not route the retired legacy HTML queue endpoints" do
-    expect {
-      Rails.application.routes.recognize_path("/admin/queue/legacy", method: :get)
-    }.to raise_error(ActionController::RoutingError)
-    expect {
-      Rails.application.routes.recognize_path("/admin/queue/legacy/active", method: :get)
-    }.to raise_error(ActionController::RoutingError)
     expect {
       Rails.application.routes.recognize_path("/admin/queue/reap_stale_runs", method: :post)
     }.to raise_error(ActionController::RoutingError)

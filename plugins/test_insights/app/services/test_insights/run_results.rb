@@ -75,7 +75,7 @@ module TestInsights
         workflow_id: workflow&.id,
         run_id: run&.id,
         grader_name: @grader_name,
-        test_runs: test_runs.map { |test_run| test_run_payload(test_run, flakiness_by_pair) },
+        test_runs: test_runs.map { |test_run| safe_test_run_payload(test_run, flakiness_by_pair) },
         truncation: truncation_payload(test_runs)
       }
     end
@@ -132,6 +132,15 @@ module TestInsights
 
       payload[:suites] = suite_payloads(cases, flakiness_by_pair) if @include_suites
       payload
+    end
+
+    # A single malformed TestRun must not 500 the whole job/run payload --
+    # mirrors Admin::JobStateSerializer's per-record degrade shape.
+    def safe_test_run_payload(test_run, flakiness_by_pair)
+      test_run_payload(test_run, flakiness_by_pair)
+    rescue StandardError => e
+      Rails.logger.warn("[test_insights/run_results] failed to serialize TestRun##{test_run.id}: #{e.class}: #{e.message}")
+      { id: test_run.id, type: "TestRun", grader_name: test_run.grader_name, error_serializing: "#{e.class}: #{e.message}" }
     end
 
     def ordered_cases(test_run)

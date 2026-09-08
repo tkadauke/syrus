@@ -48,7 +48,11 @@ module TestInsights
 
       @stats_by_identity_id = recent_stats_by_identity_id(identities)
       latest_cases = latest_cases_by_identity_id(identities)
-      tests = identities.map { |identity| test_identity_json(identity, latest_cases[identity.id], @stats_by_identity_id.fetch(identity.id)) }
+      tests = identities.map do |identity|
+        test_identity_json(identity, latest_cases[identity.id], @stats_by_identity_id.fetch(identity.id))
+      rescue StandardError => e
+        degraded_test_identity_json(identity, e)
+      end
 
       tests = @filters.apply_failure_rate_filters(tests).first(@limit)
 
@@ -170,6 +174,14 @@ module TestInsights
         },
         latest: latest_case_json(latest_case)
       }
+    end
+
+    # A single malformed TestIdentity (broken association, corrupt
+    # runtime-summary row) must not 500 the whole list -- mirrors
+    # Admin::JobStateSerializer's per-record degrade shape.
+    def degraded_test_identity_json(identity, error)
+      Rails.logger.warn("[test_insights/query] failed to serialize TestIdentity##{identity.id}: #{error.class}: #{error.message}")
+      { id: identity.id, type: "TestIdentity", failure_rate: 0.0, error_serializing: "#{error.class}: #{error.message}" }
     end
 
     def identity_runtime_summary(identity)

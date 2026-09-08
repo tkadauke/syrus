@@ -510,6 +510,77 @@ describe("BugReportButton", () => {
     })
   })
 
+  describe("drag and drop", () => {
+    function dropFiles(target: HTMLElement, files: File[]) {
+      fireEvent.dragEnter(target, { dataTransfer: { files } })
+      fireEvent.dragOver(target, { dataTransfer: { files } })
+      fireEvent.drop(target, { dataTransfer: { files } })
+    }
+
+    it("attaches a file dropped anywhere inside the modal", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      const file = new File(["screenshot bytes"], "screenshot.png", { type: "image/png" })
+      dropFiles(screen.getByRole("dialog"), [file])
+
+      expect(await screen.findByText("screenshot.png")).toBeInTheDocument()
+    })
+
+    it("attaches a file dropped on a nested element inside the modal", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      const file = new File(["log contents"], "log.txt", { type: "text/plain" })
+      dropFiles(screen.getByLabelText("Title"), [file])
+
+      expect(await screen.findByText("log.txt")).toBeInTheDocument()
+    })
+
+    it("shows a drop indicator while dragging over the modal and clears it on drop", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      const dialog = screen.getByRole("dialog")
+      const file = new File(["a"], "a.txt", { type: "text/plain" })
+
+      fireEvent.dragEnter(dialog, { dataTransfer: { files: [file] } })
+      expect(screen.getByText("Drop to attach")).toBeInTheDocument()
+
+      fireEvent.drop(dialog, { dataTransfer: { files: [file] } })
+      await waitFor(() => expect(screen.queryByText("Drop to attach")).not.toBeInTheDocument())
+    })
+
+    it("submits a dropped file as an attachment", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      const file = new File(["evidence"], "evidence.txt", { type: "text/plain" })
+      dropFiles(screen.getByRole("dialog"), [file])
+      await screen.findByText("evidence.txt")
+
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      await waitFor(() => {
+        expect(bugReportsApi.createBugReport).toHaveBeenCalledTimes(1)
+        const [input] = vi.mocked(bugReportsApi.createBugReport).mock.calls[0]
+        expect((input.attachments ?? []).some((f: File) => f.name === "evidence.txt")).toBe(true)
+      })
+    })
+
+    it("rejects an oversized dropped file", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+
+      const oversized = new File(["x"], "big.txt", { type: "text/plain" })
+      Object.defineProperty(oversized, "size", { value: 21 * 1024 * 1024 })
+      dropFiles(screen.getByRole("dialog"), [oversized])
+
+      expect(await screen.findByText("big.txt exceeds the 20 MB limit and was not added.")).toBeInTheDocument()
+      expect(screen.queryByText("big.txt")).not.toBeInTheDocument()
+    })
+  })
+
   describe("screenshot capture", () => {
     it("passes an onclone callback to the viewport capture", async () => {
       const ref = renderButton()

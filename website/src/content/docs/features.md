@@ -132,9 +132,10 @@ pane to the existing session; killing a tab ends that session.
 
 ## Coding Mode
 
-When the `coding_mode` feature flag is enabled and a chat session is in coding
-mode, the chat agent gains tools to implement changes directly in a repository
-checkout and hand them off to Syrus automation.
+Coding Mode is on by default (`coding_mode` feature flag). When a chat
+session is in coding mode, the chat agent gains tools to implement changes
+directly in a repository checkout and hand them off to Syrus automation. An
+admin can turn it off instance-wide from Admin → Features.
 
 The coding sidebar includes a file tree, a diff browser, and a compact commit
 selector. Operators can inspect the live working tree at HEAD or choose a recent
@@ -217,11 +218,26 @@ a fresh workflow agent fixes the committed handoff branch and graders retry
 before the PR opens. The originating chat may receive status notifications, but
 it is not queued to repair the grader failure.
 
+## Local Mode
+
+Local Mode is on by default (`local_mode` feature flag). It lets a chat agent
+read and write files, run commands, and inspect git state directly on an
+operator's own machine over a reverse WebSocket tunnel, instead of a
+server-side clone. Switch a chat to Local mode from the chat mode selector,
+then run the paired `syrus local --chat <chat_session_id> --token
+<auth_token>` command shown in the chat's Local Mode banner from the target
+repository checkout. Once paired, the daemon can read/write files, run
+commands, and inspect git status/diff against that checkout on the operator's
+own machine; a session that drops past its heartbeat timeout needs a fresh
+pairing command from the chat UI to reconnect. An admin can turn it off
+instance-wide from Admin → Features.
+
 ## Visual Review
 
-When the `visual_review` feature flag is enabled, Syrus adds a headless-browser
-QA pass to the implementation loop. After the agent implements a change, an
-independent reviewer agent boots its own preview of the running app, decides
+Visual Review is on by default (`visual_review` feature flag). When enabled,
+Syrus adds a headless-browser QA pass to the implementation loop. After the
+agent implements a change, an independent reviewer agent boots its own
+preview of the running app, decides
 for itself whether the change is even visually testable (skipping invisible or
 backend-only diffs), and — if so — drives a real browser against it: clicking
 through the actual feature, not just loading the homepage. It captures
@@ -235,12 +251,12 @@ Operators can also trigger a visual review pass on demand from the Job detail
 page's "Run visual review" action — useful for a fresh look after
 implementation, or to cover a pass that was skipped or never configured.
 
-Repositories opt in per repo, or an admin can turn the flag on instance-wide
-from Admin → Features. A repository's `.syrus.yml` can override the
-instance-wide default, bound how many review rounds run, restrict visual
-review to specific changed files, and record seed notes (demo login, a record
-to look for) so the reviewer can reach an authenticated or populated view of
-the app instead of a blank one.
+An admin can turn the flag off instance-wide from Admin → Features. A
+repository's `.syrus.yml` can override the instance-wide default per repo,
+bound how many review rounds run, restrict visual review to specific changed
+files, and record seed notes (demo login, a record to look for) so the
+reviewer can reach an authenticated or populated view of the app instead of a
+blank one.
 
 ## Review Plan
 
@@ -363,10 +379,12 @@ dispatches its ready child Jobs. In linear Epics, children with same-Epic
 parents can keep implementing down the stack once the immediate parent has
 an implemented PR branch; approval and landing order still waits for the
 normal dependency gates.
-For nonlinear same-Epic fan-in, Syrus can prepare a combined execution base
-from approved dependency PR branches when they merge cleanly; otherwise the
-queued child shows an explicit fan-in base blocker with the dependency branches
-that need landing, linearizing, or conflict resolution.
+For a handful of older Epics whose child Jobs still branch or fan in (from
+before same-Epic dependencies were required to form a single chain), Syrus
+can prepare a combined execution base from approved dependency PR branches
+when they merge cleanly; otherwise the queued child shows an explicit fan-in
+base blocker with the dependency branches that need landing, linearizing, or
+conflict resolution.
 Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is
@@ -389,9 +407,8 @@ the actor, timestamp, and before/after text.
 
 Repositories default new Epics to a linear child-Job dependency policy: child
 Jobs should form one ordered chain. Each Epic stores a concrete policy when it
-is created; `nonlinear` can no longer be newly chosen anywhere — it only
-persists on Epics and repositories that already had it before that
-restriction landed. Chat's `propose_epic_with_jobs` tool rejects a branching,
+is created; `linear` is the only value that exists. Chat's
+`propose_epic_with_jobs` tool rejects a branching,
 fan-in, or disconnected child-Job graph immediately, with the offending child
 slugs in the error, before it even creates the proposal card — the operator
 never sees a card that would fail later. The same check runs again at
@@ -418,8 +435,9 @@ blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.
 After Syrus builds the train's integration branch, it runs an agentic
 reconciliation pass on the recorded integrated SHA before prepare, graders,
-coverage, and landing. Nonlinear Epics with multiple approved leaves are
-assembled into that same combined branch first. A no-diff reconciliation
+coverage, and landing. Older Epics with multiple approved leaves (predating
+the single-chain requirement) are assembled into that same combined branch
+first. A no-diff reconciliation
 continues normally; focused fixes are committed to the integration branch
 and still pass the normal gates before the Epic lands.
 Syrus records landing throughput metrics on workflow artifacts so operators can

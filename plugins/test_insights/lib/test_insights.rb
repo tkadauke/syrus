@@ -27,6 +27,9 @@ module TestInsights
     route :get, "/api/v1/app/repositories/:repository_id/flaky_tests", to: "api/v1/app/repository_flaky_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests", to: "api/v1/app/repository_tests#index"
     route :get, "/api/v1/app/repositories/:repository_id/tests/:id", to: "api/v1/app/repository_tests#show"
+    route :get, "/api/v1/admin/jobs/:job_id/test_results", to: "api/v1/admin/job_test_results#index"
+    route :get, "/api/v1/admin/repositories/:repository_id/tests", to: "api/v1/admin/repository_tests#index"
+    route :get, "/api/v1/admin/repositories/:repository_id/tests/:id", to: "api/v1/admin/repository_tests#show"
     frontend routes: { "test_insights/RepositoryTests" => "app/frontend/repo_tabs/RepositoryTests.tsx" },
         ui_slots: { "test_insights/JobTests" => "app/frontend/ui_slots/JobTests.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/test_insights.json" ]

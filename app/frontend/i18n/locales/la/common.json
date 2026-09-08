@@ -86,6 +86,7 @@
     "attachments_remove": "Remove {{filename}}",
     "attachments_too_large": "{{filename}} limitem 20 MB excedit et non adhibitus est.",
     "attachments_max_reached": "Ad summum novem fasciculos adicere potes.",
+    "drop_to_attach": "Depone ut adhibeatur",
     "whats_included": "Quid continetur",
     "context_url": "URL",
     "context_browser": "Navigatrum",

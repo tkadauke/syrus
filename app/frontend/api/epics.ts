@@ -17,7 +17,7 @@ export type EpicSearchOption = {
   label: string
 }
 
-export type EpicDependencyPolicy = "linear" | "nonlinear"
+export type EpicDependencyPolicy = "linear"
 
 export type EpicDeploymentStage = {
   name: string
@@ -37,7 +37,7 @@ export type EpicFormRecord = {
   repository_id: number | null
   github_issue_url: string
   epic_dependency_policy: EpicDependencyPolicy
-  resolved_epic_dependency_policy: "linear" | "nonlinear" | null
+  resolved_epic_dependency_policy: EpicDependencyPolicy | null
   goal_provenance?: GoalProvenance | null
   epic_path: string | null
 }
@@ -109,7 +109,7 @@ export type EpicDetailRecord = {
   furthest_behind_job_id: number | null
   furthest_behind_job_path: string | null
   epic_dependency_policy: EpicDependencyPolicy
-  resolved_epic_dependency_policy: "linear" | "nonlinear"
+  resolved_epic_dependency_policy: EpicDependencyPolicy
   goal_provenance?: GoalProvenance | null
 }
 

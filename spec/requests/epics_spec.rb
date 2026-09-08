@@ -76,18 +76,25 @@ RSpec.describe "Epics", type: :request do
 
   it "does not route retired Epic HTML page, form, and command endpoints" do
     [
-      [ :get, "/epics/new/legacy" ],
-      [ :get, "/epics/1/legacy" ],
-      [ :get, "/epics/1/edit/legacy" ],
       [ :post, "/epics" ],
       [ :patch, "/epics/1" ],
       [ :patch, "/epics/1/archive" ],
-      [ :patch, "/epics/1/state" ],
-      [ :get, "/epics/1/graph" ]
+      [ :patch, "/epics/1/state" ]
     ].each do |method, path|
       expect {
         Rails.application.routes.recognize_path(path, method: method)
       }.to raise_error(ActionController::RoutingError), "#{method.upcase} #{path} should not route"
+    end
+  end
+
+  it "serves the SPA shell for retired Epic HTML GET paths instead of 404ing" do
+    sign_in_as(user)
+
+    [ "/epics/new/legacy", "/epics/1/legacy", "/epics/1/edit/legacy", "/epics/1/graph" ].each do |path|
+      get path
+
+      expect(response).to have_http_status(:ok), "expected #{path} to serve the SPA shell"
+      expect(response.body).to include('id="syrus-spa-root"')
     end
   end
 end

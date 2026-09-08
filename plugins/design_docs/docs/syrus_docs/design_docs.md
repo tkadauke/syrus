@@ -78,6 +78,40 @@ existed. The version dropdown in the editor title bar fetches this endpoint
 and renders those results read-only (no reply, resolve, or accept/reject
 controls) while a non-current version is selected.
 
+## Admin API
+
+The app API (`/api/v1/app/design_docs`) is session-shaped: its serializers,
+permission payloads, and `policy_scope`-based visibility are built for the
+SPA and a signed-in user, even though `Api::V1::App::BaseController` happens
+to also accept a bearer token. Operators and orchestrators should instead use
+`/api/v1/admin/design_docs` (`Api::V1::Admin::DesignDocsController`), which
+follows the same bearer-token-plus-admin-scope convention as the other
+`/api/v1/admin/*` controllers: `GET /api/v1/admin/design_docs` (filterable by
+`state`, `visibility`, and `user`, matched against the owner's email
+address), `POST /api/v1/admin/design_docs`, `GET
+/api/v1/admin/design_docs/:id`, `PATCH /api/v1/admin/design_docs/:id`, and
+`GET /api/v1/admin/design_docs/:id/versions`. It sees every design doc
+instance-wide rather than only the docs visible to the calling user, the same
+way `Api::V1::Admin::JobsController` is not limited to the caller's own Jobs.
+
+The admin controller reuses `DesignDocs::Create` and `DesignDocs::Update`
+rather than reimplementing the write paths, so versioning, and the
+owner-vs-collaborator authorization `DesignDocs::Update` already enforces,
+behave identically to the app path: creates and updates are attributed to the
+API token's own user, and a `PATCH` from a non-owner becomes a suggestion
+exactly as it would through the app API instead of silently bypassing
+ownership. Unlike the app path, where an unchecked `PATCH` autosaves a draft
+copy without creating a version, every admin `PATCH` is treated as a
+deliberate one-shot change and always checkpoints (`checkpoint: true` is
+assumed unless the request explicitly overrides it), so an operator update
+always produces a new `DesignDocs::DesignDocVersion` row when it lands as a
+canonical edit. Serialization follows `Admin::JobStateSerializer`'s
+resilience convention: a single design doc, version, or list row that fails
+to serialize renders `{ id, error_serializing: "..." }` instead of 500ing
+the whole response. With the plugin disabled, every endpoint under
+`/api/v1/admin/design_docs` answers `plugin_disabled` the same way the app
+API does.
+
 ## Editor UI
 
 The plugin-owned editor uses a full-width document title bar above the document

@@ -61,10 +61,31 @@ RSpec.describe WorkUnit do
       "job_not_ready_for_execution"
     )
 
-    expect(described_class::PAUSE_BLOCKED_REASONS).to match_array(
-      described_class::BLOCKED_REASONS - described_class::DEPENDENCY_BLOCKED_REASONS
-    )
     expect(described_class::PAUSE_BLOCKED_REASONS & described_class::DEPENDENCY_BLOCKED_REASONS).to be_empty
+  end
+
+  it "restricts PAUSE_BLOCKED_REASONS to an explicit allowlist, not every non-dependency reason" do
+    expect(described_class::PAUSE_BLOCKED_REASONS).to contain_exactly(
+      "manual_pause",
+      "provider_availability"
+    )
+
+    non_pause_scheduling_reasons = described_class::BLOCKED_REASONS -
+      described_class::DEPENDENCY_BLOCKED_REASONS -
+      described_class::PAUSE_BLOCKED_REASONS
+
+    expect(non_pause_scheduling_reasons).to contain_exactly(
+      "admission_control",
+      "main_branch_health",
+      "urgent_job_active",
+      "epic_wide_workflow_active",
+      "resource_safety",
+      "ci_repair_safety",
+      "active_work_lock",
+      "auto_retry_backoff",
+      "visual_diff_obsolete",
+      "preempted"
+    )
   end
 
   it "resolves its work definition from kind" do

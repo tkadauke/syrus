@@ -52,9 +52,9 @@ overlapping spans inside a lane from timestamps.
 underlying macro query service, and
 `app/services/timeline/workflow_waterfall_query.rb`
 (`Timeline::WorkflowWaterfallQuery`) the per-workflow one — both shared with
-the bearer-token-gated `GET /api/v1/timeline/macro` and
-`GET /api/v1/timeline/workflows/:id` endpoints meant for external admin API
-clients. Steps have no blocked-reason machinery of their own (only
+the bearer-token-gated `GET /api/v1/admin/worker_timeline/macro` and
+`GET /api/v1/admin/worker_timeline/workflow` endpoints meant for external
+admin API clients. Steps have no blocked-reason machinery of their own (only
 Workflows do), so `WorkflowWaterfallQuery` attaches the Workflow's own
 blocked explanation to every not-yet-started Step payload — the same value
 it puts on the top-level `workflow` payload — rather than fabricating a
@@ -62,12 +62,30 @@ per-Step reason.
 
 ## API
 
-Because the plugin's frontend runs inside the authenticated browser SPA
-(session-cookie auth), it cannot call the bearer-token `/api/v1/timeline/*`
-endpoints directly. `Api::V1::App::Admin::WorkerTimelineController` (session
-auth via `Api::V1::App::Admin::BaseController#require_admin`, plus its own
-`require_worker_timeline_enabled` gate mirroring `mysql_db_browser`) wraps
-the same query services for the browser:
+The plugin exposes both an admin surface and a session-authenticated
+surface, sharing the same query services and payload shape:
+
+- `Api::V1::Admin::WorkerTimelineController` (bearer-token auth via
+  `Api::V1::Admin::BaseController#require_admin_api`, plus its own
+  `require_worker_timeline_enabled` gate mirroring `admin_mysql`) — for
+  external admin API clients, the same address space as every other
+  operator diagnostic (`/api/v1/admin/overview`, `/stuck`, `/queue`,
+  `/processes`, ...). This used to be a core-owned controller at
+  `/api/v1/timeline/*` with no plugin gate; it moved into the plugin (and
+  under `/api/v1/admin/worker_timeline/*`) so the resource is addressable
+  from the operations interface and answers `plugin_disabled` like every
+  other plugin-owned admin endpoint (JOB-3303).
+  - `GET /api/v1/admin/worker_timeline/macro` — flat query params:
+    `repository_id`, `epic_id`, `job_id`, `hostname`, `status`, `job_type`,
+    `from`/`to` (ISO8601; default window is the last hour). See
+    `config/syrus_docs/worker_activity_timeline.md` for the full param and
+    response shape.
+  - `GET /api/v1/admin/worker_timeline/workflow` — `?id=<workflow_id>`.
+- `Api::V1::App::Admin::WorkerTimelineController` (session auth via
+  `Api::V1::App::Admin::BaseController#require_admin`, plus its own
+  `require_worker_timeline_enabled` gate) — for the browser SPA, which
+  authenticates via session cookie, not an API token, and so cannot call
+  the bearer-token endpoints above directly:
 
 - `GET /api/v1/app/admin/worker_timeline/macro` — `?q=<base64-encoded
   filter tree>`, the same wire format the app-wide shared FilterBar
@@ -113,8 +131,8 @@ top-level AND of chips — the shape the FilterBar produces for this small,
 fixed field set. Worker timeline does not currently expose SmartFolders;
 its registry subject exists for filter metadata and suggestions, not
 saved-folder navigation.
-The separate bearer-token `GET /api/v1/timeline/macro` endpoint (see
-`config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
+The separate bearer-token `GET /api/v1/admin/worker_timeline/macro` endpoint
+(see `config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
 `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/`status=`/`job_type=`/
 `from=`/`to=` params and 1-hour default. `job_type=system` filters to
 system/infrastructure Job kinds, `job_type=user` filters to user-facing
@@ -140,19 +158,31 @@ none survives). Clicking a Workflow span navigates to
 That route renders `WorkflowWaterfall.tsx`: one lane per Step (in position
 order), with that Step's Run attempt(s) drawn as spans within the lane so
 retries are visible as sequential bars. It reuses the macro view's
-`useZoomableTimeScale` hook, `TimeAxis`, `TimelineBar`, and the
-`formatDuration`/`blockedMessage` tooltip helpers (extracted under
-`components/timeline/`) rather than reimplementing pan/zoom or tooltip
-logic, but — unlike the macro view — still virtualizes its Step rows via
-`useVirtualizedRows` inside a fixed-height, vertically scrollable container,
-since a single workflow's Step list is not expected to grow the way the
-macro view's worker lanes can. A Step with no
+`useZoomableTimeScale` hook, the `formatDuration`/`blockedMessage` tooltip
+helpers (extracted under `components/timeline/`), and the shared `TimeAxis`,
+`TimelineBar`, and `TooltipCard` rendering primitives rather than
+reimplementing pan/zoom or tooltip logic, but — unlike the macro view — still
+virtualizes its Step rows via `useVirtualizedRows` inside a fixed-height,
+vertically scrollable container, since a single workflow's Step list is not
+expected to grow the way the macro view's worker lanes can. A Step with no
 started Run yet renders as a hoverable "not started" marker instead of a
 bar (there's no timestamp to place a bar at); its tooltip reuses the same
 blocked-reason explanation the macro view shows for a pending Workflow. If
 the Workflow itself hasn't started, the waterfall skips the time axis
 entirely (there's no meaningful scale yet) and shows every Step as a
 "not started" marker.
+
+`TimeAxis`, `TimelineBar`, and `TooltipCard` themselves live in core at
+`app/frontend/components/timeline/` (not under this plugin), since they have
+no `worker_timeline`-specific behavior — this plugin's `TimelineLanes.tsx` and
+`WorkflowWaterfall.tsx` import them from `@app/components/timeline/*` the same
+way `test_insights` imports shared core components.
+`components/timeline/constants.ts` (`CHART_WIDTH`, `ROW_HEIGHT`,
+`STATUS_COLORS`) stays plugin-local; `TimeAxis` takes chart `width` as a prop
+rather than importing a plugin constant. See
+`config/syrus_docs/worker_activity_timeline.md` for the separate,
+non-admin-safe `GET /api/v1/app/jobs/:id/waterfall` endpoint that also wraps
+`Timeline::WorkflowWaterfallQuery` for a Job detail page Timeline tab.
 
 The macro view wires `FilterBar`'s `suggestionSearch` to
 `surface: "worker_timeline", subject: "worker_timeline"` and records

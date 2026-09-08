@@ -72,8 +72,11 @@ module DesignDocs
     # intact rather than collapsed to spaces -- otherwise a leading "#
     # Heading" has no newline left to end it, and the whole clamped excerpt
     # renders as one giant heading instead of a heading followed by text.
+    # A leading heading that just restates the doc's own title is dropped --
+    # callers (e.g. the DOC-N hover card) already render `title` above this
+    # excerpt, so keeping it would show the title twice.
     def preview_text(word_limit: PREVIEW_WORD_LIMIT)
-      visible = DesignDocs::AnchorMarkers.strip(markdown).strip
+      visible = strip_leading_title_heading(DesignDocs::AnchorMarkers.strip(markdown).strip)
       normalized = visible.gsub(/^(#+\s[^\n]*)\n(?!\n)/, "\\1\n\n")
       paragraphs = normalized.split(/\n{2,}/).map { |block| block.split(/\s+/).reject(&:empty?) }.reject(&:empty?)
 
@@ -93,6 +96,14 @@ module DesignDocs
     end
 
     private
+
+    def strip_leading_title_heading(text)
+      match = text.match(/\A#+[ \t]+(.+?)[ \t]*\n\n?/)
+      return text unless match
+      return text unless match[1].strip.casecmp?(title.to_s.strip)
+
+      text[match.end(0)..].to_s
+    end
 
     def normalize_title
       self.title = title.to_s.strip

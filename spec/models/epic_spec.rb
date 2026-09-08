@@ -50,21 +50,11 @@ RSpec.describe Epic, :ci_only do
     expect(epic.auto_approve_mode).to eq("if_graders_pass")
   end
 
-  it "defaults dependency policy to linear even when the repository default is nonlinear" do
-    repository = Factories.repository(epic_dependency_policy: "nonlinear")
+  it "defaults dependency policy to linear" do
+    repository = Factories.repository
     epic = Factories.epic(user: repository.user, repository: repository)
 
     expect(epic.epic_dependency_policy).to eq("linear")
-    expect(epic.resolved_epic_dependency_policy).to eq("linear")
-  end
-
-  it "allows an Epic to override the repository dependency policy" do
-    repository = Factories.repository(epic_dependency_policy: "linear")
-    epic = Factories.epic(user: repository.user, repository: repository, epic_dependency_policy: "nonlinear")
-
-    expect(epic.resolved_epic_dependency_policy).to eq("nonlinear")
-
-    epic.update!(epic_dependency_policy: "linear")
     expect(epic.resolved_epic_dependency_policy).to eq("linear")
   end
 
@@ -1400,16 +1390,6 @@ RSpec.describe Epic, :ci_only do
 
     it "does not add fan-in dependencies through a reconciliation Job" do
       epic = make_epic(state: "ready")
-      sibling1 = add_child(epic, number: 1)
-      sibling2 = add_child(epic, number: 2)
-
-      epic.start!(actor: user)
-
-      expect(JobDependency.where(depends_on_job_id: [ sibling1.id, sibling2.id ])).to be_empty
-    end
-
-    it "does not create nonlinear reconciliation Job dependencies" do
-      epic = make_epic(state: "ready", epic_dependency_policy: "nonlinear")
       sibling1 = add_child(epic, number: 1)
       sibling2 = add_child(epic, number: 2)
 

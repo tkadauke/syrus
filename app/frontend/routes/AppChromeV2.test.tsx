@@ -1004,6 +1004,60 @@ describe("AppChromeV2 bug report trigger placement", () => {
       expect(button.className).not.toContain("cursor-grab")
     })
   })
+
+  it("opens the bug report dialog on the Cmd-B global shortcut", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("opens the bug report dialog on the Ctrl-B global shortcut", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("fires the bug report shortcut even while focus is inside a text field", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    const searchInput = screen.getByLabelText("Search Syrus")
+    searchInput.focus()
+
+    fireEvent.keyDown(searchInput, { key: "b", metaKey: true })
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("ignores a bare 'b' keypress with no modifier", () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b" })
+
+    expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
+  })
+
+  it("pressing the shortcut again while the dialog is open with unsaved text does not clear the title/description", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+    const dialog = await screen.findByRole("dialog", { name: "Report a bug" })
+
+    const titleField = within(dialog).getByLabelText("Title") as HTMLInputElement
+    const descriptionField = within(dialog).getByLabelText("Description") as HTMLTextAreaElement
+    fireEvent.change(titleField, { target: { value: "Unsaved title in progress" } })
+    fireEvent.change(descriptionField, { target: { value: "Unsaved description in progress" } })
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true })
+
+    expect(titleField.value).toBe("Unsaved title in progress")
+    expect(descriptionField.value).toBe("Unsaved description in progress")
+  })
 })
 
 describe("AppChromeV2 primary nav reordering", () => {
@@ -1918,6 +1972,22 @@ describe("buildAdminNavItems", () => {
     expect(ungroupedExtensions.map((i) => i.id)).toContain("test.legacy")
   })
 
+  it("does not duplicate a plugin's admin page nav entry (agent_insights)", () => {
+    const { groups } = buildAdminNavItems({}, [{
+      id: "agent_insights.admin",
+      label: "Insights",
+      label_key: "agent_insights:nav_insights",
+      path: "/admin/insights",
+      paths: ["/admin/insights"],
+      order: 20,
+      group_id: "product_data"
+    }], translate)
+
+    const productDataGroup = groups.find(({ group }) => group.id === "product_data")
+    const insightsItems = productDataGroup?.items.filter((i) => i.label === "Insights") ?? []
+    expect(insightsItems).toHaveLength(1)
+  })
+
   it("sorts group items by order then label", () => {
     const { groups } = buildAdminNavItems({}, [
       { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
@@ -1940,10 +2010,14 @@ describe("buildAdminNavItems", () => {
     ])
   })
 
-  it("includes insights in the product_data group", () => {
-    const insights = CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")
-    expect(insights).toBeDefined()
-    expect(insights?.groupId).toBe("product_data")
+  it("includes scoped_chat_events in the product_data group", () => {
+    const scopedChatEvents = CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "scoped_chat_events")
+    expect(scopedChatEvents).toBeDefined()
+    expect(scopedChatEvents?.groupId).toBe("product_data")
+  })
+
+  it("does not duplicate a plugin-owned insights nav entry", () => {
+    expect(CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")).toBeUndefined()
   })
 })
 

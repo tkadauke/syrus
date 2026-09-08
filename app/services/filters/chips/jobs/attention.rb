@@ -152,7 +152,7 @@ module Filters
 
         def apply_in_progress
           active = scope.where(manual_paused: false)
-          active.where(state: "running").where.not(id: paused_job_ids)
+          active.where(state: "running").where.not(id: blocked_and_not_executing_job_ids)
                 .or(active.open_threads.where(id: unpaused_running_workflow_job_ids))
                 .or(active.open_threads.where(id: actively_executing_job_ids))
                 .or(active.where(id: running_repair_work_job_ids))
@@ -313,6 +313,17 @@ module Filters
           pause_blocked_work_unit_job_ids - actively_executing_job_ids
         end
 
+        # "In progress" should not claim a Job whose job.state happens to
+        # read "running" while its WorkUnit is actually blocked, for any
+        # reason — not just the narrower PAUSE_BLOCKED_REASONS set "Paused"
+        # cares about. Deliberately decoupled from paused_job_ids so
+        # narrowing PAUSE_BLOCKED_REASONS (which controls what shows under
+        # "Paused") can't leak admission_control/resource_safety/etc.
+        # blocked jobs into "In progress".
+        def blocked_and_not_executing_job_ids
+          blocked_work_unit_job_ids - actively_executing_job_ids
+        end
+
         def active_repair_work_job_ids
           @active_repair_work_job_ids ||= WorkUnits::Ownership.all_active_job_ids(kinds: WorkDefinitions.active_repair_work_kinds).to_a
         end
@@ -325,9 +336,13 @@ module Filters
           @blocked_work_unit_job_ids ||= WorkUnits::Ownership.all_blocked_job_ids.to_a
         end
 
-        # "Paused" means a human paused the Job or the system halted it
-        # for an infra reason — not "waiting in line on a dependency".
-        # That's the "Blocked" smart folder's territory (blocked_dependency_ids).
+        # "Paused" means only a human paused the Job (manual_pause) or the
+        # agent provider is unavailable (provider_availability) — see
+        # WorkUnit::PAUSE_BLOCKED_REASONS. Every other blocked reason,
+        # including dependency-wait reasons and ordinary scheduling
+        # contention like admission_control, is NOT a "Paused" reason: it
+        # surfaces via the "Queued" folder's blocked badge and/or the
+        # "Blocked" smart folder (blocked_dependency_ids) instead.
         def pause_blocked_work_unit_job_ids
           @pause_blocked_work_unit_job_ids ||=
             WorkUnits::Ownership.all_blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS).to_a

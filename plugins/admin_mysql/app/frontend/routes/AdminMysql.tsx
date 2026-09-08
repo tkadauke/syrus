@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
 import { Checkbox } from "@app/components/Checkbox"
+import { PageHeading } from "@app/components/Heading"
+import { usePageTitle } from "@app/hooks/usePageTitle"
+import { useT } from "@app/hooks/useT"
 import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot } from "../api/adminMysql"
 
 export function AdminMysql() {
+  const { t } = useT("admin_mysql")
+  usePageTitle(t("page_title"))
   const [limit, setLimit] = useState(50)
   const [includeSlowLog, setIncludeSlowLog] = useState(false)
   const [hideIdle, setHideIdle] = useState(true)
@@ -27,10 +32,10 @@ export function AdminMysql() {
 
   return (
     <main aria-label="MySQL admin" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-5 dark:border-gray-800">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Admin</p>
-          <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">MySQL</h1>
+          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin:section_label")}</p>
+          <PageHeading className="mt-1">{t("heading")}</PageHeading>
           <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
             Live MySQL state from SHOW commands, information_schema, and Performance Schema. This page does not read Syrus performance logs.
           </p>

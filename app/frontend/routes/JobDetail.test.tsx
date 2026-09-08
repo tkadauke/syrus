@@ -2865,7 +2865,7 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "conversation" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "review" | "workflows" | "conversation" | "timeline" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 

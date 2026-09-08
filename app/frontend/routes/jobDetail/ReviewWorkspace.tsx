@@ -8,6 +8,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
+  fetchJobSourceFileContent,
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
@@ -83,8 +84,9 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onChangeComposingBody={feedback.onChangeComposingBody}
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
             onCommentLine={startComment}
-            onSaveComposing={feedback.onSaveComposing}
             onDeleteThread={feedback.onDeleteThread}
+            onLoadFileContext={sourceDiff.data.head_ref ? (file) => fetchJobSourceFileContent(jobId, sourceDiff.data.head_ref!, file.path) : undefined}
+            onSaveComposing={feedback.onSaveComposing}
             onSaveEditThread={feedback.onSaveEditThread}
             onSelectFile={setSelectedPath}
             onStartEditThread={feedback.onStartEditThread}

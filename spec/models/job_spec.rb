@@ -2599,7 +2599,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "blocks when multiple same-epic dependencies are approved but not yet merged" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       dep_a = Factories.job_record(
         user: user, repository: repository, epic: epic, issue_number: 41, state: "approved",
         branch_name: "syrus/issue-41", pr_number: 6
@@ -2743,12 +2743,11 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(third).not_to be_dependencies_satisfied
     end
 
-    it "keeps nonlinear same-Epic children blocked until stack readiness is unambiguous" do
+    it "keeps same-Epic children with a fan-in JobDependency graph blocked until stack readiness is unambiguous" do
       epic = Factories.epic(
         user: user,
         repository: repository,
-        state: "in_progress",
-        epic_dependency_policy: "nonlinear"
+        state: "in_progress"
       )
       first = Factories.job_record(
         user: user, repository: repository, epic: epic, issue_number: 41,

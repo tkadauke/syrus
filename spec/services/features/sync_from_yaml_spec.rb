@@ -111,6 +111,24 @@ RSpec.describe Features::SyncFromYaml do
     path&.delete if path&.exist?
   end
 
+  it "does not silently re-enable coding_mode, local_mode, or visual_review for an instance that " \
+     "explicitly turned one off before their default flipped to true" do
+    %w[coding_mode local_mode visual_review].each do |slug|
+      Feature.find_or_create_by!(slug: slug) do |feature|
+        feature.category = "Labs"
+        feature.name = slug.titleize
+      end.update!(enabled: false)
+    end
+
+    described_class.call
+
+    %w[coding_mode local_mode visual_review].each do |slug|
+      feature = Feature.find_by!(slug: slug)
+      expect(feature.default_enabled).to be(true), "expected #{slug} to now default to true in config/features.yml"
+      expect(feature.enabled).to be(false), "expected the operator override for #{slug} to survive the default flip"
+    end
+  end
+
   it "does not delete features removed from YAML" do
     feature = Feature.create!(slug: "removed_feature", category: "Old", name: "Removed")
     path = write_features_yaml("features: []\n")

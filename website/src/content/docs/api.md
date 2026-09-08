@@ -48,6 +48,40 @@ that session killed so the relay terminates the PTY. Session payloads include
 `id`, `name`, `working_directory`, `relay_address`, timestamps, `outcome`,
 and `workflow_id`; they never include the relay auth token.
 
+Admin API clients get the same surface across every user:
+`GET /api/v1/admin/terminal_sessions` lists sessions, filterable by
+`?state=running|finished`, `?user=<email substring>`, and `?hostname=<relay
+host>`; `GET /api/v1/admin/terminal_sessions/:id` returns one session; `POST
+/api/v1/admin/terminal_sessions/:id/kill` kills it through the same write
+path the app API uses. Admin payloads add `state`, `hostname`, `age_s`, and
+an owning `user` summary. With the plugin disabled, every endpoint —
+app and admin — returns `plugin_disabled`.
+
+```bash
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  "https://syrus.example.com/api/v1/admin/terminal_sessions?state=running"
+```
+
+## Throughput Metrics
+
+When the `throughput` plugin is enabled, admin API clients can pull
+instance-wide throughput without writing SQL against production:
+
+```bash
+curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  "https://syrus.example.com/api/v1/admin/throughput?since=2026-08-30T00:00:00Z&until=2026-09-06T00:00:00Z"
+```
+
+`GET /api/v1/admin/throughput` returns Jobs created versus closed per
+bucket, Jobs reaching `implemented` per bucket, and the median/p90 cycle
+time from Job creation to `pr_merged`, bucketed by both hour and day so the
+same call covers incident work and trend watching. Pass `repository` (a
+numeric id or `owner/name` slug) to scope to one repository instead of the
+whole instance, and `since`/`until` (ISO-8601, consistent with
+`/api/v1/admin/runs?since=`) to bound the window -- default is the trailing
+7 days, clamped to at most 90. All timestamps in the response are UTC. With
+the plugin disabled this endpoint returns `plugin_disabled`.
+
 ## Create a Direct Job
 
 `POST /api/v1/admin/jobs` creates a direct Job and starts the normal
@@ -226,6 +260,35 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 }'
 ```
 
+## Manage Design Docs
+
+When the `design_docs` plugin is enabled, admin tokens can manage design
+docs through `/api/v1/admin/design_docs` instead of the SPA's session-shaped
+app API. `GET /api/v1/admin/design_docs` lists docs across every owner,
+filterable by `state` (`draft`/`accepted`/`archived`), `visibility`
+(`private`/`public`), and `user` (a substring match against the owner's
+email address).
+
+```bash
+curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "design_doc": {
+      "title": "Deploy runbook",
+      "markdown": "# Deploy runbook\n\n..."
+    }
+  }'
+```
+
+`GET /api/v1/admin/design_docs/:id` returns the full detail payload including
+current Markdown. `PATCH /api/v1/admin/design_docs/:id` updates
+`title`/`markdown`/`state` and, on a canonical edit, records a new version —
+every admin `PATCH` checkpoints by default, so it always produces a version
+row the way an explicit `Save` does in the editor. `GET
+/api/v1/admin/design_docs/:id/versions` returns the version history.
+With the plugin disabled, every endpoint answers `plugin_disabled`.
+
 ## Scheduled Tasks
 
 When the `scheduled_tasks` plugin is enabled (on by default), admin tokens
@@ -267,6 +330,43 @@ curl -X POST https://syrus.example.com/api/v1/admin/scheduled_tasks/42/fire \
 `GET /api/v1/admin/cron_templates` and `GET
 /api/v1/admin/cron_templates/:id` are read-only lookups for the reusable
 schedule + prompt templates tasks can be created from, filterable by `user`.
+
+## Test Insights
+
+Requires the `test_insights` plugin (bundled, on by default). It exposes an
+operator-facing admin twin of the read-only Test Insights MCP tools agents
+already use, so debugging a flaky or failing grader doesn't require scraping
+Run transcripts.
+
+`GET /api/v1/admin/repositories/:repository_id/tests` lists a repository's
+tests, filterable by `state` (`recently_seen`, `failing`, `flaky`, `slow`) and
+sortable by `sort`/`direction` (`last_seen`, `last_failed`, `last_duration`,
+`failure_rate`, `avg_duration`, `p50_duration`, `p95_duration`):
+
+```bash
+curl -G https://syrus.example.com/api/v1/admin/repositories/123/tests \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN" \
+  -d state=flaky -d sort=failure_rate -d direction=desc
+```
+
+`GET /api/v1/admin/repositories/:repository_id/tests/:id` returns one test's
+execution history, duration points, and related Run/Job references.
+
+`GET /api/v1/admin/jobs/:job_id/test_results` returns the ingested test
+results for a Job's most recent Workflow with test data — compact by
+default; pass `include_suites=true` or `include_slow_cases=true` for more
+detail, and `grader_name` to scope to one grader.
+
+```bash
+curl https://syrus.example.com/api/v1/admin/jobs/456/test_results \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+All three read from the same `TestInsights::Query`/`TestInsights::Detail`/
+`TestInsights::RunResults` service objects the `list_repository_test_insights`,
+`read_test_insight`, and `read_job_test_results` MCP tools call, so the admin
+API and agent tools never see different data. With the plugin disabled, all
+three answer `404` with `{ "error": { "code": "plugin_disabled" } }`.
 
 ## Rename a Chat
 
@@ -542,3 +642,29 @@ Write endpoints are owner-only unless the authenticated user is an admin:
 `POST /api/v1/app/memories`, `PATCH /api/v1/app/memories/:id`,
 `DELETE /api/v1/app/memories/:id`, `POST /api/v1/app/memories/:id/publish`,
 and `DELETE /api/v1/app/memories/:id/publish`.
+
+## Worker Timeline
+
+When the `worker_timeline` plugin is enabled, admin API clients can read the
+same multi-lane worker activity data the Worker Timeline sidebar page
+renders. Both endpoints require an admin API token; a disabled plugin
+answers a `plugin_disabled` error.
+
+`GET /api/v1/admin/worker_timeline/macro` returns worker lanes and pending
+Workflows for a time window. Query params: `from`/`to` (ISO8601, default
+window is the last hour), `repository_id`, `epic_id`, `job_id`, `hostname`,
+`status` (comma-separated Workflow states), and `job_type` (`user` or
+`system`, with `infra`/`infrastructure` accepted as aliases for `system`).
+
+```bash
+curl "https://syrus.example.com/api/v1/admin/worker_timeline/macro?status=running" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```
+
+`GET /api/v1/admin/worker_timeline/workflow` returns the ordered Step/Run
+waterfall for one Workflow, given `?id=<workflow_id>`.
+
+```bash
+curl "https://syrus.example.com/api/v1/admin/worker_timeline/workflow?id=123" \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
+```

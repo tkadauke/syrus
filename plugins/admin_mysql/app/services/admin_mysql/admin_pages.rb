@@ -1,5 +1,7 @@
 module AdminMysql
   class AdminPages
+    include Syrus::Plugin::AdminPage
+
     def self.admin_pages
       return [] unless AdminMysql.mysql?
 
