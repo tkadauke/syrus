@@ -18,11 +18,17 @@ module Steps
       log("invoking agent for manual step (#{workflow.slug}, trigger=#{workflow.trigger_kind})")
 
       raise StepFailed, "manual step requires a prompt on the Run" if run.prompt.blank?
+      base_sha = head_sha
       run_agent(prompt: run.prompt)
 
       # Capture diff for posterity even though we don't push it.
       diff = diff_against_default rescue nil
-      run.update!(agent_diff: diff, head_sha: head_sha) if diff.present?
+      return if diff.blank?
+
+      current_head_sha = head_sha
+      step_diff = diff_against_sha(base_sha)
+      run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)
     end
   end
 end

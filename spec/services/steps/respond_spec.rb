@@ -58,6 +58,54 @@ RSpec.describe Steps::Respond, :ci_only do
     expect(run.head_sha).to eq("abc123")
   end
 
+  it "creates a labeled PR comment follow-up diff version" do
+    initial = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "initial-base",
+      head_sha: "initial-head",
+      files: [ { path: "foo.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n-old\n+old" } ],
+      trigger_kind: "initial",
+      label: "Initial implementation",
+      reason: "initial"
+    )
+    allow(handler).to receive(:head_sha).and_return("base123", "head456")
+    allow(handler).to receive(:diff_against_default).and_return(<<~DIFF)
+      diff --git a/foo.rb b/foo.rb
+      index 1111111..2222222 100644
+      --- a/foo.rb
+      +++ b/foo.rb
+      @@ -1 +1,2 @@
+       old
+      +bar
+    DIFF
+    allow(handler).to receive(:diff_against_sha).with("base123").and_return(<<~DIFF)
+      diff --git a/foo.rb b/foo.rb
+      index 1111111..2222222 100644
+      --- a/foo.rb
+      +++ b/foo.rb
+      @@ -1 +1,2 @@
+       old
+      +bar
+    DIFF
+
+    handler.call
+
+    version = job.diff_review_versions.latest_first.first
+    expect(version).to have_attributes(
+      version_index: 2,
+      base_sha: "base123",
+      head_sha: "head456",
+      trigger_kind: "pr_comment",
+      label: "PR comment follow-up",
+      reason: "pr_comment"
+    )
+    expect(job.diff_review_versions.find(initial.id)).to have_attributes(
+      version_index: 1,
+      base_sha: "initial-base",
+      head_sha: "initial-head"
+    )
+  end
+
   it "builds and persists the prompt from Prompts::PrFeedback" do
     handler.call
 

@@ -78,6 +78,7 @@ RSpec.describe Steps::Implement do
         base_sha: "base123",
         head_sha: "head456",
         trigger_kind: "initial",
+        label: "Initial implementation",
         reason: "initial"
       )
       expect(version.files_snapshot).to contain_exactly(

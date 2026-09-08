@@ -632,6 +632,7 @@ module Steps
         head_ref: job.branch_name,
         files: files,
         trigger_kind: workflow.trigger_kind,
+        label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
         reason: workflow.trigger_kind
       )
     rescue => e
