@@ -61,6 +61,37 @@ RSpec.describe Workflow::TriggerKind do
     end
   end
 
+  describe ".diff_review_version_label_for" do
+    let(:job) { Factories.job }
+
+    it "returns review-version-specific labels from the trigger registry" do
+      expect(described_class.diff_review_version_label_for("initial", job: job)).to eq("Initial implementation")
+      expect(described_class.diff_review_version_label_for("pr_comment", job: job)).to eq("PR comment follow-up")
+      expect(described_class.diff_review_version_label_for("manual_agentic_run", job: job)).to eq("Manual run")
+      expect(described_class.diff_review_version_label_for("rebase", job: job)).to eq("Rebase")
+    end
+
+    it "numbers chat feedback labels against existing diff review versions" do
+      DiffReviewVersion.create!(
+        job: job,
+        version_index: 1,
+        base_sha: "base-1",
+        head_sha: "head-1",
+        source_key: "existing",
+        trigger_kind: "chat_feedback",
+        label: "Chat feedback #1",
+        files_snapshot: [],
+        metadata: {}
+      )
+
+      expect(described_class.diff_review_version_label_for("chat_feedback", job: job)).to eq("Chat feedback #2")
+    end
+
+    it "humanizes unknown trigger kinds" do
+      expect(described_class.diff_review_version_label_for("plugin_review", job: job)).to eq("Plugin review")
+    end
+  end
+
   describe ".owns_job_lifecycle?" do
     it "matches exactly the trigger kinds currently excluded from generic fail! propagation" do
       owning_kinds = (

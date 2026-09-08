@@ -38,6 +38,12 @@ module DiffReviewVersions
       return nil if @base_sha.blank? || @head_sha.blank?
 
       @job.with_lock do
+        existing_version = @job.diff_review_versions
+                               .where(base_sha: @base_sha, head_sha: @head_sha)
+                               .latest_first
+                               .first
+        return existing_version if existing_version
+
         @job.diff_review_versions.find_or_create_by!(
           base_sha: @base_sha,
           head_sha: @head_sha,
@@ -49,7 +55,7 @@ module DiffReviewVersions
           version.base_ref = @base_ref
           version.head_ref = @head_ref
           version.trigger_kind = @trigger_kind.to_s.presence || @workflow&.trigger_kind || @run&.trigger_kind
-          version.label = @label.to_s.presence || version.trigger_kind.to_s.humanize.presence || "Diff version"
+          version.label = @label.to_s.presence || Workflow::TriggerKind.diff_review_version_label_for(version.trigger_kind, job: @job)
           version.reason = @reason
           version.truncated = @truncated
           version.files_snapshot = normalized_files
