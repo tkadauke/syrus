@@ -1601,15 +1601,8 @@ class Job < ApplicationRecord
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run
-    work_kind = if skill_launch?
-      "skill"
-    elsif main_branch_repair?
-      "main_branch_repair"
-    else
-      "initial"
-    end
     workflow = WorkUnits::Launcher.instantiate(
-      kind: work_kind,
+      kind: initial_work_kind,
       job: self,
       artifacts: skill_launch? ? skill_workflow_artifacts : nil
     )
@@ -1648,8 +1641,19 @@ class Job < ApplicationRecord
     return if cron?
     return if infrastructure_job?
     return if workflows.where.not(state: "cancelled").exists?
+    return if WorkUnits::Ownership.active_for_job_kind?(self, initial_work_kind)
 
     create_initial_run
+  end
+
+  def initial_work_kind
+    if skill_launch?
+      "skill"
+    elsif main_branch_repair?
+      "main_branch_repair"
+    else
+      "initial"
+    end
   end
 
   def defer_stale_closed_epic_assignment

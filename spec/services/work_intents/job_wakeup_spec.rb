@@ -128,6 +128,32 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(workflow.work_unit.work_intent.reload).to have_attributes(state: "requested", wait_reason: nil)
   end
 
+  it "does not duplicate an existing initial work unit when releasing an epic block" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    parent = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      state: "implemented",
+      branch_name: "syrus/parent",
+      pr_number: 44
+    )
+    parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: "a" * 40)
+    child = Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+    JobDependency.create!(job: child, depends_on_job: parent, source: "manual")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: child)
+
+    expect {
+      result = described_class.call(child)
+      expect(result).to be(true)
+    }.to change { workflow.first_step.runs.reload.count }.by(1)
+      .and change { WorkUnit.count }.by(0)
+      .and change { Workflow.count }.by(0)
+
+    expect(child.reload).to be_queued
+    expect(workflow.work_unit.reload).to be_queued
+  end
+
   it "does not start normal queued workflows that do not have WorkUnit ownership" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job)
