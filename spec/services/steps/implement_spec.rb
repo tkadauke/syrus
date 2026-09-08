@@ -46,6 +46,49 @@ RSpec.describe Steps::Implement do
       expect(run.head_sha).to eq("abc123")
     end
 
+    it "persists an immutable diff review version before any source diff read" do
+      allow(handler).to receive(:head_sha).and_return("base123", "head456")
+      allow(handler).to receive(:diff_against_default).and_return(<<~DIFF)
+        diff --git a/foo.rb b/foo.rb
+        index 1111111..2222222 100644
+        --- a/foo.rb
+        +++ b/foo.rb
+        @@ -1 +1,2 @@
+         old
+        +bar
+      DIFF
+      allow(handler).to receive(:diff_against_sha).with("base123").and_return(<<~DIFF)
+        diff --git a/foo.rb b/foo.rb
+        index 1111111..2222222 100644
+        --- a/foo.rb
+        +++ b/foo.rb
+        @@ -1 +1,2 @@
+         old
+        +bar
+      DIFF
+
+      expect(GithubClient).not_to receive(:for)
+
+      handler.call
+
+      version = job.diff_review_versions.sole
+      expect(version).to have_attributes(
+        workflow_id: workflow.id,
+        run_id: run.id,
+        base_sha: "base123",
+        head_sha: "head456",
+        trigger_kind: "initial",
+        reason: "initial"
+      )
+      expect(version.files_snapshot).to contain_exactly(
+        "path" => "foo.rb",
+        "status" => "modified",
+        "additions" => 1,
+        "deletions" => 0,
+        "patch" => "@@ -1 +1,2 @@\n old\n+bar\n"
+      )
+    end
+
     it "uses the fetched issue title in the commit subject, not a job.slug fallback" do
       # Regression: job_commit_subject used to be evaluated as an eagerly-computed
       # keyword argument before persist_prompt_if_needed fetched the issue and

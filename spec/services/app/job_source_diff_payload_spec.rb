@@ -52,6 +52,20 @@ RSpec.describe App::JobSourceDiffPayload do
       deletions: 1,
       patch: "@@ -1 +1 @@\n-old\n+new"
     )
+    expect(payload[:version]).to include(
+      version_index: 1,
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
+      label: "Initial",
+      reason: "initial"
+    )
+    expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
+      "path" => "app/models/user.rb",
+      "status" => "modified",
+      "additions" => 4,
+      "deletions" => 1,
+      "patch" => "@@ -1 +1 @@\n-old\n+new"
+    )
   end
 
   it "populates diff_error when GitHub fails" do
@@ -117,6 +131,21 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:branch_commits]).to eq([])
     expect(payload[:files]).to eq([])
     expect(payload[:diff_error]).to be_nil
+  end
+
+  it "does not persist exploratory explicit base/head comparisons" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(files: [], truncated: false)
+
+    payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(payload[:version]).to be_nil
+    expect(payload[:versions]).to eq([])
+    expect(job.diff_review_versions).to be_empty
   end
 
   describe "preview diff fixture" do
