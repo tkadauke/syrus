@@ -1,0 +1,20 @@
+name: waiting intent with active unit
+repository:
+  owner: simulation
+  name: waiting-intent-with-active-unit
+work_intents:
+  intent:
+    kind: initial
+    state: waiting
+    wait_reason: dependency
+    wait_details:
+      blocked_by_job_ids:
+        - 123
+work_units:
+  unit:
+    intent: intent
+    kind: initial
+    state: running
+outcomes:
+  default: success
+

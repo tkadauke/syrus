@@ -140,6 +140,54 @@ RSpec.describe SmartFolder do
     expect(described_class.builtins(:job).pluck(:name).grep("Paused")).to eq([ "Paused" ])
   end
 
+  it "repairs system-owned non-builtin rows that collide with builtin names" do
+    Rails.cache.clear
+    described_class.insert_all!([
+      {
+        name: "Inbox",
+        kind: "user_defined",
+        subject_type: "job",
+        filter: { "and" => [] },
+        position: 99,
+        user_id: nil,
+        created_at: Time.current,
+        updated_at: Time.current
+      }
+    ])
+
+    expect {
+      described_class.ensure_builtins_for_subject!(:job)
+    }.not_to raise_error
+
+    folder = described_class.find_by!(name: "Inbox", subject_type: "job", user_id: nil)
+    expect(folder).to be_builtin
+    expect(folder.position).to eq(described_class::JOB_BUILTINS.index { |definition| definition.fetch(:name) == "Inbox" })
+  end
+
+  it "recovers when a concurrent builtin insert wins before save" do
+    existing = described_class.create!(
+      name: "Inbox",
+      kind: "builtin",
+      subject_type: "job",
+      filter: { "and" => [] },
+      position: 99
+    )
+    stale_new_row = described_class.new(user_id: nil, subject_type: "job", name: "Inbox")
+    attributes = {
+      kind: "builtin",
+      subject_type: "job",
+      filter: described_class::JOB_BUILTINS.find { |definition| definition.fetch(:name) == "Inbox" }.fetch(:filter),
+      position: 9
+    }
+    stale_new_row.assign_attributes(attributes)
+
+    expect {
+      described_class.save_builtin_folder!(stale_new_row, "job", "Inbox", attributes)
+    }.not_to raise_error
+
+    expect(existing.reload).to have_attributes(kind: "builtin", position: 9)
+  end
+
   it "caches builtin reconciliation per subject so repeated calls skip the reconcile sweep" do
     cache_store = ActiveSupport::Cache::MemoryStore.new
     allow(Rails).to receive(:cache).and_return(cache_store)

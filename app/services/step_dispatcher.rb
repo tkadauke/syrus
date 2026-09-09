@@ -744,18 +744,28 @@ class StepDispatcher
     return if handle_successful_review_loop_iteration
     return if handle_successful_step_advance_handler
 
-    next_step = find_next_runnable
+    enqueue_next_runnable_steps!
+  end
 
-    if next_step
+  def enqueue_next_runnable_steps!
+    next_steps = find_next_runnables
+
+    if next_steps.any?
       # Idempotency: failure propagation fires fail_from twice
       # (once from Steps::LifecyclePropagation, once explicitly from
       # Run failure propagation). For grader Steps that
       # advance-on-fail, both calls would try to create a Run on
       # the same next_step. Skip if already materialized.
-      return if next_step.runs.any?
-      return if manually_paused_before_next_step?(next_step)
+      runnable_steps = next_steps.reject { |step| step.runs.any? }
+      return if runnable_steps.empty?
+      return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
 
-      self.class.create_run_and_enqueue(next_step, @workflow, check_phase_admission: @check_phase_admission)
+      created_runs = runnable_steps.filter_map do |step|
+        self.class.create_run_and_enqueue(step, @workflow, check_phase_admission: @check_phase_admission)
+      end
+      dispatch_parallel_inline_runs!(created_runs)
+    elsif downstream_work_pending?
+      nil
     else
       finish_workflow!
     end
@@ -915,21 +925,7 @@ class StepDispatcher
   end
 
   def advance_to_next_runnable!
-    next_step = find_next_runnable
-
-    if next_step
-      # Idempotency: failure propagation fires fail_from twice
-      # (once from Steps::LifecyclePropagation, once explicitly from
-      # Run failure propagation). For grader Steps that
-      # advance-on-fail, both calls would try to create a Run on
-      # the same next_step. Skip if already materialized.
-      return if next_step.runs.any?
-      return if manually_paused_before_next_step?(next_step)
-
-      self.class.create_run_and_enqueue(next_step, @workflow)
-    else
-      finish_workflow!
-    end
+    enqueue_next_runnable_steps!
   end
 
   def loop_node_for(step)
@@ -1064,6 +1060,7 @@ class StepDispatcher
           position: position,
           iteration: 1,
           loop_id: loop_id,
+          placement_policy: placement_policy_for(kind),
           details: details
         )
         position += 1
@@ -1133,7 +1130,8 @@ class StepDispatcher
           kind: kind,
           position: insertion_position + index,
           iteration: next_iteration,
-          loop_id: current_grade.loop_id
+          loop_id: current_grade.loop_id,
+          placement_policy: placement_policy_for(kind)
         )
       end
 
@@ -1151,6 +1149,10 @@ class StepDispatcher
 
     self.class.record_manual_pause!(@workflow, step: step)
     true
+  end
+
+  def placement_policy_for(kind)
+    Step::Kind.fetch(kind).placement_policy_for(@workflow.job.repository)
   end
 
   def next_loop_iteration_already_materialized?(current_grade)
@@ -1215,6 +1217,10 @@ class StepDispatcher
   # why WAITING_FOR_BATCH is gone: grader_collect simply is not ready while a
   # grader it depends on is still running.
   def find_next_runnable
+    find_next_runnables.first
+  end
+
+  def find_next_runnables
     # If we're advancing FROM a step, look at its successor (which
     # may be nil — that's "end of chain"). If we're not advancing
     # from anywhere (start_workflow case), look at the first step.
@@ -1224,14 +1230,54 @@ class StepDispatcher
         if skippable_queued_step?(cursor)
           skip_queued_step!(cursor)
         elsif !ready?(cursor)
-          return nil
+          return []
+        elsif parallel_runnable_step?(cursor)
+          return parallel_runnable_steps_from(cursor)
         else
-          return cursor
+          return [ cursor ]
         end
       end
       cursor = cursor.next_step
     end
-    nil
+    []
+  end
+
+  def parallel_runnable_steps_from(first_step)
+    steps = []
+    cursor = first_step
+    while cursor&.queued?
+      if skippable_queued_step?(cursor)
+        skip_queued_step!(cursor)
+      elsif ready?(cursor) && parallel_runnable_step?(cursor)
+        steps << cursor
+      else
+        break
+      end
+      cursor = cursor.next_step
+    end
+    steps
+  end
+
+  def parallel_runnable_step?(step)
+    step.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+      step.distributed_workflow_dag_enabled? &&
+      WorkflowStepWorkerSlot.enabled?
+  end
+
+  def downstream_work_pending?
+    cursor = @from_step ? @from_step.next_step : @workflow.first_step
+    while cursor
+      return true if cursor.queued? || cursor.running?
+
+      cursor = cursor.next_step
+    end
+    false
+  end
+
+  def dispatch_parallel_inline_runs!(created_runs)
+    return unless Thread.current[:syrus_current_run]&.workflow_id == @workflow.id
+
+    created_runs.drop(1).each(&:dispatch_run_job!)
   end
 
   # Empty edges mean "just my predecessor", so a Step materialized before A5 --

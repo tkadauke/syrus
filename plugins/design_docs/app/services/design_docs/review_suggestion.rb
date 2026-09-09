@@ -39,8 +39,13 @@ module DesignDocs
     end
 
     def reject
+      version = retire_reviewed_anchor!(
+        anchor: suggestion.anchor,
+        change_summary: suggestion.change_summary.presence || "Reject design doc suggestion"
+      )
       suggestion.update!(state: "rejected", reviewed_at: Time.current, reviewed_by_user: user)
-      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: nil, applied: false)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: false)
     end
 
     def accept
@@ -69,11 +74,19 @@ module DesignDocs
         change_summary: suggestion.change_summary.presence || "Accept design doc suggestion"
       )
       design_doc.update!(current_version: version)
+      anchor.update!(
+        status: "stale",
+        stale_as_of_version: version,
+        last_known_start_offset: location.start_offset,
+        last_known_end_offset: location.start_offset + suggestion.proposed_markdown_value.length,
+        prefix_context: location.prefix_context,
+        suffix_context: location.suffix_context
+      )
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
-      AnchorMarkers.refresh_anchor!(anchor, design_doc.markdown)
       reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
 
-      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: true)
     end
 
     def accept_unmarked_autosave_range(anchor, old_markdown)
@@ -92,11 +105,17 @@ module DesignDocs
         change_summary: suggestion.change_summary.presence || "Accept design doc suggestion"
       )
       design_doc.update!(current_version: version)
-      anchor.update!(status: "active", last_known_end_offset: start_offset + suggestion.proposed_markdown_value.length)
+      anchor.update!(
+        status: "stale",
+        stale_as_of_version: version,
+        last_known_start_offset: start_offset,
+        last_known_end_offset: start_offset + suggestion.proposed_markdown_value.length
+      )
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
       reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
 
-      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: version, applied: true)
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: true)
     end
 
     # Accepting a suggestion can overwrite raw markdown that other anchors'
@@ -179,25 +198,56 @@ module DesignDocs
     end
 
     def mark_conflict!(reason)
+      version = retire_reviewed_anchor!(
+        anchor: suggestion.anchor,
+        change_summary: "Mark design doc suggestion conflicted"
+      )
       suggestion.update!(state: "conflict", reviewed_at: Time.current, reviewed_by_user: user, conflict_reason: reason)
-      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: nil, applied: false)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: false)
     end
 
     def mark_stale!(current_text)
-      # No new version is created on this path (the suggestion is rejected
-      # outright, not applied), so the design doc's current version is the
-      # closest available "as of" marker for when the anchor stopped being
-      # trustworthy -- same invariant `mark_unrelated_anchor_stale!` keeps
-      # for the reconciliation path, just anchored to the existing version
-      # instead of a newly created one.
-      suggestion.anchor.update!(status: "stale", stale_as_of_version: design_doc.current_version)
+      version = retire_reviewed_anchor!(
+        anchor: suggestion.anchor,
+        change_summary: "Mark design doc suggestion stale"
+      )
       suggestion.update!(
         state: "stale",
         reviewed_at: Time.current,
         reviewed_by_user: user,
         conflict_reason: "Original text no longer matches anchor. Current text: #{current_text.inspect}"
       )
-      Result.new(design_doc: design_doc.reload, suggestion: suggestion, version: nil, applied: false)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
+      Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: false)
+    end
+
+    def retire_reviewed_anchor!(anchor:, change_summary:)
+      return design_doc.current_version unless anchor
+
+      next_markdown = AnchorMarkers.remove(
+        markdown: design_doc.markdown,
+        marker_id: anchor.marker_id,
+        anchor_kind: anchor.anchor_kind
+      )
+      version = design_doc.current_version
+      markers_removed = next_markdown != design_doc.markdown
+      if markers_removed
+        design_doc.update!(markdown: next_markdown)
+        version = design_doc.versions.create!(
+          markdown: design_doc.markdown,
+          version_number: next_version_number,
+          actor_kind: "user",
+          actor_user: user,
+          change_summary: change_summary
+        )
+        design_doc.update!(current_version: version)
+      end
+
+      if markers_removed || anchor.status == "active"
+        anchor.update!(status: "stale", stale_as_of_version: version)
+      end
+      version
     end
 
     def next_version_number

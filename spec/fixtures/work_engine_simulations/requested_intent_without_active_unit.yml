@@ -1,0 +1,18 @@
+name: requested intent without active unit
+repository:
+  owner: simulation
+  name: requested-intent-without-active-unit
+jobs:
+  job:
+    title: Requested intent without active unit
+    state: queued
+work_intents:
+  intent:
+    kind: initial
+    state: requested
+    job: job
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented

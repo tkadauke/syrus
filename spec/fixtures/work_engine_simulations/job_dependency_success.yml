@@ -1,0 +1,26 @@
+name: job dependency success
+repository:
+  owner: simulation
+  name: job-dependency-success
+jobs:
+  parent:
+    title: Parent job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  child:
+    title: Child job
+    state: queued
+    depends_on:
+      - parent
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  parent:
+    - implemented
+  child:
+    - implemented

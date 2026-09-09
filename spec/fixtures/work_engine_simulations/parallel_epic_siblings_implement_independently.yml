@@ -1,0 +1,38 @@
+name: parallel epic siblings implement independently
+repository:
+  owner: simulation
+  name: parallel-epic-siblings-implement-independently
+epics:
+  feature:
+    title: Independent sibling jobs
+jobs:
+  alpha:
+    title: Alpha job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  beta:
+    title: Beta job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  gamma:
+    title: Gamma job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  alpha:
+    - implemented
+  beta:
+    - implemented
+  gamma:
+    - implemented

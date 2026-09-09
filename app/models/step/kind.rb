@@ -49,7 +49,7 @@ class Step
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_default_overrides, :waits_for_terminal_step_kind,
-                        :review_gate, :runtime_inserted) do
+                        :review_gate, :runtime_inserted, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      fail_policy: :default,
@@ -64,7 +64,8 @@ class Step
                      resource_profile_default_overrides: nil,
                      waits_for_terminal_step_kind: nil,
                      review_gate: nil,
-                     runtime_inserted: false)
+                     runtime_inserted: false,
+                     placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
         super
@@ -110,6 +111,12 @@ class Step
         return nil if resource_profile_default_overrides.blank?
 
         WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.merge(resource_profile_default_overrides)
+      end
+
+      def placement_policy_for(repository)
+        return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE unless Feature.distributed_workflow_dag_enabled?(repository)
+
+        placement_policy
       end
     end
 
@@ -204,9 +211,11 @@ class Step
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent,
                 runtime_inserted: true,
-                resource_profile_grader_name_key: "name"),
+                resource_profile_grader_name_key: "name",
+                placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT),
       Entry.new(kind: "grader_fanout",      handler: "GraderFanout",       label: "Plan graders",               style: "bg-violet-100 text-violet-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
                 resource_profile_step_kinds: %w[grader_fanout grader],
                 resource_profile_default_overrides: {
                   duration_seconds: 60,
@@ -222,7 +231,8 @@ class Step
                 fail_policy: :loop_iteration,
                 repair_semantics: :deterministic_idempotent,
                 triggers_auto_approval: true,
-                waits_for_terminal_step_kind: "grader"),
+                waits_for_terminal_step_kind: "grader",
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
       Entry.new(kind: "apply_suggestions",  handler: "ApplySuggestions",   label: "Apply suggestions",         style: "bg-lime-100 text-lime-700",   agentic: false,
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "landing_fix",        handler: "LandingFix",         label: "Final fix",                  style: "bg-blue-100 text-blue-700",   agentic: true),
@@ -264,9 +274,11 @@ class Step
       Entry.new(kind: "preflight_grader",         handler: "PreflightGrader",         label: "Preflight grader",         style: "bg-gray-100 text-gray-500",     agentic: false,
                 fail_policy: :advance,
                 repair_semantics: :deterministic_idempotent,
-                resource_profile_grader_name_key: "name"),
+                resource_profile_grader_name_key: "name",
+                placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT),
       Entry.new(kind: "preflight_grader_fanout",  handler: "PreflightGraderFanout",  label: "Plan preflight graders",   style: "bg-violet-100 text-violet-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
                 resource_profile_step_kinds: %w[preflight_grader_fanout preflight_grader],
                 resource_profile_default_overrides: {
                   duration_seconds: 60,
@@ -280,7 +292,8 @@ class Step
                 }),
       Entry.new(kind: "preflight_grader_collect", handler: "PreflightGraderCollect", label: "Preflight grader check",   style: "bg-violet-100 text-violet-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
-                waits_for_terminal_step_kind: "preflight_grader"),
+                waits_for_terminal_step_kind: "preflight_grader",
+                placement_policy: Step::PlacementPolicy::CONTROL_PLANE),
       # No repair_semantics override: falls back to :operator_review (the
       # non-agentic default). A deploy command isn't guaranteed idempotent
       # the way prepare/format/grader commands are, so a failure here

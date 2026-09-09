@@ -1,0 +1,38 @@
+name: cross epic approved parent waits for merge
+repository:
+  owner: simulation
+  name: cross-epic-approved-parent-waits-for-merge
+epics:
+  upstream:
+    title: Upstream epic
+  downstream:
+    title: Downstream epic
+jobs:
+  parent:
+    title: Parent job
+    epic: upstream
+    state: approved
+    branch_name: syrus/parent
+    pr_number: 20002
+    pr_checks_state: passing
+    approved_at: "2026-09-01 12:00:00"
+  child:
+    title: Child job
+    epic: downstream
+    state: queued
+    depends_on:
+      - parent
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  parent:
+    - approved
+  child:
+    - implemented
+wait_states:
+  child:
+    - queued
+    - blocked_by_epic

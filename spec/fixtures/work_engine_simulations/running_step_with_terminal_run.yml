@@ -1,0 +1,27 @@
+name: running step with terminal run
+repository:
+  owner: simulation
+  name: running-step-with-terminal-run
+jobs:
+  job:
+    title: Running step with terminal run
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - kind: implement
+          state: running
+          run:
+            state: succeeded
+            head_sha: abc123
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented
+

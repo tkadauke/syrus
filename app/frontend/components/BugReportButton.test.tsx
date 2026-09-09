@@ -90,6 +90,25 @@ describe("BugReportButton", () => {
     expect(screen.getByLabelText("Title")).toBeInTheDocument()
   })
 
+  it("keeps the dialog horizontally fixed on narrow mobile viewports", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
+
+    const ref = renderButton({
+      featureFlags: {
+        browser_error_auto_reports: false,
+        admin_supervisor_chat: true,
+        local_mode: true
+      }
+    })
+    await openDialog(ref)
+
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.parentElement).toHaveClass("overflow-x-hidden")
+    expect(dialog).toHaveClass("max-w-[min(42rem,calc(100vw-2rem))]", "overflow-x-hidden", "overflow-y-auto")
+    expect(screen.getByText(window.location.href).closest("dd")).toHaveClass("min-w-0", "truncate")
+  })
+
   it("pre-fills the title with context + ' bug'", async () => {
     const ref = renderButton({ context: "Jobs" })
     await openDialog(ref)

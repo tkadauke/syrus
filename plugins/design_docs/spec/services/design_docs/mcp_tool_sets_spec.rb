@@ -94,9 +94,161 @@ RSpec.describe "DesignDocs MCP tool sets" do
       "read_design_doc",
       "propose_design_doc",
       "comment_on_design_doc",
-      "suggest_design_doc_change"
+      "suggest_design_doc_change",
+      "delete_design_doc"
     )
     expect(workflow_names).to contain_exactly("list_design_docs", "read_design_doc")
+  end
+
+  it "archives a fresh empty v1 design doc immediately without physical deletion" do
+    doc = create_design_doc(markdown: "Disposable")
+    server = chat_server
+
+    expect {
+      response = call_tool(server, "delete_design_doc", doc_ref: doc.display_id, reason: "Abandoned")
+      expect(response.dig(:result, :isError)).to be_falsey
+      payload = response_payload(response)
+      expect(payload).to include(
+        archived: true,
+        immediate: true,
+        doc_ref: doc.display_id,
+        title: "Checkout design",
+        previous_state: "draft",
+        new_state: "archived",
+        reason: "Abandoned"
+      )
+    }.not_to change(ChatPendingAction, :count)
+
+    expect(doc.reload.state).to eq("archived")
+    expect(DesignDocs::DesignDoc.exists?(doc.id)).to be(true)
+    expect(doc.versions.count).to eq(1)
+    expect(AdminAction.where(action: "archive_design_doc").last.params).to include(
+      "doc_ref" => doc.display_id,
+      "previous_state" => "draft",
+      "new_state" => "archived",
+      "reason" => "Abandoned"
+    )
+  end
+
+  it "requires confirmation before archiving an old design doc" do
+    doc = create_design_doc(markdown: "Keep history")
+    doc.update!(created_at: 11.minutes.ago)
+    server = chat_server
+
+    expect {
+      response = call_tool(server, "delete_design_doc", doc_ref: doc.display_id)
+      expect(response.dig(:result, :isError)).to be_falsey
+      payload = response_payload(response)
+      expect(payload).to include(
+        state: "pending",
+        doc_ref: doc.display_id,
+        title: doc.title,
+        confirmation_required: true
+      )
+      expect(payload.fetch(:confirmation_reason)).to include("older than 10 minutes")
+    }.to change(ChatPendingAction, :count).by(1)
+
+    action = ChatPendingAction.last
+    expect(action).to have_attributes(action: "delete_design_doc", state: "pending")
+    expect(action.payload).to include(
+      "doc_ref" => doc.display_id,
+      "design_doc_id" => doc.id,
+      "title" => doc.title,
+      "state" => "draft",
+      "current_version_number" => 1,
+      "threads_count" => 0,
+      "comments_count" => 0,
+      "suggestions_count" => 0,
+      "repository_ids" => [ repository.id ],
+      "repository_slugs" => [ repository.slug ]
+    )
+    expect(doc.reload.state).to eq("draft")
+  end
+
+  it "requires confirmation before archiving a design doc with discussion or suggestions" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    comment = DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    ).comment
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 11, end_offset: 16, original_markdown: "gamma", proposed_markdown: "delta" }
+    )
+    server = chat_server
+
+    response = call_tool(server, "delete_design_doc", doc_ref: doc.display_id)
+    payload = response_payload(response)
+    action = ChatPendingAction.last
+
+    expect(payload).to include(state: "pending", confirmation_required: true)
+    expect(action.payload).to include(
+      "threads_count" => 2,
+      "comments_count" => 1,
+      "suggestions_count" => 1
+    )
+    expect(action.payload.fetch("confirmation_reason")).to include("thread")
+    expect(action.payload.fetch("confirmation_reason")).to include("comment")
+    expect(action.payload.fetch("confirmation_reason")).to include("suggestion")
+    expect(DesignDocs::DesignDocComment.exists?(comment.id)).to be(true)
+  end
+
+  it "executes the pending archive action without deleting associated design doc records" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    doc.update!(created_at: 11.minutes.ago)
+    thread = DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    ).thread
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "gamma" }
+    ).suggestion
+    action = chat_session.pending_actions.create!(
+      action: "delete_design_doc",
+      requested_by: "agent",
+      payload: {
+        doc_ref: doc.display_id,
+        design_doc_id: doc.id,
+        title: doc.title,
+        state: doc.state
+      },
+      reason: "Archive abandoned doc"
+    )
+
+    expect {
+      expect(action.confirm!).to be(true)
+    }.to change { doc.reload.state }.from("draft").to("archived")
+      .and change { AdminAction.where(action: "archive_design_doc").count }.by(1)
+
+    expect(DesignDocs::DesignDoc.exists?(doc.id)).to be(true)
+    expect(DesignDocs::DesignDocRepository.where(design_doc_id: doc.id, repository_id: repository.id)).to exist
+    expect(DesignDocs::DesignDocVersion.where(design_doc_id: doc.id).count).to be >= 1
+    expect(DesignDocs::DesignDocAnchor.where(design_doc_id: doc.id)).to exist
+    expect(DesignDocs::DesignDocThread.exists?(thread.id)).to be(true)
+    expect(DesignDocs::DesignDocSuggestion.exists?(suggestion.id)).to be(true)
+    expect(action.reload.result).to eq(doc)
+    expect(AdminAction.where(action: "archive_design_doc").last.params).to include(
+      "pending_action_id" => action.id,
+      "reason" => "Archive abandoned doc"
+    )
+  end
+
+  it "denies non-owners from archiving a visible design doc" do
+    doc = create_design_doc(visibility: "public")
+    doc.repositories << repository unless doc.repositories.include?(repository)
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    allow(self).to receive(:chat_session).and_return(ChatSession.create!(user: collaborator, repository: repository))
+
+    response = call_tool(chat_server, "delete_design_doc", doc_ref: doc.display_id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("not allowed to archive")
+    expect(doc.reload.state).to eq("draft")
   end
 
   it "keeps DOC reference and suggestion-only semantics explicit in tool descriptions" do

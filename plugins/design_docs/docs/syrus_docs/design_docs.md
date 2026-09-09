@@ -286,10 +286,28 @@ there are many collaborators.
 
 ## Agent Tooling
 
-Chat agents can suggest edits with `suggest_design_doc_change`. The tool
-requires `base_version_number`, copied from the `current_version_number` field
-returned by the `read_design_doc` call used to compute `start_offset` and
-`end_offset`. A successful suggestion inserts anchor markers and creates a new
-document version, so agents must re-read the Design Doc before creating another
-offset-based suggestion. Stale version submissions are rejected before exact
-selected-text matching or marker insertion.
+Chat agents can read docs with `list_design_docs` and `read_design_doc`, create
+new docs with `propose_design_doc`, add anchored discussion with
+`comment_on_design_doc`, suggest edits with `suggest_design_doc_change`, and
+archive docs with `delete_design_doc`.
+
+`suggest_design_doc_change` requires `base_version_number`, copied from the
+`current_version_number` field returned by the `read_design_doc` call used to
+compute `start_offset` and `end_offset`. A successful suggestion inserts anchor
+markers and creates a new document version, so agents must re-read the Design
+Doc before creating another offset-based suggestion. Stale version submissions
+are rejected before exact selected-text matching or marker insertion.
+
+`delete_design_doc` archives by setting `state: archived`; it is intentionally
+not physical deletion. Versions, comments, threads, suggestions, anchors, and
+repository links remain inspectable by direct URL, history, or explicit archived
+state filters. The tool archives immediately only when the doc is version 1,
+less than 10 minutes old, and has no comments, threads, or suggestions. All
+other calls create a pending confirmation with audit payload that includes the
+DOC reference, internal id, title, state, age, current version, discussion and
+suggestion counts, repository ids/slugs, and the reason confirmation is
+required.
+
+Workflow agents receive only `list_design_docs` and `read_design_doc`, scoped to
+the run repository; workflow/run contexts do not expose `delete_design_doc` or
+other mutating Design Docs tools.

@@ -126,13 +126,14 @@ module DesignDocs
       private
 
       def permissions_json(design_doc, user)
-        return { can_write_canonical: false, can_suggest: false, can_review_suggestions: false } unless user
+        return { can_write_canonical: false, can_suggest: false, can_review_suggestions: false, can_archive: false } unless user
 
         policy = DesignDocPolicy.new(user, design_doc)
         {
           can_write_canonical: policy.canonical_write?,
           can_suggest: policy.suggest?,
-          can_review_suggestions: policy.review?
+          can_review_suggestions: policy.review?,
+          can_archive: policy.archive? && design_doc.state != "archived"
         }
       end
 

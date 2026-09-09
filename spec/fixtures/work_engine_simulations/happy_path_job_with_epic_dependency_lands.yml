@@ -1,0 +1,66 @@
+name: happy path job with epic dependency lands
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: happy-path-job-with-epic-dependency-lands
+  auto_merge_enabled: true
+epics:
+  platform:
+    title: Platform epic
+jobs:
+  platform_job:
+    title: Platform job
+    epic: platform
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  followup:
+    title: Follow-up job outside the epic
+    state: queued
+    depends_on:
+      - "epic:platform"
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve platform job once implemented
+    once: true
+    when:
+      job:
+        id: platform_job
+        state: implemented
+    do:
+      approve: platform_job
+  - name: complete platform epic once landed
+    once: true
+    when:
+      job:
+        id: platform_job
+        state: closed
+    do:
+      complete_epic: platform
+  - name: approve follow-up once implemented
+    once: true
+    when:
+      job:
+        id: followup
+        state: implemented
+    do:
+      approve: followup
+outcomes:
+  default: success
+expect:
+  jobs:
+    platform_job:
+      - closed
+    followup:
+      - closed
+  epics:
+    platform:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

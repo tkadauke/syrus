@@ -29,15 +29,6 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     )
     beta_anchor = beta_comment.anchor
     gamma_anchor = gamma_comment.anchor
-    pending_reply_suggestion = doc.reload.suggestions.create!(
-      anchor: beta_anchor,
-      thread: beta_comment.thread,
-      suggested_by_kind: "user",
-      suggested_by_user: collaborator,
-      original_markdown: "beta",
-      suggested_markdown: "beta2"
-    )
-
     full_document_suggestion = DesignDocs::CreateSuggestion.call(
       design_doc: doc.reload,
       user: collaborator,
@@ -50,6 +41,14 @@ RSpec.describe DesignDocs::ReviewSuggestion do
       },
       actor_kind: "user"
     ).suggestion
+    pending_reply_suggestion = doc.reload.suggestions.create!(
+      anchor: beta_anchor,
+      thread: beta_comment.thread,
+      suggested_by_kind: "user",
+      suggested_by_user: collaborator,
+      original_markdown: "beta",
+      suggested_markdown: "beta2"
+    )
 
     result = described_class.accept(suggestion: full_document_suggestion, user: owner)
 
@@ -64,6 +63,8 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(gamma_anchor.reload.status).to eq("active")
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)[gamma_anchor.last_known_start_offset...gamma_anchor.last_known_end_offset]).to eq("gamma")
     expect(doc.markdown).to include(DesignDocs::AnchorMarkers.range_start_marker(gamma_anchor.marker_id))
+    expect(doc.markdown).not_to include(full_document_suggestion.anchor.marker_id)
+    expect(full_document_suggestion.anchor.reload.status).to eq("stale")
   end
 
   it "reports anchors as active only within their version window" do
@@ -122,9 +123,94 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(result.applied).to be(false)
     expect(suggestion.reload.state).to eq("stale")
     expect(anchor.reload.status).to eq("stale")
-    expect(anchor.stale_as_of_version).to eq(intervening_version)
+    expect(anchor.stale_as_of_version).to eq(result.version)
 
     expect(DesignDocAnchor.active_as_of(birth_version_number + 1)).to include(anchor)
-    expect(DesignDocAnchor.active_as_of(intervening_version.version_number)).not_to include(anchor)
+    expect(DesignDocAnchor.active_as_of(intervening_version.version_number)).to include(anchor)
+    expect(DesignDocAnchor.active_as_of(result.version.version_number)).not_to include(anchor)
+  end
+
+  it "removes rejected suggestion markers while keeping the reviewed suggestion historically inspectable" do
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
+      actor_kind: "user"
+    ).suggestion
+    marker_id = suggestion.anchor.marker_id
+    marked_markdown = doc.reload.markdown
+
+    result = described_class.reject(suggestion: suggestion, user: owner)
+
+    expect(result.applied).to be(false)
+    expect(result.version.markdown).to eq(DesignDocs::AnchorMarkers.strip(marked_markdown))
+    expect(doc.reload.markdown).not_to include(marker_id)
+    expect(suggestion.reload.state).to eq("rejected")
+    expect(suggestion.anchor.reload).to have_attributes(status: "stale", stale_as_of_version: result.version)
+  end
+
+  it "raises when marker normalization sees duplicate marker ids" do
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
+      actor_kind: "user"
+    ).suggestion
+    marker = DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id)
+    doc.update!(markdown: doc.markdown + marker)
+
+    expect {
+      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
+    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /Duplicate/)
+  end
+
+  it "raises when marker normalization sees an orphan range marker" do
+    doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker("orphan"))
+
+    expect {
+      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
+    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /orphan range marker/)
+  end
+
+  it "raises when active pending suggestion ranges overlap" do
+    first = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
+      actor_kind: "user"
+    ).suggestion
+    second_anchor = doc.anchors.create!(
+      marker_id: "manual-overlap",
+      anchor_key: "manual-overlap",
+      anchor_kind: "range",
+      design_doc_version: doc.current_version,
+      start_offset: 8,
+      end_offset: 16,
+      last_known_start_offset: 8,
+      last_known_end_offset: 16,
+      selected_markdown: "ta gamma",
+      selected_text: "ta gamma",
+      status: "active"
+    )
+    inserted = DesignDocs::AnchorMarkers.insert(
+      markdown: doc.markdown,
+      marker_id: second_anchor.marker_id,
+      start_offset: 8,
+      end_offset: 16,
+      anchor_kind: "range"
+    )
+    doc.update!(markdown: inserted.markdown)
+    doc.suggestions.create!(
+      anchor: second_anchor,
+      suggested_by_kind: "user",
+      suggested_by_user: collaborator,
+      original_markdown: "ta gamma",
+      suggested_markdown: "replacement",
+      proposed_markdown: "replacement"
+    )
+
+    expect {
+      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
+    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /##{first.id} and ##{DesignDocSuggestion.last.id} overlap/)
   end
 end

@@ -299,17 +299,19 @@ class SmartFolder < ApplicationRecord
   end
 
   def self.reconcile_builtin_set!(subject, definitions)
-    existing_by_name = canonical_builtin_rows_by_name(subject)
+    existing_by_name = canonical_system_rows_by_name(subject)
 
     definitions.each_with_index do |definition, index|
       folder = existing_by_name[definition.fetch(:name)] || new(user_id: nil, subject_type: subject, name: definition.fetch(:name))
-      folder.assign_attributes(
+      attributes = {
         kind: "builtin",
         subject_type: subject,
         filter: definition.fetch(:filter),
         position: index
-      )
-      folder.save! if folder.changed? || folder.new_record?
+      }
+      folder.assign_attributes(attributes)
+      folder = save_builtin_folder!(folder, subject, definition.fetch(:name), attributes)
+      existing_by_name[definition.fetch(:name)] = folder
     end
 
     # Sweep retired built-ins so they don't keep appearing in the
@@ -324,6 +326,33 @@ class SmartFolder < ApplicationRecord
       (folders - [ keeper ]).each(&:destroy!)
       keeper
     end
+  end
+
+  def self.canonical_system_rows_by_name(subject)
+    where(user_id: nil, subject_type: subject).order(:position, :id).group_by(&:name).transform_values do |folders|
+      keeper = folders.max_by(&:id)
+      (folders - [ keeper ]).each(&:destroy!)
+      keeper
+    end
+  end
+
+  def self.save_builtin_folder!(folder, subject, name, attributes)
+    folder.save! if folder.changed? || folder.new_record?
+    folder
+  rescue ActiveRecord::RecordInvalid => e
+    raise unless name_taken_validation?(e.record)
+
+    folder = canonical_system_rows_by_name(subject)[name]
+    raise unless folder
+
+    folder.assign_attributes(attributes)
+    folder.save! if folder.changed? || folder.new_record?
+    folder
+  end
+
+  def self.name_taken_validation?(folder)
+    folder&.errors&.of_kind?(:name, :taken) ||
+      folder&.errors&.messages_for(:name)&.include?("has already been taken")
   end
 
   # Sidebar tier for this folder — see BUILTIN_DEFINITIONS for the

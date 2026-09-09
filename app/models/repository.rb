@@ -51,6 +51,7 @@ class Repository < ApplicationRecord
   # directly — see Job#base_on_upstream_default?).
   attribute :fork_auto_sync_enabled, :boolean, default: false
   attribute :external_pr_ingestion_enabled, :boolean, default: false
+  attribute :distributed_workflow_dag_enabled, :boolean, default: false
 
   attr_accessor :main_branch_repair_enabled_explicit
 

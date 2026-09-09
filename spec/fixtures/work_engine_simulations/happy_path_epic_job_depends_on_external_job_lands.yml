@@ -1,0 +1,66 @@
+name: happy path epic job depends on external job lands
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: happy-path-epic-job-depends-on-external-job-lands
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature epic
+jobs:
+  external:
+    title: External prerequisite job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  member:
+    title: Epic member depending on external job
+    epic: feature
+    state: queued
+    depends_on:
+      - external
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve external once implemented
+    once: true
+    when:
+      job:
+        id: external
+        state: implemented
+    do:
+      approve: external
+  - name: approve member once implemented
+    once: true
+    when:
+      job:
+        id: member
+        state: implemented
+    do:
+      approve: member
+  - name: complete feature epic once member lands
+    once: true
+    when:
+      job:
+        id: member
+        state: closed
+    do:
+      complete_epic: feature
+outcomes:
+  default: success
+expect:
+  jobs:
+    external:
+      - closed
+    member:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

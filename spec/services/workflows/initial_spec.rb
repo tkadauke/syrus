@@ -31,6 +31,31 @@ RSpec.describe Workflows::Initial do
     )
   end
 
+  it "keeps every materialized Step pinned when the distributed workflow gate is off" do
+    repository.update!(distributed_workflow_dag_enabled: true)
+
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.steps.order(:position).pluck(:placement_policy).uniq).to eq(
+      [ Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE ]
+    )
+  end
+
+  it "applies Step kind placement metadata when distributed workflows are enabled for the repository" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    repository.update!(distributed_workflow_dag_enabled: true)
+
+    workflow = described_class.instantiate(job: job)
+
+    placements = workflow.steps.order(:position).pluck(:kind, :placement_policy).to_h
+    expect(placements).to include(
+      "implement" => Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+      "grader_fanout" => Step::PlacementPolicy::CONTROL_PLANE,
+      "grader_collect" => Step::PlacementPolicy::CONTROL_PLANE,
+      "pr_open" => Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    )
+  end
+
   context "when formatters, generated, and grade are all unconfigured" do
     before do
       allow(RepoGradeLoopPlan).to receive(:from_syrus_yml).and_return(
