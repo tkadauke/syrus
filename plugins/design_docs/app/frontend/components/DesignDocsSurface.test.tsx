@@ -1036,6 +1036,7 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(-84px)" })
     })
+    expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveClass("overflow-hidden")
     // Pinned to its own anchor (the clicked pivot).
     expect(screen.getByText("Third note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "12px" })
     // Pushed up to make room, in the same 12px minimum gap -- never overlapping,
@@ -1132,6 +1133,7 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByText("Needs evidence"))
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(100px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "100px" })
     })
 
     markerTop = 250
@@ -1139,6 +1141,7 @@ describe("DesignDocsSurface", () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(250px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "250px" })
     })
   })
 
