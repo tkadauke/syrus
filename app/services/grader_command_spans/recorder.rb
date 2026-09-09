@@ -10,11 +10,12 @@ module GraderCommandSpans
 
     attr_reader :plan
 
-    def initialize(run:, step:, workflow:, plan:)
+    def initialize(run:, step:, workflow:, plan:, sequence_offset: 0)
       @run = run
       @step = step
       @workflow = workflow
       @plan = plan
+      @sequence_offset = sequence_offset.to_i
       @line_buffer = +""
       @open_spans = {}
       @span_ids_by_sequence = {}
@@ -101,7 +102,7 @@ module GraderCommandSpans
     def create_fallback_span!
       fragment = plan.fragments.first
       span = create_span!(
-        sequence: 1,
+        sequence: span_sequence(1),
         name: fragment.name,
         command_excerpt: fragment.command,
         started_at: Time.current,
@@ -131,8 +132,10 @@ module GraderCommandSpans
       sequence = Integer(parts.fetch(2))
       return if sequence > MAX_SPANS_PER_RUN
 
+      persisted_sequence = span_sequence(sequence)
+
       span = create_span!(
-        sequence: sequence,
+        sequence: persisted_sequence,
         name: decode64(parts.fetch(4)).presence || "command ##{sequence}",
         command_excerpt: decode64(parts.fetch(5)).squish.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
         started_at: time_from_ms(parts.fetch(3)),
@@ -170,6 +173,10 @@ module GraderCommandSpans
         hostname: Socket.gethostname,
         metadata: metadata
       )
+    end
+
+    def span_sequence(sequence)
+      @sequence_offset + sequence
     end
 
     def finish_span!(span, finished_at:, exit_status:, outcome:)
