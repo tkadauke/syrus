@@ -29,6 +29,8 @@ describe("ImageAnnotationModal", () => {
       bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100,
       x: 0, y: 0, toJSON: () => ({})
     })
+    Object.defineProperty(HTMLCanvasElement.prototype, "offsetWidth", { configurable: true, value: 100 })
+    Object.defineProperty(HTMLCanvasElement.prototype, "offsetHeight", { configurable: true, value: 80 })
 
     Object.defineProperty(globalThis, "Image", {
       configurable: true,
@@ -955,6 +957,52 @@ describe("ImageAnnotationModal", () => {
 
     // Zoom is unchanged — only pan shifted
     await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+  })
+
+  it("clamps scroll wheel panning to the image edges", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    const viewport = canvas.parentElement?.parentElement?.parentElement
+    expect(viewport).toBeInstanceOf(HTMLElement)
+    vi.spyOn(viewport as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 40, height: 40, left: 0, right: 60, top: 0, width: 60,
+      x: 0, y: 0, toJSON: () => ({})
+    })
+
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: -1000, deltaY: -1000, bubbles: true }))
+
+    await waitFor(() => {
+      expect(canvas.parentElement).toHaveStyle({ transform: "scale(1.5) translate(30px, 26.666666666666668px)" })
+    })
+  })
+
+  it("keeps panning centered on axes where the image fits the viewport", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    const viewport = canvas.parentElement?.parentElement?.parentElement
+    expect(viewport).toBeInstanceOf(HTMLElement)
+    vi.spyOn(viewport as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 40, height: 40, left: 0, right: 300, top: 0, width: 300,
+      x: 0, y: 0, toJSON: () => ({})
+    })
+
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: -1000, deltaY: -1000, bubbles: true }))
+
+    await waitFor(() => {
+      expect(canvas.parentElement).toHaveStyle({ transform: "scale(1.5) translate(0px, 26.666666666666668px)" })
+    })
   })
 
   it("scroll wheel pan resets when dataUrl changes", async () => {
