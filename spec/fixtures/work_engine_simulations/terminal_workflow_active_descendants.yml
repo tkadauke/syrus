@@ -1,0 +1,26 @@
+name: terminal workflow active descendants
+repository:
+  owner: simulation
+  name: terminal-workflow-active-descendants
+jobs:
+  job:
+    title: Terminal workflow active descendants
+    state: failed
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: implement
+          state: failed
+          run:
+            state: failed
+        - kind: summarize
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - failed
+    - implemented

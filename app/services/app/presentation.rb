@@ -165,6 +165,8 @@ module App
         "Create document #{payload['title'].to_s.inspect}"
       when "delete_repo_document"
         "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
+      when "delete_design_doc"
+        "Archive #{payload['doc_ref'].presence || "DOC-#{payload['design_doc_id']}"}"
       when "poll_job_feedback"
         "Poll PR feedback for #{job_slug(payload['job_id'])}"
       when "run_visual_review"
@@ -264,6 +266,11 @@ module App
         payload["comment"].presence
       when "submit_chat_feedback"
         payload["feedback"].presence
+      when "delete_design_doc"
+        [
+          payload["title"].presence,
+          payload["confirmation_reason"].presence
+        ].compact.join("\n").presence
       when "complete_implement_step"
         payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
       when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"

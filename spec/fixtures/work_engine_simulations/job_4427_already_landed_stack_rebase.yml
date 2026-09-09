@@ -1,0 +1,47 @@
+name: JOB-4427 already-landed stack rebase
+runner:
+  auto_retry_failed_jobs: false
+repository:
+  owner: simulation
+  name: job-4427-already-landed-stack-rebase
+epics:
+  stack:
+    title: Plugin architecture stack
+jobs:
+  root:
+    title: Root job already landed but still failed
+    epic: stack
+    state: failed
+    branch_name: syrus/direct-4427
+    pr_number: 3397
+    workflow:
+      template: true
+      kind: stack_rebase
+  child:
+    title: Child job waiting behind the root
+    epic: stack
+    state: approved
+    parent_job: root
+    depends_on:
+      - root
+    branch_name: syrus/direct-4428
+    pr_number: 3400
+    pr_checks_state: passing
+    approved_at: "2026-09-08 12:00:00"
+outcomes:
+  default: success
+  steps:
+    stack_auto_rebase:
+      status: success
+      stack_results:
+        root: already_landed
+        child: rebased
+expect:
+  jobs:
+    root:
+      - closed
+    child:
+      - approved
+  queues:
+    active_runs: empty
+    active_work_units: empty

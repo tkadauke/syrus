@@ -137,6 +137,7 @@ export type DesignDocDetail = DesignDocSummary & {
     can_write_canonical: boolean
     can_suggest: boolean
     can_review_suggestions: boolean
+    can_archive: boolean
   }
   collaborator_ids: number[]
   collaborators: DesignDocUser[]

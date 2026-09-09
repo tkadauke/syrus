@@ -706,6 +706,18 @@ RSpec.describe RunJob, :ci_only do
         headers: { "Content-Type" => "application/json" },
         body: { number: 17, state: "open", body: "Existing PR body" }.to_json
       )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: { object: { sha: "base-sha" } }.to_json
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/17/reviews")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [ { state: "APPROVED", commit_id: "head-sha" } ].to_json
+        )
       merge_stub = stub_request(:put, "https://api.github.com/repos/acme/widgets/pulls/17/merge").to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
@@ -761,6 +773,80 @@ RSpec.describe RunJob, :ci_only do
       logs = run.job_logs.pluck(:chunk)
       expect(logs).to include("real chunk")
       expect(logs).not_to include("", "   \n\n  ")
+    end
+  end
+
+  describe "immutable-source graders" do
+    it "runs a serial grader against the immutable source snapshot instead of the mutable workflow workspace" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-serial\n")
+      allow(SyrusVersion).to receive(:hostname).and_return("worker-serial")
+      allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
+        block.call("file://#{bare_remote_dir}")
+      end
+      commit_file_to_remote("source.txt", "snapshot\n")
+      immutable_job = Factories.job_record(user: user, repository: repository, issue_number: 77, state: "running")
+      workflow = Workflow.create!(
+        job: immutable_job,
+        user: user,
+        trigger_kind: "initial",
+        agent_provider: immutable_job.agent_provider
+      )
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: {
+          "name" => "snapshot-check",
+          "command" => <<~'RUBY'.squish,
+            ruby -e 'actual = File.read("source.txt");
+            abort "mutable workspace used: #{actual.inspect}" unless actual == "snapshot\n";
+            puts "validated immutable snapshot"'
+          RUBY
+          "required" => true,
+          "timeout_minutes" => 1
+        }
+      )
+      snapshot = WorkflowSourceSnapshots.record!(
+        workflow: workflow,
+        creator_step: step,
+        source_sha: sh("git --git-dir=#{bare_remote_dir} rev-parse refs/heads/main").strip,
+        source_ref: "refs/heads/main",
+        tree_sha: sh("git --git-dir=#{bare_remote_dir} rev-parse refs/heads/main^{tree}").strip
+      )
+      step.update!(details: step.details.merge("source_snapshot_id" => snapshot.id))
+      mutable_workspace = WorkflowWorkspace.path_for(workflow)
+      FileUtils.mkdir_p(mutable_workspace)
+      File.write(mutable_workspace.join("source.txt"), "mutable\n")
+      run = step.runs.create!(
+        job: immutable_job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: immutable_job.agent_provider
+      )
+
+      RunJob.perform_now(run.id)
+
+      expect(run.reload).to be_succeeded
+      expect(run.head_sha).to eq(snapshot.source_sha)
+      expect(step.reload).to be_succeeded
+      expect(step.details.fetch("prepare_cache")).to include(
+        "status" => "miss",
+        "worker_storage_key" => "storage-serial",
+        "source_snapshot_sha" => snapshot.source_sha
+      )
+      expect(step.details.fetch("immutable_source_checkout")).to include(
+        "worker_hostname" => "worker-serial",
+        "worker_storage_key" => "storage-serial",
+        "source_snapshot_sha" => snapshot.source_sha,
+        "prepare_cache_status" => "miss"
+      )
+      expect(run.job_logs.where(kind: "grade_log").pluck(:chunk).join).to include("validated immutable snapshot")
+      expect(workflow.reload.cleaned_up_at).to be_present
     end
   end
 

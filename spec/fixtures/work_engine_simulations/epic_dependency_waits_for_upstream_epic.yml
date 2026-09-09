@@ -1,0 +1,40 @@
+name: epic dependency waits for upstream epic
+repository:
+  owner: simulation
+  name: epic-dependency-waits-for-upstream-epic
+epics:
+  upstream:
+    title: Upstream epic
+  downstream:
+    title: Downstream epic
+    depends_on:
+      - upstream
+jobs:
+  upstream_job:
+    title: Upstream job
+    epic: upstream
+    state: approved
+    branch_name: syrus/upstream
+    pr_number: 20004
+    pr_checks_state: passing
+    approved_at: "2026-09-01 12:00:00"
+  downstream_job:
+    title: Downstream job
+    epic: downstream
+    state: queued
+    depends_on:
+      - "epic:upstream"
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  upstream_job:
+    - approved
+  downstream_job:
+    - implemented
+wait_states:
+  downstream_job:
+    - queued
+    - blocked_by_epic

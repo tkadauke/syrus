@@ -1,0 +1,31 @@
+name: happy path single job lands
+repository:
+  owner: simulation
+  name: happy-path-single-job-lands
+  auto_merge_enabled: true
+jobs:
+  job:
+    title: Single job lands
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve job once implemented
+    once: true
+    when:
+      job:
+        id: job
+        state: implemented
+    do:
+      approve: job
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

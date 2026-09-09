@@ -8,6 +8,14 @@ require "rails_helper"
 # cancelled through a real `update!` (not `update_columns`, which would
 # skip the callback that clears the key) before attaching the new one.
 module StepDispatcherSpecAttachWorkUnit
+  def enable_distributed_workflow_dag!(repository)
+    Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+      feature.category = "Operations"
+      feature.name = "Distributed workflow DAG"
+    end.update!(enabled: true)
+    repository.update!(distributed_workflow_dag_enabled: true)
+  end
+
   def attach_work_unit(workflow, state: "queued", **options)
     WorkUnit
       .joins(:work_unit_members)
@@ -801,6 +809,102 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s3.runs.count).to eq(0)  # not yet
     end
 
+    it "queues every ready immutable-source sibling under the distributed execution gates" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      enqueued_run_jobs_before = enqueued_jobs.count { |entry| entry[:job] == RunJob }
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+        .and change { s3.runs.count }.by(1)
+
+      expect(collect.runs.count).to eq(0)
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
+    end
+
+    it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      current_run = s1.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      enqueued_run_jobs_before = enqueued_jobs.count { |entry| entry[:job] == RunJob }
+      Thread.current[:syrus_current_run] = current_run
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+        .and change { s3.runs.count }.by(1)
+
+      expect(collect.runs.count).to eq(0)
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(1)
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
+    it "keeps pinned siblings serial even when their graph dependencies are ready together" do
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s2.update!(depends_on_ids: [ s1.id ])
+      s3.update!(depends_on_ids: [ s1.id ])
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+
+      expect(s3.runs.count).to eq(0)
+    end
+
+    it "does not finish while a parallel sibling is still running" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", state: "succeeded", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ], started_at: 1.minute.ago, finished_at: Time.current)
+      s3.update!(kind: "grader", state: "running", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ], started_at: 1.minute.ago)
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(s2)
+      }.not_to change { collect.runs.count }
+
+      expect(workflow.reload).to be_running
+    end
+
     it "skips test_plan without creating a Run when the plan artifact already exists" do
       test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 2)
       s3.update!(position: 3)
@@ -1115,6 +1219,36 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(auto_merge.reload.position).to eq(6)
     end
 
+    it "applies placement metadata to dynamically inserted retry_until iterations when distributed workflows are enabled" do
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::RetryUntil.new(
+                max_iterations: 2,
+                repair_first: false,
+                repair: [ :landing_fix ],
+                check: [ :grader_fanout, :grader_collect ]
+              ),
+              :push
+
+        def self.trigger_kind = "auto_merge"
+      end
+      retry_workflow = workflow_class.instantiate(job: job)
+      grader_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+
+      described_class.fail_from(grader_collect)
+
+      expect(retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      expect(retry_workflow.steps.find_by!(kind: "grader_fanout", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+    end
+
     it "advances retry_until check-only first iteration without materializing repair when checks pass" do
       workflow_class = Class.new(Workflows::Base) do
         steps Workflows::RetryUntil.new(
@@ -1289,6 +1423,29 @@ RSpec.describe StepDispatcher, :ci_only do
       expect {
         described_class.fail_from(push.reload)
       }.not_to change { try_workflow.steps.count }
+    end
+
+    it "applies placement metadata to dynamically inserted Try failure branches when distributed workflows are enabled" do
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      try_workflow = workflow_with_try_push_branch
+      push = try_workflow.steps.find_by!(kind: "push")
+      push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+
+      described_class.fail_from(push)
+
+      expect(try_workflow.steps.find_by!(kind: "push_agent_rebase").placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      expect(try_workflow.steps.find_by!(kind: "grader_fanout").placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(try_workflow.steps.find_by!(kind: "grader_collect").placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(try_workflow.steps.find_by!(kind: "push_after_rebase").placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
     end
 
     it "runs retry_until repair iterations inside an expanded Try branch" do

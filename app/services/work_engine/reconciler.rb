@@ -376,12 +376,14 @@ module WorkEngine
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       elsif job_id.present?
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids([ job_id ]).to_a)
+        active_job_workflows = active_workflows_for_jobs([ job_id ])
         latest_failed_workflows = latest_failed_workflows_for_jobs([ job_id ])
         unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs([ job_id ])
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs([ job_id ])
         terminal_descendant_workflows = terminal_workflows_with_active_descendants(job_ids: [ job_id ])
 
         Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: active_job_workflows.select(:id)))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
           .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
@@ -389,17 +391,26 @@ module WorkEngine
       else
         job_ids = jobs.map(&:id)
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids(job_ids).to_a)
+        active_job_workflows = active_workflows_for_jobs(job_ids)
         latest_failed_workflows = latest_failed_workflows_for_jobs(job_ids)
         unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs(job_ids)
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs(job_ids)
         terminal_descendant_workflows = terminal_workflows_with_active_descendants
 
         Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: active_job_workflows.select(:id)))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
           .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       end
+    end
+
+    def active_workflows_for_jobs(job_ids)
+      ids = Array(job_ids).compact
+      return Workflow.none if ids.empty?
+
+      Workflow.where(job_id: ids, state: %w[queued running])
     end
 
     def queued_retry_workflows_for_jobs(job_ids)
@@ -884,6 +895,21 @@ module WorkEngine
             check_after: start_block_next_check_at(workflow),
             evidence: workflow_evidence(workflow).merge(first_step_id: workflow.first_step&.id),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
+          )
+        elsif workflow.queued? && (failed_step = orphaned_failed_step(workflow))
+          issue(
+            kind: :queued_workflow_with_failed_step,
+            severity: :error,
+            affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "fail_workflow_from_failed_step",
+            evidence: workflow_evidence(workflow).merge(
+              failed_step_id: failed_step.id,
+              failed_step_kind: failed_step.kind,
+              failed_step_finished_at: failed_step.finished_at&.iso8601,
+              step_states: workflow.steps.pluck(:id, :kind, :state)
+            ),
+            explanation: "Workflow ##{workflow.id} is still queued even though Step ##{failed_step.id} has failed."
           )
         elsif workflow.running? && older_than?(workflow.started_at, ORPHAN_RUN_GRACE_PERIOD) && !workflow_has_active_descendants?(workflow)
           issue(

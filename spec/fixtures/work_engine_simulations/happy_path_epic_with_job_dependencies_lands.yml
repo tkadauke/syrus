@@ -1,0 +1,95 @@
+name: happy path epic with job dependencies lands
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: happy-path-epic-with-job-dependencies-lands
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature with internal dependencies
+jobs:
+  foundation:
+    title: Foundation job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  adapter:
+    title: Adapter job
+    epic: feature
+    state: queued
+    parent_job: foundation
+    depends_on:
+      - foundation
+    workflow:
+      template: true
+      kind: initial
+  ui:
+    title: UI job
+    epic: feature
+    state: queued
+    parent_job: adapter
+    depends_on:
+      - adapter
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve foundation once implemented
+    once: true
+    when:
+      job:
+        id: foundation
+        state: implemented
+    do:
+      approve: foundation
+  - name: approve adapter once implemented
+    once: true
+    when:
+      job:
+        id: adapter
+        state: implemented
+    do:
+      approve: adapter
+  - name: approve ui once implemented
+    once: true
+    when:
+      job:
+        id: ui
+        state: implemented
+    do:
+      approve: ui
+  - name: complete feature epic once landed
+    once: true
+    when:
+      all:
+        - job:
+            id: foundation
+            state: closed
+        - job:
+            id: adapter
+            state: closed
+        - job:
+            id: ui
+            state: closed
+    do:
+      complete_epic: feature
+outcomes:
+  default: success
+expect:
+  jobs:
+    foundation:
+      - closed
+    adapter:
+      - closed
+    ui:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

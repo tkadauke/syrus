@@ -1,0 +1,16 @@
+name: single initial success
+repository:
+  owner: simulation
+  name: single-initial-success
+jobs:
+  initial_job:
+    title: Single initial job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  initial_job:
+    - implemented

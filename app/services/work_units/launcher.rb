@@ -153,6 +153,12 @@ module WorkUnits
       )
     end
 
+    def self.active_dedup_unique_violation?(error)
+      message = error.message.to_s
+      message.include?("idx_work_units_active_dedup_key_unique") ||
+        message.match?(/Duplicate entry .*active_dedup_key/i)
+    end
+
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:, existing_intent: nil)
       @definition = WorkDefinitions.for(kind)
       @job = job
@@ -249,7 +255,9 @@ module WorkUnits
         parent_work_unit: parent_work_unit,
         **unit_ref_metadata_attributes(intent)
       )
-    rescue ActiveRecord::RecordNotUnique
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid => e
+      raise unless active_dedup_unique_violation?(e)
+
       dedup_key = "#{scope_type}:#{scope_id}:#{definition.kind}"
       owner = Ownership.active_unit_for_dedup_key(dedup_key)
       raise LockConflict.new(lock_key: dedup_key, work_unit: owner) if owner
@@ -347,6 +355,10 @@ module WorkUnits
         .where(kind: "ci_failure", state: %w[queued blocked running])
         .where.not(id: excluding.id)
         .includes(:workflow)
+    end
+
+    def active_dedup_unique_violation?(error)
+      self.class.active_dedup_unique_violation?(error)
     end
 
     def scope_type

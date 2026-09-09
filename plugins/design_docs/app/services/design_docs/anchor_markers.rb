@@ -88,7 +88,26 @@ module DesignDocs
       end_match = end_regex.match(raw)
       return nil unless start_match && end_match && end_match.begin(0) >= start_match.end(0)
 
-      raw[0...start_match.end(0)] + proposed_markdown.to_s + raw[end_match.begin(0)..]
+      raw[0...start_match.begin(0)].to_s + proposed_markdown.to_s + raw[end_match.end(0)..].to_s
+    end
+
+    def remove(markdown:, marker_id:, anchor_kind:)
+      raw = markdown.to_s
+      if anchor_kind.to_s == "point"
+        return raw.gsub(/<!--\s*syrus:anchor\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
+      end
+
+      raw
+        .gsub(/<!--\s*syrus:range-start\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
+        .gsub(/<!--\s*syrus:range-end\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
+    end
+
+    def marker_counts(markdown)
+      counts = Hash.new { |hash, marker_id| hash[marker_id] = { point: 0, range_start: 0, range_end: 0 } }
+      markdown.to_s.scan(POINT_PATTERN) { |marker_id| counts[marker_id][:point] += 1 }
+      markdown.to_s.scan(RANGE_START_PATTERN) { |marker_id| counts[marker_id][:range_start] += 1 }
+      markdown.to_s.scan(RANGE_END_PATTERN) { |marker_id| counts[marker_id][:range_end] += 1 }
+      counts
     end
 
     def project(markdown:, visible_markdown:, anchors:)

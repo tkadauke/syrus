@@ -1,0 +1,17 @@
+name: superseded unit uncancelled intent
+repository:
+  owner: simulation
+  name: superseded-unit-uncancelled-intent
+work_intents:
+  intent:
+    kind: initial
+    state: requested
+work_units:
+  unit:
+    intent: intent
+    kind: initial
+    state: cancelled
+    preemption_reason: operator_cancelled
+outcomes:
+  default: success
+
