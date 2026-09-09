@@ -48,7 +48,7 @@ type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
-type SelectionRect = { top: number; left: number; containerWidth: number }
+type SelectionRect = { top: number; left: number; width: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
@@ -1252,10 +1252,7 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   return (
     <div
       className="absolute z-30"
-      style={{
-        left: selection.rect ? `${clampAffordanceLeft(selection.rect)}px` : "1rem",
-        top: selection.rect ? `${Math.max(selection.rect.top - 44, 8)}px` : "1rem"
-      }}
+      style={selection.rect ? selectionAffordanceStyle(selection.rect) : { left: "1rem", top: "1rem" }}
     >
       <Button
         aria-label="Comment on selection"
@@ -1653,11 +1650,40 @@ function CommentIcon() {
   )
 }
 
-function clampAffordanceLeft(rect: SelectionRect) {
+function selectionAffordanceStyle(rect: SelectionRect) {
   const iconWidth = 36
   const inset = 8
-  const maxLeft = Math.max(inset, rect.containerWidth - iconWidth - inset)
-  return Math.min(Math.max(rect.left, inset), maxLeft)
+  const gap = 8
+  const preferredTop = rect.top - iconWidth - gap
+
+  if (preferredTop >= inset) {
+    return {
+      left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+      top: `${preferredTop}px`
+    }
+  }
+
+  if (rect.width > 0) {
+    const rightSideLeft = rect.left + rect.width + gap
+    if (rightSideLeft + iconWidth <= rect.containerWidth - inset) {
+      return { left: `${rightSideLeft}px`, top: `${inset}px` }
+    }
+
+    const leftSideLeft = rect.left - iconWidth - gap
+    if (leftSideLeft >= inset) return { left: `${leftSideLeft}px`, top: `${inset}px` }
+  }
+
+  return {
+    left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+    top: `${inset}px`
+  }
+}
+
+function clampAffordanceLeft(left: number, containerWidth: number) {
+  const iconWidth = 36
+  const inset = 8
+  const maxLeft = Math.max(inset, containerWidth - iconWidth - inset)
+  return Math.min(Math.max(left, inset), maxLeft)
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
@@ -2514,6 +2540,7 @@ function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end
   return {
     left: Math.min(rect.width - 32, 16 + lines.at(-1)!.length * charWidth),
     top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop),
+    width: 0,
     containerWidth: rect.width
   }
 }
@@ -2529,6 +2556,7 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
   return {
     left: rangeRect.left - containerRect.left,
     top: rangeRect.top - containerRect.top,
+    width: rangeRect.width,
     containerWidth: containerRect.width
   }
 }
