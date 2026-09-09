@@ -248,6 +248,28 @@ RSpec.describe Steps::Grader, :ci_only do
       expect(reused["status"]).to eq("reused")
       expect(reused["reason"]).to include("requested by grader:tests")
     end
+
+    it "does not conflate two distinct target labels that a character-substituting sanitizer would collide" do
+      # "//a/b:c" and "//a:b_c" both contain characters (`/`, `:`) that a naive
+      # gsub-based sanitizer maps onto the same replacement, which would wrongly
+      # make the second grader believe its own prepare target already ran.
+      step.update!(details: step.details.merge("prepare_targets" => [ { "target_label" => "//a/b:c", "commands" => [ "npm ci" ] } ]))
+      other_step.update!(details: other_step.details.merge("prepare_targets" => [ { "target_label" => "//a:b_c", "commands" => [ "npm ci" ] } ]))
+
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+          exit_status: 0, timed_out: false, stopped: false,
+          silent_timed_out: false, operator_killed: false,
+          aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+        ))
+      end
+
+      handler.call
+      other_handler.call
+
+      expect(step.reload.details["prepare_target_results"].first["status"]).to eq("ran")
+      expect(other_step.reload.details["prepare_target_results"].first["status"]).to eq("ran")
+    end
   end
 
   it "records spans for successful composite grader phases without writing markers to grade logs" do
