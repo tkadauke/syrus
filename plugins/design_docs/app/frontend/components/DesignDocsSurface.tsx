@@ -1340,6 +1340,13 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const hasSelection = selection.end > selection.start && !viewingHistory
+  const stackShift = !viewingHistory ? railLayout.stackShift : 0
+  const railStackStyle = !viewingHistory
+    ? {
+      marginBottom: stackShift > 0 ? stackShift : undefined,
+      transform: stackShift !== 0 ? `translateY(${stackShift}px)` : undefined
+    }
+    : undefined
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
@@ -1390,7 +1397,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
           className="space-y-3"
           data-testid="design-doc-rail-stack"
           ref={railStackRef}
-          style={{ transform: !viewingHistory && railLayout.stackShift !== 0 ? `translateY(${railLayout.stackShift}px)` : undefined }}
+          style={railStackStyle}
         >
           {railEntries.map((entry, index) => entry.kind === "thread" ? (
             <CommentThreadCard
