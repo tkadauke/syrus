@@ -10,6 +10,7 @@ RSpec.describe Repository do
     expect(repo.polling_enabled).to be true
     expect(repo.trigger_label).to eq("syrus")
     expect(repo.agent_provider).to be_nil
+    expect(repo.distributed_workflow_dag_enabled).to be false
   end
 
   describe "poll status tracking" do

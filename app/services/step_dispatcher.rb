@@ -1064,6 +1064,7 @@ class StepDispatcher
           position: position,
           iteration: 1,
           loop_id: loop_id,
+          placement_policy: placement_policy_for(kind),
           details: details
         )
         position += 1
@@ -1133,7 +1134,8 @@ class StepDispatcher
           kind: kind,
           position: insertion_position + index,
           iteration: next_iteration,
-          loop_id: current_grade.loop_id
+          loop_id: current_grade.loop_id,
+          placement_policy: placement_policy_for(kind)
         )
       end
 
@@ -1151,6 +1153,10 @@ class StepDispatcher
 
     self.class.record_manual_pause!(@workflow, step: step)
     true
+  end
+
+  def placement_policy_for(kind)
+    Step::Kind.fetch(kind).placement_policy_for(@workflow.job.repository)
   end
 
   def next_loop_iteration_already_materialized?(current_grade)

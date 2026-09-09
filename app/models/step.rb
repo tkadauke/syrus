@@ -15,6 +15,10 @@ class Step < ApplicationRecord
   # cascade path is Job → Workflow → Step → Run.
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
+  has_many :created_source_snapshots,
+    class_name: "WorkflowSourceSnapshot",
+    foreign_key: :creator_step_id,
+    dependent: :restrict_with_error
 
   # workflow-engine-v3 A5: the graph edges. `next_step_id` still orders the
   # chain; these say what a Step is *waiting for*, which is what turns "find
@@ -59,7 +63,9 @@ class Step < ApplicationRecord
   # See Workflow#trigger_kind: resolved per validation so plugin-contributed
   # step kinds are honoured.
   validates :kind, presence: true, inclusion: { in: ->(_) { Step::Kind.values } }
+  validates :placement_policy, presence: true, inclusion: { in: PlacementPolicy::VALUES }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :placement_policy_requires_distributed_gate
 
   ACTIVE_STATES = %w[ queued running ].freeze
   TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
@@ -131,6 +137,13 @@ class Step < ApplicationRecord
 
   def agentic?
     AGENTIC_KINDS.include?(kind)
+  end
+
+  def distributed_workflow_dag_enabled?
+    repository = workflow&.job&.repository
+    return false unless repository
+
+    Feature.distributed_workflow_dag_enabled?(repository)
   end
 
   def slug
@@ -239,5 +252,13 @@ class Step < ApplicationRecord
 
   def default_details
     self.details ||= {}
+  end
+
+  def placement_policy_requires_distributed_gate
+    return unless new_record? || will_save_change_to_placement_policy?
+    return if placement_policy == PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    return if distributed_workflow_dag_enabled?
+
+    errors.add(:placement_policy, "requires distributed workflow DAG execution to be enabled for this repository")
   end
 end

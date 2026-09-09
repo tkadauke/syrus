@@ -2,6 +2,25 @@
 
 Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke the agent CLI) or **non-agentic** (run service code directly). Step kinds are registered in `app/models/step/kind.rb`.
 
+`Step` is also the workflow DAG node record for the distributed-workflow
+foundation; Syrus does not create a separate node table. Every Step has a
+`placement_policy` column. The default is `pinned_workflow_workspace`, which is
+the legacy behavior: run on the workflow's mutable workspace and owning storage
+key. Other supported policies are `immutable_source_checkout` for read-only
+validation from a durable source snapshot, `control_plane` for fanout/collect
+or orchestration work that does not need a repository checkout, and
+`external_context` for checks that run against a connector or runtime outside
+the checkout.
+
+The non-pinned policies are gated by both the instance `distributed_workflow_dag`
+feature flag and the repository's `distributed_workflow_dag_enabled` setting.
+When either gate is off, newly materialized Steps stay pinned even if their
+`Step::Kind` entry declares a future distributed placement. Descriptive
+projection metadata such as `projected_target_label`,
+`projected_target_fingerprint`, `projected_resource_key`, `barrier_group`,
+`barrier_labels`, and source-snapshot references stays in `steps.details`; only
+scheduler-hot placement is a column.
+
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
 resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and
@@ -359,6 +378,18 @@ Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `gr
 Grader materialization remains sequential within the current workflow workspace.
 Landing-specific fanout is not enabled; any future design needs isolated
 workspaces for grader side effects before multiple grader Runs can overlap.
+
+When both the instance `distributed_workflow_dag` feature and the repository
+opt-in are enabled, legacy grader fanout also records target-style projection
+metadata on each materialized `grader` Step without changing the serial chain:
+`projected_target_label` (`//:grade/<name>`),
+`projected_target_fingerprint`, `projected_resource_key`, `barrier_group`, and
+`barrier_labels`. The same gated payload connects the Step to the current
+workflow source snapshot through `source_snapshot_id` plus a nested
+`source_snapshot` summary (`source_sha`, `source_ref`, `tree_sha`, and optional
+`fingerprint`). When either gate is disabled, fanout keeps the legacy pinned
+placement, writes none of this projection/source-snapshot detail, and creates no
+workflow source snapshot solely for grader metadata.
 
 Before matching a grader's `when_files_changed` globs, this step also asks
 every registered `:affected_test_analyzer` plugin (see

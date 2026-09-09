@@ -1115,6 +1115,36 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(auto_merge.reload.position).to eq(6)
     end
 
+    it "applies placement metadata to dynamically inserted retry_until iterations when distributed workflows are enabled" do
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::RetryUntil.new(
+                max_iterations: 2,
+                repair_first: false,
+                repair: [ :landing_fix ],
+                check: [ :grader_fanout, :grader_collect ]
+              ),
+              :push
+
+        def self.trigger_kind = "auto_merge"
+      end
+      retry_workflow = workflow_class.instantiate(job: job)
+      grader_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+
+      described_class.fail_from(grader_collect)
+
+      expect(retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      expect(retry_workflow.steps.find_by!(kind: "grader_fanout", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2).placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+    end
+
     it "advances retry_until check-only first iteration without materializing repair when checks pass" do
       workflow_class = Class.new(Workflows::Base) do
         steps Workflows::RetryUntil.new(
@@ -1289,6 +1319,29 @@ RSpec.describe StepDispatcher, :ci_only do
       expect {
         described_class.fail_from(push.reload)
       }.not_to change { try_workflow.steps.count }
+    end
+
+    it "applies placement metadata to dynamically inserted Try failure branches when distributed workflows are enabled" do
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      try_workflow = workflow_with_try_push_branch
+      push = try_workflow.steps.find_by!(kind: "push")
+      push.update!(details: push.details.merge("failure_code" => "remote_branch_advanced_rebase_conflict"))
+
+      described_class.fail_from(push)
+
+      expect(try_workflow.steps.find_by!(kind: "push_agent_rebase").placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
+      expect(try_workflow.steps.find_by!(kind: "grader_fanout").placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(try_workflow.steps.find_by!(kind: "grader_collect").placement_policy).to eq(
+        Step::PlacementPolicy::CONTROL_PLANE
+      )
+      expect(try_workflow.steps.find_by!(kind: "push_after_rebase").placement_policy).to eq(
+        Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+      )
     end
 
     it "runs retry_until repair iterations inside an expanded Try branch" do

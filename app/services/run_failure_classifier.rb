@@ -60,6 +60,8 @@ class RunFailureClassifier
       result("workspace_clone_timeout", 0.95, true, "The workflow workspace clone timed out before producing a usable checkout.")
     when workspace_checkout_invalid?
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
+    when source_snapshot_metadata_invalid?
+      result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot metadata is missing or does not match the requested immutable checkout.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
@@ -176,6 +178,11 @@ class RunFailureClassifier
 
   def workspace_checkout_invalid?
     text_match?(/existing workflow workspace .* has no valid HEAD|workflow workspace .* no valid HEAD/i)
+  end
+
+  def source_snapshot_metadata_invalid?
+    diagnostic&.error_class.to_s.match?(/WorkflowSourceSnapshots::InfrastructureStateError/) ||
+      text_match?(/workflow source snapshot metadata (missing|mismatch)|source snapshot metadata (missing|mismatch)/i)
   end
 
   def provider_prompt_too_long?
