@@ -921,6 +921,23 @@ describe("AppChromeV2 mobile header pinning", () => {
     }
   })
 
+  it("pins the mobile top bar horizontally when page content overflows wider than the viewport", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div className="w-[80rem]">Oversized page content</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      const main = screen.getByRole("main")
+      fireEvent.scroll(main, { target: { scrollLeft: 320 } })
+
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
+      expect(topBar).toHaveClass("sticky", "left-0", "right-0", "max-w-[100vw]", "overflow-hidden")
+      expect(within(topBar as HTMLElement).getByRole("button", { name: "Report a bug" })).toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("gives the mobile sidebar-open button a visible menu icon, not just the wordmark", () => {
     // The button previously wrapped only the Syrus logo/name with no icon
     // affordance, so nothing signaled it opens navigation on mobile.
