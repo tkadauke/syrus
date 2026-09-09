@@ -3,7 +3,7 @@ import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
+import { AgentDiff, DiffHunkSnippet, ReviewableDiff, documentScrollMarginForElement, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -49,6 +49,10 @@ function getCodeCellText(text: string) {
   return screen.getByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
 }
 
+function getCodeToken(text: string) {
+  return within(getCodeCellText(text)).getByText(text)
+}
+
 function manyFiles(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     additions: 1,
@@ -82,6 +86,22 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/run.rb")).toHaveClass("sticky")
     expect(screen.getByText("new")).toBeInTheDocument()
     expect(screen.getByText("added")).toBeInTheDocument()
+  })
+
+  it("keeps sticky file headers out of transformed virtual rows", () => {
+    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+    const firstVirtualRow = screen.getByTestId("agent-diff-viewer").querySelector("[data-index='0']") as HTMLElement
+    expect(firstVirtualRow).toHaveStyle({ position: "absolute", top: "0px" })
+    expect(firstVirtualRow.style.transform).toBe("")
+    expect(within(firstVirtualRow).getByTitle("app/models/job.rb")).toHaveClass("sticky")
+  })
+
+  it("extends sticky header containment through the last visible rows", () => {
+    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+    const firstFileSection = screen.getByTitle("app/models/job.rb").closest("[data-diff-file]") as HTMLElement
+    expect(firstFileSection).toHaveStyle({ marginBottom: "-37px", paddingBottom: "37px" })
   })
 
   it("keeps coverage annotations attached to new-line coordinates", () => {
@@ -316,6 +336,22 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
   })
 
+  it("measures natural-scroll virtualizer margins from the diff's document position", () => {
+    const originalScrollY = Object.getOwnPropertyDescriptor(window, "scrollY")
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 })
+    const element = document.createElement("div")
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ bottom: 320, height: 0, left: 0, right: 0, toJSON: () => ({}), top: 320, width: 0, x: 0, y: 320 })
+
+    try {
+      expect(documentScrollMarginForElement(element)).toBe(320)
+
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 140 })
+      expect(documentScrollMarginForElement(element)).toBe(460)
+    } finally {
+      if (originalScrollY) Object.defineProperty(window, "scrollY", originalScrollY)
+    }
+  })
+
   it("renders the add-comment affordance in the left gutter, not the right edge", () => {
     render(<ReviewableDiff files={files} mode="single-file" onCommentLine={vi.fn()} selectedPath="app/models/job.rb" />)
 
@@ -325,6 +361,41 @@ describe("ReviewableDiff", () => {
 
     expect(gutterCell).not.toBeNull()
     expect(row?.querySelectorAll("td")[1]).toBe(gutterCell)
+  })
+
+  it("opens a line comment when tapping a code token on mobile", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      const onCommentLine = vi.fn()
+      render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
+
+      fireEvent.click(getCodeToken("new"))
+
+      expect(onCommentLine).toHaveBeenCalledTimes(1)
+      expect(onCommentLine).toHaveBeenCalledWith({
+        file: files[0],
+        line: expect.objectContaining({ code: "new", kind: "add", newLine: 1, oldLine: null }),
+        side: "new"
+      })
+      expect(screen.queryByText(/Highlighting/)).not.toBeInTheDocument()
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps desktop row clicks from starting a line comment", () => {
+    const onCommentLine = vi.fn()
+    render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
+
+    fireEvent.click(getCodeCellText("new"))
+
+    expect(onCommentLine).not.toHaveBeenCalled()
   })
 
   it("opens an on-demand popup listing changed files and reports the selected one", () => {

@@ -1,0 +1,16 @@
+name: failed unit unfailed intent
+repository:
+  owner: simulation
+  name: failed-unit-unfailed-intent
+work_intents:
+  intent:
+    kind: initial
+    state: requested
+work_units:
+  unit:
+    intent: intent
+    kind: initial
+    state: failed
+outcomes:
+  default: success
+

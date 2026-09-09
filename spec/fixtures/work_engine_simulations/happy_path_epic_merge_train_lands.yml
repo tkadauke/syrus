@@ -1,0 +1,71 @@
+name: happy path epic merge train lands
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: happy-path-epic-merge-train-lands
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Feature with independent jobs
+jobs:
+  alpha:
+    title: Alpha job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  beta:
+    title: Beta job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  gamma:
+    title: Gamma job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve alpha once implemented
+    once: true
+    when:
+      job:
+        id: alpha
+        state: implemented
+    do:
+      approve: alpha
+  - name: approve beta once implemented
+    once: true
+    when:
+      job:
+        id: beta
+        state: implemented
+    do:
+      approve: beta
+  - name: approve gamma once implemented
+    once: true
+    when:
+      job:
+        id: gamma
+        state: implemented
+    do:
+      approve: gamma
+outcomes:
+  default: success
+expect:
+  jobs:
+    alpha:
+      - closed
+    beta:
+      - closed
+    gamma:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

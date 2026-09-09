@@ -1,0 +1,18 @@
+name: terminal work unit active lock
+repository:
+  owner: simulation
+  name: terminal-work-unit-active-lock
+work_intents:
+  intent:
+    kind: initial
+    state: satisfied
+work_units:
+  unit:
+    intent: intent
+    kind: initial
+    state: succeeded
+    locks:
+      - repository:simulation/terminal-work-unit-active-lock
+outcomes:
+  default: success
+

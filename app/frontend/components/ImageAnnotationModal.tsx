@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SVGProps } from "react"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
@@ -60,6 +60,18 @@ const TOOL_SHORTCUTS: Record<string, Tool> = {
   a: "arrow",
   p: "freehand",
   t: "text"
+}
+
+type IconComponent = (props: SVGProps<SVGSVGElement>) => JSX.Element
+
+const TOOL_ICONS: Record<Tool, IconComponent> = {
+  select: CursorIcon,
+  rectangle: RectangleIcon,
+  ellipse: CircleIcon,
+  line: LineIcon,
+  arrow: ArrowIcon,
+  freehand: PencilIcon,
+  text: TypeIcon
 }
 
 const STROKE_WIDTH    = 3
@@ -337,6 +349,100 @@ function makePreviewShape(kind: DrawTool, start: Point, end: Point, color: strin
   }
 }
 
+function IconFrame({ children, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" {...props}>
+      {children}
+    </svg>
+  )
+}
+
+function CursorIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m4 4 7 16 2-7 7-2Z" />
+    </IconFrame>
+  )
+}
+
+function RectangleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <rect height="12" rx="1.5" width="16" x="4" y="6" />
+    </IconFrame>
+  )
+}
+
+function CircleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <circle cx="12" cy="12" r="7" />
+    </IconFrame>
+  )
+}
+
+function LineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 19 19 5" />
+    </IconFrame>
+  )
+}
+
+function ArrowIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 19 19 5" />
+      <path d="M9 5h10v10" />
+    </IconFrame>
+  )
+}
+
+function PencilIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10Z" />
+      <path d="m13.5 7.5 3 3" />
+    </IconFrame>
+  )
+}
+
+function TypeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 7V5h14v2" />
+      <path d="M12 5v14" />
+      <path d="M9 19h6" />
+    </IconFrame>
+  )
+}
+
+function UndoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M9 7H4v5" />
+      <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5" />
+    </IconFrame>
+  )
+}
+
+function RedoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M15 7h5v5" />
+      <path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5" />
+    </IconFrame>
+  )
+}
+
+function CheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m5 13 4 4L19 7" />
+    </IconFrame>
+  )
+}
+
 // --- Component ---
 
 export function ImageAnnotationModal({
@@ -348,6 +454,7 @@ export function ImageAnnotationModal({
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const viewportRef      = useRef<HTMLDivElement | null>(null)
   const pastRef          = useRef<Shape[][]>([])
   const futureRef        = useRef<Shape[][]>([])
   const interactionRef   = useRef<Interaction | null>(null)
@@ -388,6 +495,50 @@ export function ImageAnnotationModal({
   // Keep zoom/pan refs in sync with state
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { panRef.current = pan },   [pan])
+
+  const constrainPan = useCallback((nextPan: Point, nextZoom = zoomRef.current): Point => {
+    const viewport = viewportRef.current
+    const canvas = overlayCanvasRef.current
+    if (!viewport || !canvas) return nextPan
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const canvasWidth = canvas.offsetWidth || canvas.clientWidth
+    const canvasHeight = canvas.offsetHeight || canvas.clientHeight
+    if (!viewportRect.width || !viewportRect.height || !canvasWidth || !canvasHeight) return nextPan
+
+    const maxX = Math.max(0, (canvasWidth * nextZoom - viewportRect.width) / 2)
+    const maxY = Math.max(0, (canvasHeight * nextZoom - viewportRect.height) / 2)
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextPan.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextPan.y))
+    }
+  }, [])
+
+  const updatePan = useCallback((updater: Point | ((current: Point) => Point), nextZoom = zoomRef.current) => {
+    setPan((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater
+      return constrainPan(next, nextZoom)
+    })
+  }, [constrainPan])
+
+  const updateZoom = useCallback((nextZoom: number | ((current: number) => number)) => {
+    setZoom((current) => {
+      const resolvedZoom = clampZoom(typeof nextZoom === "function" ? nextZoom(current) : nextZoom)
+      setPan((currentPan) => constrainPan(currentPan, resolvedZoom))
+      return resolvedZoom
+    })
+  }, [constrainPan])
+
+  useEffect(() => {
+    if (!imageSize) return
+    updatePan((current) => current, zoomRef.current)
+  }, [imageSize, updatePan])
+
+  useEffect(() => {
+    const onResize = () => updatePan((current) => current, zoomRef.current)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [updatePan])
 
   useEffect(() => {
     if (!textPlacement) return
@@ -469,13 +620,13 @@ export function ImageAnnotationModal({
       futureRef.current = []
       setShapes(initialShapesRef.current)
       setImageSize({ width, height })
-      setZoom(1)
+      updateZoom(1)
       setPan({ x: 0, y: 0 })
       syncHistoryCounts()
     }
     image.src = baseImageUrl
     return () => { cancelled = true }
-  }, [baseImageUrl, syncHistoryCounts])
+  }, [baseImageUrl, syncHistoryCounts, updateZoom])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -554,11 +705,11 @@ export function ImageAnnotationModal({
     if (!canvas) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
-      setPan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
+      updatePan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
     }
     canvas.addEventListener("wheel", onWheel, { passive: false })
     return () => canvas.removeEventListener("wheel", onWheel)
-  }, [])
+  }, [updatePan])
 
   // canvasPoint: converts pointer client coords to canvas pixel coords.
   // In real browsers, getBoundingClientRect accounts for the CSS transform on the parent wrapper,
@@ -705,15 +856,15 @@ export function ImageAnnotationModal({
         x: M.x - (M.x - pinch.startPan.x) * scale,
         y: M.y - (M.y - pinch.startPan.y) * scale
       }
-      setZoom(newZoom)
-      setPan(newPan)
+      updateZoom(newZoom)
+      updatePan(newPan, newZoom)
       return
     }
 
     // Space+drag pan
     if (isPanDragRef.current?.pointerId === event.pointerId) {
       const { startClient, startPan } = isPanDragRef.current
-      setPan({
+      updatePan({
         x: startPan.x + event.clientX - startClient.x,
         y: startPan.y + event.clientY - startClient.y
       })
@@ -862,7 +1013,7 @@ export function ImageAnnotationModal({
   }
 
   function changeZoom(delta: number) {
-    setZoom(z => clampZoom(z + delta))
+    updateZoom(z => z + delta)
   }
 
   const canvasStyle    = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
@@ -902,17 +1053,24 @@ export function ImageAnnotationModal({
       />
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
-          {TOOLS.map((item) => (
-            <Button
-              aria-pressed={tool === item.id}
-              key={item.id}
-              onClick={() => setTool(item.id)}
-              size="sm"
-              variant={tool === item.id ? "primary" : "secondary"}
-            >
-              {t(`image_annotation.tool_${item.id}`)}
-            </Button>
-          ))}
+          {TOOLS.map((item) => {
+            const Icon = TOOL_ICONS[item.id]
+            const label = t(`image_annotation.tool_${item.id}`)
+            return (
+              <Button
+                aria-label={label}
+                aria-pressed={tool === item.id}
+                className="h-8 w-8"
+                key={item.id}
+                onClick={() => setTool(item.id)}
+                size="icon"
+                title={label}
+                variant={tool === item.id ? "primary" : "secondary"}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            )
+          })}
         </div>
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>
           {COLORS.map((item) => (
@@ -947,18 +1105,23 @@ export function ImageAnnotationModal({
           </div>
         ) : null}
         <div className="flex items-center gap-2">
-          <Button variant="secondary" disabled={undoCount === 0} onClick={undo}>{t("image_annotation.undo")}</Button>
-          <Button variant="secondary" disabled={redoCount === 0} onClick={redo}>{t("image_annotation.redo")}</Button>
-          <Button variant="secondary" onClick={requestClose}>{t("image_annotation.cancel")}</Button>
-          <Button disabled={!imageSize} onClick={finishAnnotation}>{t("image_annotation.done")}</Button>
-          <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
+          <Button aria-label={t("image_annotation.undo")} className="h-8 w-8" title={t("image_annotation.undo")} variant="secondary" size="icon" disabled={undoCount === 0} onClick={undo}>
+            <UndoIcon className="h-4 w-4" />
+          </Button>
+          <Button aria-label={t("image_annotation.redo")} className="h-8 w-8" title={t("image_annotation.redo")} variant="secondary" size="icon" disabled={redoCount === 0} onClick={redo}>
+            <RedoIcon className="h-4 w-4" />
+          </Button>
+          <Button aria-label={t("image_annotation.cancel")} className="h-8 w-8" title={t("image_annotation.cancel")} variant="secondary" size="icon" onClick={requestClose}>
             <CloseIcon className="h-4 w-4" />
-          </button>
+          </Button>
+          <Button aria-label={t("image_annotation.done")} className="h-8 w-8" title={t("image_annotation.done")} size="icon" disabled={!imageSize} onClick={finishAnnotation}>
+            <CheckIcon className="h-4 w-4" />
+          </Button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden" ref={viewportRef}>
           <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
             <div
               className="relative"
@@ -1010,7 +1173,7 @@ export function ImageAnnotationModal({
             fullWidth={false}
             max={ZOOM_MAX}
             min={ZOOM_MIN}
-            onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+            onChange={(e) => updateZoom(Number(e.target.value))}
             step={0.05}
             style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
             type="range"

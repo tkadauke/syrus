@@ -148,6 +148,20 @@ RSpec.describe WorkUnits::Launcher do
 
       expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(0)
     end
+
+    it "treats MySQL duplicate active_dedup_key errors as lock conflicts" do
+      owner = described_class.instantiate(kind: "initial", job: job)
+      error = ActiveRecord::StatementInvalid.new(
+        "Mysql2::Error: Duplicate entry 'job:#{job.id}:initial' for key 'work_units.idx_work_units_active_dedup_key_unique'"
+      )
+      allow(WorkUnit).to receive(:create!).and_raise(error)
+
+      expect {
+        described_class.instantiate(kind: "initial", job: job)
+      }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{job.id}:initial/)
+
+      expect(WorkUnit.where(kind: "initial", scope_type: "job", scope_id: job.id)).to contain_exactly(owner.work_unit)
+    end
   end
 
   it "blocks feedback workflows for sibling jobs in the same epic" do

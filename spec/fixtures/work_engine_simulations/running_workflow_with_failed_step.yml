@@ -1,0 +1,32 @@
+name: running workflow with failed step
+repository:
+  owner: simulation
+  name: running-workflow-with-failed-step
+jobs:
+  job:
+    title: Running workflow with failed step
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: failed
+          run:
+            state: failed
+            agent_outcome: error
+            diagnostic:
+              error_class: RuntimeError
+              error_message: synthetic failure
+        - kind: implement
+          state: queued
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented
+

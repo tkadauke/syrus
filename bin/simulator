@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+ENV["RAILS_ENV"] ||= "test"
+
+require_relative "../config/environment"
+
+exit WorkEngine::Simulation::Cli.call(argv: ARGV)

@@ -125,6 +125,25 @@ speculative result and the normal `auto_merge` or `merge_train` workflow reruns
 graders. The flag defaults to off because it spends grader capacity ahead of the
 queue and may produce wasted work when the front unit fails.
 
+## distributed_workflow_dag
+
+**Category:** Operations
+
+Enables the instance-wide side of the distributed workflow DAG execution
+foundation. The flag is disabled by default and must be paired with a
+repository opt-in (`repositories.distributed_workflow_dag_enabled`) before
+newly materialized Steps can use non-legacy placement metadata. With either
+side disabled, Syrus records every new Step as
+`pinned_workflow_workspace`, preserving the existing serial, single-workspace
+execution behavior.
+
+When both gates are enabled, Step rows may record one of the explicit placement
+policies documented in `workflow_steps.md`: `pinned_workflow_workspace`,
+`immutable_source_checkout`, `control_plane`, or `external_context`. The flag
+does not by itself enable parallel scheduling, immutable checkout execution, or
+new worker admission rules; it only allows the metadata needed by later
+distributed scheduler slices to be persisted.
+
 ## epicless_job_bundling
 
 **Category:** Labs

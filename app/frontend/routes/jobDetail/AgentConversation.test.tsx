@@ -196,4 +196,36 @@ describe("AgentConversationTab", () => {
 
     expect(await screen.findByText("rspec failed — Landing fix repair requested")).toBeInTheDocument()
   })
+
+  it("contains long conversation content inside the thread and cards", async () => {
+    const longSummary = "Review found a long unbroken path tmp/workspaces/syrus/direct-4646/design_docs/app/services/design_docs/normalize_anchor_markers.rb-with-a-very-long-token-that-should-not-widen-the-page"
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
+      nodes: [
+        {
+          id: "agent_session-501",
+          kind: "agent_session",
+          workflow_id: 9,
+          trigger_kind: "initial",
+          step_id: 1,
+          step_kind: "adversarial_review",
+          run_id: 501,
+          role: "workflow:adversarial_review",
+          label: "Adversarial review with a long label",
+          state: "succeeded",
+          started_at: null,
+          finished_at: null,
+          agentic: true,
+          summary: longSummary,
+          detail: {}
+        }
+      ]
+    })))
+
+    const { container } = renderTab()
+
+    const summary = await screen.findByText(longSummary)
+    expect(container.querySelector(".overflow-x-auto")).toHaveClass("max-w-3xl")
+    expect(summary).toHaveClass("max-h-48", "overflow-y-auto", "break-words")
+    expect(summary.closest(".basis-64")).toHaveClass("min-w-0", "overflow-hidden")
+  })
 })

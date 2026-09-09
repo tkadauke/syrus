@@ -232,6 +232,29 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(rows).not_to have_key("smart_folders")
     end
 
+    it "repairs colliding system smart folders before returning dashboard chrome" do
+      Rails.cache.clear
+      SmartFolder.insert_all!([
+        {
+          name: "Inbox",
+          kind: "user_defined",
+          subject_type: "job",
+          filter: { "and" => [] },
+          position: 99,
+          user_id: nil,
+          created_at: Time.current,
+          updated_at: Time.current
+        }
+      ])
+
+      get "/api/v1/app/dashboard", params: { subject: "job", section: "chrome" }
+
+      expect(response).to have_http_status(:ok)
+      inbox = SmartFolder.find_by!(name: "Inbox", subject_type: "job", user_id: nil)
+      expect(inbox).to be_builtin
+      expect(parse_body.fetch("smart_folders")).to include(include("name" => "Inbox", "kind" => "builtin"))
+    end
+
     it "does not preload chat message bodies when building source chat anchors" do
       job = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Build aqueduct", state: "queued", owner_user: user)
       chat = ChatSession.create!(user: user, repository: repo, title: "Roadmap chat")

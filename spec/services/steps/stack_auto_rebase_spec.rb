@@ -1,4 +1,5 @@
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe Steps::StackAutoRebase do
   let(:user) { Factories.user(github_token: "ghp_test") }
@@ -58,6 +59,7 @@ RSpec.describe Steps::StackAutoRebase do
   end
 
   it "closes an already-landed stack member instead of leaving it to be rebased forever" do
+    job.update!(state: "failed")
     result = AutoRebase::Result.new(
       true,
       AutoRebase::ALREADY_LANDED_REASON,
@@ -71,8 +73,8 @@ RSpec.describe Steps::StackAutoRebase do
       GithubClient,
       add_issue_comment: nil,
       close_pull_request: nil,
+      pull_request: OpenStruct.new(body: ""),
       update_pull_request_base: nil,
-      pull_request: double(body: ""),
       update_pull_request_body: nil
     )
     allow(GithubClient).to receive(:for).and_return(client)
@@ -88,6 +90,7 @@ RSpec.describe Steps::StackAutoRebase do
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
     expect(client).to have_received(:close_pull_request).with(repository.slug, 7)
+    expect(client).to have_received(:update_pull_request_base).with(repository.slug, 8, base: repository.default_branch)
     expect(workflow.reload.artifact("stack_rebase_results").first.dig("result", "reason")).to eq(AutoRebase::ALREADY_LANDED_REASON)
   end
 end

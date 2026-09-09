@@ -247,7 +247,14 @@ class Run < ApplicationRecord
   # worker died before picking it up — see ReapStaleRunsJob). Reuses
   # the same queue + priority logic as the create-commit enqueue.
   def reenqueue!
-    enqueue_run_job
+    dispatch_run_job!
+  end
+
+  def dispatch_run_job!
+    return if terminal?
+
+    queue = resume_worker_queue || workflow_template_class.queue_name
+    RunJob.set(queue: queue, priority: solid_queue_priority).perform_later(id)
   end
 
   # When this workflow already ran on a durable worker data root that still has
@@ -308,8 +315,7 @@ class Run < ApplicationRecord
     current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
     return if current_workflow_id && current_workflow_id == workflow_id
 
-    queue = resume_worker_queue || workflow_template_class.queue_name
-    RunJob.set(queue: queue, priority: solid_queue_priority).perform_later(id)
+    dispatch_run_job!
   end
 
   def workflow_template_class

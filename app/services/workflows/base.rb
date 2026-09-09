@@ -377,6 +377,7 @@ module Workflows
             kind: node.step_kind,
             position: position,
             iteration: 1,
+            placement_policy: placement_policy_for(workflow, node.step_kind),
             details: node.to_chain_template.slice("type", "id", "preemption")
           )
           position += 1
@@ -389,7 +390,8 @@ module Workflows
               kind: kind,
               position: position,
               iteration: 1,
-              loop_id: loop_id
+              loop_id: loop_id,
+              placement_policy: placement_policy_for(workflow, kind)
             )
             position += 1
             step
@@ -399,7 +401,8 @@ module Workflows
             workflow: workflow,
             kind: node.to_s,
             position: position,
-            iteration: 1
+            iteration: 1,
+            placement_policy: placement_policy_for(workflow, node)
           )
           position += 1
           step
@@ -413,8 +416,13 @@ module Workflows
         kind: node.step_kind,
         position: position,
         iteration: 1,
+        placement_policy: placement_policy_for(workflow, node.step_kind),
         details: { "try_id" => node.id }
       )
+    end
+
+    def self.placement_policy_for(workflow, kind)
+      Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository)
     end
   end
 end

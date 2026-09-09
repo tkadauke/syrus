@@ -1,0 +1,86 @@
+name: happy path job dependency DAG lands
+repository:
+  owner: simulation
+  name: happy-path-job-dependency-dag-lands
+  auto_merge_enabled: true
+jobs:
+  root:
+    title: Root job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  left:
+    title: Left child
+    state: queued
+    depends_on:
+      - root
+    workflow:
+      template: true
+      kind: initial
+  right:
+    title: Right child
+    state: queued
+    depends_on:
+      - root
+    workflow:
+      template: true
+      kind: initial
+  leaf:
+    title: Leaf job
+    state: queued
+    depends_on:
+      - left
+      - right
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve root once implemented
+    once: true
+    when:
+      job:
+        id: root
+        state: implemented
+    do:
+      approve: root
+  - name: approve left once implemented
+    once: true
+    when:
+      job:
+        id: left
+        state: implemented
+    do:
+      approve: left
+  - name: approve right once implemented
+    once: true
+    when:
+      job:
+        id: right
+        state: implemented
+    do:
+      approve: right
+  - name: approve leaf once implemented
+    once: true
+    when:
+      job:
+        id: leaf
+        state: implemented
+    do:
+      approve: leaf
+outcomes:
+  default: success
+expect:
+  jobs:
+    root:
+      - closed
+    left:
+      - closed
+    right:
+      - closed
+    leaf:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
