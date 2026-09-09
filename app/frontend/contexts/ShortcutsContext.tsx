@@ -69,8 +69,14 @@ function isShiftedSymbol(key: string): boolean {
   return key.length === 1 && !/[a-z0-9]/.test(key)
 }
 
+function eventKeyMatchesCombo(event: KeyboardEvent, combo: ParsedCombo): boolean {
+  if (event.key.toLowerCase() === combo.key) return true
+  if (combo.alt && /^[a-z]$/.test(combo.key)) return event.code.toLowerCase() === `key${combo.key}`
+  return false
+}
+
 function eventMatchesCombo(event: KeyboardEvent, combo: ParsedCombo): boolean {
-  if (event.key.toLowerCase() !== combo.key) return false
+  if (!eventKeyMatchesCombo(event, combo)) return false
   if ((event.metaKey || event.ctrlKey) !== combo.mod) return false
   if (event.altKey !== combo.alt) return false
   if (combo.shift) return event.shiftKey

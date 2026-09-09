@@ -7,10 +7,15 @@ import { Modal } from "./Modal"
 // " + " (Mod + Enter). A bare symbol combo like "?" -- only reachable via
 // Shift on most layouts -- is left untouched rather than title-cased into
 // something that no longer matches the key the user actually presses.
-export function formatShortcutCombo(combo: string): string {
+export function formatShortcutCombo(combo: string, platform = globalThis.navigator?.platform ?? ""): string {
   const parts = combo.split("+").map((part) => part.trim()).filter(Boolean)
   if (parts.length === 1 && parts[0].length === 1 && !/[a-z0-9]/i.test(parts[0])) return parts[0]
-  return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(" + ")
+  return parts.map((part) => formatShortcutToken(part, platform)).join(" + ")
+}
+
+function formatShortcutToken(token: string, platform: string): string {
+  if (token.toLowerCase() === "alt" && /mac|iphone|ipad|ipod/i.test(platform)) return "⌥"
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
 }
 
 export interface ShortcutGroupSummary<T> {
