@@ -64,6 +64,7 @@ export type RepositoryFormRecord = {
   fork_syncable: boolean
   fork_auto_sync_enabled: boolean
   external_pr_ingestion_enabled: boolean
+  distributed_workflow_dag_enabled: boolean
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
@@ -129,6 +130,7 @@ export type RepositoryInput = {
   treat_grader_timeouts_as_failures: boolean
   fork_auto_sync_enabled: boolean
   external_pr_ingestion_enabled: boolean
+  distributed_workflow_dag_enabled: boolean
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string

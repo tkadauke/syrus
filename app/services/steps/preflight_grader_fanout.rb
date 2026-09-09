@@ -64,23 +64,37 @@ module Steps
             kind: "preflight_grader",
             position: insertion_position + index,
             iteration: step.iteration,
-            details: {
-              "name" => grader.name,
-              "command" => grader.command,
-              "phase" => grader.metadata["phase"],
-              "configured_phases" => grader.metadata["configured_phases"],
-              "legacy_ci_command" => grader.metadata["legacy_ci_command"],
-              "legacy_source_grader" => grader.metadata["legacy_source_grader"],
-              "description" => grader.description,
-              "required" => grader.required,
-              "timeout_minutes" => grader.timeout_minutes
-            }
+            placement_policy: Step::Kind.fetch("preflight_grader").placement_policy_for(repository),
+            details: grader_details(grader).merge(distributed_grader_details(grader))
           )
         end
 
         ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
         new_steps.last.update!(next_step_id: continuation&.id)
       end
+    end
+
+    def grader_details(grader)
+      {
+        "name" => grader.name,
+        "command" => grader.command,
+        "phase" => grader.metadata["phase"],
+        "configured_phases" => grader.metadata["configured_phases"],
+        "legacy_ci_command" => grader.metadata["legacy_ci_command"],
+        "legacy_source_grader" => grader.metadata["legacy_source_grader"],
+        "description" => grader.description,
+        "required" => grader.required,
+        "timeout_minutes" => grader.timeout_minutes
+      }
+    end
+
+    def distributed_grader_details(grader)
+      return {} unless Feature.distributed_workflow_dag_enabled?(repository)
+
+      {
+        "projected_target_label" => "//:preflight-grade/#{grader.name}",
+        "barrier_labels" => [ "preflight_grader_collect" ]
+      }
     end
 
     def materialized_grader_steps

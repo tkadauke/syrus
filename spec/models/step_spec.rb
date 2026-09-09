@@ -22,6 +22,45 @@ RSpec.describe Step do
     it "requires non-negative position" do
       expect(build_step(position: -1)).not_to be_valid
     end
+
+    it "accepts every placement policy when distributed workflows are enabled for the repository" do
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+
+      Step::PlacementPolicy::VALUES.each do |placement_policy|
+        expect(build_step(placement_policy: placement_policy)).to be_valid,
+          "expected #{placement_policy} to be a valid placement policy"
+      end
+    end
+
+    it "rejects unknown placement policies" do
+      expect(build_step(placement_policy: "somewhere_else")).not_to be_valid
+    end
+
+    it "rejects non-pinned placement while the distributed workflow gate is off" do
+      step = build_step(placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+
+      expect(step).not_to be_valid
+      expect(step.errors[:placement_policy]).to include(
+        "requires distributed workflow DAG execution to be enabled for this repository"
+      )
+    end
+
+    it "keeps already-persisted distributed placement rows updatable if the gate later turns off" do
+      feature = Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+      step = described_class.create!(
+        workflow: workflow,
+        kind: "grader_fanout",
+        position: 0,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE
+      )
+
+      feature.update!(enabled: false)
+      step.position = 1
+
+      expect(step).to be_valid
+    end
   end
 
 describe "details JSON bag" do
@@ -34,6 +73,24 @@ describe "details JSON bag" do
       step = described_class.create!(workflow: workflow, kind: "implement", position: 0,
                                      details: { "grader_name" => "rspec", "required" => true })
       expect(step.reload.details).to eq("grader_name" => "rspec", "required" => true)
+    end
+  end
+
+  describe "placement policy" do
+    it "defaults to legacy pinned workflow workspace placement" do
+      step = described_class.new(workflow: workflow, kind: "implement", position: 0)
+
+      expect(step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+    end
+
+    it "reports whether the distributed workflow DAG gate is enabled for its repository" do
+      step = described_class.new(workflow: workflow, kind: "implement", position: 0)
+      expect(step.distributed_workflow_dag_enabled?).to eq(false)
+
+      Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      job.repository.update!(distributed_workflow_dag_enabled: true)
+
+      expect(step.distributed_workflow_dag_enabled?).to eq(true)
     end
   end
 
