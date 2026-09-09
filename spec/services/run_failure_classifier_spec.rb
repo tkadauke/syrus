@@ -740,6 +740,28 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies missing source snapshot metadata as retryable infrastructure state" do
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "immutable source checkout missing source snapshot metadata for STEP-123")
+
+    result = classification
+
+    expect(result.classification).to eq("source_snapshot_missing")
+    expect(result.retryable).to eq(true)
+    expect(Problem::Kind.scope_for(result.classification)).to eq(:run)
+  end
+
+  it "classifies mismatched source snapshot metadata as retryable infrastructure state" do
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "source snapshot mismatch: expected abc123 but checkout HEAD was def456")
+
+    result = classification
+
+    expect(result.classification).to eq("source_snapshot_mismatch")
+    expect(result.retryable).to eq(true)
+    expect(Problem::Kind.scope_for(result.classification)).to eq(:run)
+  end
+
   it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-1830 regression)" do
     run.update!(state: "failed")
     # A GitRunner::GitError whose error_class alone would match git_state_corrupt?,
