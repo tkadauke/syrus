@@ -21,6 +21,16 @@ projection metadata such as `projected_target_label`,
 `barrier_labels`, and source-snapshot references stays in `steps.details`; only
 scheduler-hot placement is a column.
 
+`StepDispatcher` also keeps the legacy one-successor walk unless both
+distributed DAG placement and workflow step worker-slot admission are enabled.
+With those rollout gates on, it treats explicit `depends_on_ids` edges as the
+readiness source for the distributed region: every queued immutable-source Step
+whose dependencies are terminal can receive a Run in the same dispatch pass.
+A queued sibling whose dependencies are still active, failed admission, or could
+not be placed does not block unrelated ready immutable-source siblings. Serial
+steps still serialize the chain, and collect/barrier Steps wait until every
+explicit dependency is terminal.
+
 `immutable_source_checkout` Steps materialize a detached checkout from the
 Step's `source_snapshot_id`. Before running the Step command, Syrus runs the
 normal repository prepare plan once per worker storage key, Workflow, source
@@ -388,13 +398,19 @@ Agentic. Deferred before/after comparison over already captured visual-review sc
 
 Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `grader` Step per configured grader command. Run once at the start of each check cycle.
 
-Grader materialization remains sequential within the current workflow workspace.
-Landing-specific fanout is not enabled; any future design needs isolated
-workspaces for grader side effects before multiple grader Runs can overlap.
+Grader materialization itself is still a single control-plane step, but the
+materialized grader Steps can run as a distributed ready set. When distributed
+DAG placement and workflow step worker-slot admission are both enabled,
+`StepDispatcher` enqueues all ready queued `grader` siblings whose
+`depends_on_ids` have settled. A blocked grader sibling is left queued without
+holding back unrelated ready graders; `grader_collect` remains blocked until all
+of the grader Steps it explicitly depends on are terminal. When either gate is
+disabled, the dispatcher preserves the legacy successor-walk behavior and only
+starts the first runnable successor.
 
 When both the instance `distributed_workflow_dag` feature and the repository
-opt-in are enabled, legacy grader fanout also records target-style projection
-metadata on each materialized `grader` Step without changing the serial chain:
+opt-in are enabled, legacy grader fanout records target-style projection
+metadata on each materialized `grader` Step:
 `projected_target_label` (`//:grade/<name>`),
 `projected_target_fingerprint`, `projected_resource_key`, `barrier_group`, and
 `barrier_labels`. The same gated payload connects the Step to the current
