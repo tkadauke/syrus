@@ -976,8 +976,19 @@ export function UnifiedDiffTable({
   const activeHighlight = highlightedToken !== undefined ? highlightedToken : localHighlight
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
+  const isMobileViewport = useIsMobileViewport()
 
   let hunkIndex = -1
+
+  function handleLineTap(event: MouseEvent<HTMLTableRowElement>, selection: DiffLineSelection) {
+    if (!isMobileViewport) return
+    if (hasActiveTextSelection()) return
+    if (closestInteractiveElement(event.target)) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    onCommentLine?.(selection)
+  }
 
   return (
     <div className="overflow-x-auto" data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
@@ -992,16 +1003,18 @@ export function UnifiedDiffTable({
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
+            const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
             const lineAnchorKey = commentSide ? anchorKeyForLine(line, commentSide) : null
             const threads = lineAnchorKey ? comments?.[lineAnchorKey] || [] : []
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
               <tr
-                className={`group ${diffLineClass(line.kind)}`}
+                className={`group ${diffLineClass(line.kind)} ${canComment ? "max-md:cursor-pointer" : ""}`}
                 data-coverage={annotation}
                 data-diff-anchor={lineAnchorKey || undefined}
                 data-diff-kind={line.kind}
+                onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
                 <td className={`relative ${diffGutterClass(line.kind)}`}>
                   {commentSide === "old" && canComment ? (
@@ -1117,6 +1130,17 @@ export function UnifiedDiffTable({
       </table>
     </div>
   )
+}
+
+function closestInteractiveElement(target: EventTarget | null) {
+  return target instanceof Element
+    ? target.closest("button, a, input, textarea, select, summary, [role='button'], [contenteditable='true']")
+    : null
+}
+
+function hasActiveTextSelection() {
+  const selection = typeof window === "undefined" ? null : window.getSelection?.()
+  return Boolean(selection && !selection.isCollapsed && selection.toString().length > 0)
 }
 
 export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
