@@ -344,6 +344,7 @@ export function ReviewableDiff({
 
   function selectFileFromPopup(path: string) {
     onSelectFile?.(path)
+    document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" })
     setFilesPopupOpen(false)
   }
 

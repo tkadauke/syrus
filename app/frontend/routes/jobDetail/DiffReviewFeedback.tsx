@@ -659,6 +659,10 @@ function diffReviewCommentsSearch({ baseRef, diffReviewVersionId, headRef, inclu
   return `?${params.toString()}`
 }
 
+function scrollToDiffAnchor(path: string) {
+  document.querySelector(`[data-diff-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "center" })
+}
+
 function ReviewStatePill({ label, tone }: { label: string; tone: "pending" | "submitted" | "handled" }) {
   const className = {
     handled: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",

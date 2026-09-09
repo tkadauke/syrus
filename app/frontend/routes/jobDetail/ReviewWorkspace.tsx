@@ -88,22 +88,49 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
 
   useEffect(() => {
     if (!pendingCommentFocus || activeVersionId !== pendingCommentFocus.diff_review_version_id) return
-    const frame = window.requestAnimationFrame(() => {
-      if (pendingCommentFocus.anchor_kind === "review") {
-        document.querySelector(`[data-diff-review-comment-id="${pendingCommentFocus.id}"]`)?.scrollIntoView({ block: "center" })
-        setPendingCommentFocus(null)
-        return
-      }
-      if (!pendingCommentFocus.path) return
-      const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
-      const anchor = pendingCommentFocus.anchor_key
-        ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
-        : null
-      ;(anchor || file)?.scrollIntoView({ block: "center" })
-      setPendingCommentFocus(null)
-    })
-    return () => window.cancelAnimationFrame(frame)
+    const commentToFocus = pendingCommentFocus
+    let cancelled = false
+    let frame = 0
+    let attempts = 0
+
+    function scheduleFocus() {
+      frame = window.requestAnimationFrame(() => {
+        if (cancelled) return
+        attempts += 1
+
+        const focused = focusPendingComment(commentToFocus)
+        if (focused || attempts >= 12) {
+          setPendingCommentFocus(null)
+          return
+        }
+
+        scheduleFocus()
+      })
+    }
+
+    scheduleFocus()
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+    }
   }, [activeVersionId, pendingCommentFocus])
+
+  function focusPendingComment(pendingCommentFocus: DiffReviewComment) {
+    if (pendingCommentFocus.anchor_kind === "review") {
+      const record = document.querySelector(`[data-diff-review-comment-id="${pendingCommentFocus.id}"]`)
+      record?.scrollIntoView({ block: "center" })
+      return Boolean(record)
+    }
+
+    if (!pendingCommentFocus.path) return true
+
+    const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
+    const anchor = pendingCommentFocus.anchor_key
+      ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
+      : null
+    ;(anchor || file)?.scrollIntoView({ block: "center" })
+    return Boolean(anchor || file)
+  }
 
   function startComment(nextSelection: DiffLineSelection) {
     feedback.onCommentLine?.(nextSelection)
@@ -114,6 +141,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     setSelectedVersionId(comment.diff_review_version_id)
     if (comment.path) setSelectedPath(comment.path)
     setPendingCommentFocus(comment)
+    if (comment.anchor_kind === "review") focusPendingComment(comment)
   }
 
   if (sourceDiff.isPending) return <PanelMessage>{t("review_loading")}</PanelMessage>
