@@ -706,6 +706,18 @@ RSpec.describe RunJob, :ci_only do
         headers: { "Content-Type" => "application/json" },
         body: { number: 17, state: "open", body: "Existing PR body" }.to_json
       )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/git/refs/heads/main").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: { object: { sha: "base-sha" } }.to_json
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/17/reviews")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [ { state: "APPROVED", commit_id: "head-sha" } ].to_json
+        )
       merge_stub = stub_request(:put, "https://api.github.com/repos/acme/widgets/pulls/17/merge").to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
