@@ -697,22 +697,12 @@ describe("ImageAnnotationModal", () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it("X close button with shapes shows discard confirmation instead of closing", async () => {
-    const onClose = vi.fn()
-    renderModal({ onClose })
+  it("does not render a duplicate X close button beside the icon-only Cancel button", async () => {
+    renderModal()
     await waitForLoaded()
 
-    const canvas = screen.getByLabelText("Annotation canvas")
-    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
-    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
-    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
-
-    fireEvent.click(screen.getByRole("button", { name: "Close annotation editor" }))
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
-    })
-    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Close annotation editor" })).not.toBeInTheDocument()
   })
 
   it("discard confirmation Discard button calls onClose", async () => {
