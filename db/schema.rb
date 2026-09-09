@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_094522) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3092,6 +3092,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_094522) do
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
   end
 
+  create_table "workflow_step_worker_slots", force: :cascade do |t|
+    t.datetime "acquired_at", null: false
+    t.string "active_slot_key"
+    t.datetime "created_at", null: false
+    t.string "release_reason"
+    t.datetime "released_at"
+    t.integer "run_id", null: false
+    t.string "slot_key", null: false
+    t.string "slot_key_source", null: false
+    t.integer "step_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "worker_hostname", null: false
+    t.string "worker_storage_key"
+    t.integer "workflow_id", null: false
+    t.index ["active_slot_key"], name: "idx_workflow_step_worker_slots_active_key", unique: true
+    t.index ["run_id"], name: "index_workflow_step_worker_slots_on_run_id"
+    t.index ["slot_key", "released_at"], name: "idx_workflow_step_worker_slots_key_release"
+    t.index ["step_id"], name: "index_workflow_step_worker_slots_on_step_id"
+    t.index ["workflow_id"], name: "index_workflow_step_worker_slots_on_workflow_id"
+  end
+
   create_table "workflow_warnings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_job_id"
@@ -3152,4 +3173,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_094522) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "workflow_step_worker_slots", "runs"
+  add_foreign_key "workflow_step_worker_slots", "steps"
+  add_foreign_key "workflow_step_worker_slots", "workflows"
 end

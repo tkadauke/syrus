@@ -9,7 +9,8 @@ RSpec.describe RunHostAdmission do
 
   before do
     allow(SyrusVersion).to receive(:hostname).and_return("worker-a")
-    workflow.update!(worker_hostname: "worker-a")
+    allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-a")
+    workflow.update!(worker_hostname: "worker-a", worker_storage_key: "storage-a")
   end
 
   it "defers compute runs on a worker with critical local pressure" do
@@ -61,75 +62,113 @@ RSpec.describe RunHostAdmission do
     )
   end
 
-  it "keeps a further guarded run off a host whose slots are full" do
+  it "keeps a further workflow step off a worker storage slot that is already active" do
     worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!
+    active_slot_run!
     workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     decision = described_class.call(run: run)
 
     expect(decision).to be_defer
-    expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect(decision.reason).to eq("worker_step_slot_busy")
     expect(decision.details).to include(
-      "active_guarded_run_count" => RunHostAdmission::GUARDED_RUNS_PER_HOST
+      "active_slot_run_count" => RunHostAdmission::GUARDED_RUNS_PER_SLOT,
+      "guarded_runs_per_slot" => RunHostAdmission::GUARDED_RUNS_PER_SLOT,
+      "worker_storage_key" => "storage-a",
+      "slot_key" => "storage-a",
+      "slot_key_source" => "worker_storage_key"
     )
   end
 
-  # The slot count is a backstop for measurement lag, not the throttle it used
-  # to be at 1 -- a single agent on a healthy host no longer excludes the pod.
-  it "admits a second guarded run while the host still has slots" do
+  it "admits a workflow step once the prior slot holder reaches a terminal state" do
     worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!(count: 1)
+    active_run = active_slot_run!
+    active_run.update!(state: "succeeded", finished_at: Time.current)
     workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     decision = described_class.call(run: run)
 
     expect(decision).to be_admit
+    expect(decision.reason).to eq("worker_step_slot_available")
+    expect(WorkflowStepWorkerSlot.active.find_by(run: run)).to have_attributes(
+      slot_key: "storage-a",
+      worker_hostname: "worker-a"
+    )
   end
 
-  # Admission no longer consults resource profiles at all -- it measures the
-  # host instead of predicting the step. Recorded profiles were ambient host
-  # readings rather than step demand, so a 52-second API call using 2.7% CPU
-  # profiled at 84 cpu_pressure and was rationed like an agent.
+  it "uses hostname as the slot key when no durable storage key is available" do
+    allow(WorkerStorageIdentity).to receive(:queue_key).and_return(nil)
+    workflow.update!(worker_storage_key: nil)
+    worker_sample(cpu_pressure_some: 1.0)
+    active_slot_run!(worker_storage_key: nil)
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_defer
+    expect(decision.details).to include(
+      "slot_key" => "worker-a",
+      "slot_key_source" => "hostname"
+    )
+  end
+
+  it "ignores active runs on a different worker storage slot" do
+    worker_sample(cpu_pressure_some: 1.0)
+    active_slot_run!(worker_storage_key: "storage-b", worker_hostname: "worker-b")
+    workflow.update!(state: "running")
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("worker_step_slot_available")
+  end
+
+  it "admits when admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    worker_sample(cpu_pressure_some: 1.0)
+    active_slot_run!
+    workflow.update!(state: "running")
+
+    decision = described_class.call(run: run)
+
+    expect(decision).to be_admit
+    expect(decision.reason).to eq("admission_control_disabled")
+  end
+
   it "never loads resource profiles" do
     worker_sample(cpu_pressure_some: 1.0)
-    saturate_guarded_slots!
+    active_slot_run!
     workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     expect(WorkflowStepResourceProfile).not_to receive(:where)
 
     expect(described_class.call(run: run)).to be_defer
   end
 
-  it "admits guarded work when the host has no critical pressure or active guarded run" do
+  it "admits work when the worker slot has no critical pressure or active run" do
     worker_sample(cpu_pressure_some: 10.0)
     workflow.update!(state: "running")
-    run.update!(step: workflow.steps.find_by!(kind: "implement"))
 
     decision = described_class.call(run: run)
 
     expect(decision).to be_admit
-    expect(decision.reason).to eq("host_capacity_available")
+    expect(decision.reason).to eq("worker_step_slot_available")
   end
 
-  # The per-host slot count is a lag backstop, not a capacity model, so a spec
-  # that wants "the host is full" has to actually fill it.
-  def saturate_guarded_slots!(count: RunHostAdmission::GUARDED_RUNS_PER_HOST)
-    count.times do |i|
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 500 + i)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: 5.minutes.ago
-      )
-    end
+  def active_slot_run!(worker_storage_key: "storage-a", worker_hostname: "worker-a", step_kind: "prepare")
+    @active_slot_issue_number ||= 500
+    @active_slot_issue_number += 1
+    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: @active_slot_issue_number)
+    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+    other_workflow.update!(state: "running", worker_hostname: worker_hostname, worker_storage_key: worker_storage_key)
+    other_step = other_workflow.steps.find_by!(kind: step_kind) || other_workflow.steps.create!(kind: step_kind, position: 99)
+    other_step.update!(state: "running")
+    other_run = other_step.runs.create!(
+      job: other, trigger_kind: other_workflow.trigger_kind,
+      agent_provider: other_workflow.agent_provider,
+      state: "running", started_at: 5.minutes.ago
+    )
+    WorkflowStepWorkerSlot.acquire!(run: other_run, hostname: worker_hostname, storage_key: worker_storage_key)
+    other_run
   end
 
   def worker_sample(**attrs)
@@ -170,44 +209,32 @@ RSpec.describe RunHostAdmission do
     )
   end
 
-  # Graders used to be guarded on sight, then guarded by predicted cost. They
-  # are now not rationed at all: only agentic steps take a per-host slot, and
-  # everything is stopped by measured host pressure regardless of kind. The
-  # cost prediction was the thing that never worked -- profiles recorded the
-  # host's ambient load, not the step's demand.
-  describe "rationing applies to agentic work, not to graders" do
+  describe "rationing applies to every workflow step" do
     def grader_run(kind: "grader")
       step = Step.create!(workflow: workflow, kind: kind, position: rand(100..999))
       step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     end
 
-    it "guards agentic steps and nothing else" do
-      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader", "mergeability_preflight")
-      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
-    end
-
-    it "admits a grader on a healthy host regardless of what else is running" do
+    it "defers a grader on a healthy host when another workflow step owns the slot" do
       worker_sample(cpu_pressure_some: 1.0)
-      saturate_guarded_slots!
+      active_slot_run!(step_kind: "implement")
 
       decision = described_class.call(run: grader_run)
 
-      expect(decision).to be_admit
-      expect(decision.reason).to eq("resource_guard_not_needed")
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("worker_step_slot_busy")
     end
 
-    # The landing step that deferred 73 times in 36 minutes on an idle fleet.
-    it "admits mergeability_preflight on a healthy host" do
+    it "defers mergeability_preflight on a healthy host when another workflow step owns the slot" do
       worker_sample(cpu_pressure_some: 1.0)
-      saturate_guarded_slots!
+      active_slot_run!(step_kind: "prepare")
 
       decision = described_class.call(run: grader_run(kind: "mergeability_preflight"), queue_name: "merges")
 
-      expect(decision).to be_admit
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("worker_step_slot_busy")
     end
 
-    # Measured pressure still stops everything, grader or not -- that is the
-    # gate that replaced the predicted budget.
     it "defers a grader when the host itself is in trouble" do
       worker_sample(cpu_pressure_some: 55.0)
 
@@ -218,46 +245,4 @@ RSpec.describe RunHostAdmission do
     end
   end
 
-  # Host readings lag the work that produced them, so admitting several runs
-  # against a single sample overshoots before the next one lands.
-  describe "staggering" do
-    it "defers a second admission until the sample can reflect the first" do
-      worker_sample(cpu_pressure_some: 1.0)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 601)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: 2.seconds.ago
-      )
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-      decision = described_class.call(run: run)
-
-      expect(decision).to be_defer
-      expect(decision.reason).to eq("host_admission_staggering")
-    end
-
-    it "admits once the stagger window has passed" do
-      worker_sample(cpu_pressure_some: 1.0)
-      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 602)
-      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
-      other_workflow.update!(state: "running", worker_hostname: "worker-a")
-      other_step = other_workflow.steps.find_by!(kind: "implement")
-      other_step.update!(state: "running")
-      other_step.runs.create!(
-        job: other, trigger_kind: other_workflow.trigger_kind,
-        agent_provider: other_workflow.agent_provider,
-        state: "running", started_at: (RunHostAdmission::STAGGER_INTERVAL + 5.seconds).ago
-      )
-      workflow.update!(state: "running")
-      run.update!(step: workflow.steps.find_by!(kind: "implement"))
-
-      expect(described_class.call(run: run)).to be_admit
-    end
-  end
 end

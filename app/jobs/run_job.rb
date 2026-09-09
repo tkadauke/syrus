@@ -288,7 +288,10 @@ class RunJob < ApplicationJob
 
     return if defer_for_host_admission?
 
-    return unless acquire_run_execution!
+    unless acquire_run_execution!
+      WorkflowStepWorkerSlot.release_for_run!(@run, reason: "run_execution_not_acquired")
+      return
+    end
 
     target = @job.cron? ? "scheduled task ##{@job.origin_id}" : "#{@job.repository.slug}##{@job.issue_number}"
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")

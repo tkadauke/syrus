@@ -47,6 +47,7 @@ module Runs
 
     def terminal!
       refresh_resource_summary_after_completion!
+      release_worker_slot!
       wake_workflow_admission!
     end
 
@@ -208,6 +209,13 @@ module Runs
       WorkflowAdmissionCapacityWakeupJob.perform_later if WorkflowAdmissionCapacityWakeup.deferred_sleepers_exist?
     rescue StandardError => e
       Rails.logger.warn("[WorkflowAdmissionCapacityWakeup] failed to enqueue after Run ##{run.id}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def release_worker_slot!
+      WorkflowStepWorkerSlot.release_for_run!(run, reason: "run_#{run.state}")
+    rescue StandardError => e
+      Rails.logger.warn("[Run##{run.id}] failed to release worker slot: #{e.class}: #{e.message}")
       nil
     end
   end

@@ -52,11 +52,11 @@ When the blocked reason is workflow admission budgeting, the Workflow artifact s
 
 After Solid Queue assigns a queued Run to a concrete compute worker,
 `RunJob` also performs a host-local pickup check. If the selected worker is
-critically pressured or already running resource-guarded agentic/grader work,
-the Run remains queued and is re-enqueued without spending a retry iteration.
-Those deferrals record `run_host_admission` on the Workflow artifact and a
-system JobLog line rather than `start_blocked_details`, because the Workflow
-was not phase-blocked by the dispatcher.
+critically pressured or another workflow Step already owns that worker storage
+slot, the Run remains queued and is re-enqueued without spending a retry
+iteration. Those deferrals record `run_host_admission` on the Workflow artifact
+and a system JobLog line rather than `start_blocked_details`, because the
+Workflow was not phase-blocked by the dispatcher.
 
 Manual Job pause is different from admission/resource pauses: it is a persistent
 Job flag set by an operator. Pausing a Job does not kill the current Run. Syrus

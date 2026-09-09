@@ -145,19 +145,16 @@ CPU-heavy work.
 
 The pickup guard applies to Runs whose workflow template uses the `:runs` or
 `:merges` compute queues, including sticky `resume-<worker-storage-key>` retry
-queues. It uses the current worker hostname (`SyrusVersion.hostname`), fresh
-`worker_host_health_samples`, `workflows.worker_hostname` on already running
-workflows, and `workflow_step_resource_profiles` where available.
+queues. It uses the current worker hostname (`SyrusVersion.hostname`), the
+durable storage key from `WorkerStorageIdentity`, fresh
+`worker_host_health_samples`, and active `workflow_step_worker_slots`.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
   Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
-- If the candidate Run is resource-guarded and that same host already has a
-  resource-guarded Run executing, `RunJob` also defers it. Resource-guarded
-  means any agentic Step, `grader` / `preflight_grader`, or another Step whose
-  resource profile predicts CPU-heavy or long-running work. Missing profiles
-  use conservative defaults, so unknown expensive work is guarded until real
-  samples prove it cheap.
-- Non-critical hosts with no existing guarded Run admit the pickup normally.
+- If another active workflow Step already owns that worker storage slot,
+  `RunJob` also defers it. The slot is backed by a unique active key, so two
+  Solid Queue threads cannot both acquire it concurrently.
+- Non-critical hosts with no existing active slot admit the pickup normally.
   Missing host telemetry is reported as `unknown`; it is not treated as either
   healthy or critical by this host-local guard.
 
@@ -165,10 +162,10 @@ This is intentionally a pickup-time deferral, not a failure. The Run remains
 `queued`; the Workflow and Step are not transitioned to `running`, no repair
 iteration is spent, and the re-enqueued job preserves the current Solid Queue
 queue and priority. On deferral, the Workflow artifact
-`run_host_admission` records the action, reason, hostname, sampled health,
-guard count/limit, step kind, Run id, queue name, whether the queue was sticky
-resume, `deferred_at`, and `retry_at`. The Run also receives a system `JobLog`
-line:
+`run_host_admission` records the action, reason, hostname, worker storage key,
+slot key/source, sampled health, active slot count/limit, step kind, Run id,
+queue name, whether the queue was sticky resume, `deferred_at`, and `retry_at`.
+The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
 
 Worker-died auto-retries add a pre-dispatch guard before they create a
@@ -384,11 +381,11 @@ Admission measures the host instead of predicting the step.
 
 - **`RunHostAdmission`** (per Run, on the compute queues) defers anything when
   the worker's own health sample reads critical — grader, agent or otherwise.
-  Beyond that it rations only *agentic* runs, `GUARDED_RUNS_PER_HOST` at a
-  time, and leaves `STAGGER_INTERVAL` between admissions on a host so each
-  decision sees a sample that reflects the previous one. Host readings lag the
-  work that produced them; the slot count and the stagger are there to bound
-  that lag, not to model capacity.
+  Beyond that, while workflow admission control is enabled, it acquires a
+  database-backed worker step slot keyed by the worker's durable storage key
+  (falling back to hostname when the storage key is unavailable). The unique
+  active slot key admits at most one workflow Step per worker storage slot even
+  when a Solid Queue worker process has multiple `runs` threads.
 - **`WorkflowAdmissionBudget`** (per Workflow/phase) keeps the hard
   memory/disk gates, the urgent override, the landing-queue reservation, the
   minimum-progress floor, and one soft gate: `soft_host_pressure?`, which is a
@@ -538,8 +535,8 @@ either wakeup path.
 
 The per-host Run pickup admission described above is separate from
 `WorkflowAdmissionBudget`: it runs after Solid Queue selects a concrete worker
-and can therefore act on that worker's local pressure and already-running
-guarded Runs. It records `run_host_admission` artifacts instead of
+and can therefore act on that worker's local pressure and active worker step
+slot. It records `run_host_admission` artifacts instead of
 `start_blocked_details` / `pause_details`, because it does not change workflow
 phase ownership or create a WorkUnit admission block.
 

@@ -21,6 +21,7 @@ class Run < ApplicationRecord
   has_many :command_spans, -> { order(:sequence, :id) }, dependent: :destroy
   has_many :diff_review_comments, dependent: :nullify
   has_many :diff_review_versions, dependent: :nullify
+  has_many :workflow_step_worker_slots, dependent: :destroy
   has_one :run_checkpoint, dependent: :destroy
   has_one :provider_session, as: :resumable, dependent: :destroy
   has_one :provider_session_metadata,

@@ -7,34 +7,12 @@ class RunHostAdmission
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
   RETRY_DELAY = 30.seconds
 
-  # A backstop for measurement lag, not a capacity model. Host readings trail
-  # by a sample interval, so a burst can be admitted against a stale "idle"
-  # reading; this bounds how far that can overshoot before the next sample
-  # lands. Sized to the `runs` thread pool -- the plumbing already allows this
-  # many, and 24h of production peaked at 2-4 agents per host.
-  #
-  # It was 1, which made this a strict per-host mutex and was the single
-  # binding constraint on throughput: a 52-second GitHub API call using 2.7%
-  # CPU held the only slot on its pod, deferring landing 73 times in 36
-  # minutes while every host sat below 45% CPU.
-  GUARDED_RUNS_PER_HOST = 3
-
-  # The other half of the lag defence: after admitting, leave a gap so the next
-  # decision on this host sees a sample that reflects it. Cheaper and more
-  # honest than predicting what the admitted work will cost.
-  STAGGER_INTERVAL = 20.seconds
-
-  # Agentic steps are the expensive ones by nature and are guarded on sight.
-  #
-  # Everything else is judged by the host's *current* state rather than by a
-  # prediction of what the step will cost. Predicting was worse than useless
-  # here: `WorkflowStepResourceProfile` records the host's ambient CPU and
-  # memory while a step ran, not the step's own demand, so `prepare` (0.3%
-  # process CPU) profiled at 93.5 cpu_pressure and `grader_collect` (3
-  # seconds) at 88.2. Guarding on those numbers throttled cheap work hardest
-  # and got worse the busier the fleet was -- the readings rise with load, so
-  # the throttle tightened exactly when it should have relaxed.
-  ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
+  # First distributed rollout: one active workflow Step per worker storage
+  # slot. This is placement/admission, not capacity prediction. It deliberately
+  # stays conservative so multiple Solid Queue threads in one worker process
+  # cannot run two workflow steps against the same local workspace storage at
+  # once.
+  GUARDED_RUNS_PER_SLOT = 1
 
   def self.call(...) = new(...).call
 
@@ -48,6 +26,7 @@ class RunHostAdmission
     return admit("not_queued") unless run&.queued?
     return admit("non_compute_queue") unless compute_queue?
     return admit("missing_execution_graph") unless workflow && step
+    return admit("admission_control_disabled") unless AppSetting.workflow_admission_control_enabled?
 
     # Measured first, and for every kind of run: a host in trouble should stop
     # taking work, not just stop taking *agentic* work. This is the gate that
@@ -55,13 +34,11 @@ class RunHostAdmission
     # actually decides.
     return defer("local_worker_pressure_critical") if critical_local_pressure?
 
-    # Beyond that, only agentic runs are rationed per host, and only to bound
-    # how far a burst can overshoot a stale sample.
-    return admit("resource_guard_not_needed") unless resource_guarded?(run)
-    return defer("host_resource_semaphore_busy") if active_guarded_run_count >= GUARDED_RUNS_PER_HOST
-    return defer("host_admission_staggering") if admitted_within_stagger_window?
+    WorkflowStepWorkerSlot.release_inactive_holders!
+    return admit("worker_step_slot_already_acquired") if active_slot_for_run?
+    return defer("worker_step_slot_busy") unless acquire_slot
 
-    admit("host_capacity_available")
+    admit("worker_step_slot_available")
   end
 
   private
@@ -78,8 +55,8 @@ class RunHostAdmission
 
   def details(reason)
     basic_details(reason).merge(
-      "active_guarded_run_count" => active_guarded_run_count,
-      "guarded_runs_per_host" => GUARDED_RUNS_PER_HOST
+      "active_slot_run_count" => active_slot_run_count,
+      "guarded_runs_per_slot" => GUARDED_RUNS_PER_SLOT
     )
   end
 
@@ -87,6 +64,9 @@ class RunHostAdmission
     {
       "reason" => reason,
       "hostname" => hostname,
+      "worker_storage_key" => storage_key,
+      "slot_key" => slot_key,
+      "slot_key_source" => slot_key_source,
       "sample_observed_at" => local_sample&.observed_at&.iso8601,
       "sample_health" => local_health.stringify_keys,
       "step_kind" => step&.kind,
@@ -99,21 +79,6 @@ class RunHostAdmission
 
   def sticky_resume_queue?
     queue_name.to_s.start_with?("resume-")
-  end
-
-  # Host readings trail the work that produced them, so admitting several runs
-  # against one sample overshoots before the next sample can object. Leaving a
-  # gap between admissions on a host means each decision sees a measurement
-  # that already reflects the previous one.
-  #
-  # Keyed on the most recently *started* guarded run rather than a separate
-  # ledger: the runs themselves are the record, so there is no new state to
-  # keep consistent, and a worker restart cannot lose it.
-  def admitted_within_stagger_window?
-    last_started = active_always_guarded_run_scope.maximum(:started_at)
-    return false if last_started.blank?
-
-    last_started > now - STAGGER_INTERVAL
   end
 
   def critical_local_pressure?
@@ -141,33 +106,38 @@ class RunHostAdmission
       .first
   end
 
-  # A straight count now that guarding is "is it agentic", rather than loading
-  # every candidate to ask a profile what it might cost.
-  def active_guarded_run_count
-    @active_guarded_run_count ||= active_always_guarded_run_scope.count
+  def active_slot_run_count
+    @active_slot_run_count ||= active_slot_scope.count
   end
 
-  def resource_guarded?(candidate)
-    candidate_step = candidate.step
-    return false unless candidate_step
-
-    candidate_step.agentic?
+  def active_slot_scope
+    WorkflowStepWorkerSlot.active.where(slot_key: slot_key)
   end
 
-  def active_always_guarded_run_scope
-    active_run_scope.where(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
+  def active_slot_for_run?
+    WorkflowStepWorkerSlot.active.where(run_id: run.id, slot_key: slot_key).exists?
   end
 
-  def active_run_scope
-    Run
-      .where(state: "running")
-      .where.not(id: run.id)
-      .joins(step: :workflow)
-      .where(workflows: { worker_hostname: hostname })
+  def acquire_slot
+    WorkflowStepWorkerSlot.acquire!(run: run, hostname: hostname, storage_key: storage_key)
+  rescue WorkflowStepWorkerSlot::Conflict
+    false
   end
 
   def hostname
     @hostname ||= SyrusVersion.hostname
+  end
+
+  def storage_key
+    @storage_key ||= WorkerStorageIdentity.queue_key
+  end
+
+  def slot_key
+    @slot_key ||= storage_key.presence || hostname
+  end
+
+  def slot_key_source
+    storage_key.present? ? "worker_storage_key" : "hostname"
   end
 
   def workflow
