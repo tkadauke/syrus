@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -204,6 +204,7 @@ export function ReviewableDiff({
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
+  const [windowScrollMargin, setWindowScrollMargin] = useState<number | null>(null)
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -234,10 +235,27 @@ export function ReviewableDiff({
 
   // Distance from the top of the document to the top of the scroll
   // container, needed to convert `useWindowVirtualizer`'s document-relative
-  // offsets back into container-relative ones. Irrelevant (and left at 0)
-  // for bounded/element scrolling, where the container itself is the
-  // scrollport.
-  const scrollMargin = scroll === "natural" ? (scrollContainerRef.current?.offsetTop ?? 0) : 0
+  // offsets back into container-relative ones. `offsetTop` is not enough
+  // here: the diff's relative wrapper can become the offset parent, which
+  // reports 0 and makes the virtualizer treat page chrome above the diff as
+  // diff content.
+  const scrollMargin = scroll === "natural" ? (windowScrollMargin ?? 0) : 0
+
+  useLayoutEffect(() => {
+    if (scroll !== "natural") return
+    const element = scrollContainerRef.current
+    if (!element) return
+    const measuredElement: HTMLElement = element
+
+    function measureScrollMargin() {
+      const nextMargin = documentScrollMarginForElement(measuredElement)
+      setWindowScrollMargin((current) => (current != null && Math.abs(current - nextMargin) < 1 ? current : nextMargin))
+    }
+
+    measureScrollMargin()
+    window.addEventListener("resize", measureScrollMargin)
+    return () => window.removeEventListener("resize", measureScrollMargin)
+  }, [filesSignature, scroll])
 
   function estimateSize(index: number) {
     const file = visibleFiles[index]
@@ -276,6 +294,7 @@ export function ReviewableDiff({
   useEffect(() => {
     const target = pendingScrollTarget.current
     if (!target) return
+    if (scroll === "natural" && windowScrollMargin == null) return
     const index = renderFiles.findIndex((file) => file.path === target)
     if (index === -1) return
     if (index >= visibleFileCount) {
@@ -447,6 +466,10 @@ export function ReviewableDiff({
 
 export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiffProps & { annotations?: Record<string, LineAnnotation> }) {
   return <ReviewableDiff annotations={annotations} files={filesFromUnifiedDiff(diff)} mode="continuous" {...props} />
+}
+
+export function documentScrollMarginForElement(element: HTMLElement) {
+  return element.getBoundingClientRect().top + window.scrollY
 }
 
 function useIsMobileViewport() {
