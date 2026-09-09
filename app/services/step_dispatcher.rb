@@ -1221,6 +1221,8 @@ class StepDispatcher
   end
 
   def find_next_runnables
+    return distributed_ready_set if distributed_ready_set_enabled?
+
     # If we're advancing FROM a step, look at its successor (which
     # may be nil — that's "end of chain"). If we're not advancing
     # from anywhere (start_workflow case), look at the first step.
@@ -1242,20 +1244,40 @@ class StepDispatcher
     []
   end
 
-  def parallel_runnable_steps_from(first_step)
-    steps = []
-    cursor = first_step
-    while cursor&.queued?
-      if skippable_queued_step?(cursor)
-        skip_queued_step!(cursor)
-      elsif ready?(cursor) && parallel_runnable_step?(cursor)
-        steps << cursor
+  def distributed_ready_set
+    first_serial_step = nil
+    parallel_steps = []
+
+    each_downstream_queued_step do |step|
+      if skippable_queued_step?(step)
+        skip_queued_step!(step)
+        next
+      end
+
+      next unless ready?(step)
+
+      if parallel_runnable_step?(step)
+        parallel_steps << step
       else
+        first_serial_step ||= step
         break
       end
+    end
+
+    parallel_steps.presence || Array(first_serial_step)
+  end
+
+  def each_downstream_queued_step
+    cursor = @from_step ? @from_step.next_step : @workflow.first_step
+    while cursor
+      yield cursor if cursor.queued?
       cursor = cursor.next_step
     end
-    steps
+  end
+
+  def distributed_ready_set_enabled?
+    Feature.distributed_workflow_dag_enabled?(@workflow.job.repository) &&
+      WorkflowStepWorkerSlot.enabled?
   end
 
   def parallel_runnable_step?(step)
