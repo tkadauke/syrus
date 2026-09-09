@@ -346,11 +346,11 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-html2canvas-ignore>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden bg-black/50 p-4" data-html2canvas-ignore>
           <section
             aria-labelledby="bug-report-title"
             aria-modal="true"
-            className={`relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+            className={`relative max-h-[calc(100vh-2rem)] w-full max-w-[min(42rem,calc(100vw-2rem))] overflow-x-hidden overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -634,7 +634,7 @@ function ContextRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 gap-1.5">
       <dt className="shrink-0 font-medium text-gray-700 dark:text-gray-300">{label}:</dt>
-      <dd className="truncate">{value}</dd>
+      <dd className="min-w-0 truncate">{value}</dd>
     </div>
   )
 }
