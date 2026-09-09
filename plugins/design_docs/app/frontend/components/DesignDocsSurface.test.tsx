@@ -438,7 +438,16 @@ function mockFetch(detail = docDetail) {
       return jsonResponse({ thread: { ...docDetail.threads[0], state: "resolved" }, message: "Comment thread resolved." })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
-      return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
+      return jsonResponse({
+        design_doc: {
+          ...docDetail,
+          markdown: "Alpha beta delta",
+          rendered_markdown: "Alpha beta delta",
+          suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }]
+        },
+        suggestion: { ...docDetail.suggestions[0], state: "accepted" },
+        message: "Suggestion accepted."
+      })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
@@ -1436,6 +1445,7 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
     await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
     expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta delta")
 
     acceptedRender.unmount()
     renderSurface("/design_docs/1")
@@ -1947,6 +1957,20 @@ describe("DesignDocsSurface", () => {
     expect(suggestion?.querySelector("ins")).toHaveTextContent("shared")
     expect(suggestion?.querySelector("del")).not.toHaveClass("block")
     expect(suggestion?.querySelector("ins")).not.toHaveClass("block")
+  })
+
+  it("falls back to whole-block rendering for large inline suggestions", async () => {
+    const original = Array.from({ length: 420 }, (_, index) => `old${index}`).join(" ")
+    const proposed = Array.from({ length: 420 }, (_, index) => `new${index}`).join(" ")
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(suggestion?.querySelector("ins")).toHaveTextContent(proposed)
+    expect(suggestion?.querySelector("del")).toHaveClass("block")
+    expect(suggestion?.querySelector("ins")).toHaveClass("block")
   })
 
   it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {

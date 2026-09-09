@@ -70,6 +70,9 @@ type RailEntry =
   | { kind: "thread"; id: string; anchorStart: number; thread: DesignDocThread }
   | { kind: "suggestion"; id: string; anchorStart: number; suggestion: DesignDocSuggestion }
 
+const INLINE_SUGGESTION_DIFF_MAX_CHARS = 1600
+const INLINE_SUGGESTION_DIFF_MAX_TOKENS = 360
+
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, initialDesignDocId, initialDesignDocs = [], mode, repositoryId }: {
   chatId?: number
   compact?: boolean
@@ -335,6 +338,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const wysiwygRenderRef = useRef<{ highlights: AnchorHighlight[]; focusedThreadId: number | null; focusedSuggestionId: number | null }>({ highlights: [], focusedThreadId: null, focusedSuggestionId: null })
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
+  const railLayoutFrameRef = useRef<number | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
@@ -419,7 +423,19 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onSuccess: (payload) => onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+    onSuccess: (payload) => {
+      const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
+      setDraft(nextDraft)
+      setTitle(payload.design_doc.title)
+      setSelection(emptySelection())
+      setFocusedThreadId(null)
+      setFocusedSuggestionId(null)
+      setMarkdownScrollTop(0)
+      if (textareaRef.current) textareaRef.current.scrollTop = 0
+      window.requestAnimationFrame(() => editorShellRef.current?.scrollIntoView?.({ block: "start" }))
+      persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
+      onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+    }
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
@@ -543,7 +559,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       return
     }
 
-    function recompute() {
+    function recomputeNow() {
       const stackEl = railStackRef.current
       if (!stackEl) return
 
@@ -572,7 +588,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       setRailLayout(computeRailLayout(measurements, pivotId, RAIL_CARD_GAP))
     }
 
-    recompute()
+    function scheduleRecompute() {
+      if (railLayoutFrameRef.current != null) return
+      railLayoutFrameRef.current = window.requestAnimationFrame(() => {
+        railLayoutFrameRef.current = null
+        recomputeNow()
+      })
+    }
+
+    scheduleRecompute()
 
     const observedElements = [
       railStackRef.current,
@@ -580,16 +604,22 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       ...railEntries.map((entry) => (entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]))
     ].filter((element): element is HTMLDivElement => element != null)
 
-    window.addEventListener("resize", recompute)
+    window.addEventListener("resize", scheduleRecompute)
     if (typeof ResizeObserver === "undefined") {
-      return () => window.removeEventListener("resize", recompute)
+      return () => {
+        if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
+        railLayoutFrameRef.current = null
+        window.removeEventListener("resize", scheduleRecompute)
+      }
     }
 
-    const observer = new ResizeObserver(recompute)
+    const observer = new ResizeObserver(scheduleRecompute)
     observedElements.forEach((element) => observer.observe(element))
     return () => {
+      if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
+      railLayoutFrameRef.current = null
       observer.disconnect()
-      window.removeEventListener("resize", recompute)
+      window.removeEventListener("resize", scheduleRecompute)
     }
   }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
@@ -2451,7 +2481,11 @@ type InlineSuggestionDiff =
 function inlineSuggestionDiff(original: string, proposed: string): InlineSuggestionDiff {
   if (shouldRenderWholeSuggestion(original, proposed)) return { mode: "whole", proposed }
 
-  const diff = tokenDiff(original, proposed)
+  const oldTokens = tokenizeInlineDiff(original)
+  const newTokens = tokenizeInlineDiff(proposed)
+  if (oldTokens.length + newTokens.length > INLINE_SUGGESTION_DIFF_MAX_TOKENS) return { mode: "whole", proposed }
+
+  const diff = tokenDiff(oldTokens, newTokens)
   const alternatingRuns = diff.filter((part) => part.kind !== "equal").length
   const commonText = diff.filter((part) => part.kind === "equal").map((part) => part.text).join("")
   const commonCoverage = commonText.length / Math.max(original.length, proposed.length, 1)
@@ -2475,6 +2509,7 @@ function inlineSuggestionDiff(original: string, proposed: string): InlineSuggest
 
 function shouldRenderWholeSuggestion(original: string, proposed: string) {
   return (
+    original.length + proposed.length > INLINE_SUGGESTION_DIFF_MAX_CHARS ||
     crossesMarkdownBlockBoundary(original) ||
     crossesMarkdownBlockBoundary(proposed) ||
     crossesSentenceBoundary(original) ||
@@ -2493,9 +2528,7 @@ function crossesSentenceBoundary(value: string) {
   return (value.match(/[.!?](?:\s+|$)/g) ?? []).length > 1
 }
 
-function tokenDiff(original: string, proposed: string): InlineSuggestionPart[] {
-  const oldTokens = tokenizeInlineDiff(original)
-  const newTokens = tokenizeInlineDiff(proposed)
+function tokenDiff(oldTokens: string[], newTokens: string[]): InlineSuggestionPart[] {
   const lengths = Array.from({ length: oldTokens.length + 1 }, () => Array<number>(newTokens.length + 1).fill(0))
 
   for (let oldIndex = oldTokens.length - 1; oldIndex >= 0; oldIndex -= 1) {
