@@ -46,7 +46,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     collect_step  # ensure the continuation step exists before the fanout step
     step          # and the fanout step itself
 
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main", branch_name: "syrus/direct-1")
     allow(handler).to receive(:workspace).and_return(fake_ws)
 
     # One shared GitRunner double: current_head_sha reads `rev-parse HEAD`
@@ -56,6 +56,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     @git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(@git)
     allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
+    allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
     allow(@git).to receive(:run).with("diff", "--name-only", anything, chdir: anything).and_return("")
   end
 
@@ -109,7 +110,16 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     grader_step = workflow.steps.find_by!(kind: "grader")
     expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
-    expect(grader_step.details).not_to include("projected_target_label", "barrier_labels")
+    expect(grader_step.details).not_to include(
+      "projected_target_label",
+      "projected_target_fingerprint",
+      "projected_resource_key",
+      "barrier_group",
+      "barrier_labels",
+      "source_snapshot_id",
+      "source_snapshot"
+    )
+    expect(workflow.source_snapshots).to be_empty
   end
 
   it "records immutable placement and descriptive DAG metadata for materialized graders when distributed workflows are enabled" do
@@ -124,11 +134,39 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     grader_step = workflow.steps.find_by!(kind: "grader")
+    snapshot = workflow.source_snapshots.first
     expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(grader_step.details).to include(
       "projected_target_label" => "//:grade/rspec",
-      "barrier_labels" => [ "grader_collect" ]
+      "projected_resource_key" => "target://:grade/rspec",
+      "barrier_group" => "workflow:#{workflow.id}:loop:#{loop_id}:iteration:1:grader_collect",
+      "barrier_labels" => [ "grader_collect" ],
+      "source_snapshot_id" => snapshot.id
     )
+    expect(grader_step.details["projected_target_fingerprint"]).to match(/\A[0-9a-f]{64}\z/)
+    expect(grader_step.details["source_snapshot"]).to include(
+      "id" => snapshot.id,
+      "source_sha" => "abc123",
+      "source_ref" => "refs/heads/syrus/direct-1",
+      "tree_sha" => "tree123"
+    )
+  end
+
+  it "reuses the current workflow source snapshot for all materialized graders when distributed workflows are enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+
+    snapshot_ids = workflow.steps.where(kind: "grader").order(:position).map { |s| s.details["source_snapshot_id"] }
+    expect(snapshot_ids).to eq([ workflow.source_snapshots.sole.id, workflow.source_snapshots.sole.id ])
   end
 
   it "uses review-phase graders on the first implementation validation pass" do
