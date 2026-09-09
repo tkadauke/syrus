@@ -104,6 +104,13 @@ class Feature < ApplicationRecord
     enabled?(:landing_validation_prefetch)
   end
 
+  def self.distributed_workflow_dag_enabled?(repository = nil)
+    return false unless enabled?(:distributed_workflow_dag)
+    return true if repository.nil?
+
+    repository.distributed_workflow_dag_enabled?
+  end
+
   # Instance-wide default for the visual_review Labs feature (headless-browser
   # QA screenshots taken against the worker's own in-step preview). A
   # repository's .syrus.yml `visual_review.enabled` setting overrides this
