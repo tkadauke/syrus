@@ -2,13 +2,14 @@ module App
   class DiffReviewCommentsPayload
     REVIEW_GROUP_KEY = "__review__".freeze
 
-    def self.build(job:, comments:)
-      new(job: job, comments: comments).payload
+    def self.build(job:, comments:, version: nil)
+      new(job: job, comments: comments, version: version).payload
     end
 
-    def initialize(job:, comments:)
+    def initialize(job:, comments:, version:)
       @job = job
       @comments = comments.to_a
+      @version = version
     end
 
     def payload
@@ -16,6 +17,8 @@ module App
 
       {
         job_id: @job.id,
+        diff_review_version_id: @version&.id,
+        latest_version_id: @job.diff_review_versions.latest_first.pick(:id),
         comments: serialized,
         by_path: grouped_by_path(serialized)
       }
@@ -33,6 +36,8 @@ module App
       {
         id: comment.id,
         job_id: comment.job_id,
+        diff_review_version_id: comment.diff_review_version_id,
+        diff_review_version: diff_review_version_json(comment.diff_review_version),
         parent_id: comment.parent_id,
         user_id: comment.user_id,
         user: user_json(comment.user),
@@ -78,6 +83,22 @@ module App
         id: workflow.id,
         trigger_kind: workflow.trigger_kind,
         state: workflow.state
+      }
+    end
+
+    def diff_review_version_json(version)
+      return nil unless version
+
+      {
+        id: version.id,
+        version_index: version.version_index,
+        base_sha: version.base_sha,
+        head_sha: version.head_sha,
+        base_ref: version.base_ref,
+        head_ref: version.head_ref,
+        trigger_kind: version.trigger_kind,
+        label: version.label,
+        reason: version.reason
       }
     end
   end

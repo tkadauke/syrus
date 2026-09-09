@@ -567,7 +567,9 @@ module Steps
       raise_no_changes_produced! if diff.blank?
 
       step_diff = diff_against_sha(base_sha)
-      run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      current_head_sha = head_sha
+      run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)
       publish_run_checkpoint!
     end
 
@@ -592,7 +594,9 @@ module Steps
         raise exception
       end
 
-      run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      current_head_sha = head_sha
+      run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)
       step.update!(details: step.details.to_h.merge(
         "captured_after_agent_timeout" => true,
         "captured_after_agent_timeout_at" => Time.current.iso8601
@@ -612,6 +616,27 @@ module Steps
 
     def publish_run_checkpoint!
       RunCheckpointPublisher.publish!(run: run, workspace: workspace, log: method(:log))
+    end
+
+    def persist_diff_review_version!(base_sha:, head_sha:, diff:)
+      files = DiffReviewVersions::UnifiedDiffFiles.parse(diff)
+      return if files.empty?
+
+      DiffReviewVersions::Creator.call(
+        job: job,
+        workflow: workflow,
+        run: run,
+        base_sha: base_sha,
+        head_sha: head_sha,
+        base_ref: job.mergeability_base_ref.presence || job.target_branch.presence || job.base_default_branch,
+        head_ref: job.branch_name,
+        files: files,
+        trigger_kind: workflow.trigger_kind,
+        label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
+        reason: workflow.trigger_kind
+      )
+    rescue => e
+      log("[#{step.kind}] could not persist diff review version: #{e.class}: #{e.message}", kind: "system")
     end
 
     def restore_run_checkpoint_if_needed!(source_run, context:)

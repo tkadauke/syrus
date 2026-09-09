@@ -4,10 +4,12 @@ RSpec.describe DiffReviewComment do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repo) }
+  let(:version) { create_version(job: job) }
 
   def build_comment(**attrs)
     described_class.new({
       job: job,
+      diff_review_version: version,
       user: user,
       surface: "job_source_diff",
       base_ref: "base-sha",
@@ -20,6 +22,18 @@ RSpec.describe DiffReviewComment do
       body: "This needs a spec.",
       state: "draft"
     }.merge(attrs))
+  end
+
+  def create_version(job:, base_sha: "base-sha", head_sha: "head-sha", index: 1)
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: index,
+      base_sha: base_sha,
+      head_sha: head_sha,
+      source_key: "spec:#{job.id}:#{index}",
+      files_snapshot: [],
+      metadata: {}
+    )
   end
 
   it "creates a durable diff anchor" do
@@ -79,9 +93,19 @@ RSpec.describe DiffReviewComment do
     expect(comment.errors[:run]).to include("must belong to the same workflow")
   end
 
+  it "requires the diff review version to belong to the same job" do
+    other_job = Factories.job_record(repository: repo, issue_number: 45)
+    other_version = create_version(job: other_job)
+    comment = build_comment(diff_review_version: other_version)
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:diff_review_version]).to include("must belong to the same job")
+  end
+
   it "supports whole-review comments with no code anchor" do
     comment = described_class.new(
       job: job,
+      diff_review_version: version,
       user: user,
       surface: "job_review_workspace",
       anchor_kind: "review",
@@ -134,6 +158,7 @@ RSpec.describe DiffReviewComment do
     expect(reply.body).to eq("Addressed in the latest commit.")
     expect(reply).to have_attributes(
       surface: comment.surface,
+      diff_review_version: comment.diff_review_version,
       base_ref: comment.base_ref,
       head_ref: comment.head_ref,
       path: comment.path,
@@ -147,10 +172,19 @@ RSpec.describe DiffReviewComment do
 
   it "requires an optional parent to belong to the same job" do
     other_job = Factories.job_record(repository: repo, issue_number: 44)
-    other_comment = build_comment(job: other_job).tap(&:save!)
+    other_comment = build_comment(job: other_job, diff_review_version: create_version(job: other_job)).tap(&:save!)
     comment = build_comment(parent: other_comment)
 
     expect(comment).not_to be_valid
     expect(comment.errors[:parent]).to include("must belong to the same job")
+  end
+
+  it "requires a reply parent to belong to the same diff review version" do
+    other_version = create_version(job: job, base_sha: "base-2", head_sha: "head-2", index: 2)
+    parent = build_comment.tap(&:save!)
+    comment = build_comment(parent: parent, diff_review_version: other_version)
+
+    expect(comment).not_to be_valid
+    expect(comment.errors[:parent]).to include("must belong to the same diff review version")
   end
 end

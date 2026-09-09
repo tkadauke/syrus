@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
 import { SectionHeading } from "../../components/Heading"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
@@ -10,11 +10,14 @@ import { useT } from "../../hooks/useT"
 import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
+  fetchDiffReviewVersion,
+  type DiffReviewComment,
   type JobDetailPayload,
   type JobWorkflow
 } from "../../api/jobs"
 import { ReviewableDiff, type DiffLineSelection } from "../../components/diff/ReviewableDiff"
 import { useDiffReviewFeedback } from "./DiffReviewFeedback"
+import { DiffReviewVersionSelector } from "./DiffReviewVersionSelector"
 import { PanelMessage } from "./components"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 
@@ -38,25 +41,116 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     phase: "paint"
   })
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+  const [pendingCommentFocus, setPendingCommentFocus] = useState<DiffReviewComment | null>(null)
+  const versions = sourceDiff.data?.versions || []
+  const latestVersionId = sourceDiff.data?.version?.id ?? versions[versions.length - 1]?.id ?? null
+  const activeVersionId = selectedVersionId ?? latestVersionId
+  const historicalVersionSelected = activeVersionId != null && activeVersionId !== latestVersionId
+  const historicalVersion = useQuery({
+    enabled: sourceDiff.isSuccess && historicalVersionSelected,
+    queryKey: ["jobs", String(jobId), "diff_review_versions", activeVersionId],
+    queryFn: () => fetchDiffReviewVersion(jobId, activeVersionId!)
+  })
+  const selectedVersion = versions.find((version) => version.id === activeVersionId) ?? sourceDiff.data?.version ?? null
+  const activeDiff = useMemo(() => {
+    if (!sourceDiff.data) return null
+    if (activeVersionId != null && activeVersionId !== latestVersionId && historicalVersion.data) {
+      return {
+        ...sourceDiff.data,
+        base_ref: historicalVersion.data.base_sha,
+        head_ref: historicalVersion.data.head_sha,
+        files: historicalVersion.data.files,
+        truncated: historicalVersion.data.truncated,
+        diff_error: historicalVersion.data.diff_error,
+        version: historicalVersion.data
+      }
+    }
+    return sourceDiff.data
+  }, [activeVersionId, historicalVersion.data, latestVersionId, sourceDiff.data])
   const feedback = useDiffReviewFeedback({
-    baseRef: sourceDiff.data?.base_ref,
-    enabled: sourceDiff.isSuccess,
-    headRef: sourceDiff.data?.head_ref,
+    baseRef: activeDiff?.base_ref,
+    diffReviewVersionId: activeVersionId,
+    enabled: sourceDiff.isSuccess && Boolean(activeVersionId),
+    headRef: activeDiff?.head_ref,
+    includeAllVersions: true,
     jobId,
     onNavigateToFile: setSelectedPath,
+    onViewCommentVersion: viewCommentVersion,
     supportsGlobalComments: true,
     surface: SURFACE
   })
   const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+
+  useEffect(() => {
+    if (latestVersionId && selectedVersionId == null) setSelectedVersionId(latestVersionId)
+  }, [latestVersionId, selectedVersionId])
+
+  useEffect(() => {
+    if (!pendingCommentFocus || activeVersionId !== pendingCommentFocus.diff_review_version_id) return
+    const commentToFocus = pendingCommentFocus
+    let cancelled = false
+    let frame = 0
+    let attempts = 0
+
+    function scheduleFocus() {
+      frame = window.requestAnimationFrame(() => {
+        if (cancelled) return
+        attempts += 1
+
+        const focused = focusPendingComment(commentToFocus)
+        if (focused || attempts >= 12) {
+          setPendingCommentFocus(null)
+          return
+        }
+
+        scheduleFocus()
+      })
+    }
+
+    scheduleFocus()
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+    }
+  }, [activeVersionId, pendingCommentFocus])
+
+  function focusPendingComment(pendingCommentFocus: DiffReviewComment) {
+    if (pendingCommentFocus.anchor_kind === "review") {
+      const record = document.querySelector(`[data-diff-review-comment-id="${pendingCommentFocus.id}"]`)
+      record?.scrollIntoView({ block: "center" })
+      return Boolean(record)
+    }
+
+    if (!pendingCommentFocus.path) return true
+
+    const file = document.querySelector(`[data-diff-file="${CSS.escape(pendingCommentFocus.path)}"]`)
+    const anchor = pendingCommentFocus.anchor_key
+      ? file?.querySelector(`[data-diff-anchor="${CSS.escape(pendingCommentFocus.anchor_key)}"]`)
+      : null
+    ;(anchor || file)?.scrollIntoView({ block: "center" })
+    return Boolean(anchor || file)
+  }
 
   function startComment(nextSelection: DiffLineSelection) {
     feedback.onCommentLine?.(nextSelection)
     setSelectedPath(nextSelection.file.path)
   }
 
+  function viewCommentVersion(comment: DiffReviewComment) {
+    setSelectedVersionId(comment.diff_review_version_id)
+    if (comment.path) setSelectedPath(comment.path)
+    setPendingCommentFocus(comment)
+    if (comment.anchor_kind === "review") focusPendingComment(comment)
+  }
+
   if (sourceDiff.isPending) return <PanelMessage>{t("review_loading")}</PanelMessage>
   if (sourceDiff.isError) return <PanelMessage tone="error">{errorMessage(sourceDiff.error, t("review_load_error"))}</PanelMessage>
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
+  if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
+  if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
+  if (historicalVersionSelected && historicalVersion.isError) return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
@@ -65,9 +159,16 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <SectionHeading>{t("review_summary_title")}</SectionHeading>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_changed_files", { count: sourceDiff.data.files.length })}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_changed_files", { count: activeDiff.files.length })}</p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs">
+            <div className="flex flex-wrap items-start gap-3 text-xs">
+              <DiffReviewVersionSelector
+                disabled={sourceDiff.isFetching || historicalVersion.isFetching}
+                latestVersionId={latestVersionId}
+                onChange={setSelectedVersionId}
+                selectedVersionId={activeVersionId}
+                versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
+              />
               <ReviewStatePill label={t("review_pending_state", { count: Object.values(feedback.commentCounts).reduce((sum, count) => sum + count, 0) })} tone="pending" />
             </div>
           </div>
@@ -88,7 +189,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             editingThreadId={feedback.editingThreadId}
             emptyState={<div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_no_changed_files")}</div>}
             fileCommentCounts={feedback.commentCounts}
-            files={sourceDiff.data.files}
+            files={activeDiff.files}
             mode="continuous"
             onCancelComposing={feedback.onCancelComposing}
             onCancelEditThread={feedback.onCancelEditThread}
@@ -96,7 +197,7 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
             onChangeEditingThreadBody={feedback.onChangeEditingThreadBody}
             onCommentLine={startComment}
             onDeleteThread={feedback.onDeleteThread}
-            onLoadFileContext={sourceDiff.data.head_ref ? (file) => fetchJobSourceFileContent(jobId, sourceDiff.data.head_ref!, file.path) : undefined}
+            onLoadFileContext={activeDiff.head_ref ? (file) => fetchJobSourceFileContent(jobId, activeDiff.head_ref!, file.path) : undefined}
             onSaveComposing={feedback.onSaveComposing}
             onSaveEditThread={feedback.onSaveEditThread}
             onSelectFile={setSelectedPath}

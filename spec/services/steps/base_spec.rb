@@ -388,6 +388,8 @@ RSpec.describe Steps::Base, :ci_only do
     end
 
     it "fails unchanged agent runs before recording diff metadata" do
+      workflow.update!(trigger_kind: "retry")
+      run.update!(trigger_kind: "retry")
       allow(handler).to receive(:diff_against_default).and_return("")
 
       expect {
@@ -403,6 +405,7 @@ RSpec.describe Steps::Base, :ci_only do
       expect(run.head_sha).to be_nil
       expect(run.base_sha).to be_nil
       expect(run.step_agent_diff).to be_nil
+      expect(job.diff_review_versions).to be_empty
     end
   end
 

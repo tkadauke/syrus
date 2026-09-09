@@ -27,6 +27,7 @@ module Steps
                 chdir: workspace.path.to_s)
       end
 
+      persist_rebase_diff_review_version!
       carry_forward_landing_validation!
     rescue GitRunner::GitError => e
       raise unless push_rejected?(e)
@@ -38,6 +39,23 @@ module Steps
     end
 
     private
+
+    def persist_rebase_diff_review_version!
+      base_sha = rebase_base_sha
+      current_head_sha = streaming_git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).to_s.strip.presence
+      return if base_sha.blank? || current_head_sha.blank?
+
+      diff = diff_against_sha(base_sha)
+      persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: diff)
+      run.update!(base_sha: base_sha, head_sha: current_head_sha)
+    rescue StandardError => e
+      log("[#{step.kind}] could not persist rebase diff review version: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def rebase_base_sha
+      result = workflow.artifact("auto_rebase_result")
+      result["base_sha"].to_s.presence if result.is_a?(Hash)
+    end
 
     # Opt-in (Repository#trust_clean_rebase_grade): when a PR already
     # passed required graders and the only change since is a *clean*

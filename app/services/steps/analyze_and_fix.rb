@@ -31,6 +31,7 @@ module Steps
       end
 
       run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      persist_diff_review_version!(base_sha: base_sha, head_sha: current_head_sha, diff: step_diff)
       publish_run_checkpoint!
     end
 

@@ -52,6 +52,20 @@ RSpec.describe App::JobSourceDiffPayload do
       deletions: 1,
       patch: "@@ -1 +1 @@\n-old\n+new"
     )
+    expect(payload[:version]).to include(
+      version_index: 1,
+      base_sha: "aabbccdd1234567",
+      head_sha: "deadbeef12345678",
+      label: "Initial implementation",
+      reason: "initial"
+    )
+    expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
+      "path" => "app/models/user.rb",
+      "status" => "modified",
+      "additions" => 4,
+      "deletions" => 1,
+      "patch" => "@@ -1 +1 @@\n-old\n+new"
+    )
   end
 
   it "populates diff_error when GitHub fails" do
@@ -119,6 +133,56 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload[:diff_error]).to be_nil
   end
 
+  it "persists explicit base/head comparisons so selected diff comments can bind to that version" do
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(files: [
+        { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+new" }
+      ], truncated: false)
+
+    payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(payload[:version]).to include(
+      version_index: 1,
+      base_sha: "old-base",
+      head_sha: "old-head",
+      reason: "source_diff_selection"
+    )
+    expect(payload[:versions].map { |version| version[:id] }).to eq([ payload.dig(:version, :id) ])
+    expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
+      "path" => "app/models/widget.rb",
+      "status" => "modified",
+      "additions" => 1,
+      "deletions" => 0,
+      "patch" => "@@ -1 +1,2 @@\n+new"
+    )
+  end
+
+  it "reuses an existing version for an explicit SHA pair" do
+    existing = DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: "old-base",
+      head_sha: "old-head",
+      files: [],
+      label: "Earlier review",
+      reason: "initial"
+    )
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [], merge_base_sha: "aabbccdd1234567")
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "old-base", "old-head")
+      .and_return(files: [], truncated: false)
+
+    payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+
+    expect(payload.dig(:version, :id)).to eq(existing.id)
+    expect(job.diff_review_versions.count).to eq(1)
+  end
+
   describe "preview diff fixture" do
     let(:fixture) do
       {
@@ -163,6 +227,20 @@ RSpec.describe App::JobSourceDiffPayload do
         additions: 4,
         deletions: 1,
         patch: "@@ -1 +1 @@\n-old\n+new"
+      )
+      expect(payload[:version]).to include(
+        version_index: 1,
+        base_sha: "aabbccdd1234567",
+        head_sha: "deadbeef12345678",
+        label: "Preview fixture",
+        reason: "diff_fixture"
+      )
+      expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
+        "path" => "app/models/user.rb",
+        "status" => "modified",
+        "additions" => 4,
+        "deletions" => 1,
+        "patch" => "@@ -1 +1 @@\n-old\n+new"
       )
     end
 

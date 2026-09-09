@@ -28,12 +28,24 @@ module App
       base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
+      version = resolve_diff_review_version(
+        base_sha: base,
+        head_sha: head,
+        files: diff_result[:files],
+        truncated: diff_result[:truncated] == true
+      )
 
       base_payload(base_ref: base, head_ref: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
-        .merge(files: Array(diff_result[:files]).map { |file| file_json(file) }, truncated: diff_result[:truncated] == true, diff_error: nil)
+        .merge(
+          files: Array(diff_result[:files]).map { |file| file_json(file) },
+          truncated: diff_result[:truncated] == true,
+          diff_error: nil,
+          version: version_json(version),
+          versions: diff_versions_json
+        )
     rescue => e
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: e.message)
+        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json)
     end
 
     private
@@ -63,6 +75,7 @@ module App
 
     def fixture_payload
       fixture = preview_fixture.deep_symbolize_keys
+      version = fixture_diff_review_version(fixture)
       base_payload(
         base_ref: fixture[:base_ref],
         head_ref: fixture[:head_ref],
@@ -71,13 +84,21 @@ module App
       ).merge(
         files: Array(fixture[:files]).map { |file| file_json(file) },
         truncated: false,
-        diff_error: nil
+        diff_error: nil,
+        version: version_json(version),
+        versions: diff_versions_json
       )
     end
 
     def unavailable_payload
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: "GitHub token not configured. Add one in Settings to browse source.")
+        .merge(
+          files: [],
+          truncated: false,
+          diff_error: "GitHub token not configured. Add one in Settings to browse source.",
+          version: nil,
+          versions: diff_versions_json
+        )
     end
 
     def base_payload(base_ref:, head_ref:, branch_commits: [], merge_base_sha: nil)
@@ -112,6 +133,137 @@ module App
 
     def iso8601(value)
       value.respond_to?(:iso8601) ? value.iso8601 : value&.to_s
+    end
+
+    def resolve_diff_review_version(base_sha:, head_sha:, files:, truncated:)
+      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
+      return existing_version if existing_version
+
+      source_run = source_run_for(base_sha: base_sha, head_sha: head_sha)
+      explicit_selection = @params[:base].present? || @params[:head].present?
+      source_workflow = source_run&.workflow || (explicit_selection ? nil : @job.latest_workflow)
+      trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
+      DiffReviewVersions::Creator.call(
+        job: @job,
+        base_sha: base_sha,
+        head_sha: head_sha,
+        files: files,
+        truncated: truncated,
+        base_ref: explicit_selection ? base_sha : job_base_branch,
+        head_ref: explicit_selection ? head_sha : @job.branch_name,
+        workflow: source_workflow,
+        run: source_run,
+        trigger_kind: trigger_kind,
+        reason: trigger_kind.to_s.presence || (explicit_selection ? "source_diff_selection" : "source_diff")
+      )
+    rescue => e
+      Rails.logger.warn("[JobSourceDiffPayload] could not persist diff review version for #{@job.slug}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def existing_version_for(base_sha:, head_sha:)
+      @job.diff_review_versions
+          .where(base_sha: base_sha, head_sha: head_sha)
+          .latest_first
+          .first
+    end
+
+    def fixture_diff_review_version(fixture)
+      base_sha = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
+      head_sha = fixture[:head_sha].presence || fixture[:head_ref]
+      existing_version_for(base_sha: base_sha, head_sha: head_sha) ||
+        DiffReviewVersions::Creator.call(
+          job: @job,
+          base_sha: base_sha,
+          head_sha: head_sha,
+          files: fixture[:files],
+          truncated: false,
+          base_ref: fixture[:base_ref],
+          head_ref: fixture[:head_ref],
+          label: "Preview fixture",
+          reason: "diff_fixture"
+        )
+    rescue => e
+      Rails.logger.warn("[JobSourceDiffPayload] could not persist fixture diff review version for #{@job.slug}: #{e.class}: #{e.message}")
+      nil
+    end
+
+    def source_run_for(base_sha:, head_sha:)
+      @job.runs
+          .includes(:step)
+          .where(base_sha: base_sha, head_sha: head_sha)
+          .reorder(created_at: :desc, id: :desc)
+          .first ||
+        @job.runs
+            .includes(:step)
+            .where(head_sha: head_sha)
+            .reorder(created_at: :desc, id: :desc)
+            .first
+    end
+
+    def version_json(version)
+      return nil unless version
+
+      {
+        id: version.id,
+        job_id: version.job_id,
+        version_index: version.version_index,
+        base_sha: version.base_sha,
+        head_sha: version.head_sha,
+        base_ref: version.base_ref,
+        head_ref: version.head_ref,
+        workflow_id: version.workflow_id,
+        workflow: version.workflow ? {
+          id: version.workflow.id,
+          trigger_kind: version.workflow.trigger_kind,
+          state: version.workflow.state
+        } : nil,
+        run_id: version.run_id,
+        trigger_kind: version.trigger_kind,
+        label: version.label,
+        reason: version.reason,
+        truncated: version.truncated,
+        files_count: Array(version.files_snapshot).size,
+        comments_count: comments_count_for(version),
+        metadata: version.metadata || {},
+        created_at: version.created_at&.iso8601
+      }
+    end
+
+    def diff_versions_json
+      @job.diff_review_versions.includes(:workflow, :run).ordered.map do |version|
+        {
+          id: version.id,
+          version_index: version.version_index,
+          base_sha: version.base_sha,
+          head_sha: version.head_sha,
+          base_ref: version.base_ref,
+          head_ref: version.head_ref,
+          workflow_id: version.workflow_id,
+          workflow: version.workflow ? {
+            id: version.workflow.id,
+            trigger_kind: version.workflow.trigger_kind,
+            state: version.workflow.state
+          } : nil,
+          run_id: version.run_id,
+          trigger_kind: version.trigger_kind,
+          label: version.label,
+          reason: version.reason,
+          truncated: version.truncated,
+          files_count: Array(version.files_snapshot).size,
+          comments_count: comments_count_for(version),
+          metadata: version.metadata || {},
+          created_at: version.created_at&.iso8601
+        }
+      end
+    end
+
+    def comments_count_for(version)
+      comments_count_by_version[version.id].to_i
+    end
+
+    def comments_count_by_version
+      @comments_count_by_version ||= @job.diff_review_comments.group(:diff_review_version_id).count
     end
   end
 end
