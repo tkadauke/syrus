@@ -49,6 +49,10 @@ function getCodeCellText(text: string) {
   return screen.getByText((_, element) => Boolean(element && element.tagName === "TD" && element.textContent === text))
 }
 
+function getCodeToken(text: string) {
+  return within(getCodeCellText(text)).getByText(text)
+}
+
 function manyFiles(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     additions: 1,
@@ -327,7 +331,7 @@ describe("ReviewableDiff", () => {
     expect(row?.querySelectorAll("td")[1]).toBe(gutterCell)
   })
 
-  it("opens a line comment when tapping the code row on mobile", () => {
+  it("opens a line comment when tapping a code token on mobile", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -338,13 +342,15 @@ describe("ReviewableDiff", () => {
       const onCommentLine = vi.fn()
       render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
 
-      fireEvent.click(getCodeCellText("new"))
+      fireEvent.click(getCodeToken("new"))
 
+      expect(onCommentLine).toHaveBeenCalledTimes(1)
       expect(onCommentLine).toHaveBeenCalledWith({
         file: files[0],
         line: expect.objectContaining({ code: "new", kind: "add", newLine: 1, oldLine: null }),
         side: "new"
       })
+      expect(screen.queryByText(/Highlighting/)).not.toBeInTheDocument()
     } finally {
       if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
       else Reflect.deleteProperty(window, "matchMedia")

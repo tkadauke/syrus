@@ -980,7 +980,7 @@ export function UnifiedDiffTable({
 
   let hunkIndex = -1
 
-  function handleLineTap(event: MouseEvent<HTMLTableRowElement>, selection: DiffLineSelection) {
+  function handleLineTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
     if (!isMobileViewport) return
     if (hasActiveTextSelection()) return
     if (closestInteractiveElement(event.target)) return
@@ -988,6 +988,16 @@ export function UnifiedDiffTable({
     event.preventDefault()
     event.stopPropagation()
     onCommentLine?.(selection)
+  }
+
+  function handleTokenTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
+    if (!isMobileViewport) return false
+    if (hasActiveTextSelection()) return false
+
+    event.preventDefault()
+    event.stopPropagation()
+    onCommentLine?.(selection)
+    return true
   }
 
   return (
@@ -1030,7 +1040,14 @@ export function UnifiedDiffTable({
                 </td>
                 <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
                 <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>
-                  <DiffCode code={line.code} highlightedToken={activeHighlight} kind={line.kind} onToggleHighlightToken={toggleHighlight} tokens={tokensByLine[index]} />
+                  <DiffCode
+                    code={line.code}
+                    highlightedToken={activeHighlight}
+                    kind={line.kind}
+                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
+                    onToggleHighlightToken={toggleHighlight}
+                    tokens={tokensByLine[index]}
+                  />
                 </td>
                 <td className="w-4 select-none px-1 text-center">
                   {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
@@ -1177,12 +1194,14 @@ function DiffCode({
   code,
   highlightedToken,
   kind,
+  onMobileTokenTap,
   onToggleHighlightToken,
   tokens
 }: {
   code: string
   highlightedToken?: string | null
   kind: DiffLineKind
+  onMobileTokenTap?: (event: MouseEvent<HTMLElement>) => boolean
   onToggleHighlightToken: (token: string) => void
   tokens?: ThemedToken[]
 }) {
@@ -1198,7 +1217,10 @@ function DiffCode({
               <span
                 className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
                 key={wordIndex}
-                onClick={() => onToggleHighlightToken(word.text)}
+                onClick={(event) => {
+                  if (onMobileTokenTap?.(event)) return
+                  onToggleHighlightToken(word.text)
+                }}
                 style={{ color: shikiToken.color }}
               >
                 {word.text}
@@ -1217,7 +1239,10 @@ function DiffCode({
         <span
           className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
           key={index}
-          onClick={() => onToggleHighlightToken(token.text)}
+          onClick={(event) => {
+            if (onMobileTokenTap?.(event)) return
+            onToggleHighlightToken(token.text)
+          }}
         >
           {token.text}
         </span>
