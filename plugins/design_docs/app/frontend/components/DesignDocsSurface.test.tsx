@@ -1949,6 +1949,20 @@ describe("DesignDocsSurface", () => {
     expect(suggestion?.querySelector("ins")).not.toHaveClass("block")
   })
 
+  it("falls back to whole-block rendering for large inline suggestions", async () => {
+    const original = Array.from({ length: 420 }, (_, index) => `old${index}`).join(" ")
+    const proposed = Array.from({ length: 420 }, (_, index) => `new${index}`).join(" ")
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(suggestion?.querySelector("ins")).toHaveTextContent(proposed)
+    expect(suggestion?.querySelector("del")).toHaveClass("block")
+    expect(suggestion?.querySelector("ins")).toHaveClass("block")
+  })
+
   it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
