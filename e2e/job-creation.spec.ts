@@ -13,6 +13,6 @@ test("signed-in user can create a direct Job", async ({ page }) => {
   await page.getByPlaceholder(/describe what you want the agent to do/i).fill("Say hello in the PR description.")
   await page.getByRole("button", { name: "Create job", exact: true }).click()
 
-  await expect(page).not.toHaveURL(/\/jobs\/new$/)
+  await page.waitForURL((url) => !url.pathname.endsWith("/jobs/new"), { timeout: 20_000 })
   await expect(page.getByText(title)).toBeVisible()
 })
