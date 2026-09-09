@@ -169,6 +169,7 @@ class AgentEnvironmentSnapshot
     lines = [
       "- Git status: #{git_status_summary}",
       "- Prepare plan: #{prepare_summary}",
+      "- Target prepare options: #{target_prepare_summary}",
       "- Dependency signals: #{dependency_summary}",
       "- Graders: #{grader_summary}",
       "- Package scripts: #{package_script_summary}",
@@ -205,6 +206,21 @@ class AgentEnvironmentSnapshot
     plan = RepoPrepPlan.for(workspace_path)
     commands = plan.commands.any? ? plan.commands.join("; ") : "none"
     [ "#{plan.source}: #{commands}", plan.note ].compact.join(" (") + (plan.note ? ")" : "")
+  rescue StandardError => e
+    "unavailable (#{e.class}: #{e.message})"
+  end
+
+  def target_prepare_summary
+    graph = TargetGraph::Compiler.compile(workspace_path)
+    targets = graph.targets.values.select { |target| target.kind == "prepare" && target.executable? }
+    return "none" if targets.empty?
+
+    rendered = targets.first(MAX_GRADER_LINES).map do |target|
+      commands = Array(target.metadata["commands"]).presence || [ target.command ]
+      "#{target.label} (#{target.owner_config_path}, project=#{target.project_id}): #{commands.join('; ').inspect}"
+    end
+    rendered << "... #{targets.size - MAX_GRADER_LINES} more" if targets.size > MAX_GRADER_LINES
+    "#{rendered.join('; ')}. Run explicitly with `run_target_prepare(label: \"//path:prepare\")` when a project-specific environment is needed."
   rescue StandardError => e
     "unavailable (#{e.class}: #{e.message})"
   end

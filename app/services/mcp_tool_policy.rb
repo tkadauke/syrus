@@ -35,6 +35,11 @@ class McpToolPolicy
       AgentRole::WORKFLOW_REBASE_CONFLICT,
       AgentRole::WORKFLOW_MANUAL
     ].freeze,
+    run_target_prepare:        [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::WORKFLOW_REBASE_CONFLICT,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
     submit_visual_artifact:    [
       AgentRole::WORKFLOW_IMPLEMENT,
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
@@ -143,7 +148,7 @@ class McpToolPolicy
     elsif @context.role == AgentRole::WORKFLOW_VISUAL_REVIEWER
       base + [ Mcp::Tools::SubmitVisualReviewTool, SyrusMcp::SubmitVisualArtifactTool ]
     else
-      tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::PatchWorkflowTool, SyrusMcp::SubmitVisualArtifactTool ]
+      tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::RunTargetPrepareTool, SyrusMcp::PatchWorkflowTool, SyrusMcp::SubmitVisualArtifactTool ]
       tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
       tools += REF_MOVEMENT_TOOLS if @context.run&.step&.kind == "run_skill"
       tools

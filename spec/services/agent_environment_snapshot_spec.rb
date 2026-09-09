@@ -37,9 +37,29 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("Agent provider: codex")
       expect(snapshot).to include("MCP/tools: run sidecar `syrus-mcp-sidecar` is configured; this step has no required MCP submission tool.")
       expect(snapshot).to include("Prepare plan: .syrus.yml: bundle install")
+      expect(snapshot).to include('Target prepare options: //:prepare (.syrus.yml, project=repo): "bundle install"')
       expect(snapshot).to include('Graders: .syrus.yml: rspec="bin/rspec" (required)')
       expect(snapshot).to include('Package scripts: test="vitest"; build="vite build"')
       expect(snapshot).to include("`git fetch` is allowed")
+    end
+
+    it "renders nested target prepare commands with their MCP invocation hint" do
+      repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")
+      job = Factories.job(repository: repo)
+      workflow = job.workflows.last
+      step = workflow.steps.find_by!(kind: "implement")
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex", iteration: 1)
+
+      @workspace_path.join("cli").mkpath
+      @workspace_path.join("cli/.syrus.yml").write(<<~YAML)
+        prepare:
+          - go mod download
+      YAML
+
+      snapshot = described_class.for_run(run, workspace_path: @workspace_path)
+
+      expect(snapshot).to include('Target prepare options: //cli:prepare (cli/.syrus.yml, project=cli): "go mod download"')
+      expect(snapshot).to include('run_target_prepare(label: "//path:prepare")')
     end
 
     it "renders Claude-visible names for required workflow MCP tools" do
