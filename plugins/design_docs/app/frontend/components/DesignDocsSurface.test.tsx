@@ -1225,7 +1225,7 @@ describe("DesignDocsSurface", () => {
     })
   })
 
-  it("renders block-level suggestions as anchored document marks and structured thread diffs", async () => {
+  it("renders block-level suggestions as red/green anchored document diffs and structured thread diffs", async () => {
     const blockSuggestion = {
       ...docDetail.suggestions[0],
       id: 51,
@@ -1280,11 +1280,77 @@ describe("DesignDocsSurface", () => {
     const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
 
     expect(editor).toHaveTextContent("Old Title")
-    expect(within(editor).queryByText("# New Title")).not.toBeInTheDocument()
+    expect(within(editor).getByText("# Old Title").closest("del")).toHaveClass("text-warning", "decoration-warning")
+    expect(within(editor).getByText(/# New Title/).closest("ins")).toHaveClass("text-success", "no-underline")
     expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
     expect(screen.getByText("Current")).toBeInTheDocument()
     expect(screen.getByText("Proposed")).toBeInTheDocument()
-    expect(screen.getByText(/## Context/)).toBeInTheDocument()
+    expect(screen.getAllByText(/## Context/)).toHaveLength(2)
+  })
+
+  it("aligns an initially visible lower suggestion card to its source-offset fallback when the inline marker is unavailable", async () => {
+    const markdown = [
+      "Intro",
+      "",
+      "## Summary",
+      "",
+      "Body"
+    ].join("\n")
+    const start = markdown.indexOf("Summary")
+    const lowerSuggestionDoc = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      threads: [],
+      suggestions: [{
+        ...docDetail.suggestions[0],
+        id: 61,
+        original_markdown: "Summary",
+        suggested_markdown: "Plan",
+        proposed_markdown: "Plan",
+        render_mode: "block" as const,
+        change_summary: "Rename summary",
+        anchor: {
+          ...docDetail.suggestions[0].anchor,
+          start_offset: start,
+          end_offset: start + "Summary".length,
+          last_known_start_offset: start,
+          last_known_end_offset: start + "Summary".length,
+          selected_markdown: "Summary",
+          selected_text: "Summary"
+        },
+        thread: null
+      }]
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: lowerSuggestionDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    await screen.findByText("Rename summary")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.getAttribute("aria-label") === "Rich Text editor") return { ...base, top: 0, bottom: 576, height: 576 } as DOMRect
+      if (this.hasAttribute("data-source-start")) return { ...base, top: 64, bottom: 88, height: 24 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 80, height: 80 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+    container.querySelector("[data-suggestion-id='61']")?.removeAttribute("data-suggestion-id")
+
+    fireEvent(window, new Event("resize"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(64px)" })
+    })
   })
 
   it("groups replies beneath their parent comment thread", async () => {

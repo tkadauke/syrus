@@ -553,10 +553,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         const marker = markerRoot?.querySelector(
           entry.kind === "thread" ? `[data-thread-id="${entry.thread.id}"]` : `[data-suggestion-id="${entry.suggestion.id}"]`
         ) as HTMLElement | null
+        const anchorStart = entry.kind === "thread"
+          ? entry.thread.anchor.last_known_start_offset ?? entry.thread.anchor.start_offset
+          : entry.suggestion.anchor.last_known_start_offset ?? entry.suggestion.anchor.start_offset
         const cardEl = entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]
         return {
           id: entry.id,
-          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : null,
+          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }),
           height: cardEl?.getBoundingClientRect().height ?? 0
         }
       })
@@ -588,7 +591,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       observer.disconnect()
       window.removeEventListener("resize", recompute)
     }
-  }, [editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
+  }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
@@ -1693,6 +1696,27 @@ function clampAffordanceLeft(left: number, containerWidth: number) {
   return Math.min(Math.max(left, inset), maxLeft)
 }
 
+function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
+  anchorStart: number | null | undefined
+  containerTop: number
+  draft: string
+  markerRoot: HTMLElement | null
+}) {
+  if (anchorStart == null || !markerRoot) return null
+
+  const sourceElement = Array.from(markerRoot.querySelectorAll("[data-source-start][data-source-end]")).find((element) => {
+    const start = Number((element as HTMLElement).dataset.sourceStart)
+    const end = Number((element as HTMLElement).dataset.sourceEnd)
+    return Number.isFinite(start) && Number.isFinite(end) && start <= anchorStart && end > anchorStart
+  }) as HTMLElement | undefined
+  if (sourceElement) return sourceElement.getBoundingClientRect().top - containerTop
+
+  const rootTop = markerRoot.getBoundingClientRect().top - containerTop
+  const lineHeight = 24
+  const lineIndex = draft.slice(0, anchorStart).split("\n").length - 1
+  return rootTop + 16 + lineIndex * lineHeight
+}
+
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
   const colors = tone === "error" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
   return <div className={`rounded border p-4 ${colors} ${className}`}>{children}</div>
@@ -1839,12 +1863,12 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
   return highlights.find((highlight) => {
-    if (highlight.kind !== "suggestion" || highlight.renderMode === "block" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
     if (highlight.start > offset || highlight.end <= offset) return false
 
     const original = highlight.originalMarkdown ?? ""
     const proposed = highlight.proposedMarkdown ?? ""
-    return (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
+    return highlight.renderMode === "block" || (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
   }) ?? null
 }
 
@@ -1861,7 +1885,7 @@ function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThrea
   const proposed = highlight.proposedMarkdown ?? ""
 
   return [
-    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-block-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
     `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, highlight.start)}</del>`,
     `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(proposed)}</ins>`,
     "</div>"
@@ -2377,8 +2401,15 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         if (segment.highlight.renderMode === "block") {
           const className = focused
             ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
-            : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
-          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceSpan(segment.text, baseOffset + segment.start)}</mark>`
+            : "rounded-sm bg-surface-raised px-0.5"
+          const original = segment.highlight.originalMarkdown ?? segment.text
+          const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
+          if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
+          return [
+            `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+            renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
+            "</mark>"
+          ].join("")
         }
 
         const className = focused
