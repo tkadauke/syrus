@@ -67,7 +67,14 @@ RSpec.describe Steps::StackAutoRebase do
       post_sha: "base",
       base_sha: "base"
     )
-    client = instance_double(GithubClient, add_issue_comment: nil, close_pull_request: nil)
+    client = instance_double(
+      GithubClient,
+      add_issue_comment: nil,
+      close_pull_request: nil,
+      update_pull_request_base: nil,
+      pull_request: double(body: ""),
+      update_pull_request_body: nil
+    )
     allow(GithubClient).to receive(:for).and_return(client)
     allow(AutoRebase).to receive(:new)
       .with(job, base_branch: "main")
