@@ -140,6 +140,33 @@ describe("useShortcut / ShortcutsProvider", () => {
     expect(onFire).not.toHaveBeenCalled()
   })
 
+  it("requires Alt for an alt-modified letter combo", () => {
+    const onFire = vi.fn()
+    render(
+      <ShortcutsProvider>
+        <Registrant keys="alt+a" label="Approve" onFire={onFire} />
+      </ShortcutsProvider>
+    )
+
+    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "a", altKey: true })
+
+    expect(onFire).toHaveBeenCalledTimes(1)
+  })
+
+  it("matches Alt-letter shortcuts by physical key code when Option produces a special character", () => {
+    const onFire = vi.fn()
+    render(
+      <ShortcutsProvider>
+        <Registrant keys="alt+a" label="Approve" onFire={onFire} />
+      </ShortcutsProvider>
+    )
+
+    fireEvent.keyDown(window, { key: "å", code: "KeyA", altKey: true })
+
+    expect(onFire).toHaveBeenCalledTimes(1)
+  })
+
   it("exposes only the active (unshadowed, mounted) registrations from useActiveShortcuts", () => {
     function Harness() {
       const [modalMounted, setModalMounted] = useState(false)
