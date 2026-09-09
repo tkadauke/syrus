@@ -871,6 +871,240 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s3.runs.count).to eq(0)  # not yet
     end
 
+    it "queues every ready immutable-source sibling under the distributed execution gates" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      enqueued_run_jobs_before = enqueued_jobs.count { |entry| entry[:job] == RunJob }
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+        .and change { s3.runs.count }.by(1)
+
+      expect(collect.runs.count).to eq(0)
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
+    end
+
+    it "continues past a blocked immutable sibling to enqueue unrelated ready siblings" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      blocked_on = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        state: "running",
+        position: 4,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ s1.id ],
+        started_at: 1.minute.ago
+      )
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ blocked_on.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      collect.update!(next_step_id: blocked_on.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s3.runs.count }.by(1)
+
+      expect(s2.runs.count).to eq(0)
+      expect(collect.runs.count).to eq(0)
+    end
+
+    it "does not let per-step admission deferral block another ready immutable sibling" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(
+        workflow_step_worker_slot_admission_enabled: true,
+        workflow_admission_policy: "phase_aware"
+      )
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      deferred = WorkflowAdmissionBudget::Decision.new(
+        action: "delay_until",
+        reason: "predicted_budget_pressure_high",
+        pressure: { "projected" => { "cpu_pressure" => 105.0 } },
+        delay_until: 10.minutes.from_now,
+        override: false,
+        details: nil
+      )
+      admitted = WorkflowAdmissionBudget::Decision.new(
+        action: "admit_now",
+        reason: "within_budget",
+        pressure: { "projected" => { "cpu_pressure" => 10.0 } },
+        delay_until: nil,
+        override: false,
+        details: nil
+      )
+      allow(WorkflowAdmissionBudget).to receive(:call) do |workflow:, step: nil|
+        step == s2 ? deferred : admitted
+      end
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s3.runs.count }.by(1)
+
+      expect(s2.runs.count).to eq(0)
+      expect(collect.runs.count).to eq(0)
+    end
+
+    it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      current_run = s1.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      enqueued_run_jobs_before = enqueued_jobs.count { |entry| entry[:job] == RunJob }
+      Thread.current[:syrus_current_run] = current_run
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+        .and change { s3.runs.count }.by(1)
+
+      expect(collect.runs.count).to eq(0)
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(1)
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
+    it "keeps pinned siblings serial even when their graph dependencies are ready together" do
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s2.update!(depends_on_ids: [ s1.id ])
+      s3.update!(depends_on_ids: [ s1.id ])
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+
+      expect(s3.runs.count).to eq(0)
+    end
+
+    it "keeps gate-off workflows on the legacy first-successor walk despite explicit sibling edges" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s2.runs.count }.by(1)
+
+      expect(s3.runs.count).to eq(0)
+    end
+
+    it "does not finish while a parallel sibling is still running" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", state: "succeeded", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ], started_at: 1.minute.ago, finished_at: Time.current)
+      s3.update!(kind: "grader", state: "running", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ], started_at: 1.minute.ago)
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(s2)
+      }.not_to change { collect.runs.count }
+
+      expect(workflow.reload).to be_running
+    end
+
+    it "keeps collect steps blocked until all explicit dependencies are terminal" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      s2.update_columns(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+      s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(s2)
+      }.to change { collect.runs.count }.by(1)
+    end
+
+    it "skips redundant nodes while finding the distributed ready set" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "test_plan", placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE, depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      workflow.set_artifact!("test_plan", { "steps" => [ "Run the tests" ], "notes" => nil })
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.to change { s3.runs.count }.by(1)
+
+      expect(s2.reload).to be_skipped
+      expect(s2.details).to include("skip_reason" => "test_plan_already_submitted")
+    end
+
     it "skips test_plan without creating a Run when the plan artifact already exists" do
       test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 2)
       s3.update!(position: 3)
