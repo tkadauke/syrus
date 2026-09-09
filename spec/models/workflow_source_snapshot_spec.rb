@@ -69,4 +69,18 @@ RSpec.describe WorkflowSourceSnapshot do
     expect(described_class.current_for(workflow)).to eq(newer)
     expect(described_class.current_for(workflow)).not_to eq(older)
   end
+
+  it "does not block workflow-owned cleanup" do
+    described_class.create!(
+      workflow: workflow,
+      creator_step: step,
+      source_sha: "a" * 40,
+      source_ref: "refs/syrus/checkpoints/runs/123",
+      tree_sha: "b" * 40,
+      published_at: Time.current
+    )
+
+    expect { workflow.destroy! }.to change(described_class, :count).by(-1)
+    expect(Step.exists?(step.id)).to eq(false)
+  end
 end

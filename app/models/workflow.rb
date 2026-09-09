@@ -19,8 +19,8 @@ class Workflow < ApplicationRecord
   belongs_to :user
   has_many :workflow_warnings, dependent: :destroy
   has_one :work_unit, dependent: nil, inverse_of: :workflow
-  has_many :steps, -> { order(:position) }, dependent: :destroy
   has_many :source_snapshots, class_name: "WorkflowSourceSnapshot", dependent: :destroy
+  has_many :steps, -> { order(:position) }, dependent: :destroy
   has_many :spawned_processes, dependent: :nullify
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
