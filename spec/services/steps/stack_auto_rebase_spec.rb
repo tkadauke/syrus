@@ -59,6 +59,7 @@ RSpec.describe Steps::StackAutoRebase do
   end
 
   it "closes an already-landed stack member instead of leaving it to be rebased forever" do
+    job.update!(state: "failed")
     result = AutoRebase::Result.new(
       true,
       AutoRebase::ALREADY_LANDED_REASON,

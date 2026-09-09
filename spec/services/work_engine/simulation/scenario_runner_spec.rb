@@ -82,6 +82,27 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(%w[queued blocked_by_epic]).to include(downstream.state)
   end
 
+  it "applies operator approval events and drains an epic merge train" do
+    result = run_scenario("epic_merge_train_after_approval_events")
+
+    expect(result).to be_success
+    jobs = Job.where(id: result.job_ids).order(:id).to_a
+    expect(jobs).to all(be_closed)
+    expect(result.events.join("\n")).to include("landing_queue dispatched")
+    expect(result.events.join("\n")).to include("merge_train_land")
+  end
+
+  it "reproduces JOB-4427 and closes an already-landed failed stack member" do
+    result = run_scenario("job_4427_already_landed_stack_rebase")
+
+    expect(result).to be_success
+    root, child = Job.where(id: result.job_ids).order(:id).to_a
+    expect(root).to be_closed
+    expect(root.closure_reason).to eq("pr_merged")
+    expect(child).to be_approved
+    expect(result.events.join("\n")).to include("stack_auto_rebase")
+  end
+
   it "normalizes a queued workflow with a failed step and retries it" do
     result = run_scenario("queued_workflow_with_failed_step")
 

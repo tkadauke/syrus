@@ -53,3 +53,40 @@ wait_states:
   first:
     - implemented
 ```
+
+Scenarios can also include condition-driven external events. Prefer these over
+tick numbers so adding or removing workflow steps does not make the fixture
+brittle. Useful events include an operator approving implemented Jobs, GitHub
+checks changing state, main moving forward, or a Job being closed externally:
+
+```yaml
+events:
+  - name: approve once ready
+    once: true
+    when:
+      job:
+        id: feature
+        state: implemented
+    do:
+      approve: feature
+```
+
+For end-to-end orchestration scenarios, use `expect:` to describe the final
+world state. This lets a scenario model "the operator approves once ready, then
+the landing queue drains" without treating the intermediate approval wait as
+the desired endpoint:
+
+```yaml
+expect:
+  jobs:
+    feature:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty
+```
+
+Event conditions currently support `job`, `workflow`, `work_unit`, and `queue`,
+plus `all`, `any`, and `not` composition. Job references can use YAML fixture
+keys; the loader translates them to database IDs after seeding.

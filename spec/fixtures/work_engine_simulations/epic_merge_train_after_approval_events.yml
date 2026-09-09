@@ -1,0 +1,56 @@
+name: epic merge train after approval events
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: epic-merge-train-after-approval-events
+epics:
+  feature:
+    title: Feature stack
+jobs:
+  parent:
+    title: Parent job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  child:
+    title: Child job
+    epic: feature
+    state: queued
+    parent_job: parent
+    depends_on:
+      - parent
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve parent once implemented
+    once: true
+    when:
+      job:
+        id: parent
+        state: implemented
+    do:
+      approve: parent
+  - name: approve child once implemented
+    once: true
+    when:
+      job:
+        id: child
+        state: implemented
+    do:
+      approve: child
+outcomes:
+  default: success
+expect:
+  jobs:
+    parent:
+      - closed
+    child:
+      - closed
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

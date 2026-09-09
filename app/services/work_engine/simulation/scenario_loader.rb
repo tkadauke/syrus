@@ -4,7 +4,7 @@ require "set"
 module WorkEngine
   module Simulation
     class ScenarioLoader
-      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :success_states, :wait_states, :reconciler)
+      World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner)
       JOB_UPDATE_KEYS = %w[
         state closure_reason pr_number branch_name pr_checks_state pr_checks_sha
         commits_behind_base manual_paused approved_at approved_via landed_sha
@@ -26,9 +26,11 @@ module WorkEngine
 
         ActiveRecord::Base.transaction(requires_new: true) do
           user = create_user!(data.fetch("user", {}))
+          configure_app_settings!(data.fetch("app_settings", {}))
           repository = create_repository!(user, data.fetch("repository", {}))
           epics = create_epics!(user, repository, data.fetch("epics", {}))
           jobs = create_jobs!(user, repository, epics, data.fetch("jobs", {}))
+          create_stack_parent_links!(jobs, data.fetch("jobs", {}))
           create_epic_dependencies!(epics, data.fetch("epics", {}))
           create_job_dependencies!(jobs, epics, data.fetch("jobs", {}))
           create_workflows!(jobs, data.fetch("jobs", {}))
@@ -42,9 +44,12 @@ module WorkEngine
             epics_by_key: epics,
             work_intents_by_key: work_intents,
             outcomes: data.fetch("outcomes", {}),
+            events: data.fetch("events", []),
+            expectations: data.fetch("expect", {}),
             success_states: data.fetch("success_states", {}),
             wait_states: data.fetch("wait_states", {}),
-            reconciler: data.fetch("reconciler", {})
+            reconciler: data.fetch("reconciler", {}),
+            runner: data.fetch("runner", {})
           )
         end
       end
@@ -59,6 +64,13 @@ module WorkEngine
           password: attrs.fetch("password", "supersecret"),
           agent_provider: attrs.fetch("agent_provider", "codex")
         )
+      end
+
+      def configure_app_settings!(attrs)
+        attrs = attrs.to_h
+        return if attrs.blank?
+
+        AppSetting.current.update!(attrs.slice(*AppSetting.column_names))
       end
 
       def create_repository!(user, attrs)
@@ -137,6 +149,15 @@ module WorkEngine
               JobDependency.create!(job: job, depends_on_job: jobs.fetch(dependency.to_s), source: "manual")
             end
           end
+        end
+      end
+
+      def create_stack_parent_links!(jobs, definitions)
+        definitions.each do |key, attrs|
+          parent_key = attrs["parent_job"]
+          next if parent_key.blank?
+
+          jobs.fetch(key.to_s).update!(parent_job: jobs.fetch(parent_key.to_s))
         end
       end
 
