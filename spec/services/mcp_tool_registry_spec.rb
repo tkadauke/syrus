@@ -97,7 +97,7 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
-    it "keeps the workflow implementation tool set unchanged" do
+    it "exposes workflow implementation tools" do
       run = Factories.job.initial_run
       context = McpToolContext.from_run(run)
 
@@ -107,7 +107,7 @@ RSpec.describe McpToolRegistry do
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_main_concern submit_summary submit_test_plan submit_review_plan
-          submit_artifact patch_workflow submit_visual_artifact
+          submit_artifact patch_workflow run_target_prepare submit_visual_artifact
         ]
       )
     end
