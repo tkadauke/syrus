@@ -2,6 +2,23 @@
 
 Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke the agent CLI) or **non-agentic** (run service code directly). Step kinds are registered in `app/models/step/kind.rb`.
 
+`Step` is also the workflow DAG node record for the distributed-workflow
+foundation; Syrus does not create a separate node table. Every Step has a
+`placement_policy` column. The default is `pinned_workflow_workspace`, which is
+the legacy behavior: run on the workflow's mutable workspace and owning storage
+key. Other supported policies are `immutable_source_checkout` for read-only
+validation from a durable source snapshot, `control_plane` for fanout/collect
+or orchestration work that does not need a repository checkout, and
+`external_context` for checks that run against a connector or runtime outside
+the checkout.
+
+The non-pinned policies are gated by both the instance `distributed_workflow_dag`
+feature flag and the repository's `distributed_workflow_dag_enabled` setting.
+When either gate is off, newly materialized Steps stay pinned even if their
+`Step::Kind` entry declares a future distributed placement. Descriptive
+projection metadata such as `projected_target_label` and `barrier_labels` stays
+in `steps.details`; only scheduler-hot placement is a column.
+
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
 resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and

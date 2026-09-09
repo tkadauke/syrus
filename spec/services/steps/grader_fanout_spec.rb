@@ -97,6 +97,40 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_steps.first.details["name"]).to eq("rspec")
   end
 
+  it "keeps materialized grader Steps pinned and detail-compatible when the distributed gate is off" do
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+    expect(grader_step.details).not_to include("projected_target_label", "barrier_labels")
+  end
+
+  it "records immutable placement and descriptive DAG metadata for materialized graders when distributed workflows are enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+    expect(grader_step.details).to include(
+      "projected_target_label" => "//:grade/rspec",
+      "barrier_labels" => [ "grader_collect" ]
+    )
+  end
+
   it "uses review-phase graders on the first implementation validation pass" do
     write_config(<<~YAML)
       grade:
