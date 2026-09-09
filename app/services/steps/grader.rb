@@ -14,6 +14,8 @@ module Steps
   # can evolve over the workflow's lifetime without re-interpreting
   # historical Steps.
   class Grader < Base
+    include PrepareTargetExecution
+
     TIMEOUT_EXIT_CODE = 124
     OUTPUT_INLINE_BYTES = 16 * 1024
 
@@ -24,7 +26,7 @@ module Steps
       name = definition.fetch("name") { raise StepFailed, "grader Step missing details[name]" }
       command = definition.fetch("command") { raise StepFailed, "grader Step missing details[command]" }
       timeout_minutes = (definition["timeout_minutes"] || 15).to_i
-      run_prepare_dependencies!(definition)
+      prepare_target_results = run_prepare_target_dependencies!(definition["prepare_targets"], requested_by: "#{step.kind}:#{name}")
 
       log("[grader:#{name}] $ #{command}")
 
@@ -97,6 +99,7 @@ module Steps
       # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
       step.update!(details: definition.merge(
+        "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
         "timed_out" => timed_out,
@@ -113,31 +116,6 @@ module Steps
     end
 
     private
-
-    def run_prepare_dependencies!(definition)
-      commands = Array(definition["prepare_commands"]).map(&:to_s).map(&:strip).reject(&:empty?)
-      return if commands.empty?
-
-      name = definition["name"].to_s
-      commands.each_with_index do |command, index|
-        log("[grader:#{name}] prepare dependency (#{index + 1}/#{commands.size}) $ #{command}")
-        result = ProcessRunner.new(
-          env: env,
-          command: [ "bash", "-c", command ],
-          chdir: workspace.path,
-          timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
-          kind: "prepare",
-          run: run,
-          workflow: workflow,
-          display_command: command,
-          on_output_chunk: ->(chunk) { log(chunk, kind: "prepare_log") }
-        ).run
-        publish_command_completed!(step_kind: "prepare", label: command)
-        next if result.success? && !result.timed_out
-
-        raise StepFailed, "prepare dependency for grader #{name} failed (#{prepare_dependency_status(result)}): #{command}"
-      end
-    end
 
     def prepare_dependency_status(result)
       return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?

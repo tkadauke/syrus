@@ -527,6 +527,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     grader_step = workflow.steps.find_by!(kind: "grader")
     expect(grader_step.details["prepare_commands"]).to eq([ "npm ci" ])
+    expect(grader_step.details["prepare_targets"]).to eq([
+      { "target_label" => "//:deps", "commands" => [ "npm ci" ] }
+    ])
   end
 
   it "fails clearly when configured dependency labels are missing" do

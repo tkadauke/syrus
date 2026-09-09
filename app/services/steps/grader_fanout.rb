@@ -253,6 +253,8 @@ module Steps
         )
 
         new_steps = graders.each_with_index.map do |grader, index|
+          prepare_targets = prepare_targets_for(grader)
+
           Step.create!(
             workflow: workflow,
             kind: "grader",
@@ -260,7 +262,7 @@ module Steps
             iteration: step.iteration,
             loop_id: step.loop_id,
             placement_policy: Step::Kind.fetch("grader").placement_policy_for(repository),
-            details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
 
@@ -278,7 +280,7 @@ module Steps
       end
     end
 
-    def grader_details(grader)
+    def grader_details(grader, prepare_targets:)
       {
         "name" => grader.name,
         "target_label" => target_label_for(grader),
@@ -291,7 +293,8 @@ module Steps
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
         "when_files_changed" => grader.when_files_changed,
-        "prepare_commands" => prepare_commands_for(grader),
+        "prepare_targets" => prepare_targets,
+        "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
         "junit_output" => grader.junit_output,
         "failures" => grader.failures
       }
@@ -408,10 +411,17 @@ module Steps
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
-    def prepare_commands_for(grader)
-      graph = target_graph
-
-      graph.prepare_dependencies_for(target_label_for(grader)).map { |target| target.metadata.fetch("commands") { [ target.command ] } }.flatten
+    # One entry per transitive `kind: prepare` dependency target, in
+    # dependency order -- Steps::Grader (via PrepareTargetExecution) runs
+    # each of these at most once per workflow workspace before the grader
+    # command itself.
+    def prepare_targets_for(grader)
+      target_graph.prepare_dependencies_for(target_label_for(grader)).map do |target|
+        {
+          "target_label" => target.label.to_s,
+          "commands" => Array(target.metadata.fetch("commands") { [ target.command ] }).flatten.map(&:to_s)
+        }
+      end
     end
 
     def target_label_for(grader)

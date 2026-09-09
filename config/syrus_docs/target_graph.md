@@ -21,7 +21,9 @@ changed file, or — transitively, through `deps:` — when a dependency
 target's source scope matches a changed file (a dependency with an empty
 source scope, such as the implicit root target every legacy declaration
 depends on, never counts as a match on its own). Any transitive `prepare`
-target still executes before that grader command. `#affected`/
+target still executes before that grader command — see "Prepare target
+execution" below for how that's kept to once per workflow workspace.
+`#affected`/
 `#affected_targets` are kind-agnostic (`grader`, `formatter`, `generator`,
 `builder`, ...) and work across the whole graph, root and nested projects
 alike, so they're the one place this selection logic lives — but only
@@ -103,7 +105,45 @@ Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
 also accept `deps:`. For graders, runtime fanout uses those dependency
 targets to decide whether the grader is affected by the diff. If a dependency
 chain includes an executable `kind: prepare` target, the materialized grader
-step runs that prepare command before the grader command.
+step runs that prepare command before the grader command — see "Prepare
+target execution" below for what "runs" means once more than one grader
+depends on the same prepare target.
+
+### Prepare target execution
+
+`Steps::GraderFanout`/`Steps::PreflightGraderFanout` snapshot each
+materialized grader Step's transitive `kind: prepare` target dependencies
+(`TargetGraph#prepare_dependencies_for`) onto its own `Step#details` as
+`prepare_targets` — one entry per target, each an ordered list of commands.
+At execution time (`Steps::PrepareTargetExecution`, included into
+`Steps::Grader` and, through it, `Steps::PreflightGrader`), a prepare
+target's commands run **at most once per workflow workspace**, not once per
+grader Step: a workspace-local marker under `.syrus/prepare-targets/`
+records that a target has already run in this workspace, so a second
+grader Step later in the same workflow that depends on the same target
+reuses the marker instead of re-running the commands. If the workspace gets
+rebuilt from scratch mid-workflow (a worker hop onto a machine with no
+existing clone), there is no marker there either, so the commands safely
+rerun — safe precisely because prepare targets are declared idempotent
+environment setup (see "Prepare Semantics" above) and must not modify
+tracked source files. An OS `flock` on a sibling per-target lock file (held
+only for the duration of that target's commands) keeps grader Steps
+dispatched in parallel from the same workflow (landing workflows can do
+this) from running the same target's commands concurrently.
+
+Each grader Step records what it did with its own prepare targets on its
+own `Step#details["prepare_target_results"]` — one entry per target with
+`status` (`"ran"` or `"reused"`) and a human-readable `reason` (which grader
+first triggered the run, and when). Root `prepare:` (and a nested
+`.syrus.yml`'s own `prepare:`) is untouched by any of this — it stays the
+unconditional pre-implementation baseline `Steps::Prepare` always runs (see
+"Prepare Semantics" above).
+
+Just like grader side-effect detection, a prepare target's commands are
+checked for tracked-file mutations (`git status --porcelain` before/after);
+a target that leaves uncommitted changes records a
+`kind: "prepare_target_side_effect"` `WorkflowWarning` instead of failing
+the grader Step — see `workflow_warnings.md`.
 
 ### The `builder` kind is reserved, not compiled
 

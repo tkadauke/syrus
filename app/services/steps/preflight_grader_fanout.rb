@@ -61,13 +61,15 @@ module Steps
         )
 
         new_steps = graders.each_with_index.map do |grader, index|
+          prepare_targets = prepare_targets_for(grader)
+
           Step.create!(
             workflow: workflow,
             kind: "preflight_grader",
             position: insertion_position + index,
             iteration: step.iteration,
             placement_policy: Step::Kind.fetch("preflight_grader").placement_policy_for(repository),
-            details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
 
@@ -76,7 +78,7 @@ module Steps
       end
     end
 
-    def grader_details(grader)
+    def grader_details(grader, prepare_targets:)
       {
         "name" => grader.name,
         "target_label" => target_label_for(grader),
@@ -88,7 +90,8 @@ module Steps
         "description" => grader.description,
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
-        "prepare_commands" => prepare_commands_for(grader)
+        "prepare_targets" => prepare_targets,
+        "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] }
       }
     end
 
@@ -156,8 +159,13 @@ module Steps
         .where("position > ?", step.position)
     end
 
-    def prepare_commands_for(grader)
-      target_graph.prepare_dependencies_for(target_label_for(grader)).map { |target| target.metadata.fetch("commands") { [ target.command ] } }.flatten
+    def prepare_targets_for(grader)
+      target_graph.prepare_dependencies_for(target_label_for(grader)).map do |target|
+        {
+          "target_label" => target.label.to_s,
+          "commands" => Array(target.metadata.fetch("commands") { [ target.command ] }).flatten.map(&:to_s)
+        }
+      end
     end
 
     def target_label_for(grader)

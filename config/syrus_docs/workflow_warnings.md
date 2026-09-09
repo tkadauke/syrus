@@ -66,6 +66,21 @@ matching the non-fatal posture of `record_prepare_soft_failure!`
 (`app/services/steps/prepare.rb`) and `record_autofix_failure!`
 (`app/services/steps/autofix.rb`).
 
+## Third consumer: prepare target side-effect detection
+
+`Steps::Grader` (via the shared `Steps::PrepareTargetExecution` module, also
+used by `Steps::PreflightGrader`) runs the same before/after `git status
+--porcelain` check around each `kind: prepare` target dependency it runs
+(see `target_graph.md`'s "Prepare Semantics"). A `kind:
+"prepare_target_side_effect"` warning is recorded with `evidence: {
+"target_label" => ..., "commands" => ..., "changed_files" => [...] }` and a
+`suggested_prompt` that asks the agent to decide whether the mutated files
+should be gitignored, or the command moved out of `prepare:`/its `targets:`
+entry into `formatters:`/`generated:` — prepare targets are declared
+idempotent environment setup and should never modify tracked source files.
+Like the grader consumer above, this never fails the grader Step or the
+workflow.
+
 ## Second consumer: coverage branch-threshold misses
 
 `Steps::CoverageAnalyze` records a `kind: "coverage_branches_threshold_miss"`
