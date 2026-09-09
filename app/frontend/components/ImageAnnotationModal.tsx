@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SVGProps } from "react"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
@@ -60,6 +60,18 @@ const TOOL_SHORTCUTS: Record<string, Tool> = {
   a: "arrow",
   p: "freehand",
   t: "text"
+}
+
+type IconComponent = (props: SVGProps<SVGSVGElement>) => JSX.Element
+
+const TOOL_ICONS: Record<Tool, IconComponent> = {
+  select: CursorIcon,
+  rectangle: RectangleIcon,
+  ellipse: CircleIcon,
+  line: LineIcon,
+  arrow: ArrowIcon,
+  freehand: PencilIcon,
+  text: TypeIcon
 }
 
 const STROKE_WIDTH    = 3
@@ -335,6 +347,100 @@ function makePreviewShape(kind: DrawTool, start: Point, end: Point, color: strin
     case "arrow":     return { id: "__preview__", kind, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color }
     case "freehand":  return { id: "__preview__", kind, points: [...points], color }
   }
+}
+
+function IconFrame({ children, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" {...props}>
+      {children}
+    </svg>
+  )
+}
+
+function CursorIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m4 4 7 16 2-7 7-2Z" />
+    </IconFrame>
+  )
+}
+
+function RectangleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <rect height="12" rx="1.5" width="16" x="4" y="6" />
+    </IconFrame>
+  )
+}
+
+function CircleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <circle cx="12" cy="12" r="7" />
+    </IconFrame>
+  )
+}
+
+function LineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 19 19 5" />
+    </IconFrame>
+  )
+}
+
+function ArrowIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 19 19 5" />
+      <path d="M9 5h10v10" />
+    </IconFrame>
+  )
+}
+
+function PencilIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10Z" />
+      <path d="m13.5 7.5 3 3" />
+    </IconFrame>
+  )
+}
+
+function TypeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 7V5h14v2" />
+      <path d="M12 5v14" />
+      <path d="M9 19h6" />
+    </IconFrame>
+  )
+}
+
+function UndoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M9 7H4v5" />
+      <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5" />
+    </IconFrame>
+  )
+}
+
+function RedoIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="M15 7h5v5" />
+      <path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5" />
+    </IconFrame>
+  )
+}
+
+function CheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconFrame {...props}>
+      <path d="m5 13 4 4L19 7" />
+    </IconFrame>
+  )
 }
 
 // --- Component ---
@@ -902,17 +1008,24 @@ export function ImageAnnotationModal({
       />
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
-          {TOOLS.map((item) => (
-            <Button
-              aria-pressed={tool === item.id}
-              key={item.id}
-              onClick={() => setTool(item.id)}
-              size="sm"
-              variant={tool === item.id ? "primary" : "secondary"}
-            >
-              {t(`image_annotation.tool_${item.id}`)}
-            </Button>
-          ))}
+          {TOOLS.map((item) => {
+            const Icon = TOOL_ICONS[item.id]
+            const label = t(`image_annotation.tool_${item.id}`)
+            return (
+              <Button
+                aria-label={label}
+                aria-pressed={tool === item.id}
+                className="h-8 w-8"
+                key={item.id}
+                onClick={() => setTool(item.id)}
+                size="icon"
+                title={label}
+                variant={tool === item.id ? "primary" : "secondary"}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            )
+          })}
         </div>
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>
           {COLORS.map((item) => (
@@ -947,13 +1060,18 @@ export function ImageAnnotationModal({
           </div>
         ) : null}
         <div className="flex items-center gap-2">
-          <Button variant="secondary" disabled={undoCount === 0} onClick={undo}>{t("image_annotation.undo")}</Button>
-          <Button variant="secondary" disabled={redoCount === 0} onClick={redo}>{t("image_annotation.redo")}</Button>
-          <Button variant="secondary" onClick={requestClose}>{t("image_annotation.cancel")}</Button>
-          <Button disabled={!imageSize} onClick={finishAnnotation}>{t("image_annotation.done")}</Button>
-          <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
+          <Button aria-label={t("image_annotation.undo")} className="h-8 w-8" title={t("image_annotation.undo")} variant="secondary" size="icon" disabled={undoCount === 0} onClick={undo}>
+            <UndoIcon className="h-4 w-4" />
+          </Button>
+          <Button aria-label={t("image_annotation.redo")} className="h-8 w-8" title={t("image_annotation.redo")} variant="secondary" size="icon" disabled={redoCount === 0} onClick={redo}>
+            <RedoIcon className="h-4 w-4" />
+          </Button>
+          <Button aria-label={t("image_annotation.cancel")} className="h-8 w-8" title={t("image_annotation.cancel")} variant="secondary" size="icon" onClick={requestClose}>
             <CloseIcon className="h-4 w-4" />
-          </button>
+          </Button>
+          <Button aria-label={t("image_annotation.done")} className="h-8 w-8" title={t("image_annotation.done")} size="icon" disabled={!imageSize} onClick={finishAnnotation}>
+            <CheckIcon className="h-4 w-4" />
+          </Button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
