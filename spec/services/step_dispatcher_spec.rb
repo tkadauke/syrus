@@ -981,6 +981,37 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(collect.runs.count).to eq(0)
     end
 
+    it "resumes a deferred immutable sibling without waiting for its linked-list predecessor" do
+      enable_distributed_workflow_dag!(job.repository)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(
+        kind: "grader",
+        state: "running",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ s1.id ],
+        started_at: 1.minute.ago
+      )
+      s3.update!(kind: "grader", placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.resume_deferred_phase(workflow.id, s3.id, check_phase_admission: false)
+      }.to change { s3.runs.count }.by(1)
+
+      expect(s2.reload).to be_running
+      expect(collect.runs.count).to eq(0)
+    end
+
     it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
       enable_distributed_workflow_dag!(job.repository)
       AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
