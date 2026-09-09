@@ -108,10 +108,19 @@ module Maintenance
 
       Job.where(id: job_ids.to_a).find_each do |job|
         started = job.start_pending_workflows_if_dependencies_satisfied!
-        restarted << job.id if started || job.runs.count > run_counts_before_cleanup.fetch(job.id, 0)
+        restarted << job.id if started ||
+          job.runs.count > run_counts_before_cleanup.fetch(job.id, 0) ||
+          pending_workflow_already_started?(job)
       end
 
       restarted
+    end
+
+    def pending_workflow_already_started?(job)
+      WorkUnits::Ownership.active_units_for_job(job).any? do |unit|
+        workflow = unit.workflow
+        workflow&.queued? && workflow.first_step&.runs&.exists?
+      end
     end
   end
 end
