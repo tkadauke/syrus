@@ -1,4 +1,5 @@
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe Steps::StackAutoRebase do
   let(:user) { Factories.user(github_token: "ghp_test") }
@@ -67,7 +68,14 @@ RSpec.describe Steps::StackAutoRebase do
       post_sha: "base",
       base_sha: "base"
     )
-    client = instance_double(GithubClient, add_issue_comment: nil, close_pull_request: nil)
+    client = instance_double(
+      GithubClient,
+      add_issue_comment: nil,
+      close_pull_request: nil,
+      pull_request: OpenStruct.new(body: ""),
+      update_pull_request_base: nil,
+      update_pull_request_body: nil
+    )
     allow(GithubClient).to receive(:for).and_return(client)
     allow(AutoRebase).to receive(:new)
       .with(job, base_branch: "main")
@@ -81,6 +89,7 @@ RSpec.describe Steps::StackAutoRebase do
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
     expect(client).to have_received(:close_pull_request).with(repository.slug, 7)
+    expect(client).to have_received(:update_pull_request_base).with(repository.slug, 8, base: repository.default_branch)
     expect(workflow.reload.artifact("stack_rebase_results").first.dig("result", "reason")).to eq(AutoRebase::ALREADY_LANDED_REASON)
   end
 end
