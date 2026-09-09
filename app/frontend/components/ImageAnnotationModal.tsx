@@ -420,8 +420,8 @@ function TypeIcon(props: SVGProps<SVGSVGElement>) {
 function UndoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconFrame {...props}>
-      <path d="M9 7H4v5" />
-      <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5" />
+      <path d="M9 14 4 9l5-5" />
+      <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
     </IconFrame>
   )
 }
@@ -429,8 +429,8 @@ function UndoIcon(props: SVGProps<SVGSVGElement>) {
 function RedoIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconFrame {...props}>
-      <path d="M15 7h5v5" />
-      <path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5" />
+      <path d="m15 14 5-5-5-5" />
+      <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
     </IconFrame>
   )
 }
