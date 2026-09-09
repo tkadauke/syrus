@@ -310,6 +310,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :workflow_step_worker_slot_admission_enabled,
+      type: :boolean,
+      default: false,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "When enabled, each worker host/storage key admits at most one active workflow Step at a time.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
       key: :main_branch_breakage_policy,
       type: :string,
       default: "strict",
