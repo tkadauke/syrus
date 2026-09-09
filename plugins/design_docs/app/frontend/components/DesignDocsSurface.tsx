@@ -1340,6 +1340,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const hasSelection = selection.end > selection.start && !viewingHistory
+  const railStackShift = !viewingHistory ? railLayout.stackShift : 0
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
@@ -1387,41 +1388,47 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
         {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         <div
-          className="space-y-3"
-          data-testid="design-doc-rail-stack"
-          ref={railStackRef}
-          style={{ transform: !viewingHistory && railLayout.stackShift !== 0 ? `translateY(${railLayout.stackShift}px)` : undefined }}
+          className="overflow-hidden"
+          data-testid="design-doc-rail-clip"
+          style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
-          {railEntries.map((entry, index) => entry.kind === "thread" ? (
-            <CommentThreadCard
-              focused={focusedThreadId === entry.thread.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={replyBodies[entry.thread.id] ?? ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              thread={entry.thread}
-              threadRefs={threadRefs}
-              onFocus={onFocus}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onResolve={onResolve}
-            />
-          ) : (
-            <SuggestionThreadCard
-              canReview={!viewingHistory && doc.permissions.can_review_suggestions}
-              focused={focusedSuggestionId === entry.suggestion.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              suggestion={entry.suggestion}
-              suggestionRefs={suggestionRefs}
-              onFocus={onFocusSuggestion}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onReview={onReview}
-            />
-          ))}
+          <div
+            className="space-y-3"
+            data-testid="design-doc-rail-stack"
+            ref={railStackRef}
+            style={{ transform: railStackShift !== 0 ? `translateY(${railStackShift}px)` : undefined }}
+          >
+            {railEntries.map((entry, index) => entry.kind === "thread" ? (
+              <CommentThreadCard
+                focused={focusedThreadId === entry.thread.id}
+                key={entry.id}
+                readOnly={viewingHistory}
+                replyBody={replyBodies[entry.thread.id] ?? ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                thread={entry.thread}
+                threadRefs={threadRefs}
+                onFocus={onFocus}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onResolve={onResolve}
+              />
+            ) : (
+              <SuggestionThreadCard
+                canReview={!viewingHistory && doc.permissions.can_review_suggestions}
+                focused={focusedSuggestionId === entry.suggestion.id}
+                key={entry.id}
+                readOnly={viewingHistory}
+                replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                suggestion={entry.suggestion}
+                suggestionRefs={suggestionRefs}
+                onFocus={onFocusSuggestion}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onReview={onReview}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </Panel>
