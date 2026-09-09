@@ -1072,9 +1072,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(member_a.reason).to include("not reachable")
       member_b = train.members.find_by(job: b)
       expect(member_b.state).to eq("merged")
+      expect(train.reload.state).to eq("failed")
+      expect(train.failure_reason).to include("could not verify 1/2 member")
 
       logs = handler.run.job_logs.pluck(:chunk).join("\n")
       expect(logs).to include("#{a.slug}'s landed commits are not reachable")
+      expect(logs).to include("could not verify 1/2 member")
     end
 
     it "does not close a member as merged when its recorded landed commit is not an ancestor of the integration SHA" do
@@ -1094,6 +1097,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       expect(a.reload).not_to be_closed
       expect(train.members.find_by(job: a).state).to eq("failed")
+      expect(train.reload.state).to eq("failed")
+      expect(train.failure_reason).to include("could not verify 1/1 member")
     end
 
     def missing_object_error(command, missing_sha)
@@ -1186,6 +1191,8 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       expect(a.reload).not_to be_closed
       expect(train.members.find_by(job: a).state).to eq("failed")
+      expect(train.reload.state).to eq("failed")
+      expect(train.failure_reason).to include("could not verify 1/1 member")
     end
 
     it "stores the integration merge SHA as landed_sha on all member Jobs" do

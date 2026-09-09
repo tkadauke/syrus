@@ -53,13 +53,9 @@ module Steps
       integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
       record_integration_merge_commit!(train, integration_sha)
       delete_branch_after_landing(client, train.integration_branch)
-      reconcile_members!(train, client, pr, integration_sha: integration_sha)
+      unverified_members = reconcile_members!(train, client, pr, integration_sha: integration_sha)
+      return mark_member_reconciliation_incomplete!(train, integration_sha, unverified_members) if unverified_members.any?
 
-      # "succeeded" describes the train's own atomic merge, which did
-      # complete, even if reconcile_members! left an unverified member
-      # behind for re-landing -- that member's own Job state (routed through
-      # LandingFailureHandler) is what carries the operator-visible signal
-      # from here, the same as any other individual landing failure.
       train.update!(state: "succeeded", finished_at: Time.current)
       log(
         "merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \
@@ -176,7 +172,9 @@ module Steps
       )
       train.update!(integration_sha: base_sha, state: "landing")
       delete_branch_after_landing(client, train.integration_branch)
-      reconcile_members!(train, client, nil, integration_sha: base_sha)
+      unverified_members = reconcile_members!(train, client, nil, integration_sha: base_sha)
+      return mark_member_reconciliation_incomplete!(train, base_sha, unverified_members) if unverified_members.any?
+
       train.update!(state: "succeeded", finished_at: Time.current)
     end
 
@@ -345,12 +343,14 @@ module Steps
 
     def reconcile_members!(train, client, integration_pr, integration_sha: nil)
       ensure_landed_history_fetched!(train, integration_sha) if integration_sha.present?
+      unverified_members = []
 
       train.members.includes(:job).each do |member|
         member_job = member.job
 
         if integration_sha.present? && !member_landed?(member_job, integration_sha)
           handle_unverified_member!(member, member_job, integration_sha)
+          unverified_members << member
           next
         end
 
@@ -364,6 +364,8 @@ module Steps
         end
         member.update!(state: "merged")
       end
+
+      unverified_members
     end
 
     # After GitHub merges the integration PR via the API, the resulting merge
@@ -492,6 +494,14 @@ module Steps
       log(reason, kind: "system")
       member.update!(state: "failed", reason: reason.truncate(500))
       LandingFailureHandler.call(job: member_job, reason: reason, run: run) if member_job.landing?
+    end
+
+    def mark_member_reconciliation_incomplete!(train, integration_sha, unverified_members)
+      slugs = unverified_members.map { |member| member.job&.slug }.compact
+      reason = "merge_train: landed integration #{integration_sha.to_s.first(9)} but could not verify " \
+               "#{slugs.size}/#{train.members.size} member(s): #{slugs.join(', ')}; needs re-landing"
+      train.update!(state: "failed", failure_reason: reason.truncate(500), finished_at: Time.current)
+      log(reason, kind: "system")
     end
 
     # There is no integration PR when the branch turned out to already be on

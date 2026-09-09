@@ -69,6 +69,8 @@ module Steps
 
       raise StepFailed, "auto_merge: #{gate.reason}" unless gate.merge_ready?
 
+      mirror_durable_approval_to_github!(client, gate.pr)
+
       previous_base_sha = capture_previous_base_sha(client, gate)
 
       merge = merge_pull_request(client, gate)
@@ -152,6 +154,39 @@ module Steps
       return unless job.may_close?
 
       job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
+    end
+
+    def mirror_durable_approval_to_github!(client, pr)
+      return unless AutoMergeGate.syrus_side_approval?(job)
+      return unless repository.approval_propagates_to_github
+      return if current_head_github_approved?(client, pr)
+
+      result = Job::ApprovalPropagator.approve(job, user: approval_user)
+      if result.success?
+        log("auto_merge: mirrored Syrus approval to GitHub before merge", kind: "system")
+      elsif result.failure?
+        log("auto_merge: could not mirror Syrus approval to GitHub: #{result.message}", kind: "system")
+      else
+        log("auto_merge: skipped GitHub approval mirror before merge", kind: "system")
+      end
+    end
+
+    def current_head_github_approved?(client, pr)
+      head_sha = pr&.head&.sha.to_s
+      client.pr_reviews(repository.slug, job.pr_number).any? do |review|
+        review.state == "APPROVED" && review_head_sha(review, head_sha)
+      end
+    end
+
+    def review_head_sha(review, head_sha)
+      return true if head_sha.blank?
+
+      review_sha = review.respond_to?(:commit_id) ? review.commit_id : review[:commit_id]
+      review_sha.present? && review_sha == head_sha
+    end
+
+    def approval_user
+      job.approved_by_user || job.user
     end
 
     def settle_sleep

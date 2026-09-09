@@ -19,6 +19,10 @@ class AutoMergeGate
     def blocked? = outcome == :blocked
   end
 
+  def self.syrus_side_approval?(job)
+    SYRUS_SIDE_APPROVAL_VIAS.include?(job.approved_via.to_s) && job.approved_at.present?
+  end
+
   def initialize(job:, client: GithubClient.for(repository: job.repository, user: job.user), bypass_cache: false, pr: nil)
     @job = job
     @repository = job.repository
@@ -98,7 +102,7 @@ class AutoMergeGate
   # so "syrus-side via + at present" really does mean "still
   # approved" regardless of current state.
   def syrus_side_approval?
-    SYRUS_SIDE_APPROVAL_VIAS.include?(@job.approved_via.to_s) && @job.approved_at.present?
+    self.class.syrus_side_approval?(@job)
   end
 
   def formal_approval?(_pr)

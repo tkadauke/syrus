@@ -403,6 +403,40 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     end
   end
 
+  it "mirrors durable Syrus approval to GitHub for the current head before merging" do
+    job.approve!(via: "operator", by_user: user)
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", head_sha: "current-head"))
+    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED", commit_id: "old-head") ])
+    allow(Job::ApprovalPropagator).to receive(:approve).and_return(Job::ApprovalPropagator::Result.new(message: "GitHub review left.", status: :success))
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+
+    described_class.new(run).call
+
+    expect(Job::ApprovalPropagator).to have_received(:approve).with(job, user: user)
+    expect(client).to have_received(:merge_pull_request)
+    expect(job.reload).to be_closed
+    expect(run.job_logs.pluck(:chunk)).to include(include("mirrored Syrus approval to GitHub"))
+  end
+
+  it "does not mirror durable Syrus approval when GitHub already approved the current head" do
+    job.approve!(via: "operator", by_user: user)
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", head_sha: "current-head"))
+    allow(client).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED", commit_id: "current-head") ])
+    allow(Job::ApprovalPropagator).to receive(:approve)
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+
+    described_class.new(run).call
+
+    expect(Job::ApprovalPropagator).not_to have_received(:approve)
+    expect(client).to have_received(:merge_pull_request)
+  end
+
   # Regression: production hit "auto_merge: PR mergeable_state is
   # \"unstable\"" → fail_landing wiped the approval. `unstable`
   # means a non-required CI check is failing but the merge call
