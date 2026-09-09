@@ -1,0 +1,49 @@
+name: epic chain waits for operator approval
+repository:
+  owner: simulation
+  name: epic-chain-waits-for-operator-approval
+epics:
+  feature:
+    title: Feature stack
+jobs:
+  first:
+    title: First job
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  second:
+    title: Second job
+    epic: feature
+    state: queued
+    depends_on:
+      - first
+    workflow:
+      template: true
+      kind: initial
+  third:
+    title: Third job
+    epic: feature
+    state: queued
+    depends_on:
+      - second
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  first:
+    - approved
+  second:
+    - approved
+  third:
+    - approved
+wait_states:
+  first:
+    - implemented
+  second:
+    - implemented
+  third:
+    - implemented

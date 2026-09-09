@@ -820,6 +820,7 @@ module WorkEngine
           end
           return skipped(@sync_result.reason) unless @sync_result.synchronized?
 
+          StepDispatcher.advance_from(step.reload) if @sync_result.state == "succeeded" && step.workflow.reload.running?
           success(@sync_result.reason)
         end
       end

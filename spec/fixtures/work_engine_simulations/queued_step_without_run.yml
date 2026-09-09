@@ -1,0 +1,28 @@
+name: queued step without run
+repository:
+  owner: simulation
+  name: queued-step-without-run
+jobs:
+  job:
+    title: Queued step without run
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: queued
+          created_at: "2026-09-09T13:20:00Z"
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented

@@ -1,0 +1,32 @@
+name: same epic approved parent unblocks child
+repository:
+  owner: simulation
+  name: same-epic-approved-parent-unblocks-child
+epics:
+  feature:
+    title: Feature stack
+jobs:
+  parent:
+    title: Parent job
+    epic: feature
+    state: approved
+    branch_name: syrus/parent
+    pr_number: 20001
+    pr_checks_state: passing
+    approved_at: "2026-09-01 12:00:00"
+  child:
+    title: Child job
+    epic: feature
+    state: queued
+    depends_on:
+      - parent
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  parent:
+    - approved
+  child:
+    - implemented

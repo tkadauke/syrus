@@ -1,0 +1,23 @@
+name: closed job active work unit
+repository:
+  owner: simulation
+  name: closed-job-active-work-unit
+jobs:
+  job:
+    title: Closed job with active work
+    state: closed
+    closure_reason: pr_merged
+    workflow:
+      kind: initial
+      state: running
+      work_unit:
+        state: running
+      steps:
+        - kind: implement
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - closed
+

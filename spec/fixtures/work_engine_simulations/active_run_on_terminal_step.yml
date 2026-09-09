@@ -1,0 +1,26 @@
+name: active run on terminal step
+repository:
+  owner: simulation
+  name: active-run-on-terminal-step
+jobs:
+  job:
+    title: Active run on terminal step
+    state: implemented
+    pr_number: 12001
+    branch_name: syrus/simulated-terminal-step
+    workflow:
+      kind: initial
+      state: succeeded
+      work_unit:
+        state: succeeded
+      steps:
+        - kind: implement
+          state: succeeded
+          run:
+            state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented
+
