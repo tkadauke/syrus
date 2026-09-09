@@ -3,7 +3,7 @@ import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
+import { AgentDiff, DiffHunkSnippet, ReviewableDiff, documentScrollMarginForElement, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -314,6 +314,22 @@ describe("ReviewableDiff", () => {
   it("keeps natural-scroll diffs horizontally scrollable within themselves instead of overflowing the page", () => {
     render(<ReviewableDiff files={files} mode="continuous" scroll="natural" />)
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
+  })
+
+  it("measures natural-scroll virtualizer margins from the diff's document position", () => {
+    const originalScrollY = Object.getOwnPropertyDescriptor(window, "scrollY")
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 })
+    const element = document.createElement("div")
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ bottom: 320, height: 0, left: 0, right: 0, toJSON: () => ({}), top: 320, width: 0, x: 0, y: 320 })
+
+    try {
+      expect(documentScrollMarginForElement(element)).toBe(320)
+
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 140 })
+      expect(documentScrollMarginForElement(element)).toBe(460)
+    } finally {
+      if (originalScrollY) Object.defineProperty(window, "scrollY", originalScrollY)
+    }
   })
 
   it("renders the add-comment affordance in the left gutter, not the right edge", () => {
