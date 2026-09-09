@@ -81,6 +81,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     )
   end
 
+  it "classifies source snapshot metadata failures as infrastructure state" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "workflow source snapshot metadata mismatch: source_sha"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("source_snapshot_metadata_invalid")
+    expect(result.retryable).to eq(true)
+  end
+
   # A rolling deploy drains workers with SIGTERM and spikes CPU/IO across every
   # node at the same time, so it both kills the run and manufactures the
   # "critical" reading that used to downgrade a retryable worker death into a

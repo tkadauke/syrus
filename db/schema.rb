@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3022,6 +3022,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_120000) do
     t.index ["trigger_kind", "occurred_at"], name: "idx_workflow_activity_trigger_occurred"
     t.index ["workflow_id", "occurred_at"], name: "idx_workflow_activity_workflow_occurred"
     t.index ["workflow_id"], name: "index_workflow_activity_events_on_workflow_id"
+  end
+
+  create_table "workflow_source_snapshots", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "creator_step_id", null: false
+    t.string "fingerprint"
+    t.datetime "published_at", null: false
+    t.string "source_ref", null: false
+    t.string "source_sha", null: false
+    t.string "tree_sha"
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id", null: false
+    t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
+    t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end
 
   create_table "workflow_step_resource_profiles", force: :cascade do |t|
