@@ -702,9 +702,18 @@ class StepDispatcher
     previous = step.previous_step
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
+    elsif distributed_deferred_resume_ready?(workflow, step)
+      create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif completed_predecessor?(previous)
       advance_from(previous, check_phase_admission: check_phase_admission)
     end
+  end
+
+  def self.distributed_deferred_resume_ready?(workflow, step)
+    return false unless Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
+    return false unless WorkflowStepWorkerSlot.enabled?
+
+    new(workflow).send(:ready?, step)
   end
 
   def self.completed_predecessor?(step)
