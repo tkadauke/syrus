@@ -291,6 +291,12 @@ class McpToolRegistry
 
       visual_artifact_roles = artifact_roles + [ AgentRole::WORKFLOW_VISUAL_REVIEWER ]
 
+      target_prepare_roles = [
+        AgentRole::WORKFLOW_IMPLEMENT,
+        AgentRole::WORKFLOW_REBASE_CONFLICT,
+        AgentRole::WORKFLOW_MANUAL
+      ]
+
       metadata_roles = [
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_MANUAL
@@ -308,6 +314,7 @@ class McpToolRegistry
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReviewPlanTool, capability: :submit_review_plan, required_roles: summary_roles, mutation: true),
         workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
+        workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and
         # WorkflowPatch bounds what "add" means (workflow-engine-v3 A7).
         workflow(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
