@@ -54,6 +54,8 @@ module Steps
       offset = graders.size
 
       Step.transaction do
+        source_snapshot = current_source_snapshot_for_projection
+
         workflow.steps.where("position >= ?", insertion_position).update_all(
           [ "position = position + ?", offset ]
         )
@@ -65,7 +67,7 @@ module Steps
             position: insertion_position + index,
             iteration: step.iteration,
             placement_policy: Step::Kind.fetch("preflight_grader").placement_policy_for(repository),
-            details: grader_details(grader).merge(distributed_grader_details(grader))
+            details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
 
@@ -88,13 +90,62 @@ module Steps
       }
     end
 
-    def distributed_grader_details(grader)
+    def distributed_grader_details(grader, source_snapshot:)
       return {} unless Feature.distributed_workflow_dag_enabled?(repository)
 
       {
         "projected_target_label" => "//:preflight-grade/#{grader.name}",
-        "barrier_labels" => [ "preflight_grader_collect" ]
+        "barrier_labels" => [ "preflight_grader_collect" ],
+        "source_snapshot_id" => source_snapshot.id,
+        "source_snapshot" => {
+          "id" => source_snapshot.id,
+          "source_sha" => source_snapshot.source_sha,
+          "source_ref" => source_snapshot.source_ref,
+          "tree_sha" => source_snapshot.tree_sha,
+          "fingerprint" => source_snapshot.fingerprint
+        }.compact
       }
+    end
+
+    def current_source_snapshot_for_projection
+      return nil unless Feature.distributed_workflow_dag_enabled?(repository)
+
+      source_sha = current_head_sha.presence
+      tree_sha = current_tree_sha.presence
+      source_ref = current_source_ref
+      unless source_sha && tree_sha
+        raise WorkflowSourceSnapshots::InfrastructureStateError, "workflow source snapshot metadata missing: current checkout identity"
+      end
+
+      current = WorkflowSourceSnapshots.current_for(workflow)
+      return current if current&.source_sha == source_sha && current&.tree_sha == tree_sha && current&.source_ref == source_ref
+
+      WorkflowSourceSnapshots.record!(
+        workflow: workflow,
+        creator_step: step,
+        source_sha: source_sha,
+        source_ref: source_ref,
+        tree_sha: tree_sha
+      )
+    end
+
+    def current_head_sha
+      GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+    rescue StandardError => e
+      log("[preflight_grader_fanout] could not read current HEAD for source snapshot metadata: #{e.message}")
+      nil
+    end
+
+    def current_tree_sha
+      GitRunner.new.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).strip
+    rescue StandardError => e
+      log("[preflight_grader_fanout] could not read current tree for source snapshot metadata: #{e.message}")
+      nil
+    end
+
+    def current_source_ref
+      branch_name = workspace.respond_to?(:branch_name) ? workspace.branch_name.to_s.presence : nil
+      branch_name ? "refs/heads/#{branch_name}" : "HEAD"
     end
 
     def materialized_grader_steps

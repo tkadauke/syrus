@@ -21,6 +21,19 @@ projection metadata such as `projected_target_label`,
 `barrier_labels`, and source-snapshot references stays in `steps.details`; only
 scheduler-hot placement is a column.
 
+`immutable_source_checkout` Steps materialize a detached checkout from the
+Step's `source_snapshot_id`. Before running the Step command, Syrus runs the
+normal repository prepare plan once per worker storage key, Workflow, source
+snapshot SHA, and prepare fingerprint. Later immutable-source Steps on the same
+worker with the same snapshot and fingerprint reuse that prepared state instead
+of rerunning prepare. A changed source snapshot SHA or changed resolved prepare
+plan naturally produces a different cache key. Each immutable-source Step records
+its cache hit or miss in `steps.details["prepare_cache"]`, including
+`worker_storage_key`, `workflow_id`, `source_snapshot_sha`,
+`prepare_fingerprint`, `cache_key`, `cache_path`, `prepare_source`, and
+`command_count`. Target-specific prepare is intentionally not part of this
+rollout.
+
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
 resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and
@@ -729,10 +742,11 @@ Agentic repair step for `local_mode_handoff` grader failures. The operator's loc
 
 ## Grader command spans
 
-`grader` and `preflight_grader` Runs persist `CommandSpan` rows associated with
-the Run, Step, Workflow, Job, and spawned process when available. Each span
-records sequence, name, command excerpt, start/finish timestamps, duration,
-exit status/outcome, hostname, and metadata.
+`grader` and `preflight_grader` Runs, plus immutable-source checkout prepare
+commands, persist `CommandSpan` rows associated with the Run, Step, Workflow,
+Job, and spawned process when available. Each span records sequence, name,
+command excerpt, start/finish timestamps, duration, exit status/outcome,
+hostname, and metadata.
 
 Worker-health correlation reports each span's persisted `finished_at` plus an
 effective bounded window. `effective_finished_at` is the earliest available
