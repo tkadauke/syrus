@@ -15,6 +15,10 @@ class Step < ApplicationRecord
   # cascade path is Job → Workflow → Step → Run.
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
+  has_many :created_source_snapshots,
+    class_name: "WorkflowSourceSnapshot",
+    foreign_key: :creator_step_id,
+    dependent: :restrict_with_error
 
   # workflow-engine-v3 A5: the graph edges. `next_step_id` still orders the
   # chain; these say what a Step is *waiting for*, which is what turns "find
