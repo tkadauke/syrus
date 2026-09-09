@@ -1,0 +1,36 @@
+name: dependent active initial dedup collision
+repository:
+  owner: simulation
+  name: dependent-active-initial-dedup-collision
+jobs:
+  parent:
+    title: Parent job
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  child:
+    title: Child job
+    state: queued
+    depends_on:
+      - parent
+work_intents:
+  child_waiting_initial:
+    kind: initial
+    state: requested
+    job: child
+work_units:
+  child_orphaned_initial:
+    intent: child_waiting_initial
+    kind: initial
+    state: blocked
+    job: child
+    blocked_reason: stack_dependencies_not_ready
+outcomes:
+  default: success
+success_states:
+  parent:
+    - implemented
+wait_states:
+  child:
+    - queued

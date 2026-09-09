@@ -102,6 +102,8 @@ module WorkIntents
         "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
       )
       nil
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid => e
+      handle_active_dedup_collision!(e, workflow.trigger_kind, workflow.slug)
     end
 
     def start_intent(intent)
@@ -110,6 +112,22 @@ module WorkIntents
       Rails.logger.info(
         "[WorkIntents::JobWakeup] #{job.slug}: skipped starting WorkIntent ##{intent.id}; " \
         "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
+      nil
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid => e
+      handle_active_dedup_collision!(e, intent.kind, "WorkIntent ##{intent.id}")
+    end
+
+    def handle_active_dedup_collision!(error, kind, label)
+      raise unless WorkUnits::Launcher.active_dedup_unique_violation?(error)
+
+      dedup_key = "job:#{job.id}:#{kind}"
+      owner = WorkUnits::Ownership.active_unit_for_dedup_key(dedup_key)
+      raise unless owner
+
+      Rails.logger.info(
+        "[WorkIntents::JobWakeup] #{job.slug}: skipped starting #{label}; " \
+        "#{dedup_key} is already owned by #{owner.slug}"
       )
       nil
     end

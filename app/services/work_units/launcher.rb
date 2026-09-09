@@ -153,6 +153,12 @@ module WorkUnits
       )
     end
 
+    def self.active_dedup_unique_violation?(error)
+      message = error.message.to_s
+      message.include?("idx_work_units_active_dedup_key_unique") ||
+        message.match?(/Duplicate entry .*active_dedup_key/i)
+    end
+
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:, existing_intent: nil)
       @definition = WorkDefinitions.for(kind)
       @job = job
@@ -352,11 +358,7 @@ module WorkUnits
     end
 
     def active_dedup_unique_violation?(error)
-      return true if error.is_a?(ActiveRecord::RecordNotUnique)
-
-      message = error.message.to_s
-      message.include?("idx_work_units_active_dedup_key_unique") ||
-        message.match?(/Duplicate entry .*active_dedup_key/i)
+      self.class.active_dedup_unique_violation?(error)
     end
 
     def scope_type

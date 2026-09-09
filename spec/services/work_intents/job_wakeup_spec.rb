@@ -111,6 +111,60 @@ RSpec.describe WorkIntents::JobWakeup do
     }.not_to change { WorkUnit.count }
   end
 
+  it "does not raise when a queued workflow hits an active work unit dedup race" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    error = ActiveRecord::RecordNotUnique.new(
+      "Mysql2::Error: Duplicate entry 'job:#{job.id}:initial' for key 'work_units.idx_work_units_active_dedup_key_unique'"
+    )
+    allow(WorkUnits::Launcher).to receive(:start!).with(workflow).and_raise(error)
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { WorkUnit.count }
+  end
+
+  it "does not raise when a ready persisted intent hits an active work unit dedup race" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    owner_intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+    WorkUnit.create!(
+      work_intent: owner_intent,
+      kind: "initial",
+      state: "blocked",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      blocked_reason: "stack_dependencies_not_ready"
+    )
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+    error = ActiveRecord::StatementInvalid.new(
+      "Mysql2::Error: Duplicate entry 'job:#{job.id}:initial' for key 'work_units.idx_work_units_active_dedup_key_unique'"
+    )
+    allow(WorkIntents::Scheduler).to receive(:start_ready!).with(intent).and_raise(error)
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { WorkUnit.count }
+  end
+
   it "does not launch persisted job intents for backlogged jobs" do
     job = Factories.job_record(user: user, repository: repository, state: "backlog")
     intent = WorkIntent.create!(
