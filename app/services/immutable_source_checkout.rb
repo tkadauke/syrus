@@ -35,6 +35,8 @@ class ImmutableSourceCheckout
     ensure_exclude_entry
     prepare_cache = build_prepare_cache(snapshot)
     prepare_with_cache!(snapshot, prepare_cache)
+    record_checkout_details!(snapshot)
+    record_run_source_snapshot!(snapshot)
   end
 
   def branch_name
@@ -279,6 +281,32 @@ class ImmutableSourceCheckout
     @step.update!(details: @step.details.to_h.merge(
       "prepare_cache" => prepare_cache.details(status)
     ))
+  end
+
+  def record_checkout_details!(snapshot)
+    prepare_cache_details = @step.details.to_h["prepare_cache"].to_h
+    @step.update!(details: @step.details.to_h.merge(
+      "immutable_source_checkout" => {
+        "worker_hostname" => SyrusVersion.hostname,
+        "worker_storage_key" => WorkerStorageIdentity.queue_key,
+        "source_snapshot_id" => snapshot.id,
+        "source_snapshot_sha" => snapshot.source_sha,
+        "source_snapshot_ref" => snapshot.source_ref,
+        "prepare_cache_status" => prepare_cache_details["status"],
+        "checkout_path" => path.to_s,
+        "recorded_at" => Time.current.iso8601
+      }.compact
+    ))
+  end
+
+  def record_run_source_snapshot!(snapshot)
+    current_run = Thread.current[:syrus_current_run] || @step.latest_run
+    return unless current_run
+
+    current_run.update_columns(
+      head_sha: snapshot.source_sha,
+      updated_at: Time.current
+    )
   end
 
   class PrepareCache
