@@ -38,8 +38,13 @@ RSpec.describe Steps::PreflightGraderFanout do
     collect_step
     step
 
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main", branch_name: "main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
+
+    @git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(@git)
+    allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
+    allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
   end
 
   def write_grade_config(content)
@@ -87,7 +92,8 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     grader_step = workflow.steps.find_by!(kind: "preflight_grader")
     expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
-    expect(grader_step.details).not_to include("projected_target_label", "barrier_labels")
+    expect(grader_step.details).not_to include("projected_target_label", "barrier_labels", "source_snapshot_id", "source_snapshot")
+    expect(workflow.source_snapshots).to be_empty
   end
 
   it "records immutable placement and descriptive DAG metadata when distributed workflows are enabled" do
@@ -102,10 +108,18 @@ RSpec.describe Steps::PreflightGraderFanout do
     handler.call
 
     grader_step = workflow.steps.find_by!(kind: "preflight_grader")
+    snapshot = workflow.source_snapshots.sole
     expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
     expect(grader_step.details).to include(
       "projected_target_label" => "//:preflight-grade/tests",
-      "barrier_labels" => [ "preflight_grader_collect" ]
+      "barrier_labels" => [ "preflight_grader_collect" ],
+      "source_snapshot_id" => snapshot.id
+    )
+    expect(grader_step.details["source_snapshot"]).to include(
+      "id" => snapshot.id,
+      "source_sha" => "abc123",
+      "source_ref" => "refs/heads/main",
+      "tree_sha" => "tree123"
     )
   end
 
