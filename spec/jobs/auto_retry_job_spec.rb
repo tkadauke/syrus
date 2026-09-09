@@ -125,6 +125,33 @@ RSpec.describe AutoRetryJob do
     expect(retry_run.prompt).to eq(attempt.run.prompt)
   end
 
+  it "does not resume the same provider session after Codex context-window exhaustion" do
+    attempt, agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+    attempt.update!(agent_provider: "codex", failure_classification: "mcp_sidecar_failure")
+    agent_run.update_columns(agent_provider: "codex", agent_outcome: "mcp_sidecar_failed")
+    RunDiagnostic.create!(
+      run: agent_run,
+      error_class: "Steps::Base::StepFailed",
+      error_message: "agent didn't call submit_visual_review"
+    )
+    JobLog.append!(
+      run: agent_run,
+      chunk: "[codex error] Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+      kind: "system"
+    )
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.not_to change { agent_step.runs.count }
+
+    expect(attempt.reload.skipped_reason).to eq("failure is not retryable: provider_prompt_too_long (was mcp_sidecar_failure)")
+    expect(attempt.performed_at).to be_nil
+    expect(agent_run.run_failure_classification.reload).to have_attributes(
+      classification: "provider_prompt_too_long",
+      retryable: false
+    )
+  end
+
   it "falls back to a retry workflow when a failed-step retry lost its workspace" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     workflow.update!(cleaned_up_at: Time.current)

@@ -634,6 +634,89 @@ describe("hidden-context expansion", () => {
     expect(screen.getByTestId("diff-review-thread")).toHaveTextContent("still here")
   })
 
+  it("loads below-hunk context after the current hunk body and before the next hunk", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: [
+        "diff --git a/f.rb b/f.rb",
+        "--- a/f.rb",
+        "+++ b/f.rb",
+        "@@ -1,1 +1,1 @@",
+        " first",
+        "@@ -6,1 +6,1 @@",
+        " second"
+      ].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue([
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "second"
+    ].join("\n"))
+    render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
+
+    await findCodeCellText("between 2")
+    const codeCells = Array.from(screen.getAllByRole("cell"))
+      .filter((cell) => cell.className.includes("min-w-[40rem]"))
+      .map((cell) => cell.textContent)
+    expect(codeCells).toEqual([
+      "diff --git a/f.rb b/f.rb",
+      "--- a/f.rb",
+      "+++ b/f.rb",
+      "@@ -1,1 +1,1 @@",
+      "first",
+      "between 2",
+      "between 3",
+      "between 4",
+      "between 5",
+      "@@ -6,1 +6,1 @@",
+      "second"
+    ])
+  })
+
+  it("syntax-highlights context loaded from chunk expansion", async () => {
+    const twoHunkFile = {
+      additions: 0,
+      deletions: 0,
+      patch: [
+        "diff --git a/f.rb b/f.rb",
+        "--- a/f.rb",
+        "+++ b/f.rb",
+        "@@ -1,1 +1,1 @@",
+        " class First; end",
+        "@@ -6,1 +6,1 @@",
+        " class Second; end"
+      ].join("\n"),
+      path: "f.rb",
+      status: "modified"
+    }
+    const onLoadFileContext = vi.fn().mockResolvedValue([
+      "class First; end",
+      "def loaded_context",
+      "  true",
+      "end",
+      "",
+      "class Second; end"
+    ].join("\n"))
+    render(<ReviewableDiff files={[twoHunkFile]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)
+
+    fireEvent.click(screen.getAllByLabelText("Load 20 more lines below")[0])
+
+    const loadedKeyword = await waitFor(() => {
+      const element = screen.getByText("def")
+      expect(element.style.color).toMatch(/^var\(--shiki-token-/)
+      return element
+    })
+    expect(loadedKeyword.closest("tr")).toHaveAttribute("data-diff-kind", "context")
+  })
+
   it("loads the whole file via the header action, revealing all hidden context at once", async () => {
     const onLoadFileContext = vi.fn().mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n"))
     render(<ReviewableDiff files={[fileWithHunkAt(5)]} mode="continuous" onLoadFileContext={onLoadFileContext} showFileHeaders />)

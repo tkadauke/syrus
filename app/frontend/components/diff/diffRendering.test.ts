@@ -130,16 +130,83 @@ describe("mergeContextIntoLines", () => {
     const gaps = contextGapsForHunks(hunks, fileLines.length)
     const merged = mergeContextIntoLines(lines, gaps, [{ fromBottom: 0, fromTop: 2 }, undefined], fileLines)
 
-    // the two revealed lines are new-file lines 1 and 2, spliced in before the file/meta/hunk header rows
+    // The file/meta headers stay at the top; revealed source context belongs
+    // immediately before the hunk it surrounds.
     const revealed = merged.filter((line) => line.kind === "context" && line.code.startsWith("line "))
     expect(revealed.map((line) => [line.code, line.oldLine, line.newLine])).toEqual([
       ["line 1", 1, 1],
       ["line 2", 2, 2]
     ])
+    expect(merged.map((line) => line.code).slice(0, 6)).toEqual([
+      "diff --git a/app/models/job.rb b/app/models/job.rb",
+      "--- a/app/models/job.rb",
+      "+++ b/app/models/job.rb",
+      "line 1",
+      "line 2",
+      "@@ -10,3 +10,4 @@ class Job"
+    ])
 
     // original hunk-body lines are untouched (same oldLine/newLine as before merging)
     const original = merged.find((line) => line.code === "new")
     expect(original).toMatchObject({ newLine: 11, oldLine: null })
+  })
+
+  it("places below-hunk context after the current hunk body and before the next hunk header", () => {
+    const twoHunkPatch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      " first",
+      "@@ -6,1 +6,1 @@",
+      " second"
+    ].join("\n")
+    const lines = parseUnifiedDiff(twoHunkPatch)
+    const hunks = hunksFromLines(lines)
+    const gaps = contextGapsForHunks(hunks, fileLines.length)
+    const merged = mergeContextIntoLines(lines, gaps, [undefined, { fromBottom: 0, fromTop: 2 }], fileLines)
+
+    expect(merged.map((line) => line.code)).toEqual([
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      "first",
+      "line 2",
+      "line 3",
+      "@@ -6,1 +6,1 @@",
+      "second"
+    ])
+    expect(merged.find((line) => line.code === "line 2")).toMatchObject({ hunkId: 0, newLine: 2, oldLine: 2 })
+  })
+
+  it("places above-next-hunk context immediately before that hunk and assigns it to the next hunk for highlighting", () => {
+    const twoHunkPatch = [
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      " first",
+      "@@ -6,1 +6,1 @@",
+      " second"
+    ].join("\n")
+    const lines = parseUnifiedDiff(twoHunkPatch)
+    const hunks = hunksFromLines(lines)
+    const gaps = contextGapsForHunks(hunks, fileLines.length)
+    const merged = mergeContextIntoLines(lines, gaps, [undefined, { fromBottom: 2, fromTop: 0 }], fileLines)
+
+    expect(merged.map((line) => line.code)).toEqual([
+      "diff --git a/f b/f",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,1 +1,1 @@",
+      "first",
+      "line 4",
+      "line 5",
+      "@@ -6,1 +6,1 @@",
+      "second"
+    ])
+    expect(merged.find((line) => line.code === "line 5")).toMatchObject({ hunkId: 1, newLine: 5, oldLine: 5 })
   })
 
   it("returns the lines unchanged when no file content has been fetched yet", () => {
