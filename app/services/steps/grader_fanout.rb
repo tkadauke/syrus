@@ -316,7 +316,7 @@ module Steps
 
       source_sha = current_head_sha.presence
       tree_sha = current_tree_sha.presence
-      source_ref = current_source_ref
+      source_ref = current_source_ref(source_sha)
       unless source_sha && tree_sha
         raise WorkflowSourceSnapshots::InfrastructureStateError, "workflow source snapshot metadata missing: current checkout identity"
       end
@@ -342,9 +342,33 @@ module Steps
       @current_tree_sha = nil
     end
 
-    def current_source_ref
-      branch_name = workspace.respond_to?(:branch_name) ? workspace.branch_name.to_s.presence : nil
-      branch_name ? "refs/heads/#{branch_name}" : "HEAD"
+    def current_source_ref(source_sha)
+      checkpoint_ref_for(source_sha) || publish_source_snapshot_ref!(source_sha)
+    end
+
+    def checkpoint_ref_for(source_sha)
+      RunCheckpoint.published
+        .where(workflow: workflow, commit_sha: source_sha)
+        .recent
+        .first
+        &.remote_ref
+    end
+
+    def publish_source_snapshot_ref!(source_sha)
+      remote_ref = "refs/syrus/source-snapshots/runs/#{run.id}"
+      authenticated_git("git_workflow_source_snapshot_push") do |url|
+        GitRunner.new.run(
+          "push",
+          url,
+          "#{source_sha}:#{remote_ref}",
+          chdir: workspace.path.to_s,
+          env: { "GIT_TERMINAL_PROMPT" => "0" }
+        )
+      end
+      remote_ref
+    rescue GitRunner::GitError => e
+      raise WorkflowSourceSnapshots::InfrastructureStateError,
+            "workflow source snapshot ref publish failed for #{source_sha}: #{e.message}"
     end
 
     def projected_target_fingerprint(grader, target_label)
