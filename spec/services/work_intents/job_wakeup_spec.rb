@@ -85,6 +85,32 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(unit.workflow.first_step.runs.last).to be_queued
   end
 
+  it "does not raise when a ready persisted intent races an already-active unit" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    owner_job = Factories.job_record(user: user, repository: repository, state: "queued")
+    owner = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: owner_job).work_unit
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+    conflict = WorkUnits::Launcher::LockConflict.new(
+      lock_key: "job:#{job.id}:initial",
+      work_unit: owner
+    )
+    allow(WorkUnits::Ownership).to receive(:active_for_job?).with(job).and_return(false)
+    allow(WorkIntents::Scheduler).to receive(:start_ready!).with(intent).and_raise(conflict)
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { WorkUnit.count }
+  end
+
   it "does not launch persisted job intents for backlogged jobs" do
     job = Factories.job_record(user: user, repository: repository, state: "backlog")
     intent = WorkIntent.create!(

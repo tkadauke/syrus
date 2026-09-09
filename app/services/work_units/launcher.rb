@@ -249,7 +249,9 @@ module WorkUnits
         parent_work_unit: parent_work_unit,
         **unit_ref_metadata_attributes(intent)
       )
-    rescue ActiveRecord::RecordNotUnique
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::StatementInvalid => e
+      raise unless active_dedup_unique_violation?(e)
+
       dedup_key = "#{scope_type}:#{scope_id}:#{definition.kind}"
       owner = Ownership.active_unit_for_dedup_key(dedup_key)
       raise LockConflict.new(lock_key: dedup_key, work_unit: owner) if owner
@@ -347,6 +349,14 @@ module WorkUnits
         .where(kind: "ci_failure", state: %w[queued blocked running])
         .where.not(id: excluding.id)
         .includes(:workflow)
+    end
+
+    def active_dedup_unique_violation?(error)
+      return true if error.is_a?(ActiveRecord::RecordNotUnique)
+
+      message = error.message.to_s
+      message.include?("idx_work_units_active_dedup_key_unique") ||
+        message.match?(/Duplicate entry .*active_dedup_key/i)
     end
 
     def scope_type

@@ -885,6 +885,21 @@ module WorkEngine
             evidence: workflow_evidence(workflow).merge(first_step_id: workflow.first_step&.id),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
           )
+        elsif workflow.queued? && (failed_step = orphaned_failed_step(workflow))
+          issue(
+            kind: :queued_workflow_with_failed_step,
+            severity: :error,
+            affected_ids: ids_for(workflow).merge(step_ids: [ failed_step.id ], run_ids: failed_step.runs.where(state: "failed").pluck(:id)),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "fail_workflow_from_failed_step",
+            evidence: workflow_evidence(workflow).merge(
+              failed_step_id: failed_step.id,
+              failed_step_kind: failed_step.kind,
+              failed_step_finished_at: failed_step.finished_at&.iso8601,
+              step_states: workflow.steps.pluck(:id, :kind, :state)
+            ),
+            explanation: "Workflow ##{workflow.id} is still queued even though Step ##{failed_step.id} has failed."
+          )
         elsif workflow.running? && older_than?(workflow.started_at, ORPHAN_RUN_GRACE_PERIOD) && !workflow_has_active_descendants?(workflow)
           issue(
             kind: :running_workflow_without_active_descendants,

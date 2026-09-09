@@ -790,7 +790,7 @@ module WorkEngine
         def perform
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
-          return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
+          return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
           return skipped("Workflow still has running descendants") if workflow.live_descendants?
 
           failed_step = workflow.steps.where(state: "failed").order(position: :desc, id: :desc).first

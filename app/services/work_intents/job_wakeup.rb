@@ -25,8 +25,8 @@ module WorkIntents
         workflow.association(:job).target = job if workflow.job_id == job.id
         next unless intent_ready_for?(workflow)
 
-        WorkUnits::Launcher.start!(workflow)
-        started = true
+        result = start_workflow(workflow)
+        started = true if result&.started? || result&.blocked?
       end
       start_requested_intents_without_active_units! { started = true }
       started
@@ -87,9 +87,31 @@ module WorkIntents
         next if WorkUnits::Ownership.active_for_job?(job)
         next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
 
-        result = WorkIntents::Scheduler.start_ready!(intent)
+        result = start_intent(intent)
+        next unless result
+
         yield if result.started? || result.blocked?
       end
+    end
+
+    def start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
+    rescue WorkUnits::Launcher::LockConflict => e
+      Rails.logger.info(
+        "[WorkIntents::JobWakeup] #{job.slug}: skipped starting #{workflow.slug}; " \
+        "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
+      nil
+    end
+
+    def start_intent(intent)
+      WorkIntents::Scheduler.start_ready!(intent)
+    rescue WorkUnits::Launcher::LockConflict => e
+      Rails.logger.info(
+        "[WorkIntents::JobWakeup] #{job.slug}: skipped starting WorkIntent ##{intent.id}; " \
+        "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
+      nil
     end
 
     def queued_workflows
