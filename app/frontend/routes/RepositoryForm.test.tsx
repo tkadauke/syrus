@@ -30,6 +30,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       fork_syncable: false,
       fork_auto_sync_enabled: false,
       external_pr_ingestion_enabled: false,
+      distributed_workflow_dag_enabled: false,
       agent_provider: "",
       auto_approve_mode: "manual",
       feedback_policy: "confirm",
