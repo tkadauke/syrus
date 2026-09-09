@@ -68,7 +68,8 @@ module DesignDocs
           provenance: provenance(base_version)
         )
 
-        Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, suggestion: suggestion, version: anchor_result.version)
+        NormalizeAnchorMarkers.call(design_doc: design_doc)
+        Result.new(design_doc: design_doc.reload, anchor: anchor_result.anchor, suggestion: suggestion.reload, version: anchor_result.version)
       end
     end
 
@@ -99,7 +100,8 @@ module DesignDocs
         provenance: provenance(base_version)
       )
 
-      Result.new(design_doc: design_doc.reload, anchor: anchor, suggestion: suggestion, version: nil)
+      NormalizeAnchorMarkers.call(design_doc: design_doc)
+      Result.new(design_doc: design_doc.reload, anchor: anchor.reload, suggestion: suggestion.reload, version: nil)
     end
 
     def create_autosave_anchor(base_version)

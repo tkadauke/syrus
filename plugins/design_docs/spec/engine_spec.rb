@@ -21,4 +21,10 @@ RSpec.describe DesignDocs::Engine do
 
     Syrus::PluginRegistry.reset!
   end
+
+  it "owns the delete_design_doc pending action handler" do
+    PendingActions.for("delete_design_doc")
+
+    expect(PendingActions::REGISTRY.fetch("delete_design_doc")).to eq(PendingActions::DeleteDesignDoc)
+  end
 end

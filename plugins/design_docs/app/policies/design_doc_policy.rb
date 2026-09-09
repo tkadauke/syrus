@@ -4,14 +4,18 @@ class DesignDocPolicy < ApplicationPolicy
   end
 
   def canonical_write?
-    owner?
+    owner? && !archived?
   end
 
   def suggest?
-    admin? || visible?
+    !archived? && (admin? || visible?)
   end
 
   def review?
+    owner? && !archived?
+  end
+
+  def archive?
     owner?
   end
 
@@ -33,4 +37,7 @@ class DesignDocPolicy < ApplicationPolicy
     record.owner_user_id == user&.id
   end
 
+  def archived?
+    record.state == "archived"
+  end
 end

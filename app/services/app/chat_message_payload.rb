@@ -166,6 +166,10 @@ module App
         else
           base
         end
+      when "delete_design_doc"
+        title = payload["title"].presence || payload["doc_ref"].presence
+        url = payload["design_doc_id"].present? ? "/design_docs/#{payload["design_doc_id"]}" : nil
+        title ? base.merge(resource_title: title, resource_url: url) : base
       when "reopen_epic_and_attach_job"
         if (epic = cached_repository_epic(action.repository, payload["epic_id"]))
           base.merge(resource_title: epic.title, resource_url: epic_path(epic))

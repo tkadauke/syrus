@@ -179,7 +179,7 @@ module Api
         end
 
         def scoped_design_docs
-          filtered_design_docs(policy_scope(DesignDoc))
+          default_list_scope(filtered_design_docs(policy_scope(DesignDoc)))
             .includes(:owner_user, :current_version, :repositories)
             .newest_first
         end
@@ -207,6 +207,13 @@ module Api
           current_filter.apply(scope)
         end
 
+        def default_list_scope(scope)
+          return scope if active_smart_folder
+          return scope if filter_mentions_field?(current_filter.to_h, "state")
+
+          scope.where.not(state: "archived")
+        end
+
         def current_filter
           @current_filter ||= ::DesignDocs::Filter.from_params(params, smart_folder: active_smart_folder, user: Current.user)
         end
@@ -220,7 +227,7 @@ module Api
         end
 
         def find_design_doc
-          scoped_design_docs.find(params[:id])
+          policy_scope(DesignDoc).find(params[:id])
         end
 
         def serializer
@@ -229,6 +236,17 @@ module Api
 
         def ensure_suggestion_threads(design_doc)
           ::DesignDocs::EnsureSuggestionThreads.call(design_doc: design_doc)
+        end
+
+        def filter_mentions_field?(node, field)
+          case node
+          when Hash
+            node["field"] == field || node.values.any? { |value| filter_mentions_field?(value, field) }
+          when Array
+            node.any? { |value| filter_mentions_field?(value, field) }
+          else
+            false
+          end
         end
 
         def update_message(result)

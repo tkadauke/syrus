@@ -26,7 +26,8 @@ const docDetail = {
   permissions: {
     can_write_canonical: true,
     can_suggest: true,
-    can_review_suggestions: true
+    can_review_suggestions: true,
+    can_archive: true
   },
   collaborator_ids: [2],
   collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
@@ -182,7 +183,21 @@ const reviewerDocDetail = {
   permissions: {
     can_write_canonical: false,
     can_suggest: true,
-    can_review_suggestions: false
+    can_review_suggestions: false,
+    can_archive: false
+  }
+}
+
+const archivedDocDetail = {
+  ...docDetail,
+  id: 5,
+  display_id: "DOC-5",
+  state: "archived",
+  permissions: {
+    can_write_canonical: false,
+    can_suggest: false,
+    can_review_suggestions: false,
+    can_archive: false
   }
 }
 
@@ -379,7 +394,9 @@ function mockFetch(detail = docDetail) {
       return jsonResponse({ design_doc: detail })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
-      return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
+      const payload = JSON.parse(String(init?.body ?? "{}"))
+      const nextDetail = payload.design_doc?.state === "archived" ? { ...docDetail, state: "archived", permissions: archivedDocDetail.permissions } : docDetail
+      return jsonResponse({ design_doc: nextDetail, mode: "canonical", message: "Design doc updated." })
     }
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
@@ -395,6 +412,9 @@ function mockFetch(detail = docDetail) {
     }
     if (url.pathname === "/api/v1/app/design_docs/4" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: openQuestionsDocDetail, mode: "canonical", message: "Design doc updated." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/5" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: archivedDocDetail })
     }
     if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
       return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
@@ -438,7 +458,16 @@ function mockFetch(detail = docDetail) {
       return jsonResponse({ thread: { ...docDetail.threads[0], state: "resolved" }, message: "Comment thread resolved." })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
-      return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
+      return jsonResponse({
+        design_doc: {
+          ...docDetail,
+          markdown: "Alpha beta delta",
+          rendered_markdown: "Alpha beta delta",
+          suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }]
+        },
+        suggestion: { ...docDetail.suggestions[0], state: "accepted" },
+        message: "Suggestion accepted."
+      })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
@@ -1436,6 +1465,7 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
     await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
     expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta delta")
 
     acceptedRender.unmount()
     renderSurface("/design_docs/1")
@@ -1611,6 +1641,41 @@ describe("DesignDocsSurface", () => {
     expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
       suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Owner suggested edit" }
     })
+  })
+
+  it("lets owners archive a design doc from the title bar", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+    const archiveRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(archiveRequest?.[1]?.body))).toMatchObject({
+      design_doc: { state: "archived" }
+    })
+    expect(await screen.findByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
+  })
+
+  it("renders archived docs as read-only without edit, comment, or review controls", async () => {
+    mockFetch()
+    renderSurface("/design_docs/5")
+
+    const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    expect(editor).toHaveAttribute("contenteditable", "false")
+    expect(screen.getByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Reply to thread 7" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const markdown = screen.getByRole("textbox", { name: "Markdown editor" })
+    expect(markdown).toHaveAttribute("readonly")
+    expect(screen.getByText("Read only")).toBeInTheDocument()
   })
 
   it("uses the shared temporary toast for design doc notices", async () => {
@@ -1947,6 +2012,20 @@ describe("DesignDocsSurface", () => {
     expect(suggestion?.querySelector("ins")).toHaveTextContent("shared")
     expect(suggestion?.querySelector("del")).not.toHaveClass("block")
     expect(suggestion?.querySelector("ins")).not.toHaveClass("block")
+  })
+
+  it("falls back to whole-block rendering for large inline suggestions", async () => {
+    const original = Array.from({ length: 420 }, (_, index) => `old${index}`).join(" ")
+    const proposed = Array.from({ length: 420 }, (_, index) => `new${index}`).join(" ")
+    mockFetch(docWithSuggestion(original, proposed))
+    renderSurface("/design_docs/1")
+
+    const wysiwygEditor = await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const suggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(suggestion?.querySelector("del")).toHaveTextContent(original)
+    expect(suggestion?.querySelector("ins")).toHaveTextContent(proposed)
+    expect(suggestion?.querySelector("del")).toHaveClass("block")
+    expect(suggestion?.querySelector("ins")).toHaveClass("block")
   })
 
   it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {
