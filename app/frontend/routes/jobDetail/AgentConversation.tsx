@@ -41,13 +41,13 @@ export function AgentConversationTab({ jobId, prUrl }: { jobId: number; prUrl: s
   const transcriptNode = conversation.data.nodes.find((node) => node.id === transcriptNodeId) ?? null
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 overflow-x-auto">
       <ConversationLegend />
       <ol className="space-y-0">
         {rows.map((row, index) => (
           <li key={row.map((node) => node.id).join(",")}>
             {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
-            <div className="flex flex-wrap items-stretch gap-3">
+            <div className="flex min-w-0 flex-wrap items-stretch gap-3">
               {row.map((node) => (
                 <NodeCard
                   jobId={jobId}
@@ -92,7 +92,7 @@ function ConversationLegend() {
 // generated handoff description never overlaps the node cards around it.
 function ConnectorLabel({ text }: { text: string }) {
   return (
-    <div className="ml-4 border-l-2 border-dotted border-gray-300 py-2 pl-4 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400">
+    <div className="ml-4 min-w-0 break-words border-l-2 border-dotted border-gray-300 py-2 pl-4 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400">
       {text}
     </div>
   )
@@ -123,16 +123,16 @@ function AgentSessionCard({ node, onOpenTranscript, transcriptOpen }: { node: Ag
   const { t } = useT("jobs")
 
   return (
-    <div className={`min-w-64 flex-1 rounded border bg-white dark:bg-gray-900 ${transcriptOpen ? "border-brand" : "border-gray-200 dark:border-gray-700"}`}>
+    <div className={`min-w-0 flex-1 basis-64 overflow-hidden rounded border bg-white dark:bg-gray-900 ${transcriptOpen ? "border-brand" : "border-gray-200 dark:border-gray-700"}`}>
       <button aria-expanded={transcriptOpen} className="flex w-full items-start gap-3 p-3 text-left" onClick={() => onOpenTranscript(node.id)} type="button">
         <span aria-hidden="true" className={`mt-0.5 h-8 w-8 shrink-0 rounded-full ${avatarColorClass(node.role)}`} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
+            <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
             {node.state ? <StatusPill state={node.state} /> : null}
             {node.iteration && node.iteration > 1 ? <SmallPill>{t("conversation_iteration", { n: node.iteration })}</SmallPill> : null}
           </span>
-          <span className="mt-1 block text-xs text-gray-600 dark:text-gray-400">{node.summary || t("conversation_no_summary")}</span>
+          <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">{node.summary || t("conversation_no_summary")}</span>
         </span>
       </button>
     </div>
@@ -195,22 +195,22 @@ function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
       : "text-gray-500 dark:text-gray-400"
 
   return (
-    <div className="min-w-64 flex-1 rounded border border-dashed border-gray-400 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/60">
+    <div className="min-w-0 flex-1 basis-64 overflow-hidden rounded border border-dashed border-gray-400 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/60">
       <button aria-expanded={expanded} className="flex w-full items-start gap-3 p-3 text-left" onClick={() => setExpanded((current) => !current)} type="button">
         <GearIcon className={`mt-0.5 h-6 w-6 shrink-0 ${iconTone}`} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
+            <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
             {node.state ? <StatusPill state={node.state} /> : null}
           </span>
-          <span className="mt-1 block text-xs text-gray-600 dark:text-gray-400">{node.summary || t("conversation_check_ran")}</span>
+          <span className="mt-1 block max-h-48 overflow-y-auto break-words text-xs text-gray-600 dark:text-gray-400">{node.summary || t("conversation_check_ran")}</span>
         </span>
       </button>
       {expanded ? (
         <div className="border-t border-dashed border-gray-400 p-3 dark:border-gray-600">
-          {command ? <pre className="mb-2 overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">$ {command}</pre> : null}
+          {command ? <pre className="mb-2 max-w-full overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">$ {command}</pre> : null}
           {output ? (
-            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{output}</pre>
+            <pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{output}</pre>
           ) : (
             <p className="text-xs text-gray-400 dark:text-gray-500">{t("conversation_no_raw_output")}</p>
           )}
@@ -226,16 +226,16 @@ function ExternalTriggerBanner({ node, prUrl }: { node: AgentConversationNode; p
   const sourceUrl = externalTriggerSourceUrl(node, prUrl)
 
   return (
-    <div className="w-full rounded border border-dashed border-gray-400 bg-amber-50/40 p-3 dark:border-gray-600 dark:bg-amber-950/10">
+    <div className="min-w-0 w-full overflow-hidden rounded border border-dashed border-gray-400 bg-amber-50/40 p-3 dark:border-gray-600 dark:bg-amber-950/10">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
+        <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">{node.label}</span>
         {sourceUrl ? (
           <a className="text-xs font-medium text-brand hover:underline" href={sourceUrl} rel="noreferrer" target="_blank">
             {t("conversation_view_source")}
           </a>
         ) : null}
       </div>
-      {content ? <p className="mt-1 whitespace-pre-wrap text-xs text-gray-700 dark:text-gray-300">{content}</p> : null}
+      {content ? <p className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-700 dark:text-gray-300">{content}</p> : null}
     </div>
   )
 }
