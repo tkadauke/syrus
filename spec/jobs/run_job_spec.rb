@@ -807,6 +807,38 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
     end
 
+    it "defers a queued Run before start when the worker step slot is occupied" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = WorkflowStepWorkerSlot::Acquisition.new(
+        acquired: false,
+        reason: "worker_slot_busy",
+        delay: 30.seconds,
+        details: { "worker_key" => "storage:storage-a" }
+      )
+      host_decision = RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "host_capacity_available",
+        delay: nil,
+        details: { "hostname" => "worker-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(host_decision)
+      allow(WorkflowStepWorkerSlot).to receive(:acquire_for).with(run).and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(wf.reload.artifact("workflow_step_worker_slot_admission")).to include(
+        "action" => "defer",
+        "reason" => "worker_slot_busy",
+        "worker_key" => "storage:storage-a"
+      )
+      expect(JobLog.where(run: run).pluck(:chunk)).to include("worker slot admission deferred before prepare: worker_slot_busy")
+    end
+
     it "skips an unconfigured review_plan before host admission under critical worker pressure" do
       job = job_with_single_run(step_kind: "review_plan")
       wf = job.workflows.last
