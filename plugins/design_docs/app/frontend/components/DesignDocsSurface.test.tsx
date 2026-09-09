@@ -751,6 +751,56 @@ describe("DesignDocsSurface", () => {
     }
   })
 
+  it("keeps the compact Rich Text selection affordance beside near-top selections", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: "Alpha **design** gamma" } })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    const textNode = editor.querySelector("strong [data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 6)
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({
+        bottom: 144,
+        height: 24,
+        left: 120,
+        right: 168,
+        top: 120,
+        width: 48,
+        x: 120,
+        y: 120,
+        toJSON: () => ({})
+      }))
+    })
+    const geometrySpy = vi.spyOn(editor.parentElement!, "getBoundingClientRect").mockReturnValue({
+      bottom: 700,
+      height: 600,
+      left: 20,
+      right: 920,
+      top: 100,
+      width: 900,
+      x: 20,
+      y: 100,
+      toJSON: () => ({})
+    } as DOMRect)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    try {
+      fireEvent.mouseUp(editor)
+      const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+      expect(affordance).toHaveStyle({ left: "156px", top: "8px" })
+    } finally {
+      geometrySpy.mockRestore()
+    }
+  })
+
   it("submits a selected-text comment with Cmd+Enter", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
