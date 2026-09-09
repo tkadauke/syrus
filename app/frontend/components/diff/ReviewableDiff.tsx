@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
@@ -204,6 +204,7 @@ export function ReviewableDiff({
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
+  const [windowScrollMargin, setWindowScrollMargin] = useState<number | null>(null)
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -234,10 +235,27 @@ export function ReviewableDiff({
 
   // Distance from the top of the document to the top of the scroll
   // container, needed to convert `useWindowVirtualizer`'s document-relative
-  // offsets back into container-relative ones. Irrelevant (and left at 0)
-  // for bounded/element scrolling, where the container itself is the
-  // scrollport.
-  const scrollMargin = scroll === "natural" ? (scrollContainerRef.current?.offsetTop ?? 0) : 0
+  // offsets back into container-relative ones. `offsetTop` is not enough
+  // here: the diff's relative wrapper can become the offset parent, which
+  // reports 0 and makes the virtualizer treat page chrome above the diff as
+  // diff content.
+  const scrollMargin = scroll === "natural" ? (windowScrollMargin ?? 0) : 0
+
+  useLayoutEffect(() => {
+    if (scroll !== "natural") return
+    const element = scrollContainerRef.current
+    if (!element) return
+    const measuredElement: HTMLElement = element
+
+    function measureScrollMargin() {
+      const nextMargin = documentScrollMarginForElement(measuredElement)
+      setWindowScrollMargin((current) => (current != null && Math.abs(current - nextMargin) < 1 ? current : nextMargin))
+    }
+
+    measureScrollMargin()
+    window.addEventListener("resize", measureScrollMargin)
+    return () => window.removeEventListener("resize", measureScrollMargin)
+  }, [filesSignature, scroll])
 
   function estimateSize(index: number) {
     const file = visibleFiles[index]
@@ -276,6 +294,7 @@ export function ReviewableDiff({
   useEffect(() => {
     const target = pendingScrollTarget.current
     if (!target) return
+    if (scroll === "natural" && windowScrollMargin == null) return
     const index = renderFiles.findIndex((file) => file.path === target)
     if (index === -1) return
     if (index >= visibleFileCount) {
@@ -370,9 +389,9 @@ export function ReviewableDiff({
                 data-index={virtualItem.index}
                 key={virtualItem.key}
                 ref={virtualizer.measureElement}
-                style={{ left: 0, position: "absolute", top: 0, transform: `translateY(${virtualItem.start - scrollMargin}px)`, width: "100%" }}
+                style={virtualFileSectionStyle(virtualItem.start - scrollMargin)}
               >
-                <section className={virtualItem.index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path}>
+                <section className={virtualItem.index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} style={stickyFileHeaderBoundaryStyle(showHeader)}>
                   <DiffFileSection
                     annotations={annotationsForFile(annotations, file.path)}
                     cache={fileCache.current}
@@ -445,8 +464,30 @@ export function ReviewableDiff({
   )
 }
 
+function virtualFileSectionStyle(offsetTop: number) {
+  // Keep file sections out of transformed containing blocks. Safari in
+  // particular mispositions sticky descendants when the virtualized row is
+  // moved with translateY(), which makes diff file headers drift away from
+  // the code rows as the review view scrolls.
+  return { left: 0, position: "absolute" as const, top: offsetTop, width: "100%" }
+}
+
+function stickyFileHeaderBoundaryStyle(showHeader: boolean) {
+  if (!showHeader) return undefined
+
+  // A sticky child is constrained by the bottom edge of its containing block.
+  // Without this extra boundary room, the header releases during the final
+  // header-height of its file section, leaving trailing rows visible at the
+  // top of the review pane without their file label.
+  return { marginBottom: -DEFAULT_FILE_HEADER_HEIGHT_PX, paddingBottom: DEFAULT_FILE_HEADER_HEIGHT_PX }
+}
+
 export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiffProps & { annotations?: Record<string, LineAnnotation> }) {
   return <ReviewableDiff annotations={annotations} files={filesFromUnifiedDiff(diff)} mode="continuous" {...props} />
+}
+
+export function documentScrollMarginForElement(element: HTMLElement) {
+  return element.getBoundingClientRect().top + window.scrollY
 }
 
 function useIsMobileViewport() {
@@ -976,8 +1017,29 @@ export function UnifiedDiffTable({
   const activeHighlight = highlightedToken !== undefined ? highlightedToken : localHighlight
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
+  const isMobileViewport = useIsMobileViewport()
 
   let hunkIndex = -1
+
+  function handleLineTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
+    if (!isMobileViewport) return
+    if (hasActiveTextSelection()) return
+    if (closestInteractiveElement(event.target)) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    onCommentLine?.(selection)
+  }
+
+  function handleTokenTap(event: MouseEvent<HTMLElement>, selection: DiffLineSelection) {
+    if (!isMobileViewport) return false
+    if (hasActiveTextSelection()) return false
+
+    event.preventDefault()
+    event.stopPropagation()
+    onCommentLine?.(selection)
+    return true
+  }
 
   return (
     <div className="overflow-x-auto" data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
@@ -992,16 +1054,18 @@ export function UnifiedDiffTable({
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
             const commentSide = line.newLine != null ? "new" : line.oldLine != null ? "old" : null
             const canComment = Boolean(onCommentLine && commentSide)
+            const commentSelection: DiffLineSelection | null = canComment && commentSide ? { file, line, side: commentSide } : null
             const lineAnchorKey = commentSide ? anchorKeyForLine(line, commentSide) : null
             const threads = lineAnchorKey ? comments?.[lineAnchorKey] || [] : []
             const isComposingHere = Boolean(lineAnchorKey && composingKey && composingKey === lineAnchorKey)
             return (
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
               <tr
-                className={`group ${diffLineClass(line.kind)}`}
+                className={`group ${diffLineClass(line.kind)} ${canComment ? "max-md:cursor-pointer" : ""}`}
                 data-coverage={annotation}
                 data-diff-anchor={lineAnchorKey || undefined}
                 data-diff-kind={line.kind}
+                onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
                 <td className={`relative ${diffGutterClass(line.kind)}`}>
                   {commentSide === "old" && canComment ? (
@@ -1017,7 +1081,14 @@ export function UnifiedDiffTable({
                 </td>
                 <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
                 <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>
-                  <DiffCode code={line.code} highlightedToken={activeHighlight} kind={line.kind} onToggleHighlightToken={toggleHighlight} tokens={tokensByLine[index]} />
+                  <DiffCode
+                    code={line.code}
+                    highlightedToken={activeHighlight}
+                    kind={line.kind}
+                    onMobileTokenTap={commentSelection ? (event) => handleTokenTap(event, commentSelection) : undefined}
+                    onToggleHighlightToken={toggleHighlight}
+                    tokens={tokensByLine[index]}
+                  />
                 </td>
                 <td className="w-4 select-none px-1 text-center">
                   {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
@@ -1119,6 +1190,17 @@ export function UnifiedDiffTable({
   )
 }
 
+function closestInteractiveElement(target: EventTarget | null) {
+  return target instanceof Element
+    ? target.closest("button, a, input, textarea, select, summary, [role='button'], [contenteditable='true']")
+    : null
+}
+
+function hasActiveTextSelection() {
+  const selection = typeof window === "undefined" ? null : window.getSelection?.()
+  return Boolean(selection && !selection.isCollapsed && selection.toString().length > 0)
+}
+
 export function DiffHunkSnippet({ highlightLine, hunk }: { highlightLine?: string | null; hunk: string }) {
   const lines = hunk.replace(/\r\n/g, "\n").split("\n")
   return (
@@ -1153,12 +1235,14 @@ function DiffCode({
   code,
   highlightedToken,
   kind,
+  onMobileTokenTap,
   onToggleHighlightToken,
   tokens
 }: {
   code: string
   highlightedToken?: string | null
   kind: DiffLineKind
+  onMobileTokenTap?: (event: MouseEvent<HTMLElement>) => boolean
   onToggleHighlightToken: (token: string) => void
   tokens?: ThemedToken[]
 }) {
@@ -1174,7 +1258,10 @@ function DiffCode({
               <span
                 className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
                 key={wordIndex}
-                onClick={() => onToggleHighlightToken(word.text)}
+                onClick={(event) => {
+                  if (onMobileTokenTap?.(event)) return
+                  onToggleHighlightToken(word.text)
+                }}
                 style={{ color: shikiToken.color }}
               >
                 {word.text}
@@ -1193,7 +1280,10 @@ function DiffCode({
         <span
           className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
           key={index}
-          onClick={() => onToggleHighlightToken(token.text)}
+          onClick={(event) => {
+            if (onMobileTokenTap?.(event)) return
+            onToggleHighlightToken(token.text)
+          }}
         >
           {token.text}
         </span>
