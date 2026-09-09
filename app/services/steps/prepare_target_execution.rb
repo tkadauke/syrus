@@ -1,3 +1,5 @@
+require "digest"
+
 module Steps
   # Ensures a materialized grader Step's transitive `kind: prepare` target
   # dependencies (TargetGraph#prepare_dependencies_for, snapshotted onto
@@ -129,8 +131,13 @@ module Steps
       workspace.path.join(MARKER_DIR, "#{sanitize_prepare_label(label)}.lock")
     end
 
+    # A hash, not a character-substituted label -- `TargetGraph::Label#to_s`
+    # can contain `/` (nested package segments) and `:` (the package/name
+    # separator), both of which would otherwise collapse onto the same
+    # replacement character and let two distinct labels (e.g. `//a/b:c` and
+    # `//a:b_c`) collide on one marker/lock file.
     def sanitize_prepare_label(label)
-      label.to_s.gsub(/[^A-Za-z0-9_.-]/, "_")
+      Digest::SHA256.hexdigest(label.to_s)
     end
 
     def read_prepare_marker(marker)
