@@ -2528,7 +2528,7 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
 
   return {
     left: rangeRect.left - containerRect.left,
-    top: rangeRect.bottom - containerRect.top,
+    top: rangeRect.top - containerRect.top,
     containerWidth: containerRect.width
   }
 }

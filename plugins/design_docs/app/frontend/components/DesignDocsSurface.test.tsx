@@ -702,23 +702,53 @@ describe("DesignDocsSurface", () => {
     const range = document.createRange()
     range.setStart(textNode, 0)
     range.setEnd(textNode, 4)
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({
+        bottom: 244,
+        height: 24,
+        left: 120,
+        right: 160,
+        top: 220,
+        width: 40,
+        x: 120,
+        y: 220,
+        toJSON: () => ({})
+      }))
+    })
+    const geometrySpy = vi.spyOn(editor.parentElement!, "getBoundingClientRect").mockReturnValue({
+      bottom: 700,
+      height: 600,
+      left: 20,
+      right: 920,
+      top: 100,
+      width: 900,
+      x: 20,
+      y: 100,
+      toJSON: () => ({})
+    } as DOMRect)
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
 
-    fireEvent.mouseUp(editor)
-    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
-    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
-    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+    try {
+      fireEvent.mouseUp(editor)
+      const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+      expect(affordance).toHaveStyle({ top: "76px" })
+      expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+      fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
+      fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
-    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
-    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
-      comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
-    })
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+      const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+      expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+        comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+      })
+    } finally {
+      geometrySpy.mockRestore()
+    }
   })
 
   it("submits a selected-text comment with Cmd+Enter", async () => {
