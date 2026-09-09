@@ -103,6 +103,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("stack_auto_rebase")
   end
 
+  it "repairs a succeeded merge train whose member reconciliation left jobs open" do
+    result = run_scenario("succeeded_merge_train_failed_member_reconciliation")
+
+    expect(result).to be_success
+    root, child = Job.where(id: result.job_ids).order(:id).to_a
+    expect(root).to be_closed
+    expect(child).to be_closed
+    expect(MergeTrainMember.where(job: [ root, child ]).pluck(:state)).to all(eq("merged"))
+    expect(result.events.join("\n")).to include("succeeded_merge_train_failed_member_reconciliation")
+  end
+
   {
     "happy_path_single_job_lands" => "auto_merge",
     "happy_path_epic_merge_train_lands" => "merge_train_land",

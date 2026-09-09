@@ -1,0 +1,72 @@
+name: succeeded merge train failed member reconciliation
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: succeeded-merge-train-failed-member-reconciliation
+  auto_merge_enabled: true
+epics:
+  feature:
+    title: Landed train with failed member bookkeeping
+jobs:
+  root:
+    title: Root member already landed but left failed
+    epic: feature
+    state: failed
+    branch_name: syrus/direct-root
+    pr_number: 3101
+  child:
+    title: Child member already landed but left approved
+    epic: feature
+    state: approved
+    parent_job: root
+    depends_on:
+      - root
+    branch_name: syrus/direct-child
+    pr_number: 3102
+    approved_at: "2026-09-08 12:00:00"
+merge_trains:
+  landed:
+    epic: feature
+    state: succeeded
+    base_branch: main
+    integration_branch: syrus/merge-train-epic-feature-landed
+    integration_sha: 1111111111111111111111111111111111111111
+    created_at: "2026-09-08 12:30:00"
+    finished_at: "2026-09-08 12:45:00"
+    members:
+      - job: root
+        state: failed
+        reason: "merge_train: JOB-root's landed commits are not reachable from integration 111111111"
+      - job: child
+        state: failed
+        reason: "merge_train: JOB-child's landed commits are not reachable from integration 111111111"
+    landed_commits:
+      epic:
+        - kind: integration_merge
+          sha: 1111111111111111111111111111111111111111
+          created_at: "2026-09-08 12:44:00"
+      jobs:
+        root:
+          - kind: implementation
+            sha: 2222222222222222222222222222222222222222
+            created_at: "2026-09-08 12:35:00"
+        child:
+          - kind: implementation
+            sha: 3333333333333333333333333333333333333333
+            created_at: "2026-09-08 12:36:00"
+outcomes:
+  default: success
+expect:
+  jobs:
+    root:
+      - closed
+    child:
+      - closed
+  epics:
+    feature:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

@@ -1303,6 +1303,52 @@ module WorkEngine
         end
       end
 
+      class RepairMergeTrainMemberReconciliation < Base
+        def perform
+          train_id = plan.preconditions["merge_train_id"]
+          return skipped("MergeTrain id missing") if train_id.blank?
+
+          train = MergeTrain.find_by(id: train_id)
+          return skipped("MergeTrain ##{train_id} no longer exists") unless train
+          return skipped("MergeTrain ##{train.id} is #{train.state}, not succeeded") unless train.state == "succeeded"
+          return skipped("MergeTrain ##{train.id} has no integration SHA") if train.integration_sha.blank?
+
+          repaired = repair_members!(train)
+
+          return skipped("no merge-train members repaired") if repaired.zero?
+
+          train.epic&.refresh_auto_state!
+          LandingQueueProcessorJob.perform_later
+          success("repaired #{repaired} failed member(s) for MergeTrain ##{train.id}")
+        end
+
+        private
+
+        def repair_members!(train)
+          repaired = 0
+          train.members.includes(:job).where(state: "failed").find_each do |member|
+            job = member.job
+            next if job.closed?
+            next unless landed_commit_from_this_train?(train, job)
+
+            ActiveRecord::Base.transaction do
+              job.update_column(:landed_sha, train.integration_sha)
+              job.close_with_reason!("pr_merged") if job.may_close?
+              member.update!(state: "merged", reason: nil)
+            end
+            repaired += 1
+          end
+          repaired
+        end
+
+        def landed_commit_from_this_train?(train, job)
+          window_end = train.finished_at || now
+          LandedCommit.where(landable: job, kind: "implementation")
+            .where(created_at: train.created_at..window_end)
+            .exists?
+        end
+      end
+
       class ClearLandingStartBlockerAndWakeQueue < Base
         def perform
           job = target_job

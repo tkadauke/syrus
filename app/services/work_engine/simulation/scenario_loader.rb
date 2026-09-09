@@ -1,5 +1,6 @@
 require "yaml"
 require "set"
+require "digest/sha1"
 
 module WorkEngine
   module Simulation
@@ -38,6 +39,7 @@ module WorkEngine
           create_epic_dependencies!(epics, data.fetch("epics", {}))
           create_job_dependencies!(jobs, epics, data.fetch("jobs", {}))
           create_workflows!(jobs, data.fetch("jobs", {}))
+          create_merge_trains!(repository, epics, jobs, data.fetch("merge_trains", {}))
           work_intents = create_standalone_work!(repository, user, jobs, data.fetch("work_intents", {}), data.fetch("work_units", {}))
 
           World.new(
@@ -182,6 +184,64 @@ module WorkEngine
 
           workflow.update_columns(state: workflow_config.fetch("state", workflow.state))
           sync_work_unit_state!(workflow, workflow_config)
+        end
+      end
+
+      def create_merge_trains!(repository, epics, jobs, definitions)
+        definitions.each do |key, attrs|
+          epic = epics[attrs["epic"].to_s] if attrs["epic"].present?
+          train = MergeTrain.create!(
+            epic: epic,
+            repository: repository,
+            priority: attrs["priority"],
+            base_branch: attrs.fetch("base_branch", repository.default_branch),
+            integration_branch: attrs.fetch("integration_branch", "syrus/simulated-merge-train-#{key}"),
+            state: attrs.fetch("state", "succeeded"),
+            failure_reason: attrs["failure_reason"],
+            integration_sha: attrs["integration_sha"] || simulated_sha("merge-train", key)
+          )
+          train.update_columns(
+            created_at: parse_optional_time(attrs["created_at"]) || 5.minutes.ago,
+            finished_at: parse_optional_time(attrs["finished_at"]) || 1.minute.ago
+          )
+          create_merge_train_members!(train, jobs, attrs.fetch("members", []))
+          create_landed_commits!(epics, jobs, train, attrs.fetch("landed_commits", {}))
+        end
+      end
+
+      def create_merge_train_members!(train, jobs, definitions)
+        definitions.each_with_index do |entry, index|
+          attrs = entry.is_a?(Hash) ? entry : { "job" => entry }
+          MergeTrainMember.create!(
+            merge_train: train,
+            job: jobs.fetch(attrs.fetch("job").to_s),
+            position: attrs.fetch("position", index),
+            state: attrs.fetch("state", "failed"),
+            reason: attrs["reason"]
+          )
+        end
+      end
+
+      def create_landed_commits!(epics, jobs, train, definitions)
+        Array(definitions["epic"]).each_with_index do |attrs, index|
+          LandedCommit.create!(
+            landable: train.epic || epics.fetch(attrs.fetch("epic").to_s),
+            sha: attrs["sha"] || simulated_sha("epic-landed", "#{train.id}-#{index}"),
+            kind: attrs.fetch("kind", "integration_merge"),
+            position: attrs.fetch("position", index),
+            created_at: parse_optional_time(attrs["created_at"]) || train.finished_at
+          )
+        end
+        definitions.fetch("jobs", {}).each do |job_key, commits|
+          Array(commits).each_with_index do |attrs, index|
+            LandedCommit.create!(
+              landable: jobs.fetch(job_key.to_s),
+              sha: attrs["sha"] || simulated_sha("job-landed", "#{job_key}-#{train.id}-#{index}"),
+              kind: attrs.fetch("kind", "implementation"),
+              position: attrs.fetch("position", index),
+              created_at: parse_optional_time(attrs["created_at"]) || train.created_at + 1.second
+            )
+          end
         end
       end
 
@@ -365,6 +425,10 @@ module WorkEngine
         return nil if value.blank?
 
         Time.zone.parse(value.to_s)
+      end
+
+      def simulated_sha(prefix, key)
+        Digest::SHA1.hexdigest("#{path}:#{prefix}:#{key}")
       end
 
       def validate_graph!(label, graph)

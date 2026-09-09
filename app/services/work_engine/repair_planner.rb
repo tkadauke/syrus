@@ -941,6 +941,22 @@ module WorkEngine
         end
       end
 
+      class SucceededMergeTrainFailedMemberReconciliation < Base
+        def plan
+          automatic_plan(
+            "repair_merge_train_member_reconciliation",
+            primary_job,
+            "The merge train already succeeded and recorded same-train implementation evidence for failed members, so closing those members is deterministic bookkeeping repair.",
+            execution_steps: [ "WorkEngine::RepairExecutor::RepairMergeTrainMemberReconciliation" ],
+            preconditions: {
+              merge_train_id: issue.evidence["merge_train_id"],
+              integration_sha: issue.evidence["integration_sha"],
+              repairable_member_job_ids: issue.evidence["repairable_member_job_ids"]
+            }
+          )
+        end
+      end
+
       class ReleasableEpicBlockedJob < Base
         def plan
           automatic_plan(

@@ -238,6 +238,7 @@ module WorkEngine
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
+      issues.concat(classify_succeeded_merge_trains_with_failed_members)
       issues.concat(classify_releasable_epic_blocked_jobs)
       issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
@@ -1779,6 +1780,50 @@ module WorkEngine
           explanation: "#{job_label(job)} has active landing work but is marked #{job.state}, so it is invisible to landing lifecycle handling."
         )
       end
+    end
+
+    def classify_succeeded_merge_trains_with_failed_members
+      job_ids = jobs.map(&:id)
+      return [] if job_ids.empty?
+
+      MergeTrain
+        .where(state: "succeeded")
+        .joins(:members)
+        .where(merge_train_members: { job_id: job_ids, state: "failed" })
+        .distinct
+        .includes(members: :job)
+        .filter_map do |train|
+          repairable_members = train.members.select do |member|
+            member.state == "failed" && !member.job.closed? && merge_train_member_repairable?(train, member.job)
+          end
+          next if repairable_members.empty?
+
+          issue(
+            kind: :succeeded_merge_train_failed_member_reconciliation,
+            severity: :critical,
+            affected_ids: { job_ids: repairable_members.map(&:job_id) },
+            safe_to_auto_repair: true,
+            recommended_repair_action: "repair_merge_train_member_reconciliation",
+            evidence: {
+              merge_train_id: train.id,
+              epic_id: train.epic_id,
+              repository_id: train.repository_id,
+              integration_sha: train.integration_sha,
+              failed_member_job_ids: train.members.select { |member| member.state == "failed" }.map(&:job_id),
+              repairable_member_job_ids: repairable_members.map(&:job_id)
+            },
+            explanation: "MergeTrain ##{train.id} succeeded, but #{repairable_members.size} member Job(s) were left failed even though this train recorded their implementation commits."
+          )
+        end
+    end
+
+    def merge_train_member_repairable?(train, job)
+      return false if train.integration_sha.blank?
+
+      window_end = train.finished_at || now
+      LandedCommit.where(landable: job, kind: "implementation")
+        .where(created_at: train.created_at..window_end)
+        .exists?
     end
 
     def classify_releasable_epic_blocked_jobs
