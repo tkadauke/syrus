@@ -99,10 +99,17 @@ module Maintenance
       restarted = []
 
       Job.where(id: job_ids.to_a).find_each do |job|
-        restarted << job.id if job.start_pending_workflows_if_dependencies_satisfied!
+        restarted << job.id if job.start_pending_workflows_if_dependencies_satisfied! || pending_workflow_already_started?(job)
       end
 
       restarted
+    end
+
+    def pending_workflow_already_started?(job)
+      WorkUnits::Ownership.active_units_for_job(job).any? do |unit|
+        workflow = unit.workflow
+        workflow&.queued? && workflow.first_step&.runs&.exists?
+      end
     end
   end
 end
