@@ -837,12 +837,13 @@ function LargeFilePlaceholder({ file, onLoad, rowCount }: { file: ReviewableDiff
 // from before the hunk to continue from.
 //
 // Results are cached in `tokensByHunk`, keyed by hunk id rather than by raw
-// line index: hunk ids are stable across hidden-context expansion (expanded
-// context lines get hunkId -1, so they never shift an existing hunk's id or
-// its cached tokens), and the caller may pass a cache that outlives this
-// component's own mount -- see FileCacheEntry -- so a file that scrolls out
-// of the virtualized window and back doesn't redo Shiki work it already
-// paid for.
+// line index: hunk ids are stable across hidden-context expansion. Revealed
+// context lines join the adjacent hunk whose syntax state they can borrow,
+// while existing hunk body rows keep their original ids; if a hunk's visible
+// line count changes, the cache entry is regenerated. The caller may pass a
+// cache that outlives this component's own mount -- see FileCacheEntry -- so
+// a file that scrolls out of the virtualized window and back doesn't redo
+// Shiki work it already paid for.
 function useHighlightedDiffLines(lines: DiffLine[], lang: HighlighterLanguageId | null, tokensByHunk: Map<number, ThemedToken[][]>): (ThemedToken[] | undefined)[] {
   // Bumped after a fetch populates `tokensByHunk` (mutated in place, so its
   // reference never changes on its own) to tell the memo below new entries
