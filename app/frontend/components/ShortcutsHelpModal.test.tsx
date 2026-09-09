@@ -39,6 +39,11 @@ describe("formatShortcutCombo", () => {
   it("title-cases modifier and key tokens", () => {
     expect(formatShortcutCombo("mod+enter")).toBe("Mod + Enter")
   })
+
+  it("labels Alt as Option on Apple platforms", () => {
+    expect(formatShortcutCombo("alt+a", "MacIntel")).toBe("⌥ + A")
+    expect(formatShortcutCombo("alt+a", "Win32")).toBe("Alt + A")
+  })
 })
 
 describe("ShortcutsHelpModal", () => {
@@ -56,8 +61,8 @@ describe("ShortcutsHelpModal", () => {
     render(
       <ShortcutsProvider>
         <Registrant group="Global" groupOrder={0} keys="?" label="Show shortcuts" />
-        <Registrant group="Job Detail" groupOrder={1} keys="a" label="Approve" />
-        <Registrant group="Job Detail" groupOrder={1} keys="r" label="Retry" />
+        <Registrant group="Job Detail" groupOrder={1} keys="alt+a" label="Approve" />
+        <Registrant group="Job Detail" groupOrder={1} keys="alt+r" label="Retry" />
         <ShortcutsHelpModal onClose={() => {}} open />
       </ShortcutsProvider>
     )

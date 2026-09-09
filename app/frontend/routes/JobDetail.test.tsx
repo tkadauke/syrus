@@ -2634,7 +2634,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } }))
 
-    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "a", altKey: true })
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -2645,7 +2645,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
 
-    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "a", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Approve this Job?")).toBeInTheDocument()
@@ -2661,12 +2661,23 @@ describe("Job Detail keyboard shortcuts", () => {
     })
   })
 
-  it("cancels the armed approve confirmation on Escape without executing", async () => {
+  it("does not approve from a plain letter shortcut even when approve is available", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
     const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
 
     fireEvent.keyDown(window, { key: "a" })
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("cancels the armed approve confirmation on Escape without executing", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Job approved." }))
+    const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_approve: true } })
+
+    fireEvent.keyDown(window, { key: "a", altKey: true })
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
 
     fireEvent.keyDown(document, { key: "Escape" })
@@ -2700,7 +2711,7 @@ describe("Job Detail keyboard shortcuts", () => {
       preview: { id: 1, state: "running", url: "http://localhost:3001", expires_at: null, error_message: null, error_reason: null }
     })
 
-    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "a", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Approve this Job?")).toBeInTheDocument()
@@ -2727,7 +2738,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const payload = jobPayload({ job: { ...baseJob(), state: "closed", summary_state: "closed" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_reopen: true } })
 
-    fireEvent.keyDown(window, { key: "o" })
+    fireEvent.keyDown(window, { key: "o", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Reopen this Job?")).toBeInTheDocument()
@@ -2762,7 +2773,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const payload = jobPayload({ job: { ...baseJob(), state: "approved", summary_state: "approved" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_unapprove: true } })
 
-    fireEvent.keyDown(window, { key: "u" })
+    fireEvent.keyDown(window, { key: "u", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Move this Job back to implemented?")).toBeInTheDocument()
@@ -2781,7 +2792,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const payload = jobPayload({ job: { ...baseJob(), state: "implemented", summary_state: "implemented" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_cancel: true } })
 
-    fireEvent.keyDown(window, { key: "x" })
+    fireEvent.keyDown(window, { key: "x", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Cancel any running work and close this Job?")).toBeInTheDocument()
@@ -2800,7 +2811,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const payload = jobPayload({ job: { ...baseJob(), state: "landing", summary_state: "landing" } })
     renderJobDetail({ ...payload, actions: { ...payload.actions, can_stop_landing: true } })
 
-    fireEvent.keyDown(window, { key: "s" })
+    fireEvent.keyDown(window, { key: "s", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
@@ -2825,7 +2836,7 @@ describe("Job Detail keyboard shortcuts", () => {
       }
     })
 
-    fireEvent.keyDown(window, { key: "r" })
+    fireEvent.keyDown(window, { key: "r", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     expect(screen.getByText("Retry this Job now?")).toBeInTheDocument()
@@ -2850,7 +2861,7 @@ describe("Job Detail keyboard shortcuts", () => {
       }
     })
 
-    fireEvent.keyDown(window, { key: "r" })
+    fireEvent.keyDown(window, { key: "r", altKey: true })
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
@@ -2867,7 +2878,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok" }))
     renderJobDetail(jobPayload({ job: { ...baseJob(), state: "failed", summary_state: "failed" } }))
 
-    fireEvent.keyDown(window, { key: "r" })
+    fireEvent.keyDown(window, { key: "r", altKey: true })
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -2877,7 +2888,7 @@ describe("Job Detail keyboard shortcuts", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Pinned." }))
     renderJobDetail(jobPayload({ pinned: false }))
 
-    fireEvent.keyDown(window, { key: "p" })
+    fireEvent.keyDown(window, { key: "p", altKey: true })
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await waitFor(() => {
@@ -2915,6 +2926,8 @@ describe("Job Detail keyboard shortcuts", () => {
     const group = heading.closest("div") as HTMLElement
     expect(within(group).getByText("Approve")).toBeInTheDocument()
     expect(within(group).getByText("Pin")).toBeInTheDocument()
+    expect(within(group).getByText("Alt + A")).toBeInTheDocument()
+    expect(within(group).getByText("Alt + P")).toBeInTheDocument()
   })
 })
 
