@@ -8,14 +8,20 @@ while faking only the execution boundary.
 Run one scenario:
 
 ```sh
-RAILS_ENV=test bin/rails 'syrus:work_engine:simulate[spec/fixtures/work_engine_simulations/single_initial_success.yml]'
+bin/simulator spec/fixtures/work_engine_simulations/single_initial_success.yml
 ```
 
 Run the regression set:
 
 ```sh
-bin/rspec spec/services/work_engine/simulation/scenario_runner_spec.rb
+bin/simulator
 ```
+
+`bin/simulator` runs every YAML scenario in this directory in series and exits
+non-zero when any scenario ends in an unexpected status, which makes it usable
+as a grader. By default, `success` and declared-valid `waiting` outcomes pass.
+Use `expected_status: stuck` only for diagnostic fixtures that deliberately
+verify a stuck condition is detected.
 
 Use these fixtures for incidents that can be represented as persisted state:
 Jobs, Epics, WorkIntents, WorkUnits, Workflows, Steps, Runs, locks, and run

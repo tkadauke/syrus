@@ -1,4 +1,5 @@
 name: workspace missing diagnostic
+expected_status: stuck
 reconciler:
   ignored_issue_kinds: []
 repository:

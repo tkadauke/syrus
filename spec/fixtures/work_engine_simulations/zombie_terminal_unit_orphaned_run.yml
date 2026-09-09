@@ -1,0 +1,44 @@
+name: zombie terminal unit orphaned run
+repository:
+  owner: simulation
+  name: zombie-terminal-unit-orphaned-run
+jobs:
+  job:
+    title: Zombie terminal unit orphaned run
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      intent:
+        state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+            started_at: "2026-01-01 00:00:00 UTC"
+            finished_at: "2026-01-01 00:01:00 UTC"
+        - kind: implement
+          state: running
+          run:
+            state: running
+            started_at: "2026-01-01 00:02:00 UTC"
+            spawned_processes:
+              - kind: agent
+                command: codex exec
+                hostname: retired-worker
+                pid: 12345
+                pgid: 12345
+                started_at: "2026-01-01 00:02:00 UTC"
+                last_chunk_at: "2026-01-01 00:03:00 UTC"
+                finished_at: "2026-01-01 00:04:00 UTC"
+                outcome: orphaned
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  job:
+    - implemented

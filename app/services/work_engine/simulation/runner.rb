@@ -105,7 +105,7 @@ module WorkEngine
       end
 
       def execute_active_runs!(tick)
-        active_runs.find_each do |run|
+        active_runs.each do |run|
           execute_run!(run, tick)
         end
       end
@@ -239,7 +239,7 @@ module WorkEngine
       end
 
       def no_active_runs?
-        active_runs.none?
+        active_runs.empty?
       end
 
       def active_runs
@@ -248,6 +248,12 @@ module WorkEngine
           .where(steps: { state: %w[queued running] })
           .where(workflows: { state: %w[queued running] })
           .includes(:job, step: :workflow)
+          .to_a
+          .reject { |run| run.running? && terminal_spawned_process_for?(run) }
+      end
+
+      def terminal_spawned_process_for?(run)
+        run.spawned_processes.where(kind: "agent").where.not(finished_at: nil).exists?
       end
 
       def jobs

@@ -211,6 +211,21 @@ module WorkEngine
               error_message: diagnostic["error_message"]
             )
           end
+          Array(config["spawned_processes"]).each do |process|
+            SpawnedProcess.create!(
+              run: run,
+              workflow: workflow,
+              kind: process.fetch("kind", "agent"),
+              command: process.fetch("command", "#{process.fetch("kind", "agent")} command"),
+              hostname: process.fetch("hostname", "simulation-worker"),
+              pid: process["pid"],
+              pgid: process["pgid"],
+              started_at: parse_optional_time(process["started_at"]) || run.started_at || Time.current,
+              last_chunk_at: parse_optional_time(process["last_chunk_at"]),
+              finished_at: parse_optional_time(process["finished_at"]),
+              outcome: process["outcome"]
+            )
+          end
         end
       end
 
