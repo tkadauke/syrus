@@ -5,6 +5,10 @@ module WorkEngine
   module Simulation
     class ScenarioLoader
       World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner)
+      REPOSITORY_UPDATE_KEYS = %w[
+        auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
+        main_branch_repair_blocks_work landing_paused
+      ].freeze
       JOB_UPDATE_KEYS = %w[
         state closure_reason pr_number branch_name pr_checks_state pr_checks_sha
         commits_behind_base manual_paused approved_at approved_via landed_sha
@@ -74,12 +78,15 @@ module WorkEngine
       end
 
       def create_repository!(user, attrs)
-        Repository.create!(
+        repository = Repository.create!(
           user: user,
           owner: attrs.fetch("owner", "simulation"),
           name: attrs.fetch("name", "repo-#{SecureRandom.hex(4)}"),
           default_branch: attrs.fetch("default_branch", "main")
         )
+        updates = attrs.slice(*REPOSITORY_UPDATE_KEYS)
+        repository.update!(updates) if updates.present?
+        repository
       end
 
       def create_epics!(user, repository, definitions)

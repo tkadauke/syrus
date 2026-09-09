@@ -4,6 +4,7 @@ app_settings:
 repository:
   owner: simulation
   name: epic-merge-train-after-approval-events
+  auto_merge_enabled: true
 epics:
   feature:
     title: Feature stack

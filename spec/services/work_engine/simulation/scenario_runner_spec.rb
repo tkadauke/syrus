@@ -103,6 +103,24 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("stack_auto_rebase")
   end
 
+  {
+    "happy_path_single_job_lands" => "auto_merge",
+    "happy_path_epic_merge_train_lands" => "merge_train_land",
+    "happy_path_job_dependency_dag_lands" => "auto_merge",
+    "happy_path_two_epic_dependency_lands" => "merge_train_land",
+    "happy_path_epic_with_job_dependencies_lands" => "merge_train_land",
+    "happy_path_job_with_epic_dependency_lands" => "auto_merge",
+    "happy_path_epic_job_depends_on_external_job_lands" => "merge_train_land"
+  }.each do |scenario, expected_event|
+    it "drains #{scenario}" do
+      result = run_scenario(scenario)
+
+      expect(result).to be_success
+      expect(Job.where(id: result.job_ids).pluck(:state)).to all(eq("closed"))
+      expect(result.events.join("\n")).to include(expected_event)
+    end
+  end
+
   it "normalizes a queued workflow with a failed step and retries it" do
     result = run_scenario("queued_workflow_with_failed_step")
 

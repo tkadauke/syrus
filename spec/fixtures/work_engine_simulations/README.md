@@ -56,8 +56,9 @@ wait_states:
 
 Scenarios can also include condition-driven external events. Prefer these over
 tick numbers so adding or removing workflow steps does not make the fixture
-brittle. Useful events include an operator approving implemented Jobs, GitHub
-checks changing state, main moving forward, or a Job being closed externally:
+brittle. Useful events include an operator approving implemented Jobs, marking
+an upstream Epic complete, GitHub checks changing state, main moving forward,
+or a Job being closed externally:
 
 ```yaml
 events:

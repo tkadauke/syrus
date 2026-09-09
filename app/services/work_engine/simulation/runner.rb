@@ -86,6 +86,7 @@ module WorkEngine
         condition.all? do |key, value|
           case key.to_s
           when "job" then job_condition_matches?(value)
+          when "epic" then epic_condition_matches?(value)
           when "workflow" then workflow_condition_matches?(value)
           when "work_unit" then work_unit_condition_matches?(value)
           when "queue" then queue_condition_matches?(value)
@@ -99,6 +100,12 @@ module WorkEngine
         job = Job.find(condition.fetch("id"))
         matches_state?(job.state, condition) &&
           matches_boolean?(job.pr_number.present?, condition["has_pr"])
+      end
+
+      def epic_condition_matches?(condition)
+        condition = normalize_epic_condition(condition)
+        epic = Epic.find(condition.fetch("id"))
+        matches_state?(epic.state, condition)
       end
 
       def workflow_condition_matches?(condition)
@@ -139,6 +146,7 @@ module WorkEngine
           case key.to_s
           when "approve" then approve_job!(value)
           when "close" then close_job!(value)
+          when "complete_epic" then complete_epic!(value)
           when "fail" then fail_job!(value)
           when "set_pr_checks" then set_pr_checks!(value)
           when "advance_main" then advance_main!(value)
@@ -157,6 +165,16 @@ module WorkEngine
         attrs = value.is_a?(Hash) ? value : { "job" => value }
         job = Job.find(attrs.fetch("job"))
         job.close_with_reason!(attrs.fetch("reason", "pr_merged")) if job.may_close?
+      end
+
+      def complete_epic!(epic_id)
+        epic = Epic.find(epic_id)
+        if epic.may_auto_complete?
+          epic.auto_complete!
+        else
+          epic.update!(state: "done", done_at: Time.current)
+        end
+        epic.dependent_epics.find_each(&:refresh_auto_state!)
       end
 
       def fail_job!(job_id)
@@ -521,6 +539,10 @@ module WorkEngine
       end
 
       def normalize_job_condition(condition)
+        condition.is_a?(Hash) ? condition : { "id" => condition }
+      end
+
+      def normalize_epic_condition(condition)
         condition.is_a?(Hash) ? condition : { "id" => condition }
       end
 

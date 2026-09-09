@@ -73,6 +73,10 @@ module WorkEngine
           return translate_job_reference(value, world)
         end
 
+        if key.in?(%w[epic complete_epic])
+          return translate_epic_reference(value, world)
+        end
+
         if key == "jobs" && value.is_a?(Hash)
           return value.transform_keys { |job_key| world.jobs_by_key.fetch(job_key.to_s).id.to_s }
         end
@@ -103,6 +107,24 @@ module WorkEngine
           value.map { |entry| translate_job_reference(entry, world) }
         else
           world.jobs_by_key.fetch(value.to_s).id
+        end
+      end
+
+      def self.translate_epic_reference(value, world)
+        case value
+        when Hash
+          translated = translate_value(value, world)
+          if translated.key?("id")
+            translated.merge("id" => world.epics_by_key.fetch(translated.fetch("id").to_s).id)
+          elsif translated.key?(:id)
+            translated.merge(id: world.epics_by_key.fetch(translated.fetch(:id).to_s).id)
+          else
+            translated
+          end
+        when Array
+          value.map { |entry| translate_epic_reference(entry, world) }
+        else
+          world.epics_by_key.fetch(value.to_s).id
         end
       end
     end
