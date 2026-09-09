@@ -327,6 +327,39 @@ describe("ReviewableDiff", () => {
     expect(row?.querySelectorAll("td")[1]).toBe(gutterCell)
   })
 
+  it("opens a line comment when tapping the code row on mobile", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ addEventListener: () => undefined, matches: true, removeEventListener: () => undefined })
+    })
+
+    try {
+      const onCommentLine = vi.fn()
+      render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
+
+      fireEvent.click(getCodeCellText("new"))
+
+      expect(onCommentLine).toHaveBeenCalledWith({
+        file: files[0],
+        line: expect.objectContaining({ code: "new", kind: "add", newLine: 1, oldLine: null }),
+        side: "new"
+      })
+    } finally {
+      if (originalMatchMedia) Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      else Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("keeps desktop row clicks from starting a line comment", () => {
+    const onCommentLine = vi.fn()
+    render(<ReviewableDiff files={files} mode="single-file" onCommentLine={onCommentLine} selectedPath="app/models/job.rb" />)
+
+    fireEvent.click(getCodeCellText("new"))
+
+    expect(onCommentLine).not.toHaveBeenCalled()
+  })
+
   it("opens an on-demand popup listing changed files and reports the selected one", () => {
     const onSelectFile = vi.fn()
     render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" onSelectFile={onSelectFile} showFileHeaders />)
