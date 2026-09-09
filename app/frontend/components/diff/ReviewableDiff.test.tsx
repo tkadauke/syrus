@@ -84,6 +84,15 @@ describe("ReviewableDiff", () => {
     expect(screen.getByText("added")).toBeInTheDocument()
   })
 
+  it("keeps sticky file headers out of transformed virtual rows", () => {
+    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+
+    const firstVirtualRow = screen.getByTestId("agent-diff-viewer").querySelector("[data-index='0']") as HTMLElement
+    expect(firstVirtualRow).toHaveStyle({ position: "absolute", top: "0px" })
+    expect(firstVirtualRow.style.transform).toBe("")
+    expect(within(firstVirtualRow).getByTitle("app/models/job.rb")).toHaveClass("sticky")
+  })
+
   it("keeps coverage annotations attached to new-line coordinates", () => {
     render(
       <ReviewableDiff

@@ -370,7 +370,7 @@ export function ReviewableDiff({
                 data-index={virtualItem.index}
                 key={virtualItem.key}
                 ref={virtualizer.measureElement}
-                style={{ left: 0, position: "absolute", top: 0, transform: `translateY(${virtualItem.start - scrollMargin}px)`, width: "100%" }}
+                style={virtualFileSectionStyle(virtualItem.start - scrollMargin)}
               >
                 <section className={virtualItem.index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path}>
                   <DiffFileSection
@@ -443,6 +443,14 @@ export function ReviewableDiff({
       ) : null}
     </div>
   )
+}
+
+function virtualFileSectionStyle(offsetTop: number) {
+  // Keep file sections out of transformed containing blocks. Safari in
+  // particular mispositions sticky descendants when the virtualized row is
+  // moved with translateY(), which makes diff file headers drift away from
+  // the code rows as the review view scrolls.
+  return { left: 0, position: "absolute" as const, top: offsetTop, width: "100%" }
 }
 
 export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiffProps & { annotations?: Record<string, LineAnnotation> }) {
