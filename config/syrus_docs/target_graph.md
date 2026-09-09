@@ -41,7 +41,11 @@ files changed) [//:grade/website-build]` — so an operator can see why a
 grader ran or didn't without reading `.syrus.yml`. Formatter/generator
 runtime selection (`Steps::Format`/`Steps::Generate`) is still legacy-config
 driven and root-only; their graph nodes carry dependency metadata for
-diagnostics and later target-aware execution.
+diagnostics and later target-aware execution. Workflow implementation agents
+also see the compiled prepare targets in their environment snapshot and may run
+one explicitly through `run_target_prepare` when they discover that a
+project-scoped dependency install is needed (see "Agent-requested prepare
+targets" below).
 
 Explicit `targets:` declarations are available for hand-authored dependency
 nodes. Build-system plugin import (later adoption levels in `DOC-20`) does
@@ -144,6 +148,33 @@ checked for tracked-file mutations (`git status --porcelain` before/after);
 a target that leaves uncommitted changes records a
 `kind: "prepare_target_side_effect"` `WorkflowWarning` instead of failing
 the grader Step — see `workflow_warnings.md`.
+
+### Agent-requested prepare targets
+
+The agent environment snapshot includes a "Target prepare options" line built
+from the same `TargetGraph::Compiler` output. Each entry names the target
+label, owning `.syrus.yml`, project id, and command list, for example
+`//cli:prepare (cli/.syrus.yml, project=cli): "go mod download"`. This is
+informational only: Syrus still automatically runs only the root
+`Steps::Prepare` before implementation unless a later policy explicitly opts
+into intent-based pre-prepare.
+
+Implementation-style workflow agents (`implement`, rebase-conflict repair, and
+manual workflow agents) can explicitly call the workflow MCP tool
+`run_target_prepare(label:, reason:)` when code exploration proves they need a
+specific project environment. The tool accepts only executable
+`kind: prepare` targets from the compiled graph. It runs the target's command
+list in that target project's directory (root target in the repository root,
+nested target in the nested config's directory) using the same scrubbed
+dependency environment as `Steps::Prepare`.
+
+Every call is auditable. The tool writes JobLog lines for the request and each
+command, registers the spawned subprocesses as `kind: "prepare"`, and appends a
+`Workflow#artifacts["target_prepare_requests"]` entry containing the label,
+reason, commands, workdir, owner config path, project id, run id, status,
+timestamps, command results, and output tail. A failed command returns an MCP
+error response and leaves the failed audit entry in place; it does not change
+which prepare commands Syrus will run automatically on future workflows.
 
 ### The `builder` kind is reserved, not compiled
 
