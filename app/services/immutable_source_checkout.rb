@@ -1,7 +1,13 @@
 require "fileutils"
+require "digest"
+require "json"
+require "securerandom"
 
 class ImmutableSourceCheckout
   CHECKOUT_ROOT = ".syrus/immutable-checkouts/steps".freeze
+  PREPARE_CACHE_ROOT = ".syrus/immutable-checkouts/prepare-cache".freeze
+  PREPARE_CACHE_LOCK_ROOT = ".syrus/immutable-checkouts/prepare-cache-locks".freeze
+  PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
 
   attr_reader :path
 
@@ -27,7 +33,8 @@ class ImmutableSourceCheckout
     materialize!(snapshot) unless valid_checkout?(snapshot)
     verify_head!(snapshot)
     ensure_exclude_entry
-    prepare!(snapshot)
+    prepare_cache = build_prepare_cache(snapshot)
+    prepare_with_cache!(snapshot, prepare_cache)
   end
 
   def branch_name
@@ -130,13 +137,44 @@ class ImmutableSourceCheckout
     GitInfoExclude.ensure_entry!(path, WorkflowWorkspace::LOCK_SENTINEL)
   end
 
-  def prepare!(snapshot)
-    return if prepared?(snapshot)
-
+  def build_prepare_cache(snapshot)
     plan = RepoPrepPlan.for(path)
+    PrepareCache.new(
+      workflow: @workflow,
+      step: @step,
+      snapshot: snapshot,
+      plan: plan,
+      worker_storage_key: WorkerStorageIdentity.queue_key
+    )
+  end
+
+  def prepare_with_cache!(snapshot, prepare_cache)
+    prepare_cache.with_lock do
+      if prepare_cache.hit?
+        FileUtils.rm_rf(path.to_s)
+        FileUtils.mkdir_p(path.dirname)
+        copy_tree!(prepare_cache.path, path)
+        verify_head!(snapshot)
+        ensure_exclude_entry
+        record_prepare_cache!(prepare_cache, "hit")
+        log("[immutable_source_checkout] prepare cache hit: #{prepare_cache.short_cache_key}")
+        return
+      end
+
+      record_prepare_cache!(prepare_cache, "miss")
+      prepare!(snapshot, prepare_cache)
+    end
+  end
+
+  def prepare!(snapshot, prepare_cache)
+    plan = prepare_cache.plan
     log("[immutable_source_checkout] prepare source: #{plan.source}")
     log("[immutable_source_checkout] prepare note: #{plan.note}") if plan.note
-    return record_prepared!(snapshot, plan) if plan.commands.empty?
+    if plan.commands.empty?
+      record_prepared!(snapshot, plan, prepare_cache)
+      prepare_cache.store_from!(path)
+      return
+    end
 
     plan.commands.each_with_index do |command, index|
       log("[immutable_source_checkout] prepare (#{index + 1}/#{plan.commands.size}) $ #{command}")
@@ -150,47 +188,69 @@ class ImmutableSourceCheckout
       raise Steps::Base::StepFailed, "immutable source prepare command failed: #{command}"
     end
 
-    record_prepared!(snapshot, plan)
+    record_prepared!(snapshot, plan, prepare_cache)
+    prepare_cache.store_from!(path)
   end
 
-  def prepared?(snapshot)
-    prepared_marker.exist? &&
-      JSON.parse(prepared_marker.read).slice("source_snapshot_id", "source_sha") == {
-        "source_snapshot_id" => snapshot.id,
-        "source_sha" => snapshot.source_sha
-      }
-  rescue JSON::ParserError
-    false
-  end
-
-  def record_prepared!(snapshot, plan)
+  def record_prepared!(snapshot, plan, prepare_cache)
     FileUtils.mkdir_p(prepared_marker.dirname)
     prepared_marker.write(JSON.pretty_generate(
       "source_snapshot_id" => snapshot.id,
+      "workflow_id" => @workflow.id,
       "source_sha" => snapshot.source_sha,
       "source_ref" => snapshot.source_ref,
+      "worker_storage_key" => prepare_cache.worker_storage_key,
+      "prepare_fingerprint" => prepare_cache.prepare_fingerprint,
+      "prepare_cache_key" => prepare_cache.cache_key,
       "prepared_at" => Time.current.iso8601,
       "prepare_source" => plan.source
     ))
   end
 
   def prepared_marker
-    path.join(".syrus", "immutable-source-prepared.json")
+    path.join(PREPARED_MARKER)
   end
 
   def run_prepare_command(command)
+    current_run = Thread.current[:syrus_current_run] || @step.latest_run
+    span_plan = GraderCommandSpans::Plan.for(command)
+    span_recorder = GraderCommandSpans::Recorder.new(
+      run: current_run,
+      step: @step,
+      workflow: @workflow,
+      plan: span_plan,
+      sequence_offset: current_run.command_spans.maximum(:sequence).to_i
+    ) if current_run
+    runner_command = span_recorder ? span_recorder.wrap(span_plan.shell_command) : command
+
     result = ProcessRunner.new(
       env: prepare_env,
-      command: [ "bash", "-c", command ],
+      command: [ "bash", "-c", runner_command ],
       chdir: path,
       timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
       kind: "prepare",
-      run: Thread.current[:syrus_current_run],
+      run: current_run,
       workflow: @workflow,
-      on_output_chunk: ->(chunk) { log(chunk.to_s.chomp) }
+      display_command: command,
+      on_spawned_process: ->(process) { span_recorder.spawned_process = process if span_recorder },
+      on_output_chunk: ->(chunk) {
+        visible_chunk = span_recorder ? span_recorder.consume(chunk) : chunk
+        log(visible_chunk.to_s.chomp) if visible_chunk.present?
+      }
     ).run
+    trailing_chunk = span_recorder&.flush_visible
+    log(trailing_chunk.to_s.chomp) if trailing_chunk.present?
+    span_recorder&.finalize!(
+      exit_code: result.exit_status,
+      timed_out: result.timed_out,
+      stopped: result.stopped,
+      operator_killed: result.operator_killed
+    )
 
     result.success? && !result.timed_out?
+  rescue StandardError
+    span_recorder&.finalize!(exit_code: nil, timed_out: false)
+    raise
   end
 
   def prepare_env
@@ -208,5 +268,136 @@ class ImmutableSourceCheckout
 
   def raise_infrastructure!(message)
     raise WorkflowSourceSnapshots::InfrastructureStateError, message
+  end
+
+  def copy_tree!(source, destination)
+    FileUtils.mkdir_p(destination)
+    FileUtils.cp_r(source.children.map(&:to_s), destination.to_s, preserve: true)
+  end
+
+  def record_prepare_cache!(prepare_cache, status)
+    @step.update!(details: @step.details.to_h.merge(
+      "prepare_cache" => prepare_cache.details(status)
+    ))
+  end
+
+  class PrepareCache
+    attr_reader :workflow, :step, :snapshot, :plan, :worker_storage_key, :prepare_fingerprint
+
+    def initialize(workflow:, step:, snapshot:, plan:, worker_storage_key:)
+      @workflow = workflow
+      @step = step
+      @snapshot = snapshot
+      @plan = plan
+      @worker_storage_key = worker_storage_key
+      @prepare_fingerprint = fingerprint_for(plan)
+    end
+
+    def with_lock
+      FileUtils.mkdir_p(lock_path.dirname)
+      File.open(lock_path, File::CREAT | File::RDWR) do |lock_file|
+        lock_file.flock(File::LOCK_EX)
+        yield
+      ensure
+        lock_file&.flock(File::LOCK_UN)
+      end
+    end
+
+    def hit?
+      marker_path.file? && marker_matches?
+    end
+
+    def store_from!(checkout_path)
+      temporary_path = path.dirname.join(".#{path.basename}.tmp-#{Process.pid}-#{SecureRandom.hex(6)}")
+      FileUtils.rm_rf(temporary_path.to_s)
+      FileUtils.mkdir_p(path.dirname)
+      FileUtils.mkdir_p(temporary_path)
+      FileUtils.cp_r(Pathname.new(checkout_path).children.map(&:to_s), temporary_path.to_s, preserve: true)
+      FileUtils.rm_rf(path.to_s)
+      FileUtils.mv(temporary_path.to_s, path.to_s)
+    ensure
+      FileUtils.rm_rf(temporary_path.to_s) if temporary_path && temporary_path.exist?
+    end
+
+    def path
+      WorkflowWorkspace.path_for(workflow).join(
+        PREPARE_CACHE_ROOT,
+        sanitized_worker_storage_key,
+        workflow.id.to_s,
+        snapshot.source_sha,
+        prepare_fingerprint
+      )
+    end
+
+    def marker_path
+      path.join(PREPARED_MARKER)
+    end
+
+    def cache_key
+      [
+        worker_storage_key,
+        workflow.id,
+        snapshot.source_sha,
+        prepare_fingerprint
+      ].join(":")
+    end
+
+    def short_cache_key
+      Digest::SHA256.hexdigest(cache_key).first(12)
+    end
+
+    def details(status)
+      {
+        "status" => status,
+        "worker_storage_key" => worker_storage_key,
+        "workflow_id" => workflow.id,
+        "source_snapshot_id" => snapshot.id,
+        "source_snapshot_sha" => snapshot.source_sha,
+        "prepare_fingerprint" => prepare_fingerprint,
+        "cache_key" => cache_key,
+        "cache_path" => path.to_s,
+        "prepare_source" => plan.source,
+        "command_count" => plan.commands.size,
+        "#{status}_at" => Time.current.iso8601
+      }
+    end
+
+    private
+
+    def marker_matches?
+      JSON.parse(marker_path.read).slice(
+        "worker_storage_key",
+        "workflow_id",
+        "source_sha",
+        "prepare_fingerprint"
+      ) == {
+        "worker_storage_key" => worker_storage_key,
+        "workflow_id" => workflow.id,
+        "source_sha" => snapshot.source_sha,
+        "prepare_fingerprint" => prepare_fingerprint
+      }
+    rescue JSON::ParserError
+      false
+    end
+
+    def fingerprint_for(plan)
+      Digest::SHA256.hexdigest(JSON.generate(
+        "source" => plan.source,
+        "note" => plan.note,
+        "guessed" => plan.guessed?,
+        "commands" => plan.commands
+      ))
+    end
+
+    def sanitized_worker_storage_key
+      WorkerStorageIdentity.sanitize(worker_storage_key) || "unknown-worker"
+    end
+
+    def lock_path
+      WorkflowWorkspace.path_for(workflow).join(
+        PREPARE_CACHE_LOCK_ROOT,
+        "#{Digest::SHA256.hexdigest(cache_key)}.lock"
+      )
+    end
   end
 end

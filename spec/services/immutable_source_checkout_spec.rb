@@ -17,6 +17,16 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       details: { "source_snapshot_id" => snapshot.id }
     )
   end
+  let(:second_step) do
+    Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 2,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+      details: { "source_snapshot_id" => snapshot.id }
+    )
+  end
+  let(:run) { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running") }
   let(:snapshot) do
     WorkflowSourceSnapshots.record!(
       workflow: workflow,
@@ -32,6 +42,7 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     seed_remote(bare_remote_dir)
     @data_root = Dir.mktmpdir("syrus-immutable-source-data")
     ENV["SYRUS_DATA_ROOT"] = @data_root
+    File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-a\n")
     allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
       block.call("file://#{bare_remote_dir}")
     end
@@ -62,6 +73,80 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     prepared_file = checkout.path.join(".syrus/deps/bundle/prepared.txt")
     expect(prepared_file).to exist
     expect(prepared_file.read).to eq("ready\n")
+  end
+
+  it "records prepare cache misses and command spans for the first immutable checkout on a worker" do
+    Thread.current[:syrus_current_run] = run
+
+    described_class.new(step).setup
+
+    cache_details = step.reload.details.fetch("prepare_cache")
+    expect(cache_details).to include(
+      "status" => "miss",
+      "worker_storage_key" => "storage-a",
+      "workflow_id" => workflow.id,
+      "source_snapshot_id" => snapshot.id,
+      "source_snapshot_sha" => main_sha,
+      "prepare_source" => ".syrus.yml",
+      "command_count" => 1
+    )
+    expect(cache_details["prepare_fingerprint"]).to be_present
+    expect(cache_details["cache_key"]).to eq(
+      [
+        "storage-a",
+        workflow.id,
+        main_sha,
+        cache_details.fetch("prepare_fingerprint")
+      ].join(":")
+    )
+    expect(run.reload.command_spans.ordered.map(&:command_excerpt)).to eq([
+      "mkdir -p \"$BUNDLE_PATH\"",
+      "printf 'ready\\n' > \"$BUNDLE_PATH/prepared.txt\""
+    ])
+    expect(run.command_spans.map(&:outcome)).to all(eq("succeeded"))
+  ensure
+    Thread.current[:syrus_current_run] = nil
+  end
+
+  it "reuses prepared state for later immutable-source steps with the same worker, workflow, snapshot, and fingerprint" do
+    described_class.new(step).setup
+    first_cache_details = step.reload.details.fetch("prepare_cache")
+
+    second_checkout = described_class.new(second_step)
+    allow(ProcessRunner).to receive(:new).and_call_original
+
+    second_checkout.setup
+
+    expect(second_checkout.path.join(".syrus/deps/bundle/prepared.txt").read).to eq("ready\n")
+    expect(second_step.reload.details.fetch("prepare_cache")).to include(
+      "status" => "hit",
+      "worker_storage_key" => "storage-a",
+      "source_snapshot_sha" => main_sha,
+      "prepare_fingerprint" => first_cache_details.fetch("prepare_fingerprint"),
+      "cache_key" => first_cache_details.fetch("cache_key")
+    )
+    expect(ProcessRunner).not_to have_received(:new).with(hash_including(kind: "prepare"))
+  end
+
+  it "misses naturally when the prepare fingerprint changes" do
+    described_class.new(step).setup
+    first_cache_key = step.reload.details.dig("prepare_cache", "cache_key")
+    changed_plan = instance_double(
+      RepoPrepPlan::Result,
+      source: ".syrus.yml",
+      note: nil,
+      guessed?: false,
+      commands: [ "printf changed > prepared-by-new-fingerprint.txt" ]
+    )
+    allow(RepoPrepPlan).to receive(:for).and_call_original
+    allow(RepoPrepPlan).to receive(:for).with(described_class.path_for(second_step)).and_return(changed_plan)
+
+    described_class.new(second_step).setup
+
+    second_cache_details = second_step.reload.details.fetch("prepare_cache")
+    expect(second_cache_details["status"]).to eq("miss")
+    expect(second_cache_details["cache_key"]).not_to eq(first_cache_key)
+    expect(described_class.path_for(second_step).join("prepared-by-new-fingerprint.txt")).to exist
   end
 
   it "is cleaned up by the existing workflow workspace cleanup path" do
