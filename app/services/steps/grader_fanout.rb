@@ -248,20 +248,8 @@ module Steps
             position: insertion_position + index,
             iteration: step.iteration,
             loop_id: step.loop_id,
-            details: {
-              "name" => grader.name,
-              "command" => grader.command,
-              "phase" => grader.metadata["phase"],
-              "configured_phases" => grader.metadata["configured_phases"],
-              "legacy_ci_command" => grader.metadata["legacy_ci_command"],
-              "legacy_source_grader" => grader.metadata["legacy_source_grader"],
-              "description" => grader.description,
-              "required" => grader.required,
-              "timeout_minutes" => grader.timeout_minutes,
-              "when_files_changed" => grader.when_files_changed,
-              "junit_output" => grader.junit_output,
-              "failures" => grader.failures
-            }
+            placement_policy: Step::Kind.fetch("grader").placement_policy_for(repository),
+            details: grader_details(grader).merge(distributed_grader_details(grader))
           )
         end
 
@@ -277,6 +265,32 @@ module Steps
         new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
         continuation&.update!(depends_on_ids: new_steps.map(&:id))
       end
+    end
+
+    def grader_details(grader)
+      {
+        "name" => grader.name,
+        "command" => grader.command,
+        "phase" => grader.metadata["phase"],
+        "configured_phases" => grader.metadata["configured_phases"],
+        "legacy_ci_command" => grader.metadata["legacy_ci_command"],
+        "legacy_source_grader" => grader.metadata["legacy_source_grader"],
+        "description" => grader.description,
+        "required" => grader.required,
+        "timeout_minutes" => grader.timeout_minutes,
+        "when_files_changed" => grader.when_files_changed,
+        "junit_output" => grader.junit_output,
+        "failures" => grader.failures
+      }
+    end
+
+    def distributed_grader_details(grader)
+      return {} unless Feature.distributed_workflow_dag_enabled?(repository)
+
+      {
+        "projected_target_label" => "//:grade/#{grader.name}",
+        "barrier_labels" => [ "grader_collect" ]
+      }
     end
 
     def materialized_grader_steps

@@ -355,6 +355,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       main_branch_health_enabled: false,
       main_branch_repair_auto_approve: true,
       treat_grader_timeouts_as_failures: true,
+      distributed_workflow_dag_enabled: true,
       agent_provider: "codex",
       auto_approve_mode: "if_graders_pass",
       epic_dependency_policy: "linear",
@@ -385,6 +386,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "main_branch_repair_auto_approve" => true,
       "treat_grader_timeouts_as_failures" => true,
       "external_pr_ingestion_enabled" => false,
+      "distributed_workflow_dag_enabled" => true,
       "agent_provider" => "codex",
       "auto_approve_mode" => "if_graders_pass",
       "epic_dependency_policy" => "linear",
@@ -1866,6 +1868,16 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(repository.reload.external_pr_ingestion_enabled).to be(true)
+    end
+
+    it "updates distributed_workflow_dag_enabled through the update endpoint" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      patch "/api/v1/app/repositories/#{repository.id}", params: { repository: { distributed_workflow_dag_enabled: true } }
+
+      expect(response).to have_http_status(:ok)
+      expect(repository.reload.distributed_workflow_dag_enabled).to be(true)
     end
   end
 end
