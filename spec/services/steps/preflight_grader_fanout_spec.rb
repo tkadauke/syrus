@@ -165,6 +165,9 @@ RSpec.describe Steps::PreflightGraderFanout do
     details = workflow.steps.find_by!(kind: "preflight_grader").details
     expect(details["target_label"]).to eq("//:grade/tests")
     expect(details["prepare_commands"]).to eq([ "npm ci" ])
+    expect(details["prepare_targets"]).to eq([
+      { "target_label" => "//:deps", "commands" => [ "npm ci" ] }
+    ])
   end
 
   # `fast:` no longer selects anything — a config still carrying it falls back

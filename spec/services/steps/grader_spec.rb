@@ -156,10 +156,10 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(captured_command).to eq([ "bash", "-c", "bin/rspec spec/models --format json --out custom.json" ])
   end
 
-  it "runs prepare dependency commands before the grader command" do
+  it "runs prepare target dependency commands before the grader command" do
     step.update!(details: step.details.merge(
       "command" => "bin/rspec",
-      "prepare_commands" => [ "npm ci" ]
+      "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
     ))
     commands = []
     allow(ProcessRunner).to receive(:new) do |**kwargs|
@@ -177,6 +177,59 @@ RSpec.describe Steps::Grader, :ci_only do
       [ "bash", "-c", "npm ci" ],
       [ "bash", "-c", "bin/rspec" ]
     ])
+    results = step.reload.details["prepare_target_results"]
+    expect(results).to eq([
+      { "target_label" => "//:deps", "status" => "ran", "commands" => [ "npm ci" ], "reason" => "first use in this workflow workspace (requested by grader:tests)" }
+    ])
+  end
+
+  describe "prepare target reuse across grader Steps" do
+    let(:other_step) do
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100,
+        details: {
+          "name" => "lint",
+          "command" => "bin/rubocop",
+          "required" => true,
+          "timeout_minutes" => 1,
+          "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
+        }
+      )
+    end
+    let(:other_run) { other_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: other_step.iteration) }
+    let(:other_handler) { described_class.new(other_run) }
+
+    before do
+      step.update!(details: step.details.merge(
+        "command" => "bin/rspec",
+        "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "npm ci" ] } ]
+      ))
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(other_handler).to receive(:workspace).and_return(fake_ws)
+    end
+
+    it "only runs the shared prepare target's commands once for the workflow workspace" do
+      npm_ci_runs = 0
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        npm_ci_runs += 1 if kwargs[:command] == [ "bash", "-c", "npm ci" ]
+        instance_double(ProcessRunner, run: ProcessRunner::Result.new(
+          exit_status: 0, timed_out: false, stopped: false,
+          silent_timed_out: false, operator_killed: false,
+          aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+        ))
+      end
+
+      handler.call
+      other_handler.call
+
+      expect(npm_ci_runs).to eq(1)
+      expect(step.reload.details["prepare_target_results"].first["status"]).to eq("ran")
+      reused = other_step.reload.details["prepare_target_results"].first
+      expect(reused["status"]).to eq("reused")
+      expect(reused["reason"]).to include("requested by grader:tests")
+    end
   end
 
   it "records spans for successful composite grader phases without writing markers to grade logs" do
@@ -291,6 +344,66 @@ RSpec.describe Steps::Grader, :ci_only do
 
     it "does not record a warning when the grader leaves the workspace clean" do
       expect { handler.call }.not_to change(WorkflowWarning, :count)
+    end
+  end
+
+  describe "prepare target side-effect detection" do
+    before do
+      FileUtils.mkdir_p(@ws_path)
+      git_opts = { chdir: @ws_path.to_s, exception: true }
+      system("git", "init", "--quiet", **git_opts)
+      system("git", "config", "user.email", "test@example.com", **git_opts)
+      system("git", "config", "user.name", "Test", **git_opts)
+      File.write(@ws_path.join("README.md"), "hello\n")
+      system("git", "add", ".", **git_opts)
+      system("git", "commit", "--quiet", "-m", "init", **git_opts)
+
+      step.update!(details: step.details.merge(
+        "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "touch dirty.txt" ] } ]
+      ))
+    end
+
+    it "records a prepare_target_side_effect warning when a prepare target leaves uncommitted changes, without affecting grader pass/fail" do
+      expect { handler.call }.not_to raise_error
+
+      warning = WorkflowWarning.last
+      expect(warning.kind).to eq("prepare_target_side_effect")
+      expect(warning.workflow).to eq(workflow)
+      expect(warning.step).to eq(step)
+      expect(warning.severity).to eq("medium")
+      expect(warning.evidence["target_label"]).to eq("//:deps")
+      expect(warning.evidence["commands"]).to eq([ "touch dirty.txt" ])
+      expect(warning.evidence["changed_files"]).to include("dirty.txt")
+      expect(warning.suggested_prompt).to include("//:deps")
+      expect(warning.suggested_prompt).to include("dirty.txt")
+      expect(warning.suggested_prompt).to include("generated:")
+    end
+
+    it "does not re-check for mutation when a later grader Step reuses the same prepare target" do
+      handler.call
+      expect(WorkflowWarning.where(kind: "prepare_target_side_effect").count).to eq(1)
+
+      other_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100,
+        details: {
+          "name" => "lint",
+          "command" => "true",
+          "required" => true,
+          "timeout_minutes" => 1,
+          "prepare_targets" => [ { "target_label" => "//:deps", "commands" => [ "touch dirty.txt" ] } ]
+        }
+      )
+      other_run = other_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: other_step.iteration)
+      other_handler = described_class.new(other_run)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(other_handler).to receive(:workspace).and_return(fake_ws)
+
+      other_handler.call
+
+      expect(WorkflowWarning.where(kind: "prepare_target_side_effect").count).to eq(1)
+      expect(other_step.reload.details["prepare_target_results"].first["status"]).to eq("reused")
     end
   end
 end
