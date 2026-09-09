@@ -50,7 +50,10 @@ module Steps
       client = GithubClient.for(repository: repository, user: job.user)
       stack_entries.each do |entry|
         pr_number = entry["pr_number"]
-        base = entry["base_branch"].presence || repository.default_branch
+        stack_job = Job.find_by(id: entry["job_id"])
+        next if stack_job&.closed?
+
+        base = stack_job&.effective_base_branch.presence || entry["base_branch"].presence || repository.default_branch
         next if pr_number.blank?
 
         client.update_pull_request_base(repository.slug, pr_number, base: base)

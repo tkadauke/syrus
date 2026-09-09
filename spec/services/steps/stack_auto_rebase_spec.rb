@@ -56,4 +56,31 @@ RSpec.describe Steps::StackAutoRebase do
     expect(agent_step.reload.state).to eq("queued")
     expect(workflow.reload.artifact("stack_rebase_agent_pending").map { |entry| entry["job_id"] }).to eq([ job.id, child.id ])
   end
+
+  it "closes an already-landed stack member instead of leaving it to be rebased forever" do
+    result = AutoRebase::Result.new(
+      true,
+      AutoRebase::ALREADY_LANDED_REASON,
+      "no commits left ahead of main - this branch's work is already on the base",
+      changed: false,
+      pre_sha: "head",
+      post_sha: "base",
+      base_sha: "base"
+    )
+    client = instance_double(GithubClient, add_issue_comment: nil, close_pull_request: nil)
+    allow(GithubClient).to receive(:for).and_return(client)
+    allow(AutoRebase).to receive(:new)
+      .with(job, base_branch: "main")
+      .and_return(instance_double(AutoRebase, call: result))
+    allow(AutoRebase).to receive(:new)
+      .with(child, base_branch: "syrus/issue-42-1")
+      .and_return(instance_double(AutoRebase, call: AutoRebase::Result.new(true, "rebased", "no-op", changed: false, pre_sha: "c", post_sha: "c", base_sha: "base")))
+
+    described_class.new(run).call
+
+    expect(job.reload).to be_closed
+    expect(job.closure_reason).to eq("pr_merged")
+    expect(client).to have_received(:close_pull_request).with(repository.slug, 7)
+    expect(workflow.reload.artifact("stack_rebase_results").first.dig("result", "reason")).to eq(AutoRebase::ALREADY_LANDED_REASON)
+  end
 end

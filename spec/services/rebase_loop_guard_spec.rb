@@ -29,6 +29,26 @@ RSpec.describe RebaseLoopGuard do
     )
   end
 
+  def already_landed_rebase(pre_sha: "head", post_sha: "base", base_sha: "base")
+    Workflows::StackRebase.instantiate(job: job).update!(
+      state: "succeeded",
+      artifacts: {
+        StackRebasePlan::RESULTS_ARTIFACT => [
+          {
+            "job_id" => job.id,
+            "result" => {
+              "reason" => AutoRebase::ALREADY_LANDED_REASON,
+              "changed" => false,
+              "pre_sha" => pre_sha,
+              "post_sha" => post_sha,
+              "base_sha" => base_sha
+            }
+          }
+        ]
+      }
+    )
+  end
+
   it "matches a no-op rebase when the PR head is unchanged and GitHub omits the base sha" do
     no_op_rebase
 
@@ -65,5 +85,23 @@ RSpec.describe RebaseLoopGuard do
 
     expect(described_class.noop_rebase_for?(job: job, pr: pr(base_ref: "syrus/parent"), client: github)).to be true
     expect(github).to have_received(:branch_head_sha).with(job.repository.slug, "syrus/parent")
+  end
+
+  it "matches an already-landed stack rebase against the unchanged PR head" do
+    already_landed_rebase(pre_sha: "head", post_sha: "base", base_sha: "base")
+
+    expect(described_class.noop_rebase_for?(job: job, pr: pr(head_sha: "head"), client: client("base"))).to be true
+  end
+
+  it "does not match an already-landed stack rebase after the PR head changes" do
+    already_landed_rebase(pre_sha: "old-head", post_sha: "base", base_sha: "base")
+
+    expect(described_class.noop_rebase_for?(job: job, pr: pr(head_sha: "new-head"), client: client("base"))).to be false
+  end
+
+  it "keeps matching an already-landed stack rebase after the base branch advances" do
+    already_landed_rebase(pre_sha: "head", post_sha: "old-base", base_sha: "old-base")
+
+    expect(described_class.noop_rebase_for?(job: job, pr: pr(head_sha: "head"), client: client("new-base"))).to be true
   end
 end

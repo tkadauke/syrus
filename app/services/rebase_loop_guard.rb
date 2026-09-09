@@ -19,9 +19,8 @@ class RebaseLoopGuard
     return false unless workflow
 
     result = result_for(workflow, job)
-    post_sha = result["post_sha"].presence
-    return false if post_sha.blank?
-    return false unless post_sha == pr_head_sha(pr)
+    return false unless rebase_result_covers_pr_head?(result, pr)
+    return true if result["reason"] == AutoRebase::ALREADY_LANDED_REASON
 
     base_sha = result["base_sha"].presence
     current_base_sha = current_base_sha(job: job, pr: pr, client: client)
@@ -31,9 +30,25 @@ class RebaseLoopGuard
   end
 
   def self.noop_result?(result)
-    result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
+    result.is_a?(Hash) &&
+      result["changed"] == false &&
+      [ "rebased", AutoRebase::ALREADY_LANDED_REASON ].include?(result["reason"])
   end
   private_class_method :noop_result?
+
+  def self.rebase_result_covers_pr_head?(result, pr)
+    head_sha = pr_head_sha(pr)
+    return false if head_sha.blank?
+
+    comparison_sha =
+      if result["reason"] == AutoRebase::ALREADY_LANDED_REASON
+        result["pre_sha"].presence
+      else
+        result["post_sha"].presence
+      end
+    comparison_sha.present? && comparison_sha == head_sha
+  end
+  private_class_method :rebase_result_covers_pr_head?
 
   def self.pr_base_ref(pr)
     pr.base&.ref.to_s.presence
