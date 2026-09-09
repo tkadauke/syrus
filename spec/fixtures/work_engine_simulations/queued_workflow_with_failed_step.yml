@@ -1,0 +1,37 @@
+name: queued workflow with failed step
+repository:
+  owner: simulation
+  name: queued-workflow-with-failed-step
+jobs:
+  wedged:
+    title: Queued workflow with failed step
+    state: queued
+    workflow:
+      kind: initial
+      state: queued
+      intent:
+        state: requested
+      work_unit:
+        state: queued
+      steps:
+        - kind: prepare
+          state: failed
+          run:
+            state: failed
+            agent_outcome: error
+            started_at: "2026-09-09T13:40:00Z"
+            finished_at: "2026-09-09T13:40:37Z"
+            diagnostic:
+              error_class: ActiveRecord::StatementInvalid
+              error_message: "Mysql2::Error: Duplicate entry 'job:4655:initial' for key 'work_units.idx_work_units_active_dedup_key_unique'"
+        - kind: implement
+          state: queued
+        - kind: summarize
+          state: queued
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  wedged:
+    - implemented

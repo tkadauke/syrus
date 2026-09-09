@@ -48,7 +48,7 @@ type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
-type SelectionRect = { top: number; left: number; containerWidth: number }
+type SelectionRect = { top: number; left: number; width: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
@@ -69,6 +69,9 @@ type AnchorHighlight = {
 type RailEntry =
   | { kind: "thread"; id: string; anchorStart: number; thread: DesignDocThread }
   | { kind: "suggestion"; id: string; anchorStart: number; suggestion: DesignDocSuggestion }
+
+const INLINE_SUGGESTION_DIFF_MAX_CHARS = 1600
+const INLINE_SUGGESTION_DIFF_MAX_TOKENS = 360
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, initialDesignDocId, initialDesignDocs = [], mode, repositoryId }: {
   chatId?: number
@@ -323,8 +326,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
-  const canWriteCanonical = doc.permissions.can_write_canonical
-  const canSuggest = doc.permissions.can_suggest
+  const isArchived = doc.state === "archived"
+  const canWriteCanonical = !isArchived && doc.permissions.can_write_canonical
+  const canSuggest = !isArchived && doc.permissions.can_suggest
+  const canReviewSuggestions = !isArchived && doc.permissions.can_review_suggestions
+  const canArchive = !isArchived && doc.permissions.can_archive
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
@@ -335,6 +341,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const wysiwygRenderRef = useRef<{ highlights: AnchorHighlight[]; focusedThreadId: number | null; focusedSuggestionId: number | null }>({ highlights: [], focusedThreadId: null, focusedSuggestionId: null })
   const editorShellRef = useRef<HTMLDivElement | null>(null)
   const newThreadComposerRef = useRef<HTMLInputElement | null>(null)
+  const railLayoutFrameRef = useRef<number | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
@@ -419,7 +426,19 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   })
   const reviewMutation = useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "accept" | "reject" }) => decision === "accept" ? acceptDesignDocSuggestion(doc.id, id) : rejectDesignDocSuggestion(doc.id, id),
-    onSuccess: (payload) => onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+    onSuccess: (payload) => {
+      const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
+      setDraft(nextDraft)
+      setTitle(payload.design_doc.title)
+      setSelection(emptySelection())
+      setFocusedThreadId(null)
+      setFocusedSuggestionId(null)
+      setMarkdownScrollTop(0)
+      if (textareaRef.current) textareaRef.current.scrollTop = 0
+      window.requestAnimationFrame(() => editorShellRef.current?.scrollIntoView?.({ block: "start" }))
+      persistedDraftRef.current = persistedDraftFingerprint(payload.design_doc.id, payload.design_doc.title, nextDraft)
+      onDocChange(payload.design_doc, payload.message || "Suggestion reviewed.")
+    }
   })
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
@@ -543,7 +562,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       return
     }
 
-    function recompute() {
+    function recomputeNow() {
       const stackEl = railStackRef.current
       if (!stackEl) return
 
@@ -553,10 +572,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         const marker = markerRoot?.querySelector(
           entry.kind === "thread" ? `[data-thread-id="${entry.thread.id}"]` : `[data-suggestion-id="${entry.suggestion.id}"]`
         ) as HTMLElement | null
+        const anchorStart = entry.kind === "thread"
+          ? entry.thread.anchor.last_known_start_offset ?? entry.thread.anchor.start_offset
+          : entry.suggestion.anchor.last_known_start_offset ?? entry.suggestion.anchor.start_offset
         const cardEl = entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]
         return {
           id: entry.id,
-          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : null,
+          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }),
           height: cardEl?.getBoundingClientRect().height ?? 0
         }
       })
@@ -569,7 +591,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       setRailLayout(computeRailLayout(measurements, pivotId, RAIL_CARD_GAP))
     }
 
-    recompute()
+    function scheduleRecompute() {
+      if (railLayoutFrameRef.current != null) return
+      railLayoutFrameRef.current = window.requestAnimationFrame(() => {
+        railLayoutFrameRef.current = null
+        recomputeNow()
+      })
+    }
+
+    scheduleRecompute()
 
     const observedElements = [
       railStackRef.current,
@@ -577,18 +607,24 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       ...railEntries.map((entry) => (entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]))
     ].filter((element): element is HTMLDivElement => element != null)
 
-    window.addEventListener("resize", recompute)
+    window.addEventListener("resize", scheduleRecompute)
     if (typeof ResizeObserver === "undefined") {
-      return () => window.removeEventListener("resize", recompute)
+      return () => {
+        if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
+        railLayoutFrameRef.current = null
+        window.removeEventListener("resize", scheduleRecompute)
+      }
     }
 
-    const observer = new ResizeObserver(recompute)
+    const observer = new ResizeObserver(scheduleRecompute)
     observedElements.forEach((element) => observer.observe(element))
     return () => {
+      if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
+      railLayoutFrameRef.current = null
       observer.disconnect()
-      window.removeEventListener("resize", recompute)
+      window.removeEventListener("resize", scheduleRecompute)
     }
-  }, [editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
+  }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
@@ -599,13 +635,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    if (isArchived) return
+
     const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
     if (fingerprint === persistedDraftRef.current) return
     if (autosaveMutation.isPending) return
 
     const timeout = window.setTimeout(() => autosaveMutation.mutate(), 800)
     return () => window.clearTimeout(timeout)
-  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, title])
+  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, isArchived, title])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
@@ -706,6 +744,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         versionsLoading={versions.isPending}
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
+        onArchive={() => metadataMutation.mutate({ state: "archived" })}
         onSave={() => {
           if (effectiveChangeMode === "edit" && !summaryVisible) {
             setSummaryVisible(true)
@@ -715,15 +754,26 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           saveMutation.mutate()
         }}
         saveLabel={saveLabel}
-        saveDisabled={saveDisabled}
+        saveDisabled={saveDisabled || isArchived}
+        archiveDisabled={metadataMutation.isPending}
+        canArchive={canArchive}
         canManageMetadata={canWriteCanonical}
+        isArchived={isArchived}
         onVersionChange={selectVersion}
         onVersionsOpen={() => setVersionsOpen(true)}
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
+      {isArchived ? (
+        <Panel>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusLabel value="archived" />
+            <p className="text-sm text-gray-700 dark:text-gray-300">This design doc is archived. Content, comments, suggestions, and reviews are read only.</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -731,6 +781,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           ) : null}
           <DesignDocFormattingToolbar
             canWriteCanonical={canWriteCanonical}
+            readOnly={isArchived || !canSuggest}
             changeMode={effectiveChangeMode}
             draft={draft}
             editorMode={editorMode}
@@ -753,6 +804,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 onKeyUp={() => updateSelection()}
                 onMouseUp={() => updateSelection()}
                 onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
+                readOnly={isArchived}
                 ref={textareaRef}
                 value={draft}
               />
@@ -761,7 +813,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             <div
               aria-label="Rich Text editor"
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
-              contentEditable
+              contentEditable={!isArchived}
               onBlur={() => {
                 setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
                 window.setTimeout(() => {
@@ -795,7 +847,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             />
           )}
           <SelectionCommentAffordance
-            disabled={selection.end <= selection.start}
+            disabled={selection.end <= selection.start || !canSuggest}
             selection={selection}
             onOpenComposer={() => {
               setFocusedThreadId(null)
@@ -816,6 +868,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           historicalVersionLoading={historicalVersionLoadingForRail}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
+          readOnly={isArchived}
+          canComment={canSuggest}
+          canReviewSuggestions={canReviewSuggestions}
           railEntries={railEntries}
           railLayout={railLayout}
           railStackRef={railStackRef}
@@ -841,10 +896,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   )
 }
 
-function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+  archiveDisabled: boolean
+  canArchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
+  isArchived: boolean
   repoIds: string[]
   repositories: Array<{ id: number; slug: string }>
   repositoryPickerOpen: boolean
@@ -860,6 +918,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   versions: DesignDocVersion[]
   versionsLoading: boolean
   versionsOpen: boolean
+  onArchive: () => void
   onMetadataSave: () => void
   onSave: () => void
   saveLabel: string
@@ -964,7 +1023,10 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
             </div>
           ) : null}
         </div>
-        <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button>
+        {canArchive ? (
+          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">Archive</Button>
+        ) : null}
+        {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
         <Select
           aria-label="Version selection"
           className="ml-auto max-w-[12rem]"
@@ -1042,11 +1104,12 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
   )
 }
 
-function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, selection, setChangeMode, setEditorMode, onCommand }: {
+function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, readOnly, selection, setChangeMode, setEditorMode, onCommand }: {
   canWriteCanonical: boolean
   changeMode: ChangeMode
   draft: string
   editorMode: EditorMode
+  readOnly: boolean
   selection: SelectionRange
   setChangeMode: (mode: ChangeMode) => void
   setEditorMode: (mode: EditorMode) => void
@@ -1084,7 +1147,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   const selectedBlock = currentBlockCommand(draft, range)
 
   function commandDisabled(command: DesignDocFormattingCommand) {
-    return !canApplyDesignDocFormattingCommand(draft, range, command)
+    return readOnly || !canApplyDesignDocFormattingCommand(draft, range, command)
   }
 
   function runCommand(command: DesignDocFormattingCommand) {
@@ -1096,7 +1159,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   return (
     <div
       aria-label="Formatting toolbar"
-      className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      className="sticky top-0 z-20 flex min-w-0 items-center gap-2 rounded-t border-b border-gray-200 bg-gray-50 px-3 py-2 max-lg:top-14 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >
@@ -1117,7 +1180,9 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
         </div>
 
         <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-          {canWriteCanonical ? (
+          {readOnly ? (
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Read only</span>
+          ) : canWriteCanonical ? (
             (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
               <button
                 aria-pressed={changeMode === candidate}
@@ -1162,7 +1227,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
       </div>
 
       <div className="relative shrink-0" ref={moreMenuRef}>
-        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        <ToolbarIconButton ariaExpanded={moreOpen} disabled={readOnly} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
             {!wideToolbar ? listItems.map((item) => (
@@ -1252,10 +1317,7 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   return (
     <div
       className="absolute z-30"
-      style={{
-        left: selection.rect ? `${clampAffordanceLeft(selection.rect)}px` : "1rem",
-        top: selection.rect ? `${Math.max(selection.rect.top - 44, 8)}px` : "1rem"
-      }}
+      style={selection.rect ? selectionAffordanceStyle(selection.rect) : { left: "1rem", top: "1rem" }}
     >
       <Button
         aria-label="Comment on selection"
@@ -1313,7 +1375,9 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+  canComment: boolean
+  canReviewSuggestions: boolean
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
@@ -1325,6 +1389,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
   railEntries: RailEntry[]
   railLayout: RailLayout
   railStackRef: React.MutableRefObject<HTMLDivElement | null>
+  readOnly: boolean
   replyBodies: Record<number, string>
   selection: SelectionRange
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1339,7 +1404,9 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
-  const hasSelection = selection.end > selection.start && !viewingHistory
+  const interactionsReadOnly = readOnly || viewingHistory
+  const hasSelection = selection.end > selection.start && !interactionsReadOnly && canComment
+  const railStackShift = !viewingHistory ? railLayout.stackShift : 0
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
@@ -1387,41 +1454,47 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
         {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         <div
-          className="space-y-3"
-          data-testid="design-doc-rail-stack"
-          ref={railStackRef}
-          style={{ transform: !viewingHistory && railLayout.stackShift !== 0 ? `translateY(${railLayout.stackShift}px)` : undefined }}
+          className="overflow-hidden"
+          data-testid="design-doc-rail-clip"
+          style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
-          {railEntries.map((entry, index) => entry.kind === "thread" ? (
-            <CommentThreadCard
-              focused={focusedThreadId === entry.thread.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={replyBodies[entry.thread.id] ?? ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              thread={entry.thread}
-              threadRefs={threadRefs}
-              onFocus={onFocus}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onResolve={onResolve}
-            />
-          ) : (
-            <SuggestionThreadCard
-              canReview={!viewingHistory && doc.permissions.can_review_suggestions}
-              focused={focusedSuggestionId === entry.suggestion.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              suggestion={entry.suggestion}
-              suggestionRefs={suggestionRefs}
-              onFocus={onFocusSuggestion}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onReview={onReview}
-            />
-          ))}
+          <div
+            className="space-y-3"
+            data-testid="design-doc-rail-stack"
+            ref={railStackRef}
+            style={{ transform: railStackShift !== 0 ? `translateY(${railStackShift}px)` : undefined }}
+          >
+            {railEntries.map((entry, index) => entry.kind === "thread" ? (
+              <CommentThreadCard
+                focused={focusedThreadId === entry.thread.id}
+                key={entry.id}
+                readOnly={interactionsReadOnly}
+                replyBody={replyBodies[entry.thread.id] ?? ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                thread={entry.thread}
+                threadRefs={threadRefs}
+                onFocus={onFocus}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onResolve={onResolve}
+              />
+            ) : (
+              <SuggestionThreadCard
+                canReview={!interactionsReadOnly && canReviewSuggestions}
+                focused={focusedSuggestionId === entry.suggestion.id}
+                key={entry.id}
+                readOnly={interactionsReadOnly}
+                replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                suggestion={entry.suggestion}
+                suggestionRefs={suggestionRefs}
+                onFocus={onFocusSuggestion}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onReview={onReview}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </Panel>
@@ -1653,11 +1726,61 @@ function CommentIcon() {
   )
 }
 
-function clampAffordanceLeft(rect: SelectionRect) {
+function selectionAffordanceStyle(rect: SelectionRect) {
   const iconWidth = 36
   const inset = 8
-  const maxLeft = Math.max(inset, rect.containerWidth - iconWidth - inset)
-  return Math.min(Math.max(rect.left, inset), maxLeft)
+  const gap = 8
+  const preferredTop = rect.top - iconWidth - gap
+
+  if (preferredTop >= inset) {
+    return {
+      left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+      top: `${preferredTop}px`
+    }
+  }
+
+  if (rect.width > 0) {
+    const rightSideLeft = rect.left + rect.width + gap
+    if (rightSideLeft + iconWidth <= rect.containerWidth - inset) {
+      return { left: `${rightSideLeft}px`, top: `${inset}px` }
+    }
+
+    const leftSideLeft = rect.left - iconWidth - gap
+    if (leftSideLeft >= inset) return { left: `${leftSideLeft}px`, top: `${inset}px` }
+  }
+
+  return {
+    left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+    top: `${inset}px`
+  }
+}
+
+function clampAffordanceLeft(left: number, containerWidth: number) {
+  const iconWidth = 36
+  const inset = 8
+  const maxLeft = Math.max(inset, containerWidth - iconWidth - inset)
+  return Math.min(Math.max(left, inset), maxLeft)
+}
+
+function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
+  anchorStart: number | null | undefined
+  containerTop: number
+  draft: string
+  markerRoot: HTMLElement | null
+}) {
+  if (anchorStart == null || !markerRoot) return null
+
+  const sourceElement = Array.from(markerRoot.querySelectorAll("[data-source-start][data-source-end]")).find((element) => {
+    const start = Number((element as HTMLElement).dataset.sourceStart)
+    const end = Number((element as HTMLElement).dataset.sourceEnd)
+    return Number.isFinite(start) && Number.isFinite(end) && start <= anchorStart && end > anchorStart
+  }) as HTMLElement | undefined
+  if (sourceElement) return sourceElement.getBoundingClientRect().top - containerTop
+
+  const rootTop = markerRoot.getBoundingClientRect().top - containerTop
+  const lineHeight = 24
+  const lineIndex = draft.slice(0, anchorStart).split("\n").length - 1
+  return rootTop + 16 + lineIndex * lineHeight
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
@@ -1806,12 +1929,12 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
   return highlights.find((highlight) => {
-    if (highlight.kind !== "suggestion" || highlight.renderMode === "block" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
     if (highlight.start > offset || highlight.end <= offset) return false
 
     const original = highlight.originalMarkdown ?? ""
     const proposed = highlight.proposedMarkdown ?? ""
-    return (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
+    return highlight.renderMode === "block" || (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
   }) ?? null
 }
 
@@ -1828,7 +1951,7 @@ function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThrea
   const proposed = highlight.proposedMarkdown ?? ""
 
   return [
-    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-block-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
     `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, highlight.start)}</del>`,
     `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(proposed)}</ins>`,
     "</div>"
@@ -2344,8 +2467,15 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         if (segment.highlight.renderMode === "block") {
           const className = focused
             ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
-            : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
-          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceSpan(segment.text, baseOffset + segment.start)}</mark>`
+            : "rounded-sm bg-surface-raised px-0.5"
+          const original = segment.highlight.originalMarkdown ?? segment.text
+          const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
+          if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
+          return [
+            `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+            renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
+            "</mark>"
+          ].join("")
         }
 
         const className = focused
@@ -2387,7 +2517,11 @@ type InlineSuggestionDiff =
 function inlineSuggestionDiff(original: string, proposed: string): InlineSuggestionDiff {
   if (shouldRenderWholeSuggestion(original, proposed)) return { mode: "whole", proposed }
 
-  const diff = tokenDiff(original, proposed)
+  const oldTokens = tokenizeInlineDiff(original)
+  const newTokens = tokenizeInlineDiff(proposed)
+  if (oldTokens.length + newTokens.length > INLINE_SUGGESTION_DIFF_MAX_TOKENS) return { mode: "whole", proposed }
+
+  const diff = tokenDiff(oldTokens, newTokens)
   const alternatingRuns = diff.filter((part) => part.kind !== "equal").length
   const commonText = diff.filter((part) => part.kind === "equal").map((part) => part.text).join("")
   const commonCoverage = commonText.length / Math.max(original.length, proposed.length, 1)
@@ -2411,6 +2545,7 @@ function inlineSuggestionDiff(original: string, proposed: string): InlineSuggest
 
 function shouldRenderWholeSuggestion(original: string, proposed: string) {
   return (
+    original.length + proposed.length > INLINE_SUGGESTION_DIFF_MAX_CHARS ||
     crossesMarkdownBlockBoundary(original) ||
     crossesMarkdownBlockBoundary(proposed) ||
     crossesSentenceBoundary(original) ||
@@ -2429,9 +2564,7 @@ function crossesSentenceBoundary(value: string) {
   return (value.match(/[.!?](?:\s+|$)/g) ?? []).length > 1
 }
 
-function tokenDiff(original: string, proposed: string): InlineSuggestionPart[] {
-  const oldTokens = tokenizeInlineDiff(original)
-  const newTokens = tokenizeInlineDiff(proposed)
+function tokenDiff(oldTokens: string[], newTokens: string[]): InlineSuggestionPart[] {
   const lengths = Array.from({ length: oldTokens.length + 1 }, () => Array<number>(newTokens.length + 1).fill(0))
 
   for (let oldIndex = oldTokens.length - 1; oldIndex >= 0; oldIndex -= 1) {
@@ -2514,6 +2647,7 @@ function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end
   return {
     left: Math.min(rect.width - 32, 16 + lines.at(-1)!.length * charWidth),
     top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop),
+    width: 0,
     containerWidth: rect.width
   }
 }
@@ -2528,7 +2662,8 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
 
   return {
     left: rangeRect.left - containerRect.left,
-    top: rangeRect.bottom - containerRect.top,
+    top: rangeRect.top - containerRect.top,
+    width: rangeRect.width,
     containerWidth: containerRect.width
   }
 }

@@ -1,0 +1,79 @@
+name: happy path two epic dependency lands
+app_settings:
+  merge_train_enabled: true
+repository:
+  owner: simulation
+  name: happy-path-two-epic-dependency-lands
+  auto_merge_enabled: true
+epics:
+  upstream:
+    title: Upstream epic
+  downstream:
+    title: Downstream epic
+    depends_on:
+      - upstream
+jobs:
+  upstream_job:
+    title: Upstream epic job
+    epic: upstream
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+  downstream_job:
+    title: Downstream epic job
+    epic: downstream
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+events:
+  - name: approve upstream job once implemented
+    once: true
+    when:
+      job:
+        id: upstream_job
+        state: implemented
+    do:
+      approve: upstream_job
+  - name: complete upstream epic once landed
+    once: true
+    when:
+      job:
+        id: upstream_job
+        state: closed
+    do:
+      complete_epic: upstream
+  - name: approve downstream job once implemented
+    once: true
+    when:
+      job:
+        id: downstream_job
+        state: implemented
+    do:
+      approve: downstream_job
+  - name: complete downstream epic once landed
+    once: true
+    when:
+      job:
+        id: downstream_job
+        state: closed
+    do:
+      complete_epic: downstream
+outcomes:
+  default: success
+expect:
+  jobs:
+    upstream_job:
+      - closed
+    downstream_job:
+      - closed
+  epics:
+    upstream:
+      - done
+    downstream:
+      - done
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: empty

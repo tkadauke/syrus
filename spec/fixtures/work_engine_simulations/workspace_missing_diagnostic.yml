@@ -1,0 +1,28 @@
+name: workspace missing diagnostic
+expected_status: stuck
+reconciler:
+  ignored_issue_kinds: []
+repository:
+  owner: simulation
+  name: workspace-missing-diagnostic
+jobs:
+  missing_workspace:
+    title: Missing workspace job
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      intent:
+        state: requested
+      work_unit:
+        state: running
+      steps:
+        - kind: implement
+          state: running
+        - kind: pr_open
+          state: queued
+outcomes:
+  default: success
+success_states:
+  missing_workspace:
+    - implemented

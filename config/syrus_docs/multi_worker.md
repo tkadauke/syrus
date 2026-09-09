@@ -1,10 +1,14 @@
 # Multi-worker operation
 
-Syrus can run more than one worker pod. Per-Job concurrency is enforced with a
-DB-backed SolidQueue semaphore (`RunJob` keyed on `job:<id>`), and recurring
-pollers/reapers de-duplicate cluster-wide, so most of the system is already
-safe across pods. Running workers on more than one node additionally needs the
-queue split below; a few behaviors are specific to multi-worker after that.
+Syrus can run more than one worker pod. `RunJob` uses a DB-backed SolidQueue
+semaphore keyed by Step placement: pinned/mutable/provider-continuity Steps
+keep the legacy per-Job key (`job:<id>`), while immutable-source Steps may use
+per-Step keys when distributed DAG placement and worker-slot admission are both
+enabled. The worker-slot admission row is the same-worker mutex for that
+rollout. Recurring pollers/reapers de-duplicate cluster-wide, so most of the
+system is already safe across pods. Running workers on more than one node
+additionally needs the queue split below; a few behaviors are specific to
+multi-worker after that.
 
 ## Spreading workers across nodes (queue partitioning)
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2036,6 +2036,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
     t.string "ci_health", default: "unknown", null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
+    t.boolean "distributed_workflow_dag_enabled", default: false, null: false
     t.string "epic_dependency_policy", default: "linear", null: false
     t.boolean "external_pr_ingestion_enabled", default: false, null: false
     t.string "feedback_policy", default: "confirm", null: false
@@ -2555,6 +2556,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
     t.string "kind", null: false
     t.string "loop_id"
     t.bigint "next_step_id"
+    t.string "placement_policy", default: "pinned_workflow_workspace", null: false
     t.integer "position", default: 0, null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
@@ -2563,6 +2565,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
     t.index ["kind", "state", "finished_at", "workflow_id"], name: "idx_steps_throughput_kind_state_finished"
     t.index ["kind", "workflow_id"], name: "idx_steps_kind_workflow_id"
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
+    t.index ["placement_policy"], name: "index_steps_on_placement_policy"
     t.index ["state", "updated_at", "id"], name: "idx_steps_state_updated_id"
     t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
@@ -3020,6 +3023,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_08_120000) do
     t.index ["trigger_kind", "occurred_at"], name: "idx_workflow_activity_trigger_occurred"
     t.index ["workflow_id", "occurred_at"], name: "idx_workflow_activity_workflow_occurred"
     t.index ["workflow_id"], name: "index_workflow_activity_events_on_workflow_id"
+  end
+
+  create_table "workflow_source_snapshots", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "creator_step_id", null: false
+    t.string "fingerprint"
+    t.datetime "published_at", null: false
+    t.string "source_ref", null: false
+    t.string "source_sha", null: false
+    t.string "tree_sha"
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id", null: false
+    t.index ["creator_step_id"], name: "index_workflow_source_snapshots_on_creator_step_id"
+    t.index ["workflow_id", "published_at"], name: "idx_workflow_source_snapshots_current"
   end
 
   create_table "workflow_step_resource_profiles", force: :cascade do |t|

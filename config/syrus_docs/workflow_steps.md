@@ -2,6 +2,38 @@
 
 Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke the agent CLI) or **non-agentic** (run service code directly). Step kinds are registered in `app/models/step/kind.rb`.
 
+`Step` is also the workflow DAG node record for the distributed-workflow
+foundation; Syrus does not create a separate node table. Every Step has a
+`placement_policy` column. The default is `pinned_workflow_workspace`, which is
+the legacy behavior: run on the workflow's mutable workspace and owning storage
+key. Other supported policies are `immutable_source_checkout` for read-only
+validation from a durable source snapshot, `control_plane` for fanout/collect
+or orchestration work that does not need a repository checkout, and
+`external_context` for checks that run against a connector or runtime outside
+the checkout.
+
+The non-pinned policies are gated by both the instance `distributed_workflow_dag`
+feature flag and the repository's `distributed_workflow_dag_enabled` setting.
+When either gate is off, newly materialized Steps stay pinned even if their
+`Step::Kind` entry declares a future distributed placement. Descriptive
+projection metadata such as `projected_target_label`,
+`projected_target_fingerprint`, `projected_resource_key`, `barrier_group`,
+`barrier_labels`, and source-snapshot references stays in `steps.details`; only
+scheduler-hot placement is a column.
+
+`immutable_source_checkout` Steps materialize a detached checkout from the
+Step's `source_snapshot_id`. Before running the Step command, Syrus runs the
+normal repository prepare plan once per worker storage key, Workflow, source
+snapshot SHA, and prepare fingerprint. Later immutable-source Steps on the same
+worker with the same snapshot and fingerprint reuse that prepared state instead
+of rerunning prepare. A changed source snapshot SHA or changed resolved prepare
+plan naturally produces a different cache key. Each immutable-source Step records
+its cache hit or miss in `steps.details["prepare_cache"]`, including
+`worker_storage_key`, `workflow_id`, `source_snapshot_sha`,
+`prepare_fingerprint`, `cache_key`, `cache_path`, `prepare_source`, and
+`command_count`. Target-specific prepare is intentionally not part of this
+rollout.
+
 Before a queued Run starts, `RunJob` may defer pickup on the selected compute
 host if that host is under critical resource pressure or is already running a
 resource-guarded Run. This host-local guard applies to `:runs`, `:merges`, and
@@ -360,6 +392,18 @@ Grader materialization remains sequential within the current workflow workspace.
 Landing-specific fanout is not enabled; any future design needs isolated
 workspaces for grader side effects before multiple grader Runs can overlap.
 
+When both the instance `distributed_workflow_dag` feature and the repository
+opt-in are enabled, legacy grader fanout also records target-style projection
+metadata on each materialized `grader` Step without changing the serial chain:
+`projected_target_label` (`//:grade/<name>`),
+`projected_target_fingerprint`, `projected_resource_key`, `barrier_group`, and
+`barrier_labels`. The same gated payload connects the Step to the current
+workflow source snapshot through `source_snapshot_id` plus a nested
+`source_snapshot` summary (`source_sha`, `source_ref`, `tree_sha`, and optional
+`fingerprint`). When either gate is disabled, fanout keeps the legacy pinned
+placement, writes none of this projection/source-snapshot detail, and creates no
+workflow source snapshot solely for grader metadata.
+
 Before matching a grader's `when_files_changed` globs, this step also asks
 every registered `:affected_test_analyzer` plugin (see
 [`plugins.md`](plugins.md#affected_test_analyzer)) whether it can more
@@ -698,10 +742,11 @@ Agentic repair step for `local_mode_handoff` grader failures. The operator's loc
 
 ## Grader command spans
 
-`grader` and `preflight_grader` Runs persist `CommandSpan` rows associated with
-the Run, Step, Workflow, Job, and spawned process when available. Each span
-records sequence, name, command excerpt, start/finish timestamps, duration,
-exit status/outcome, hostname, and metadata.
+`grader` and `preflight_grader` Runs, plus immutable-source checkout prepare
+commands, persist `CommandSpan` rows associated with the Run, Step, Workflow,
+Job, and spawned process when available. Each span records sequence, name,
+command excerpt, start/finish timestamps, duration, exit status/outcome,
+hostname, and metadata.
 
 Worker-health correlation reports each span's persisted `finished_at` plus an
 effective bounded window. `effective_finished_at` is the earliest available

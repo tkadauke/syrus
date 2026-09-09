@@ -1,0 +1,21 @@
+name: worker died retries once
+repository:
+  owner: simulation
+  name: worker-died-retries-once
+jobs:
+  job:
+    title: Worker died retries once
+    state: queued
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+  steps:
+    job:implement:
+      - worker_died
+      - success
+success_states:
+  job:
+    - implemented
+

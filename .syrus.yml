@@ -218,6 +218,18 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 3
 
+  - name: work-engine-simulations
+    description: |
+      Runs every deterministic WorkEngine simulation scenario in series.
+      These fixtures replay stuck production-style states with mocked
+      execution and must end in success or a declared waiting state, so
+      scheduler/reconciler regressions surface before they block the
+      landing queue for hours.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/simulator
+    phases: [review, landing, ci]
+    required: true
+    timeout_minutes: 3
+
   - name: production-build-boot
     description: |
       Boots the production Rails environment in Docker asset-precompile

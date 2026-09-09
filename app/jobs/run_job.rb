@@ -8,15 +8,12 @@ class RunJob < ApplicationJob
   # can't get a thread. Splitting queues keeps short jobs fast.
   queue_as :runs
 
-  # One Run at a time per Job. Per-Job (not per-repo) is the right
-  # granularity: the Workflow's per-Workflow workspace at
-  # $SYRUS_DATA_ROOT/workflows/<workflow_id>/ is shared across the
-  # chain's steps, but two concurrent Workflows on the same Job
-  # would race on that path. The collision risk is *within* a Job;
-  # the per-Job key prevents two Runs (same Workflow's next step or
-  # a parallel Workflow) from interleaving.
+  # Pinned/mutable/provider-continuity Steps keep the legacy per-Job mutex.
+  # Immutable-source Steps can use per-Step keys once distributed DAG
+  # placement and worker-slot admission are both enabled; same-worker overlap
+  # is then rejected by WorkflowStepWorkerSlot at pickup time.
   limits_concurrency to: 1, key: ->(run_id) {
-    "job:#{::Run.where(id: run_id).pick(:job_id)}"
+    RunJobConcurrencyKey.for(run_id)
   }
 
   discard_on ActiveRecord::RecordNotFound
@@ -137,7 +134,7 @@ class RunJob < ApplicationJob
 
   # Global, cluster-wide cap on concurrent agent Runs (the `:runs` queue),
   # admin-configured via AppSetting.max_concurrent_agent_runs. SolidQueue's
-  # per-job concurrency key (job:<id>) is already used for per-Job
+  # RunJob's placement-aware SolidQueue key is already used for workflow
   # serialization, so this is a best-effort DB-counted gate rather than a
   # second SolidQueue semaphore: if the cap is already met, this Run bounces
   # back to the queue with a short delay. DB-counted so it holds across worker

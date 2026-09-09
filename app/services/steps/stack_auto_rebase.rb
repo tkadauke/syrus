@@ -44,7 +44,10 @@ module Steps
     end
 
     def rebaseable_job?(stack_job)
-      stack_job&.open? && stack_job.branch_name.present? && (stack_job.pr_number.present? || stack_job.external_pr_number.present?)
+      stack_job.present? &&
+        (stack_job.open? || stack_job.failed?) &&
+        stack_job.branch_name.present? &&
+        (stack_job.pr_number.present? || stack_job.external_pr_number.present?)
     end
 
     def finalize_already_landed!(stack_job, entry, result)

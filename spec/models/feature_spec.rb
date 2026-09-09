@@ -123,6 +123,25 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".distributed_workflow_dag_enabled?" do
+    it "requires both the instance feature and the repository opt-in" do
+      repository = Factories.repository(distributed_workflow_dag_enabled: true)
+
+      Feature.where(slug: "distributed_workflow_dag").delete_all
+      expect(Feature.distributed_workflow_dag_enabled?(repository)).to eq(false)
+
+      feature = Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+      expect(Feature.distributed_workflow_dag_enabled?(repository)).to eq(true)
+
+      repository.update!(distributed_workflow_dag_enabled: false)
+      expect(Feature.distributed_workflow_dag_enabled?(repository)).to eq(false)
+
+      feature.update!(enabled: false)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      expect(Feature.distributed_workflow_dag_enabled?(repository)).to eq(false)
+    end
+  end
+
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
@@ -176,6 +195,11 @@ RSpec.describe Feature, type: :model do
 
     it "declares the performance logging operations flag default-off in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "performance_logging" }
+      expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
+    end
+
+    it "declares the distributed workflow DAG operations flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "distributed_workflow_dag" }
       expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
     end
 

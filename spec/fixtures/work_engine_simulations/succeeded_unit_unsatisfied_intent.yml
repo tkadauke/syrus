@@ -1,0 +1,16 @@
+name: succeeded unit unsatisfied intent
+repository:
+  owner: simulation
+  name: succeeded-unit-unsatisfied-intent
+work_intents:
+  intent:
+    kind: initial
+    state: requested
+work_units:
+  unit:
+    intent: intent
+    kind: initial
+    state: succeeded
+outcomes:
+  default: success
+

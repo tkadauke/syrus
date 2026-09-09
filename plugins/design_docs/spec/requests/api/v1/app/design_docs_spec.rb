@@ -109,6 +109,27 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
   end
 
+  it "keeps archived docs out of the default list but visible through explicit state filters" do
+    active = create_design_doc(title: "Active draft")
+    archived = create_design_doc(title: "Archived draft", state: "archived")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to include(active.id)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).not_to include(archived.id)
+
+    q = Base64.urlsafe_encode64(
+      JSON.generate("and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ]),
+      padding: false
+    )
+    get "/api/v1/app/design_docs", params: { q: q }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ archived.id ])
+  end
+
   it "does not render duplicate built-in smart folders when stale duplicates exist" do
     cache_store = ActiveSupport::Cache::MemoryStore.new
     allow(Rails).to receive(:cache).and_return(cache_store)
@@ -273,6 +294,78 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body).not_to have_key("version")
     expect(doc.reload.markdown).to eq("v2")
     expect(doc.current_version.markdown).to eq("v1")
+  end
+
+  it "lets owners archive a design doc without deleting its records" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    comment = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    ).comment
+    sign_in_as(owner)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          state: "archived"
+        }
+      }
+    }.not_to change(DesignDoc, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(parse_body.dig("design_doc", "state")).to eq("archived")
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => false,
+      "can_review_suggestions" => false,
+      "can_archive" => false
+    )
+    expect(DesignDoc.exists?(doc.id)).to be(true)
+    expect(DesignDocVersion.where(design_doc_id: doc.id)).to exist
+    expect(DesignDocComment.exists?(comment.id)).to be(true)
+  end
+
+  it "denies non-owner archive attempts" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        state: "archived"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(doc.reload.state).to eq("draft")
+  end
+
+  it "keeps archived docs directly inspectable but read-only" do
+    doc = create_design_doc(markdown: "Archived body", state: "archived")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs/#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("design_doc", "state")).to eq("archived")
+    expect(parse_body.dig("design_doc", "markdown")).to eq("Archived body")
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => false,
+      "can_review_suggestions" => false,
+      "can_archive" => false
+    )
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        markdown: "Unexpected rewrite"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(doc.reload.markdown).to eq("Archived body")
   end
 
   it "lets owners checkpoint persisted working markdown as a new append-only version" do
@@ -960,7 +1053,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.dig("suggestion", "state")).to eq("accepted")
     expect(parse_body.dig("version", "version_number")).to eq(3)
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello Syrus")
-    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
+    expect(doc.markdown).not_to include(suggestion.anchor.marker_id)
+    expect(suggestion.anchor.reload.status).to eq("stale")
   end
 
   it "classifies block-level heading suggestions and accepts them once into canonical markdown" do
@@ -1079,12 +1173,14 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect {
       post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/reject"
-    }.not_to change(DesignDocVersion, :count)
+    }.to change(DesignDocVersion, :count).by(1)
 
     expect(response).to have_http_status(:ok)
     expect(suggestion.reload.state).to eq("rejected")
-    expect(doc.reload.markdown).to eq(marked_markdown)
+    expect(doc.reload.markdown).to eq(DesignDocs::AnchorMarkers.strip(marked_markdown))
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
+    expect(doc.markdown).not_to include(suggestion.anchor.marker_id)
+    expect(suggestion.anchor.reload.status).to eq("stale")
   end
 
   it "marks suggestions stale when the anchored original text changed before owner acceptance" do
@@ -1100,12 +1196,13 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect {
       post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
-    }.not_to change(DesignDocVersion, :count)
+    }.to change(DesignDocVersion, :count).by(1)
 
     expect(response).to have_http_status(:conflict)
     expect(suggestion.reload.state).to eq("stale")
     expect(suggestion.anchor.reload.status).to eq("stale")
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello earth")
+    expect(doc.markdown).not_to include(suggestion.anchor.marker_id)
   end
 
   it "marks suggestions conflicted when their anchor markers are missing" do
@@ -1126,6 +1223,90 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:conflict)
     expect(suggestion.reload.state).to eq("conflict")
     expect(suggestion.anchor.reload.status).to eq("missing")
+  end
+
+  it "accepts DOC-25-style chunked suggestions without leaving reviewed range markers in canonical markdown" do
+    original = [
+      "# Distributed Parallel Grader Execution",
+      "",
+      "This design keeps grader execution readable while workers scale out.",
+      "",
+      "## Goals",
+      "",
+      "The workflow should fan out required graders and collect every result.",
+      "",
+      "## Scheduling",
+      "",
+      "Each grader run should claim capacity independently.",
+      "",
+      "## Collection",
+      "",
+      "The collector waits for all required graders before continuing."
+    ].join("\n")
+    expected_after_opening = original.sub(
+      "# Distributed Parallel Grader Execution\n\nThis design keeps grader execution readable while workers scale out.",
+      "# Distributed Parallel Grader Execution\n\nThis design makes grader fanout explicit, bounded, and observable while workers scale out."
+    )
+    expected_after_goals = expected_after_opening.sub(
+      "The workflow should fan out required graders and collect every result.",
+      "The workflow fans out required graders, records immutable results, and collects every required verdict."
+    )
+    expected_final = expected_after_goals.sub(
+      "Each grader run should claim capacity independently.\n\n## Collection\n\nThe collector waits for all required graders before continuing.",
+      "Each grader run claims capacity independently and reports worker health spans.\n\n## Collection\n\nThe collector waits for all required graders, then advances or schedules repair."
+    )
+    doc = create_design_doc(markdown: original)
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    create_and_accept = lambda do |current_markdown, selected, proposed|
+      start_offset = current_markdown.index(selected)
+      expect(start_offset).not_to be_nil
+
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: start_offset,
+          end_offset: start_offset + selected.length,
+          original_markdown: selected,
+          proposed_markdown: proposed,
+          change_type: "replace"
+        }
+      }
+      expect(response).to have_http_status(:created)
+      suggestion_id = parse_body.dig("suggestion", "id")
+
+      sign_in_as(owner)
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion_id}/accept"
+      expect(response).to have_http_status(:ok)
+      sign_in_as(collaborator)
+      DesignDocs::AnchorMarkers.strip(doc.reload.markdown)
+    end
+
+    after_opening = create_and_accept.call(
+      DesignDocs::AnchorMarkers.strip(doc.reload.markdown),
+      "# Distributed Parallel Grader Execution\n\nThis design keeps grader execution readable while workers scale out.",
+      "# Distributed Parallel Grader Execution\n\nThis design makes grader fanout explicit, bounded, and observable while workers scale out."
+    )
+    expect(after_opening).to eq(expected_after_opening)
+
+    after_goals = create_and_accept.call(
+      DesignDocs::AnchorMarkers.strip(doc.reload.markdown),
+      "The workflow should fan out required graders and collect every result.",
+      "The workflow fans out required graders, records immutable results, and collects every required verdict."
+    )
+    expect(after_goals).to eq(expected_after_goals)
+
+    final_markdown = create_and_accept.call(
+      DesignDocs::AnchorMarkers.strip(doc.reload.markdown),
+      "Each grader run should claim capacity independently.\n\n## Collection\n\nThe collector waits for all required graders before continuing.",
+      "Each grader run claims capacity independently and reports worker health spans.\n\n## Collection\n\nThe collector waits for all required graders, then advances or schedules repair."
+    )
+
+    expect(final_markdown).to eq(expected_final)
+    expect(doc.reload.markdown).to eq(expected_final)
+    reviewed_anchor_ids = doc.suggestions.where.not(state: "pending").pluck(:design_doc_anchor_id)
+    expect(reviewed_anchor_ids).to match_array(doc.anchors.pluck(:id))
+    expect(doc.anchors.pluck(:status).uniq).to eq([ "stale" ])
   end
 
   it "rejects unsupported suggestion change types in v1" do

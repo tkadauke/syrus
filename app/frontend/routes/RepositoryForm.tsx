@@ -815,6 +815,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
     external_pr_ingestion_enabled: payload.repository.external_pr_ingestion_enabled,
+    distributed_workflow_dag_enabled: payload.repository.distributed_workflow_dag_enabled,
     agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
     feedback_policy: payload.repository.feedback_policy,

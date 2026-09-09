@@ -150,6 +150,7 @@ Chat agents receive deferred Design Docs tools:
 - `propose_design_doc`
 - `comment_on_design_doc`
 - `suggest_design_doc_change`
+- `delete_design_doc`
 
 Workflow agents receive read-only tools:
 
@@ -165,3 +166,13 @@ Markdown directly for agent actors. Offset-based suggestions must include the
 the offsets as `base_version_number`. Creating a suggestion inserts anchor
 markers and creates a new document version, so agents must re-read the Design Doc
 before sending another offset-based suggestion.
+
+Despite its name, `delete_design_doc` archives the target document by setting
+`state: archived`; it never physically deletes the doc, versions, comments,
+threads, suggestions, anchors, or repository links. A fresh version 1 doc that
+is less than 10 minutes old and has no comments, threads, or suggestions is
+archived immediately. Older docs, docs past version 1, and docs with discussion
+or suggestions create a `ChatPendingAction` confirmation before archiving, with
+payload fields for the DOC reference, title, state, age, version, discussion
+counts, repository ids/slugs, and confirmation reason. Workflow agents do not
+receive this tool.

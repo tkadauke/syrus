@@ -722,6 +722,44 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(kind(result, :closed_job_active_runtime_work)).to be_nil
   end
 
+  it "includes active job workflows after their WorkUnit has already failed" do
+    ensure_solid_queue_test_tables!
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 30.seconds.ago)
+    attach_work_unit(workflow, state: "failed")
+    spawned_process = SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "retired-worker",
+      pid: 12345,
+      pgid: 12345,
+      started_at: 9.minutes.ago,
+      last_chunk_at: 8.minutes.ago,
+      finished_at: 7.minutes.ago,
+      outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(spawned_process.id)
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_id: run.id
+    )
+  end
+
   it "ignores replay workflows without WorkUnits on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
@@ -3323,6 +3361,37 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     result = reconcile_and_execute(workflow_id: workflow.id)
 
     expect(kind(result, :running_workflow_with_failed_step)).to be_present
+    expect(plan(result, :fail_workflow_from_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: workflow.id
+    )
+    expect(workflow.reload).to be_failed
+    expect(job.reload).to be_failed
+    expect(step.reload).to be_failed
+    expect(pr_open.reload).to be_queued
+    expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
+  end
+
+  it "fails a queued workflow that already has a failed step and a queued tail" do
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+    step.update!(kind: "prepare", next_step: pr_open)
+    job.update_columns(state: "queued", started_at: nil)
+    workflow.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    step.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    pr_open.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "error",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago
+    )
+    attach_work_unit(workflow, state: "queued")
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_workflow_with_failed_step)).to be_present
     expect(plan(result, :fail_workflow_from_failed_step)).to have_attributes(
       auto_executable: true,
       target_type: "Workflow",

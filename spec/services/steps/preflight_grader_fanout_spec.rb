@@ -38,8 +38,13 @@ RSpec.describe Steps::PreflightGraderFanout do
     collect_step
     step
 
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main", branch_name: "main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
+
+    @git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(@git)
+    allow(@git).to receive(:run).with("rev-parse", "HEAD", chdir: anything).and_return("abc123\n")
+    allow(@git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: anything).and_return("tree123\n")
   end
 
   def write_grade_config(content)
@@ -73,6 +78,49 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     expect(workflow.steps.where(kind: "grader").count).to eq(0)
     expect(workflow.steps.where(kind: "preflight_grader").count).to eq(1)
+  end
+
+  it "keeps preflight grader Steps pinned and detail-compatible when the distributed gate is off" do
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "preflight_grader")
+    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+    expect(grader_step.details).not_to include("projected_target_label", "barrier_labels", "source_snapshot_id", "source_snapshot")
+    expect(workflow.source_snapshots).to be_empty
+  end
+
+  it "records immutable placement and descriptive DAG metadata when distributed workflows are enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "preflight_grader")
+    snapshot = workflow.source_snapshots.sole
+    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+    expect(grader_step.details).to include(
+      "projected_target_label" => "//:preflight-grade/tests",
+      "barrier_labels" => [ "preflight_grader_collect" ],
+      "source_snapshot_id" => snapshot.id
+    )
+    expect(grader_step.details["source_snapshot"]).to include(
+      "id" => snapshot.id,
+      "source_sha" => "abc123",
+      "source_ref" => "refs/heads/main",
+      "tree_sha" => "tree123"
+    )
   end
 
   it "does not filter graders by when_files_changed — runs all graders regardless" do
