@@ -454,6 +454,7 @@ export function ImageAnnotationModal({
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const viewportRef      = useRef<HTMLDivElement | null>(null)
   const pastRef          = useRef<Shape[][]>([])
   const futureRef        = useRef<Shape[][]>([])
   const interactionRef   = useRef<Interaction | null>(null)
@@ -494,6 +495,50 @@ export function ImageAnnotationModal({
   // Keep zoom/pan refs in sync with state
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { panRef.current = pan },   [pan])
+
+  const constrainPan = useCallback((nextPan: Point, nextZoom = zoomRef.current): Point => {
+    const viewport = viewportRef.current
+    const canvas = overlayCanvasRef.current
+    if (!viewport || !canvas) return nextPan
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const canvasWidth = canvas.offsetWidth || canvas.clientWidth
+    const canvasHeight = canvas.offsetHeight || canvas.clientHeight
+    if (!viewportRect.width || !viewportRect.height || !canvasWidth || !canvasHeight) return nextPan
+
+    const maxX = Math.max(0, (canvasWidth * nextZoom - viewportRect.width) / 2)
+    const maxY = Math.max(0, (canvasHeight * nextZoom - viewportRect.height) / 2)
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextPan.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextPan.y))
+    }
+  }, [])
+
+  const updatePan = useCallback((updater: Point | ((current: Point) => Point), nextZoom = zoomRef.current) => {
+    setPan((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater
+      return constrainPan(next, nextZoom)
+    })
+  }, [constrainPan])
+
+  const updateZoom = useCallback((nextZoom: number | ((current: number) => number)) => {
+    setZoom((current) => {
+      const resolvedZoom = clampZoom(typeof nextZoom === "function" ? nextZoom(current) : nextZoom)
+      setPan((currentPan) => constrainPan(currentPan, resolvedZoom))
+      return resolvedZoom
+    })
+  }, [constrainPan])
+
+  useEffect(() => {
+    if (!imageSize) return
+    updatePan((current) => current, zoomRef.current)
+  }, [imageSize, updatePan])
+
+  useEffect(() => {
+    const onResize = () => updatePan((current) => current, zoomRef.current)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [updatePan])
 
   useEffect(() => {
     if (!textPlacement) return
@@ -575,13 +620,13 @@ export function ImageAnnotationModal({
       futureRef.current = []
       setShapes(initialShapesRef.current)
       setImageSize({ width, height })
-      setZoom(1)
+      updateZoom(1)
       setPan({ x: 0, y: 0 })
       syncHistoryCounts()
     }
     image.src = baseImageUrl
     return () => { cancelled = true }
-  }, [baseImageUrl, syncHistoryCounts])
+  }, [baseImageUrl, syncHistoryCounts, updateZoom])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -660,11 +705,11 @@ export function ImageAnnotationModal({
     if (!canvas) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
-      setPan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
+      updatePan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
     }
     canvas.addEventListener("wheel", onWheel, { passive: false })
     return () => canvas.removeEventListener("wheel", onWheel)
-  }, [])
+  }, [updatePan])
 
   // canvasPoint: converts pointer client coords to canvas pixel coords.
   // In real browsers, getBoundingClientRect accounts for the CSS transform on the parent wrapper,
@@ -811,15 +856,15 @@ export function ImageAnnotationModal({
         x: M.x - (M.x - pinch.startPan.x) * scale,
         y: M.y - (M.y - pinch.startPan.y) * scale
       }
-      setZoom(newZoom)
-      setPan(newPan)
+      updateZoom(newZoom)
+      updatePan(newPan, newZoom)
       return
     }
 
     // Space+drag pan
     if (isPanDragRef.current?.pointerId === event.pointerId) {
       const { startClient, startPan } = isPanDragRef.current
-      setPan({
+      updatePan({
         x: startPan.x + event.clientX - startClient.x,
         y: startPan.y + event.clientY - startClient.y
       })
@@ -968,7 +1013,7 @@ export function ImageAnnotationModal({
   }
 
   function changeZoom(delta: number) {
-    setZoom(z => clampZoom(z + delta))
+    updateZoom(z => z + delta)
   }
 
   const canvasStyle    = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
@@ -1076,7 +1121,7 @@ export function ImageAnnotationModal({
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden" ref={viewportRef}>
           <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
             <div
               className="relative"
@@ -1128,7 +1173,7 @@ export function ImageAnnotationModal({
             fullWidth={false}
             max={ZOOM_MAX}
             min={ZOOM_MIN}
-            onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+            onChange={(e) => updateZoom(Number(e.target.value))}
             step={0.05}
             style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
             type="range"
