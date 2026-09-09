@@ -35,6 +35,7 @@ module DesignDocs
 
     def create_suggestion
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
+      raise Pundit::NotAuthorizedError unless attributes.key?(:markdown)
 
       candidate_markdown = attributes[:markdown].to_s
       if candidate_markdown.blank?

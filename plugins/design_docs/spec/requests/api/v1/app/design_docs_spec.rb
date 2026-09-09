@@ -109,6 +109,27 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
   end
 
+  it "keeps archived docs out of the default list but visible through explicit state filters" do
+    active = create_design_doc(title: "Active draft")
+    archived = create_design_doc(title: "Archived draft", state: "archived")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to include(active.id)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).not_to include(archived.id)
+
+    q = Base64.urlsafe_encode64(
+      JSON.generate("and" => [ { "field" => "state", "op" => "is", "value" => "archived" } ]),
+      padding: false
+    )
+    get "/api/v1/app/design_docs", params: { q: q }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ archived.id ])
+  end
+
   it "does not render duplicate built-in smart folders when stale duplicates exist" do
     cache_store = ActiveSupport::Cache::MemoryStore.new
     allow(Rails).to receive(:cache).and_return(cache_store)
@@ -273,6 +294,78 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body).not_to have_key("version")
     expect(doc.reload.markdown).to eq("v2")
     expect(doc.current_version.markdown).to eq("v1")
+  end
+
+  it "lets owners archive a design doc without deleting its records" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    comment = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Keep this", start_offset: 0, end_offset: 5, selected_markdown: "Alpha" }
+    ).comment
+    sign_in_as(owner)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          state: "archived"
+        }
+      }
+    }.not_to change(DesignDoc, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(parse_body.dig("design_doc", "state")).to eq("archived")
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => false,
+      "can_review_suggestions" => false,
+      "can_archive" => false
+    )
+    expect(DesignDoc.exists?(doc.id)).to be(true)
+    expect(DesignDocVersion.where(design_doc_id: doc.id)).to exist
+    expect(DesignDocComment.exists?(comment.id)).to be(true)
+  end
+
+  it "denies non-owner archive attempts" do
+    doc = create_design_doc(markdown: "Alpha beta")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        state: "archived"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(doc.reload.state).to eq("draft")
+  end
+
+  it "keeps archived docs directly inspectable but read-only" do
+    doc = create_design_doc(markdown: "Archived body", state: "archived")
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs/#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("design_doc", "state")).to eq("archived")
+    expect(parse_body.dig("design_doc", "markdown")).to eq("Archived body")
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => false,
+      "can_review_suggestions" => false,
+      "can_archive" => false
+    )
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: {
+      design_doc: {
+        markdown: "Unexpected rewrite"
+      }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(doc.reload.markdown).to eq("Archived body")
   end
 
   it "lets owners checkpoint persisted working markdown as a new append-only version" do

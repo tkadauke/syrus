@@ -326,8 +326,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
-  const canWriteCanonical = doc.permissions.can_write_canonical
-  const canSuggest = doc.permissions.can_suggest
+  const isArchived = doc.state === "archived"
+  const canWriteCanonical = !isArchived && doc.permissions.can_write_canonical
+  const canSuggest = !isArchived && doc.permissions.can_suggest
+  const canReviewSuggestions = !isArchived && doc.permissions.can_review_suggestions
+  const canArchive = !isArchived && doc.permissions.can_archive
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
@@ -632,13 +635,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
+    if (isArchived) return
+
     const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
     if (fingerprint === persistedDraftRef.current) return
     if (autosaveMutation.isPending) return
 
     const timeout = window.setTimeout(() => autosaveMutation.mutate(), 800)
     return () => window.clearTimeout(timeout)
-  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, title])
+  }, [autosaveMutation, doc.id, draft, effectiveChangeMode, isArchived, title])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
@@ -739,6 +744,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         versionsLoading={versions.isPending}
         versionsOpen={versionsOpen}
         onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
+        onArchive={() => metadataMutation.mutate({ state: "archived" })}
         onSave={() => {
           if (effectiveChangeMode === "edit" && !summaryVisible) {
             setSummaryVisible(true)
@@ -748,12 +754,23 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           saveMutation.mutate()
         }}
         saveLabel={saveLabel}
-        saveDisabled={saveDisabled}
+        saveDisabled={saveDisabled || isArchived}
+        archiveDisabled={metadataMutation.isPending}
+        canArchive={canArchive}
         canManageMetadata={canWriteCanonical}
+        isArchived={isArchived}
         onVersionChange={selectVersion}
         onVersionsOpen={() => setVersionsOpen(true)}
         onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
       />
+      {isArchived ? (
+        <Panel>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusLabel value="archived" />
+            <p className="text-sm text-gray-700 dark:text-gray-300">This design doc is archived. Content, comments, suggestions, and reviews are read only.</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
         <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -764,6 +781,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           ) : null}
           <DesignDocFormattingToolbar
             canWriteCanonical={canWriteCanonical}
+            readOnly={isArchived || !canSuggest}
             changeMode={effectiveChangeMode}
             draft={draft}
             editorMode={editorMode}
@@ -786,6 +804,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
                 onKeyUp={() => updateSelection()}
                 onMouseUp={() => updateSelection()}
                 onScroll={(event) => setMarkdownScrollTop(event.currentTarget.scrollTop)}
+                readOnly={isArchived}
                 ref={textareaRef}
                 value={draft}
               />
@@ -794,7 +813,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             <div
               aria-label="Rich Text editor"
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
-              contentEditable
+              contentEditable={!isArchived}
               onBlur={() => {
                 setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))
                 window.setTimeout(() => {
@@ -828,7 +847,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             />
           )}
           <SelectionCommentAffordance
-            disabled={selection.end <= selection.start}
+            disabled={selection.end <= selection.start || !canSuggest}
             selection={selection}
             onOpenComposer={() => {
               setFocusedThreadId(null)
@@ -849,6 +868,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           historicalVersionLoading={historicalVersionLoadingForRail}
           focusedThreadId={focusedThreadId}
           focusedSuggestionId={focusedSuggestionId}
+          readOnly={isArchived}
+          canComment={canSuggest}
+          canReviewSuggestions={canReviewSuggestions}
           railEntries={railEntries}
           railLayout={railLayout}
           railStackRef={railStackRef}
@@ -874,10 +896,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   )
 }
 
-function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, selectedVersionId, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, canManageMetadata, isArchived, onArchive, onMetadataSave, onSave, saveLabel, saveDisabled, onVersionChange, onVersionsOpen, onVisibilityChange }: {
+  archiveDisabled: boolean
+  canArchive: boolean
   collaborators: string
   canManageMetadata: boolean
   doc: DesignDocDetail
+  isArchived: boolean
   repoIds: string[]
   repositories: Array<{ id: number; slug: string }>
   repositoryPickerOpen: boolean
@@ -893,6 +918,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   versions: DesignDocVersion[]
   versionsLoading: boolean
   versionsOpen: boolean
+  onArchive: () => void
   onMetadataSave: () => void
   onSave: () => void
   saveLabel: string
@@ -997,7 +1023,10 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
             </div>
           ) : null}
         </div>
-        <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button>
+        {canArchive ? (
+          <Button disabled={archiveDisabled} onClick={onArchive} size="sm" variant="secondary">Archive</Button>
+        ) : null}
+        {!isArchived ? <Button disabled={saveDisabled} onClick={onSave} size="sm">{saveLabel}</Button> : null}
         <Select
           aria-label="Version selection"
           className="ml-auto max-w-[12rem]"
@@ -1075,11 +1104,12 @@ function MarkdownHighlightMirror({ draft, focusedSuggestionId, focusedThreadId, 
   )
 }
 
-function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, selection, setChangeMode, setEditorMode, onCommand }: {
+function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, editorMode, readOnly, selection, setChangeMode, setEditorMode, onCommand }: {
   canWriteCanonical: boolean
   changeMode: ChangeMode
   draft: string
   editorMode: EditorMode
+  readOnly: boolean
   selection: SelectionRange
   setChangeMode: (mode: ChangeMode) => void
   setEditorMode: (mode: EditorMode) => void
@@ -1117,7 +1147,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   const selectedBlock = currentBlockCommand(draft, range)
 
   function commandDisabled(command: DesignDocFormattingCommand) {
-    return !canApplyDesignDocFormattingCommand(draft, range, command)
+    return readOnly || !canApplyDesignDocFormattingCommand(draft, range, command)
   }
 
   function runCommand(command: DesignDocFormattingCommand) {
@@ -1150,7 +1180,9 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
         </div>
 
         <div aria-label="Change mode" className="inline-flex shrink-0 overflow-hidden rounded border border-border bg-surface text-sm" role="group">
-          {canWriteCanonical ? (
+          {readOnly ? (
+            <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Read only</span>
+          ) : canWriteCanonical ? (
             (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
               <button
                 aria-pressed={changeMode === candidate}
@@ -1195,7 +1227,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
       </div>
 
       <div className="relative shrink-0" ref={moreMenuRef}>
-        <ToolbarIconButton ariaExpanded={moreOpen} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
+        <ToolbarIconButton ariaExpanded={moreOpen} disabled={readOnly} icon="..." label="More formatting" onClick={() => setMoreOpen((open) => !open)} />
         {moreOpen ? (
           <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
             {!wideToolbar ? listItems.map((item) => (
@@ -1343,7 +1375,9 @@ function activeRailEntries({ doc, historicalVersion, historicalVersionLoading }:
   return { viewingHistory, entries }
 }
 
-function ThreadPanel({ commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPending, composerRef, doc, historicalVersion, historicalVersionLoading, focusedSuggestionId, focusedThreadId, railEntries, railLayout, railStackRef, readOnly, replyBodies, selection, suggestionRefs, threadRefs, onComment, onCommentChange, onFocus, onFocusSuggestion, onReply, onReplyChange, onResolve, onReview }: {
+  canComment: boolean
+  canReviewSuggestions: boolean
   commentBody: string
   commentPending: boolean
   composerRef: React.MutableRefObject<HTMLInputElement | null>
@@ -1355,6 +1389,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
   railEntries: RailEntry[]
   railLayout: RailLayout
   railStackRef: React.MutableRefObject<HTMLDivElement | null>
+  readOnly: boolean
   replyBodies: Record<number, string>
   selection: SelectionRange
   suggestionRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
@@ -1369,7 +1404,8 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
   onReview: (id: number, decision: "accept" | "reject") => void
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
-  const hasSelection = selection.end > selection.start && !viewingHistory
+  const interactionsReadOnly = readOnly || viewingHistory
+  const hasSelection = selection.end > selection.start && !interactionsReadOnly && canComment
   const railStackShift = !viewingHistory ? railLayout.stackShift : 0
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
@@ -1432,7 +1468,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
               <CommentThreadCard
                 focused={focusedThreadId === entry.thread.id}
                 key={entry.id}
-                readOnly={viewingHistory}
+                readOnly={interactionsReadOnly}
                 replyBody={replyBodies[entry.thread.id] ?? ""}
                 style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
                 thread={entry.thread}
@@ -1444,10 +1480,10 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
               />
             ) : (
               <SuggestionThreadCard
-                canReview={!viewingHistory && doc.permissions.can_review_suggestions}
+                canReview={!interactionsReadOnly && canReviewSuggestions}
                 focused={focusedSuggestionId === entry.suggestion.id}
                 key={entry.id}
-                readOnly={viewingHistory}
+                readOnly={interactionsReadOnly}
                 replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
                 style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
                 suggestion={entry.suggestion}

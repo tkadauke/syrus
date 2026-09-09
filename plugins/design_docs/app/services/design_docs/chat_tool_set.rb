@@ -5,7 +5,8 @@ module DesignDocs
       ReadDesignDocTool,
       ProposeDesignDocTool,
       CommentOnDesignDocTool,
-      SuggestDesignDocChangeTool
+      SuggestDesignDocChangeTool,
+      DeleteDesignDocTool
     ].freeze
 
     def self.available_for?(chat_session, tier:)
