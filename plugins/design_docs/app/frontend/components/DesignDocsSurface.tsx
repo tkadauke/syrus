@@ -48,7 +48,7 @@ type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
-type SelectionRect = { top: number; left: number; containerWidth: number }
+type SelectionRect = { top: number; left: number; width: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "strike" | "link"; text: string; sourceStart: number; href?: string }
 type InlineSuggestionPart = { kind: "equal" | "delete" | "insert"; text: string }
 type WysiwygRenderContext = { renderedSuggestionIds: Set<string>; renderedWholeSuggestionIds: Set<string> }
@@ -553,10 +553,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
         const marker = markerRoot?.querySelector(
           entry.kind === "thread" ? `[data-thread-id="${entry.thread.id}"]` : `[data-suggestion-id="${entry.suggestion.id}"]`
         ) as HTMLElement | null
+        const anchorStart = entry.kind === "thread"
+          ? entry.thread.anchor.last_known_start_offset ?? entry.thread.anchor.start_offset
+          : entry.suggestion.anchor.last_known_start_offset ?? entry.suggestion.anchor.start_offset
         const cardEl = entry.kind === "thread" ? threadRefs.current[entry.thread.id] : suggestionRefs.current[entry.suggestion.id]
         return {
           id: entry.id,
-          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : null,
+          anchorTop: marker ? marker.getBoundingClientRect().top - containerTop : fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }),
           height: cardEl?.getBoundingClientRect().height ?? 0
         }
       })
@@ -588,7 +591,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       observer.disconnect()
       window.removeEventListener("resize", recompute)
     }
-  }, [editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
+  }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
   useEffect(() => {
     if (!canWriteCanonical) setChangeMode("suggest")
@@ -723,7 +726,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       />
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -1096,7 +1099,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   return (
     <div
       aria-label="Formatting toolbar"
-      className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      className="sticky top-0 z-20 flex min-w-0 items-center gap-2 rounded-t border-b border-gray-200 bg-gray-50 px-3 py-2 max-lg:top-14 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >
@@ -1252,10 +1255,7 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
   return (
     <div
       className="absolute z-30"
-      style={{
-        left: selection.rect ? `${clampAffordanceLeft(selection.rect)}px` : "1rem",
-        top: selection.rect ? `${Math.max(selection.rect.top - 44, 8)}px` : "1rem"
-      }}
+      style={selection.rect ? selectionAffordanceStyle(selection.rect) : { left: "1rem", top: "1rem" }}
     >
       <Button
         aria-label="Comment on selection"
@@ -1340,6 +1340,7 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
 }) {
   const viewingHistory = historicalVersionLoading || historicalVersion != null
   const hasSelection = selection.end > selection.start && !viewingHistory
+  const railStackShift = !viewingHistory ? railLayout.stackShift : 0
 
   function submitCommentOnShortcut(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
@@ -1387,41 +1388,47 @@ function ThreadPanel({ commentBody, commentPending, composerRef, doc, historical
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
         {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         <div
-          className="space-y-3"
-          data-testid="design-doc-rail-stack"
-          ref={railStackRef}
-          style={{ transform: !viewingHistory && railLayout.stackShift !== 0 ? `translateY(${railLayout.stackShift}px)` : undefined }}
+          className="overflow-hidden"
+          data-testid="design-doc-rail-clip"
+          style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
-          {railEntries.map((entry, index) => entry.kind === "thread" ? (
-            <CommentThreadCard
-              focused={focusedThreadId === entry.thread.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={replyBodies[entry.thread.id] ?? ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              thread={entry.thread}
-              threadRefs={threadRefs}
-              onFocus={onFocus}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onResolve={onResolve}
-            />
-          ) : (
-            <SuggestionThreadCard
-              canReview={!viewingHistory && doc.permissions.can_review_suggestions}
-              focused={focusedSuggestionId === entry.suggestion.id}
-              key={entry.id}
-              readOnly={viewingHistory}
-              replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
-              style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
-              suggestion={entry.suggestion}
-              suggestionRefs={suggestionRefs}
-              onFocus={onFocusSuggestion}
-              onReply={onReply}
-              onReplyChange={onReplyChange}
-              onReview={onReview}
-            />
-          ))}
+          <div
+            className="space-y-3"
+            data-testid="design-doc-rail-stack"
+            ref={railStackRef}
+            style={{ transform: railStackShift !== 0 ? `translateY(${railStackShift}px)` : undefined }}
+          >
+            {railEntries.map((entry, index) => entry.kind === "thread" ? (
+              <CommentThreadCard
+                focused={focusedThreadId === entry.thread.id}
+                key={entry.id}
+                readOnly={viewingHistory}
+                replyBody={replyBodies[entry.thread.id] ?? ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                thread={entry.thread}
+                threadRefs={threadRefs}
+                onFocus={onFocus}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onResolve={onResolve}
+              />
+            ) : (
+              <SuggestionThreadCard
+                canReview={!viewingHistory && doc.permissions.can_review_suggestions}
+                focused={focusedSuggestionId === entry.suggestion.id}
+                key={entry.id}
+                readOnly={viewingHistory}
+                replyBody={entry.suggestion.thread ? replyBodies[entry.suggestion.thread.id] ?? "" : ""}
+                style={viewingHistory ? undefined : { marginTop: index === 0 ? 0 : railLayout.margins[entry.id] }}
+                suggestion={entry.suggestion}
+                suggestionRefs={suggestionRefs}
+                onFocus={onFocusSuggestion}
+                onReply={onReply}
+                onReplyChange={onReplyChange}
+                onReview={onReview}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </Panel>
@@ -1653,11 +1660,61 @@ function CommentIcon() {
   )
 }
 
-function clampAffordanceLeft(rect: SelectionRect) {
+function selectionAffordanceStyle(rect: SelectionRect) {
   const iconWidth = 36
   const inset = 8
-  const maxLeft = Math.max(inset, rect.containerWidth - iconWidth - inset)
-  return Math.min(Math.max(rect.left, inset), maxLeft)
+  const gap = 8
+  const preferredTop = rect.top - iconWidth - gap
+
+  if (preferredTop >= inset) {
+    return {
+      left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+      top: `${preferredTop}px`
+    }
+  }
+
+  if (rect.width > 0) {
+    const rightSideLeft = rect.left + rect.width + gap
+    if (rightSideLeft + iconWidth <= rect.containerWidth - inset) {
+      return { left: `${rightSideLeft}px`, top: `${inset}px` }
+    }
+
+    const leftSideLeft = rect.left - iconWidth - gap
+    if (leftSideLeft >= inset) return { left: `${leftSideLeft}px`, top: `${inset}px` }
+  }
+
+  return {
+    left: `${clampAffordanceLeft(rect.left, rect.containerWidth)}px`,
+    top: `${inset}px`
+  }
+}
+
+function clampAffordanceLeft(left: number, containerWidth: number) {
+  const iconWidth = 36
+  const inset = 8
+  const maxLeft = Math.max(inset, containerWidth - iconWidth - inset)
+  return Math.min(Math.max(left, inset), maxLeft)
+}
+
+function fallbackAnchorTop({ anchorStart, containerTop, draft, markerRoot }: {
+  anchorStart: number | null | undefined
+  containerTop: number
+  draft: string
+  markerRoot: HTMLElement | null
+}) {
+  if (anchorStart == null || !markerRoot) return null
+
+  const sourceElement = Array.from(markerRoot.querySelectorAll("[data-source-start][data-source-end]")).find((element) => {
+    const start = Number((element as HTMLElement).dataset.sourceStart)
+    const end = Number((element as HTMLElement).dataset.sourceEnd)
+    return Number.isFinite(start) && Number.isFinite(end) && start <= anchorStart && end > anchorStart
+  }) as HTMLElement | undefined
+  if (sourceElement) return sourceElement.getBoundingClientRect().top - containerTop
+
+  const rootTop = markerRoot.getBoundingClientRect().top - containerTop
+  const lineHeight = 24
+  const lineIndex = draft.slice(0, anchorStart).split("\n").length - 1
+  return rootTop + 16 + lineIndex * lineHeight
 }
 
 function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
@@ -1806,12 +1863,12 @@ function markdownToWysiwygHtmlWithContext(markdown: string, highlights: AnchorHi
 
 function wholeMarkdownBlockSuggestionAt(highlights: AnchorHighlight[], offset: number, context: WysiwygRenderContext) {
   return highlights.find((highlight) => {
-    if (highlight.kind !== "suggestion" || highlight.renderMode === "block" || context.renderedSuggestionIds.has(highlight.id)) return false
+    if (highlight.kind !== "suggestion" || context.renderedSuggestionIds.has(highlight.id)) return false
     if (highlight.start > offset || highlight.end <= offset) return false
 
     const original = highlight.originalMarkdown ?? ""
     const proposed = highlight.proposedMarkdown ?? ""
-    return (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
+    return highlight.renderMode === "block" || (crossesMarkdownBlockBoundary(original) || crossesMarkdownBlockBoundary(proposed)) && inlineSuggestionDiff(original, proposed).mode === "whole"
   }) ?? null
 }
 
@@ -1828,7 +1885,7 @@ function renderWholeSuggestionBlockHtml(highlight: AnchorHighlight, focusedThrea
   const proposed = highlight.proposedMarkdown ?? ""
 
   return [
-    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+    `<div class="${className}" data-anchor-highlight="${highlight.id}" data-anchor-status="${escapeHtml(highlight.status)}" data-block-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
     `<del class="block whitespace-pre-wrap text-warning decoration-warning decoration-2" data-review-original="true">${sourceSpan(original, highlight.start)}</del>`,
     `<ins class="block whitespace-pre-wrap text-success no-underline" data-review-decoration="true" data-review-proposed="true">${escapeHtml(proposed)}</ins>`,
     "</div>"
@@ -2344,8 +2401,15 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         if (segment.highlight.renderMode === "block") {
           const className = focused
             ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
-            : "rounded-sm bg-amber-100 px-0.5 text-amber-950 dark:bg-amber-900/40 dark:text-amber-100"
-          return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}"${suggestionAttrs}>${sourceSpan(segment.text, baseOffset + segment.start)}</mark>`
+            : "rounded-sm bg-surface-raised px-0.5"
+          const original = segment.highlight.originalMarkdown ?? segment.text
+          const diff = inlineSuggestionDiff(original, segment.highlight.proposedMarkdown || "")
+          if (diff.mode === "whole") context.renderedWholeSuggestionIds.add(suggestionKey)
+          return [
+            `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-block-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}" data-original-markdown="${escapeHtml(original)}"${suggestionAttrs}>`,
+            renderInlineSuggestionDiffHtml(diff, original, baseOffset + segment.highlight.start),
+            "</mark>"
+          ].join("")
         }
 
         const className = focused
@@ -2514,6 +2578,7 @@ function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end
   return {
     left: Math.min(rect.width - 32, 16 + lines.at(-1)!.length * charWidth),
     top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop),
+    width: 0,
     containerWidth: rect.width
   }
 }
@@ -2528,7 +2593,8 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
 
   return {
     left: rangeRect.left - containerRect.left,
-    top: rangeRect.bottom - containerRect.top,
+    top: rangeRect.top - containerRect.top,
+    width: rangeRect.width,
     containerWidth: containerRect.width
   }
 }

@@ -702,23 +702,103 @@ describe("DesignDocsSurface", () => {
     const range = document.createRange()
     range.setStart(textNode, 0)
     range.setEnd(textNode, 4)
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({
+        bottom: 244,
+        height: 24,
+        left: 120,
+        right: 160,
+        top: 220,
+        width: 40,
+        x: 120,
+        y: 220,
+        toJSON: () => ({})
+      }))
+    })
+    const geometrySpy = vi.spyOn(editor.parentElement!, "getBoundingClientRect").mockReturnValue({
+      bottom: 700,
+      height: 600,
+      left: 20,
+      right: 920,
+      top: 100,
+      width: 900,
+      x: 20,
+      y: 100,
+      toJSON: () => ({})
+    } as DOMRect)
     window.getSelection()?.removeAllRanges()
     window.getSelection()?.addRange(range)
 
-    fireEvent.mouseUp(editor)
-    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
-    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
-    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+    try {
+      fireEvent.mouseUp(editor)
+      const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+      expect(affordance).toHaveStyle({ top: "76px" })
+      expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+      fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
+      fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
-    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
-    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
-      comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+      const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+      expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+        comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+      })
+    } finally {
+      geometrySpy.mockRestore()
+    }
+  })
+
+  it("keeps the compact Rich Text selection affordance beside near-top selections", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: "Alpha **design** gamma" } })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    const textNode = editor.querySelector("strong [data-source-start]")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 6)
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => ({
+        bottom: 144,
+        height: 24,
+        left: 120,
+        right: 168,
+        top: 120,
+        width: 48,
+        x: 120,
+        y: 120,
+        toJSON: () => ({})
+      }))
     })
+    const geometrySpy = vi.spyOn(editor.parentElement!, "getBoundingClientRect").mockReturnValue({
+      bottom: 700,
+      height: 600,
+      left: 20,
+      right: 920,
+      top: 100,
+      width: 900,
+      x: 20,
+      y: 100,
+      toJSON: () => ({})
+    } as DOMRect)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    try {
+      fireEvent.mouseUp(editor)
+      const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+      expect(affordance).toHaveStyle({ left: "156px", top: "8px" })
+    } finally {
+      geometrySpy.mockRestore()
+    }
   })
 
   it("submits a selected-text comment with Cmd+Enter", async () => {
@@ -978,6 +1058,28 @@ describe("DesignDocsSurface", () => {
     expect(rail!.innerHTML).not.toMatch(/overflow-y/)
   })
 
+  it("reserves layout height for a rail stack shifted down to an anchor", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: 120, bottom: 120, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent(window, new Event("resize"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(120px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "120px" })
+    })
+  })
+
   it("pushes cards above the top edge, without overlap or reordering, to keep a clicked anchor aligned with its card", async () => {
     const markdown = "Alpha Bravo Charlie"
     const clusterDoc = {
@@ -1036,6 +1138,7 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(-84px)" })
     })
+    expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveClass("overflow-hidden")
     // Pinned to its own anchor (the clicked pivot).
     expect(screen.getByText("Third note").closest("[data-anchor-offset]")).toHaveStyle({ marginTop: "12px" })
     // Pushed up to make room, in the same 12px minimum gap -- never overlapping,
@@ -1132,6 +1235,7 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByText("Needs evidence"))
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(100px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "100px" })
     })
 
     markerTop = 250
@@ -1139,10 +1243,11 @@ describe("DesignDocsSurface", () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(250px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "250px" })
     })
   })
 
-  it("renders block-level suggestions as anchored document marks and structured thread diffs", async () => {
+  it("renders block-level suggestions as red/green anchored document diffs and structured thread diffs", async () => {
     const blockSuggestion = {
       ...docDetail.suggestions[0],
       id: 51,
@@ -1197,11 +1302,77 @@ describe("DesignDocsSurface", () => {
     const editor = await screen.findByRole("textbox", { name: "Rich Text editor" })
 
     expect(editor).toHaveTextContent("Old Title")
-    expect(within(editor).queryByText("# New Title")).not.toBeInTheDocument()
+    expect(within(editor).getByText("# Old Title").closest("del")).toHaveClass("text-warning", "decoration-warning")
+    expect(within(editor).getByText(/# New Title/).closest("ins")).toHaveClass("text-success", "no-underline")
     expect(container.querySelector("[data-block-suggestion-state='pending']")).not.toBeNull()
     expect(screen.getByText("Current")).toBeInTheDocument()
     expect(screen.getByText("Proposed")).toBeInTheDocument()
-    expect(screen.getByText(/## Context/)).toBeInTheDocument()
+    expect(screen.getAllByText(/## Context/)).toHaveLength(2)
+  })
+
+  it("aligns an initially visible lower suggestion card to its source-offset fallback when the inline marker is unavailable", async () => {
+    const markdown = [
+      "Intro",
+      "",
+      "## Summary",
+      "",
+      "Body"
+    ].join("\n")
+    const start = markdown.indexOf("Summary")
+    const lowerSuggestionDoc = {
+      ...docDetail,
+      markdown,
+      rendered_markdown: markdown,
+      threads: [],
+      suggestions: [{
+        ...docDetail.suggestions[0],
+        id: 61,
+        original_markdown: "Summary",
+        suggested_markdown: "Plan",
+        proposed_markdown: "Plan",
+        render_mode: "block" as const,
+        change_summary: "Rename summary",
+        anchor: {
+          ...docDetail.suggestions[0].anchor,
+          start_offset: start,
+          end_offset: start + "Summary".length,
+          last_known_start_offset: start,
+          last_known_end_offset: start + "Summary".length,
+          selected_markdown: "Summary",
+          selected_text: "Summary"
+        },
+        thread: null
+      }]
+    }
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") {
+        return jsonResponse({ design_doc: lowerSuggestionDoc })
+      }
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+
+    const { container } = renderSurface("/design_docs/1")
+    await screen.findByText("Rename summary")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.getAttribute("aria-label") === "Rich Text editor") return { ...base, top: 0, bottom: 576, height: 576 } as DOMRect
+      if (this.hasAttribute("data-source-start")) return { ...base, top: 64, bottom: 88, height: 24 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 80, height: 80 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+    container.querySelector("[data-suggestion-id='61']")?.removeAttribute("data-suggestion-id")
+
+    fireEvent(window, new Event("resize"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(64px)" })
+    })
   })
 
   it("groups replies beneath their parent comment thread", async () => {
@@ -1562,6 +1733,19 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("design-doc-formatting-toolbar")).not.toHaveClass("overflow-x-auto")
     expect(screen.getByTestId("design-doc-formatting-toolbar-scroll")).toHaveClass("overflow-x-auto")
     expect(screen.getByRole("menu").parentElement).toHaveClass("relative")
+  })
+
+  it("pins the formatting toolbar while the design doc page scrolls", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const toolbar = screen.getByTestId("design-doc-formatting-toolbar")
+    const editorPanel = toolbar.parentElement
+
+    expect(toolbar).toHaveClass("sticky", "top-0", "max-lg:top-14", "z-20")
+    expect(editorPanel).toHaveClass("overflow-visible")
+    expect(container.querySelector(".overflow-hidden [data-testid='design-doc-formatting-toolbar']")).toBeNull()
   })
 
   it("dismisses the formatting overflow menu with outside pointer input or Escape", async () => {
