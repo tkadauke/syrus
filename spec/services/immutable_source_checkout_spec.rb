@@ -99,6 +99,15 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
         cache_details.fetch("prepare_fingerprint")
       ].join(":")
     )
+    expect(step.reload.details.fetch("immutable_source_checkout")).to include(
+      "worker_storage_key" => "storage-a",
+      "source_snapshot_id" => snapshot.id,
+      "source_snapshot_sha" => main_sha,
+      "source_snapshot_ref" => "refs/heads/main",
+      "prepare_cache_status" => "miss",
+      "checkout_path" => described_class.path_for(step).to_s
+    )
+    expect(run.reload.head_sha).to eq(main_sha)
     expect(run.reload.command_spans.ordered.map(&:command_excerpt)).to eq([
       "mkdir -p \"$BUNDLE_PATH\"",
       "printf 'ready\\n' > \"$BUNDLE_PATH/prepared.txt\""
