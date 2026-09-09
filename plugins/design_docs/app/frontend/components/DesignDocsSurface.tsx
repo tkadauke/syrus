@@ -723,7 +723,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       />
       <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <div className="overflow-visible rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           {summaryVisible ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             {summaryVisible ? <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Optional change summary" value={summary} onChange={(event) => setSummary(event.target.value)} /> : null}
@@ -1096,7 +1096,7 @@ function DesignDocFormattingToolbar({ canWriteCanonical, changeMode, draft, edit
   return (
     <div
       aria-label="Formatting toolbar"
-      className="flex min-w-0 items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950/40"
+      className="sticky top-0 z-20 flex min-w-0 items-center gap-2 rounded-t border-b border-gray-200 bg-gray-50 px-3 py-2 max-lg:top-14 dark:border-gray-700 dark:bg-gray-950/40"
       data-testid="design-doc-formatting-toolbar"
       role="toolbar"
     >

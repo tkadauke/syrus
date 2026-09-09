@@ -1644,6 +1644,19 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("menu").parentElement).toHaveClass("relative")
   })
 
+  it("pins the formatting toolbar while the design doc page scrolls", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const toolbar = screen.getByTestId("design-doc-formatting-toolbar")
+    const editorPanel = toolbar.parentElement
+
+    expect(toolbar).toHaveClass("sticky", "top-0", "max-lg:top-14", "z-20")
+    expect(editorPanel).toHaveClass("overflow-visible")
+    expect(container.querySelector(".overflow-hidden [data-testid='design-doc-formatting-toolbar']")).toBeNull()
+  })
+
   it("dismisses the formatting overflow menu with outside pointer input or Escape", async () => {
     mockFetch()
     renderSurface("/design_docs/1")
