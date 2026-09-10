@@ -273,7 +273,12 @@ func runJobCheckout(cmd *cobra.Command, id string, noHooks bool) error {
 		return err
 	}
 	if !noHooks {
-		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+		hookOptions := postCheckoutHookOptions{
+			baseBranch:    job.Job.EffectiveBaseBranch,
+			defaultBranch: job.Repository.DefaultBranch,
+			headRef:       "HEAD",
+		}
+		if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), hookOptions); err != nil {
 			return err
 		}
 	}
