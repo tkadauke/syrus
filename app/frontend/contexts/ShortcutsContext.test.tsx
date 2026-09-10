@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
-import { ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
+import { ShortcutLayer, ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
 
 function Registrant({ allowWhileTyping = false, keys, label, onFire, group = "Test" }: { allowWhileTyping?: boolean; keys: string; label: string; onFire: () => void; group?: string }) {
   useShortcut(keys, onFire, { allowWhileTyping, description: `${label} description`, group })
@@ -209,6 +209,52 @@ describe("useShortcut / ShortcutsProvider", () => {
 
     expect(screen.queryByText("Page: Page action description (mod+k)")).not.toBeInTheDocument()
     expect(screen.getByText("Modal: Modal action description (mod+k)")).toBeInTheDocument()
+  })
+
+  it("limits dispatch and active shortcuts to the top shortcut layer", () => {
+    const pageHandler = vi.fn()
+    const modalHandler = vi.fn()
+
+    function Harness() {
+      const [modalMounted, setModalMounted] = useState(false)
+      return (
+        <div>
+          <button onClick={() => setModalMounted(true)} type="button">open modal</button>
+          <button onClick={() => setModalMounted(false)} type="button">close modal</button>
+          <Registrant group="Page" keys="g" label="Page action" onFire={pageHandler} />
+          {modalMounted ? (
+            <ShortcutLayer>
+              <Registrant group="Modal" keys="m" label="Modal action" onFire={modalHandler} />
+            </ShortcutLayer>
+          ) : null}
+          <ActiveShortcutsProbe />
+        </div>
+      )
+    }
+
+    render(
+      <ShortcutsProvider>
+        <Harness />
+      </ShortcutsProvider>
+    )
+
+    fireEvent.keyDown(window, { key: "g" })
+    expect(pageHandler).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "open modal" }))
+    expect(screen.queryByText("Page: Page action description (g)")).not.toBeInTheDocument()
+    expect(screen.getByText("Modal: Modal action description (m)")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "g" })
+    fireEvent.keyDown(window, { key: "m" })
+    expect(pageHandler).toHaveBeenCalledTimes(1)
+    expect(modalHandler).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "close modal" }))
+    expect(screen.getByText("Page: Page action description (g)")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "g" })
+    expect(pageHandler).toHaveBeenCalledTimes(2)
   })
 
   it("throws when useShortcut is used outside a ShortcutsProvider", () => {

@@ -137,7 +137,13 @@
     "keep_editing": "Weiter bearbeiten",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern",
-    "zoom_label": "Zoomstufe"
+    "zoom_label": "Zoomstufe",
+    "shortcuts_group": "Annotation",
+    "shortcut_show_help": "Annotationskurzbefehle anzeigen",
+    "shortcut_escape": "Zurückgehen oder schließen",
+    "shortcut_delete": "Ausgewählte Annotation löschen",
+    "shortcut_select_tool": "Auswahlwerkzeug",
+    "shortcut_select_named_tool": "Werkzeug {{tool}} auswählen"
   },
   "epic_start": {
     "in_progress": "In Bearbeitung",
