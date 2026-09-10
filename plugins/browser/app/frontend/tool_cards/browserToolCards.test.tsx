@@ -4,6 +4,7 @@ import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import browserCloseToolCard from "./browser_close"
 import browserNavigateToolCard from "./browser_navigate"
 import browserResizeToolCard from "./browser_resize"
+import browserScreenshotToolCard from "./browser_screenshot"
 import browserSnapshotToolCard from "./browser_snapshot"
 import browserWaitForToolCard from "./browser_wait_for"
 
@@ -22,6 +23,7 @@ describe("browser tool cards", () => {
     const cards: ToolCardRenderer[] = [
       browserNavigateToolCard,
       browserSnapshotToolCard,
+      browserScreenshotToolCard,
       browserResizeToolCard,
       browserWaitForToolCard,
       browserCloseToolCard
@@ -30,6 +32,7 @@ describe("browser tool cards", () => {
     expect(cards.map((card) => card.toolName)).toEqual([
       "browser_navigate",
       "browser_snapshot",
+      "browser_screenshot",
       "browser_resize",
       "browser_wait_for",
       "browser_close"
@@ -98,6 +101,87 @@ describe("browser tool cards", () => {
     expect(screen.getAllByText("Snapshot")).toHaveLength(2)
     expect(screen.getByText("accessibility tree")).toBeInTheDocument()
     expect(screen.getByText("Settings")).toBeInTheDocument()
+  })
+
+  it("summarizes and renders screenshots from direct image content blocks", () => {
+    const toolContext = context({
+      toolName: "browser_screenshot",
+      input: { element: "Hero panel", target: "e7" },
+      parsedResult: [
+        { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
+      ]
+    })
+
+    expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe("Screenshot Hero panel · Browser screenshot · success")
+
+    render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
+
+    const image = screen.getByRole("img", { name: "Browser screenshot" })
+    expect(image).toHaveAttribute("src", "data:image/png;base64,iVBORw0KGgo=")
+    expect(image).toHaveClass("dark:bg-gray-950")
+    expect(screen.getByText("image/png")).toBeInTheDocument()
+  })
+
+  it("renders screenshot previews from persisted artifact references", () => {
+    const toolContext = context({
+      toolName: "browser_screenshot",
+      parsedResult: {
+        content: [
+          {
+            type: "image",
+            image_url: "/api/v1/app/chats/12/media/chat_images/3/file",
+            title: "Checkout page",
+            content_type: "image/png",
+            byte_size: 2048
+          }
+        ],
+        title: "Checkout",
+        url: "http://127.0.0.1:3001/checkout",
+        viewport: { width: 390, height: 844 }
+      }
+    })
+
+    expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe(
+      "Screenshot · Checkout (http://127.0.0.1:3001/checkout) · success"
+    )
+
+    render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByRole("img", { name: "Checkout page" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
+    expect(screen.getByText("Checkout")).toBeInTheDocument()
+    expect(screen.getByText("http://127.0.0.1:3001/checkout")).toBeInTheDocument()
+    expect(screen.getByText("390x844")).toBeInTheDocument()
+    expect(screen.getByText("2 KB")).toBeInTheDocument()
+  })
+
+  it("shows a screenshot fallback when image data is missing", () => {
+    const toolContext = context({
+      toolName: "browser_screenshot",
+      input: { target: "e9" },
+      parsedResult: { status: "success" },
+      resultBody: JSON.stringify({ status: "success" })
+    })
+
+    render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
+    expect(screen.getByText("No image preview is available.")).toBeInTheDocument()
+  })
+
+  it("does not inline very large screenshot payloads", () => {
+    const toolContext = context({
+      toolName: "browser_screenshot",
+      parsedResult: [
+        { type: "image", data: "a".repeat(1_500_001), mimeType: "image/png" }
+      ]
+    })
+
+    expect(browserScreenshotToolCard.collapsedSummary?.(toolContext)).toBe("Screenshot · Browser screenshot · success")
+
+    render(<>{browserScreenshotToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
+    expect(screen.getByText("Image payload is too large to preview inline.")).toBeInTheDocument()
   })
 
   it("summarizes resize outcomes from the tool input when the result is empty", () => {
