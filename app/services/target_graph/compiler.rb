@@ -533,7 +533,7 @@ class TargetGraph
             required: target.required,
             timeout_minutes: target.timeout_minutes,
             owner_config_path: config_path,
-            metadata: explicit_target_metadata(target)
+            metadata: target.metadata.merge(explicit_target_metadata(target))
           ),
           declaration: "explicit targets: #{target.name.inspect}"
         )
