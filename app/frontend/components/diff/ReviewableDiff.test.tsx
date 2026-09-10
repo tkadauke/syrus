@@ -3,7 +3,7 @@ import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
-import { AgentDiff, DiffHunkSnippet, ReviewableDiff, documentScrollMarginForElement, filesFromUnifiedDiff } from "./ReviewableDiff"
+import { AgentDiff, DiffHunkSnippet, ReviewableDiff, filesFromUnifiedDiff } from "./ReviewableDiff"
 
 stubVirtualizerMeasurements()
 
@@ -89,7 +89,7 @@ describe("ReviewableDiff", () => {
   })
 
   it("keeps sticky file headers out of transformed virtual rows", () => {
-    render(<ReviewableDiff files={files} mode="continuous" scroll="natural" showFileHeaders />)
+    render(<ReviewableDiff files={files} mode="continuous" showFileHeaders />)
 
     const firstVirtualRow = screen.getByTestId("agent-diff-viewer").querySelector("[data-index='0']") as HTMLElement
     expect(firstVirtualRow).toHaveStyle({ position: "absolute", top: "0px" })
@@ -336,20 +336,17 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTestId("agent-diff-viewer").querySelector(".overflow-x-auto")).toBeInTheDocument()
   })
 
-  it("measures natural-scroll virtualizer margins from the diff's document position", () => {
-    const originalScrollY = Object.getOwnPropertyDescriptor(window, "scrollY")
-    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 })
-    const element = document.createElement("div")
-    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ bottom: 320, height: 0, left: 0, right: 0, toJSON: () => ({}), top: 320, width: 0, x: 0, y: 320 })
+  it("renders natural-scroll file sections in document flow instead of a virtualized height spacer", () => {
+    render(<ReviewableDiff files={manyFiles(20)} mode="continuous" scroll="natural" showFileHeaders />)
 
-    try {
-      expect(documentScrollMarginForElement(element)).toBe(320)
+    const viewer = screen.getByTestId("agent-diff-viewer")
+    const scrollContainer = viewer.querySelector("[data-total-file-count]") as HTMLElement
 
-      Object.defineProperty(window, "scrollY", { configurable: true, value: 140 })
-      expect(documentScrollMarginForElement(element)).toBe(460)
-    } finally {
-      if (originalScrollY) Object.defineProperty(window, "scrollY", originalScrollY)
-    }
+    expect(scrollContainer).toHaveAttribute("data-rendered-file-count", "20")
+    expect(screen.getByTitle("file0.rb")).toBeInTheDocument()
+    expect(screen.getByTitle("file19.rb")).toBeInTheDocument()
+    expect(viewer.querySelector("[data-index]")).not.toBeInTheDocument()
+    expect(viewer.querySelector("[style*='position: relative']")).not.toBeInTheDocument()
   })
 
   it("renders the add-comment affordance in the left gutter, not the right edge", () => {
