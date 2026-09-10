@@ -79,7 +79,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
     <AdminSmartFolderNav
       activeFolderId={sessions.data?.active_smart_folder_id ?? null}
       allLabel={t("smart_folder_all")}
-      allPath={scope === "admin" ? "/admin/agent_activity?smart_folder_id=" : "/agent_activity"}
+      allPath={scope === "admin" ? "/admin/agent_activity?smart_folder_id=" : "/agent_activity?smart_folder_id="}
       allowSaveWithoutActiveFolder={scope === "mine"}
       ariaLabel={t("smart_folders_aria")}
       currentFilter={sessions.data?.filter ?? undefined}
