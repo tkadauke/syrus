@@ -1306,11 +1306,9 @@ class StepDispatcher
   end
 
   def each_downstream_queued_step
-    cursor = @from_step ? @from_step.next_step : @workflow.first_step
-    while cursor
-      yield cursor if cursor.queued?
-      cursor = cursor.next_step
-    end
+    scope = @workflow.steps.order(:position, :id)
+    scope = scope.where("position > ?", @from_step.position) if @from_step
+    scope.each { |step| yield step if step.queued? }
   end
 
   def distributed_ready_set_enabled?
@@ -1325,6 +1323,8 @@ class StepDispatcher
   end
 
   def downstream_work_pending?
+    return @workflow.steps.active.exists? if distributed_ready_set_enabled?
+
     cursor = @from_step ? @from_step.next_step : @workflow.first_step
     while cursor
       return true if cursor.queued? || cursor.running?

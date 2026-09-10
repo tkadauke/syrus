@@ -612,6 +612,44 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Showing latest 0 of 5 runs for this step.")).toBeInTheDocument()
   })
+
+  it("renders distributed grader batches with placement metadata and sibling admission blocks", () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab
+            command={command()}
+            payload={payload({
+              workflows: [distributedGradeWorkflow()]
+            })}
+            prefix=""
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+
+    expect(screen.getByText("Batch progress")).toBeInTheDocument()
+    expect(screen.getAllByText("2/5 complete").length).toBeGreaterThan(0)
+    expect(screen.queryByText("1/1 complete")).not.toBeInTheDocument()
+    expect(screen.getByText("1 running")).toBeInTheDocument()
+    expect(screen.getByText("1 waiting")).toBeInTheDocument()
+    expect(screen.getByText("1 failed")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /beta/ }))
+
+    expect(screen.getAllByText("STEP-22").length).toBeGreaterThan(0)
+    expect(screen.getByText("Target //:grade/beta")).toBeInTheDocument()
+    expect(screen.getByText("Placement waiting")).toBeInTheDocument()
+    expect(screen.getByText("immutable source checkout")).toBeInTheDocument()
+    expect(screen.getByText("refs/heads/main")).toBeInTheDocument()
+    expect(screen.getByText("worker beta")).toBeInTheDocument()
+    expect(screen.getByText("storage beta")).toBeInTheDocument()
+    expect(screen.getByText(/worker slot busy/)).toBeInTheDocument()
+    expect(screen.getByText("Waits for")).toBeInTheDocument()
+    expect(screen.getByText("STEP-20")).toBeInTheDocument()
+  })
 })
 
 function workflowWithDiffRun() {
@@ -695,5 +733,206 @@ function workflowWithDiffRun() {
         app_grade_log_path: null
       }]
     }]
+  } as JobDetailPayload["workflows"][number]
+}
+
+function distributedGradeWorkflow() {
+  const run = (id: number, state: string, hostname: string | null = null) => ({
+    id,
+    state,
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    agent_outcome: null,
+    agent_turns: 0,
+    agent_pr_title: null,
+    agent_summary: null,
+    parent_session_id: null,
+    skill_source: null,
+    skill_resolved_path: null,
+    skill_resolved_class: null,
+    head_sha: null,
+    iteration: 1,
+    started_at: "2026-08-25T12:00:00Z",
+    last_heartbeat_at: null,
+    finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    cost_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    agent_diff_present: false,
+    agent_diff_bytes: 0,
+    step_agent_diff_present: false,
+    step_agent_diff_bytes: 0,
+    job_log_count: 0,
+    rate_limited: false,
+    run_diagnostic: null,
+    health_snapshots: [],
+    command_spans: hostname ? [{
+      id: id + 100,
+      run_id: id,
+      job_id: 42,
+      workflow_id: 10,
+      step_id: id,
+      spawned_process_id: null,
+      sequence: 1,
+      name: "grader",
+      command_excerpt: "bin/grader",
+      started_at: "2026-08-25T12:00:00Z",
+      finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
+      duration_ms: null,
+      duration_s: null,
+      exit_status: state === "failed" ? 1 : 0,
+      outcome: state,
+      hostname,
+      metadata: null,
+      sample_count: 0,
+      samples_missing: true,
+      retention_limited: false,
+      summary: {},
+      pressure: { level: "unknown", reasons: [] }
+    }] : [],
+    agent_session: null,
+    can_stop: false,
+    can_diagnose: false,
+    can_resume: false,
+    app_artifacts_path: `/api/v1/app/jobs/42/runs/${id}/artifacts`,
+    app_stop_path: "/stop",
+    app_diagnose_path: "/diagnose",
+    app_resume_path: "/resume",
+    app_grade_log_path: null
+  })
+
+  const grader = (id: number, name: string, state: string, extra: Partial<JobDetailPayload["workflows"][number]["steps"][number]> = {}) => ({
+    id,
+    kind: "grader",
+    display_name: name,
+    display_status: state,
+    position: id,
+    iteration: 1,
+    loop_id: "grade-loop",
+    state,
+    started_at: "2026-08-25T12:00:00Z",
+    finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    placement: {
+      policy: "immutable_source_checkout",
+      projected_target_label: `//:grade/${name}`,
+      source_snapshot: {
+        id: 9,
+        source_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        source_ref: "refs/heads/main",
+        tree_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      worker_hostname: `worker ${name}`,
+      worker_storage_key: `storage ${name}`,
+      admission: state === "queued" ? { reason: "worker_slot_busy", retry_at: "2026-08-25T12:02:00Z" } : null
+    },
+    dependencies: {
+      depends_on_step_ids: [20],
+      dependent_step_ids: [30],
+      barrier_group: "workflow:10:grader_collect",
+      barrier_labels: ["grader_collect"],
+      barrier_progress: {
+        total: 1,
+        completed: 1,
+        queued: 0,
+        running: 0,
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        skipped: 0
+      }
+    },
+    details: { name, required: true, command: `bin/${name}` },
+    warnings: [],
+    latest: false,
+    runs: state === "skipped" ? [] : [run(id, state, `worker ${name}`)],
+    ...extra
+  })
+
+  return {
+    id: 10,
+    slug: "WF-10",
+    path: "/jobs/42?tab=workflows#workflow-10",
+    trigger_kind: "initial",
+    agent_provider: "codex",
+    state: "running",
+    failure_count: 0,
+    artifacts: null,
+    cleaned_up_at: null,
+    retry_available: false,
+    started_at: "2026-08-25T12:00:00Z",
+    finished_at: null,
+    created_at: "2026-08-25T12:00:00Z",
+    updated_at: "2026-08-25T12:00:00Z",
+    app_retry_step_path: "/retry",
+    app_push_commits_path: "/push",
+    app_force_push_branch_path: "/force",
+    app_discard_branch_output_path: "/discard",
+    steps_total: 7,
+    steps_displayed: 7,
+    steps_truncated: false,
+    steps: [
+      {
+        id: 20,
+        kind: "grader_fanout",
+        display_name: "Grade setup",
+        display_status: "succeeded",
+        position: 1,
+        iteration: 1,
+        loop_id: "grade-loop",
+        state: "succeeded",
+        started_at: "2026-08-25T12:00:00Z",
+        finished_at: "2026-08-25T12:00:01Z",
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:00:00Z",
+        placement: { policy: "control_plane" },
+        dependencies: { depends_on_step_ids: [], dependent_step_ids: [21, 22, 23, 24, 25] },
+        details: null,
+        warnings: [],
+        latest: false,
+        runs: []
+      },
+      grader(21, "alpha", "succeeded"),
+      grader(22, "beta", "queued"),
+      grader(23, "gamma", "running"),
+      grader(24, "delta", "failed"),
+      grader(25, "epsilon", "skipped"),
+      {
+        id: 30,
+        kind: "grader_collect",
+        display_name: "Grade result",
+        display_status: "queued",
+        position: 7,
+        iteration: 1,
+        loop_id: "grade-loop",
+        state: "queued",
+        started_at: null,
+        finished_at: null,
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:00:00Z",
+        placement: { policy: "control_plane" },
+        dependencies: {
+          depends_on_step_ids: [21, 22, 23, 24, 25],
+          dependent_step_ids: [],
+          barrier_progress: {
+            total: 5,
+            completed: 2,
+            queued: 1,
+            running: 1,
+            succeeded: 1,
+            failed: 1,
+            cancelled: 0,
+            skipped: 1
+          }
+        },
+        details: null,
+        warnings: [],
+        latest: true,
+        runs: []
+      }
+    ]
   } as JobDetailPayload["workflows"][number]
 }

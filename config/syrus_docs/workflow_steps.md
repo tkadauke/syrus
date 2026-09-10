@@ -55,6 +55,29 @@ record `failed_worker_*` context and defer while the failed host's fresh health
 sample remains critical. See
 [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
 
+Job detail workflow payloads expose this runtime placement data on each Step
+under `steps[].placement` and dependency/barrier data under
+`steps[].dependencies`. Placement fields describe the Step runtime object:
+`policy`, source snapshot SHA/ref/tree, worker hostname/storage key, latest
+worker-slot metadata, immutable-checkout prepare cache hit/miss, and any
+admission block that applies to that Step. Projected target fields such as
+`projected_target_label`, `projected_target_fingerprint`, and
+`projected_resource_key` remain descriptive target-graph metadata; they explain
+what the Step is checking but are not the Step identity.
+
+The UI groups parallel grader batches from generic Step data rather than from a
+separate grader-batch model: `grader_fanout` materializes `grader` Steps,
+`grader_collect` / `preflight_grader_collect` depend on those Steps, and
+`dependencies.barrier_progress` on the collector Step summarizes those grader
+dependency states. Individual grader Steps still expose their own Step
+dependency edges, target metadata, placement, and admission state, but they do
+not present the collector's batch progress as their own. Admission blocks are
+likewise Step-scoped. Worker-slot admission artifacts include a `step_id`; host
+pickup deferrals include a `run_id`, which the payload resolves back to the
+owning Step before showing the block. Sibling Steps therefore remain queued,
+running, failed, or completed on their own merits instead of making the whole
+workflow look paused.
+
 ## How a step reports failure
 
 A step handler raises `Steps::Base::StepFailed`. When the handler knows *what*
@@ -417,17 +440,29 @@ of the grader Steps it explicitly depends on are terminal. When either gate is
 disabled, the dispatcher preserves the legacy successor-walk behavior and only
 starts the first runnable successor.
 
-When both the instance `distributed_workflow_dag` feature and the repository
-opt-in are enabled, legacy grader fanout records target-style projection
-metadata on each materialized `grader` Step:
+When the instance `distributed_workflow_dag` feature, the repository opt-in,
+and `workflow_step_worker_slot_admission_enabled` are all enabled, legacy
+grader fanout records target-style projection metadata on each materialized
+`grader` Step:
 `projected_target_label` (`//:grade/<name>`),
 `projected_target_fingerprint`, `projected_resource_key`, `barrier_group`, and
 `barrier_labels`. The same gated payload connects the Step to the current
 workflow source snapshot through `source_snapshot_id` plus a nested
 `source_snapshot` summary (`source_sha`, `source_ref`, `tree_sha`, and optional
-`fingerprint`). When either gate is disabled, fanout keeps the legacy pinned
-placement, writes none of this projection/source-snapshot detail, and creates no
-workflow source snapshot solely for grader metadata.
+`fingerprint`). When any rollout gate is disabled, fanout keeps the legacy
+pinned placement, writes none of this projection/source-snapshot detail, and
+creates no workflow source snapshot solely for grader metadata. Operators can
+therefore disable the repository opt-in or the instance worker-slot setting to
+fall back to serial in-workflow grading for newly materialized grader batches.
+
+Each `grader_collect` records rollout measurements under the workflow's
+`grader_loops` artifact and under
+`landing_throughput_metrics["grader_loops"]`: wall-clock batch duration,
+summed grader duration, average/max grader queue wait, distinct worker spread,
+prepare cache hit/miss counts, source snapshot mismatch count, and
+infrastructure failure count. Source snapshot publication, immutable checkout
+fetch, and HEAD verification are logged in the run transcript so operators can
+separate repository grader failures from rollout infrastructure failures.
 
 Before matching a grader's `when_files_changed` globs, this step also asks
 every registered `:affected_test_analyzer` plugin (see

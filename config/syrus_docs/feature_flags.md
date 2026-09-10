@@ -135,14 +135,20 @@ repository opt-in (`repositories.distributed_workflow_dag_enabled`) before
 newly materialized Steps can use non-legacy placement metadata. With either
 side disabled, Syrus records every new Step as
 `pinned_workflow_workspace`, preserving the existing serial, single-workspace
-execution behavior.
+execution behavior. The repository opt-in is the repository-level kill switch
+for distributed metadata.
 
 When both gates are enabled, Step rows may record one of the explicit placement
 policies documented in `workflow_steps.md`: `pinned_workflow_workspace`,
-`immutable_source_checkout`, `control_plane`, or `external_context`. The flag
-does not by itself enable parallel scheduling, immutable checkout execution, or
-new worker admission rules; it only allows the metadata needed by later
-distributed scheduler slices to be persisted.
+`immutable_source_checkout`, `control_plane`, or `external_context`. Parallel
+grader rollout additionally requires the instance
+`workflow_step_worker_slot_admission_enabled` setting. Turning that setting off
+is the instance-level kill switch back to serial in-workflow grading: newly
+materialized graders stay pinned to the workflow workspace and do not publish or
+fetch immutable source snapshots. The feature flag alone does not enable
+parallel scheduling, immutable checkout execution, or new worker admission
+rules; it only allows the metadata needed by distributed scheduler slices to be
+persisted when the remaining rollout gates are also on.
 
 ## epicless_job_bundling
 

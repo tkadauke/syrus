@@ -15,7 +15,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, fetchJobSourceFileContent, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, displayStepItemKey, effectiveStepStatus, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { diffReviewFeedbackAllowed, useDiffReviewFeedback } from "./DiffReviewFeedback"
@@ -523,6 +523,7 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
   const status = loopDisplayStatus(item)
   const summaries = loopGradeSummaries(item)
   const soleGrade = loopSoleGradeItem(item)
+  const progress = soleGrade ? gradeBatchProgress(soleGrade) : null
 
   return (
     <WorkflowGroup
@@ -532,6 +533,7 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
       pills={(
         <>
           <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
+          {progress ? <SmallPill>{progress.completed}/{progress.total} complete</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </>
       )}
@@ -540,7 +542,10 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
     >
       {open ? (
         soleGrade ? (
-          <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} workflowArtifacts={workflowArtifacts} />
+          <>
+            {progress ? <GradeBatchProgressPanel progress={progress} /> : null}
+            <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} workflowArtifacts={workflowArtifacts} />
+          </>
         ) : (
           <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
             {item.iterations.map((iteration) => (
@@ -572,6 +577,7 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
   const status = gradeDisplayStatus(item)
   const phases = gradePhases(item, t)
   const summaries = gradeSummaries(item)
+  const progress = gradeBatchProgress(item)
 
   return (
     <WorkflowGroup
@@ -581,15 +587,67 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       pills={(
         <>
           {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
+          {progress ? <SmallPill>{progress.completed}/{progress.total} complete</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </>
       )}
       status={status}
       title={item.preflight ? t("preflight_grade_label") : t("grade_label")}
     >
-      {open ? <GradePhasesList command={command} payload={payload} phases={phases} workflowArtifacts={workflowArtifacts} /> : null}
+      {open ? (
+        <>
+          {progress ? <GradeBatchProgressPanel progress={progress} /> : null}
+          <GradePhasesList command={command} payload={payload} phases={phases} workflowArtifacts={workflowArtifacts} />
+        </>
+      ) : null}
     </WorkflowGroup>
   )
+}
+
+function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnType<typeof gradeBatchProgress>> }) {
+  const waiting = Math.max(progress.queued, 0)
+  const running = Math.max(progress.running, 0)
+  const failed = Math.max(progress.failed + progress.cancelled, 0)
+
+  return (
+    <div className="border-t border-gray-100 bg-gray-50 px-3 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-gray-900 dark:text-gray-100">Batch progress</span>
+        <SmallPill>{progress.completed}/{progress.total} complete</SmallPill>
+        {running > 0 ? <SmallPill>{running} running</SmallPill> : null}
+        {waiting > 0 ? <SmallPill>{waiting} waiting</SmallPill> : null}
+        {failed > 0 ? <SmallPill>{failed} failed</SmallPill> : null}
+      </div>
+    </div>
+  )
+}
+
+function gradeBatchProgress(item: GradeStepItem) {
+  const collectStep = item.steps.find((step) => isGradeCollectStep(step) && step.dependencies?.barrier_progress)
+    || item.steps.find((step) => step.dependencies?.barrier_progress)
+  if (collectStep?.dependencies?.barrier_progress) return collectStep.dependencies.barrier_progress
+  if (item.graders.length === 0) return null
+
+  const counts = item.graders.reduce((memo, grader) => {
+    const status = effectiveStepStatus(grader) || grader.state
+    memo[status] = (memo[status] || 0) + 1
+    return memo
+  }, {} as Record<string, number>)
+
+  return {
+    total: item.graders.length,
+    completed: item.graders.filter((grader) => ["succeeded", "failed", "cancelled", "skipped"].includes(effectiveStepStatus(grader) || grader.state)).length,
+    queued: counts.queued || 0,
+    running: counts.running || 0,
+    succeeded: counts.succeeded || 0,
+    failed: counts.failed || 0,
+    cancelled: counts.cancelled || 0,
+    skipped: counts.skipped || 0
+  }
+}
+
+function isGradeCollectStep(step: JobStep) {
+  return step.kind === "grader_collect" || step.kind === "preflight_grader_collect"
 }
 
 function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
@@ -730,7 +788,10 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
       {open ? (
         <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>STEP-{step.id}</span>
             <span>{metadataLabel || step.kind}</span>
+            {step.placement?.projected_target_label ? <SmallPill>Target {step.placement.projected_target_label}</SmallPill> : null}
+            {step.placement?.admission ? <SmallPill>Placement waiting</SmallPill> : null}
             {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
             {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
             {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
@@ -738,6 +799,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
             {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
+          <StepPlacementPanel step={step} />
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
@@ -773,6 +835,49 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
       ) : null}
     </div>
   )
+}
+
+function StepPlacementPanel({ step }: { step: JobStep }) {
+  const placement = step.placement
+  const dependencies = step.dependencies
+  if (!placement && !dependencies) return null
+
+  const rows: Array<[string, ReactNode]> = []
+  rows.push(["Step", `STEP-${step.id}`])
+  if (placement?.projected_target_label) rows.push(["Target", <code className="font-mono">{placement.projected_target_label}</code>])
+  if (placement?.policy) rows.push(["Placement", humanize(placement.policy)])
+  if (placement?.source_snapshot?.source_sha) rows.push(["Source", <code className="font-mono">{shortSha(placement.source_snapshot.source_sha)}</code>])
+  if (placement?.source_snapshot?.source_ref) rows.push(["Source ref", <code className="font-mono">{placement.source_snapshot.source_ref}</code>])
+  if (placement?.worker_hostname) rows.push(["Worker", placement.worker_hostname])
+  if (placement?.worker_storage_key) rows.push(["Storage", placement.worker_storage_key])
+  if (placement?.prepare_cache) rows.push(["Prepare cache", prepareCacheLabel(placement.prepare_cache)])
+  if (placement?.admission) rows.push(["Admission", admissionLabel(placement.admission)])
+  if (dependencies?.depends_on_step_ids?.length) rows.push(["Waits for", dependencies.depends_on_step_ids.map((id) => `STEP-${id}`).join(", ")])
+  if (dependencies?.barrier_progress) rows.push(["Barrier", `${dependencies.barrier_progress.completed}/${dependencies.barrier_progress.total} dependencies complete`])
+
+  return (
+    <dl className="mt-2 grid gap-x-4 gap-y-1 rounded border border-gray-200 bg-white p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:grid-cols-[max-content_1fr]">
+      {rows.map(([label, value]) => (
+        <div className="contents" key={label}>
+          <dt className="font-medium text-gray-500 dark:text-gray-400">{label}</dt>
+          <dd className="min-w-0 break-words">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function prepareCacheLabel(cache: Record<string, unknown>) {
+  const status = stringDetail(cache.status) || stringDetail(cache.source)
+  const hit = booleanDetail(cache.hit)
+  if (hit !== null) return hit ? "hit" : "miss"
+  return status ? humanize(status) : "unknown"
+}
+
+function admissionLabel(admission: Record<string, unknown>) {
+  const reason = stringDetail(admission.reason)
+  const retryAt = stringDetail(admission.retry_at)
+  return [reason ? humanize(reason) : "blocked", retryAt ? `retry ${formatDiagnosticTime(retryAt)}` : null].filter(Boolean).join(" - ")
 }
 
 function StepSummaryPanel({ summary, onClose }: { summary: string; onClose: () => void }) {

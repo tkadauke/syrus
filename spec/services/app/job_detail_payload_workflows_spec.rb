@@ -542,6 +542,189 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "exposes distributed Step placement, target, worker, admission, source snapshot, command span, and barrier progress" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repo.update!(distributed_workflow_dag_enabled: true)
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", worker_hostname: "workflow-host", worker_storage_key: "workflow-storage")
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "succeeded", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 4, state: "queued", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      snapshot = WorkflowSourceSnapshots.record!(
+        workflow: workflow,
+        creator_step: fanout,
+        source_sha: "a" * 40,
+        source_ref: "refs/heads/main",
+        tree_sha: "b" * 40
+      )
+      alpha = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 2,
+        state: "succeeded",
+        next_step_id: collect.id,
+        depends_on_ids: [ fanout.id ],
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: {
+          "name" => "alpha",
+          "projected_target_label" => "//:grade/alpha",
+          "projected_target_fingerprint" => "f" * 64,
+          "projected_resource_key" => "target://:grade/alpha",
+          "barrier_group" => "workflow:#{workflow.id}:grader_collect",
+          "barrier_labels" => [ "grader_collect" ],
+          "source_snapshot_id" => snapshot.id,
+          "source_snapshot" => {
+            "id" => snapshot.id,
+            "source_sha" => snapshot.source_sha,
+            "source_ref" => snapshot.source_ref,
+            "tree_sha" => snapshot.tree_sha
+          },
+          "prepare_cache" => { "hit" => true, "key" => "prepare-alpha" }
+        }
+      )
+      beta = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 3,
+        state: "queued",
+        next_step_id: collect.id,
+        depends_on_ids: [ fanout.id ],
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: {
+          "name" => "beta",
+          "projected_target_label" => "//:grade/beta",
+          "barrier_labels" => [ "grader_collect" ],
+          "source_snapshot_id" => snapshot.id,
+          "source_snapshot" => {
+            "id" => snapshot.id,
+            "source_sha" => snapshot.source_sha,
+            "source_ref" => snapshot.source_ref,
+            "tree_sha" => snapshot.tree_sha
+          }
+        }
+      )
+      collect.update!(depends_on_ids: [ alpha.id, beta.id ])
+      alpha_run = Run.create!(job: job, step: alpha, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+      alpha_run.command_spans.create!(
+        job: job,
+        workflow: workflow,
+        step: alpha,
+        sequence: 1,
+        name: "alpha",
+        command_excerpt: "bin/alpha",
+        started_at: 1.minute.ago,
+        hostname: "worker-alpha",
+        outcome: "succeeded"
+      )
+      WorkflowStepWorkerSlot.create!(
+        workflow: workflow,
+        step: alpha,
+        run: alpha_run,
+        worker_key: "storage:alpha",
+        worker_hostname: "worker-alpha",
+        worker_storage_key: "storage-alpha",
+        released_at: Time.current,
+        release_reason: "run_terminal"
+      )
+      beta_run = Run.create!(
+        job: job,
+        step: beta,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "queued"
+      )
+      workflow.set_artifact!(
+        "workflow_step_worker_slot_admission",
+        {
+          "reason" => "worker_slot_busy",
+          "worker_key" => "storage:beta",
+          "worker_hostname" => "worker-beta",
+          "worker_storage_key" => "storage-beta",
+          "step_id" => beta.id,
+          "run_id" => beta_run.id,
+          "retry_at" => 30.seconds.from_now.iso8601
+        }
+      )
+
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+      steps = workflow_payload.fetch(:steps).index_by { |entry| entry.fetch(:id) }
+      alpha_payload = steps.fetch(alpha.id)
+      beta_payload = steps.fetch(beta.id)
+      collect_payload = steps.fetch(collect.id)
+
+      expect(alpha_payload.fetch(:placement)).to include(
+        policy: "immutable_source_checkout",
+        projected_target_label: "//:grade/alpha",
+        projected_target_fingerprint: "f" * 64,
+        projected_resource_key: "target://:grade/alpha",
+        worker_hostname: "worker-alpha",
+        worker_storage_key: "storage-alpha",
+        worker_key: "storage:alpha",
+        worker_slot_release_reason: "run_terminal",
+        prepare_cache: include("hit" => true, "key" => "prepare-alpha"),
+        source_snapshot: include(
+          "id" => snapshot.id,
+          "source_sha" => "a" * 40,
+          "source_ref" => "refs/heads/main",
+          "tree_sha" => "b" * 40
+        )
+      )
+      expect(alpha_payload.fetch(:dependencies)).to include(
+        depends_on_step_ids: [ fanout.id ],
+        dependent_step_ids: [ collect.id ],
+        barrier_group: "workflow:#{workflow.id}:grader_collect",
+        barrier_labels: [ "grader_collect" ]
+      )
+      expect(alpha_payload.dig(:dependencies, :barrier_progress)).to be_nil
+      expect(beta_payload.dig(:dependencies, :barrier_progress)).to be_nil
+      expect(alpha_payload.dig(:runs, 0, :command_spans)).to contain_exactly(include(hostname: "worker-alpha", name: "alpha"))
+      expect(beta_payload.dig(:placement, :admission)).to include(
+        "reason" => "worker_slot_busy",
+        "worker_hostname" => "worker-beta",
+        "worker_storage_key" => "storage-beta"
+      )
+      expect(collect_payload.dig(:dependencies, :barrier_progress)).to include(
+        total: 2,
+        completed: 1,
+        queued: 1,
+        succeeded: 1
+      )
+    end
+
+    it "scopes run-host admission artifacts to the Step that owns the Run" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      alpha = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "queued")
+      beta = Step.create!(workflow: workflow, kind: "grader", position: 2, state: "queued")
+      Run.create!(job: job, step: alpha, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+      beta_run = Run.create!(job: job, step: beta, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+
+      workflow.set_artifact!(
+        "run_host_admission",
+        {
+          "reason" => "host_guarded_run_limit",
+          "action" => "defer",
+          "hostname" => "worker-beta",
+          "step_kind" => "grader",
+          "run_id" => beta_run.id,
+          "retry_at" => 30.seconds.from_now.iso8601
+        }
+      )
+
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+      steps = workflow_payload.fetch(:steps).index_by { |entry| entry.fetch(:id) }
+
+      expect(steps.fetch(alpha.id).dig(:placement, :admission)).to be_nil
+      expect(steps.fetch(beta.id).dig(:placement, :admission)).to include(
+        "reason" => "host_guarded_run_limit",
+        "action" => "defer",
+        "hostname" => "worker-beta",
+        "run_id" => beta_run.id
+      )
+    end
+
     it "keeps legacy workflows without WorkUnit ownership in the fallback workflow list" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
