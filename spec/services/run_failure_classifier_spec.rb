@@ -195,6 +195,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(true)
   end
 
+  it "classifies Codex turn_failed outcomes as retryable even when earlier logs mention git failures" do
+    run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed")
+    diagnostic("Steps::Base::StepFailed", "agent reported turn_failed")
+    JobLog.append!(
+      run: run,
+      chunk: "[codex command] /bin/bash -lc 'git status && rg example' failed",
+      kind: "tool_call"
+    )
+
+    expect(classification.classification).to eq("provider_transient")
+    expect(classification.retryable).to eq(true)
+  end
+
   it "classifies Octokit service-unavailable diagnostics as retryable provider transients" do
     run.update!(state: "failed", agent_provider: "codex")
     diagnostic(

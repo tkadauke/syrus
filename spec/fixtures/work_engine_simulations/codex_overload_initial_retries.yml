@@ -1,0 +1,39 @@
+name: codex overload initial retries
+repository:
+  owner: simulation
+  name: codex-overload-initial-retries
+jobs:
+  overloaded:
+    title: Codex overload initial retries
+    state: running
+    agent_provider: codex
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: failed
+          run:
+            state: failed
+            agent_provider: codex
+            agent_outcome: turn_failed
+            diagnostic:
+              error_class: Steps::Base::StepFailed
+              error_message: "agent reported turn_failed after command output included `git status` failed; Codex model overloaded, please retry"
+        - kind: summarize
+          state: queued
+        - kind: pr_open
+          state: queued
+runner:
+  auto_retry_failed_jobs: false
+outcomes:
+  default: success
+success_states:
+  overloaded:
+    - implemented

@@ -42,6 +42,7 @@ module WorkEngine
           before = fingerprint
           apply_scenario_events!(tick)
           reconcile!(tick)
+          process_auto_retry_attempts!(tick)
           retry_failed_jobs!(tick)
           wake_jobs!
           process_landing_queue!(tick)
@@ -255,6 +256,23 @@ module WorkEngine
           next unless result.success?
 
           events << "tick #{tick}: retry #{job.slug} via #{result.action}"
+        end
+      end
+
+      def process_auto_retry_attempts!(tick)
+        attempts = pending_auto_retry_attempts
+        return if attempts.empty?
+
+        next_attempt = attempts.min_by { |attempt| [ attempt.scheduled_at || Time.current, attempt.id ] }
+        if next_attempt.scheduled_at&.future? && no_active_runs?
+          next_attempt.update!(scheduled_at: Time.current)
+          events << "tick #{tick}: fast-forward auto retry #{next_attempt.id}"
+        end
+
+        pending_auto_retry_attempts.where("scheduled_at <= ?", Time.current).order(:scheduled_at, :id).each do |attempt|
+          AutoRetryJob.perform_now(attempt.id)
+          attempt.reload
+          events << "tick #{tick}: auto retry #{attempt.id} #{attempt.retry_kind} -> #{attempt.performed_at.present? ? "started" : "skipped"}"
         end
       end
 
@@ -542,6 +560,12 @@ module WorkEngine
           .to_a
       end
 
+      def pending_auto_retry_attempts
+        AutoRetryAttempt
+          .where(job_id: job_ids)
+          .pending
+      end
+
       def landing_queue
         Job.where(id: job_ids).landing_queue.order(:id).to_a
       end
@@ -593,6 +617,7 @@ module WorkEngine
           Workflow.where(job_id: job_ids).order(:id).pluck(:id, :state, :updated_at),
           Step.joins(:workflow).where(workflows: { job_id: job_ids }).order(:id).pluck(:id, :state, :updated_at),
           Run.where(job_id: job_ids).order(:id).pluck(:id, :state, :updated_at),
+          AutoRetryAttempt.where(job_id: job_ids).order(:id).pluck(:id, :performed_at, :skipped_reason, :scheduled_at, :updated_at),
           WorkIntent.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :wait_reason, :updated_at),
           WorkUnit.where(scope_type: "job", scope_id: job_ids).order(:id).pluck(:id, :state, :blocked_reason, :updated_at)
         ]

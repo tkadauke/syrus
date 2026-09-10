@@ -162,6 +162,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
   {
     "queued_step_without_run" => "queued_step_without_run",
     "running_workflow_with_failed_step" => "running_workflow_with_failed_step",
+    "codex_overload_initial_retries" => "auto retry",
     "worker_died_retries_once" => "retryable_run_failure",
     "zombie_terminal_unit_orphaned_run" => "running_run_without_live_worker_evidence",
     "closed_job_active_work_unit" => "closed_job_active_runtime_work",

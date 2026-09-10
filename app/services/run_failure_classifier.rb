@@ -117,6 +117,8 @@ class RunFailureClassifier
       result("database_capacity", 0.85, true, "The run failed because the database ran out of storage capacity (e.g. a MySQL table-full condition); this is transient infrastructure capacity, not a code defect.")
     when database_lock?
       result("database_lock", 0.80, true, "The run failed during transient database contention, timeout, or connection exhaustion.")
+    when provider_turn_failed?
+      result("provider_transient", 0.65, true, "The provider reported a generic failed turn; retrying should rerun the same step.")
     when git_failure?
       result("git_failure", 0.70, false, "A git operation failed.")
     else
@@ -271,6 +273,10 @@ class RunFailureClassifier
     %w[adversarial_review visual_review].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/agent didn't call/i)
+  end
+
+  def provider_turn_failed?
+    run.agent_provider.present? && run.agent_outcome.to_s == "turn_failed"
   end
 
   def agent_gave_up_waiting?
