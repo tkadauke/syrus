@@ -42,6 +42,23 @@ export type McpToolUsageRecentCall = {
   chat_path: string | null
 }
 
+export type McpToolCardGapRow = {
+  tool_name: string
+  calls?: number
+  errors?: number
+  error_rate?: number
+  owner_type: "core" | "plugin"
+  owner_name: string
+  recommendation_target: string
+  card_status: "missing" | "weak" | "registered"
+}
+
+export type McpToolCardGaps = {
+  high_volume_without_custom_card: McpToolCardGapRow[]
+  high_error_with_weak_or_no_custom_card: McpToolCardGapRow[]
+  unused_advertised_tools: McpToolCardGapRow[]
+}
+
 export type McpToolUsagePayload = {
   window: { start: string; end: string }
   surface: string
@@ -57,6 +74,7 @@ export type McpToolUsagePayload = {
   server_breakdown: McpToolUsageBreakdownRow[]
   sidecar_mode_breakdown: McpToolUsageBreakdownRow[]
   unused_advertised_tools: string[]
+  custom_card_gaps: McpToolCardGaps
   recent_calls: McpToolUsageRecentCall[]
 }
 

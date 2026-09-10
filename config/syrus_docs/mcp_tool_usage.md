@@ -33,8 +33,9 @@ The response includes top tools, unused currently advertised tools for the
 selected surface, error rates by tool, chat-vs-workflow usage breakdown
 (`surface_breakdown`), provider breakdown (`provider_breakdown`), MCP server
 breakdown (`server_breakdown`), stdio-vs-persistent usage breakdown
-(`sidecar_mode_breakdown`), and a bounded list of the most recent individual
-calls (`recent_calls`) for tracing a specific failure back to its origin.
+(`sidecar_mode_breakdown`), custom-card coverage gaps (`custom_card_gaps`), and
+a bounded list of the most recent individual calls (`recent_calls`) for tracing
+a specific failure back to its origin.
 Each `recent_calls` row carries the linked Job/Workflow/Run/chat ids plus a
 ready-to-use `job_path` / `workflow_path` / `run_path` / `chat_path` (nil when
 not applicable) so the admin UI (and any other consumer) can link straight to
@@ -42,14 +43,40 @@ the originating record without re-deriving routes. Rows never include raw
 tool input/result — only the same bounded, already-truncated
 `error_message_summary` described above.
 
+`custom_card_gaps` is reporting-only. It never creates proposals or mutates
+plugin/core state. The payload compares chat-surface usage and currently
+advertised chat tools against registered frontend custom tool-card renderers
+where that renderer metadata can be discovered from core
+`app/frontend/routes/chat/tool_cards/*.tsx` files and plugin
+`plugins/*/app/frontend/tool_cards/*.tsx` files. The section has three buckets:
+
+- `high_volume_without_custom_card` — the highest-volume chat tools in the
+  selected window that have no registered custom card.
+- `high_error_with_weak_or_no_custom_card` — chat tools with errors whose card
+  is missing or weak. A weak card is one with an expanded renderer but no
+  collapsed summary metadata.
+- `unused_advertised_tools` — chat tools advertised for the current chat
+  availability context but not used in the selected window.
+
+Each row carries `owner_type`, `owner_name`, and `recommendation_target`.
+Plugin-defined tools point at `plugin:<plugin_name>` so follow-up card work can
+land in the owning plugin rather than in core; core tools use `core`.
+Plugin-advertised tools are availability-filtered with the same `available_for?`
+gate the chat sidecar uses, so installed but currently unavailable gated plugin
+tools do not appear as unused advertised-tool gaps merely because their plugin
+code is present.
+
 The admin **MCP Tool Usage** page (`Admin::McpToolUsagePayload`,
-`app/frontend/routes/AdminMcpToolUsage.tsx`) renders all of the above: call/
-error totals, the top-tools and highest-error-rate tables, unused advertised
-tools, the surface/provider/server/sidecar-mode breakdowns, and the recent
-calls table with links to the originating Job, Workflow, Run transcript, or
-chat. It supports the same `start`/`since`, `until`, and `surface` filters as
-the API through simple window-preset and surface controls; it does not surface
-raw tool input/result, consistent with what the payload itself omits.
+`app/frontend/routes/AdminMcpToolUsage.tsx`) renders the aggregate operational
+sections: call/error totals, the top-tools and highest-error-rate tables,
+unused advertised tools, the surface/provider/server/sidecar-mode breakdowns,
+and the recent calls table with links to the originating Job, Workflow, Run
+transcript, or chat. It supports the same `start`/`since`, `until`, and
+`surface` filters as the API through simple window-preset and surface controls;
+it does not surface raw tool input/result, consistent with what the payload
+itself omits. The `admin_mcp_tool_usage` chat custom card renders the
+`custom_card_gaps` buckets alongside those aggregate usage sections so
+operators can prioritize future card work from chat.
 
 ## Sidecar mode (`sidecar_mode`, `daemon_worker_id`)
 
