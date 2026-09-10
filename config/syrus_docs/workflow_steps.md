@@ -55,6 +55,26 @@ record `failed_worker_*` context and defer while the failed host's fresh health
 sample remains critical. See
 [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
 
+Job detail workflow payloads expose this runtime placement data on each Step
+under `steps[].placement` and dependency/barrier data under
+`steps[].dependencies`. Placement fields describe the Step runtime object:
+`policy`, source snapshot SHA/ref/tree, worker hostname/storage key, latest
+worker-slot metadata, immutable-checkout prepare cache hit/miss, and any
+admission block that applies to that Step. Projected target fields such as
+`projected_target_label`, `projected_target_fingerprint`, and
+`projected_resource_key` remain descriptive target-graph metadata; they explain
+what the Step is checking but are not the Step identity.
+
+The UI groups parallel grader batches from generic Step data rather than from a
+separate grader-batch model: `grader_fanout` materializes `grader` Steps,
+`grader_collect` / `preflight_grader_collect` depend on those Steps, and
+`dependencies.barrier_progress` summarizes the dependency states. Admission
+blocks are likewise Step-scoped. Worker-slot admission artifacts include a
+`step_id`; host pickup deferrals include a `run_id`, which the payload resolves
+back to the owning Step before showing the block. Sibling Steps therefore remain
+queued, running, failed, or completed on their own merits instead of making the
+whole workflow look paused.
+
 ## How a step reports failure
 
 A step handler raises `Steps::Base::StepFailed`. When the handler knows *what*
