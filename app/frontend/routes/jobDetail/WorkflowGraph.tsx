@@ -794,8 +794,8 @@ function StepTestPlanPanel({ testPlan, onClose }: { testPlan: { steps: string[];
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_test_plan")}</ArtifactPanelHeader>
       <div className="overflow-auto p-3 max-md:min-h-0 max-md:flex-1">
         {testPlan.steps.length > 0 ? (
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
-            {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+          <ol className="min-w-0 max-w-full list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+            {testPlan.steps.map((step, index) => <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>{step}</li>)}
           </ol>
         ) : null}
         {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}

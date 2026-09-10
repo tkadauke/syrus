@@ -425,11 +425,11 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">
-          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <SectionHeading>{t("section_issue")}</SectionHeading>
             {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
           </section>
-          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <SectionHeading>{t("section_agent_summary")}</SectionHeading>
             {payload.summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
           </section>
@@ -465,7 +465,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             deployPath={payload.paths.app_deploy_path}
           />
 
-          <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
+          <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
             <SectionHeading>{t("section_details")}</SectionHeading>
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
@@ -668,10 +668,10 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
   if (!testPlan || (testPlan.steps.length === 0 && !testPlan.notes)) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+    <section className="min-w-0 overflow-x-auto rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <SectionHeading>{t("section_test_plan")}</SectionHeading>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
-        {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+      <ol className="mt-2 min-w-0 max-w-full list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+        {testPlan.steps.map((step, index) => <li className="min-w-0 break-words [overflow-wrap:anywhere]" key={`${index}-${step}`}>{step}</li>)}
       </ol>
       {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}
     </section>

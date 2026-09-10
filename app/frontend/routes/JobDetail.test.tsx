@@ -1524,6 +1524,29 @@ describe("JobDetailView", () => {
     expect(document.querySelector("strong")).toHaveTextContent("the bug")
   })
 
+  it("wraps long test plan entries in the Summary tab instead of widening the card", () => {
+    const longStep = [
+      "Run CI=true",
+      'BUNDLE_PATH="$PWD/vendor/bundle"',
+      'BUNDLE_APP_CONFIG="$PWD/.bundle"',
+      "bundle exec rspec",
+      "spec/jobs/run_job_parallel_grader_projection_spec.rb",
+      "workflow_step_worker_slot_admission_enabled",
+      "source_snapshot_metadata_invalid"
+    ].join(" ")
+
+    renderJobDetail(jobPayload({
+      test_plan: { workflow_id: 1, steps: [longStep], notes: "Verify `very_long_inline_code_token_that_should_wrap_in_the_card`." }
+    }))
+
+    const panel = screen.getByRole("heading", { name: "Test plan" }).closest("section")
+    expect(panel).toHaveClass("min-w-0", "overflow-x-auto")
+
+    const item = screen.getByRole("listitem")
+    expect(item).toHaveClass("min-w-0", "break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByText("very_long_inline_code_token_that_should_wrap_in_the_card")).toBeInTheDocument()
+  })
+
   it("shows a Test Plan button in the run row for test_plan steps", () => {
     renderJobDetail(jobPayload({
       workflows: [
