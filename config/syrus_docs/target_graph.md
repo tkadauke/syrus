@@ -483,7 +483,6 @@ input fingerprint falls back to source snapshot fingerprint, then tree SHA,
 then source SHA, then commit SHA. Syrus still never uses the source snapshot
 database id, because that id is scoped to one workflow and would make the same
 source input look different in another workflow.
-
 ### Reusing target health at runtime
 
 Before running an explicit executable target, Syrus checks whether the same
