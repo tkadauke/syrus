@@ -183,6 +183,59 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions.count).to eq(1)
   end
 
+  it "defaults to the latest run-scoped diff version instead of a newer synthetic branch comparison" do
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+    step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+    run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
+                      base_sha: "step-base", head_sha: "step-head")
+    run_scoped = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "step-base",
+      head_sha: "step-head",
+      base_ref: "syrus/parent",
+      head_ref: "syrus/issue-42",
+      files: [
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
+      ],
+      reason: "initial"
+    )
+    synthetic = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      files: [
+        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" },
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
+      ],
+      reason: "source_diff"
+    )
+    expect(synthetic.version_index).to be > run_scoped.version_index
+
+    allow(github).to receive(:compare_commits)
+      .with("acme/widgets", "main", "syrus/issue-42")
+      .and_return(commits: [
+        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") }
+      ], merge_base_sha: "branch-base")
+    expect(github).not_to receive(:compare_files)
+
+    payload = described_class.build(job: job, user: user)
+
+    expect(payload.dig(:version, :id)).to eq(run_scoped.id)
+    expect(payload[:files]).to contain_exactly(
+      path: "app/services/step_dispatcher.rb",
+      status: "modified",
+      additions: 2,
+      deletions: 0,
+      patch: "@@ -1 +1,2 @@\n+backend"
+    )
+    expect(payload[:versions].map { |version| version[:id] }).to include(synthetic.id, run_scoped.id)
+  end
+
   describe "preview diff fixture" do
     let(:fixture) do
       {

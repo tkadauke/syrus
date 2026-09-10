@@ -56,4 +56,36 @@ RSpec.describe App::DiffReviewVersionsPayload do
       patch: "@@ -1 +1 @@\n-old\n+new"
     )
   end
+
+  it "prefers the newest run-scoped version as latest over newer no-run branch comparisons" do
+    workflow = job.workflows.first
+    run = job.runs.first
+    run.update!(base_sha: "step-base", head_sha: "step-head")
+    run_scoped = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "step-base",
+      head_sha: "step-head",
+      files: [
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
+      ],
+      reason: "initial"
+    )
+    synthetic = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      files: [
+        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" }
+      ],
+      reason: "source_diff"
+    )
+    expect(synthetic.version_index).to be > run_scoped.version_index
+
+    index = described_class.index(job: job)
+
+    expect(index[:latest_version_id]).to eq(run_scoped.id)
+  end
 end

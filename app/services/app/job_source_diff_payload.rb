@@ -25,6 +25,24 @@ module App
         merge_base_sha = compare[:merge_base_sha]
       end
 
+      preferred_version = preferred_default_version
+      unless explicit_selection?
+        if preferred_version
+          return base_payload(
+            base_ref: preferred_version.base_ref.presence || preferred_version.base_sha,
+            head_ref: preferred_version.head_ref.presence || preferred_version.head_sha,
+            branch_commits: branch_commits,
+            merge_base_sha: merge_base_sha
+          ).merge(
+            files: Array(preferred_version.files_snapshot).map { |file| stored_file_json(file) },
+            truncated: preferred_version.truncated,
+            diff_error: nil,
+            version: version_json(preferred_version),
+            versions: diff_versions_json
+          )
+        end
+      end
+
       base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
@@ -60,6 +78,10 @@ module App
 
     def source_available?
       @repository.installation&.active? || @user.github_token.present?
+    end
+
+    def explicit_selection?
+      @params[:base].present? || @params[:head].present?
     end
 
     # Preview-only escape hatch: `Job#diff_fixture` is populated exclusively by
@@ -131,6 +153,16 @@ module App
       }
     end
 
+    def stored_file_json(file)
+      {
+        path: file["path"].to_s,
+        status: file["status"].to_s,
+        additions: file["additions"].to_i,
+        deletions: file["deletions"].to_i,
+        patch: file["patch"]
+      }
+    end
+
     def iso8601(value)
       value.respond_to?(:iso8601) ? value.iso8601 : value&.to_s
     end
@@ -140,7 +172,7 @@ module App
       return existing_version if existing_version
 
       source_run = source_run_for(base_sha: base_sha, head_sha: head_sha)
-      explicit_selection = @params[:base].present? || @params[:head].present?
+      explicit_selection = explicit_selection?
       source_workflow = source_run&.workflow || (explicit_selection ? nil : @job.latest_workflow)
       trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
       DiffReviewVersions::Creator.call(
@@ -166,6 +198,15 @@ module App
           .where(base_sha: base_sha, head_sha: head_sha)
           .latest_first
           .first
+    end
+
+    def preferred_default_version
+      return nil if explicit_selection?
+
+      @preferred_default_version ||= @job.diff_review_versions
+                                     .where.not(run_id: nil)
+                                     .latest_first
+                                     .first
     end
 
     def fixture_diff_review_version(fixture)

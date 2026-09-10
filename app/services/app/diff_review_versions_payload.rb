@@ -17,7 +17,7 @@ module App
       {
         job_id: @job.id,
         versions: @job.diff_review_versions.includes(:workflow, :run).ordered.map { |version| version_json(version) },
-        latest_version_id: @job.diff_review_versions.latest_first.pick(:id)
+        latest_version_id: latest_version_id
       }
     end
 
@@ -63,6 +63,11 @@ module App
         trigger_kind: workflow.trigger_kind,
         state: workflow.state
       }
+    end
+
+    def latest_version_id
+      @job.diff_review_versions.where.not(run_id: nil).latest_first.pick(:id) ||
+        @job.diff_review_versions.latest_first.pick(:id)
     end
 
     def comments_count_for(version)
