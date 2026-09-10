@@ -59,6 +59,41 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.last_graded_sha).to eq(sha)
     end
 
+    it "preserves broken health from an unaffected required target" do
+      record_target_health!("//cli:grade/tests", status: "failed")
+      workflow.set_artifact!(
+        Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY,
+        [
+          target_selection("app-tests", "//app:grade/tests", affected: true),
+          target_selection("cli-tests", "//cli:grade/tests", affected: false)
+        ]
+      )
+
+      described_class.after_success(workflow)
+
+      repository.reload
+      expect(repository.grader_health).to eq("broken")
+      expect(repository.last_graded_sha).to eq(sha)
+      expect(MainBranchHealthCheck.last.grader_failed_names).to eq([ "cli-tests" ])
+    end
+
+    it "preserves unknown health from an unaffected required target" do
+      workflow.set_artifact!(
+        Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY,
+        [
+          target_selection("app-tests", "//app:grade/tests", affected: true),
+          target_selection("cli-tests", "//cli:grade/tests", affected: false)
+        ]
+      )
+
+      described_class.after_success(workflow)
+
+      repository.reload
+      expect(repository.grader_health).to eq("unknown")
+      expect(repository.last_graded_sha).to eq(sha)
+      expect(MainBranchHealthCheck.last.grader_health).to eq("unknown")
+    end
+
     it "links the created health check record to the workflow" do
       described_class.after_success(workflow)
 
@@ -340,6 +375,35 @@ RSpec.describe Workflows::MainGrader do
       agent_provider: step.workflow.agent_provider,
       state: "failed",
       agent_outcome: agent_outcome
+    )
+  end
+
+  def target_selection(name, target_label, affected:)
+    {
+      "name" => name,
+      "required" => true,
+      "target_label" => target_label,
+      "affected" => affected,
+      "reason" => affected ? "own source scope matched a changed file" : "no matching files changed",
+      "target_fingerprints" => {
+        "input_fingerprint" => "input-#{name}",
+        "command_fingerprint" => "command-#{name}",
+        "environment_fingerprint" => "environment-#{name}"
+      }
+    }
+  end
+
+  def record_target_health!(target_label, status:)
+    TargetHealthRecorder.record!(
+      repository: repository,
+      target_label: target_label,
+      project_id: TargetGraph::ROOT_PROJECT_ID,
+      commit_sha: "previous123",
+      input_fingerprint: "input-cli-tests",
+      command_fingerprint: "command-cli-tests",
+      environment_fingerprint: "environment-cli-tests",
+      status: status,
+      checked_at: 1.minute.ago
     )
   end
 end

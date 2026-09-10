@@ -313,9 +313,26 @@ includes the rebased-PR count alongside the retried-Job count.
 
 ## main_grader
 
-**When it fires:** An internal trigger for running graders against the main branch (used for automated main-branch health checks).
+**When it fires:** An internal trigger for maintaining executable target
+health on the main branch (used for automated main-branch health checks).
 
 This trigger kind is infrastructure-facing and not surfaced in the operator Job state machine. It does not produce a PR or appear in the normal Job workflow list.
+
+On each main-branch update, `PollMainBranchHealthJob` captures the repository's
+previous checked main SHA and passes it to the `main_grader` Workflow. Grader
+fanout diffs that previous SHA against the checked-out main SHA, asks the
+TargetGraph which grader targets are affected by those changed files and
+dependency scopes, and materializes only affected required targets whose
+current target-health fingerprints are stale, missing, or unhealthy. Healthy
+target records with matching inputs are reused; unaffected target health is
+left intact and still contributes to the repository-level `grader_health`
+summary when the workflow settles.
+
+If there is no previous main SHA, the workflow logs that it is establishing a
+baseline and selects every configured grader target. Root-only repositories
+therefore keep the understandable legacy shape: a repo-wide grader target with
+no file scope is affected by every main update and runs unless target health
+proves the same inputs already passed.
 
 Main-branch CI health is intentionally narrower than "any failed GitHub check on the SHA." For GitHub Actions, Syrus only treats checks from the regular `CI` workflow as the CI signal. Release, test-build, website deploy, and other packaging/operations workflows can fail on the same commit without marking main broken or spawning a main-branch repair job.
 

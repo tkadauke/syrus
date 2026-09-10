@@ -474,6 +474,14 @@ Speculative `landing_validation` workflows use the `landing` phase. Their
 `when_files_changed` selection is computed against the predicted post-merge
 base, not the current `origin/main`.
 
+`main_grader` workflows use the `ci` phase and compute `when_files_changed`
+selection against the previous checked main SHA recorded by
+`PollMainBranchHealthJob`, not against `origin/main` (which already points at
+the same checked-out commit in the detached main-grader workspace). Fanout logs
+the previous SHA it uses. When no previous SHA exists, fanout logs a baseline
+maintenance run and selects every configured grader target so the repository
+gets initial target-health records.
+
 An earlier `fast:` command selected a parallel variant for landing trigger
 kinds and for grade-loop iterations after the first, back when `run:` was
 serial. That meant the first grader pass of every workflow — the common case —
@@ -538,6 +546,18 @@ must have a latest healthy record, and every executable dependency target must
 also be healthy for its current fingerprints. A cache hit skips Step
 materialization, logs the reason, and records an entry in
 `target_health_skipped_targets` on the workflow and fanout Step details.
+
+For `main_grader`, fanout also records `grader_target_selections`, one entry
+per configured grader target with its affected verdict and target
+fingerprints. `Workflows::MainGrader` uses those entries when the workflow
+settles: a passing affected subset marks the repository grader signal healthy
+only if every unaffected required target still has a matching healthy
+`TargetHealthRecord`. A failed unaffected target keeps `grader_health` broken;
+missing, stale, or unknown unaffected health keeps it unknown; timed-out,
+cancelled, or inconclusive unaffected health keeps it inconclusive. This is how
+main-branch target health preserves unaffected target state while avoiding
+unnecessary target execution.
+
 `grader_collect` folds those entries into the iteration rollup as passed
 target-health skips, without recording a new grader conclusion for work that
 did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
