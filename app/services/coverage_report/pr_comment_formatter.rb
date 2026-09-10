@@ -10,9 +10,10 @@ module CoverageReport
     # threshold — it is a visual hint, not enforcement.
     CHANGED_LINE_WARN_PCT = 50.0
 
-    def initialize(artifact, plan:)
+    def initialize(artifact, plan: nil, plans: nil)
       @artifact = artifact
-      @plan = plan
+      @plans = Array(plans || plan).compact
+      @plan = plan || @plans.find(&:root_project?) || (@plans.one? ? @plans.first : nil)
     end
 
     # Returns the fully formatted markdown string, or nil when coverage data
@@ -33,6 +34,12 @@ module CoverageReport
         lines << per_file_details(file_rows)
       end
 
+      project_sections = per_project_sections
+      if project_sections.any?
+        lines << ""
+        lines.concat(project_sections)
+      end
+
       lines.join("\n")
     end
 
@@ -44,15 +51,42 @@ module CoverageReport
       rows << "|--------|-------|-----------|--------|"
 
       lines_pct = @artifact.dig("summary", "lines_pct")
-      rows << summary_row("Lines", lines_pct, @plan.threshold&.lines) if lines_pct
+      rows << summary_row("Lines", lines_pct, @plan&.threshold&.lines) if lines_pct
 
       branches_pct = @artifact.dig("summary", "branches_pct")
       rows << summary_row("Branches", branches_pct, nil) if branches_pct
 
       pr_delta_pct = @artifact.dig("pr_delta", "pct")
-      rows << summary_row("PR delta", pr_delta_pct, @plan.threshold&.pr_lines) if pr_delta_pct
+      rows << summary_row("PR delta", pr_delta_pct, @plan&.threshold&.pr_lines) if pr_delta_pct
 
       rows.join("\n")
+    end
+
+    def per_project_sections
+      projects = Array(@artifact["projects"]).reject { |project| project["coverage_unavailable"] }
+      return [] if projects.size <= 1
+
+      lines = [ "### Project Coverage", "" ]
+      lines << "| Project | Lines | Branches | PR delta | Status |"
+      lines << "|---------|-------|----------|----------|--------|"
+
+      projects.each do |project_artifact|
+        plan = plan_for(project_artifact)
+        lines_pct = project_artifact.dig("summary", "lines_pct")
+        branches_pct = project_artifact.dig("summary", "branches_pct")
+        pr_delta_pct = project_artifact.dig("pr_delta", "pct")
+        status = project_artifact["threshold_miss"] ? "❌" : "✅"
+        status = "—" unless plan&.threshold
+
+        lines << "| #{project_artifact.dig('project', 'label')} | #{format_optional_pct(lines_pct)} | #{format_optional_pct(branches_pct)} | #{format_optional_pct(pr_delta_pct)} | #{status} |"
+      end
+
+      lines
+    end
+
+    def plan_for(project_artifact)
+      project_id = project_artifact.dig("project", "id")
+      @plans.find { |plan| plan.project_id == project_id }
     end
 
     def summary_row(label, pct, threshold)
@@ -102,6 +136,10 @@ module CoverageReport
 
     def format_pct(pct)
       "#{pct.round(1)}%"
+    end
+
+    def format_optional_pct(pct)
+      pct.nil? ? "—" : format_pct(pct)
     end
   end
 end

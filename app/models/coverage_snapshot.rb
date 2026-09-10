@@ -8,6 +8,10 @@ class CoverageSnapshot < ApplicationRecord
   end
 
   scope :on_branch, ->(branch) { where(branch: branch) }
+  scope :for_project, ->(project_id) {
+    id = project_id.presence || TargetGraph::ROOT_PROJECT_ID
+    id == TargetGraph::ROOT_PROJECT_ID ? where(project_id: [ nil, TargetGraph::ROOT_PROJECT_ID ]) : where(project_id: id)
+  }
   scope :since, ->(time) { where(created_at: time..) }
   scope :recent, ->(n) { order(created_at: :desc).limit(n) }
   scope :on_default_branch, -> {
