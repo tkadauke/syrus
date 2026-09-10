@@ -66,8 +66,7 @@ module App
     end
 
     def latest_version_id
-      @job.diff_review_versions.where.not(run_id: nil).latest_first.pick(:id) ||
-        @job.diff_review_versions.latest_first.pick(:id)
+      DiffReviewVersion.default_for_review(@job)&.id
     end
 
     def comments_count_for(version)

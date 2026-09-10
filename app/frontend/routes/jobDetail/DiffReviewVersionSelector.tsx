@@ -58,12 +58,12 @@ export function DiffReviewVersionSelector({
 
 export function versionOptionLabel(t: TFunction<"jobs">, version: DiffReviewVersion, latest: boolean) {
   const pieces = [
-    latest ? t("review_version_latest_prefix", { version: version.version_index }) : t("review_version_prefix", { version: version.version_index }),
-    version.label || version.reason || version.trigger_kind || t("review_version_default_reason"),
+    isAllChangesVersion(version) ? t("review_version_all_changes") : (latest ? t("review_version_latest_prefix", { version: version.version_index }) : t("review_version_prefix", { version: version.version_index })),
+    isAllChangesVersion(version) ? null : (version.label || version.reason || version.trigger_kind || t("review_version_default_reason")),
     version.workflow_id ? `WF-${version.workflow_id}` : null,
     version.run_id ? `RUN-${version.run_id}` : null,
     version.created_at ? absoluteDate(version.created_at) : null,
-    `${shortSha(version.base_sha)}..${shortSha(version.head_sha)}`,
+    t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) }),
     version.comments_count > 0 ? t("review_version_comments", { count: version.comments_count }) : t("review_version_no_comments")
   ].filter(Boolean)
   return pieces.join(t("review_version_separator"))
@@ -75,14 +75,32 @@ function versionMetadata(t: TFunction<"jobs">, version: DiffReviewVersion, lates
   const workflow = version.workflow_id ? t("review_version_workflow", { id: version.workflow_id }) : t("review_version_no_workflow")
   const run = version.run_id ? t("review_version_run", { id: version.run_id }) : t("review_version_no_run")
   const comments = t("review_version_comments", { count: version.comments_count })
+  const range = t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) })
+  if (isAllChangesVersion(version)) {
+    return [
+      t("review_version_all_changes"),
+      range,
+      comments
+    ].join(t("review_version_separator"))
+  }
+
   return [
     latest ? t("review_version_latest") : t("review_version_historical"),
     trigger,
     `${workflow}, ${run}`,
     created,
-    `${shortSha(version.base_sha)}..${shortSha(version.head_sha)}`,
+    range,
     comments
   ].join(t("review_version_separator"))
+}
+
+function isAllChangesVersion(version: DiffReviewVersion) {
+  return version.reason === "source_diff" || version.metadata?.range_kind === "all_changes"
+}
+
+function endpointLabel(ref: string | null | undefined, sha: string | null | undefined) {
+  const primary = ref || shortSha(sha)
+  return `${primary} (${shortSha(sha)})`
 }
 
 function shortSha(sha: string | null | undefined) {
