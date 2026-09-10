@@ -35,7 +35,7 @@ describe("admin_list_processes tool card", () => {
         last_heartbeat_at: "2026-09-06T00:05:00Z",
         cpu: 42.5,
         rss: 1024 * 1024 * 256,
-        run_id: 9001,
+        run_id: 301,
         workflow_id: null,
         outcome: null
       }]

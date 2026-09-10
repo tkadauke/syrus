@@ -31,7 +31,7 @@ describe("propose_epic_with_jobs tool card", () => {
       slug: "tier-2-cards",
       state: "confirmed",
       kind: "epic",
-      target_epic: { id: 292, number: 292, label: "the pending-action tool-card work" },
+      target_epic: { id: 92, number: 92, label: "the pending-action tool-card work" },
       depends_on_proposal_slugs: ["prep-work"],
       child_jobs: [
         { slug: "core-proposal-cards", state: "confirmed", target_repo: "tkadauke/syrus" },

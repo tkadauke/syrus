@@ -139,7 +139,7 @@ describe("pending action tool card family", () => {
   it("wires a dry-run-evidence tool through to the shared card", () => {
     const parsedResult = {
       action: "adopt_current_pr_head",
-      job_id: 4222,
+      job_id: 322,
       evidence: {
         remote_sha: "abc123abc123abc123",
         workflow_local_sha: "def456def456def456",
@@ -159,7 +159,7 @@ describe("pending action tool card family", () => {
   it("wires the destructive dry-run tool through to the shared card", () => {
     const parsedResult = {
       action: "replace_pr_branch_with_workflow_output",
-      job_id: 4222,
+      job_id: 322,
       evidence: { remote_sha: "abc123abc123abc123", diff_summary: { available: true, files: [] } },
       destructive_confirmation: "REPLACE PR BRANCH"
     }

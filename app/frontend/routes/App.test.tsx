@@ -3569,7 +3569,7 @@ describe("App", () => {
       view: "list",
       items: [
         dashboardJobItem({
-          id: 594,
+          id: 94,
           kind: "direct",
           title: "Navigate to Epic",
           issue_number: null,
@@ -3598,13 +3598,13 @@ describe("App", () => {
     expect(await screen.findByText("Navigate to Epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/app-shell/epics/7")
     expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-94")
-    const copySlugButton = screen.getByRole("button", { name: "Copy JOB-594 to clipboard" })
+    const copySlugButton = screen.getByRole("button", { name: "Copy JOB-94 to clipboard" })
     fireEvent.click(copySlugButton)
-    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-594"))
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-94"))
     expect(screen.getByRole("button", { name: "Copy JOB-595 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("GitHub issue").closest("td")).toHaveTextContent("JOB-595")
     expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/123")
-    expect(screen.queryByText("#594")).not.toBeInTheDocument()
+    expect(screen.queryByText("#94")).not.toBeInTheDocument()
   })
 
   it("renders dashboard job metadata with middot separators and copyable direct job slugs", async () => {
@@ -10298,7 +10298,7 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add dependency" }))
-    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill " }))
+    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/dependencies",

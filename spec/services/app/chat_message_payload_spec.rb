@@ -289,7 +289,7 @@ RSpec.describe App::ChatMessagePayload do
     action = chat.pending_actions.create!(
       action: "cancel_job",
       requested_by: "agent",
-      payload: { "job_id" => 999_999 }
+      payload: { "job_id" => 899 }
     )
     message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Cancel it?" })
 

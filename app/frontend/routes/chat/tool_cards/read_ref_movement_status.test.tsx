@@ -22,7 +22,7 @@ describe("read_ref_movement_status tool card", () => {
       ref_movement_action_id: 7,
       action_name: "send_job_upstream",
       state: "dispatched",
-      job: { id: 4225, slug: "JOB-325", state: "landing" },
+      job: { id: 325, slug: "JOB-325", state: "landing" },
       workflow: { id: 900, state: "running", trigger_kind: "upstream_export" },
       pr_link: { pr_number: 12, target_repository: "upstream/syrus", target_ref: "main" }
     }

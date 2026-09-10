@@ -23,12 +23,12 @@ describe("propose_epic tool card", () => {
       title: "Tier 2 Custom Tool Cards",
       kind: "epic",
       state: "confirmed",
-      materialized: { kind: "epic", epic_id: 292, epic_title: "Tier 2 Custom Tool Cards", child_jobs: [{ job_id: 4222, title: "Add core cards" }] }
+      materialized: { kind: "epic", epic_id: 92, epic_title: "Tier 2 Custom Tool Cards", child_jobs: [{ job_id: 322, title: "Add core cards" }] }
     }
 
     render(<>{proposeEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
+    expect(screen.getByText("Tier 2 Custom Tool Cards")).toBeInTheDocument()
     expect(screen.getByText(/1 child Job/)).toBeInTheDocument()
   })
 

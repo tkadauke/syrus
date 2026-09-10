@@ -755,7 +755,7 @@ describe("JobDetailView", () => {
       unresolved_slug: null,
       depends_on_epic: null,
       depends_on_job: {
-        id: 1101,
+        id: 41,
         kind: "issue",
         state: "queued",
         summary_state: "queued",
@@ -764,7 +764,7 @@ describe("JobDetailView", () => {
         issue_title: "First dependency",
         branch_name: null,
         pr_number: null,
-        job_path: "/jobs/1101"
+        job_path: "/jobs/41"
       }
     }
     const manualDependency = {
@@ -777,11 +777,11 @@ describe("JobDetailView", () => {
       depends_on_epic: null,
       depends_on_job: {
         ...parsedDependency.depends_on_job,
-        id: 1108,
+        id: 48,
         summary_state: "queued",
         issue_number: null,
         issue_title: "Direct dependency",
-        job_path: "/jobs/1108"
+        job_path: "/jobs/48"
       }
     }
 
@@ -791,10 +791,10 @@ describe("JobDetailView", () => {
     }))
 
     expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Copy JOB-401 to clipboard" })).toHaveLength(2)
-    expect(screen.getAllByRole("button", { name: "Copy JOB-408 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-41 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-48 to clipboard" })).toHaveLength(2)
     expect(screen.getAllByText("queued").length).toBeGreaterThanOrEqual(4)
-    expect(screen.queryByText(/tkadauke\/syrus JOB-401/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/tkadauke\/syrus JOB-41/)).not.toBeInTheDocument()
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
   })
 

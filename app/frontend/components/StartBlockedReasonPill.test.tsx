@@ -22,7 +22,7 @@ describe("StartBlockedReasonPill", () => {
       <StartBlockedReasonPill
         details={{
           message: "multiple dependency branches are ready",
-          dependencies: [{ slug: "JOB-874" }, { job_id: 1575 }],
+          dependencies: [{ slug: "JOB-874" }, { job_id: 875 }],
           action: "Land the sibling dependencies."
         }}
         reason="stack_fan_in_base_unavailable"

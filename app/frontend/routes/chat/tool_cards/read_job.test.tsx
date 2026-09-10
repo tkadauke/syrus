@@ -19,14 +19,14 @@ describe("read_job tool card", () => {
   })
 
   it("summarizes the collapsed row with the canonical JOB id and state", () => {
-    const parsedResult = { job: { id: 4048, state: "running" } }
+    const parsedResult = { job: { id: 148, state: "running" } }
     expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-148 (running)")
   })
 
   it("renders the canonical JOB id, title, state, PR, branch, priority, and agent provider", () => {
     const parsedResult = {
       job: {
-        id: 4048,
+        id: 148,
         issue_title: "Add plugin-aware tool cards",
         state: "running",
         pr_number: 12,
@@ -50,11 +50,11 @@ describe("read_job tool card", () => {
   it("renders dependency badges, distinguishing pending dependencies", () => {
     const parsedResult = {
       job: {
-        id: 4048,
+        id: 148,
         state: "queued",
         dependencies: [
-          { id: 4040, issue_title: "Upstream job", state: "approved", repository: "tkadauke/syrus" },
-          { epic_id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
+          { id: 140, issue_title: "Upstream job", state: "approved", repository: "tkadauke/syrus" },
+          { epic_id: 91, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
           { pending: true, unresolved_ref: "owner/repo#123", unresolved_ref_kind: "issue", unresolved_ref_state: "open" }
         ]
       }
@@ -70,7 +70,7 @@ describe("read_job tool card", () => {
   it("renders the deployment stage chain when present", () => {
     const parsedResult = {
       job: {
-        id: 4048,
+        id: 148,
         state: "closed",
         deployment_stages: [
           { name: "staging", label: "Staging", reached: true },
@@ -86,7 +86,7 @@ describe("read_job tool card", () => {
   })
 
   it("omits optional sections when fields are missing", () => {
-    const parsedResult = { job: { id: 4048, state: "queued" } }
+    const parsedResult = { job: { id: 148, state: "queued" } }
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 

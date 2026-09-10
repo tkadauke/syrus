@@ -19,15 +19,15 @@ describe("read_workflow tool card", () => {
   })
 
   it("summarizes the collapsed row with the canonical WF id and state", () => {
-    const parsedResult = { workflow: { id: 25606, state: "running" } }
+    const parsedResult = { workflow: { id: 106, state: "running" } }
     expect(readWorkflowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("WF-106 (running)")
   })
 
   it("renders the header, job link value, trigger kind, agent provider, cost, summary, and step/run timeline", () => {
     const parsedResult = {
       workflow: {
-        id: 25606,
-        job_id: 4221,
+        id: 106,
+        job_id: 321,
         trigger_kind: "initial",
         state: "running",
         agent_provider: "claude",

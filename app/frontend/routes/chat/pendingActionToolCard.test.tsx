@@ -128,9 +128,9 @@ describe("pending action tool card: bulk shape", () => {
 describe("pending action tool card: dry-run evidence shape", () => {
   const evidencePayload = {
     action: "adopt_current_pr_head",
-    job_id: 4222,
+    job_id: 322,
     evidence: {
-      job_id: 4222,
+      job_id: 322,
       workflow_id: 26123,
       branch: "syrus/direct-322",
       remote_sha: "abc123abc123abc123abc123",
@@ -151,7 +151,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
     expect(result).toMatchObject({
       kind: "dry_run_evidence",
       action: "adopt_current_pr_head",
-      jobId: "4222",
+      jobId: "322",
       destructiveConfirmation: null
     })
   })
@@ -229,6 +229,6 @@ describe("pending action tool card: fallbacks", () => {
   })
 
   it("returns null when an evidence payload is missing its action name", () => {
-    expect(parsePendingActionResult({ job_id: 4222, evidence: { remote_sha: "abc" } })).toBeNull()
+    expect(parsePendingActionResult({ job_id: 322, evidence: { remote_sha: "abc" } })).toBeNull()
   })
 })

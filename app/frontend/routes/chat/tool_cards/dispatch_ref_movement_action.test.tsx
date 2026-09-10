@@ -21,7 +21,7 @@ describe("dispatch_ref_movement_action tool card", () => {
       source_ref: "syrus/direct-325",
       target_kind: "branch",
       target_ref: "main",
-      job_id: 4225,
+      job_id: 325,
       workflow_id: 900
     }
 

@@ -33,9 +33,9 @@ describe("admin_stuck_jobs tool card", () => {
           detail: "Run has no live worker heartbeat",
           age_label: "6m",
           step_kind: "implement",
-          job_id: 4048,
+          job_id: 148,
           title: "Add plugin-aware tool cards",
-          job_path: "/jobs/4048",
+          job_path: "/jobs/148",
           repair_plan: { action: "mark_worker_died", auto_executable: true }
         }
       ]
@@ -44,7 +44,7 @@ describe("admin_stuck_jobs tool card", () => {
     render(<>{adminStuckJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     const link = screen.getByRole("link", { name: "JOB-148 — Add plugin-aware tool cards" })
-    expect(link).toHaveAttribute("href", "/jobs/4048")
+    expect(link).toHaveAttribute("href", "/jobs/148")
     expect(screen.getByText("running run without live worker evidence")).toBeInTheDocument()
     expect(screen.getByText("auto repairable")).toBeInTheDocument()
     expect(screen.getByText("Run has no live worker heartbeat")).toBeInTheDocument()

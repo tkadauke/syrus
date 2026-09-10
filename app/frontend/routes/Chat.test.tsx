@@ -1207,14 +1207,14 @@ describe("chat slash commands", () => {
     await submitSlashCommand("/approve job-95")
 
     expect(await screen.findByText("Confirm /approve")).toBeInTheDocument()
-    expect(screen.getByText("Approve JOB-395 for landing?")).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/1095/approve", expect.objectContaining({ method: "POST" }))
+    expect(screen.getByText("Approve JOB-95 for landing?")).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/95/approve", expect.objectContaining({ method: "POST" }))
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1095/approve",
+        "/api/v1/app/jobs/95/approve",
         expect.objectContaining({ method: "POST" })
       )
     })
@@ -1231,7 +1231,7 @@ describe("chat slash commands", () => {
         return Promise.resolve(jsonResponse({
           count: 1,
           jobs: [
-            { id: 2203, title: "Approve slash command", issue_title: "Approve slash command", state: "implemented", repository_slug: "acme/widgets" }
+            { id: 203, title: "Approve slash command", issue_title: "Approve slash command", state: "implemented", repository_slug: "acme/widgets" }
           ]
         }))
       }
@@ -1243,13 +1243,13 @@ describe("chat slash commands", () => {
     await submitSlashCommand("/approve")
     fireEvent.click(await screen.findByText("Approve slash command"))
 
-    expect(screen.getByText("Approve JOB-703 for landing?")).toBeInTheDocument()
+    expect(screen.getByText("Approve JOB-203 for landing?")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/2203/approve",
+        "/api/v1/app/jobs/203/approve",
         expect.objectContaining({ method: "POST" })
       )
     })

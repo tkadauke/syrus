@@ -27,7 +27,7 @@ describe("ThemesSettingsRoute", () => {
     const fetchSpy = mockFetch()
     renderRoute()
 
-    await screen.findByRole("button", { name: /Solar Draft/ })
+    fireEvent.click(await screen.findByRole("button", { name: /Solar Draft/ }))
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Solar Edited" } })
     fireEvent.change(screen.getByLabelText("Light brand"), { target: { value: "#0f766e" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))

@@ -19,13 +19,13 @@ describe("read_epic tool card", () => {
   })
 
   it("summarizes the collapsed row with the canonical EPIC id and title", () => {
-    const parsedResult = { epic: { id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" } }
+    const parsedResult = { epic: { id: 91, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" } }
     expect(readEpicToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("the Tier 1 tool-card work: Tier 1 Custom Tool Cards")
   })
 
   it("renders the canonical EPIC id, title, state, and repository", () => {
     const parsedResult = {
-      epic: { id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running", repository: "tkadauke/syrus" },
+      epic: { id: 91, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running", repository: "tkadauke/syrus" },
       child_jobs: []
     }
 
@@ -40,7 +40,7 @@ describe("read_epic tool card", () => {
   it("renders dependency badges for depends-on and dependent Epics", () => {
     const parsedResult = {
       epic: {
-        id: 291,
+        id: 91,
         display_number: "the Tier 1 tool-card work",
         title: "Tier 1 Custom Tool Cards",
         state: "running",
@@ -60,7 +60,7 @@ describe("read_epic tool card", () => {
 
   it("renders the child Job chain with a done/total progress count", () => {
     const parsedResult = {
-      epic: { id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
+      epic: { id: 91, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
       child_jobs: [
         { id: 319, issue_title: "Add extension point", state: "merged" },
         { id: 320, issue_title: "Add core tool cards", state: "running" }
@@ -75,13 +75,13 @@ describe("read_epic tool card", () => {
   })
 
   it("omits optional sections when fields are missing", () => {
-    const parsedResult = { epic: { id: 291, state: "running" } }
+    const parsedResult = { epic: { id: 91, state: "running" } }
 
     render(<>{readEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     // Falls back to the canonical EPIC slug for both the header pill and the title when
     // display_number/title are absent, so it legitimately appears twice.
-    expect(screen.getAllByText("EPIC-291")).toHaveLength(2)
+    expect(screen.getAllByText("EPIC-91")).toHaveLength(2)
     expect(screen.queryByText("Depends on")).not.toBeInTheDocument()
     expect(screen.queryByText(/Child Jobs/)).not.toBeInTheDocument()
   })

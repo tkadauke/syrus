@@ -26,8 +26,8 @@ describe("list_jobs tool card", () => {
   it("renders a dense table with one row per Job", () => {
     const parsedResult = {
       jobs: [
-        { id: 4048, repository_slug: "tkadauke/syrus", issue_title: "Add tool cards", state: "running", pr_number: 12, priority: "high" },
-        { id: 4049, repository_slug: "tkadauke/syrus", issue_title: "Fix bug", state: "queued", pr_number: null, priority: "medium" }
+        { id: 148, repository_slug: "tkadauke/syrus", issue_title: "Add tool cards", state: "running", pr_number: 12, priority: "high" },
+        { id: 149, repository_slug: "tkadauke/syrus", issue_title: "Fix bug", state: "queued", pr_number: null, priority: "medium" }
       ]
     }
 

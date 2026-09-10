@@ -5,7 +5,7 @@ import { LocalModeJobOutcomeCard, localModeJobOutcomeSummary, parseLocalModeJobO
 describe("parseLocalModeJobOutcome", () => {
   it("parses the full open_in_local_mode shape", () => {
     const result = parseLocalModeJobOutcome({
-      job_id: 4225,
+      job_id: 325,
       job_state: "coding",
       branch_name: "syrus/direct-325",
       repository_slug: "tkadauke/syrus",
@@ -13,7 +13,7 @@ describe("parseLocalModeJobOutcome", () => {
     })
 
     expect(result).toEqual({
-      jobId: "4225",
+      jobId: "325",
       jobState: "coding",
       branchName: "syrus/direct-325",
       repositorySlug: "tkadauke/syrus",
@@ -22,14 +22,14 @@ describe("parseLocalModeJobOutcome", () => {
   })
 
   it("parses the minimal cancel_local_mode shape (no branch/repository)", () => {
-    const result = parseLocalModeJobOutcome({ job_id: 4225, job_state: "implemented", message: "Local mode session cancelled." })
+    const result = parseLocalModeJobOutcome({ job_id: 325, job_state: "implemented", message: "Local mode session cancelled." })
     expect(result?.branchName).toBeNull()
     expect(result?.repositorySlug).toBeNull()
   })
 
   it("returns null when job_id or job_state is missing", () => {
     expect(parseLocalModeJobOutcome({ job_state: "coding" })).toBeNull()
-    expect(parseLocalModeJobOutcome({ job_id: 4225 })).toBeNull()
+    expect(parseLocalModeJobOutcome({ job_id: 325 })).toBeNull()
   })
 
   it("returns null for a non-object payload", () => {
@@ -52,7 +52,7 @@ describe("localModeJobOutcomeSummary", () => {
 describe("LocalModeJobOutcomeCard", () => {
   it("renders job id, state, repository, branch, and message", () => {
     const result = parseLocalModeJobOutcome({
-      job_id: 4225,
+      job_id: 325,
       job_state: "coding",
       branch_name: "syrus/direct-325",
       repository_slug: "tkadauke/syrus",

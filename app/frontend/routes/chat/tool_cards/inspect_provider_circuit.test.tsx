@@ -53,10 +53,10 @@ describe("inspect_provider_circuit tool card", () => {
       model: "claude-sonnet-5",
       usage_limit: true,
       decision: { ...CLOSED_PAYLOAD.decision, open: true, reason: "usage limit", model: "claude-sonnet-5", usage_limit: true },
-      runs: [{ id: 501, job_id: 4048, step_kind: "implement", agent_outcome: "provider_transient", finished_at: "2026-09-06T00:00:00Z", classification: { classification: "rate_limited" }, circuit_usage_limit_candidate: true, circuit_retryable_candidate: false }],
+      runs: [{ id: 501, job_id: 148, step_kind: "implement", agent_outcome: "provider_transient", finished_at: "2026-09-06T00:00:00Z", classification: { classification: "rate_limited" }, circuit_usage_limit_candidate: true, circuit_retryable_candidate: false }],
       consumers: {
-        queued_workflows_without_runs: [{ workflow_id: 900, job_id: 4048, start_blocked_reason: "provider_circuit_open" }],
-        delayed_auto_retries: [{ auto_retry_attempt_id: 1, job_id: 4048, retry_kind: "ci_failure", scheduled_at: "2026-09-06T01:00:00Z" }]
+        queued_workflows_without_runs: [{ workflow_id: 900, job_id: 148, start_blocked_reason: "provider_circuit_open" }],
+        delayed_auto_retries: [{ auto_retry_attempt_id: 1, job_id: 148, retry_kind: "ci_failure", scheduled_at: "2026-09-06T01:00:00Z" }]
       }
     }
 

@@ -120,7 +120,7 @@ describe("typedToolResult", () => {
   })
 
   it("no longer special-cases read_job/read_epic (superseded by their tool_cards/ renderers)", () => {
-    expect(typedToolResult("read_job", JSON.stringify({ job: { id: 4048, state: "running" } }))).toBeNull()
+    expect(typedToolResult("read_job", JSON.stringify({ job: { id: 148, state: "running" } }))).toBeNull()
     expect(typedToolResult("read_epic", JSON.stringify({ epic: { id: 285, state: "running" } }))).toBeNull()
   })
 

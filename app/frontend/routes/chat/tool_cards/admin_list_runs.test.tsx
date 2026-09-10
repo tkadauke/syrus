@@ -27,7 +27,7 @@ describe("admin_list_runs tool card", () => {
     const parsedResult = {
       runs: [{
         id: 501,
-        job_id: 4048,
+        job_id: 148,
         workflow_id: 900,
         state: "failed",
         trigger_kind: "ci_failure",
@@ -41,7 +41,7 @@ describe("admin_list_runs tool card", () => {
 
     expect(screen.getByText("RUN-501")).toBeInTheDocument()
     const link = screen.getByRole("link", { name: "JOB-148" })
-    expect(link).toHaveAttribute("href", "/jobs/4048")
+    expect(link).toHaveAttribute("href", "/jobs/148")
     expect(screen.getByText("WF-900")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
     expect(screen.getByText("ci_failure")).toBeInTheDocument()

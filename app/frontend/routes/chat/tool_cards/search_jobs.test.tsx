@@ -26,7 +26,7 @@ describe("search_jobs tool card", () => {
   it("renders a dense table with one row per matching Job", () => {
     const parsedResult = {
       total: 1,
-      results: [{ id: 4048, repository_slug: "tkadauke/syrus", issue_title: "Add tool cards", state: "running", pr_number: 12, priority: "high" }]
+      results: [{ id: 148, repository_slug: "tkadauke/syrus", issue_title: "Add tool cards", state: "running", pr_number: 12, priority: "high" }]
     }
 
     render(<>{searchJobsToolCard.renderExpanded(context({ parsedResult }))}</>)

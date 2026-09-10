@@ -30,6 +30,9 @@ RSpec.configure do |config|
   config.before(:suite) do
     FileUtils.rm_rf(SPEC_DATA_ROOT)
     FileUtils.mkdir_p(SPEC_DATA_ROOT)
+    Repository.after_create do |repository|
+      FileUtils.rm_rf(RepositoryBareClone.path_for(repository))
+    end
   end
 
   config.after(:suite) do

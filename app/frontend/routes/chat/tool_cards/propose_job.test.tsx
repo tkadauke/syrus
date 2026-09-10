@@ -44,7 +44,7 @@ describe("propose_job tool card", () => {
       title: "Fix output",
       kind: "job",
       state: "confirmed",
-      materialized: { kind: "job", job_id: 4222, job_title: "Fix output", job_state: "running" }
+      materialized: { kind: "job", job_id: 322, job_title: "Fix output", job_state: "running" }
     }
 
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)

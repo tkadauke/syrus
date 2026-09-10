@@ -27,7 +27,7 @@ describe("classify_pull_request tool card", () => {
         base_ref: "main",
         head_repository: "tkadauke/syrus",
         fork_pr: false,
-        marker: { kind: "syrus_job_export", job_id: "4225" },
+        marker: { kind: "syrus_job_export", job_id: "325" },
         classification_enabled: true
       }
     }

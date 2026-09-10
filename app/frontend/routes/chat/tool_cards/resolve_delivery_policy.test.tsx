@@ -13,7 +13,7 @@ describe("resolve_delivery_policy tool card", () => {
   })
 
   it("summarizes the collapsed row with the resolved track and job", () => {
-    const parsedResult = { repository: "tkadauke/syrus", job_id: 4225, delivery_track: "staging" }
+    const parsedResult = { repository: "tkadauke/syrus", job_id: 325, delivery_track: "staging" }
     expect(resolveDeliveryPolicyToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Track: staging for JOB-325")
   })
 
@@ -25,7 +25,7 @@ describe("resolve_delivery_policy tool card", () => {
   it("renders approval, promotion/hotfix-sync/upstream-export toggles, and ref movement actions", () => {
     const parsedResult = {
       repository: "tkadauke/syrus",
-      job_id: 4225,
+      job_id: 325,
       delivery_track: "staging",
       job_landing_branch: "staging-branch",
       review_grade_phase: "review",
