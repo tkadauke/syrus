@@ -31,7 +31,7 @@ module Prompts
     LOW_SIGNAL_EXTENSION = /\.(csv|json|lock|log|sql|tsbuildinfo|txt|ya?ml)\z/i
 
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil,
-                   test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil)
+                   test_plan_recommended: nil, test_plan_reason: nil, seed_notes: nil, preview_projects: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
@@ -40,6 +40,7 @@ module Prompts
       @test_plan_recommended = test_plan_recommended
       @test_plan_reason = test_plan_reason.to_s
       @seed_notes = seed_notes.to_s
+      @preview_projects = Array(preview_projects)
     end
 
     def to_s
@@ -51,6 +52,7 @@ module Prompts
         feedback_history,
         current_diff,
         implementer_test_plan_hint,
+        preview_projects_section,
         seed_notes_section,
         workflow_instructions,
         prior_review_context,
@@ -238,6 +240,32 @@ module Prompts
       "Repository seed notes (from .syrus.yml visual_review.seed_notes), for reaching an authenticated or populated preview state:\n\n#{@seed_notes}"
     end
 
+    def preview_projects_section
+      return nil if @preview_projects.empty?
+
+      lines = @preview_projects.map do |project|
+        id = project["id"] || project[:id]
+        label = project["label"] || project[:label]
+        path = project["path"] || project[:path]
+        owner = project["owner_config_path"] || project[:owner_config_path]
+        "- project_id: #{id}; label: #{label}; path: #{path.presence || '(repository root)'}; config: #{owner.presence || '(auto-detected)'}"
+      end
+
+      [
+        "Affected preview projects available to this visual review:",
+        lines.join("\n"),
+        preview_project_selection_instruction
+      ].join("\n")
+    end
+
+    def preview_project_selection_instruction
+      if @preview_projects.one?
+        "Call `start_preview` without project_id to use this single affected project, or pass its project_id explicitly."
+      else
+        "Call `start_preview` once per project you need to inspect, passing the matching project_id each time. A bare `start_preview` is ambiguous for this change."
+      end
+    end
+
     def workflow_instructions
       <<~TEXT.strip
         Work through these steps in order:
@@ -246,9 +274,11 @@ module Prompts
            template, or asset change) versus purely backend/invisible (e.g. internal refactors, docs,
            tests, non-UI config). If it isn't visually testable, call `submit_visual_review` with
            verdict "skipped" and a short reason, and stop — do not start a preview.
-        2. If it is visually testable, call `start_preview` to boot the app. If the documented seed
-           data above doesn't cover the feature under test, you may run additional ad hoc seed
-           commands yourself via your normal shell access to reach the state you need.
+        2. If it is visually testable, call `start_preview` to boot the affected project preview.
+           If multiple affected preview projects are listed above, choose the relevant project_id
+           for the area you are testing. If the documented seed data above doesn't cover the feature
+           under test, you may run additional ad hoc seed commands yourself via your normal shell
+           access to reach the state you need.
         3. Use your browser tools (navigate, snapshot, click, fill, hover, wait_for, resize, screenshot,
            evaluate, file_upload, drop, drag) to drive the running app against your own improvised test
            plan targeting what changed. Don't just load the homepage — exercise the actual feature. Use

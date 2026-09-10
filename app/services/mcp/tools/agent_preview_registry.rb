@@ -26,6 +26,15 @@ module Mcp::Tools
         kill_pgroup(preview[:pid]) if preview
       end
 
+      def kill_prefix(prefix)
+        previews = MUTEX.synchronize do
+          matches = @previews.select { |key, _| key.to_s.start_with?(prefix.to_s) }
+          matches.each_key { |key| @previews.delete(key) }
+          matches.values
+        end
+        previews.each { |preview| kill_pgroup(preview[:pid]) }
+      end
+
       def kill_all
         MUTEX.synchronize do
           @previews.each_value { |p| kill_pgroup(p[:pid]) }
