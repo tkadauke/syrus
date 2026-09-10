@@ -269,6 +269,17 @@ if Rails.env.development?
       approved_at: 30.minutes.ago,
       approved_via: "operator",
       approved_by_user: demo_user
+    },
+    {
+      title: "Land approval queue fixture",
+      state: "landing",
+      body: "Representative approved job with a landing workflow already in progress.",
+      pr_number: 106,
+      branch_name: "syrus/demo-landing-queue-fixture",
+      approved_at: 20.minutes.ago,
+      approved_via: "operator",
+      approved_by_user: demo_user,
+      auto_merge_enabled: true
     }
   ].each do |attrs|
     job = Job.find_or_initialize_by(
