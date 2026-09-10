@@ -23,9 +23,14 @@ class DiffReviewVersion < ApplicationRecord
 
   scope :ordered, -> { order(:version_index, :id) }
   scope :latest_first, -> { order(version_index: :desc, id: :desc) }
+  scope :all_changes, -> { where(reason: "source_diff") }
 
   def self.next_index_for(job)
     where(job: job).maximum(:version_index).to_i + 1
+  end
+
+  def self.default_for_review(job)
+    where(job: job).all_changes.latest_first.first || where(job: job).latest_first.first
   end
 
   private
