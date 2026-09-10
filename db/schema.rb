@@ -197,6 +197,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
     t.integer "workflow_admission_control_changed_by_user_id"
     t.boolean "workflow_admission_control_enabled", default: true, null: false
     t.string "workflow_admission_policy", default: "whole_workflow", null: false
+    t.boolean "workflow_step_worker_slot_admission_enabled", default: false, null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
   end
@@ -3107,6 +3108,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
     t.index ["last_observed_at"], name: "idx_workflow_step_resource_profiles_observed"
     t.index ["repository_id", "agent_provider", "trigger_kind", "step_kind", "grader_name", "job_kind"], name: "idx_workflow_step_resource_profiles_key", unique: true
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
+  end
+
+  create_table "workflow_step_worker_slots", force: :cascade do |t|
+    t.datetime "acquired_at", null: false
+    t.string "active_slot_key"
+    t.datetime "created_at", null: false
+    t.string "release_reason"
+    t.datetime "released_at"
+    t.bigint "run_id", null: false
+    t.bigint "step_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "worker_hostname"
+    t.string "worker_key", null: false
+    t.string "worker_storage_key"
+    t.bigint "workflow_id", null: false
+    t.index ["active_slot_key"], name: "idx_workflow_step_worker_slots_active_key", unique: true
+    t.index ["run_id"], name: "index_workflow_step_worker_slots_on_run_id"
+    t.index ["step_id"], name: "index_workflow_step_worker_slots_on_step_id"
+    t.index ["worker_key", "released_at"], name: "idx_workflow_step_worker_slots_worker_release"
+    t.index ["workflow_id"], name: "index_workflow_step_worker_slots_on_workflow_id"
   end
 
   create_table "workflow_warnings", force: :cascade do |t|

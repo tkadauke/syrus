@@ -32,8 +32,9 @@ RSpec.describe Steps::PushAgentRebase do
   before do
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
   end
 
   it "uses a clean deterministic rebase result without invoking the agent" do

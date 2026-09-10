@@ -777,6 +777,58 @@ RSpec.describe RunJob, :ci_only do
   end
 
   describe "immutable-source graders" do
+    it "grades an unpublished initial branch through the published implementation checkpoint" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-checkpoint\n")
+      allow(SyrusVersion).to receive(:hostname).and_return("worker-checkpoint")
+      allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
+        block.call("file://#{bare_remote_dir}")
+      end
+      syrus_yml = <<~YAML
+        grade:
+          - name: checkpoint-feature
+            run: ruby -e 'abort "missing checkpointed feature" unless File.read("feature.rb").include?("hello"); puts "saw checkpointed feature"'
+      YAML
+      commit_file_to_remote(".syrus.yml", syrus_yml)
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(
+          config: SyrusYml.new(syrus_yml).parse,
+          source: ".syrus.yml",
+          note: nil
+        )
+      )
+      allow_any_instance_of(RunJob).to receive(:next_inline_run).and_return(nil)
+      initial_job = job
+      workflow = initial_job.workflows.last
+      expect(remote_ref_exists?("refs/heads/#{initial_job.branch_name}")).to be(false)
+
+      RunJob.perform_now(initial_job.initial_run.id)
+      implement_run = workflow.steps.find_by!(kind: "implement").runs.order(:id).last
+      RunJob.perform_now(implement_run.id)
+      fanout_run = workflow.steps.find_by!(kind: "grader_fanout").runs.order(:id).last
+      RunJob.perform_now(fanout_run.id)
+      grader_step = workflow.steps.find_by!(kind: "grader")
+      grader_run = grader_step.runs.order(:id).last
+      RunJob.perform_now(grader_run.id)
+
+      checkpoint = workflow.steps.find_by!(kind: "implement").runs.first.run_checkpoint
+      snapshot = WorkflowSourceSnapshot.find(grader_step.details.fetch("source_snapshot_id"))
+      expect(checkpoint).to be_published
+      expect(snapshot.source_ref).to eq(checkpoint.remote_ref)
+      expect(grader_step.details.fetch("source_snapshot")).to include(
+        "source_sha" => checkpoint.commit_sha,
+        "source_ref" => checkpoint.remote_ref
+      )
+      expect(grader_run.reload).to be_succeeded
+      expect(grader_run.job_logs.where(kind: "grade_log").pluck(:chunk).join).to include("saw checkpointed feature")
+      expect(remote_ref_exists?("refs/heads/#{initial_job.branch_name}")).to be(false)
+    end
+
     it "runs a serial grader against the immutable source snapshot instead of the mutable workflow workspace" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"
@@ -891,6 +943,38 @@ RSpec.describe RunJob, :ci_only do
         "hostname" => "worker-a"
       )
       expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
+    end
+
+    it "defers a queued Run before start when the worker step slot is occupied" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = WorkflowStepWorkerSlot::Acquisition.new(
+        acquired: false,
+        reason: "worker_slot_busy",
+        delay: 30.seconds,
+        details: { "worker_key" => "storage:storage-a" }
+      )
+      host_decision = RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "host_capacity_available",
+        delay: nil,
+        details: { "hostname" => "worker-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(host_decision)
+      allow(WorkflowStepWorkerSlot).to receive(:acquire_for).with(run).and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(wf.reload.artifact("workflow_step_worker_slot_admission")).to include(
+        "action" => "defer",
+        "reason" => "worker_slot_busy",
+        "worker_key" => "storage:storage-a"
+      )
+      expect(JobLog.where(run: run).pluck(:chunk)).to include("worker slot admission deferred before prepare: worker_slot_busy")
     end
 
     it "skips an unconfigured review_plan before host admission under critical worker pressure" do
@@ -1071,6 +1155,10 @@ RSpec.describe RunJob, :ci_only do
       sh("git -C #{seed} commit -q -m 'seed #{branch}'")
       sh("git -C #{seed} push -q origin #{branch}")
     end
+  end
+
+  def remote_ref_exists?(ref)
+    system("git", "--git-dir=#{bare_remote_dir}", "show-ref", "--verify", "--quiet", ref)
   end
 
   def job_with_single_run(step_kind:)

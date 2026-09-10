@@ -203,6 +203,39 @@ class RunJob < ApplicationJob
     true
   end
 
+  def defer_for_worker_slot_admission?
+    admission = WorkflowStepWorkerSlot.acquire_for(@run)
+    return false if admission.acquired?
+
+    record_worker_slot_admission_deferral!(admission)
+    Rails.logger.info(
+      "[RunJob] worker slot admission #{admission.reason} on #{admission.details['worker_key']} - " \
+        "deferring Run ##{@run.id} by #{admission.delay.inspect}"
+    )
+    defer_run(@run.id, admission.delay)
+    true
+  end
+
+  def record_worker_slot_admission_deferral!(admission)
+    @workflow.update!(
+      artifacts: (@workflow.artifacts || {}).merge(
+        "workflow_step_worker_slot_admission" => admission.details.merge(
+          "action" => "defer",
+          "reason" => admission.reason,
+          "deferred_at" => Time.current.iso8601,
+          "retry_at" => (Time.current + admission.delay).iso8601
+        )
+      )
+    )
+    JobLog.append!(
+      run: @run,
+      kind: "system",
+      chunk: "worker slot admission deferred before #{@step.kind}: #{admission.reason}"
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] failed to record worker slot admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
+  end
+
   def record_host_admission_deferral!(admission)
     @workflow.update!(
       artifacts: (@workflow.artifacts || {}).merge(
@@ -288,7 +321,12 @@ class RunJob < ApplicationJob
 
     return if defer_for_host_admission?
 
-    return unless acquire_run_execution!
+    return if defer_for_worker_slot_admission?
+
+    unless acquire_run_execution!
+      WorkflowStepWorkerSlot.release_for_run!(@run, reason: "run_not_acquired")
+      return
+    end
 
     target = @job.cron? ? "scheduled task ##{@job.origin_id}" : "#{@job.repository.slug}##{@job.issue_number}"
     log("starting #{@workflow.trigger_kind} run #{@run.id} step #{@step.kind} for #{target}")
