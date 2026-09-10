@@ -193,7 +193,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview || config&.visual_review
+      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -211,7 +211,8 @@ class TargetGraph
         path: "",
         owner_config_path: owner_config_path,
         preview: config&.preview,
-        visual_review: config&.visual_review
+        visual_review: config&.visual_review,
+        adversarial_review: config&.adversarial_review
       )
     end
 
@@ -284,7 +285,8 @@ class TargetGraph
           relative_dir: relative_dir,
           config_path: nested_owner_config_path,
           preview: nested_config.preview,
-          visual_review: nested_config.visual_review
+          visual_review: nested_config.visual_review,
+          adversarial_review: nested_config.adversarial_review
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -299,10 +301,10 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && (declared_project || preview || visual_review)
+        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review)
 
         graph.replace_project(
           existing.with(
@@ -311,7 +313,8 @@ class TargetGraph
             path: declared_project&.path || existing.path,
             owner_config_path: config_path,
             preview: preview || existing.preview,
-            visual_review: visual_review || existing.visual_review
+            visual_review: visual_review || existing.visual_review,
+            adversarial_review: adversarial_review || existing.adversarial_review
           )
         )
         return
@@ -325,7 +328,8 @@ class TargetGraph
           path: declared_project&.path || relative_dir,
           owner_config_path: config_path,
           preview: preview,
-          visual_review: visual_review
+          visual_review: visual_review,
+          adversarial_review: adversarial_review
         )
       )
     end

@@ -7,7 +7,7 @@ module Prompts
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
     }.freeze
 
-    def initialize(issue:, diff:, prior_findings:, base_ref:, workflow_kind: nil, feedback_context: nil, criteria: [])
+    def initialize(issue:, diff:, prior_findings:, base_ref:, workflow_kind: nil, feedback_context: nil, criteria: [], affected_projects: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
@@ -15,12 +15,14 @@ module Prompts
       @workflow_kind = workflow_kind.to_s
       @feedback_context = feedback_context.to_s
       @criteria = Array(criteria)
+      @affected_projects = Array(affected_projects)
     end
 
     def to_s
       [
         "You are running the adversarial_review step for Syrus.",
         independence,
+        affected_project_context,
         custom_criteria,
         workflow_context,
         job_context,
@@ -46,6 +48,22 @@ module Prompts
 
       lines = @criteria.map { |c| "- #{c}" }.join("\n")
       "In addition to general review concerns, pay particular attention to the following criteria:\n#{lines}"
+    end
+
+    def affected_project_context
+      return nil if @affected_projects.empty?
+
+      lines = @affected_projects.map do |project|
+        path = project["path"].presence || project[:path].presence || "(repository root)"
+        owner = project["owner_config_path"].presence || project[:owner_config_path].presence
+        label = project["label"].presence || project[:label].presence || project["id"].presence || project[:id].presence
+        criteria_count = Array(project["criteria"] || project[:criteria]).size
+        owner_text = owner ? ", config: #{owner}" : ""
+
+        "- #{label} (path: #{path}#{owner_text}, criteria: #{criteria_count})"
+      end
+
+      "Affected project criteria sources:\n#{lines.join("\n")}"
     end
 
     def independence

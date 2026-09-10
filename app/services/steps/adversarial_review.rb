@@ -55,23 +55,28 @@ module Steps
         base_ref: workspace.base_ref,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
-        criteria: adversarial_review_criteria
+        criteria: adversarial_review_criteria,
+        affected_projects: adversarial_review_projects.to_a
       ).to_s
     end
 
     def adversarial_review_criteria
-      syrus_yml_review_criteria + plugin_review_criteria
+      [ *adversarial_review_projects.criteria, *plugin_review_criteria ].uniq
     end
 
-    def syrus_yml_review_criteria
-      SyrusYml.load_repo(workspace.path).adversarial_review&.criteria || []
-    rescue SyrusYml::ParseError, Errno::ENOENT
-      []
+    def adversarial_review_projects
+      @adversarial_review_projects ||= App::AdversarialReviewProjects.call(
+        workspace_path: workspace.path,
+        changed_files: latest_agentic_changed_files
+      )
     end
 
     def plugin_review_criteria
       Syrus::PluginRegistry.providers_for(:review_criteria_provider)
         .flat_map { |provider| Array(provider.criteria(workspace.path)) }
+        .map(&:to_s)
+        .map(&:strip)
+        .reject(&:empty?)
     end
 
     def review_issue
@@ -87,19 +92,26 @@ module Steps
     # exists but hasn't produced a diff yet, keep raising so a broken loop
     # iteration surfaces instead of silently reviewing stale state.
     def latest_agentic_diff
-      agentic_kind = feedback_workflow? ? "respond" : "implement"
-      scope = workflow.steps.where(kind: agentic_kind)
+      @latest_agentic_diff ||=
+        begin
+          agentic_kind = feedback_workflow? ? "respond" : "implement"
+          scope = workflow.steps.where(kind: agentic_kind)
 
-      if scope.exists?
-        scope.where(state: "succeeded")
-          .order(:position)
-          .last
-          &.latest_run
-          &.agent_diff
-          .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for adversarial_review")
-      else
-        diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
-      end
+          if scope.exists?
+            scope.where(state: "succeeded")
+              .order(:position)
+              .last
+              &.latest_run
+              &.agent_diff
+              .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for adversarial_review")
+          else
+            diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
+          end
+        end
+    end
+
+    def latest_agentic_changed_files
+      latest_agentic_diff.to_s.scan(/^diff --git a\/.+ b\/(.+)$/).flatten
     end
 
     def feedback_workflow?

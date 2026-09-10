@@ -255,6 +255,20 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
     end
 
+    it "stores root adversarial review config on the root project" do
+      write(".syrus.yml", <<~YAML)
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Keep API errors generic
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.adversarial_review.criteria).to eq([ "Keep API errors generic" ])
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+    end
+
     it "stores nested preview config on that nested project" do
       write("apps/web/.syrus.yml", <<~YAML)
         project:
@@ -272,6 +286,22 @@ RSpec.describe TargetGraph::Compiler do
       expect(project.path).to eq("apps/web")
       expect(project.preview.start).to eq("npm run dev -- --port $PORT")
       expect(project.preview.logs).to eq([ "logs/web.log" ])
+    end
+
+    it "stores nested adversarial review config on that nested project" do
+      write("apps/web/.syrus.yml", <<~YAML)
+        project:
+          id: web
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Verify UI authorization checks
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("web")
+      expect(project.adversarial_review.criteria).to eq([ "Verify UI authorization checks" ])
     end
 
     describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do
