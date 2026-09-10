@@ -539,7 +539,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
             <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {toolCardAwareResultSummary(call) ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{toolCardAwareResultSummary(call)}</div> : null}
             {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
-            {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
+            {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_json !== undefined ? call.result_json : call.result_body || null }} /> : null}
             {expanded && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
