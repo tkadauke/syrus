@@ -59,8 +59,10 @@ module Steps
     end
 
     def explicit_commands(formatters, files)
-      formatters.filter_map do |formatter|
+      formatters.each_with_index.filter_map do |formatter, index|
         if files_match?(formatter.files, files)
+          next if reusable_target_health?("//:format/#{index}")
+
           formatter.command
         else
           log("[format] skipped #{formatter.command.inspect} (no matching files changed)")

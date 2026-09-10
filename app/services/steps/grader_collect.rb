@@ -17,7 +17,8 @@ module Steps
     def call
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
-      append_iteration_results!(grader_steps, carried_forward)
+      target_health_skipped = target_health_skipped_entries
+      append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
 
       # Carried-forward graders (rerun_only_failed) never appear here — they
       # are, by construction, graders that already passed and so were never
@@ -33,12 +34,15 @@ module Steps
       grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
       if current_head_sha.present? && (grader_steps.any? || carried_forward.any?)
         log("[grader_collect] grader conclusion cached for #{current_head_sha.first(7)} (fingerprint: #{grader_fingerprint&.first(8)})")
+      elsif target_health_skipped.any?
+        log("[grader_collect] grader conclusion not cached — all results came from target health records")
       else
         log("[grader_collect] grader conclusion NOT cached — sha=#{current_head_sha.inspect} steps=#{grader_steps.size}")
       end
 
       if failed_required.empty?
-        log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran)")
+        skipped_count = target_health_skipped.size
+        log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran, #{skipped_count} target-health skip(s))")
         record_landing_validation!
         return
       end
@@ -120,12 +124,16 @@ module Steps
       Array(workflow.artifact(GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY))
     end
 
+    def target_health_skipped_entries
+      Array(workflow.artifact(GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY))
+    end
+
     # Convenience rollup onto workflow.artifacts["iterations"] for
     # later UI / prompt consumers. Mirrors the structure that
     # Steps::Grade wrote per iteration so existing
     # Prompts::GradeFailureFeedback rendering still works during the
     # transitional period.
-    def append_iteration_results!(grader_steps, carried_forward)
+    def append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
       iterations = Array(workflow.artifact("iterations"))
       index = run.iteration - 1
       iterations[index] = if grader_steps.empty? && (cache_hit = workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY))
@@ -164,6 +172,18 @@ module Steps
             "log_path" => entry["log_path"],
             "log_bytes" => entry["log_bytes"],
             "output" => entry["output"]
+          }.compact
+        end + target_health_skipped.map do |entry|
+          {
+            "name" => entry["name"],
+            "required" => entry["required"],
+            "status" => "passed",
+            "target_health_skipped" => true,
+            "target_label" => entry["target_label"],
+            "target_health_record_id" => entry["target_health_record_id"],
+            "commit_sha" => entry["commit_sha"],
+            "checked_at" => entry["checked_at"],
+            "reason" => entry["reason"]
           }.compact
         end
       end

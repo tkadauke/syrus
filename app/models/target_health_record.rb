@@ -39,6 +39,15 @@ class TargetHealthRecord < ApplicationRecord
       environment_fingerprint: environment_fingerprint
     )
   }
+  scope :for_reusable_inputs, ->(repository:, target_label:, input_fingerprint:, command_fingerprint:, environment_fingerprint:) {
+    where(
+      repository: repository,
+      target_label: target_label,
+      input_fingerprint: input_fingerprint,
+      command_fingerprint: command_fingerprint,
+      environment_fingerprint: environment_fingerprint
+    )
+  }
   scope :passed, -> { where(status: "passed") }
   scope :failed, -> { where(status: "failed") }
   scope :stale, -> { where(status: "stale") }
@@ -48,6 +57,10 @@ class TargetHealthRecord < ApplicationRecord
 
   def self.latest_for(**lookup)
     for_lookup(**lookup).latest_first.first
+  end
+
+  def self.latest_for_reusable_inputs(**lookup)
+    for_reusable_inputs(**lookup).latest_first.first
   end
 
   def self.passed_for?(**lookup)
