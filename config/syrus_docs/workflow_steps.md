@@ -329,6 +329,15 @@ command failing is always soft — logged as a warning and skipped, the same
 non-fatal posture `prepare`'s auto-detected commands use — since a broken
 formatter must never block the workflow the way an explicit `.syrus.yml`
 grader failure does; whatever it managed to fix is still committed.
+Before an explicit formatter command runs, Syrus checks target health for the
+compiled `//:format/<index>` target. A matching healthy record for the current
+input/command/environment fingerprints skips that command, provided all
+executable dependencies are also healthy. The skip is logged and recorded in
+the `format_target_health_skips` workflow artifact and Step details. Unknown,
+stale, failed, timed-out, cancelled, or inconclusive target health runs the
+formatter normally. Plugin-default formatters from `formatters: []` are not
+target-health skipped because they do not currently compile into stable target
+labels.
 
 ### generate
 
@@ -347,6 +356,13 @@ instead. There is no plugin-provided default for codegen — it's inherently
 repo-specific — so this step simply no-ops when `generated:` isn't
 configured. `generated: false` (or `off`) explicitly disables it. A command
 failing is always soft, same posture as `format`.
+Before an explicit generator command runs, Syrus checks target health for the
+compiled `//:generate/<index>` target. A matching healthy record for the
+current input/command/environment fingerprints skips that command, provided
+all executable dependencies are also healthy. The skip is logged and recorded
+in the `generate_target_health_skips` workflow artifact and Step details.
+Unknown, stale, failed, timed-out, cancelled, or inconclusive target health
+runs the generator normally.
 
 Both steps are inserted as repair steps of the grader retry loop in `retry`,
 `pr_comment`, and `chat_feedback` workflows (`repair: [ implement | respond,
@@ -550,6 +566,17 @@ Workflow artifacts keep only
 `target_health_record_refs` entries with record ids and identifying labels; the
 database row is the primary store so later workflows can query target health
 outside the workflow that produced it.
+
+Before `grader_fanout` materializes a selected `grader` Step, it checks the
+same target-health proof used by format/generate: current target fingerprints
+must have a latest healthy record, and every executable dependency target must
+also be healthy for its current fingerprints. A cache hit skips Step
+materialization, logs the reason, and records an entry in
+`target_health_skipped_targets` on the workflow and fanout Step details.
+`grader_collect` folds those entries into the iteration rollup as passed
+target-health skips, without recording a new grader conclusion for work that
+did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
+health records are misses, so required graders still materialize and run.
 
 ### grade
 
