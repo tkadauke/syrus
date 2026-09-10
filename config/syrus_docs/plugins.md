@@ -2940,7 +2940,10 @@ Bundled plugins:
   `filter_schema` shape (subject `:agent_activity`: `repository_id`/`job_id`
   fk, `step_kind` enum, `agent_provider` enum, `status` enum, `window` date),
   compiled through the normal `Filters::Compiler` since the underlying query
-  is a single `Run` relation. Clicking a session card reuses the existing
+  is a single `Run` relation. Bare `/agent_activity` and
+  `/admin/agent_activity` visits default to the built-in `Running` SmartFolder;
+  explicit `smart_folder_id=` means no active SmartFolder and preserves the
+  all-history view. Clicking a session card reuses the existing
   `RunTranscriptLogs` transcript rendering rather than duplicating
   `AdminTranscript.tsx`'s live-tail viewer; the admin surface has its own
   `GET .../sessions/:run_id/artifacts` route since it can list sessions on

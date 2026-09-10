@@ -101,7 +101,10 @@ The primary `sidebar_page` registration and admin `admin_page` registration shar
 Both render a pulsing "N running now" indicator, the shared `FilterBar`, and a
 card-per-session feed where each card leads with the session's own submitted
 outcome text/verdict. Agent Activity's built-in `SmartFolder`s are `All`,
-`Running`, and `Failed`: the operator page exposes them through the normal app
-sidebar, while the admin page renders the same folders in an in-page
-`AdminSmartFolderNav` column because admin plugin pages do not have a nested
-sidebar hook.
+`Running`, and `Failed`; bare visits to `/agent_activity` and
+`/admin/agent_activity` default to the `Running` folder unless a `q` filter or
+explicit `smart_folder_id` parameter is present. Links that need the all-history
+feed use `smart_folder_id=` as an explicit no-folder escape hatch. The operator
+page exposes the folders through the normal app sidebar, while the admin page
+renders the same folders in an in-page `AdminSmartFolderNav` column because
+admin plugin pages do not have a nested sidebar hook.

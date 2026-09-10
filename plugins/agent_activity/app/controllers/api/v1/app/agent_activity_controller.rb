@@ -35,11 +35,14 @@ module Api
         end
 
         def active_smart_folder
-          @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
-            subject: ::AgentActivity::SmartFolders::SUBJECT,
-            user: Current.user,
-            params: params
-          )
+          @active_smart_folder ||= begin
+            explicit_folder = ::Admin::SmartFolderNavigation.active_folder(
+              subject: ::AgentActivity::SmartFolders::SUBJECT,
+              user: Current.user,
+              params: params
+            )
+            explicit_folder || default_smart_folder
+          end
         end
 
         def smart_folders(scope)
@@ -58,6 +61,17 @@ module Api
             run,
             transcript_path: "/api/v1/app/jobs/#{run.job_id}/runs/#{run.id}/artifacts"
           )
+        end
+
+        def default_smart_folder
+          return if smart_folder_param_present?
+          return if params[::Filters::QueryParam::PARAM_NAME].present?
+
+          ::AgentActivity::SmartFolders.default_folder
+        end
+
+        def smart_folder_param_present?
+          params.key?(:smart_folder_id) || params.key?("smart_folder_id")
         end
       end
     end
