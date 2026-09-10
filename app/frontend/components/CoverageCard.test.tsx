@@ -155,6 +155,8 @@ describe("CoverageCard", () => {
     }} />)
 
     const table = screen.getByTestId("coverage-project-table")
+    expect(table).toHaveClass("overflow-x-auto")
+    expect(table).not.toHaveClass("overflow-hidden")
     expect(within(table).getByText("Rails")).toBeInTheDocument()
     expect(within(table).getByText("Desktop")).toBeInTheDocument()
     expect(within(table).getByText("desktop")).toBeInTheDocument()
