@@ -46,6 +46,11 @@ type SubmittedChatDraft = {
   attachments: ChatComposeAttachment[]
 }
 
+type ComposerDraftSnapshot = {
+  composerText: string
+  attachments: ChatComposeAttachment[]
+}
+
 
 
 
@@ -218,6 +223,16 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   }
 
+  function composerDraftSnapshot(): ComposerDraftSnapshot {
+    return { composerText: text, attachments }
+  }
+
+  function restoreComposerDraft(draft: ComposerDraftSnapshot) {
+    setText(draft.composerText)
+    setAttachments(draft.attachments)
+    setAttachmentError(null)
+  }
+
   function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
     const draft = {
       messageText,
@@ -241,9 +256,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       onMessageSent?.()
     },
     onError: (error, draft) => {
-      setText(draft.composerText)
-      setAttachments(draft.attachments)
-      setAttachmentError(null)
+      restoreComposerDraft(draft)
       onNotice(errorMessage(error, "Message could not be sent."))
     }
   })
@@ -371,7 +384,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
         void queryClient.invalidateQueries({ queryKey: ["jobs", result.jobId] })
       }
-      setText("")
+      clearComposerDraft()
       setPendingConfirmation(null)
       onNotice(result.notice)
     },
@@ -808,7 +821,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         return
       }
 
-      systemCommandAction.mutate(parsed)
+      const draft = composerDraftSnapshot()
+      clearComposerDraft()
+      systemCommandAction.mutate(parsed, {
+        onError: () => restoreComposerDraft(draft)
+      })
       return
     }
 

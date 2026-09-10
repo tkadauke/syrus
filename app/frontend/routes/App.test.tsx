@@ -12100,6 +12100,56 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
+  it("clears the composer after declaring a goal from a slash command", async () => {
+    const activeGoal = {
+      id: 12,
+      chat_session_id: 8,
+      user_id: 1,
+      repository_id: 3,
+      prompt: "Clear every canal backlog risk",
+      completion_condition: null,
+      mode_snapshot: { mode: "planning" },
+      status: "active",
+      approval_policy: "manual",
+      auto_file_proposals: false,
+      auto_submit_jobs: false,
+      iteration_count: 0,
+      terminal_at: null,
+      terminal_reason: null,
+      terminal_details: null,
+      created_at: "2026-06-01T10:00:00Z",
+      updated_at: "2026-06-01T10:00:00Z"
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({ ...chatPayload(), active_goal: activeGoal }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const input = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: "/goal Clear every canal backlog risk" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+    await screen.findByText("Goal updated.")
+    expect(input.value).toBe("")
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/goal", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ goal: { prompt: "Clear every canal backlog risk" } })
+    }))
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+  })
+
   it("renders shared chats as read-only message streams", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
