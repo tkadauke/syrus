@@ -276,7 +276,6 @@ class TargetGraph
         declared_project_ids[project_id] = nested_owner_config_path
 
         declared_project = nested_config.project
-<<<<<<< HEAD
         add_or_overlay_project!(
           graph,
           project_id: project_id,
