@@ -1,5 +1,5 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill } from "./toolCardUi"
+import { Badge, CardShell, Disclosure, displayValue, EmptyState, Row, SectionLabel, StatePill, truncateLines } from "./toolCardUi"
 
 type RuntimeLease = {
   id: string
@@ -29,12 +29,19 @@ type RuntimeSession = {
   activeAgentInputLease: RuntimeLease | null
 }
 
+type RuntimeLifecycleAction = "start" | "build/reload" | "launch" | "stop"
+
 type RuntimeCard =
   | { kind: "sessions"; sessions: RuntimeSession[]; raw: unknown }
   | { kind: "status"; session: RuntimeSession; raw: unknown }
+  | { kind: "lifecycle"; action: RuntimeLifecycleAction; session: RuntimeSession | null; status: string | null; url: string | null; target: string | null; command: string | null; error: string | null; raw: unknown }
+  | { kind: "inspect"; health: string | null; framework: string | null; ports: string | null; processState: string | null; warnings: string[]; details: string | null; raw: unknown }
+  | { kind: "logs"; entries: string[]; cursor: string | null; nextCursor: string | null; raw: unknown }
   | { kind: "acquire"; lease: RuntimeLease | null; error: string | null; raw: unknown }
   | { kind: "release"; released: RuntimeLease[]; error: string | null; raw: unknown }
   | { kind: "error"; action: string; message: string }
+
+const LOG_PREVIEW_LINE_LIMIT = 40
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
@@ -46,6 +53,63 @@ function objectEntries(value: unknown): Array<[string, unknown]> {
 
 function parseObject(value: unknown): Record<string, unknown> {
   return isPlainObject(value) ? value : {}
+}
+
+function firstDisplayValue(...values: unknown[]): string | null {
+  for (const value of values) {
+    const displayed = displayValue(value)
+    if (displayed) return displayed
+  }
+  return null
+}
+
+function contentText(value: unknown): string | null {
+  if (typeof value === "string") return value
+  if (!Array.isArray(value)) return null
+
+  const text = value.flatMap((item) => {
+    if (typeof item === "string") return [item]
+    if (isPlainObject(item)) {
+      const itemText = displayValue(item.text) ?? displayValue(item.content)
+      return itemText ? [itemText] : []
+    }
+    return []
+  }).join("\n")
+
+  return text.trim() ? text : null
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    const displayed = displayValue(value)
+    return displayed ? [displayed] : []
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item === "string") return item.trim() ? [item.trim()] : []
+    if (!isPlainObject(item)) return []
+    const displayed = firstDisplayValue(item.message, item.text, item.warning, item.detail, item.line)
+    return displayed ? [displayed] : []
+  })
+}
+
+function portList(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    const ports = value.flatMap((item) => {
+      if (typeof item === "number" || typeof item === "string") {
+        const displayed = displayValue(item)
+        return displayed ? [displayed] : []
+      }
+      if (!isPlainObject(item)) return []
+      const port = displayValue(item.port)
+      const state = displayValue(item.state) ?? displayValue(item.status)
+      if (!port) return []
+      return [state ? `${port} ${state}` : port]
+    })
+    return ports.length > 0 ? ports.join(", ") : null
+  }
+
+  return displayValue(value)
 }
 
 function parseLease(value: unknown): RuntimeLease | null {
@@ -88,6 +152,67 @@ function parseSession(value: unknown): RuntimeSession | null {
   }
 }
 
+function parseLifecycleCard(context: ToolCardContext, action: RuntimeLifecycleAction): RuntimeCard | null {
+  const parsed = context.parsedResult
+  if (!isPlainObject(parsed)) return null
+
+  const session = parseSession(parsed)
+  const metadata = parseObject(parsed.metadata)
+  const options = parseObject(context.input?.options)
+  const content = contentText(parsed.content)
+  const error = parsed.error === true
+    ? firstDisplayValue(parsed.message, parsed.error_message, content)
+    : firstDisplayValue(parsed.error, parsed.error_message, parsed.last_error)
+  const explicitTarget = action === "launch" && !error
+    ? firstDisplayValue(options.url, options.path, parsed.target, parsed.path, parsed.launch_target, parsed.url, content)
+    : null
+
+  return {
+    kind: "lifecycle",
+    action,
+    session,
+    status: firstDisplayValue(parsed.command_status, parsed.build_status, parsed.status, parsed.state, session?.state),
+    url: firstDisplayValue(parsed.url, metadata.url),
+    target: explicitTarget,
+    command: firstDisplayValue(parsed.command, parsed.build_command, metadata.command, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
+    error,
+    raw: parsed
+  }
+}
+
+function parseInspectCard(context: ToolCardContext): RuntimeCard | null {
+  const parsed = context.parsedResult
+  if (!isPlainObject(parsed)) return null
+  const process = parseObject(parsed.process)
+  const metadata = parseObject(parsed.metadata)
+  const health = firstDisplayValue(parsed.health, parsed.app_health, parsed.status, parsed.state)
+  const details = firstDisplayValue(parsed.summary, parsed.message, contentText(parsed.content), parsed.scrollback)
+
+  return {
+    kind: "inspect",
+    health,
+    framework: firstDisplayValue(parsed.framework, parsed.detected_framework, parsed.framework_name, metadata.framework),
+    ports: portList(parsed.ports) ?? portList(parsed.port) ?? portList(metadata.ports) ?? portList(metadata.port),
+    processState: firstDisplayValue(parsed.process_state, process.state, process.status, parsed.pid ? `pid ${displayValue(parsed.pid)}` : null, metadata.pid ? `pid ${displayValue(metadata.pid)}` : null),
+    warnings: stringList(parsed.warnings).concat(stringList(parsed.warning)),
+    details,
+    raw: parsed
+  }
+}
+
+function parseLogsCard(context: ToolCardContext): RuntimeCard | null {
+  const parsed = context.parsedResult
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.entries)) return null
+
+  return {
+    kind: "logs",
+    entries: stringList(parsed.entries),
+    cursor: displayValue(context.input?.cursor),
+    nextCursor: firstDisplayValue(parsed.next_cursor, parsed.cursor),
+    raw: parsed
+  }
+}
+
 function errorMessage(context: ToolCardContext): string | null {
   if (!context.resultError) return null
   if (isPlainObject(context.parsedResult)) return displayValue(context.parsedResult.error) ?? displayValue(context.parsedResult.message) ?? displayValue(context.resultBody)
@@ -117,6 +242,13 @@ function parseCard(context: ToolCardContext): RuntimeCard | null {
     const session = parseSession(parsed)
     return session ? { kind: "status", session, raw: parsed } : null
   }
+
+  if (context.toolName === "runtime_start") return parseLifecycleCard(context, "start")
+  if (context.toolName === "runtime_build_or_reload") return parseLifecycleCard(context, "build/reload")
+  if (context.toolName === "runtime_launch") return parseLifecycleCard(context, "launch")
+  if (context.toolName === "runtime_inspect") return parseInspectCard(context)
+  if (context.toolName === "runtime_logs") return parseLogsCard(context)
+  if (context.toolName === "runtime_stop") return parseLifecycleCard(context, "stop")
 
   if (context.toolName === "runtime_acquire_control") {
     return { kind: "acquire", lease: parseLease(parsed), error: displayValue(parsed.error), raw: parsed }
@@ -163,6 +295,11 @@ function actionLabel(toolName: string) {
   return toolName.replace(/^runtime_/, "").replace(/_/g, " ")
 }
 
+function lifecycleNoun(action: RuntimeLifecycleAction) {
+  if (action === "build/reload") return "build/reload"
+  return action
+}
+
 function collapsedSummary(context: ToolCardContext) {
   const card = parseCard(context)
   if (!card) return null
@@ -177,6 +314,22 @@ function collapsedSummary(context: ToolCardContext) {
   if (card.kind === "status") {
     const session = card.session
     return `Runtime #${session.id}: ${session.state ?? "unknown"}, ${leaseLabel(session.activeAgentInputLease)}${session.lastError ? ", error" : ""}`
+  }
+  if (card.kind === "lifecycle") {
+    const noun = lifecycleNoun(card.action)
+    if (card.error) return `Runtime ${noun} failed`
+    const session = card.session ? ` #${card.session.id}` : ""
+    const status = card.status ?? (card.action === "stop" ? card.session?.state ?? "stopped" : "succeeded")
+    const destination = card.url ?? card.target
+    return `Runtime ${noun}${session}: ${status}${destination ? ` at ${destination}` : ""}`
+  }
+  if (card.kind === "inspect") {
+    const pieces = [card.health, card.framework, card.ports ? `ports ${card.ports}` : null, card.processState].filter(Boolean)
+    const warningLabel = card.warnings.length > 0 ? `, ${plural(card.warnings.length, "warning")}` : ""
+    return pieces.length > 0 ? `Runtime inspect: ${pieces.join(", ")}${warningLabel}` : `Runtime inspect${warningLabel || ": no health fields"}`
+  }
+  if (card.kind === "logs") {
+    return card.entries.length === 0 ? "Runtime logs: no new lines" : `Runtime logs: ${plural(card.entries.length, "line")}${card.nextCursor ? `, cursor ${card.nextCursor}` : ""}`
   }
   if (card.kind === "acquire") {
     if (card.error || !card.lease) return "Runtime control not acquired"
@@ -301,6 +454,17 @@ function RuntimeSessionBlock({ session }: { session: RuntimeSession }) {
   )
 }
 
+function FieldRows({ rows }: { rows: Array<[string, string | null]> }) {
+  const visibleRows = rows.filter(([, value]) => value) as Array<[string, string]>
+  if (visibleRows.length === 0) return null
+
+  return (
+    <dl className="grid gap-1 sm:grid-cols-3">
+      {visibleRows.map(([label, value]) => <Row key={label} label={label} value={value} />)}
+    </dl>
+  )
+}
+
 function RawRuntimeDetails({ value }: { value: unknown }) {
   return (
     <Disclosure label="Runtime JSON">
@@ -315,6 +479,85 @@ function RuntimeErrorCard({ message }: { message: string }) {
       <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
         {message}
       </div>
+    </CardShell>
+  )
+}
+
+function RuntimeLifecycleCard({ card }: { card: Extract<RuntimeCard, { kind: "lifecycle" }> }) {
+  const tone = card.error ? "failure" : card.action === "stop" ? "neutral" : "success"
+  return (
+    <CardShell>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatePill state={card.error ? "failed" : card.status ?? (card.action === "stop" ? "stopped" : "succeeded")} tone={tone} />
+        <span className="font-semibold text-gray-900 dark:text-gray-100">Runtime {lifecycleNoun(card.action)}</span>
+        {card.session ? <span className="font-mono text-gray-700 dark:text-gray-300">#{card.session.id}</span> : null}
+      </div>
+      {card.error ? (
+        <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{card.error}</div>
+      ) : null}
+      <FieldRows rows={[
+        ["State", card.session?.state ?? card.status],
+        ["Command", card.command],
+        ["URL", card.url],
+        ["Launch target", card.target],
+        ["Provider", card.session?.providerKey ?? null],
+        ["Workspace", card.session?.workspaceRef ?? null]
+      ]} />
+      {card.session ? <RuntimeSessionBlock session={card.session} /> : null}
+      <RawRuntimeDetails value={card.raw} />
+    </CardShell>
+  )
+}
+
+function RuntimeInspectCard({ card }: { card: Extract<RuntimeCard, { kind: "inspect" }> }) {
+  return (
+    <CardShell>
+      <FieldRows rows={[
+        ["Health", card.health],
+        ["Framework", card.framework],
+        ["Ports", card.ports],
+        ["Process", card.processState]
+      ]} />
+      {card.warnings.length > 0 ? (
+        <div>
+          <SectionLabel>Warnings</SectionLabel>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-amber-800 dark:text-amber-200">
+            {card.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {card.details ? (
+        <Disclosure label="Inspection details">
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{card.details}</pre>
+        </Disclosure>
+      ) : (
+        <EmptyState>No detailed inspection output was returned.</EmptyState>
+      )}
+      <RawRuntimeDetails value={card.raw} />
+    </CardShell>
+  )
+}
+
+function RuntimeLogsCard({ card }: { card: Extract<RuntimeCard, { kind: "logs" }> }) {
+  const text = card.entries.join("\n")
+  const { preview, truncated, totalLines } = truncateLines(text, LOG_PREVIEW_LINE_LIMIT)
+
+  return (
+    <CardShell>
+      <FieldRows rows={[
+        ["Lines", String(card.entries.length)],
+        ["Cursor", card.cursor],
+        ["Next cursor", card.nextCursor]
+      ]} />
+      {card.entries.length === 0 ? (
+        <EmptyState>No new Runtime log lines.</EmptyState>
+      ) : (
+        <Disclosure label="Log preview">
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-2xs">{preview}</pre>
+          {truncated ? <div className="mt-1 text-2xs text-gray-500 dark:text-gray-400">Showing first {LOG_PREVIEW_LINE_LIMIT} of {totalLines} lines.</div> : null}
+        </Disclosure>
+      )}
+      <RawRuntimeDetails value={card.raw} />
     </CardShell>
   )
 }
@@ -348,6 +591,12 @@ function renderExpanded(context: ToolCardContext) {
       </CardShell>
     )
   }
+
+  if (card.kind === "lifecycle") return <RuntimeLifecycleCard card={card} />
+
+  if (card.kind === "inspect") return <RuntimeInspectCard card={card} />
+
+  if (card.kind === "logs") return <RuntimeLogsCard card={card} />
 
   if (card.kind === "acquire") {
     const confirmed = card.lease?.owner === "agent" && card.lease.state === "active"
