@@ -476,8 +476,7 @@ RSpec.describe TargetGraph::Compiler do
               label: TargetGraph::Label.parse("//bazel:app"),
               kind: "library",
               project_id: "bazel",
-              source_scope: [ "src/**/*.rb" ],
-              dependencies: [ TargetGraph::Label.parse("//:app") ]
+              source_scope: [ "src/**/*.rb" ]
             )
           ],
           diagnostics: { "query" => "//..." }
@@ -485,10 +484,6 @@ RSpec.describe TargetGraph::Compiler do
       )
       Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
       write(".syrus.yml", <<~YAML)
-        targets:
-          - name: app
-            kind: library
-            sources: ["app/**/*.rb"]
         target_graph:
           imports:
             - provider: fake
@@ -500,7 +495,7 @@ RSpec.describe TargetGraph::Compiler do
 
       imported = graph.target(TargetGraph::Label.parse("//bazel:app"))
       expect(imported.kind).to eq("library")
-      expect(imported.dependencies).to eq([ TargetGraph::Label.parse("//:app") ])
+      expect(imported.dependencies).to eq([])
       expect(imported.owner_config_path).to include("target_graph.imports[0]")
       expect(imported.metadata["provenance"]).to include(
         "provider" => "fake",
@@ -518,6 +513,126 @@ RSpec.describe TargetGraph::Compiler do
           "diagnostics" => { "query" => "//..." }
         )
       )
+    end
+
+    it "treats an imported Buck/Bazel graph as the base graph and overlays Syrus metadata on matching labels" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "frontend", label: "Frontend", path: "frontend")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//frontend:bundle"),
+              kind: "builder",
+              project_id: "frontend",
+              source_scope: [ "frontend/src/**/*.ts" ],
+              dependencies: [ TargetGraph::Label.parse("//frontend:lib") ]
+            ),
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//frontend:lib"),
+              kind: "library",
+              project_id: "frontend",
+              source_scope: [ "frontend/src/**/*.ts" ]
+            )
+          ],
+          diagnostics: { "query" => "//frontend:all" }
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              config:
+                query: //frontend:all
+        grade:
+          - name: frontend-build
+            run: npm --prefix frontend run build
+            when_files_changed: ["frontend/**/*"]
+            deps: ["//frontend:bundle", "//frontend:syrus-preview"]
+            description: Validates the imported frontend bundle target.
+      YAML
+      write("frontend/.syrus.yml", <<~YAML)
+        targets:
+          - name: bundle
+            phases: [review, landing]
+            required: true
+            timeout_minutes: 20
+          - name: syrus-preview
+            kind: prepare
+            run: npm run preview:setup
+            deps: ["//frontend:bundle"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      bundle = graph.target(TargetGraph::Label.parse("//frontend:bundle"))
+      expect(bundle.kind).to eq("builder")
+      expect(bundle.source_scope).to eq([ "frontend/src/**/*.ts" ])
+      expect(bundle.dependencies).to eq([ TargetGraph::Label.parse("//frontend:lib") ])
+      expect(bundle.phases).to eq(%w[review landing])
+      expect(bundle.required).to be(true)
+      expect(bundle.timeout_minutes).to eq(20)
+      expect(bundle.metadata["syrus_overlay"]).to contain_exactly(
+        include(
+          "owner_config_path" => "frontend/.syrus.yml",
+          "declaration" => 'explicit targets: "bundle"',
+          "applied" => {
+            "phases" => %w[review landing],
+            "required" => true,
+            "timeout_minutes" => 20
+          }
+        )
+      )
+
+      preview = graph.target(TargetGraph::Label.parse("//frontend:syrus-preview"))
+      expect(preview.kind).to eq("prepare")
+      expect(preview.dependencies).to eq([ TargetGraph::Label.parse("//frontend:bundle") ])
+
+      build = graph.target(TargetGraph::Label.parse("//:grade/frontend-build"))
+      expect(build.dependencies).to eq([
+        TargetGraph.root_label,
+        TargetGraph::Label.parse("//frontend:bundle"),
+        TargetGraph::Label.parse("//frontend:syrus-preview")
+      ])
+      expect(build.metadata["description"]).to eq("Validates the imported frontend bundle target.")
+      expect(graph.validate!).to be(true)
+    end
+
+    it "rejects Syrus declarations that structurally redefine imported Buck/Bazel labels" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "app", label: "App", path: "app")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//app:lib"),
+              kind: "library",
+              project_id: "app",
+              source_scope: [ "app/src/**/*.rb" ]
+            )
+          ]
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+      YAML
+      write("app/.syrus.yml", <<~YAML)
+        targets:
+          - name: lib
+            sources: ["app/other/**/*.rb"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//app:lib")
+        expect(error.message).to include('explicit targets: "lib"')
+        expect(error.message).to include("imported build-system target")
+      end
     end
 
     it "fails strictly when an explicit graph import names no enabled provider" do

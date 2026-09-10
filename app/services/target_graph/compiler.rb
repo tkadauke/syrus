@@ -113,13 +113,13 @@ class TargetGraph
       @import_errors = []
       @import_diagnostics = []
       graph = TargetGraph.new(root_project: root_project_override)
+      compile_imported_build_system_graphs!(graph)
       compile_explicit_targets!(graph)
       compile_prepare!(graph)
       compile_formatters!(graph)
       compile_generated!(graph)
       compile_graders!(graph)
       compile_nested_configs!(graph)
-      compile_imported_build_system_graphs!(graph)
       graph.validate!
       graph
     end
@@ -275,14 +275,12 @@ class TargetGraph
         declared_project_ids[project_id] = nested_owner_config_path
 
         declared_project = nested_config.project
-        graph.add_project(
-          TargetGraph::Project.new(
-            id: project_id,
-            label: declared_project&.label || relative_dir,
-            kind: declared_project&.kind,
-            path: declared_project&.path || relative_dir,
-            owner_config_path: nested_owner_config_path
-          )
+        add_or_overlay_project!(
+          graph,
+          project_id: project_id,
+          declared_project: declared_project,
+          relative_dir: relative_dir,
+          config_path: nested_owner_config_path
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -295,6 +293,37 @@ class TargetGraph
 
     def nested_relative_dirs
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
+    end
+
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:)
+      existing = graph.project(project_id)
+      if existing
+        return unless imported_project?(existing) && declared_project
+
+        graph.replace_project(
+          existing.with(
+            label: declared_project.label || existing.label,
+            kind: declared_project.kind || existing.kind,
+            path: declared_project.path || existing.path,
+            owner_config_path: config_path
+          )
+        )
+        return
+      end
+
+      graph.add_project(
+        TargetGraph::Project.new(
+          id: project_id,
+          label: declared_project&.label || relative_dir,
+          kind: declared_project&.kind,
+          path: declared_project&.path || relative_dir,
+          owner_config_path: config_path
+        )
+      )
+    end
+
+    def imported_project?(project)
+      project.owner_config_path.to_s.include?("target_graph.imports[")
     end
 
     # An explicit `project.id` in the nested file (already charset-validated
@@ -368,9 +397,7 @@ class TargetGraph
       imported_projects = imported_projects(imported, label: label)
       imported_targets = imported_targets(imported, label: label, provider_provenance: provider_provenance)
 
-      dry_run = duplicate_graph(graph)
-      merge_import_fragment!(dry_run, projects: imported_projects, targets: imported_targets, label: label)
-      dry_run.validate!
+      validate_import_fragment!(projects: imported_projects, targets: imported_targets, label: label)
 
       merge_import_fragment!(graph, projects: imported_projects, targets: imported_targets, label: label)
 
@@ -390,6 +417,23 @@ class TargetGraph
         "provider_class" => provider_description(provider),
         "declaration" => label
       }
+    end
+
+    def validate_import_fragment!(projects:, targets:, label:)
+      scratch = TargetGraph.new
+      projects.each do |project|
+        next if project.id == root_project_id
+
+        scratch.add_project(project)
+      end
+      targets.each do |target|
+        scratch.add_target(target)
+      rescue TargetGraph::ValidationError => e
+        raise TargetGraph::ValidationError, "#{label}: #{e.message}"
+      end
+      scratch.validate!
+    rescue TargetGraph::ValidationError => e
+      raise TargetGraph::ValidationError, "#{label}: #{e.message}"
     end
 
     def imported_projects(imported, label:)
@@ -417,7 +461,11 @@ class TargetGraph
     end
 
     def merge_import_fragment!(graph, projects:, targets:, label:)
-      projects.each { |project| graph.add_project(project) }
+      projects.each do |project|
+        next if project.id == root_project_id
+
+        graph.add_project(project)
+      end
 
       targets.each do |target|
         graph.add_target(target)
@@ -570,11 +618,55 @@ class TargetGraph
     rescue TargetGraph::ValidationError
       existing = graph.target(target.label)
       raise unless existing
+      if imported_target?(existing) && overlay_metadata_only?(target, existing)
+        graph.replace_target(overlay_imported_target(existing, target, declaration: declaration))
+        return
+      end
 
       raise TargetGraph::ValidationError,
         "target #{target.label} (#{target.owner_config_path}, #{declaration}) conflicts with already declared " \
         "target #{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
         "#{existing.metadata['declaration'] || existing.kind})"
+    end
+
+    def imported_target?(target)
+      target.metadata["declaration"] == "imported build-system target" &&
+        target.metadata["provenance"].is_a?(Hash)
+    end
+
+    def overlay_metadata_only?(overlay, base)
+      no_structural_command = overlay.command.nil?
+      no_structural_sources = overlay.source_scope.empty? || overlay.source_scope == default_source_scope_for(overlay.label.package)
+      no_structural_dependencies = overlay.dependencies.empty?
+      compatible_kind = overlay.kind == base.kind || overlay.kind == "library"
+
+      no_structural_command && no_structural_sources && no_structural_dependencies && compatible_kind
+    end
+
+    def default_source_scope_for(package)
+      package.present? ? [ "#{package}/**/*" ] : []
+    end
+
+    def overlay_imported_target(base, overlay, declaration:)
+      applied = {}
+      applied["phases"] = overlay.phases if overlay.phases.any?
+      applied["required"] = true if overlay.required
+      applied["timeout_minutes"] = overlay.timeout_minutes if overlay.timeout_minutes
+
+      base.with(
+        phases: applied.fetch("phases", base.phases),
+        required: applied.fetch("required", base.required),
+        timeout_minutes: applied.fetch("timeout_minutes", base.timeout_minutes),
+        metadata: base.metadata.merge(
+          "syrus_overlay" => Array(base.metadata["syrus_overlay"]) + [
+            {
+              "owner_config_path" => overlay.owner_config_path,
+              "declaration" => declaration,
+              "applied" => applied
+            }
+          ]
+        )
+      )
     end
 
     # RepoGradePlan/SyrusYml don't enforce timeout_minutes > 0 the way
