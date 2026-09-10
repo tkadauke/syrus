@@ -303,7 +303,7 @@ export function ReadChatMessagesCard({ context }: { context: ToolCardContext }) 
       <div className="flex flex-wrap items-center gap-2">
         {result.chatId && result.chatTitle ? <ChatTitle chatId={result.chatId} title={result.chatTitle} /> : <span className="font-medium text-gray-900 dark:text-gray-100">{result.chatTitle || "Chat transcript"}</span>}
         {result.page != null ? <Badge>page {result.page}</Badge> : null}
-        {result.hasMore ? <Badge>older messages available</Badge> : null}
+        {result.hasMore ? <Badge>more messages available</Badge> : null}
       </div>
       {result.messages.length === 0 ? (
         <EmptyState>No messages on this page.</EmptyState>
