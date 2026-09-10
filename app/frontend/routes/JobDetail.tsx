@@ -925,12 +925,14 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
   const blockerKey = payload.landing_queue_entry?.blocked_reason?.key
   const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown"
   const overridePath = payload.landing_queue_entry?.override_path
+  const recheckPath = payload.paths.app_recheck_pr_checks_path
   const canOverride = Boolean(
     prChecksBlocker &&
       (payload.actions.can_override_pr_checks_landing_blocker || payload.actions.can_override_inherited_pr_checks) &&
       overridePath &&
       blockerKey
   )
+  const canRecheck = Boolean(payload.actions.can_recheck_pr_checks && recheckPath)
 
   return (
     <PanelMessage tone={tone}>
@@ -948,22 +950,31 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
           {checks.sha ? <div className="mt-1 font-mono text-xs">{t("pr_checks_head_sha", { sha: checks.sha.slice(0, 12) })}</div> : null}
           {checks.base_sha ? <div className="font-mono text-xs">{t("pr_checks_payload_base_sha", { sha: checks.base_sha.slice(0, 12) })}</div> : null}
         </div>
-        {canOverride ? (
-          <CommandButton
-            command={command}
-            input={{
-              method: "post",
-              path: overridePath,
-              body: {
-                blocker_key: blockerKey!,
-                reason: t("pr_checks_override_reason")
-              },
-              confirm: t("pr_checks_override_confirm")
-            }}
-            tone="secondary"
-          >
-            {t("pr_checks_override_once")}
-          </CommandButton>
+        {canRecheck || canOverride ? (
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {canRecheck ? (
+              <CommandButton command={command} input={{ method: "post", path: recheckPath! }} tone="secondary">
+                {t("recheck_pr_checks")}
+              </CommandButton>
+            ) : null}
+            {canOverride ? (
+              <CommandButton
+                command={command}
+                input={{
+                  method: "post",
+                  path: overridePath,
+                  body: {
+                    blocker_key: blockerKey!,
+                    reason: t("pr_checks_override_reason")
+                  },
+                  confirm: t("pr_checks_override_confirm")
+                }}
+                tone="secondary"
+              >
+                {t("pr_checks_override_once")}
+              </CommandButton>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {attribution ? <PrCheckAttributionDetail attribution={attribution} /> : null}

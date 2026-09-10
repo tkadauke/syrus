@@ -174,6 +174,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/visual_diff", to: "job_run_commands#run_visual_diff", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/request_changes", to: "job_run_commands#request_changes", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/override_landing_blocker", to: "jobs#override_landing_blocker", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/recheck_pr_checks", to: "job_run_commands#recheck_pr_checks", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/ref_movement_actions", to: "job_ref_movement_actions#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/resume", to: "job_run_commands#resume", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

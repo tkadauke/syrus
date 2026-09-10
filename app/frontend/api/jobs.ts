@@ -765,6 +765,7 @@ export type JobActions = {
   can_poll_feedback: boolean
   can_rebase: boolean
   can_check_mergeability: boolean
+  can_recheck_pr_checks?: boolean
   can_retry_pr_ingestion: boolean
   can_retry: boolean
   can_retry_from_failed_step: boolean
@@ -852,6 +853,7 @@ export type JobPaths = {
   app_reopen_path: string
   app_poll_feedback_path: string
   app_rebase_path: string
+  app_recheck_pr_checks_path?: string
   app_check_mergeability_path: string
   app_retry_pr_ingestion_path: string
   app_resume_path: string

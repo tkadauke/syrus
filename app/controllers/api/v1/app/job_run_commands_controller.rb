@@ -49,6 +49,20 @@ module Api
           render_job(job.reload, message: "Checking mergeability now...", changed: [ "mergeability" ])
         end
 
+        def recheck_pr_checks
+          job = find_job
+          unless job.pr_number.present? || job.external_pr_number.present?
+            render_error("validation_failed", "No PR on this Job to recheck.", status: :unprocessable_content)
+            return
+          end
+
+          PollPullRequestJob.perform_later(job.id, manual: true)
+          PollMainBranchHealthJob.perform_later(job.repository_id) if job.repository.main_branch_health_enabled?
+          LandingQueueProcessorJob.perform_later
+
+          render_job(job.reload, message: "Rechecking PR and base checks now...", changed: [ "checks", "mergeability" ])
+        end
+
         def rebase
           job = find_job
           unless job.pr_number.present? || job.external_pr_number.present?

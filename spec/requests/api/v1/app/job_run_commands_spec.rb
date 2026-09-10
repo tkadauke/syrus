@@ -125,6 +125,19 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body).to include("message" => "Checking mergeability now...")
   end
 
+  it "queues PR and base check rechecks for jobs with a PR" do
+    job.update!(pr_number: 7, pr_checks_state: "failing")
+
+    expect {
+      post app_job_path("/recheck_pr_checks"), as: :json
+    }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true)
+      .and have_enqueued_job(PollMainBranchHealthJob).with(job.repository_id)
+      .and have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Rechecking PR and base checks now...")
+  end
+
   it "queues a rebase workflow when the job has a PR" do
     job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
     finish_initial_workflow!(job)

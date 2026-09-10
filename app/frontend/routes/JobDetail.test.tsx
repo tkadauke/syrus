@@ -3163,6 +3163,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_poll_feedback: false,
       can_rebase: false,
       can_check_mergeability: false,
+      can_recheck_pr_checks: false,
       can_retry_pr_ingestion: false,
       can_retry: false,
       can_retry_from_failed_step: false,
@@ -3213,6 +3214,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_reopen_path: "/api/v1/app/jobs/1/reopen",
       app_poll_feedback_path: "/api/v1/app/jobs/1/poll_feedback",
       app_rebase_path: "/api/v1/app/jobs/1/rebase",
+      app_recheck_pr_checks_path: "/api/v1/app/jobs/1/recheck_pr_checks",
       app_check_mergeability_path: "/api/v1/app/jobs/1/check_mergeability",
       app_retry_pr_ingestion_path: "/api/v1/app/jobs/1/retry_pr_ingestion",
       app_resume_path: "/api/v1/app/jobs/1/resume",
@@ -3519,6 +3521,23 @@ describe("PrChecksBanner attribution", () => {
     })
 
     expect(await screen.findByRole("button", { name: "Land anyway once" })).toBeInTheDocument()
+  })
+
+  it("offers a PR/base check recheck action for failing checks", async () => {
+    renderWithChecks({
+      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      attribution: {
+        verdict: "unknown",
+        failing_names: ["rspec"],
+        base_failing_names: [],
+        own_names: ["rspec"],
+        base_sha: null
+      }
+    }, {
+      actions: { ...jobPayload().actions, can_recheck_pr_checks: true }
+    })
+
+    expect(await screen.findByRole("button", { name: "Recheck checks" })).toBeInTheDocument()
   })
 
   it("names a failure the job introduced as its own", async () => {

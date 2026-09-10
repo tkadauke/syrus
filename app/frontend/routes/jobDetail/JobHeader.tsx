@@ -245,6 +245,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_accept_triage && paths.app_accept_triage_path) available.push({ key: "accept_triage", label: t("accept_triage"), input: { method: "post", path: paths.app_accept_triage_path }, tone: "success" })
   if (actions.can_reject_triage && paths.app_reject_triage_path) available.push({ key: "reject_triage", label: t("reject_triage"), input: { method: "post", path: paths.app_reject_triage_path, confirm: t("confirm_reject_triage") }, tone: "danger" })
   if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
+  if (actions.can_recheck_pr_checks && paths.app_recheck_pr_checks_path) available.push({ key: "recheck_pr_checks", label: t("recheck_pr_checks"), input: { method: "post", path: paths.app_recheck_pr_checks_path }, tone: "secondary" })
   if (actions.can_rebase) {
     available.push({
       key: "rebase",
