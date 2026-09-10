@@ -3187,6 +3187,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_deploy: false,
       can_run_visual_review: false,
       can_run_visual_diff: false,
+      can_override_pr_checks_landing_blocker: false,
       can_override_inherited_pr_checks: false,
       can_request_changes: false,
       can_send_job_upstream: false,

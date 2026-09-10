@@ -822,6 +822,18 @@ class LandingQueueProcessor
           )
         end
       else
+        if attribution.unknown? && attribution.failing_names.any?
+          trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
+          return override_or_block(
+            job,
+            {
+              key: "pr_checks_failing_base_unknown",
+              params: { slug: job.slug, checks: attribution.failing_names.join(", "), reason: attribution.reason }
+            },
+            consume: consume_override
+          )
+        end
+
         return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
       end
     when "pending"
@@ -895,6 +907,17 @@ class LandingQueueProcessor
       )
     end
     MainHealthChangedService.on_health_change!(repository.reload)
+  end
+
+  def trigger_main_health_poll_for_unknown_pr_check_attribution(job, attribution)
+    repository = job.repository
+    return unless repository.main_branch_health_enabled?
+
+    Rails.logger.info(
+      "[LandingQueueProcessor] #{job.slug} PR checks are failing, but base attribution is #{attribution.reason}; " \
+      "requesting main-health poll for #{repository.slug}"
+    )
+    PollMainBranchHealthJob.perform_later(repository.id)
   end
 
   def waiting_for_github_mergeability?(job)

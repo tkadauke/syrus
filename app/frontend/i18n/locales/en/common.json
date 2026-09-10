@@ -297,6 +297,7 @@
     "ci_failure_in_progress": "CI failure workflow in progress on {{slug}}",
     "ci_repair_no_effective_change": "CI repair made no effective change and checks are still failing on {{slug}}",
     "pr_checks_failing": "PR checks failing on {{slug}}",
+    "pr_checks_failing_base_unknown": "PR checks failing on {{slug}}; base health is unknown ({{checks}})",
     "pr_checks_pending": "PR checks pending on {{slug}}",
     "waiting_to_merge": "Waiting for {{slug}} to merge",
     "waiting_epic_to_complete": "Waiting for Epic #{{number}} to complete",

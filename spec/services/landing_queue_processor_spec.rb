@@ -1094,6 +1094,26 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(entry.blocked_reason).to be_nil
     end
 
+    it "requests a main-health poll and exposes an overridable blocker when base check attribution is unknown" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], pr_checks_base_sha: "base-sha"
+      )
+
+      expect {
+        @entry = described_class.entries(Job.where(id: job.id)).first
+      }.to have_enqueued_job(PollMainBranchHealthJob).with(job.repository_id)
+
+      expect(@entry.blocked_reason).to eq(
+        {
+          key: "pr_checks_failing_base_unknown",
+          params: { slug: job.slug, checks: "rspec", reason: "no_base_health_record" }
+        }
+      )
+      expect(LandingBlockerOverride.overridable?("pr_checks_failing_base_unknown")).to be(true)
+    end
+
     # Opting in clears the *checks* gate only. Returning "not blocked" from that
     # branch would have skipped every gate after it -- mergeability, rebase cap,
     # epic siblings, parent, dependencies -- and landed Jobs that are blocked for

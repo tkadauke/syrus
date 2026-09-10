@@ -792,6 +792,7 @@ export type JobActions = {
   can_deploy: boolean
   can_run_visual_review: boolean
   can_run_visual_diff: boolean
+  can_override_pr_checks_landing_blocker?: boolean
   can_override_inherited_pr_checks: boolean
   can_request_changes: boolean
   can_send_job_upstream: boolean

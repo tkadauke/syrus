@@ -922,9 +922,15 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
   // An inherited failure is not this Job's fault, so it should not be dressed in
   // the same red as one this Job introduced.
   const tone = checks.state !== "failing" || attribution?.verdict === "inherited" ? "muted" : "error"
-  const inheritedBlocker = payload.landing_queue_entry?.blocked_reason?.key === "pr_checks_failing_inherited"
+  const blockerKey = payload.landing_queue_entry?.blocked_reason?.key
+  const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown"
   const overridePath = payload.landing_queue_entry?.override_path
-  const canOverride = inheritedBlocker && payload.actions.can_override_inherited_pr_checks && overridePath
+  const canOverride = Boolean(
+    prChecksBlocker &&
+      (payload.actions.can_override_pr_checks_landing_blocker || payload.actions.can_override_inherited_pr_checks) &&
+      overridePath &&
+      blockerKey
+  )
 
   return (
     <PanelMessage tone={tone}>
@@ -949,7 +955,7 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
               method: "post",
               path: overridePath,
               body: {
-                blocker_key: "pr_checks_failing_inherited",
+                blocker_key: blockerKey!,
                 reason: t("pr_checks_override_reason")
               },
               confirm: t("pr_checks_override_confirm")
