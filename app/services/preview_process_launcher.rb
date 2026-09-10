@@ -15,30 +15,32 @@ class PreviewProcessLauncher
   HEALTH_CHECK_TIMEOUT_SECONDS = 60
   HEALTH_CHECK_INTERVAL_SECONDS = 2
 
-  Result = Struct.new(:pid, :port, :url, :reused, keyword_init: true)
+  Result = Struct.new(:pid, :port, :url, :reused, :project_id, keyword_init: true)
 
-  def initialize(workspace_path)
+  def initialize(workspace_path, project_id: nil)
     @workspace_path = workspace_path
+    @project_id = project_id.presence
   end
 
   def source
-    @source ||= PreviewCommandSource.new(@workspace_path).resolve
+    @source ||= PreviewCommandSource.new(@workspace_path, project_id: @project_id).resolve
   end
 
   # Idempotent: returns the already-registered process under `key` rather
   # than double-spawning.
   def launch!(key:, port:)
     existing = Mcp::Tools::AgentPreviewRegistry.get(key)
-    return Result.new(pid: existing[:pid], port: existing[:port], url: "http://localhost:#{existing[:port]}", reused: true) if existing
+    return Result.new(pid: existing[:pid], port: existing[:port], url: "http://localhost:#{existing[:port]}", reused: true, project_id: @project_id) if existing
 
     raise LaunchError, "no preview command configured for #{@workspace_path} — add a preview: section to .syrus.yml" unless source
 
     env = process_env
-    run_setup!(env)
-    run_seed!(env) if source.seed_command
+    workdir = preview_workdir
+    run_setup!(env, workdir)
+    run_seed!(env, workdir) if source.seed_command
 
     command = source.start_command_for.call(port: port)
-    pid = spawn_app(command, port, env)
+    pid = spawn_app(command, port, env, workdir)
     Mcp::Tools::AgentPreviewRegistry.register(key: key, pid: pid, port: port)
 
     begin
@@ -48,29 +50,41 @@ class PreviewProcessLauncher
       raise LaunchError, e.message
     end
 
-    Result.new(pid: pid, port: port, url: "http://localhost:#{port}", reused: false)
+    Result.new(pid: pid, port: port, url: "http://localhost:#{port}", reused: false, project_id: @project_id)
   end
 
   private
 
-  def run_setup!(env)
-    Array(source.setup_commands).each { |command| run_preview_command!("setup", command, env) }
+  def run_setup!(env, workdir)
+    Array(source.setup_commands).each { |command| run_preview_command!("setup", command, env, workdir) }
   end
 
-  def run_seed!(env)
-    run_preview_command!("seed", source.seed_command, env)
+  def run_seed!(env, workdir)
+    run_preview_command!("seed", source.seed_command, env, workdir)
   end
 
-  def run_preview_command!(label, command, env)
-    result = system(env, "bash", "-c", command, chdir: @workspace_path, exception: false, unsetenv_others: true)
+  def run_preview_command!(label, command, env, workdir)
+    result = system(env, "bash", "-c", command, chdir: workdir, exception: false, unsetenv_others: true)
     raise LaunchError, "preview #{label} command exited non-zero: #{command}" unless result
   end
 
-  def spawn_app(command, port, env)
+  def spawn_app(command, port, env, workdir)
     spawn_env = env.merge("PORT" => port.to_s)
-    Process.spawn(spawn_env, command, chdir: @workspace_path, pgroup: true,
+    Process.spawn(spawn_env, command, chdir: workdir, pgroup: true,
                                       out: "/dev/null", err: "/dev/null",
                                       unsetenv_others: true)
+  end
+
+  def preview_workdir
+    return @workspace_path if @project_id.blank?
+
+    project = TargetGraph::Compiler.compile(@workspace_path).project(@project_id)
+    return @workspace_path unless project&.path.present?
+
+    File.join(@workspace_path, project.path)
+  rescue StandardError => e
+    Rails.logger.warn("[PreviewProcessLauncher] could not resolve preview project #{@project_id.inspect}: #{e.class}: #{e.message}")
+    @workspace_path
   end
 
   def process_env
