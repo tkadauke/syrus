@@ -96,6 +96,8 @@ describe("AgentConversationTab", () => {
 
     const sidebar = await screen.findByRole("complementary", { name: "Implement transcript" })
     await waitFor(() => expect(screen.getByTestId("run-transcript-log-stream")).toBeInTheDocument())
+    expect(screen.getByTestId("run-transcript-log-stream")).toHaveClass("min-h-0", "flex-1", "max-h-none")
+    expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveClass("max-h-[32rem]")
     expect(screen.getByText("Wrote the greeting helper.")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Close transcript" }))
