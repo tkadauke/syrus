@@ -628,6 +628,19 @@ export function ImageAnnotationModal({
     return () => { cancelled = true }
   }, [baseImageUrl, syncHistoryCounts, updateZoom])
 
+  const finishAnnotation = useCallback(() => {
+    const imageCanvas   = imageCanvasRef.current
+    const overlayCanvas = overlayCanvasRef.current
+    const imageContext  = imageCanvas?.getContext("2d")
+    const overlayContext = overlayCanvas?.getContext("2d")
+    if (!imageCanvas || !overlayCanvas || !imageContext || !overlayContext) return
+
+    // Re-render without selection overlay before compositing
+    renderCanvas(shapesRef.current, null, overlayContext, overlayCanvas)
+    imageContext.drawImage(overlayCanvas, 0, 0)
+    onDone(imageCanvas.toDataURL("image/png"), shapesRef.current)
+  }, [onDone])
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -647,6 +660,12 @@ export function ImageAnnotationModal({
         if (hasShapes && tool !== "select") { setTool("select"); return }
         if (hasShapes) { setShowDiscardConfirm(true); return }
         onClose()
+        return
+      }
+
+      if (event.key === "Enter" && !textPlacement && !showDiscardConfirm) {
+        event.preventDefault()
+        finishAnnotation()
         return
       }
 
@@ -697,7 +716,7 @@ export function ImageAnnotationModal({
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keyup", onKeyUp)
     }
-  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
+  }, [finishAnnotation, onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
 
   // Scroll/trackpad wheel pans the canvas. Non-passive so we can preventDefault.
   useEffect(() => {
@@ -997,19 +1016,6 @@ export function ImageAnnotationModal({
       event.stopPropagation()
       setTextPlacement(null)
     }
-  }
-
-  function finishAnnotation() {
-    const imageCanvas   = imageCanvasRef.current
-    const overlayCanvas = overlayCanvasRef.current
-    const imageContext  = imageCanvas?.getContext("2d")
-    const overlayContext = overlayCanvas?.getContext("2d")
-    if (!imageCanvas || !overlayCanvas || !imageContext || !overlayContext) return
-
-    // Re-render without selection overlay before compositing
-    renderCanvas(shapes, null, overlayContext, overlayCanvas)
-    imageContext.drawImage(overlayCanvas, 0, 0)
-    onDone(imageCanvas.toDataURL("image/png"), shapesRef.current)
   }
 
   function changeZoom(delta: number) {
