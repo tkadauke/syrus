@@ -506,6 +506,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "github_app_registered" => true,
       "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=100&repository_ids[]=200"
     )
+    expect(body["syrus_yml"]).to include(
+      "present" => false,
+      "note" => "no GitHub credentials",
+      "prepare_commands_count" => 0,
+      "graders_count" => 0
+    )
     expect(body["jobs"]).to include(
       include(
         "id" => failed.id,
@@ -535,6 +541,66 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "app_check_ci_now_repository_path" => "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
+  end
+
+  it "summarizes repository .syrus.yml configuration on the detail payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    config = SyrusYml.new(<<~YAML).parse
+      prepare:
+        - bundle install
+        - npm ci
+      formatters: []
+      generated:
+        - command: bin/rails db:schema:dump
+          sources:
+            - db/migrate/**/*.rb
+          generates:
+            - db/schema.rb
+      grade:
+        - name: unit
+          run: bin/rspec
+        - name: lint
+          run: npm run lint
+          required: false
+      visual_review:
+        rounds: 3
+      adversarial_review:
+        rounds: 2
+      review_plan: true
+      coverage:
+        sources:
+          - artifact: coverage/lcov.info
+            format: lcov
+        threshold:
+          lines: 70
+      delivery:
+        tracks:
+          default:
+            branch: main
+          release:
+            branch: release
+    YAML
+    loaded = RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+    allow(RepoDefaultBranchSyrusYml).to receive(:new).and_return(instance_double(RepoDefaultBranchSyrusYml, resolve: loaded))
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["syrus_yml"]).to include(
+      "source" => ".syrus.yml",
+      "present" => true,
+      "prepare_commands_count" => 2,
+      "graders_count" => 2,
+      "required_graders_count" => 1,
+      "formatter_mode" => "plugin defaults",
+      "generated_steps_count" => 1,
+      "visual_review_mode" => "instance default",
+      "adversarial_review_rounds" => 2,
+      "review_plan_enabled" => true,
+      "coverage_configured" => true,
+      "delivery_tracks_count" => 2
+    )
   end
 
   it "renders a scheduled-task source for cron jobs via Job::Origin, without a scheduled_task association" do

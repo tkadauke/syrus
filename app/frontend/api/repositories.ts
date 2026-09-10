@@ -196,6 +196,7 @@ export type RepositoryDetailPayload = {
   message?: string | null
   simple_mode?: boolean
   repository: RepositoryDetailRecord
+  syrus_yml?: RepositorySyrusYmlSummary
   tabs: RepositoryTab[]
   counts: {
     running: number
@@ -264,6 +265,22 @@ export type RepositoryDetailPayload = {
     job_path: string
   } | null
   insight_schedule_config?: InsightScheduleConfigRecord
+}
+
+export type RepositorySyrusYmlSummary = {
+  source: string
+  note: string | null
+  present: boolean
+  prepare_commands_count: number
+  graders_count: number
+  required_graders_count: number
+  formatter_mode: string
+  generated_steps_count: number
+  visual_review_mode: string
+  adversarial_review_rounds: number | null
+  review_plan_enabled: boolean
+  coverage_configured: boolean
+  delivery_tracks_count: number
 }
 
 export type RepositoryFeatureRecommendation = {
