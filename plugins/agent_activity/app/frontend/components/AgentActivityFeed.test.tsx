@@ -141,6 +141,21 @@ describe("AgentActivityFeed", () => {
     vi.restoreAllMocks()
   })
 
+  it("renders the job slug as a copyable slug with hover-card wiring", async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: clipboardWrite } })
+    setupFetchMock()
+    renderFeed()
+
+    const copyButton = await screen.findByRole("button", { name: "Copy JOB-42 to clipboard" })
+    expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
+    expect(copyButton.parentElement?.tagName).toBe("SPAN")
+
+    fireEvent.click(copyButton)
+
+    await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-42"))
+  })
+
   it("renders a session card headlined by its submitted outcome summary", async () => {
     setupFetchMock({ sessions: [ session({ outcome_summary: "Added the greeting helper.", role_label: "Implement" }) ] })
     renderFeed()

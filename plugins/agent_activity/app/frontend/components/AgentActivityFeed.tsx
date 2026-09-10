@@ -8,6 +8,8 @@ import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
 import { encodeFilterTree } from "@app/components/filterBar/helpers"
 import { Button } from "@app/components/Button"
+import { CopyableSlug } from "@app/components/CopyableSlug"
+import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RunTranscriptLogs } from "@app/routes/jobDetail/components"
@@ -180,7 +182,11 @@ function SessionCard({ session }: { session: AgentActivitySession }) {
           ) : null}
           <span className="text-xs text-gray-400 dark:text-gray-500">{session.agent_provider}</span>
           <span className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            {session.job ? <Link className="text-brand hover:underline" to={`/jobs/${session.job.slug}`}>{session.job.slug}</Link> : null}
+            {session.job ? (
+              <SlugHoverCard id={session.job.id} kind="job">
+                <CopyableSlug className="text-xs text-brand dark:text-brand-emphasis" slug={session.job.slug} />
+              </SlugHoverCard>
+            ) : null}
             {session.repository ? <span>{session.repository.slug}</span> : null}
             {duration ? <span>{duration}</span> : null}
             {session.started_at ? <RelativeTimestamp value={session.started_at} /> : null}
