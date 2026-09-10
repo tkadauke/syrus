@@ -172,11 +172,25 @@ project id, commit SHA, and status; they are navigation breadcrumbs, not the
 source of truth.
 
 For distributed grader Steps, the input fingerprint is stable across workflows:
-Syrus uses the source snapshot fingerprint when one exists, otherwise the tree
-SHA, otherwise the source SHA. It does not use the source snapshot database id,
-because that id is scoped to one workflow and would make the same source input
-look different in another workflow. Non-distributed legacy grader Steps fall
-back to the commit SHA.
+`grader_fanout` and `preflight_grader_fanout` stamp materialized grader Step
+details with a `target_fingerprints` payload before execution. The target input
+fingerprint covers declared source files for the target and its dependency
+closure plus each owning `.syrus.yml`; changing a source file, dependency
+target source, or config file changes the input key. The command fingerprint
+covers command text and execution config such as dependencies, phases,
+requiredness, timeout, file scope, owner config path, and target metadata. The
+environment fingerprint covers relevant local runtime metadata, prepare target
+dependencies and commands, and common toolchain files such as `Gemfile.lock`,
+`package-lock.json`, `pnpm-lock.yaml`, `go.sum`, `.ruby-version`, and
+`.tool-versions`.
+
+`grader_collect` copies those stamped fingerprints into the target-health row.
+The older source-snapshot behavior is now only a compatibility fallback for
+historical or already-materialized grader Steps without `target_fingerprints`:
+input fingerprint falls back to source snapshot fingerprint, then tree SHA,
+then source SHA, then commit SHA. Syrus still never uses the source snapshot
+database id, because that id is scoped to one workflow and would make the same
+source input look different in another workflow.
 
 ### Agent-requested prepare targets
 

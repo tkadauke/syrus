@@ -254,6 +254,7 @@ module Steps
 
         new_steps = graders.each_with_index.map do |grader, index|
           prepare_targets = prepare_targets_for(grader)
+          target_fingerprints = target_fingerprints_for(grader)
 
           Step.create!(
             workflow: workflow,
@@ -262,7 +263,8 @@ module Steps
             iteration: step.iteration,
             loop_id: step.loop_id,
             placement_policy: Step::Kind.fetch("grader").placement_policy_for(repository),
-            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
+              .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
           )
         end
 
@@ -280,7 +282,7 @@ module Steps
       end
     end
 
-    def grader_details(grader, prepare_targets:)
+    def grader_details(grader, prepare_targets:, target_fingerprints:)
       {
         "name" => grader.name,
         "target_label" => target_label_for(grader),
@@ -296,19 +298,19 @@ module Steps
         "prepare_targets" => prepare_targets,
         "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
         "junit_output" => grader.junit_output,
-        "failures" => grader.failures
+        "failures" => grader.failures,
+        "target_fingerprints" => target_fingerprints.to_h
       }
     end
 
-    def distributed_grader_details(grader, source_snapshot:)
+    def distributed_grader_details(grader, source_snapshot:, target_fingerprints:)
       return {} unless Feature.distributed_workflow_dag_enabled?(repository)
 
       target_label = "//:grade/#{grader.name}"
-      target_fingerprint = projected_target_fingerprint(grader, target_label)
 
       {
         "projected_target_label" => target_label,
-        "projected_target_fingerprint" => target_fingerprint,
+        "projected_target_fingerprint" => target_fingerprints.command_fingerprint,
         "projected_resource_key" => "target:#{target_label}",
         "barrier_group" => grader_barrier_group,
         "barrier_labels" => [ "grader_collect" ],
@@ -383,20 +385,6 @@ module Steps
             "workflow source snapshot ref publish failed for #{source_sha}: #{e.message}"
     end
 
-    def projected_target_fingerprint(grader, target_label)
-      payload = {
-        "target_label" => target_label,
-        "kind" => "grader",
-        "name" => grader.name.to_s,
-        "command" => grader.command.to_s,
-        "required" => !!grader.required,
-        "timeout_minutes" => grader.timeout_minutes.to_i,
-        "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort,
-        "phase" => grader.metadata["phase"]
-      }
-      Digest::SHA256.hexdigest(JSON.generate(payload))
-    end
-
     def grader_barrier_group
       [ "workflow", workflow.id, "loop", step.loop_id.presence || "none", "iteration", step.iteration, "grader_collect" ].join(":")
     end
@@ -425,6 +413,14 @@ module Steps
           payload["project_path"] = project_path if project_path.present?
         end
       end
+    end
+
+    def target_fingerprints_for(grader)
+      TargetGraph::Fingerprints.for_target(
+        workspace_path: workspace.path,
+        graph: target_graph,
+        label: target_label_for(grader)
+      )
     end
 
     def target_label_for(grader)
