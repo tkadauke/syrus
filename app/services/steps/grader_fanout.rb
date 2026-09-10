@@ -568,14 +568,6 @@ module Steps
       )
     end
 
-    def target_health_reuse
-      @target_health_reuse ||= TargetHealthReuse.new(
-        repository: repository,
-        graph: target_graph,
-        workspace_path: workspace.path
-      )
-    end
-
     def target_label_for(grader)
       "//:grade/#{grader.name}"
     end
