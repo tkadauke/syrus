@@ -56,6 +56,40 @@ Syrus adds its workflow nodes and metadata on top, but it does not reinterpret
 or replace imported dependency edges. The `project:` primitive described below
 names/labels the project that owns a config file's targets.
 
+## Adoption paths
+
+DOC-20's target-graph model is intentionally staged. Repositories do not need
+to jump from a root-only `.syrus.yml` to a fully explicit build graph in one
+change:
+
+1. **Root legacy config**: keep one root `.syrus.yml` with `prepare:`,
+   `formatters:`, `generated:`, and `grade:`. Syrus compiles these existing
+   sections into the implicit root project (`//:repo`) and synthetic targets
+   such as `//:prepare`, `//:format/0`, `//:generate/0`, and
+   `//:grade/rspec`.
+2. **Nested legacy config**: add `.syrus.yml` files only in directories that
+   are real operator-facing project boundaries. Each nested file gets its own
+   implicit project and its legacy sections compile into that package's
+   targets, with file selectors resolved relative to the declaring directory.
+3. **Explicit project names**: add `project:` when the directory-derived id,
+   label, or kind is not the right operator-facing identity. This renames the
+   project boundary; it does not make commands run differently.
+4. **Explicit targets**: add `targets:` when the repo needs reusable graph
+   nodes or dependency edges that legacy sections cannot express clearly:
+   libraries, applications, binaries, prepare actions, builders, repo checks,
+   or shared generated artifacts. Existing legacy graders/formatters/generators
+   can point at those nodes through `deps:`.
+5. **Imported build-system graph**: add `target_graph.imports` when a build
+   system such as Buck, Bazel, or Pants already owns the precise graph. The
+   plugin import becomes the structural base graph; `.syrus.yml` remains useful
+   for Syrus-only workflow metadata, prepare/check commands, and overlays on
+   imported labels.
+
+Each stage is a valid stopping point. A small repository can stay at stage 1
+permanently. A monorepo with a handful of independent apps often stops at
+stages 2-4. A repository whose build system already knows every dependency edge
+should prefer stage 5 over copying that graph by hand into `.syrus.yml`.
+
 ## Projects vs. targets
 
 DOC-20 draws a hard line between the two graph concepts, and it matters when
@@ -134,6 +168,141 @@ Unlike legacy executable declarations, explicit `targets:` do **not** gain an
 implicit dependency on `//:repo`; the only edges they declare initially are the
 labels listed in `deps`.
 
+### Explicit target examples
+
+Use explicit targets to name the things other workflow nodes depend on. Pure
+dependency nodes usually have `sources` and no `run`; executable nodes may carry
+`run`/`command`, but only the currently wired workflow primitives execute
+automatically today.
+
+```yaml
+targets:
+  - name: auth-lib
+    kind: library
+    sources:
+      - "app/models/auth/**/*.rb"
+      - "app/services/auth/**/*.rb"
+
+  - name: worker-cli
+    kind: binary
+    sources:
+      - "cli/**/*.go"
+      - "cmd/syrus-worker/**/*.go"
+    deps: [":auth-lib"]
+
+  - name: web-app
+    kind: application
+    sources:
+      - "app/frontend/**"
+      - "app/controllers/**"
+    deps: [":auth-lib"]
+
+  - name: install-node-deps
+    kind: prepare
+    run: npm ci
+
+  - name: frontend-bundle
+    kind: builder
+    run: npm run build
+    sources: ["app/frontend/**"]
+    deps: [":install-node-deps", ":web-app"]
+
+  - name: eslint
+    kind: formatter
+    run: npm run lint -- --fix app/frontend
+    sources:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+    deps: [":install-node-deps", ":web-app"]
+
+  - name: api-client
+    kind: generator
+    run: bin/rails runner scripts/generate_api_client.rb
+    sources: ["app/controllers/api/**/*.rb"]
+    deps: [":auth-lib"]
+
+  - name: typecheck
+    kind: grader
+    run: npm run typecheck
+    sources:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+    deps: [":install-node-deps", ":frontend-bundle"]
+    phases: [review, landing]
+    required: true
+    timeout_minutes: 10
+```
+
+The equivalent legacy executable sections can also depend on explicit nodes.
+This is the most useful adoption step while formatter/generator runtime
+selection is still legacy-config driven and root-only:
+
+```yaml
+targets:
+  - name: frontend
+    kind: application
+    sources: ["app/frontend/**"]
+
+  - name: node-deps
+    kind: prepare
+    run: npm ci
+
+formatters:
+  - command: npm run lint -- --fix app/frontend
+    files:
+      - "app/frontend/**/*.ts"
+      - "app/frontend/**/*.tsx"
+    deps: [":frontend", ":node-deps"]
+
+generated:
+  - command: npm run generate-client
+    sources: ["schema/**/*.json"]
+    generates: ["app/frontend/generated/**"]
+    deps: [":frontend"]
+
+grade:
+  - name: frontend-tests
+    run: npm test
+    when_files_changed: ["app/frontend/**"]
+    deps: [":frontend", ":node-deps"]
+```
+
+In today's runtime, root legacy `grade:` entries use their dependency closure
+for affected-file selection and execute transitive `kind: prepare` dependencies
+before the grader command. Legacy `formatters:` and `generated:` entries compile
+their `deps:` into the graph for diagnostics and future target-aware execution,
+but `Steps::Format` and `Steps::Generate` still choose commands from the legacy
+sections directly. Explicit `kind: builder` nodes are metadata unless a legacy
+grader (or another currently wired executable path) depends on them; no separate
+builder Step materializes yet.
+
+### Dependency-only edges
+
+The target graph has one edge vocabulary: `deps` (or `dependencies`). A
+dependency edge means "this target depends on that target for source-affecting
+selection and prepare ordering." It does not mean "run this target first" in the
+general case, and it does not encode edge kinds such as runtime dependency,
+test dependency, build dependency, generated-output dependency, or ownership.
+
+That limited model is deliberate:
+
+- A changed file can affect a target through its own `sources` or through any
+  target in its transitive dependency closure.
+- A transitive executable `kind: prepare` dependency on a materialized grader
+  runs before that grader, at most once per workflow workspace.
+- Other executable dependencies are graph metadata until a workflow step knows
+  how to materialize that target kind. A grader depending on a `builder` target
+  can be selected when the builder's source scope changes, but the builder
+  command itself does not automatically run as a separate build step today.
+- Dependency direction is always from consumer to prerequisite:
+  `//app:tests` depends on `//app:lib`, not the reverse.
+
+Prefer explicit dependency nodes when widening a file glob would hide the real
+relationship. For example, an app test target depending on `//api:schema` is
+clearer than adding `api/**` to every app grader's `when_files_changed` list.
+Use widened legacy globs when the relationship is temporary, coarse, or not
+worth naming yet.
+
 ## Imported build-system graphs
 
 Repositories can ask an enabled plugin to import target nodes and dependency
@@ -179,6 +348,50 @@ workflow helpers should use distinct labels and may depend on imported labels.
 Legacy `grade:`, `formatters:`, and `generated:` entries are also distinct
 Syrus-owned targets; if one collides with an imported label, that collision is
 reported rather than silently replacing the build-system node.
+
+```yaml
+target_graph:
+  imports:
+    - provider: bazel
+      config:
+        query: //frontend:all
+```
+
+```yaml
+# frontend/.syrus.yml
+# Overlay Syrus metadata onto an imported Bazel target. The provider still owns
+# kind, sources, command, and deps for //frontend:bundle.
+targets:
+  - name: bundle
+    phases: [review, landing]
+    required: true
+    timeout_minutes: 20
+```
+
+```yaml
+# /.syrus.yml
+# Add a separate Syrus-only workflow node that depends on the imported target.
+grade:
+  - name: frontend-build
+    run: bazel build //frontend:bundle
+    when_files_changed: ["frontend/**"]
+    deps: ["//frontend:bundle"]
+```
+
+When an external graph exists, `.syrus.yml` remains useful for metadata the
+build system does not know and should not own:
+
+- Syrus workflow phase metadata (`review`, `landing`, `ci`, `promotion`),
+  requiredness, and timeouts.
+- Syrus-only prepare targets for dependency installation or cache warmup that
+  are not build-system targets.
+- Grader commands and failure policy, especially checks that wrap a build
+  target in Syrus-specific reporting, JUnit ingestion, or inherited-failure
+  handling.
+- Formatter and generator commands that are repository policy rather than
+  native build graph nodes.
+- `project:` labels/kinds that make operator UI boundaries readable even when
+  imported labels are optimized for the build tool.
 
 `failures` controls what happens when the configured provider is unavailable or
 raises while importing: `strict` (default) fails graph compilation, while `warn`
