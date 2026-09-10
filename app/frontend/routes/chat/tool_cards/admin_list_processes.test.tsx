@@ -49,7 +49,7 @@ describe("admin_list_processes tool card", () => {
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("42.5%")).toBeInTheDocument()
     expect(screen.getByText("256.0 MB")).toBeInTheDocument()
-    expect(screen.getByText("RUN-301")).toBeInTheDocument()
+    expect(screen.getByText("RUN-9001")).toBeInTheDocument()
   })
 
   it("renders an explicit empty state for a well-formed empty list", () => {

@@ -67,7 +67,7 @@ describe("inspect_provider_circuit tool card", () => {
     expect(screen.getByText("open")).toBeInTheDocument()
     expect(screen.getByText("claude-sonnet-5")).toBeInTheDocument()
     expect(screen.getByText("RUN-501")).toBeInTheDocument()
-    const jobLinks = screen.getAllByRole("link", { name: "JOB-148" })
+    const jobLinks = screen.getAllByRole("link", { name: "JOB-4048" })
     expect(jobLinks.length).toBeGreaterThan(0)
     expect(screen.getByText("rate_limited")).toBeInTheDocument()
     expect(screen.getByText("provider circuit open")).toBeInTheDocument()

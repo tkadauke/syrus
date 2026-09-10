@@ -14,7 +14,7 @@ describe("resolve_delivery_policy tool card", () => {
 
   it("summarizes the collapsed row with the resolved track and job", () => {
     const parsedResult = { repository: "tkadauke/syrus", job_id: 4225, delivery_track: "staging" }
-    expect(resolveDeliveryPolicyToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Track: staging for JOB-325")
+    expect(resolveDeliveryPolicyToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("Track: staging for JOB-4225")
   })
 
   it("falls back to the default track label when unset", () => {

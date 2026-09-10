@@ -3597,7 +3597,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Navigate to Epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/app-shell/epics/7")
-    expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-94")
+    expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-594")
     const copySlugButton = screen.getByRole("button", { name: "Copy JOB-594 to clipboard" })
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-594"))
@@ -10298,7 +10298,7 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add dependency" }))
-    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill " }))
+    fireEvent.click(screen.getByRole("button", { name: "JOB-41 - Build hill" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/dependencies",
@@ -16112,7 +16112,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     dependencies: [],
     dependents: [],
     unsatisfied_dependencies: [],
-    dependency_target_options: [{ label: "acme/widgets #11 - Build hill ", value: "issue:3:11" }],
+    dependency_target_options: [{ label: "JOB-41 - Build hill ", value: "issue:3:11" }],
     epic_dependency_target_options: [],
     attachments: [
       {

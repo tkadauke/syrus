@@ -1207,14 +1207,14 @@ describe("chat slash commands", () => {
     await submitSlashCommand("/approve job-95")
 
     expect(await screen.findByText("Confirm /approve")).toBeInTheDocument()
-    expect(screen.getByText("Approve JOB-395 for landing?")).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/1095/approve", expect.objectContaining({ method: "POST" }))
+    expect(screen.getByText("Approve JOB-95 for landing?")).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/95/approve", expect.objectContaining({ method: "POST" }))
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/1095/approve",
+        "/api/v1/app/jobs/95/approve",
         expect.objectContaining({ method: "POST" })
       )
     })
@@ -1243,7 +1243,7 @@ describe("chat slash commands", () => {
     await submitSlashCommand("/approve")
     fireEvent.click(await screen.findByText("Approve slash command"))
 
-    expect(screen.getByText("Approve JOB-703 for landing?")).toBeInTheDocument()
+    expect(screen.getByText("Approve JOB-2203 for landing?")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 

@@ -149,7 +149,7 @@ describe("pending action tool card family", () => {
     }
 
     expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe(
-      "Dry run: adopt_current_pr_head for JOB-322"
+      "Dry run: adopt_current_pr_head for JOB-4222"
     )
     render(<>{adoptCurrentPrHeadCard.renderExpanded(context("adopt_current_pr_head", parsedResult))}</>)
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()

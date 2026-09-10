@@ -50,7 +50,7 @@ describe("propose_job tool card", () => {
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
-    expect(screen.getByText("JOB-322")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
   })
 

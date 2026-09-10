@@ -34,6 +34,8 @@ function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFo
     ],
     selected_repository_id: "1",
     selected_agent_provider: null,
+    selected_epic_id: null,
+    epic: null,
     configured_agent_providers: [],
     priorities: [{ value: "medium", label: "Medium", description: "Default" }],
     prompt_templates: [template1, template2],
@@ -87,6 +89,62 @@ describe("DirectJobNew agent provider icon", () => {
     const select = await screen.findByRole("combobox", { name: "Agent" })
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
     expect(icon).toBeInTheDocument()
+  })
+})
+
+describe("DirectJobNew epic linking", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows which epic the job will join when the form payload targets one", async () => {
+    renderRoute(formPayload({
+      selected_epic_id: "7",
+      epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+    }))
+
+    const link = await screen.findByRole("link", { name: "EPIC-7 · Ship the thing" })
+    expect(link).toHaveAttribute("href", "/epics/7")
+  })
+
+  it("shows no epic note when the form payload targets no epic", async () => {
+    renderRoute()
+
+    await screen.findByRole("textbox", { name: "Title" })
+    expect(screen.queryByText(/added to/)).not.toBeInTheDocument()
+  })
+
+  it("submits epic_id alongside the job when targeting an epic", async () => {
+    let submittedBody: FormData | null = null
+    vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
+      if (init?.method === "POST") {
+        submittedBody = init.body as FormData
+        return Promise.resolve(jsonResponse({
+          message: "Direct job created.",
+          create_more: false,
+          redirect_to: "/jobs/99",
+          job: { id: 99, title: "Ship the thing", state: "queued", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", default_agent_provider: "claude", default_agent_provider_label: "Claude" }, job_path: "/jobs/99" }
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(formPayload({
+        selected_epic_id: "7",
+        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+      })))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <DirectJobNewRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Prompt" }), { target: { value: "Add a piece of the Epic." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create job" }))
+
+    await waitFor(() => expect(submittedBody).not.toBeNull())
+    expect(submittedBody!.get("epic_id")).toBe("7")
   })
 })
 

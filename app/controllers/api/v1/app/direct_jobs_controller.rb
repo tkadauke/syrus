@@ -62,17 +62,46 @@ module Api
         private
 
         def form_payload
+          repository = selected_repository
+          epic = selected_epic(repository)
+
           {
             repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
             configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             selected_repository_id: params[:repository_id].to_s.presence,
             selected_agent_provider: params[:agent_provider].to_s.presence,
+            selected_epic_id: epic&.id&.to_s,
+            epic: epic ? epic_json(epic) : nil,
             create_more: create_more?,
             prompt_templates: PromptTemplate.all.map { |template| prompt_template_json(template) },
             priorities: priority_options,
             accepted_file_content_types: Document::ALLOWED_CONTENT_TYPES,
             new_repository_path: new_repository_path,
             dashboard_jobs_path: dashboard_jobs_path
+          }
+        end
+
+        def selected_repository
+          return nil if params[:repository_id].blank?
+
+          Current.user.repositories.active.find_by(id: params[:repository_id])
+        end
+
+        # Scoped to the target repository when one is already selected (the
+        # link from an Epic's detail page always carries both), else falls
+        # back to any of the user's own epics.
+        def selected_epic(repository)
+          return nil if params[:epic_id].blank?
+
+          scope = repository ? repository.epics : Current.user.epics
+          scope.find_by(id: params[:epic_id])
+        end
+
+        def epic_json(epic)
+          {
+            id: epic.id,
+            display_number: epic.slug,
+            title: epic.title.to_s
           }
         end
 

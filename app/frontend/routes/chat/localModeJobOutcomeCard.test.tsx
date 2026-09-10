@@ -61,7 +61,7 @@ describe("LocalModeJobOutcomeCard", () => {
 
     render(<LocalModeJobOutcomeCard result={result} />)
 
-    expect(screen.getByText("JOB-325")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
     expect(screen.getByText("coding")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
     expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()

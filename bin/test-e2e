@@ -37,16 +37,12 @@ if [ ! -d /opt/ms-playwright ]; then
   npx playwright install chromium chromium-headless-shell
 fi
 
-# The specs sign in as demo@syrus.local and assert on the seeded epic and
-# repository. Those rows come from db/seeds.rb, which only creates them in
-# development and is idempotent, so seeding here adds the demo fixtures and
-# changes nothing else. Without them the suite fails at the login form with
-# nothing explaining why.
+# The specs sign in as deterministic local users and assert on seeded preview
+# rows. `e2e:seed` wraps db:seed, adds the auth/onboarding fixtures, and resets
+# the invitation-token account so repeated local runs stay deterministic.
 if [ -z "${E2E_BASE_URL:-}" ] && [ "${E2E_SKIP_SEED:-0}" != "1" ]; then
-  if ! bin/rails runner 'exit(User.exists?(email_address: "demo@syrus.local") ? 0 : 1)' >/dev/null 2>&1; then
-    echo "[test-e2e] Seeding development demo data (demo@syrus.local and friends) for the E2E specs."
-    bin/rails db:seed
-  fi
+  echo "[test-e2e] Preparing local database and E2E fixtures."
+  bin/rails db:prepare e2e:seed
 fi
 
 exec npx playwright test "$@"

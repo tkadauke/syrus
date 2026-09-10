@@ -29,7 +29,7 @@ describe("dispatch_ref_movement_action tool card", () => {
 
     render(<>{dispatchRefMovementActionToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-325")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
     expect(screen.getByText("WORKFLOW-900")).toBeInTheDocument()
   })
 

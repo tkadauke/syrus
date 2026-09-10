@@ -298,7 +298,7 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload).to include(
       id: action.id,
       action: "cancel_job",
-      label: "Cancel JOB-899"
+      label: "Cancel JOB-999999"
     )
     expect(payload).not_to have_key(:resource_title)
     expect(payload).not_to have_key(:resource_url)

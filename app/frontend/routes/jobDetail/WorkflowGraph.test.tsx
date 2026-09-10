@@ -412,7 +412,7 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("EPIC-30")).toBeInTheDocument()
+    expect(screen.getByText("EPIC-260")).toBeInTheDocument()
     expect(screen.getByText("attached to JOB-464")).toBeInTheDocument()
   })
 

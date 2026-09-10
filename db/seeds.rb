@@ -228,7 +228,16 @@ if Rails.env.development?
       body: "Representative implemented job with a PR waiting for review.",
       pr_number: 101,
       branch_name: "syrus/demo-dashboard-states",
-      diff_fixture: demo_diff_review_fixture
+      diff_fixture: demo_diff_review_fixture,
+      # The demo repository leaves auto-merge off by default (a deliberate,
+      # unconfigured starting point for a fresh preview), but the Approve
+      # button on an implemented Job hard-gates on `job.auto_merge_enabled?`
+      # (repository setting OR this per-Job override) before it will even
+      # transition the Job -- without this override, clicking Approve in a
+      # fresh preview always 422s. Override it just on this one seeded Job
+      # instead of flipping the repository-wide setting, so approving it is
+      # actually reachable without changing the demo repo's default posture.
+      auto_merge_enabled: true
     },
     {
       title: "Repair seeded background workflow",
@@ -260,6 +269,17 @@ if Rails.env.development?
       approved_at: 30.minutes.ago,
       approved_via: "operator",
       approved_by_user: demo_user
+    },
+    {
+      title: "Land approval queue fixture",
+      state: "landing",
+      body: "Representative approved job with a landing workflow already in progress.",
+      pr_number: 106,
+      branch_name: "syrus/demo-landing-queue-fixture",
+      approved_at: 20.minutes.ago,
+      approved_via: "operator",
+      approved_by_user: demo_user,
+      auto_merge_enabled: true
     }
   ].each do |attrs|
     job = Job.find_or_initialize_by(
@@ -287,10 +307,57 @@ if Rails.env.development?
       approved_at: attrs[:approved_at],
       approved_via: attrs[:approved_via],
       approved_by_user: attrs[:approved_by_user],
-      diff_fixture: attrs[:diff_fixture]
+      diff_fixture: attrs[:diff_fixture],
+      auto_merge_enabled: attrs.fetch(:auto_merge_enabled, false)
     )
     job.save!
     demo_jobs_by_title[attrs.fetch(:title)] = job
+  end
+
+  cli_job = Job.find_or_initialize_by(
+    repository: demo_repo,
+    kind: "direct",
+    issue_title: "CLI golden path fixture"
+  )
+  cli_job.assign_attributes(
+    user: demo_user,
+    owner_user: demo_user,
+    epic: demo_epic,
+    issue_body: "Seeded Job used by the Go CLI E2E suite.",
+    state: "implemented",
+    pr_number: 107,
+    agent_provider: "codex",
+    credential_mode: "pat",
+    priority: "medium",
+    job_provider_setting: "default",
+    stack_base: "auto",
+    validity: "valid",
+    triaging_reason: "classifier_pending"
+  )
+  cli_job.save!
+  cli_job.update!(branch_name: "syrus/direct-#{cli_job.id}") if cli_job.branch_name != "syrus/direct-#{cli_job.id}"
+  demo_jobs_by_title[cli_job.issue_title] = cli_job
+
+  if cli_job.workflows.none?
+    Workflow.create!(
+      job: cli_job,
+      user: demo_user,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago,
+      artifacts: {
+        "summary" => "Seeded a stable Job for the compiled Go CLI E2E suite.",
+        "test_plan" => {
+          "steps" => [
+            "Run `syrus status` from the checked-out fixture branch.",
+            "Confirm the CLI can read this seeded test plan from the app API."
+          ],
+          "notes" => "This fixture is deterministic and safe to reseed."
+        }
+      }
+    )
   end
 
   # One seeded Job gets a full Workflow/Step/Run chain (with a diff, a
@@ -372,6 +439,74 @@ if Rails.env.development?
       JobLog.append!(run: run, kind: "agent", chunk: "Reviewing db/seeds.rb for preview coverage gaps.")
       JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
     end
+  end
+
+  # The seeded "failed" Job also gets a real (failed) Workflow/Step chain --
+  # without one, `App::JobRetryActions` has no failed Step to point at, so
+  # the Job detail page's only recovery action is "Start over" (which
+  # abandons the branch and creates a whole new Job). A real failed
+  # `implement` Step is what makes the "Retry failed step" / "Retry
+  # implementation" affordances -- the actually-common recovery path --
+  # reachable in a fresh preview at all.
+  failed_job = demo_jobs_by_title.fetch("Repair seeded background workflow")
+  if failed_job.workflows.none?
+    failed_workflow = Workflow.create!(
+      job: failed_job,
+      user: demo_user,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "failed",
+      started_at: 40.minutes.ago,
+      finished_at: 25.minutes.ago,
+      failure_reason: "grader_failed"
+    )
+
+    failed_prepare_step = Step.create!(
+      workflow: failed_workflow,
+      kind: "prepare",
+      position: 0,
+      iteration: 1,
+      state: "succeeded",
+      started_at: 40.minutes.ago,
+      finished_at: 39.minutes.ago
+    )
+    failed_implement_step = Step.create!(
+      workflow: failed_workflow,
+      kind: "implement",
+      position: 1,
+      iteration: 1,
+      state: "failed",
+      started_at: 38.minutes.ago,
+      finished_at: 25.minutes.ago
+    )
+    failed_prepare_step.update!(next_step_id: failed_implement_step.id)
+
+    Run.create!(
+      job: failed_job,
+      user: demo_user,
+      step: failed_prepare_step,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      iteration: 1,
+      started_at: failed_prepare_step.started_at,
+      finished_at: failed_prepare_step.finished_at
+    )
+    failed_run = Run.create!(
+      job: failed_job,
+      user: demo_user,
+      step: failed_implement_step,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "failed",
+      iteration: 1,
+      started_at: failed_implement_step.started_at,
+      finished_at: failed_implement_step.finished_at,
+      prompt: "Repair the background workflow that keeps failing on retry."
+    )
+
+    JobLog.append!(run: failed_run, kind: "agent", chunk: "Attempting to repair the background workflow retry path.")
+    JobLog.append!(run: failed_run, kind: "system", chunk: "Required grader failed: bin/rspec spec/jobs/run_job_spec.rb")
   end
 
   # Build Cache sample sccache stats capture. The plugin is enabled by
@@ -473,6 +608,69 @@ if Rails.env.development?
           ]
         }
       )
+    end
+  end
+
+  # Coverage report sample data for the core Job detail Summary/Review
+  # surfaces. A fresh preview does not run coverage_analyze, but the operator
+  # review flow should still show realistic coverage numbers, PR-delta data,
+  # and changed-file breakdowns for the seeded implemented Job.
+  quality_gate_workflow = implemented_job.workflows.order(:created_at).first
+  if quality_gate_workflow && quality_gate_workflow.artifact("coverage").blank?
+    quality_gate_workflow.set_artifact!(
+      "coverage",
+      {
+        "summary" => {
+          "lines_pct" => 87.1,
+          "branches_pct" => 70.2,
+          "functions_pct" => 91.4
+        },
+        "pr_delta" => {
+          "covered" => 12,
+          "total" => 15,
+          "pct" => 80.0,
+          "uncovered_files" => [ "app/services/dashboard_payload.rb" ]
+        },
+        "threshold_miss" => false,
+        "files" => {
+          "app/services/dashboard_payload.rb" => {
+            "lines_pct" => 76.5,
+            "branches_pct" => 61.2
+          },
+          "app/frontend/routes/Dashboard.tsx" => {
+            "lines_pct" => 92.3,
+            "branches_pct" => 84.0
+          }
+        },
+        "sources_status" => [
+          { "artifact" => "coverage/lcov.info", "found" => true, "lines_pct" => 87.1 }
+        ],
+        "hit_map_attached" => false
+      }
+    )
+  end
+
+  if quality_gate_workflow
+    implement_step = quality_gate_workflow.steps.find_by(kind: "implement")
+    if implement_step
+      warning = quality_gate_workflow.workflow_warnings.find_or_initialize_by(
+        kind: "coverage_branches_threshold_miss",
+        step: implement_step
+      )
+      warning.assign_attributes(
+        job: implemented_job,
+        severity: "medium",
+        title: "Branch coverage 70.2% is below the 75% threshold",
+        evidence: {
+          "branches_pct" => 70.2,
+          "threshold_branches" => 75,
+          "file" => "app/services/dashboard_payload.rb"
+        },
+        suggested_prompt: "Add tests that exercise the dashboard needs-attention count branches and raise branch coverage above the configured threshold.",
+        state: "pending",
+        created_job: nil
+      )
+      warning.save!
     end
   end
 
