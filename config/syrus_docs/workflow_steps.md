@@ -492,11 +492,26 @@ When `grader_collect` records a grader conclusion, it also records a persistent
 `TargetHealthRecord` for each materialized grader target. The record stores the
 target label, project id, repository, commit SHA, input fingerprint, command
 fingerprint, environment fingerprint, status, timing, and log artifact
-references. For distributed grader Steps the input fingerprint comes from the
-workflow source snapshot's explicit fingerprint when present, then its tree SHA,
-then its source SHA; it never uses the workflow-local source snapshot row id.
-For legacy non-distributed grader Steps the commit SHA is the stable input
-fingerprint fallback. Workflow artifacts keep only
+references.
+
+`grader_fanout` and `preflight_grader_fanout` stamp each materialized grader
+Step with deterministic target fingerprints. The input fingerprint covers the
+target's declared source files, dependency target source files, dependency
+labels, and owning `.syrus.yml` files. The command fingerprint covers the
+target command and execution config, including dependencies, phases,
+requiredness, timeout, file scope, owner config path, and target metadata. The
+environment fingerprint covers locally available runtime/toolchain inputs,
+prepare dependency targets, prepare commands, common lockfiles, and version
+files such as `Gemfile.lock`, `package-lock.json`, `.ruby-version`, and
+`.tool-versions`.
+
+`grader_collect` copies those stamped fingerprints into `TargetHealthRecord`.
+Older or already-materialized grader Steps that do not have
+`target_fingerprints` keep the compatibility fallback: input fingerprint comes
+from the workflow source snapshot's explicit fingerprint when present, then its
+tree SHA, then its source SHA, and finally the commit SHA. Syrus never uses the
+workflow-local source snapshot row id as a target-health input fingerprint.
+Workflow artifacts keep only
 `target_health_record_refs` entries with record ids and identifying labels; the
 database row is the primary store so later workflows can query target health
 outside the workflow that produced it.

@@ -62,6 +62,7 @@ module Steps
 
         new_steps = graders.each_with_index.map do |grader, index|
           prepare_targets = prepare_targets_for(grader)
+          target_fingerprints = target_fingerprints_for(grader)
 
           Step.create!(
             workflow: workflow,
@@ -69,7 +70,8 @@ module Steps
             position: insertion_position + index,
             iteration: step.iteration,
             placement_policy: Step::Kind.fetch("preflight_grader").placement_policy_for(repository),
-            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
+              .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
           )
         end
 
@@ -78,7 +80,7 @@ module Steps
       end
     end
 
-    def grader_details(grader, prepare_targets:)
+    def grader_details(grader, prepare_targets:, target_fingerprints:)
       {
         "name" => grader.name,
         "target_label" => target_label_for(grader),
@@ -91,15 +93,17 @@ module Steps
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
         "prepare_targets" => prepare_targets,
-        "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] }
+        "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
+        "target_fingerprints" => target_fingerprints.to_h
       }
     end
 
-    def distributed_grader_details(grader, source_snapshot:)
+    def distributed_grader_details(grader, source_snapshot:, target_fingerprints:)
       return {} unless Feature.distributed_workflow_dag_enabled?(repository)
 
       {
         "projected_target_label" => "//:preflight-grade/#{grader.name}",
+        "projected_target_fingerprint" => target_fingerprints.command_fingerprint,
         "barrier_labels" => [ "preflight_grader_collect" ],
         "source_snapshot_id" => source_snapshot.id,
         "source_snapshot" => {
@@ -169,6 +173,14 @@ module Steps
           payload["project_path"] = project_path if project_path.present?
         end
       end
+    end
+
+    def target_fingerprints_for(grader)
+      TargetGraph::Fingerprints.for_target(
+        workspace_path: workspace.path,
+        graph: target_graph,
+        label: target_label_for(grader)
+      )
     end
 
     def target_label_for(grader)
