@@ -339,6 +339,8 @@
   "field_body": "Text",
   "aria_stop_agent": "Agent stoppen",
   "aria_stop_shell_command": "Befehl stoppen",
+  "shell_command_running": "Shell-Befehl läuft",
+  "shell_command_stop": "Stoppen",
   "shell_command_exit_status": "Exit {{code}}",
   "shell_command_no_output": "(keine Ausgabe)",
   "shell_command_outcome_succeeded": "Erfolgreich",

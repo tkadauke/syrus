@@ -118,7 +118,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
-  const pendingProposalBannerRef = useRef<HTMLDivElement | null>(null)
+  const composerBannerStackRef = useRef<HTMLDivElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
@@ -159,6 +159,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     )
   }, [payload.messages])
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
+  const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning
   const [jumpIndex, setJumpIndex] = useState(0)
   const attachedRepositories = payload.attachment_groups?.repositories ?? []
   const dictation = useChatDictation({
@@ -195,6 +196,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // cancellation — see ChatShellCommandJob#post_result_message!). There is no
   // status-polling endpoint for a running command, so the existing live
   // message feed is the only completion signal.
+  useEffect(() => {
+    const inFlight = payload.chat_shell_command_in_flight
+    if (inFlight?.running) setShellCommand(inFlight)
+  }, [payload.chat_shell_command_in_flight])
+
   useEffect(() => {
     if (!shellCommand) return
     const finished = payload.messages.some((item) => contentRecord(item.content)?.chat_shell_command_id === shellCommand.id)
@@ -1399,19 +1405,19 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     const measure = () => {
       const formRect = form.getBoundingClientRect()
-      const bannerRect = pendingProposalBannerRef.current?.getBoundingClientRect()
+      const bannerRect = composerBannerStackRef.current?.getBoundingClientRect()
       const height = bannerRect ? Math.max(formRect.height, formRect.bottom - bannerRect.top) : formRect.height
       onComposerHeightChange(height)
     }
 
     const observer = new ResizeObserver(measure)
     observer.observe(form)
-    if (pendingProposalBannerRef.current) observer.observe(pendingProposalBannerRef.current)
+    if (composerBannerStackRef.current) observer.observe(composerBannerStackRef.current)
     return () => {
       observer.disconnect()
       onComposerHeightChange(null)
     }
-  }, [floating, onComposerHeightChange, pendingProposalCount > 0])
+  }, [floating, onComposerHeightChange, composerBannerStackVisible])
 
   useEffect(() => {
     if (!attachmentPopoverOpen) return
@@ -1542,26 +1548,37 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           : undefined}
         data-tour="chat-compose"
       >
-        {pendingProposalCount > 0 ? (
-          <div className={floating
-            ? "absolute inset-x-0 bottom-full mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-            : "mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}
-            ref={floating ? pendingProposalBannerRef : undefined}
+        {composerBannerStackVisible ? (
+          <div
+            className={floating ? "absolute inset-x-0 bottom-full mb-2 flex flex-col gap-2" : "mb-2 flex flex-col gap-2"}
+            ref={floating ? composerBannerStackRef : undefined}
           >
-            <span>
-              {pendingProposalCount === 1
-                ? "1 pending proposal"
-                : `${pendingProposalCount} pending proposals`}
-            </span>
-            <button
-              className="font-medium underline hover:no-underline"
-              onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
-              type="button"
-            >
-              {pendingProposals.length > 0
-                ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
-                : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
-            </button>
+            {pendingProposalCount > 0 ? (
+              <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <span>
+                  {pendingProposalCount === 1
+                    ? "1 pending proposal"
+                    : `${pendingProposalCount} pending proposals`}
+                </span>
+                <button
+                  className="font-medium underline hover:no-underline"
+                  onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
+                  type="button"
+                >
+                  {pendingProposals.length > 0
+                    ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
+                    : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
+                </button>
+              </div>
+            ) : null}
+            {shellCommand && shellCommandRunning ? (
+              <ShellCommandRunningBanner
+                chatId={chatId}
+                command={shellCommand}
+                onError={(error) => onNotice(errorMessage(error, "Could not cancel command."))}
+                onUpdate={setShellCommand}
+              />
+            ) : null}
           </div>
         ) : null}
         <form
@@ -1857,15 +1874,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
                 className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
                 payload={payload}
                 queryKey={queryKey}
-              />
-            ) : null}
-            {!agentActive && shellCommand && shellCommandRunning ? (
-              <ShellCommandStopButton
-                chatId={chatId}
-                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-                command={shellCommand}
-                onError={(error) => onNotice(errorMessage(error, "Could not cancel command."))}
-                onUpdate={setShellCommand}
               />
             ) : null}
           </div>
@@ -2888,13 +2896,33 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
   )
 }
 
+function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { chatId: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
+  const { t } = useT("chat")
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="shell-command-running-banner">
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">{t("shell_command_running")}</div>
+        <div className="truncate font-mono text-amber-950 dark:text-amber-100" title={command.command}>{command.command}</div>
+      </div>
+      <ShellCommandStopButton
+        chatId={chatId}
+        className="inline-flex shrink-0 items-center gap-1 rounded px-2 py-1 font-medium text-red-700 hover:bg-red-100 disabled:text-amber-700 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/70 dark:disabled:text-amber-300"
+        command={command}
+        label={t("shell_command_stop")}
+        onError={onError}
+        onUpdate={onUpdate}
+      />
+    </div>
+  )
+}
+
 // EPIC-323 `!` command mode: cancels the in-flight ChatShellCommand, reusing
-// StopButton's exact styling/icon so the two controls read as one family.
+// StopButton's icon so stop controls read as one family.
 // `onUpdate` hands the (still `running: true` — the kill is only requested
 // here, not yet applied) response record back to the composer; the effect
 // that watches payload.messages is what actually clears it once
 // ChatShellCommandJob finalizes and posts the completion message.
-function ShellCommandStopButton({ chatId, className, command, onError, onUpdate }: { chatId: string; className?: string; command: ChatShellCommandRecord; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
+function ShellCommandStopButton({ chatId, className, command, label, onError, onUpdate }: { chatId: string; className?: string; command: ChatShellCommandRecord; label?: string; onError: (error: unknown) => void; onUpdate: (record: ChatShellCommandRecord) => void }) {
   const { t } = useT("chat")
   const cancel = useMutation({
     mutationFn: () => cancelChatShellCommand(chatId, command.id),
@@ -2904,6 +2932,7 @@ function ShellCommandStopButton({ chatId, className, command, onError, onUpdate 
   return (
     <button aria-label={t("aria_stop_shell_command")} className={className} disabled={cancel.isPending} onClick={() => cancel.mutate()} type="button">
       <StopIcon className={`h-5 w-5 ${cancel.isPending ? "opacity-50" : ""}`} />
+      {label ? <span>{label}</span> : null}
     </button>
   )
 }

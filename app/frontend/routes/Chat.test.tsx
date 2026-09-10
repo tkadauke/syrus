@@ -3561,6 +3561,32 @@ describe("bang command mode (EPIC-323)", () => {
 
     await waitFor(() => expect(textarea).toHaveValue(""))
     expect(await screen.findByRole("button", { name: "Stop command" })).toBeInTheDocument()
+    expect(screen.getByTestId("shell-command-running-banner")).toHaveTextContent("Running shell command")
+    expect(screen.getByTestId("shell-command-running-banner")).toHaveTextContent("ls -la")
+  })
+
+  it("shows a running shell command from the chat payload above the composer", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
+      chat_shell_command_in_flight: {
+        id: 501,
+        chat_session_id: 8,
+        command: "bin/rails db:migrate",
+        output: null,
+        outcome: null,
+        exit_status: null,
+        started_at: "2026-09-07T00:00:00Z",
+        finished_at: null,
+        running: true,
+        cancellable: true
+      }
+    }))
+
+    renderRoute()
+
+    const banner = await screen.findByTestId("shell-command-running-banner")
+    expect(banner).toHaveTextContent("Running shell command")
+    expect(banner).toHaveTextContent("bin/rails db:migrate")
+    expect(within(banner).getByRole("button", { name: "Stop command" })).toBeInTheDocument()
   })
 
   it("blocks a second ! submission while one is already running", async () => {
@@ -4249,12 +4275,13 @@ describe("floating composer positioning", () => {
 
     const bannerText = await screen.findByText("1 pending proposal")
     const banner = bannerText.closest("div") as HTMLElement
-    expect(banner.className).toContain("absolute")
-    expect(banner.className).toContain("bottom-full")
+    const bannerStack = banner.parentElement as HTMLElement
+    expect(bannerStack.className).toContain("absolute")
+    expect(bannerStack.className).toContain("bottom-full")
 
     const composerBox = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
     expect(composerBox).not.toBeNull()
-    expect(composerBox.contains(banner)).toBe(true)
+    expect(composerBox.contains(bannerStack)).toBe(true)
     expect(composerBox.className).toContain("absolute")
   })
 })

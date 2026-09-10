@@ -339,6 +339,8 @@
   "field_body": "Body",
   "aria_stop_agent": "Stop agent",
   "aria_stop_shell_command": "Stop command",
+  "shell_command_running": "Running shell command",
+  "shell_command_stop": "Stop",
   "shell_command_exit_status": "exit {{code}}",
   "shell_command_no_output": "(no output)",
   "shell_command_outcome_succeeded": "Succeeded",
