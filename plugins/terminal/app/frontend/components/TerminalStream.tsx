@@ -42,9 +42,15 @@ export function TerminalStream({
     setEnded(false)
   }, [ terminalSessionId ])
 
+  const onConnectionChangeRef = useRef(onConnectionChange)
+
   useEffect(() => {
-    onConnectionChange?.({ connected, ended })
-  }, [ connected, ended, onConnectionChange ])
+    onConnectionChangeRef.current = onConnectionChange
+  }, [ onConnectionChange ])
+
+  useEffect(() => {
+    onConnectionChangeRef.current?.({ connected, ended })
+  }, [ connected, ended ])
 
   useLayoutEffect(() => {
     if (!containerRef.current) return
