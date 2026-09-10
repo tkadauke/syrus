@@ -80,7 +80,7 @@ describe("chat search/history tool cards", () => {
     render(<>{readChatMessagesToolCard.renderExpanded(context("read_chat_messages", { input: { chat_session_id: 42 }, parsedResult }))}</>)
 
     expect(screen.getByRole("link", { name: "Current chat" })).toHaveAttribute("href", "/chats/42")
-    expect(screen.getByText("older messages available")).toBeInTheDocument()
+    expect(screen.getByText("more messages available")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "message 7" })).toHaveAttribute("href", "/chats/42#message-7")
     expect(screen.getByText(/Long message/).textContent?.endsWith("...")).toBe(true)
     expect(screen.getByText("Next page: 2")).toBeInTheDocument()
