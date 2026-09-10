@@ -67,9 +67,13 @@ module WorkEngine
 
       def run_scenario(path)
         result = nil
-        ActiveRecord::Base.transaction do
-          result = WorkEngine::Simulation::ScenarioRunner.call(path: path, max_ticks: max_ticks)
-          raise ActiveRecord::Rollback
+        Syrus::PluginRegistry.with_plugin_record_cache_ttl(5.minutes) do
+          AppSetting.with_current_cache do
+            ActiveRecord::Base.transaction do
+              result = WorkEngine::Simulation::ScenarioRunner.call(path: path, max_ticks: max_ticks)
+              raise ActiveRecord::Rollback
+            end
+          end
         end
         result
       end
