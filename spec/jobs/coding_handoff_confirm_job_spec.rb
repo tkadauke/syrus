@@ -44,12 +44,13 @@ RSpec.describe CodingHandoffConfirmJob do
 
   before do
     enable_coding_mode!
-    allow(CodingHandoffCapture).to receive(:capture!) do |chat_session:, repository:, user:, source_branch:, handoff_branch:|
-      snapshot.merge("handoff_branch" => handoff_branch)
+    allow(CodingHandoffCapture).to receive(:capture!) do |chat_session:, repository:, user:, source_branch:, handoff_branch:, base_ref: nil|
+      snapshot.merge(
+        "handoff_branch" => handoff_branch,
+        "base_ref" => base_ref,
+        "base_sha" => base_ref.presence || snapshot.fetch("base_sha")
+      )
     end
-    allow(ChatWorkspace).to receive(:reset_after_coding_handoff!)
-      .with(chat_session, repository)
-      .and_return(Pathname.new("/tmp/chat-workspace"))
     allow(StepDispatcher).to receive(:start_workflow)
   end
 
@@ -91,7 +92,8 @@ RSpec.describe CodingHandoffConfirmJob do
       repository: repository,
       user: user,
       source_branch: "feature/my-work",
-      handoff_branch: "syrus/chat-#{chat_session.id}-handoff-#{action.id}"
+      handoff_branch: "syrus/chat-#{chat_session.id}-handoff-#{action.id}",
+      base_ref: nil
     )
   end
 
@@ -112,7 +114,7 @@ RSpec.describe CodingHandoffConfirmJob do
 
     workflow = Job.order(:created_at).last.workflows.order(:created_at).last
     expect(workflow.artifact("pr_title")).to eq("User Profile Page")
-    expect(workflow.artifact("pr_body")).to include("Captured chat workspace commit `abc123`")
+    expect(workflow.artifact("pr_body")).to include("Captured chat workspace commits `def456..abc123`")
     expect(workflow.artifact("pr_body")).to include("- `app/frontend/App.tsx`")
     expect(workflow.artifact("test_plan")).to eq("steps" => [], "notes" => nil)
   end
@@ -141,15 +143,82 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message).to be_present
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("dispatched")
-    expect(message.content["text"]).to include("workspace was reset")
+    expect(message.content["text"]).to include("checkout remains at submitted HEAD")
   end
 
-  it "resets the chat workspace after capture and workflow start" do
+  it "records the latest handoff as continuous stack state without resetting the checkout" do
     action = pending_action
 
     described_class.perform_now(action.id)
 
-    expect(ChatWorkspace).to have_received(:reset_after_coding_handoff!).with(chat_session, repository)
+    job = Job.order(:created_at).last
+    expect(chat_session.reload.artifact("coding_handoff_stack")).to include(
+      "repository_id" => repository.id,
+      "lineage" => "continuous",
+      "last_handoff_job_id" => job.id,
+      "last_base_sha" => "def456",
+      "last_head_sha" => "abc123",
+      "last_handoff_branch" => "syrus/chat-#{chat_session.id}-handoff-#{action.id}",
+      "last_source_branch" => "feature/my-work"
+    )
+  end
+
+  it "creates a JobDependency when a continuous follow-up starts from the previous submitted head" do
+    previous_job = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil, state: "implemented")
+    chat_session.set_artifact!(
+      "coding_handoff_stack",
+      {
+        "repository_id" => repository.id,
+        "lineage" => "continuous",
+        "last_handoff_job_id" => previous_job.id,
+        "last_head_sha" => "abc123"
+      }
+    )
+    action = pending_action
+
+    described_class.perform_now(action.id)
+
+    job = Job.order(:created_at).last
+    expect(CodingHandoffCapture).to have_received(:capture!).with(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "feature/my-work",
+      handoff_branch: "syrus/chat-#{chat_session.id}-handoff-#{action.id}",
+      base_ref: "abc123"
+    )
+    expect(job.dependencies.sole).to have_attributes(
+      depends_on_job: previous_job,
+      source: "manual",
+      created_by_user: user
+    )
+  end
+
+  it "does not create a dependency after an explicit fresh-main reset" do
+    previous_job = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil, state: "implemented")
+    chat_session.set_artifact!(
+      "coding_handoff_stack",
+      {
+        "repository_id" => repository.id,
+        "lineage" => "fresh_main",
+        "last_handoff_job_id" => previous_job.id,
+        "last_head_sha" => "abc123"
+      }
+    )
+    action = pending_action
+
+    described_class.perform_now(action.id)
+
+    job = Job.order(:created_at).last
+    expect(CodingHandoffCapture).to have_received(:capture!).with(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "feature/my-work",
+      handoff_branch: "syrus/chat-#{chat_session.id}-handoff-#{action.id}",
+      base_ref: nil
+    )
+    expect(job.dependencies).to be_empty
   end
 
   it "posts a failure system message and enqueues ChatTurnJob on CaptureError" do
@@ -166,7 +235,6 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("failed")
     expect(message.content["text"]).to include("coding checkout not found")
-    expect(ChatWorkspace).not_to have_received(:reset_after_coding_handoff!)
   end
 
   it "posts a failure message and enqueues ChatTurnJob when start_coding_handoff! is blocked" do
@@ -181,20 +249,6 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("failed")
     expect(message.content["text"]).to include("could not start coding handoff")
-    expect(ChatWorkspace).not_to have_received(:reset_after_coding_handoff!)
-  end
-
-  it "keeps the handoff dispatched and reports when workspace reset fails" do
-    action = pending_action
-    allow(ChatWorkspace).to receive(:reset_after_coding_handoff!).and_raise(StandardError, "reset failed")
-
-    expect {
-      described_class.perform_now(action.id)
-    }.to change(Job, :count).by(1)
-
-    message = chat_session.messages.where(role: "system").order(:created_at).last
-    expect(message.content["text"]).to include("dispatched")
-    expect(message.content["text"]).to include("workspace reset failed")
   end
 
   it "does not raise when the pending action has been discarded" do

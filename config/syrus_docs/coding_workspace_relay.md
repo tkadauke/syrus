@@ -69,10 +69,18 @@ inspection/editing inside the reported checkout path.
 
 After an operator accepts `submit_coding_changes`, `CodingHandoffConfirmJob`
 captures the current committed HEAD to the immutable handoff branch and starts
-the `coding_handoff` workflow. Only after both steps succeed, it resets the chat
-checkout to `origin/<default_branch>`, removes untracked and ignored files,
-clears the uncommitted-work flag, and enqueues prep again. Capture failures do
-not reset the checkout, so local work remains available for recovery.
+the `coding_handoff` workflow. After both steps succeed, the chat checkout stays
+at the submitted HEAD so the operator and agent can continue iterating from the
+same committed state. The next continuous `submit_coding_changes` uses that
+prior submitted HEAD as its stack base and records a `JobDependency` on the
+prior handoff Job. Capture failures likewise leave the checkout untouched, so
+local work remains available for recovery.
+
+`reset_workspace` is the explicit fresh-main escape hatch. With
+`confirm_discard: true`, it resets the checkout to `origin/<default_branch>`,
+removes untracked and ignored files, clears the uncommitted-work flag, records
+the Coding Mode submit lineage as fresh-main, and enqueues prep again. The next
+handoff from that reset checkout starts a new independent stack.
 
 `chat_sessions` stores the latest prep snapshot in
 `coding_checkout_prepare_status`, `coding_checkout_prepare_started_at`,
