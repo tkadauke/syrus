@@ -372,7 +372,7 @@ coverage:
 
 `on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
 
-Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
+Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; source paths are resolved relative to the directory containing the nested `.syrus.yml`, even when that file declares an explicit `project.path` metadata override. Root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
 
 ## deployment_stages
 

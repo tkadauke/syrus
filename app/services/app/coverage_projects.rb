@@ -44,7 +44,12 @@ module App
       return true if project.root?
       return true if changed_files.empty?
 
-      changed_files.any? { |file| file == project.path || file.start_with?("#{project.path}/") }
+      base_path = coverage_base_path(project)
+      changed_files.any? { |file| file == base_path || file.start_with?("#{base_path}/") }
+    end
+
+    def coverage_base_path(project)
+      File.dirname(project.owner_config_path.to_s)
     end
   end
 end

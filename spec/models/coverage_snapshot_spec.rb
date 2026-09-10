@@ -95,6 +95,18 @@ RSpec.describe CoverageSnapshot do
     end
   end
 
+  describe ".for_project" do
+    it "treats legacy nil project_id snapshots as root repository coverage" do
+      legacy = create_snapshot(project_id: nil)
+      root = create_snapshot(project_id: "repo")
+      nested = create_snapshot(project_id: "desktop")
+
+      results = described_class.for_project("repo")
+      expect(results).to include(legacy, root)
+      expect(results).not_to include(nested)
+    end
+  end
+
   describe ".on_branch" do
     it "returns only snapshots for the given branch" do
       main_snap    = create_snapshot(branch: "main")
@@ -169,6 +181,19 @@ RSpec.describe CoverageSnapshot do
       results = described_class.daily_averages(repository: repository)
       dates = results.map { |r| r.date.to_s }
       expect(dates).to eq(dates.sort)
+    end
+
+    it "excludes project-specific snapshots from repository-level averages" do
+      repository.update!(default_branch: "main")
+      root_snap = create_snapshot(branch: "main", project_id: "repo", lines_pct: 80)
+      root_snap.update_columns(created_at: 1.day.ago.beginning_of_day + 1.hour)
+      nested_snap = create_snapshot(branch: "main", project_id: "desktop", lines_pct: 20)
+      nested_snap.update_columns(created_at: 1.day.ago.beginning_of_day + 2.hours)
+
+      results = described_class.daily_averages(repository: repository).to_a
+
+      expect(results.size).to eq(1)
+      expect(results.first.avg_lines_pct.to_f).to be_within(0.01).of(80.0)
     end
   end
 

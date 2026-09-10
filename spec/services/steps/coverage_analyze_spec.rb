@@ -273,10 +273,52 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
         "id" => "web",
         "label" => "Web App",
         "path" => "apps/web",
+        "coverage_base_path" => "apps/web",
         "target_label" => "//apps/web:coverage"
       )
       expect(artifact.dig("projects", 0, "files")).to have_key("apps/web/src/index.ts")
       expect(artifact["pr_comment_body"]).to include("## Test Coverage Report")
+    end
+  end
+
+  context "when a nested project overrides project.path metadata" do
+    before do
+      write_nested_syrus_yml("packages/ui", <<~YAML)
+        project:
+          id: ui
+          label: UI
+          path: apps/frontend
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+      write_lcov(path: "packages/ui/coverage/lcov.info", content: <<~LCOV)
+        TN:
+        SF:src/button.ts
+        DA:1,1
+        DA:2,0
+        LF:2
+        LH:1
+        end_of_record
+      LCOV
+      allow(GitRunner).to receive(:new).and_return(
+        instance_double(GitRunner, run: "diff --git a/packages/ui/src/button.ts b/packages/ui/src/button.ts\n")
+      )
+    end
+
+    it "uses the declaring .syrus.yml directory for artifacts and path normalization" do
+      handler.call
+
+      project_artifact = workflow.reload.artifact("coverage").fetch("projects").sole
+      expect(project_artifact.fetch("project")).to include(
+        "id" => "ui",
+        "path" => "apps/frontend",
+        "coverage_base_path" => "packages/ui",
+        "target_label" => "//packages/ui:coverage"
+      )
+      expect(project_artifact.fetch("sources_status").first).to include("artifact" => "packages/ui/coverage/lcov.info")
+      expect(project_artifact.fetch("files")).to have_key("packages/ui/src/button.ts")
     end
   end
 

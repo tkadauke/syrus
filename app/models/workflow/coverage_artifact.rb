@@ -5,7 +5,8 @@ class Workflow
   #
   # Shape:
   #   project:           { "id" => String, "label" => String, "path" => String,
-  #                        "owner_config_path" => String, "target_label" => String }
+  #                        "coverage_base_path" => String, "owner_config_path" => String,
+  #                        "target_label" => String }
   #   projects:          [same shape as this artifact, scoped per project]
   #   summary:           { "lines_pct" => Float, "branches_pct" => Float, "functions_pct" => Float }
   #   files:             { filepath => { "lines_pct" => Float, "branches_pct" => Float } }
