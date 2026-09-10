@@ -315,6 +315,32 @@ describe("PendingActionCard", () => {
   })
 })
 
+describe("ProposalCard layout", () => {
+  it("places the slug before dependencies and above the title", () => {
+    renderProposalCard(proposal({
+      title: "Search cards",
+      slug: "search-cards",
+      has_dependencies: true,
+      dependencies: [{
+        slug: "chat-search-fts5",
+        title: "Chat FTS5 infrastructure",
+        state: "confirmed",
+        confirmed: true,
+        anchor_message_id: null,
+        materialized_path: null
+      }]
+    }))
+
+    const slug = screen.getByText("search-cards")
+    const dependencyLabel = screen.getByText("Depends on:")
+    const title = screen.getByRole("heading", { name: "Search cards" })
+
+    expect(slug.compareDocumentPosition(dependencyLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(slug.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(dependencyLabel.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
 describe("ProposalCard media", () => {
   afterEach(() => vi.restoreAllMocks())
 

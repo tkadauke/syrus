@@ -413,9 +413,11 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
               </div>
               {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
             </div>
-          <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
+            <ProposalDependencyStrip className="min-w-0 flex-1" dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
+          </div>
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
-          <CopyableSlug className="mt-1 text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
         </>
       }
       body={
@@ -962,14 +964,14 @@ function PendingActionDetail({ detail }: { detail: string }) {
   )
 }
 
-function ProposalDependencyStrip({ dependencies, hasDependencies, prefix }: { dependencies: ChatProposalDependency[]; hasDependencies: boolean; prefix: string }) {
+function ProposalDependencyStrip({ className = "mt-2", dependencies, hasDependencies, prefix }: { className?: string; dependencies: ChatProposalDependency[]; hasDependencies: boolean; prefix: string }) {
   const { t } = useT("chat")
   if (!hasDependencies) {
-    return <div className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">{t("no_dependencies")}</div>
+    return <div className={`${className} text-xs font-medium text-gray-500 dark:text-gray-400`}>{t("no_dependencies")}</div>
   }
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+    <div className={`${className} flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300`}>
       <span className="font-medium text-gray-700 dark:text-gray-200">Depends on:</span>
       {dependencies.map((dependency) => (
         <ProposalDependencyLink dependency={dependency} key={dependency.slug} prefix={prefix} />
