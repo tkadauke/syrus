@@ -316,6 +316,21 @@ export function typedToolResult(name: string, body: string, error = false): Type
   }
 }
 
+export function normalizedToolCardParsedResult(parsed: unknown): unknown {
+  if (!isPlainObject(parsed)) return parsed
+
+  if (parsed.structured_content != null) return parsed.structured_content
+
+  const content = parsed.content
+  if (!Array.isArray(content)) return parsed
+
+  const firstContent = content[0]
+  if (!isPlainObject(firstContent) || typeof firstContent.text !== "string") return parsed
+
+  const inner = parseJsonText(firstContent.text)
+  return inner == null ? parsed : inner
+}
+
 // `parseBody` defaults to `body` but callers that already have the tool
 // result's complete, untruncated text (see `fullResultBodyUnbounded`) should
 // pass it explicitly: `body` itself is frequently the display-bounded
@@ -327,6 +342,7 @@ export function typedToolResult(name: string, body: string, error = false): Type
 export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
+  const cardParsed = normalizedToolCardParsedResult(parsed)
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -338,7 +354,7 @@ export function toolResultPresentation(name: string, body: string, error = false
     input: redactToolCardValue(input) as Record<string, unknown>,
     resultBody: redactToolCardText(body),
     resultError: error,
-    parsedResult: redactToolCardValue(parsed)
+    parsedResult: redactToolCardValue(cardParsed)
   })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: redactToolCardText(pluginSummary) }
 

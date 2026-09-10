@@ -21,7 +21,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } from "../../toolCardSecurity"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
 import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
@@ -595,12 +595,14 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
 }
 
 function toolCardContext(call: ChatToolGroupItem["calls"][number]) {
+  const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
+
   return {
     toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? redactToolCardValue(call.raw_payload) as Record<string, unknown> : {},
     resultBody: redactToolCardText(call.result_body),
     resultError: call.result_error,
-    parsedResult: redactToolCardValue(call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body))
+    parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult))
   }
 }
 
