@@ -14,7 +14,7 @@ export function formatShortcutCombo(combo: string, platform = globalThis.navigat
 }
 
 function formatShortcutToken(token: string, platform: string): string {
-  if (token.toLowerCase() === "mod") return /mac|iphone|ipad|ipod/i.test(platform) ? "Cmd" : "Ctrl"
+  if (token.toLowerCase() === "mod") return /mac|iphone|ipad|ipod/i.test(platform) ? "⌘" : "Ctrl"
   if (token.toLowerCase() === "alt" && /mac|iphone|ipad|ipod/i.test(platform)) return "⌥"
   return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
 }
