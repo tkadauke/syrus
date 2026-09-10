@@ -608,11 +608,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     ].filter((element): element is HTMLDivElement => element != null)
 
     window.addEventListener("resize", scheduleRecompute)
+    window.addEventListener("scroll", scheduleRecompute, true)
     if (typeof ResizeObserver === "undefined") {
       return () => {
         if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
         railLayoutFrameRef.current = null
         window.removeEventListener("resize", scheduleRecompute)
+        window.removeEventListener("scroll", scheduleRecompute, true)
       }
     }
 
@@ -623,6 +625,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       railLayoutFrameRef.current = null
       observer.disconnect()
       window.removeEventListener("resize", scheduleRecompute)
+      window.removeEventListener("scroll", scheduleRecompute, true)
     }
   }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
