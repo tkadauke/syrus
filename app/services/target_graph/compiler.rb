@@ -541,9 +541,10 @@ class TargetGraph
     end
 
     def explicit_target_metadata(target)
-      return {} unless target.kind == "prepare" && target.command.present?
+      metadata = target.metadata.to_h
+      return metadata unless target.kind == "prepare" && target.command.present?
 
-      { "commands" => [ target.command ] }
+      metadata.merge("commands" => [ target.command ])
     end
 
     def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)

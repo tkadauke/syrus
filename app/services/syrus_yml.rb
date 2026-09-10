@@ -183,7 +183,7 @@ class SyrusYml
   # call, not this parser's -- SyrusYml only sees one file's content, never
   # its position in the repository.
   ProjectConfig = Data.define(:id, :label, :kind, :path)
-  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes)
+  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes, :metadata)
   TargetGraphConfig = Data.define(:imports)
   TargetGraphImportConfig = Data.define(:provider, :failures, :config)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
@@ -497,7 +497,8 @@ class SyrusYml
         deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps"),
         phases: parse_target_phases(item["phases"], "#{label}.phases"),
         required: item.key?("required") ? ActiveModel::Type::Boolean.new.cast(item["required"]) : false,
-        timeout_minutes: parse_target_timeout_minutes(item["timeout_minutes"], "#{label}.timeout_minutes")
+        timeout_minutes: parse_target_timeout_minutes(item["timeout_minutes"], "#{label}.timeout_minutes"),
+        metadata: parse_target_metadata(item, label)
       )
     end
   end
@@ -571,6 +572,28 @@ class SyrusYml
     minutes
   rescue ArgumentError, TypeError
     raise ParseError, "#{label}: must be a positive integer"
+  end
+
+  def parse_target_metadata(item, label)
+    metadata = {}
+    %w[
+      cost
+      critical
+      downstream_dependents
+      recent_failures
+      release_relevance
+      hot
+      opportunistic_build
+      main_build
+    ].each do |key|
+      metadata[key] = item[key] if item.key?(key)
+    end
+
+    if item.key?("artifacts")
+      metadata["artifacts"] = parse_globs(item["artifacts"], "#{label}.artifacts", required: false)
+    end
+
+    metadata
   end
 
   def parse_dependency_refs(raw, label)

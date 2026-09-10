@@ -17,10 +17,10 @@ RSpec.describe Workflows::MainGrader do
   let(:sha) { "abc123def456" }
 
   describe "chain" do
-    it "materializes prepare → grader_fanout → grader_collect" do
+    it "materializes prepare → builder_fanout → grader_fanout → grader_collect" do
       workflow = described_class.instantiate(job: job, artifacts: { "main_sha" => sha })
 
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare grader_fanout grader_collect ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ prepare builder_fanout grader_fanout grader_collect ])
       expect(workflow.trigger_kind).to eq("main_grader")
     end
 
@@ -29,7 +29,7 @@ RSpec.describe Workflows::MainGrader do
 
       workflow = described_class.instantiate(job: job, artifacts: { "main_sha" => sha })
 
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ grader_fanout grader_collect ])
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ builder_fanout grader_fanout grader_collect ])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 

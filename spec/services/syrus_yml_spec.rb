@@ -109,6 +109,50 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.first.name).to eq("tests")
   end
 
+  it "parses explicit builder target controls and artifact references" do
+    config = parse(<<~YAML)
+      targets:
+        - name: assets
+          kind: builder
+          run: npm run build
+          sources: ["app/frontend/**/*"]
+          deps: [//:repo]
+          timeout_minutes: 20
+          cost: expensive
+          hot: true
+          critical: false
+          downstream_dependents: 3
+          artifacts: ["dist/**/*"]
+    YAML
+
+    target = config.targets.first
+    expect(target.name).to eq("assets")
+    expect(target.kind).to eq("builder")
+    expect(target.command).to eq("npm run build")
+    expect(target.sources).to eq([ "app/frontend/**/*" ])
+    expect(target.deps).to eq([ "//:repo" ])
+    expect(target.timeout_minutes).to eq(20)
+    expect(target.metadata).to include(
+      "cost" => "expensive",
+      "hot" => true,
+      "critical" => false,
+      "downstream_dependents" => 3,
+      "artifacts" => [ "dist/**/*" ]
+    )
+  end
+
+  it "rejects non-positive explicit target timeouts" do
+    expect {
+      parse(<<~YAML)
+        targets:
+          - name: assets
+            kind: builder
+            run: npm run build
+            timeout_minutes: 0
+      YAML
+    }.to raise_error(described_class::ParseError, /targets\[0\]\.timeout_minutes: must be a positive integer/)
+  end
+
   it "parses post-checkout hooks" do
     config = parse(<<~YAML)
       hooks:
@@ -1973,8 +2017,8 @@ RSpec.describe SyrusYml do
       YAML
 
       expect(config.targets).to eq([
-        described_class::TargetConfig.new(name: "renderer", kind: "library", command: nil, sources: [ "src/**/*.ts" ], deps: [], phases: [], required: false, timeout_minutes: nil),
-        described_class::TargetConfig.new(name: "typecheck", kind: "grader", command: "npm run typecheck", sources: [], deps: [ ":renderer" ], phases: %w[review landing], required: true, timeout_minutes: 20)
+        described_class::TargetConfig.new(name: "renderer", kind: "library", command: nil, sources: [ "src/**/*.ts" ], deps: [], phases: [], required: false, timeout_minutes: nil, metadata: {}),
+        described_class::TargetConfig.new(name: "typecheck", kind: "grader", command: "npm run typecheck", sources: [], deps: [ ":renderer" ], phases: %w[review landing], required: true, timeout_minutes: 20, metadata: {})
       ])
     end
 
