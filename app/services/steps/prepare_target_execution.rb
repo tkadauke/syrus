@@ -43,6 +43,7 @@ module Steps
       commands = Array(target["commands"]).map(&:to_s).map(&:strip).reject(&:empty?)
       return nil if label.blank? || commands.empty?
 
+      workdir = prepare_target_workdir(target)
       marker = prepare_marker_path(label)
       FileUtils.mkdir_p(marker.dirname)
 
@@ -52,17 +53,17 @@ module Steps
         if (previous = read_prepare_marker(marker))
           reason = "already ran in this workflow workspace (requested by #{previous['requested_by']} at #{previous['ran_at']})"
           log("[#{step.kind}] prepare target #{label} #{reason} -- reusing for #{requested_by}")
-          next { "target_label" => label, "status" => "reused", "commands" => commands, "reason" => reason }
+          next { "target_label" => label, "status" => "reused", "commands" => commands, "workdir" => workdir.to_s, "reason" => reason }
         end
 
         log("[#{step.kind}] prepare target #{label} has not run in this workflow workspace yet -- running for #{requested_by}")
-        execute_prepare_target_commands!(label: label, commands: commands)
+        execute_prepare_target_commands!(label: label, commands: commands, workdir: workdir)
         write_prepare_marker!(marker, requested_by: requested_by, ran_at: Time.current)
-        { "target_label" => label, "status" => "ran", "commands" => commands, "reason" => "first use in this workflow workspace (requested by #{requested_by})" }
+        { "target_label" => label, "status" => "ran", "commands" => commands, "workdir" => workdir.to_s, "reason" => "first use in this workflow workspace (requested by #{requested_by})" }
       end
     end
 
-    def execute_prepare_target_commands!(label:, commands:)
+    def execute_prepare_target_commands!(label:, commands:, workdir:)
       before_status = capture_git_status(name: "prepare:#{label}")
 
       commands.each_with_index do |command, index|
@@ -70,7 +71,7 @@ module Steps
         result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", command ],
-          chdir: workspace.path,
+          chdir: workdir,
           timeout: Steps::Prepare::PER_COMMAND_TIMEOUT,
           kind: "prepare",
           run: run,
@@ -121,6 +122,14 @@ module Steps
       <<~PROMPT.strip
         Prepare target `#{label}` (`#{commands.join(' && ')}`) produced uncommitted changes to the workspace when it ran as a prepare dependency on this Job (files: `#{changed_files.join(', ')}`). Prepare targets are supposed to be idempotent environment setup, not something that mutates tracked source files. Run this command locally and reproduce the output. Determine whether the changed files should be gitignored -- if so, add them to `.gitignore` and stop. If the output is genuinely important and should be committed, move this command out of `prepare:`/its `targets:` entry and into `.syrus.yml`'s `formatters:` or `generated:` section instead, so it runs as an explicit deterministic pass rather than idempotent setup. Otherwise, fix the command so it does not mutate the codebase when it runs as a prepare target.
       PROMPT
+    end
+
+    def prepare_target_workdir(target)
+      relative = target["project_path"].to_s.strip
+      path = relative.present? ? workspace.path.join(relative) : workspace.path
+      return path if path.directory?
+
+      raise Steps::Base::StepFailed, "prepare target #{target['target_label']} project path does not exist: #{relative}"
     end
 
     def prepare_marker_path(label)

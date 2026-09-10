@@ -118,7 +118,10 @@ depends on the same prepare target.
 `Steps::GraderFanout`/`Steps::PreflightGraderFanout` snapshot each
 materialized grader Step's transitive `kind: prepare` target dependencies
 (`TargetGraph#prepare_dependencies_for`) onto its own `Step#details` as
-`prepare_targets` — one entry per target, each an ordered list of commands.
+`prepare_targets` — one entry per target, each an ordered list of commands
+plus the declaring project path for nested targets. Root prepare targets run
+from the repository root; nested prepare targets run from their project
+directory, matching the `run_target_prepare` MCP tool.
 At execution time (`Steps::PrepareTargetExecution`, included into
 `Steps::Grader` and, through it, `Steps::PreflightGrader`), a prepare
 target's commands run **at most once per workflow workspace**, not once per

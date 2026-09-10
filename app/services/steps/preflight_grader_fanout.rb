@@ -161,10 +161,13 @@ module Steps
 
     def prepare_targets_for(grader)
       target_graph.prepare_dependencies_for(target_label_for(grader)).map do |target|
+        project_path = target_graph.project(target.project_id)&.path.to_s
         {
           "target_label" => target.label.to_s,
           "commands" => Array(target.metadata.fetch("commands") { [ target.command ] }).flatten.map(&:to_s)
-        }
+        }.tap do |payload|
+          payload["project_path"] = project_path if project_path.present?
+        end
       end
     end
 

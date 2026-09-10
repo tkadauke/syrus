@@ -42,6 +42,7 @@ RSpec.describe Steps::Grader, :ci_only do
     # the list" whenever the registry hadn't already been populated by an
     # earlier example in the same process.
     @ws_path = WorkflowWorkspace.path_for(workflow)
+    FileUtils.mkdir_p(@ws_path)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
@@ -197,8 +198,21 @@ RSpec.describe Steps::Grader, :ci_only do
     ])
     results = step.reload.details["prepare_target_results"]
     expect(results).to eq([
-      { "target_label" => "//:deps", "status" => "ran", "commands" => [ "npm ci" ], "reason" => "first use in this workflow workspace (requested by grader:tests)" }
+      { "target_label" => "//:deps", "status" => "ran", "commands" => [ "npm ci" ], "workdir" => @ws_path.to_s, "reason" => "first use in this workflow workspace (requested by grader:tests)" }
     ])
+  end
+
+  it "runs nested prepare targets from their project directory" do
+    FileUtils.mkdir_p(@ws_path.join("cli"))
+    step.update!(details: step.details.merge(
+      "command" => "true",
+      "prepare_targets" => [ { "target_label" => "//cli:prepare", "commands" => [ "pwd > prepared-from.txt" ], "project_path" => "cli" } ]
+    ))
+
+    handler.call
+
+    expect(@ws_path.join("cli/prepared-from.txt").read.strip).to eq(@ws_path.join("cli").to_s)
+    expect(step.reload.details["prepare_target_results"].first["workdir"]).to eq(@ws_path.join("cli").to_s)
   end
 
   describe "prepare target reuse across grader Steps" do

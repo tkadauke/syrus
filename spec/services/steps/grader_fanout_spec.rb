@@ -532,6 +532,27 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     ])
   end
 
+  it "stores nested prepare dependency project paths for materialized graders" do
+    FileUtils.mkdir_p(@ws_path.join("cli"))
+    @ws_path.join("cli/.syrus.yml").write(<<~YAML)
+      prepare:
+        - npm ci
+    YAML
+    write_config(<<~YAML)
+      grade:
+        - name: cli-tests
+          run: npm test
+          deps: ["//cli:prepare"]
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by!(kind: "grader")
+    expect(grader_step.details["prepare_targets"]).to eq([
+      { "target_label" => "//cli:prepare", "commands" => [ "npm ci" ], "project_path" => "cli" }
+    ])
+  end
+
   it "fails clearly when configured dependency labels are missing" do
     write_config(<<~YAML)
       grade:
