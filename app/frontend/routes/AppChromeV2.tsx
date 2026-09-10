@@ -97,19 +97,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }, [])
   const bugReportContextValue = useMemo(() => ({ openBugReport, registerBugReportAttachments }), [openBugReport, registerBugReportAttachments])
 
-  useEffect(() => {
-    if (!user) return
-
-    function handleBugReportShortcut(event: globalThis.KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "b") return
-
-      event.preventDefault()
-      openBugReport()
-    }
-
-    window.addEventListener("keydown", handleBugReportShortcut)
-    return () => window.removeEventListener("keydown", handleBugReportShortcut)
-  }, [user, openBugReport])
   const pageContent = redirectsToSetup(data, normalizedPath)
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
@@ -272,6 +259,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
     <BugReportContext.Provider value={bugReportContextValue}>
     <GlobalShortcutsHelp />
+    {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
         <SidebarContent
@@ -392,6 +380,22 @@ function GlobalShortcutsHelp() {
   })
 
   return <ShortcutsHelpModal onClose={() => setHelpOpen(false)} open={helpOpen} />
+}
+
+function GlobalBugReportShortcut({ onOpenBugReport }: { onOpenBugReport: () => void }) {
+  const { t } = useTranslation("nav")
+
+  useShortcut("mod+b", (event) => {
+    event.preventDefault()
+    onOpenBugReport()
+  }, {
+    allowWhileTyping: true,
+    description: t("nav:shortcuts.report_bug"),
+    group: t("nav:shortcuts.group_global"),
+    groupOrder: 0
+  })
+
+  return null
 }
 
 function BugReportTriggerButton({ onClick }: { onClick: () => void }) {

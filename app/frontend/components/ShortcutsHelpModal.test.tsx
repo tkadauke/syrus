@@ -36,8 +36,9 @@ describe("formatShortcutCombo", () => {
     expect(formatShortcutCombo("?")).toBe("?")
   })
 
-  it("title-cases modifier and key tokens", () => {
-    expect(formatShortcutCombo("mod+enter")).toBe("Mod + Enter")
+  it("labels Mod as the platform command key", () => {
+    expect(formatShortcutCombo("mod+enter", "MacIntel")).toBe("Cmd + Enter")
+    expect(formatShortcutCombo("mod+enter", "Win32")).toBe("Ctrl + Enter")
   })
 
   it("labels Alt as Option on Apple platforms", () => {
