@@ -791,8 +791,8 @@ describe("JobDetailView", () => {
     }))
 
     expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Copy JOB-1101 to clipboard" })).toHaveLength(2)
-    expect(screen.getAllByRole("button", { name: "Copy JOB-1108 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-401 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-408 to clipboard" })).toHaveLength(2)
     expect(screen.getAllByText("queued").length).toBeGreaterThanOrEqual(4)
     expect(screen.queryByText(/tkadauke\/syrus JOB-1101/)).not.toBeInTheDocument()
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
