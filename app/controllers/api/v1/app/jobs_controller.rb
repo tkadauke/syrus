@@ -239,7 +239,7 @@ module Api
         end
 
         def agent_conversation
-          render json: ::App::AgentConversationPayload.build(job: find_job)
+          render json: ::App::AgentConversationPayload.build(job: find_job, workflow_id: params[:workflow_id])
         end
 
         private
