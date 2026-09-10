@@ -877,7 +877,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   const walkthroughs = payload.video_walkthroughs || []
   const walkthroughStateLabel = (state: string) =>
     ({ uploaded: t("walkthrough_state_uploaded"), analyzing: t("walkthrough_state_analyzing"), analyzed: t("walkthrough_state_analyzed"), failed: t("walkthrough_state_failed") } as Record<string, string>)[state] || state
-  const [lightboxImage, setLightboxImage] = useState<ChatMediaImage | null>(null)
+  const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
@@ -902,6 +902,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   // is paginated, so an older image would otherwise be invisible here even
   // though the chat has media.
   const images = media.data?.chat_images || []
+  const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
 
   async function loadSnapshot(snapshot: WhiteboardSnapshot) {
     if (chatBusy || snapshotLoading) return
@@ -1093,7 +1094,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
-            {images.map((image) => {
+            {images.map((image, index) => {
               const src = image.image_url || image.file_path || ""
               const name = image.title || image.filename || "image attachment"
 
@@ -1103,7 +1104,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                     <button
                       aria-label={`Open ${name}`}
                       className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand"
-                      onClick={() => setLightboxImage(image)}
+                      onClick={() => setLightboxImageIndex(index)}
                       title={name}
                       type="button"
                     >
@@ -1136,8 +1137,12 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
       {lightboxImage ? (
         <ImageLightbox
           extraAction={{ label: t("image_attach_to_message"), onClick: () => void attachImageToComposer(lightboxImage) }}
+          hasNext={lightboxImageIndex != null && lightboxImageIndex < images.length - 1}
+          hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
           name={lightboxImage.title || lightboxImage.filename || "Image attachment"}
-          onClose={() => setLightboxImage(null)}
+          onClose={() => setLightboxImageIndex(null)}
+          onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
+          onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
           src={lightboxImage.image_url || lightboxImage.file_path || ""}
         />
       ) : null}

@@ -300,6 +300,8 @@
   "runtime_logs_empty": "Nullum actum diurnum adhuc.",
   "aria_chat": "Colloquium",
   "aria_close_image": "Praevisionem imaginis claudere",
+  "aria_previous_image": "Imago prior",
+  "aria_next_image": "Imago proxima",
   "source_preview_unavailable": "Praevisio fontis huic sermoni non praesto est.",
   "ph_search_proposals": "Proposita quaerere",
   "ph_search_jobs": "Opera quaerere",

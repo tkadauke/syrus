@@ -2839,6 +2839,51 @@ describe("chat message image attachments", () => {
     })
   })
 
+  it("navigates between multiple image attachments in the lightbox", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "user",
+            tool_name: null,
+            content: { text: "Inspect these." },
+            text: "Inspect these.",
+            bookmarkable: true,
+            attachments: [
+              { name: "before.png", mime_type: "image/png", data: "YmVmb3Jl" },
+              { name: "after.png", mime_type: "image/png", data: "YWZ0ZXI=" }
+            ]
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open before.png" }))
+
+    expect(screen.getByRole("dialog", { name: "before.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+
+    expect(screen.getByRole("dialog", { name: "after.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous image" }))
+
+    expect(screen.getByRole("dialog", { name: "before.png" })).toBeInTheDocument()
+  })
+
   it("shows all shared images in the media tab with downloads and lightbox preview", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "context")

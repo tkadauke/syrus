@@ -625,6 +625,58 @@ describe("MediaGallery images", () => {
     })
   })
 
+  it("navigates media-library lightbox images and attaches the currently displayed image", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [
+        {
+          id: 1,
+          title: "old.png",
+          filename: "old.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
+          image_url: "/api/v1/app/repository_documents/1/file"
+        },
+        {
+          id: 2,
+          title: "new.png",
+          filename: "new.png",
+          content_type: "image/png",
+          file_path: "/api/v1/app/chats/1/media/chat_images/2/file",
+          image_url: "/api/v1/app/repository_documents/2/file"
+        }
+      ],
+      typed_artifacts: [],
+      whiteboard_has_unsaved_content: false
+    })
+    vi.mocked(attachMediaLibraryImage).mockResolvedValue({ ok: true })
+    const onNotice = vi.fn()
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media", onNotice })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open old.png" }))
+
+    expect(screen.getByRole("dialog", { name: "old.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
+
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+
+    const dialog = screen.getByRole("dialog", { name: "new.png" })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByRole("img", { name: "new.png" })).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
+    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Attach to message" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Added to message composer"))
+    expect(attachMediaLibraryImage).toHaveBeenCalledWith({
+      chatId: "1",
+      url: "/api/v1/app/repository_documents/2/file",
+      name: "new.png",
+      mimeType: "image/png"
+    })
+  })
+
   it("shows an error notice when the media-library attach fails", async () => {
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
