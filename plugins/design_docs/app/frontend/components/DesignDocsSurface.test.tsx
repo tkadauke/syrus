@@ -1304,6 +1304,30 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("scopes rail alignment offsets to the desktop side-by-side layout", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: 320, bottom: 320, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent.click(screen.getByText("Needs evidence"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(320px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "320px" })
+    })
+    expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveClass("max-xl:!transform-none")
+    expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveClass("max-xl:!pb-0")
+  })
+
   it("renders block-level suggestions as red/green anchored document diffs and structured thread diffs", async () => {
     const blockSuggestion = {
       ...docDetail.suggestions[0],
