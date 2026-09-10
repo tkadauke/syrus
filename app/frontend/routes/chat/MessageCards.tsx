@@ -538,7 +538,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
           <div key={call.message_id}>
             <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {toolCardAwareResultSummary(call) ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{toolCardAwareResultSummary(call)}</div> : null}
-            {expanded && call.result_body ? <ToolResultBody call={call} /> : null}
+            {expanded && toolCallSettled(call) ? <ToolResultBody call={call} /> : null}
             {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload, result: call.result_body || null }} /> : null}
             {expanded && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
@@ -600,6 +600,10 @@ function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   })
 
   return cardSummary || call.result_summary
+}
+
+function toolCallSettled(call: ChatToolGroupItem["calls"][number]) {
+  return call.result_settled === true || call.result_body !== ""
 }
 
 function TypedToolResultBody({ result }: { result: TypedToolResult }) {
