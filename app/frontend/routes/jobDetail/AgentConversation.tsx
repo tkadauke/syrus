@@ -222,12 +222,12 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex flex-1 flex-col overflow-hidden">
           {transcript.isPending ? <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("run_loading")}</p> : null}
           {transcript.isError ? <p className="px-3 py-2 text-xs text-red-700 dark:text-red-300">{errorMessage(transcript.error, t("run_artifacts_error"))}</p> : null}
           {transcript.data ? (
             transcript.data.logs.length > 0 ? (
-              <RunTranscriptLogs logs={transcript.data.logs} />
+              <RunTranscriptLogs fillHeight logs={transcript.data.logs} />
             ) : (
               <p className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">{t("artifact_no_transcript")}</p>
             )
