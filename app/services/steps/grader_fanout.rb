@@ -21,6 +21,7 @@ module Steps
     # Steps::GraderCollect always sees a value scoped to *this* iteration,
     # never a stale entry left over from an earlier one.
     CARRIED_FORWARD_ARTIFACT_KEY = "grade_carried_forward_graders".freeze
+<<<<<<< HEAD
     MATERIALIZATION_LOCK_ERRORS = [
       ActiveRecord::Deadlocked,
       ActiveRecord::LockWaitTimeout
