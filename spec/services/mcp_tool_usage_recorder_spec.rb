@@ -20,16 +20,79 @@ RSpec.describe McpToolUsageRecorder do
   end
 
   describe ".advertised_tools" do
-    it "derives chat and workflow advertised tools from the registry" do
-      expect(described_class.advertised_tools(surface: "chat")).to eq(
-        McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }.uniq.sort
+    around do |example|
+      snapshot = Syrus::PluginRegistry.snapshot
+      example.run
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+    end
+
+    let(:available_chat_tool_set) do
+      Class.new do
+        include Syrus::Plugin::ChatMcpToolSet
+
+        def self.available_for?(_chat_session, tier:)
+          tier.to_sym == :deferred
+        end
+
+        def self.tool_definitions(tier:)
+          [ { name: "available_plugin_card_gap_tool", description: "Available", input_schema: {} } ]
+        end
+      end
+    end
+
+    let(:unavailable_chat_tool_set) do
+      Class.new do
+        include Syrus::Plugin::ChatMcpToolSet
+
+        def self.available_for?(_chat_session, tier:)
+          false
+        end
+
+        def self.tool_definitions(tier:)
+          [ { name: "unavailable_plugin_card_gap_tool", description: "Unavailable", input_schema: {} } ]
+        end
+      end
+    end
+
+    let(:available_workflow_tool_set) do
+      Class.new do
+        include Syrus::Plugin::McpToolSet
+
+        def self.available_for?(_repository)
+          true
+        end
+
+        def self.tool_definitions
+          [ { name: "available_plugin_workflow_gap_tool", description: "Available", input_schema: {} } ]
+        end
+      end
+    end
+
+    it "derives advertised tools from core and available plugin registries" do
+      Syrus::PluginRegistry.register(
+        name: "available_card_gap_plugin",
+        version: "1.0.0",
+        provides: {
+          chat_mcp_tool_set: available_chat_tool_set,
+          mcp_tool_set: available_workflow_tool_set
+        }
       )
-      expect(described_class.advertised_tools(surface: "workflow")).to eq(
-        (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
-          .map { |entry| entry[:tool_name].to_s }
-          .uniq
-          .sort
+      Syrus::PluginRegistry.register(
+        name: "unavailable_card_gap_plugin",
+        version: "1.0.0",
+        provides: { chat_mcp_tool_set: unavailable_chat_tool_set }
       )
+
+      core_chat_tools = McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }
+      core_workflow_tools = (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
+        .map { |entry| entry[:tool_name].to_s }
+
+      expect(described_class.advertised_tools(surface: "chat")).to include(*core_chat_tools)
+      expect(described_class.advertised_tools(surface: "workflow")).to include(*core_workflow_tools)
+      expect(described_class.advertised_tools(surface: "chat")).to include("available_plugin_card_gap_tool")
+      expect(described_class.advertised_tools(surface: "chat")).not_to include("unavailable_plugin_card_gap_tool")
+      expect(described_class.advertised_tools(surface: "workflow", repository: nil)).to include("available_plugin_workflow_gap_tool")
     end
   end
 
@@ -176,4 +239,5 @@ RSpec.describe McpToolUsageRecorder do
     expect(usage.error_class).to eq("RuntimeError")
     expect(usage.backtrace_excerpt).to eq("app/services/mcp/tools/read_live_state_tool.rb:12")
   end
+
 end
