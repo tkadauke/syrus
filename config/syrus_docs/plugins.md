@@ -25,6 +25,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `autofix_command`
 - `dependency_audit_command`
 - `affected_test_analyzer`
+- `build_system_graph_provider`
 - `workspace_tab`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
@@ -2230,6 +2231,59 @@ touched it) with the standard Rails/RSpec `app/x/y.rb` <-> `spec/x/y_spec.rb`
 every affected file to find its own spec. It declines when the diff touches
 no `.rb` files or when the repo's `app`/`lib` tree is too large to walk with
 confidence on every `grader_fanout` call.
+
+## `build_system_graph_provider`
+
+Build-system graph providers import explicit target nodes and dependency edges
+from external systems such as Bazel, Buck, or Pants into Syrus' `TargetGraph`.
+Core calls providers only when a repository opts in through `.syrus.yml`:
+
+```yaml
+target_graph:
+  imports:
+    - provider: bazel
+      failures: strict
+      config:
+        query: //...
+```
+
+Implementations include `Syrus::Plugin::BuildSystemGraphProvider` and define:
+
+```ruby
+def self.provider_key = "bazel"
+
+def self.import_target_graph(repo_path:, config:)
+  TargetGraph::Import.new(
+    projects: [TargetGraph::Project.new(id: "bazel", label: "Bazel")],
+    targets: [
+      TargetGraph::Target.new(
+        label: TargetGraph::Label.parse("//tools:binary"),
+        kind: "binary",
+        project_id: "bazel",
+        source_scope: ["tools/**/*.go"]
+      )
+    ],
+    diagnostics: {"query" => config["query"]}
+  )
+end
+```
+
+Register it like any other extension point:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "bazel",
+  version: "1.0.0",
+  provides: { build_system_graph_provider: Bazel::TargetGraphProvider }
+)
+```
+
+The returned fragment must contain normal `TargetGraph::Project` and
+`TargetGraph::Target` objects. The compiler stamps imported targets with
+provider provenance and validates them with the same duplicate-label,
+missing-dependency, and cycle checks used for hand-authored targets. Repository
+config chooses error behavior per import: `failures: strict` raises, while
+`failures: warn` records the provider error in graph diagnostics and continues.
 
 ## Plugin lifecycle: disable, uninstall, purge
 

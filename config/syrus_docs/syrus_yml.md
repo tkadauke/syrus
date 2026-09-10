@@ -453,6 +453,27 @@ such as `//api:contract` resolve from the repository root. Missing
 dependencies, duplicate labels, invalid kinds, and cycles fail TargetGraph
 compilation with errors naming the target and owning config where possible.
 
+## target_graph.imports
+
+Use `target_graph.imports` to explicitly import targets and dependency edges
+from an external build-system plugin. Syrus only calls a provider named here;
+it does not infer build targets from repository layout.
+
+```yaml
+target_graph:
+  imports:
+    - provider: bazel
+      failures: strict
+      config:
+        query: //...
+```
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `provider` | yes | — | Registered `:build_system_graph_provider` key. |
+| `failures` | no | `strict` | `strict` fails graph compilation on provider errors; `warn` records diagnostics and continues. |
+| `config` / `options` | no | `{}` | Free-form mapping passed to the provider. |
+
 ### targets fields
 
 | Field | Required | Default | Notes |

@@ -68,7 +68,8 @@ RSpec.describe Syrus::PluginRegistry do
       expect(described_class::EXTENSION_POINTS).to include(
         :agent_provider, :chat_provider, :mcp_tool_set, :input_source, :prompt_injector,
         :artifact_renderer, :coverage_analyzer, :preview_provider,
-        :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider
+        :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider,
+        :build_system_graph_provider
       )
     end
   end

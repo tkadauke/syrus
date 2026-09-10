@@ -2012,4 +2012,57 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.timeout_minutes/)
     end
   end
+
+  describe "target_graph.imports" do
+    it "defaults to no imports when absent" do
+      expect(parse("grade: []").target_graph.imports).to eq([])
+    end
+
+    it "parses explicit build-system graph imports" do
+      config = parse(<<~YAML)
+        target_graph:
+          imports:
+            - provider: bazel
+              failures: warn
+              config:
+                query: //...
+      YAML
+
+      expect(config.target_graph.imports).to eq([
+        described_class::TargetGraphImportConfig.new(
+          provider: "bazel",
+          failures: "warn",
+          config: { "query" => "//..." }
+        )
+      ])
+    end
+
+    it "defaults imported graph failures to strict" do
+      config = parse(<<~YAML)
+        target_graph:
+          imports:
+            - provider: buck
+      YAML
+
+      expect(config.target_graph.imports.first.failures).to eq("strict")
+    end
+
+    it "rejects imports without a provider key" do
+      expect {
+        parse("target_graph:\n  imports:\n    - config: {}\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.provider/)
+    end
+
+    it "rejects unknown failure policies" do
+      expect {
+        parse("target_graph:\n  imports:\n    - provider: bazel\n      failures: maybe\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.failures/)
+    end
+
+    it "rejects non-mapping import config" do
+      expect {
+        parse("target_graph:\n  imports:\n    - provider: bazel\n      config: nope\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.config/)
+    end
+  end
 end

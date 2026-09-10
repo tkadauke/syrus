@@ -70,8 +70,9 @@ class SyrusYml
   # owns cross-file uniqueness, which a single file's parse can't know about.
   PROJECT_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
+  TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -183,6 +184,8 @@ class SyrusYml
   # its position in the repository.
   ProjectConfig = Data.define(:id, :label, :kind, :path)
   TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes)
+  TargetGraphConfig = Data.define(:imports)
+  TargetGraphImportConfig = Data.define(:provider, :failures, :config)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
@@ -232,7 +235,8 @@ class SyrusYml
       approval: parse_approval(raw["approval"]),
       external_prs: parse_external_prs(raw["external_prs"]),
       project: parse_project(raw["project"]),
-      targets: parse_targets(raw["targets"])
+      targets: parse_targets(raw["targets"]),
+      target_graph: parse_target_graph(raw["target_graph"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -495,6 +499,46 @@ class SyrusYml
         required: item.key?("required") ? ActiveModel::Type::Boolean.new.cast(item["required"]) : false,
         timeout_minutes: parse_target_timeout_minutes(item["timeout_minutes"], "#{label}.timeout_minutes")
       )
+    end
+  end
+
+  def parse_target_graph(raw)
+    return TargetGraphConfig.new(imports: []) if raw.nil?
+    raise ParseError, "target_graph: must be a mapping" unless raw.is_a?(Hash)
+
+    TargetGraphConfig.new(imports: parse_target_graph_imports(raw["imports"]))
+  end
+
+  def parse_target_graph_imports(raw)
+    return [] if raw.nil?
+    raise ParseError, "target_graph.imports: must be an array" unless raw.is_a?(Array)
+
+    raw.each_with_index.map do |item, index|
+      label = "target_graph.imports[#{index}]"
+      raise ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
+
+      provider = item["provider"].to_s.strip
+      raise ParseError, "#{label}.provider: is required" if provider.empty?
+      unless provider.match?(PROJECT_ID_PATTERN)
+        raise ParseError, "#{label}.provider: must match #{PROJECT_ID_PATTERN.inspect}"
+      end
+
+      failures = item.fetch("failures", "strict").to_s.strip.presence || "strict"
+      unless TARGET_GRAPH_IMPORT_FAILURE_POLICIES.include?(failures)
+        raise ParseError, "#{label}.failures: must be one of #{TARGET_GRAPH_IMPORT_FAILURE_POLICIES.join(', ')}"
+      end
+
+      config =
+        if item.key?("config")
+          item["config"]
+        elsif item.key?("options")
+          item["options"]
+        else
+          {}
+        end
+      raise ParseError, "#{label}.config: must be a mapping" unless config.is_a?(Hash)
+
+      TargetGraphImportConfig.new(provider: provider, failures: failures, config: config.deep_stringify_keys)
     end
   end
 
