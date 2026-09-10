@@ -542,7 +542,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   }
 
   return (
-    <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={referenceRef}>
+    <div className="absolute right-1 top-1/2 z-10 -translate-y-1/2" ref={referenceRef}>
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
@@ -555,7 +555,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       {open ? (
         <FloatingPortal>
           <div
-            className="z-20 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            className="z-50 w-48 rounded border border-gray-200 bg-white py-1 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-950"
             ref={floatingRefs.setFloating}
             style={floatingStyles}
           >
