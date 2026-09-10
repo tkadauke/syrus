@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { useActiveShortcuts, type ShortcutRegistration } from "../contexts/ShortcutsContext"
+import { ShortcutLayer, useActiveShortcuts, useShortcut, type ShortcutRegistration } from "../contexts/ShortcutsContext"
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
 
@@ -44,16 +44,29 @@ export function groupActiveShortcuts<T extends { group: string; groupOrder?: num
   return Array.from(byGroup.values()).sort((a, b) => a.groupOrder - b.groupOrder || a.group.localeCompare(b.group))
 }
 
-// Renders a live snapshot of the shortcut registry -- it reads the same
-// registry useShortcut writes to, so it can never list a shortcut that isn't
-// actually mounted and unshadowed right now.
 export function ShortcutsHelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null
+  return (
+    <ShortcutLayer displayShortcutsFromParent>
+      <OpenShortcutsHelpModal onClose={onClose} />
+    </ShortcutLayer>
+  )
+}
+
+// Renders the parent layer's live shortcut snapshot while ShortcutsHelpModal's
+// wrapper layer prevents those parent shortcuts from dispatching underneath.
+function OpenShortcutsHelpModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("nav")
   const shortcuts = useActiveShortcuts()
   const groups = groupActiveShortcuts<ShortcutRegistration>(shortcuts)
+  useShortcut("escape", onClose, {
+    description: t("nav:shortcuts.close"),
+    group: t("nav:shortcuts.group_global"),
+    groupOrder: 0
+  })
 
   return (
-    <Modal label={t("nav:shortcuts.title")} onClose={onClose} open={open}>
+    <Modal label={t("nav:shortcuts.title")} onClose={onClose} open>
       <header className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("nav:shortcuts.title")}</h2>
         <button

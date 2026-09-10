@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 
 const sourceDataUrl = "data:image/jpeg;base64,c291cmNl"
@@ -242,6 +244,52 @@ describe("ImageAnnotationModal", () => {
       fireEvent.keyDown(window, { key })
       expect(screen.getByRole("button", { name: toolName })).toHaveAttribute("aria-pressed", "true")
     }
+  })
+
+  it("shows annotation shortcuts from the active modal layer", async () => {
+    const pageShortcut = vi.fn()
+    function PageShortcut() {
+      useShortcut("g", pageShortcut, { description: "Go somewhere else", group: "Page" })
+      return null
+    }
+
+    renderModal({}, <PageShortcut />)
+    await waitForLoaded()
+
+    fireEvent.keyDown(window, { key: "g" })
+    expect(pageShortcut).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true })
+
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
+    expect(dialog).toHaveTextContent("Annotation")
+    expect(dialog).toHaveTextContent("Show annotation shortcuts")
+    expect(dialog).toHaveTextContent("Select tool")
+    expect(dialog).toHaveTextContent("Select Rectangle tool")
+    expect(dialog).not.toHaveTextContent("Select Select tool")
+    expect(dialog).not.toHaveTextContent("Go somewhere else")
+  })
+
+  it("shortcut help swallows annotation shortcuts while preserving the editor underneath", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+    fireEvent.keyDown(window, { key: "e" })
+    expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true })
+    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible()
+
+    fireEvent.keyDown(window, { key: "r" })
+    expect(screen.getByRole("button", { name: "Ellipse" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("dialog", { name: "Annotate diagram.jpg" })).toBeVisible()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it("ignores tool shortcuts when textPlacement is active", async () => {
@@ -1078,7 +1126,7 @@ describe("ImageAnnotationModal", () => {
     )
   })
 
-  function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}) {
+  function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}, extra?: ReactNode) {
     const props = {
       dataUrl: sourceDataUrl,
       name: "diagram.jpg",
@@ -1086,7 +1134,12 @@ describe("ImageAnnotationModal", () => {
       onDone: vi.fn(),
       ...overrides
     }
-    return render(<ImageAnnotationModal {...props} />)
+    return render(
+      <ShortcutsProvider>
+        {extra}
+        <ImageAnnotationModal {...props} />
+      </ShortcutsProvider>
+    )
   }
 
   async function waitForLoaded() {
