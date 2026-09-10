@@ -1,4 +1,4 @@
-import { FloatingPortal, autoPlacement, flip, offset, useFloating } from "@floating-ui/react"
+import { FloatingPortal, autoPlacement, flip, offset, shift, useFloating } from "@floating-ui/react"
 import { type ReactNode, Suspense, useCallback, useRef, useState } from "react"
 import { pluginSlugPreviewCardComponentForPrefix } from "../pluginSlugPreviewCards"
 import { ChatPreviewCard } from "./ChatPreviewCard"
@@ -43,7 +43,7 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
   const canHover = useRef(detectPointerFine())
 
   const { refs, floatingStyles } = useFloating({
-    middleware: [offset(8), flip(), autoPlacement()],
+    middleware: [offset(8), flip({ padding: 8 }), autoPlacement({ padding: 8 }), shift({ padding: 8 })],
   })
 
   const handleReferenceEnter = useCallback(() => {
@@ -80,6 +80,7 @@ export function SlugHoverCard({ kind, id, prefix, children }: SlugHoverCardProps
       {isOpen && (
         <FloatingPortal>
           <div
+            className="[&>*]:max-w-[calc(100vw-1rem)]"
             onMouseEnter={handleFloatingEnter}
             onMouseLeave={handleFloatingLeave}
             ref={refs.setFloating}
