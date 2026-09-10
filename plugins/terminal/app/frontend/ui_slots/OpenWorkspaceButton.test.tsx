@@ -44,8 +44,8 @@ describe("OpenWorkspaceButton", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
   })
 
-  it("shows unavailable workflow actions as disabled with the backend reason", () => {
-    render(
+  it("hides unavailable workflow actions", () => {
+    const { container } = render(
       <MemoryRouter>
         <OpenWorkspaceButton
           availability_by_workflow_id={{ "4": { available: false, reason: "This workflow workspace has been cleaned up." } }}
@@ -54,8 +54,8 @@ describe("OpenWorkspaceButton", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("button", { name: "Open terminal in workspace" })).toBeDisabled()
-    expect(screen.getByText("This workflow workspace has been cleaned up.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open terminal in workspace" })).not.toBeInTheDocument()
+    expect(container).toBeEmptyDOMElement()
   })
 
   it("keeps the operator on the job page and shows an inline error when creation fails", async () => {
