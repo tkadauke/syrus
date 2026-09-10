@@ -24,6 +24,21 @@ RSpec.describe Steps::VisualReview do
     fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+    allow(App::VisualReviewProjects).to receive(:call).and_return(
+      App::VisualReviewProjects::Result.new(
+        choices: [
+          App::VisualReviewProjects::Choice.new(
+            id: "repo",
+            label: "Repository",
+            path: "",
+            owner_config_path: ".syrus.yml",
+            seed_notes: nil,
+            when_files_changed: nil
+          )
+        ],
+        unavailable_reason: nil
+      )
+    )
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
@@ -130,6 +145,21 @@ RSpec.describe Steps::VisualReview do
       fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
       allow(manual_handler).to receive(:workspace).and_return(fake_ws)
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+      allow(App::VisualReviewProjects).to receive(:call).and_return(
+        App::VisualReviewProjects::Result.new(
+          choices: [
+            App::VisualReviewProjects::Choice.new(
+              id: "repo",
+              label: "Repository",
+              path: "",
+              owner_config_path: ".syrus.yml",
+              seed_notes: nil,
+              when_files_changed: nil
+            )
+          ],
+          unavailable_reason: nil
+        )
+      )
     end
 
     it "falls back to a fresh git diff against the default branch" do
@@ -202,6 +232,102 @@ RSpec.describe Steps::VisualReview do
       end
 
       handler.call
+    end
+  end
+
+  context "when one affected project preview is available" do
+    before do
+      implement_run.update!(
+        agent_diff: "diff --git a/apps/web/src/App.tsx b/apps/web/src/App.tsx\n+<main>Dashboard</main>\n",
+        step_agent_diff: "diff --git a/apps/web/src/App.tsx b/apps/web/src/App.tsx\n+<main>Dashboard</main>\n"
+      )
+      allow(App::VisualReviewProjects).to receive(:call).and_return(
+        App::VisualReviewProjects::Result.new(
+          choices: [
+            App::VisualReviewProjects::Choice.new(
+              id: "web",
+              label: "Web",
+              path: "apps/web",
+              owner_config_path: "apps/web/.syrus.yml",
+              seed_notes: "Open /dashboard as demo@example.com.",
+              when_files_changed: [ "apps/web/**/*" ]
+            )
+          ],
+          unavailable_reason: nil
+        )
+      )
+    end
+
+    it "passes preview project choices into the prompt and records them on the workflow" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("Affected preview projects available to this visual review")
+        expect(prompt).to include("project_id: web")
+        expect(prompt).to include("Call `start_preview` without project_id")
+        expect(prompt).to include("Open /dashboard as demo@example.com.")
+        workflow.set_artifact!("visual_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+
+      expect(workflow.reload.artifact("visual_review_preview_projects")).to eq([
+        {
+          "id" => "web",
+          "label" => "Web",
+          "path" => "apps/web",
+          "owner_config_path" => "apps/web/.syrus.yml",
+          "seed_notes" => "Open /dashboard as demo@example.com.",
+          "when_files_changed" => [ "apps/web/**/*" ]
+        }
+      ])
+    end
+  end
+
+  context "when multiple affected project previews are available" do
+    before do
+      allow(App::VisualReviewProjects).to receive(:call).and_return(
+        App::VisualReviewProjects::Result.new(
+          choices: [
+            App::VisualReviewProjects::Choice.new(id: "web", label: "Web", path: "apps/web", owner_config_path: "apps/web/.syrus.yml", seed_notes: nil, when_files_changed: nil),
+            App::VisualReviewProjects::Choice.new(id: "admin", label: "Admin", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml", seed_notes: nil, when_files_changed: nil)
+          ],
+          unavailable_reason: nil
+        )
+      )
+    end
+
+    it "tells the reviewer to select a project_id explicitly" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("project_id: web")
+        expect(prompt).to include("project_id: admin")
+        expect(prompt).to include("A bare `start_preview` is ambiguous")
+        workflow.set_artifact!("visual_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
+  context "when no affected project has a preview" do
+    before do
+      allow(App::VisualReviewProjects).to receive(:call).and_return(
+        App::VisualReviewProjects::Result.new(choices: [], unavailable_reason: "no_affected_preview_project")
+      )
+    end
+
+    it "skips clearly without invoking the agent" do
+      expect(handler).not_to receive(:run_agent)
+
+      handler.call
+
+      expect(workflow.reload.artifact("visual_review_preview_projects_unavailable_reason")).to eq("no_affected_preview_project")
+      expect(workflow.artifact("visual_review_iterations").last).to include(
+        "verdict" => "skipped",
+        "critique" => "No affected project has a preview configured."
+      )
     end
   end
 

@@ -3,6 +3,13 @@ module Steps
     def call
       workspace.setup
 
+      if !visual_review_projects.available?
+        skip_unavailable_preview_project!
+        return
+      end
+
+      workflow.set_artifact!("visual_review_preview_projects", visual_review_projects.to_a)
+
       if when_files_changed_configured? && !changed_files_match?
         skip_via_pre_filter!
         return
@@ -50,7 +57,8 @@ module Steps
         feedback_context: feedback_context_text,
         test_plan_recommended: test_plan_artifact["visual_review_recommended"],
         test_plan_reason: test_plan_artifact["visual_review_reason"],
-        seed_notes: visual_review_config&.seed_notes
+        seed_notes: visual_review_seed_notes,
+        preview_projects: visual_review_projects.to_a
       ).to_s
     end
 
@@ -68,15 +76,33 @@ module Steps
       end
     end
 
+    def visual_review_projects
+      @visual_review_projects ||= App::VisualReviewProjects.call(
+        workspace_path: workspace.path,
+        changed_files: changed_files
+      )
+    end
+
+    def visual_review_seed_notes
+      [ visual_review_config&.seed_notes, visual_review_projects.seed_notes ].compact_blank.uniq.join("\n\n")
+    end
+
     def when_files_changed_configured?
-      Array(visual_review_config&.when_files_changed).any?
+      effective_when_files_changed.any?
     end
 
     def changed_files_match?
-      patterns = Array(visual_review_config&.when_files_changed)
+      patterns = effective_when_files_changed
       changed_files.any? do |file|
         patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
       end
+    end
+
+    def effective_when_files_changed
+      @effective_when_files_changed ||= [
+        *Array(visual_review_config&.when_files_changed),
+        *visual_review_projects.when_files_changed
+      ].compact_blank.uniq
     end
 
     def changed_files
@@ -93,6 +119,23 @@ module Steps
     def skip_via_pre_filter!
       log("[visual_review] skipped: no changed files match visual_review.when_files_changed")
       record_skip!("No changed files matched the configured visual_review.when_files_changed patterns.")
+    end
+
+    def skip_unavailable_preview_project!
+      reason = visual_review_projects.unavailable_reason
+      message = skip_message_for(reason)
+      log("[visual_review] skipped: #{message}")
+      workflow.set_artifact!("visual_review_preview_projects_unavailable_reason", reason)
+      record_skip!(message)
+    end
+
+    def skip_message_for(reason)
+      {
+        "no_preview_configured" => "No preview is configured for this repository.",
+        "no_affected_preview_project" => "No affected project has a preview configured.",
+        "no_affected_visual_review_project" => "No affected preview project has visual_review enabled.",
+        "visual_review_project_resolution_failed" => "Could not resolve affected preview projects for visual review."
+      }.fetch(reason.to_s, "Affected preview projects are unavailable for visual review.")
     end
 
     def record_skip!(critique)

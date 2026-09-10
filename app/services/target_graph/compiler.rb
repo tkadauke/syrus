@@ -168,7 +168,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview
+      return nil unless declared || config&.preview || config&.visual_review
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -185,7 +185,8 @@ class TargetGraph
         kind: declared&.kind,
         path: "",
         owner_config_path: owner_config_path,
-        preview: config&.preview
+        preview: config&.preview,
+        visual_review: config&.visual_review
       )
     end
 
@@ -258,7 +259,8 @@ class TargetGraph
             kind: declared_project&.kind,
             path: declared_project&.path || relative_dir,
             owner_config_path: nested_owner_config_path,
-            preview: nested_config.preview
+            preview: nested_config.preview,
+            visual_review: nested_config.visual_review
           )
         )
 

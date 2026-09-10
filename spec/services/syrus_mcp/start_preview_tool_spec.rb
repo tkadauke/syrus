@@ -23,8 +23,9 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
 
   before do
     Mcp::Tools::AgentPreviewRegistry.reset!
-    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
-    allow(PreviewProcessLauncher).to receive(:new).with(workspace_path).and_return(launcher)
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
+    allow(PreviewProcessLauncher).to receive(:new).and_call_original
+    allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: nil).and_return(launcher)
   end
 
   after { Mcp::Tools::AgentPreviewRegistry.reset! }
@@ -87,7 +88,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
         env: { "RAILS_ENV" => "development" },
         unset_env: [ "DATABASE_URL" ]
       )
-      allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
+      allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
 
       expect(Process).to receive(:spawn).with(
         hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development", "PORT" => "3001"),
@@ -195,7 +196,7 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
         env: { "RAILS_ENV" => "development" },
         unset_env: [ "DATABASE_URL" ]
       )
-      allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
+      allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: nil).and_return(double(resolve: preview_config))
 
       expect(launcher).to receive(:system).with(
         hash_including("DATABASE_URL" => nil, "RAILS_ENV" => "development"),
@@ -253,6 +254,52 @@ RSpec.describe Mcp::Tools::StartPreviewTool do
       expect(response).to be_error
       expect(response.content.first[:text]).to include("preview setup command exited non-zero")
       expect(Process).not_to have_received(:spawn)
+    end
+  end
+
+  context "with affected visual review preview projects" do
+    before do
+      run.step.workflow.set_artifact!("visual_review_preview_projects", [
+        {
+          "id" => "web",
+          "label" => "Web",
+          "path" => "apps/web",
+          "owner_config_path" => "apps/web/.syrus.yml"
+        }
+      ])
+      allow(Process).to receive(:spawn).and_return(2222)
+      web_launcher = PreviewProcessLauncher.new(workspace_path, project_id: "web")
+      allow(web_launcher).to receive(:http_ok?).and_return(true)
+      allow(PreviewProcessLauncher).to receive(:new).with(workspace_path, project_id: "web").and_return(web_launcher)
+      allow(PreviewCommandSource).to receive(:new).with(workspace_path, project_id: "web").and_return(double(resolve: preview_config))
+    end
+
+    it "selects the single affected project when project_id is omitted" do
+      response = call
+
+      expect(response).not_to be_error
+      payload = JSON.parse(response.content.first[:text])
+      expect(payload).to include("project_id" => "web", "pid" => 2222)
+      expect(Mcp::Tools::AgentPreviewRegistry.get("#{run.id}:web")).to eq(pid: 2222, port: 3001)
+    end
+
+    it "requires explicit project_id when multiple projects are affected" do
+      run.step.workflow.set_artifact!("visual_review_preview_projects", [
+        { "id" => "web", "label" => "Web" },
+        { "id" => "admin", "label" => "Admin" }
+      ])
+
+      response = call
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("multiple affected preview projects")
+    end
+
+    it "rejects a project that is not affected by the visual review" do
+      response = described_class.call(port: 3001, project_id: "api", server_context: { run: run })
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("is not an affected preview project")
     end
   end
 end
