@@ -34,6 +34,14 @@ RSpec.describe MainGraderWorkflowJob do
     expect(workflow.artifact("main_sha")).to eq(sha)
   end
 
+  it "stores the previous main SHA artifact when provided" do
+    described_class.perform_now(repository.id, sha, previous_main_sha: "oldmain123")
+
+    workflow = Workflow.last
+    expect(workflow.artifact("main_sha")).to eq(sha)
+    expect(workflow.artifact("previous_main_sha")).to eq("oldmain123")
+  end
+
   it "materializes prepare → grader_fanout → grader_collect steps" do
     described_class.perform_now(repository.id, sha)
 

@@ -10,7 +10,7 @@ class MainGraderWorkflowJob < ApplicationJob
   # is already running (for any SHA), this is a no-op — the poll job will
   # re-trigger for the latest SHA once the active one finishes. The repository's
   # last_graded_sha advances only after the workflow records a settled result.
-  def perform(repository_id, sha)
+  def perform(repository_id, sha, previous_main_sha: nil)
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
@@ -29,10 +29,13 @@ class MainGraderWorkflowJob < ApplicationJob
         issue_number: nil
       )
 
+      artifacts = { "main_sha" => sha }
+      artifacts["previous_main_sha"] = previous_main_sha if previous_main_sha.present?
+
       workflow = WorkUnits::Launcher.instantiate(
         kind: "main_grader",
         job: job,
-        artifacts: { "main_sha" => sha }
+        artifacts: artifacts
       )
 
       WorkUnits::Launcher.start!(workflow)
