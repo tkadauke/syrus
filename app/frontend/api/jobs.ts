@@ -1362,6 +1362,7 @@ export type CoverageProjectIdentity = {
   id: string
   label: string
   path: string
+  coverage_base_path?: string | null
   owner_config_path?: string | null
   target_label?: string | null
 }

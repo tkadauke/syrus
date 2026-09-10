@@ -283,6 +283,7 @@ module Api
 
           averages = CoverageSnapshot.daily_averages(repository: repository, days: days)
           latest_snapshot = CoverageSnapshot.where(repository: repository)
+                                            .for_project(TargetGraph::ROOT_PROJECT_ID)
                                             .on_branch(repository.default_branch)
                                             .order(created_at: :desc)
                                             .first

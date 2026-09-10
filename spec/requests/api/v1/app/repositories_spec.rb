@@ -1750,7 +1750,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
   describe "GET /api/v1/app/repositories/:id/coverage_trend" do
     let(:repository) { Factories.repository(user: user, default_branch: "main") }
 
-    def create_snapshot(branch: "main", lines_pct: 80.0, branches_pct: 60.0, functions_pct: 90.0, created_at: Time.current)
+    def create_snapshot(branch: "main", lines_pct: 80.0, branches_pct: 60.0, functions_pct: 90.0, created_at: Time.current, project_id: nil)
       job = Factories.job(repository: repository)
       workflow = job.workflows.first
       snap = CoverageSnapshot.create!(
@@ -1758,6 +1758,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         workflow: workflow,
         sha: SecureRandom.hex(10),
         branch: branch,
+        project_id: project_id,
         lines_pct: lines_pct,
         branches_pct: branches_pct,
         functions_pct: functions_pct
@@ -1782,6 +1783,23 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "branches_pct" => snap.branches_pct.to_f,
         "functions_pct" => snap.functions_pct.to_f
       )
+    end
+
+    it "excludes project-specific snapshots from repository-level trend and latest values" do
+      sign_in_as(user)
+      root = create_snapshot(project_id: "repo", lines_pct: 82.0, branches_pct: 62.0, functions_pct: 92.0, created_at: 2.hours.ago)
+      create_snapshot(project_id: "desktop", lines_pct: 20.0, branches_pct: 10.0, functions_pct: 30.0, created_at: 1.hour.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["latest"]).to include(
+        "lines_pct" => root.lines_pct.to_f,
+        "branches_pct" => root.branches_pct.to_f,
+        "functions_pct" => root.functions_pct.to_f
+      )
+      expect(body["trend"].sole).to include("lines_pct" => 82.0)
     end
 
     it "returns empty trend array when no snapshots exist" do
