@@ -16,7 +16,8 @@ module App
           blocked_reason: @job.landing_queue_blocked_reason,
           waiting_for_jobs: landing_queue_waiting_jobs.map { |job| landing_queue_waiting_job_json(job) },
           blocker_jobs: landing_queue_blocker_jobs.map { |job| landing_queue_blocker_job_json(job, @job.landing_queue_entry_key) },
-          dependency_edges: Array(@job.landing_queue_dependency_edges)
+          dependency_edges: Array(@job.landing_queue_dependency_edges),
+          override_path: "/api/v1/app/jobs/#{@job.id}/override_landing_blocker"
         }
       end
 

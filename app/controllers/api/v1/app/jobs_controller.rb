@@ -242,6 +242,39 @@ module Api
           render json: ::App::AgentConversationPayload.build(job: find_job, workflow_id: params[:workflow_id])
         end
 
+        def override_landing_blocker
+          job = find_job_by_param(:job_id)
+          return unless authorize_job_mutation!(job)
+
+          blocker_key = params[:blocker_key].to_s
+          refreshed_key = current_landing_blocker_key(job)
+          unless refreshed_key == blocker_key
+            render_error("validation_failed", "Current landing blocker is #{refreshed_key.presence || 'none'}, not #{blocker_key}.", status: :unprocessable_content)
+            return
+          end
+
+          unless LandingBlockerOverride.overridable?(blocker_key)
+            render_error("validation_failed", "#{blocker_key} cannot be bypassed.", status: :unprocessable_content)
+            return
+          end
+
+          if job.landing_blocker_override_key.present? && job.landing_blocker_override_used_at.blank?
+            render_error("validation_failed", "#{job.slug} already has an unused landing blocker override.", status: :unprocessable_content)
+            return
+          end
+
+          job.update!(
+            landing_blocker_override_key: blocker_key,
+            landing_blocker_override_reason: params[:reason].presence || "Operator chose to land through #{blocker_key}.",
+            landing_blocker_override_requested_at: Time.current,
+            landing_blocker_override_requested_by_user_id: Current.user.id,
+            landing_blocker_override_used_at: nil
+          )
+          LandingQueueProcessorJob.perform_later
+
+          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+        end
+
         private
 
         # find_job/find_job_by_param resolve against the widened,
@@ -269,6 +302,11 @@ module Api
           SmartFolder.for_subject(subject_type)
                      .where("user_id IS NULL OR user_id = ?", Current.user.id)
                      .find_by(id: id)
+        end
+
+        def current_landing_blocker_key(job)
+          LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
+          job.reload.landing_queue_blocked_reason.to_h["key"].to_s
         end
 
 

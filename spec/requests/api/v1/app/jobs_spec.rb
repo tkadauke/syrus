@@ -69,6 +69,37 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "grants a one-shot landing override for the current inherited PR-check blocker" do
+    finish_existing_work!(job)
+    job.update!(
+      state: "approved",
+      approved_at: Time.current,
+      approved_via: "operator",
+      pr_checks_state: "failing",
+      pr_checks_sha: "head-sha",
+      pr_checks_base_sha: "base-sha",
+      pr_checks_failing_names: [ "rails-test" ]
+    )
+    allow(LandingQueueProcessor).to receive(:refresh_snapshot!) do
+      job.update!(
+        landing_queue_blocked_reason: { key: "pr_checks_failing_inherited", params: { slug: job.slug, checks: "rails-test" } },
+        landing_queue_cached_at: Time.current
+      )
+    end
+
+    expect {
+      post "/api/v1/app/jobs/#{job.id}/override_landing_blocker",
+           params: { blocker_key: "pr_checks_failing_inherited", reason: "Reviewed base failure." },
+           as: :json
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.landing_blocker_override_key).to eq("pr_checks_failing_inherited")
+    expect(job.landing_blocker_override_reason).to eq("Reviewed base failure.")
+    expect(job.landing_blocker_override_requested_by_user_id).to eq(user.id)
+    expect(parse_body.dig("actions", "can_override_inherited_pr_checks")).to eq(false)
+  end
+
   it "lists jobs for bearer-token CLI clients without admin access" do
     user.update!(api_token: "syrus_cli_token", global_role: "user")
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")

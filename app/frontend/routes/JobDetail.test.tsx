@@ -3187,6 +3187,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_deploy: false,
       can_run_visual_review: false,
       can_run_visual_diff: false,
+      can_override_inherited_pr_checks: false,
       can_request_changes: false,
       can_send_job_upstream: false,
       linked_chat_id: null,
@@ -3450,10 +3451,10 @@ function run(overrides: Partial<JobRun>): JobRun {
 }
 
 describe("PrChecksBanner attribution", () => {
-  function renderWithChecks(pr_checks: Record<string, unknown>) {
+  function renderWithChecks(pr_checks: Record<string, unknown>, overrides: Partial<JobDetailPayload> = {}) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
-    const payload = jobPayload()
+    const payload = jobPayload(overrides)
     const withChecks = { ...payload, job: { ...payload.job, pr_checks } } as unknown as JobDetailPayload
 
     return render(
@@ -3477,7 +3478,7 @@ describe("PrChecksBanner attribution", () => {
   // banner shows both sides of the comparison and which base was used.
   it("shows the evidence behind an inherited verdict", async () => {
     renderWithChecks({
-      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      state: "failing", sha: "abc1234567", base_sha: "basepayload1234", short_sha: "abc1234", checked_at: null, checks_url: "https://github.com/acme/widgets/pull/1/checks",
       attribution: {
         verdict: "inherited",
         failing_names: ["rspec"],
@@ -3488,9 +3489,35 @@ describe("PrChecksBanner attribution", () => {
     })
 
     expect(await screen.findByText("Already failing on the base")).toBeInTheDocument()
+    expect(screen.getByText("Head abc1234567")).toBeInTheDocument()
+    expect(screen.getByText("PR base basepayload1")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/1/checks")
     expect(screen.getByText("rspec")).toBeInTheDocument()
     expect(screen.getByText("rspec, react-tests")).toBeInTheDocument()
     expect(screen.getByText("Compared against base basesha")).toBeInTheDocument()
+  })
+
+  it("offers a one-shot land-through action for inherited check blockers", async () => {
+    renderWithChecks({
+      state: "failing", sha: "abc1234567", short_sha: "abc1234", checked_at: null, checks_url: null,
+      attribution: {
+        verdict: "inherited",
+        failing_names: ["rspec"],
+        base_failing_names: ["rspec"],
+        own_names: [],
+        base_sha: "basesha1234"
+      }
+    }, {
+      actions: { ...jobPayload().actions, can_override_inherited_pr_checks: true },
+      landing_queue_entry: {
+        position: 1,
+        blocked_reason: { key: "pr_checks_failing_inherited", params: { slug: "JOB-1", checks: "rspec" } },
+        waiting_for_jobs: [],
+        override_path: "/api/v1/app/jobs/1/override_landing_blocker"
+      }
+    })
+
+    expect(await screen.findByRole("button", { name: "Land anyway once" })).toBeInTheDocument()
   })
 
   it("names a failure the job introduced as its own", async () => {

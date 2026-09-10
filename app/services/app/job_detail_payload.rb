@@ -963,12 +963,20 @@ module App
         can_run_visual_review: visual_review_enabled && visual_review_actionable,
         can_run_visual_diff: visual_review_enabled && visual_diff_actionable && visual_diff_available?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
+        can_override_inherited_pr_checks: writable && inherited_pr_checks_blocking_landing?,
         can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
         send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
         feedback_agent_options: alternate_agent_options,
         rebase_agent_options: alternate_agent_options,
         retry_agent_options: @job.retry_with_agent_providers
       }
+    end
+
+    def inherited_pr_checks_blocking_landing?
+      reason = @job.landing_queue_blocked_reason.to_h
+      (reason["key"] || reason[:key]).to_s == "pr_checks_failing_inherited" &&
+        @job.landing_blocker_override_key.blank? &&
+        @job.landing_blocker_override_used_at.blank?
     end
 
     def simple_epic_child?

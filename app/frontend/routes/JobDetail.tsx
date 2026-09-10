@@ -418,7 +418,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
         </PanelMessage>
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
-      <PrChecksBanner payload={payload} />
+      <PrChecksBanner command={command} payload={payload} />
       <AdmissionBudgetPanel payload={payload} />
       <RetryStatePanel payload={payload} />
       {showUnsatisfiedDependencies ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
@@ -908,7 +908,7 @@ function jobMergeTrainDetail(status: NonNullable<JobDetailPayload["merge_train_s
   return t("merge_train_running")
 }
 
-function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
+function PrChecksBanner({ command, payload }: { command: JobCommand; payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const checks = payload.job.pr_checks
   if (!checks || (checks.state !== "failing" && checks.state !== "pending")) return null
@@ -922,18 +922,44 @@ function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
   // An inherited failure is not this Job's fault, so it should not be dressed in
   // the same red as one this Job introduced.
   const tone = checks.state !== "failing" || attribution?.verdict === "inherited" ? "muted" : "error"
+  const inheritedBlocker = payload.landing_queue_entry?.blocked_reason?.key === "pr_checks_failing_inherited"
+  const overridePath = payload.landing_queue_entry?.override_path
+  const canOverride = inheritedBlocker && payload.actions.can_override_inherited_pr_checks && overridePath
 
   return (
     <PanelMessage tone={tone}>
-      {message}
-      {checks.checks_url ? (
-        <>
-          {" "}
-          <a className="font-medium text-brand underline hover:no-underline" href={checks.checks_url} rel="noopener" target="_blank">
-            {t("pr_checks_view_github")}
-          </a>
-        </>
-      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          {message}
+          {checks.checks_url ? (
+            <>
+              {" "}
+              <a className="font-medium text-brand underline hover:no-underline" href={checks.checks_url} rel="noopener" target="_blank">
+                {t("pr_checks_view_github")}
+              </a>
+            </>
+          ) : null}
+          {checks.sha ? <div className="mt-1 font-mono text-xs">{t("pr_checks_head_sha", { sha: checks.sha.slice(0, 12) })}</div> : null}
+          {checks.base_sha ? <div className="font-mono text-xs">{t("pr_checks_payload_base_sha", { sha: checks.base_sha.slice(0, 12) })}</div> : null}
+        </div>
+        {canOverride ? (
+          <CommandButton
+            command={command}
+            input={{
+              method: "post",
+              path: overridePath,
+              body: {
+                blocker_key: "pr_checks_failing_inherited",
+                reason: t("pr_checks_override_reason")
+              },
+              confirm: t("pr_checks_override_confirm")
+            }}
+            tone="secondary"
+          >
+            {t("pr_checks_override_once")}
+          </CommandButton>
+        ) : null}
+      </div>
       {attribution ? <PrCheckAttributionDetail attribution={attribution} /> : null}
     </PanelMessage>
   )

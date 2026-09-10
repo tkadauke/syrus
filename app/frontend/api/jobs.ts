@@ -161,6 +161,7 @@ export type JobRecord = {
 export type JobPrChecks = {
   state: "passing" | "pending" | "failing" | "unknown" | string
   sha: string | null
+  base_sha?: string | null
   short_sha: string | null
   checked_at: string | null
   checks_url: string | null
@@ -505,6 +506,7 @@ export type JobLandingQueueEntry = {
   }>
   blocker_jobs?: LandingQueueBlockerJob[]
   dependency_edges?: LandingQueueDependencyEdge[]
+  override_path?: string | null
 }
 
 export type JobWorkflowsPagination = {
@@ -790,6 +792,7 @@ export type JobActions = {
   can_deploy: boolean
   can_run_visual_review: boolean
   can_run_visual_diff: boolean
+  can_override_inherited_pr_checks: boolean
   can_request_changes: boolean
   can_send_job_upstream: boolean
   send_job_upstream_blocked_reason?: string | null
