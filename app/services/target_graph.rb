@@ -42,9 +42,27 @@ class TargetGraph
     self
   end
 
+  def replace_project(project)
+    raise ValidationError, "project id #{project.id.inspect} is not declared" unless @projects.key?(project.id)
+
+    @projects[project.id] = project
+    self
+  end
+
   def add_target(target)
     key = target.label.to_s
     raise ValidationError, "target #{key} is already declared" if @targets.key?(key)
+    unless @projects.key?(target.project_id)
+      raise ValidationError, "target #{key} references unknown project #{target.project_id.inspect}"
+    end
+
+    @targets[key] = target
+    self
+  end
+
+  def replace_target(target)
+    key = target.label.to_s
+    raise ValidationError, "target #{key} is not declared" unless @targets.key?(key)
     unless @projects.key?(target.project_id)
       raise ValidationError, "target #{key} references unknown project #{target.project_id.inspect}"
     end

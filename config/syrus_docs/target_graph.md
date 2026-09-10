@@ -50,9 +50,11 @@ targets" below).
 Explicit `targets:` declarations are available for hand-authored dependency
 nodes. Build-system plugin imports are also available, but only as explicit
 repository declarations under `target_graph.imports`; Syrus never guesses
-Buck/Bazel/Pants-style targets from repository structure on its own. The
-`project:` primitive described below names/labels the project that owns a
-config file's targets.
+Buck/Bazel/Pants-style targets from repository structure on its own. When an
+import is active, the imported Buck/Bazel/Pants graph is the precise base graph:
+Syrus adds its workflow nodes and metadata on top, but it does not reinterpret
+or replace imported dependency edges. The `project:` primitive described below
+names/labels the project that owns a config file's targets.
 
 ## Projects vs. targets
 
@@ -150,12 +152,33 @@ target_graph:
 free-form mapping passed to that provider so the repository, not Syrus core,
 declares what should be imported. Providers return `TargetGraph::Import`
 fragments containing normal `TargetGraph::Project` and `TargetGraph::Target`
-objects; the compiler merges them after `.syrus.yml` targets and validates the
-same duplicate-label, missing-dependency, and cycle rules as hand-authored
-targets. Imported targets carry `metadata["provenance"]` with the provider key,
-provider class, and owning import declaration, and
-`TargetGraph::Compiler.diagnose` includes one `import_diagnostics` entry per
-provider call.
+objects. The compiler merges imports before Syrus-authored targets, validates
+the imported fragment's own duplicate-label, missing-dependency, and cycle
+rules, then layers `.syrus.yml` declarations over that base graph. Imported
+targets carry `metadata["provenance"]` with the provider key, provider class,
+and owning import declaration, and `TargetGraph::Compiler.diagnose` includes
+one `import_diagnostics` entry per provider call.
+
+Imported graph providers are expected to be exact for the labels they return:
+canonical labels, source scopes, target kinds, and dependency edges should come
+from the build system query, not from Syrus guesses. If a provider cannot
+produce a complete graph for the requested query, it should fail the import or
+return diagnostics that explain the precision gap. A graph-backed repository
+should keep build-system labels stable enough for `.syrus.yml` dependencies and
+overlays to refer to them directly.
+
+Syrus overlays are intentionally narrow. A `targets:` entry whose canonical
+label already exists in an imported graph may add only Syrus execution metadata:
+`phases`, `required: true`, and `timeout_minutes`. It must not declare
+`sources`, `deps`, or `run`/`command`, and it must not change the imported
+target's kind except for the parser's default `library` value. Structural
+redefinitions fail graph compilation with a conflict message naming both the
+Syrus declaration and the imported target. Separate Syrus-only targets such as
+prepare targets, graders, repo checks, preview setup nodes, and metadata-only
+workflow helpers should use distinct labels and may depend on imported labels.
+Legacy `grade:`, `formatters:`, and `generated:` entries are also distinct
+Syrus-owned targets; if one collides with an imported label, that collision is
+reported rather than silently replacing the build-system node.
 
 `failures` controls what happens when the configured provider is unavailable or
 raises while importing: `strict` (default) fails graph compilation, while `warn`
