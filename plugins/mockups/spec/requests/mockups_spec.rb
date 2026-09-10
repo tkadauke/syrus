@@ -59,8 +59,11 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     get "/api/v1/app/mockups/#{mockup.slug}"
 
     expect(response).to have_http_status(:ok)
-    panel = JSON.parse(response.body)["panel"]
+    body = JSON.parse(response.body)
+    panel = body["panel"]
     expect(panel["app_file_base_path"]).to eq("/api/v1/app/preview_panels/#{mockup.preview_panel_id}/files")
+    expect(panel["app_visibility_path"]).to eq("/api/v1/app/preview_panels/#{mockup.preview_panel_id}")
+    expect(body.dig("mockup", "chat_path")).to eq("/chats/#{mockup.chat_session_id}")
     expect(panel["entry_viewer_kind"]).to eq("html")
   end
 

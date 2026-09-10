@@ -221,6 +221,7 @@ Rails.application.routes.draw do
         # Panels outside the chat they were opened in: a plugin listing them on
         # its own page needs the same content and the same access rule.
         get "preview_panels/:id", to: "preview_panels#show", constraints: { id: /\d+/ }
+        patch "preview_panels/:id", to: "preview_panels#update", constraints: { id: /\d+/ }
         get "preview_panels/:id/export", to: "preview_panels#export", constraints: { id: /\d+/ }
         get "preview_panels/:id/files/*path", to: "preview_panels#file", constraints: { id: /\d+/ }, format: false
         post "preview_panels/:id/token", to: "preview_panels#token", constraints: { id: /\d+/ }
