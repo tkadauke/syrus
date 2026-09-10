@@ -198,7 +198,12 @@ module App
       epic_dependency_records = epic_dependency_json(proposal)
       job_id_dependency_records = job_id_dependency_json(proposal)
       epic_id_dependency_records = epic_id_dependency_json(proposal)
-      visible_dependencies = dependency_records.map { |dependency| dependency_json(dependency) } + epic_dependency_records + job_id_dependency_records + epic_id_dependency_records
+      visible_dependencies = unique_visible_dependencies(
+        dependency_records.map { |dependency| dependency_json(dependency) } +
+          epic_dependency_records +
+          job_id_dependency_records +
+          epic_id_dependency_records
+      )
       dependency_slugs = dependency_records.map(&:slug) + epic_dependency_tokens
       base = {
         id: proposal.id,
@@ -336,6 +341,25 @@ module App
           materialized_path: epic_path(epic)
         }
       end
+    end
+
+    def unique_visible_dependencies(dependencies)
+      seen = {}
+      dependencies.select do |dependency|
+        key = visible_dependency_identity(dependency)
+        next true unless key
+        next false if seen.key?(key)
+
+        seen[key] = true
+        true
+      end
+    end
+
+    def visible_dependency_identity(dependency)
+      path = dependency[:materialized_path].presence
+      return "path:#{path}" if path
+
+      nil
     end
 
     def child_proposal_json(proposal, chat_session:)
