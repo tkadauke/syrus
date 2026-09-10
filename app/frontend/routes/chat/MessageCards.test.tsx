@@ -659,6 +659,56 @@ describe("tool result rendering", () => {
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("chat_image:3") === true)).toBeInTheDocument()
   })
 
+  it("navigates between image previews in list_chat_media tool cards", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "List chat media",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "list_chat_media",
+          raw_name: "syrus-chat-sidecar.list_chat_media",
+          detail: "No arguments",
+          display_label: "List chat media",
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify({
+            snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
+            chat_images: [
+              { id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" },
+              { id: "chat_image:4", kind: "chat_image", filename: "mobile.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/4/file" }
+            ],
+            whiteboard_element_count: 7
+          }),
+          result_error: false,
+          result_kind: "list",
+          result_summary: "3 media items"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+    expandToolGroup("List chat media")
+
+    fireEvent.click(screen.getByRole("button", { name: "Open desktop.png" }))
+
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Next image" })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }))
+
+    const dialog = screen.getByRole("dialog", { name: "mobile.png" })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByRole("img", { name: "mobile.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/4/file")
+    expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+
+    expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
+  })
+
   it("renders an empty state for list_chat_media when the chat has no media", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",

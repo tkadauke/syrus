@@ -300,6 +300,8 @@
   "runtime_logs_empty": "Noch keine Protokollausgabe.",
   "aria_chat": "Chat",
   "aria_close_image": "Bildvorschau schließen",
+  "aria_previous_image": "Vorheriges Bild",
+  "aria_next_image": "Nächstes Bild",
   "source_preview_unavailable": "Quellcode-Vorschau ist für diesen Chat nicht verfügbar.",
   "ph_search_proposals": "Vorschläge suchen",
   "ph_search_jobs": "Jobs suchen",
