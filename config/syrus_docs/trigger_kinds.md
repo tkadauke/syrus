@@ -329,10 +329,14 @@ left intact and still contributes to the repository-level `grader_health`
 summary when the workflow settles.
 
 If there is no previous main SHA, the workflow logs that it is establishing a
-baseline and selects every configured grader target. Root-only repositories
-therefore keep the understandable legacy shape: a repo-wide grader target with
-no file scope is affected by every main update and runs unless target health
-proves the same inputs already passed.
+baseline and selects every configured grader target. That baseline/broad sweep
+does not reuse target-health records or a cached successful full-plan grader
+conclusion; it runs fresh so Syrus can catch missed dependency edges or
+undercoverage that previous affected-target selection may have hidden.
+After the baseline exists, root-only repositories keep the understandable
+legacy shape: a repo-wide grader target with no file scope is affected by
+every incremental main update and can skip only when target health proves the
+same inputs already passed.
 
 Main-branch CI health is intentionally narrower than "any failed GitHub check on the SHA." For GitHub Actions, Syrus only treats checks from the regular `CI` workflow as the CI signal. Release, test-build, website deploy, and other packaging/operations workflows can fail on the same commit without marking main broken or spawning a main-branch repair job.
 

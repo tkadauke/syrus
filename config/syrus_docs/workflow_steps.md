@@ -575,12 +575,17 @@ Workflow artifacts keep only
 database row is the primary store so later workflows can query target health
 outside the workflow that produced it.
 
-Before `grader_fanout` materializes a selected `grader` Step, it checks the
-same target-health proof used by format/generate: current target fingerprints
-must have a latest healthy record, and every executable dependency target must
-also be healthy for its current fingerprints. A cache hit skips Step
-materialization, logs the reason, and records an entry in
-`target_health_skipped_targets` on the workflow and fanout Step details.
+Before `grader_fanout` materializes a selected `grader` Step, normal affected
+target runs check the same target-health proof used by format/generate:
+current target fingerprints must have a latest healthy record, and every
+executable dependency target must also be healthy for its current fingerprints.
+A cache hit skips Step materialization, logs the reason, and records an entry
+in `target_health_skipped_targets` on the workflow and fanout Step details.
+Baseline `main_grader` sweeps with no previous main SHA are the exception:
+they select every configured grader target and bypass both target-health reuse
+and successful full-plan `GraderConclusion` reuse so the broad sweep can catch
+missed dependency edges or undercoverage that prior affected-target selection
+would have skipped.
 
 For `main_grader`, fanout also records `grader_target_selections`, one entry
 per configured grader target with its affected verdict and target
