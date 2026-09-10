@@ -58,24 +58,24 @@ module Mcp::Tools
     )
 
     class << self
-      def call(server_context:, surface: nil, window: nil, since: nil, start: nil, tool_name: nil, tool: nil, server_name: nil, server: nil, limit: nil, recent_limit: nil, **kwargs)
+      def call(server_context:, **params)
         return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
 
-        surface = normalized_surface(surface)
+        surface = normalized_surface(params[:surface])
         return Mcp::Tools.invalid("surface must be one of #{SURFACES.join(', ')}") unless surface
 
         Mcp::Tools.success(::Admin::McpToolUsagePayload.new(params: {
           surface: surface == "all" ? nil : surface,
-          window: window,
-          since: since,
-          start: start,
-          end: kwargs[:end],
-          tool_name: tool_name,
-          tool: tool,
-          server_name: server_name,
-          server: server,
-          limit: limit,
-          recent_limit: recent_limit
+          window: params[:window],
+          since: params[:since],
+          start: params[:start],
+          end: params[:end],
+          tool_name: params[:tool_name],
+          tool: params[:tool],
+          server_name: params[:server_name],
+          server: params[:server],
+          limit: params[:limit],
+          recent_limit: params[:recent_limit]
         }.compact).as_json)
       end
 
