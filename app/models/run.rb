@@ -51,6 +51,7 @@ class Run < ApplicationRecord
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
+  before_validation :set_effective_at
 
   # Backstop for genuine agent hangs (claude alive but making no
   # progress). Rare in practice — claude almost always streams a chunk
@@ -71,6 +72,10 @@ class Run < ApplicationRecord
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :terminal, -> { where(state: TERMINAL_STATES) }
+
+  def self.effective_timestamp_for(finished_at:, started_at:, created_at:)
+    finished_at || started_at || created_at || Time.current
+  end
 
   # Job ids with a queued/running Run, materialized on purpose.
   #
@@ -219,6 +224,13 @@ class Run < ApplicationRecord
     TERMINAL_STATES.include?(state)
   end
 
+  def update_columns(attributes)
+    attrs = attributes.stringify_keys
+    attrs["effective_at"] = effective_timestamp_with(attrs) if effective_timestamp_attributes_changed?(attrs)
+
+    super(attrs)
+  end
+
   def cost_breakdown?
     cost_usd.present? ||
       input_tokens.present? ||
@@ -226,6 +238,35 @@ class Run < ApplicationRecord
       cache_creation_input_tokens.present? ||
       cache_read_input_tokens.present?
   end
+
+  private
+
+  def set_effective_at
+    if new_record? && created_at.blank?
+      self.created_at = Time.current
+      self.updated_at ||= created_at
+    end
+
+    self.effective_at = self.class.effective_timestamp_for(
+      finished_at: finished_at,
+      started_at: started_at,
+      created_at: created_at
+    )
+  end
+
+  def effective_timestamp_attributes_changed?(attributes)
+    attributes.key?("finished_at") || attributes.key?("started_at") || attributes.key?("created_at")
+  end
+
+  def effective_timestamp_with(attributes)
+    self.class.effective_timestamp_for(
+      finished_at: attributes.fetch("finished_at", finished_at),
+      started_at: attributes.fetch("started_at", started_at),
+      created_at: attributes.fetch("created_at", created_at)
+    )
+  end
+
+  public
 
   # True when this Run's workflow runs on the `:runs` queue — compute work
   # subject to the global agent-concurrency cap
