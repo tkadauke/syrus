@@ -1,4 +1,5 @@
 import { getJson, postJson } from "@app/api/client"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type AgentActivitySessionJob = {
@@ -43,6 +44,8 @@ export type AgentActivitySessionsPayload = {
   running_count: number
   filter: Record<string, unknown> | null
   filter_schema: FilterSchemaField[]
+  active_smart_folder_id: number | null
+  smart_folders: AdminSmartFolder[]
 }
 
 export type AgentActivityRunArtifacts = {

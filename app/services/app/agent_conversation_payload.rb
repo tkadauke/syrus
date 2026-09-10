@@ -1,8 +1,9 @@
 module App
   # Explicit node/edge graph of everything that fed into a Job's
   # implementation -- structured data for the Job Detail "Agent
-  # Conversation" tab. Walks the Job's Workflows in chronological order
-  # and, within each, its Steps (and each agentic Step's Runs), emitting
+  # Conversation" tab. The payload includes a lightweight workflow index
+  # for the picker, then walks one selected Workflow's Steps (and each
+  # agentic Step's Runs), emitting
   # three node kinds:
   #
   #   agent_session      -- one per agentic Run. Role comes structurally
@@ -25,22 +26,66 @@ module App
   class AgentConversationPayload
     EXTERNAL_TRIGGER_KINDS = %w[ pr_comment chat_feedback ci_failure ].freeze
 
-    def self.build(job:)
-      new(job: job).payload
+    def self.build(job:, workflow_id: nil)
+      new(job: job, workflow_id: workflow_id).payload
     end
 
-    def initialize(job:)
+    def initialize(job:, workflow_id: nil)
       @job = job
+      @workflow_id = workflow_id.presence&.to_i
     end
 
     def payload
-      { job_id: @job.id, nodes: nodes, edges: edges }
+      {
+        job_id: @job.id,
+        selected_workflow_id: selected_workflow&.id,
+        workflows: workflow_options,
+        nodes: nodes,
+        edges: edges
+      }
     end
 
     private
 
+    def all_workflows
+      @all_workflows ||= @job.workflows.reorder(id: :desc).to_a
+    end
+
+    def selected_workflow
+      @selected_workflow ||= begin
+        return nil if all_workflows.empty?
+
+        if @workflow_id
+          all_workflows.find { |workflow| workflow.id == @workflow_id } || all_workflows.first
+        else
+          all_workflows.first
+        end
+      end
+    end
+
     def workflows
-      @workflows ||= @job.workflows.includes(:steps).order(:id).to_a
+      @workflows ||= begin
+        if selected_workflow
+          @job.workflows.includes(:steps).where(id: selected_workflow.id).order(:id).to_a
+        else
+          []
+        end
+      end
+    end
+
+    def workflow_options
+      all_workflows.map do |workflow|
+        {
+          id: workflow.id,
+          slug: workflow.slug,
+          trigger_kind: workflow.trigger_kind,
+          trigger_label: Workflow::TriggerKind.label_for(workflow.trigger_kind),
+          state: workflow.state,
+          created_at: workflow.created_at&.iso8601,
+          started_at: workflow.started_at&.iso8601,
+          finished_at: workflow.finished_at&.iso8601
+        }
+      end
     end
 
     def runs_by_step_id

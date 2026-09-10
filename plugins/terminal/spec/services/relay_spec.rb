@@ -340,6 +340,34 @@ RSpec.describe Terminal::Relay, :ci_only do
     expect(scrollback.valid_encoding?).to be(true)
   end
 
+  it "exports a conservative TERM by default for PTY child processes" do
+    relay = described_class.new(session: session, command: [ "bash" ], env: {})
+
+    expect(PTY).to receive(:spawn).with(
+      { "TERM" => "dumb" },
+      "bash",
+      chdir: session.working_directory
+    )
+
+    relay.send(:spawn_pty)
+  end
+
+  it "allows callers to override the default PTY TERM" do
+    relay = described_class.new(
+      session: session,
+      command: [ "bash" ],
+      env: { "TERM" => "xterm-256color", "VISIBLE" => "yes" }
+    )
+
+    expect(PTY).to receive(:spawn).with(
+      { "TERM" => "xterm-256color", "VISIBLE" => "yes" },
+      "bash",
+      chdir: session.working_directory
+    )
+
+    relay.send(:spawn_pty)
+  end
+
   it "sends the scrollback buffer as a replay frame to a late-joining client" do
     relay, child_output_write, _, = build_relay
     pty_alive = true

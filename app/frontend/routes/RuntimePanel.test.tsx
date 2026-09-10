@@ -231,7 +231,7 @@ describe("RuntimePanel session detail", () => {
 })
 
 describe("RuntimePanel capture action", () => {
-  it("captures a screenshot and refreshes the session in place", async () => {
+  it("captures a screenshot, refreshes the session in place, and invalidates chat media", async () => {
     mockFetch((url, method) => {
       if (url.includes("/logs")) return jsonResponse({ entries: [], cursor: 0 })
       if (url.includes("/capture") && method === "POST") {
@@ -242,12 +242,14 @@ describe("RuntimePanel capture action", () => {
       return jsonResponse({ runtime_sessions: [ sessionFixture() ] })
     })
 
-    renderPanel()
+    const client = renderPanel()
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries")
 
     await screen.findByText("No screenshot captured yet.")
     fireEvent.click(screen.getByRole("button", { name: "Capture" }))
 
     expect(await screen.findByAltText("Latest screenshot")).toBeInTheDocument()
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chat_media", "8"] })
   })
 })
 

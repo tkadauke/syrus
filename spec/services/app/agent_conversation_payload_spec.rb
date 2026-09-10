@@ -136,11 +136,51 @@ RSpec.describe App::AgentConversationPayload do
       expect(node(payload, eslint_id)).to include(label: "eslint")
 
       expect(payload[:nodes].none? { |n| n[:kind] == "external_trigger" }).to be true
+      expect(payload[:selected_workflow_id]).to eq(workflow.id)
+      expect(payload[:workflows]).to contain_exactly(
+        include(id: workflow.id, slug: workflow.slug, trigger_kind: "initial", trigger_label: Workflow::TriggerKind.label_for("initial"), state: workflow.state)
+      )
+    end
+  end
+
+  describe "workflow selection" do
+    it "defaults to the newest workflow and does not include nodes from older workflows" do
+      older = create_workflow(trigger_kind: "initial")
+      older_step = create_step(workflow: older, kind: "implement", position: 0)
+      older_run = create_run(step: older_step, agent_summary: "Older implementation")
+
+      newer = create_workflow(trigger_kind: "retry")
+      newer_step = create_step(workflow: newer, kind: "implement", position: 0)
+      newer_run = create_run(step: newer_step, agent_summary: "Newer retry")
+
+      payload = described_class.build(job: job)
+
+      expect(payload[:selected_workflow_id]).to eq(newer.id)
+      expect(payload[:workflows].map { |workflow| workflow[:id] }).to eq([ newer.id, older.id ])
+      expect(payload[:nodes].map { |node| node[:id] }).to contain_exactly("agent_session-#{newer_run.id}")
+      expect(payload[:nodes].map { |node| node[:id] }).not_to include("agent_session-#{older_run.id}")
+    end
+
+    it "returns only the requested workflow graph when workflow_id is supplied" do
+      older = create_workflow(trigger_kind: "initial")
+      older_step = create_step(workflow: older, kind: "implement", position: 0)
+      older_run = create_run(step: older_step, agent_summary: "Older implementation")
+
+      newer = create_workflow(trigger_kind: "retry")
+      newer_step = create_step(workflow: newer, kind: "implement", position: 0)
+      newer_run = create_run(step: newer_step, agent_summary: "Newer retry")
+
+      payload = described_class.build(job: job, workflow_id: older.id)
+
+      expect(payload[:selected_workflow_id]).to eq(older.id)
+      expect(payload[:workflows].map { |workflow| workflow[:id] }).to eq([ newer.id, older.id ])
+      expect(payload[:nodes].map { |node| node[:id] }).to contain_exactly("agent_session-#{older_run.id}")
+      expect(payload[:nodes].map { |node| node[:id] }).not_to include("agent_session-#{newer_run.id}")
     end
   end
 
   describe "a pr_comment follow-up Workflow" do
-    it "adds an external_trigger node sourced from the stashed PR comments, wired from the prior workflow" do
+    it "adds an external_trigger node sourced from the stashed PR comments for the selected workflow" do
       initial = create_workflow(trigger_kind: "initial")
       initial_implement = create_step(workflow: initial, kind: "implement", position: 0)
       run_initial = create_run(step: initial_implement, agent_summary: "Initial implementation")
@@ -176,7 +216,7 @@ RSpec.describe App::AgentConversationPayload do
       initial_node_id = "agent_session-#{run_initial.id}"
       respond_node_id = "agent_session-#{run_respond.id}"
 
-      expect(edge?(payload, initial_node_id, trigger_node[:id])).to be true
+      expect(payload[:nodes].map { |n| n[:id] }).not_to include(initial_node_id)
       expect(edge?(payload, trigger_node[:id], respond_node_id)).to be true
     end
   end
@@ -211,7 +251,7 @@ RSpec.describe App::AgentConversationPayload do
       initial_node_id = "agent_session-#{run_initial.id}"
       fix_node_id = "agent_session-#{run_fix.id}"
 
-      expect(edge?(payload, initial_node_id, trigger_node[:id])).to be true
+      expect(payload[:nodes].map { |n| n[:id] }).not_to include(initial_node_id)
       expect(edge?(payload, trigger_node[:id], fix_node_id)).to be true
     end
   end

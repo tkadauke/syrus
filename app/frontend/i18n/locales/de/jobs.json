@@ -95,6 +95,7 @@
   "conversation_loading": "Agentengespräch wird geladen…",
   "conversation_load_error": "Das Agentengespräch konnte nicht geladen werden.",
   "conversation_empty": "Für diesen Job wurde noch keine Agentenaktivität aufgezeichnet.",
+  "conversation_select_workflow": "Workflow",
   "conversation_legend_agent_session": "Agentensitzung",
   "conversation_legend_deterministic_check": "Deterministische Prüfung",
   "conversation_legend_external_trigger": "Externer Auslöser",

@@ -13,13 +13,14 @@ module Terminal
     KILL_POLL_INTERVAL_SECONDS = 5
     READ_CHUNK_BYTES = 16 * 1024
     SCROLLBACK_SIZE = 256 * 1024
+    DEFAULT_ENV = { "TERM" => "dumb" }.freeze
 
     class AuthenticationFailed < StandardError; end
 
     def initialize(session:, command:, env: {})
       @session = session
       @command = command
-      @env = env
+      @env = DEFAULT_ENV.merge(env.compact)
       @connections = []
       @connections_lock = Mutex.new
       @client_sizes = {}

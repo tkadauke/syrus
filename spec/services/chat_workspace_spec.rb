@@ -970,6 +970,11 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(chat_session.coding_checkout_uncommitted).to eq(false)
       expect(chat_session.coding_checkout_prepare_status).to eq("queued")
       expect(chat_session.coding_checkout_prepare_failure).to be_nil
+      expect(chat_session.artifact("coding_handoff_stack")).to include(
+        "repository_id" => repository.id,
+        "lineage" => "fresh_main",
+        "default_branch" => "main"
+      )
     end
 
     it "reports dirty and committed-ahead status for a coding checkout" do
@@ -1034,6 +1039,11 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(chat_session.reload.coding_checkout_branch).to eq("main")
       expect(chat_session.coding_checkout_uncommitted).to eq(false)
       expect(chat_session.coding_checkout_prepare_status).to eq("queued")
+      expect(chat_session.artifact("coding_handoff_stack")).to include(
+        "repository_id" => repository.id,
+        "lineage" => "fresh_main",
+        "default_branch" => "main"
+      )
     end
   end
 

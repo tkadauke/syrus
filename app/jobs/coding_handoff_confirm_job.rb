@@ -15,13 +15,15 @@ class CodingHandoffConfirmJob < ApplicationJob
     description = payload.fetch("description")
     title = payload["title"].presence
     handoff_branch = "syrus/chat-#{chat_session.id}-handoff-#{action.id}"
+    stack_base = stack_base_for(chat_session, repository)
 
     snapshot = CodingHandoffCapture.capture!(
       chat_session: chat_session,
       repository: repository,
       user: user,
       source_branch: branch,
-      handoff_branch: handoff_branch
+      handoff_branch: handoff_branch,
+      base_ref: stack_base&.fetch("head_sha")
     )
 
     artifacts = workflow_artifacts(snapshot: snapshot, title: title, description: description, chat_session_id: chat_session.id)
@@ -38,18 +40,20 @@ class CodingHandoffConfirmJob < ApplicationJob
       state: "queued"
     )
 
+    create_stack_dependency!(job, stack_base, snapshot: snapshot, user: user)
     job.claim_for_coding! if job.may_claim_for_coding?
     job.save!
 
     workflow = job.start_coding_handoff!(artifacts: artifacts)
     raise ArgumentError, "could not start coding handoff (feature may be disabled or state invalid)" unless workflow
 
+    record_stack_handoff!(chat_session, repository: repository, job: job, snapshot: snapshot)
     GenerateJobTitleJob.perform_later(job) if title.nil?
 
-    reset_message = reset_chat_workspace(chat_session, repository)
     post_message!(
       chat_session,
-      "Coding handoff dispatched: #{job.slug} is running graders and will open a PR when ready. #{reset_message}"
+      "Coding handoff dispatched: #{job.slug} is running graders and will open a PR when ready. " \
+        "The chat checkout remains at submitted HEAD #{snapshot["head_sha"]}; use reset_workspace when you want to start fresh from #{repository.default_branch}."
     )
 
   rescue CodingHandoffCapture::CaptureError, ArgumentError => e
@@ -91,18 +95,54 @@ class CodingHandoffConfirmJob < ApplicationJob
 
       ## Coding handoff
 
-      Captured chat workspace commit `#{snapshot["head_sha"]}` from `#{snapshot["source_branch"]}` and published immutable handoff branch `#{snapshot["handoff_branch"]}`.
+      Captured chat workspace commits `#{snapshot["base_sha"]}..#{snapshot["head_sha"]}` from `#{snapshot["source_branch"]}` and published immutable handoff branch `#{snapshot["handoff_branch"]}`.
 
       Changed files:
       #{changed_files.map { |path| "- `#{path}`" }.join("\n")}
     BODY
   end
 
-  def reset_chat_workspace(chat_session, repository)
-    path = ChatWorkspace.reset_after_coding_handoff!(chat_session, repository)
-    "The chat workspace was reset to #{repository.default_branch} and preparation was queued again at #{path}."
-  rescue StandardError => e
-    Rails.logger.warn("[CodingHandoffConfirmJob] chat workspace reset failed for chat #{chat_session.id}: #{e.class}: #{e.message}")
-    "The handoff branch was captured, but the chat workspace reset failed; inspect the checkout before starting unrelated Coding Mode work."
+  def stack_base_for(chat_session, repository)
+    stack = chat_session.artifact("coding_handoff_stack")
+    return unless stack.is_a?(Hash)
+    return unless stack["repository_id"].to_i == repository.id
+    return unless stack["lineage"] == "continuous"
+    return if stack["last_handoff_job_id"].blank? || stack["last_head_sha"].blank?
+
+    {
+      "job_id" => stack.fetch("last_handoff_job_id"),
+      "head_sha" => stack.fetch("last_head_sha")
+    }
+  end
+
+  def create_stack_dependency!(job, stack_base, snapshot:, user:)
+    return unless stack_base
+    return unless snapshot["base_sha"] == stack_base.fetch("head_sha")
+
+    depends_on_job = user.jobs.find_by(id: stack_base.fetch("job_id"))
+    return unless depends_on_job
+
+    JobDependency.create!(
+      job: job,
+      depends_on_job: depends_on_job,
+      source: "manual",
+      created_by_user: user
+    )
+  end
+
+  def record_stack_handoff!(chat_session, repository:, job:, snapshot:)
+    chat_session.set_artifact!(
+      "coding_handoff_stack",
+      {
+        "repository_id" => repository.id,
+        "lineage" => "continuous",
+        "last_handoff_job_id" => job.id,
+        "last_base_sha" => snapshot["base_sha"],
+        "last_head_sha" => snapshot["head_sha"],
+        "last_handoff_branch" => snapshot["handoff_branch"],
+        "last_source_branch" => snapshot["source_branch"],
+        "updated_at" => Time.current.iso8601
+      }
+    )
   end
 end

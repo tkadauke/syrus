@@ -371,15 +371,16 @@ export function ReviewableDiff({
     setHighlightedToken((current) => (current === token ? null : token))
   }
 
+  function clearHighlightOnDiffBackgroundClick(event: MouseEvent<HTMLDivElement>) {
+    if (!highlightedToken) return
+    if (event.target instanceof Element && event.target.closest("[data-diff-highlight-token]")) return
+
+    setHighlightedToken(null)
+  }
+
   return (
     <div className="relative" data-testid="agent-diff-viewer" ref={containerRef}>
-      {wordHighlighting && highlightedToken ? (
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-1.5 font-sans text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
-          <span>Highlighting <code className="font-mono">{highlightedToken}</code></span>
-          <button className="font-medium underline hover:no-underline" onClick={() => setHighlightedToken(null)} type="button">Clear highlight</button>
-        </div>
-      ) : null}
-      <div className={containerClass} data-rendered-file-count={virtualItems.length} data-total-file-count={visibleFiles.length} ref={scrollContainerRef}>
+      <div className={containerClass} data-rendered-file-count={virtualItems.length} data-total-file-count={visibleFiles.length} onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
         <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
           {virtualItems.map((virtualItem) => {
             const file = visibleFiles[virtualItem.index]
@@ -1257,6 +1258,7 @@ function DiffCode({
             {tokenizeCode(shikiToken.content).map((word, wordIndex) => word.highlightable ? (
               <span
                 className={`cursor-pointer rounded-sm ${highlightedToken === word.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+                data-diff-highlight-token
                 key={wordIndex}
                 onClick={(event) => {
                   if (onMobileTokenTap?.(event)) return
@@ -1279,6 +1281,7 @@ function DiffCode({
       {wordTokens.map((token, index) => token.highlightable ? (
         <span
           className={`cursor-pointer rounded-sm ${highlightedToken === token.text ? "bg-amber-200 text-amber-950 dark:bg-amber-500/50 dark:text-amber-50" : "hover:bg-amber-100 dark:hover:bg-amber-500/20"}`}
+          data-diff-highlight-token
           key={index}
           onClick={(event) => {
             if (onMobileTokenTap?.(event)) return

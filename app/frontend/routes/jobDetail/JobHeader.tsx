@@ -122,13 +122,13 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
         ))}
         {overflowActions.length > 0 ? <HeaderActionsMenu actions={overflowActions} command={command} onActionClick={handleActionClick} onRetryFeedback={(input) => { setRetryFeedbackInput(input); setRetryFeedbackOpen(true) }} /> : null}
       </div>
-      {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="a" onTrigger={triggerApproveShortcut} /> : null}
-      {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
-      {retryAction ? <JobShortcut description={retryAction.label} group={shortcutGroup} keys="r" onTrigger={() => command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })} /> : null}
-      {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
-      {stopLandingAction ? <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="s" onTrigger={() => command.mutate(stopLandingAction.input)} /> : null}
-      {reopenAction ? <JobShortcut description={reopenAction.label} group={shortcutGroup} keys="o" onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })} /> : null}
-      {pinAction ? <JobShortcut description={pinAction.label} group={shortcutGroup} keys="p" onTrigger={() => command.mutate(pinAction.input)} /> : null}
+      {approveAction ? <JobShortcut description={approveAction.label} group={shortcutGroup} keys="alt+a" onTrigger={triggerApproveShortcut} /> : null}
+      {unapproveAction ? <JobShortcut description={unapproveAction.label} group={shortcutGroup} keys="alt+u" onTrigger={() => command.mutate(unapproveAction.input)} /> : null}
+      {retryAction ? <JobShortcut description={retryAction.label} group={shortcutGroup} keys="alt+r" onTrigger={() => command.mutate({ ...retryAction.input, confirm: t("confirm_retry_shortcut") })} /> : null}
+      {cancelAction ? <JobShortcut description={cancelAction.label} group={shortcutGroup} keys="alt+x" onTrigger={() => command.mutate(cancelAction.input)} /> : null}
+      {stopLandingAction ? <JobShortcut description={stopLandingAction.label} group={shortcutGroup} keys="alt+s" onTrigger={() => command.mutate(stopLandingAction.input)} /> : null}
+      {reopenAction ? <JobShortcut description={reopenAction.label} group={shortcutGroup} keys="alt+o" onTrigger={() => command.mutate({ ...reopenAction.input, confirm: t("confirm_reopen_shortcut") })} /> : null}
+      {pinAction ? <JobShortcut description={pinAction.label} group={shortcutGroup} keys="alt+p" onTrigger={() => command.mutate(pinAction.input)} /> : null}
       {retryFeedbackOpen ? (
         <RetryFeedbackDialog
           command={command}

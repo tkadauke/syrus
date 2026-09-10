@@ -73,9 +73,41 @@ RSpec.describe CodingHandoffCapture, :ci_only do
       "source_branch" => "main",
       "handoff_branch" => "syrus/chat-#{chat_session.id}-handoff-123",
       "head_sha" => head_sha,
+      "base_sha" => git!(@remote, "rev-parse", "refs/heads/main").strip,
+      "base_ref" => nil,
+      "base_label" => "main",
       "default_branch" => "main",
       "changed_files" => [ "app/models/widget.rb" ],
       "chat_session_id" => chat_session.id
+    )
+  end
+
+  it "captures only commits after an explicit stack base" do
+    write_file(@checkout, "app/models/widget.rb", "class Widget\nend\n")
+    git!(@checkout, "add", "app/models/widget.rb")
+    git!(@checkout, "commit", "-m", "Add widget")
+    first_head = git!(@checkout, "rev-parse", "HEAD").strip
+
+    write_file(@checkout, "app/models/gadget.rb", "class Gadget\nend\n")
+    git!(@checkout, "add", "app/models/gadget.rb")
+    git!(@checkout, "commit", "-m", "Add gadget")
+    second_head = git!(@checkout, "rev-parse", "HEAD").strip
+
+    snapshot = described_class.capture!(
+      chat_session: chat_session,
+      repository: repository,
+      user: user,
+      source_branch: "main",
+      handoff_branch: "syrus/chat-#{chat_session.id}-handoff-124",
+      base_ref: first_head
+    )
+
+    expect(snapshot).to include(
+      "head_sha" => second_head,
+      "base_sha" => first_head,
+      "base_ref" => first_head,
+      "base_label" => first_head,
+      "changed_files" => [ "app/models/gadget.rb" ]
     )
   end
 
@@ -105,5 +137,28 @@ RSpec.describe CodingHandoffCapture, :ci_only do
         handoff_branch: "syrus/chat-#{chat_session.id}-handoff-123"
       )
     }.to raise_error(described_class::CaptureError, /expected "different-branch"/)
+  end
+
+  it "refuses an explicit stack base that is not an ancestor of HEAD" do
+    write_file(@checkout, "app/models/widget.rb", "class Widget\nend\n")
+    git!(@checkout, "add", "app/models/widget.rb")
+    git!(@checkout, "commit", "-m", "Add widget")
+    first_head = git!(@checkout, "rev-parse", "HEAD").strip
+
+    git!(@checkout, "reset", "--hard", "origin/main")
+    write_file(@checkout, "app/models/gadget.rb", "class Gadget\nend\n")
+    git!(@checkout, "add", "app/models/gadget.rb")
+    git!(@checkout, "commit", "-m", "Add gadget")
+
+    expect {
+      described_class.capture!(
+        chat_session: chat_session,
+        repository: repository,
+        user: user,
+        source_branch: "main",
+        handoff_branch: "syrus/chat-#{chat_session.id}-handoff-124",
+        base_ref: first_head
+      )
+    }.to raise_error(described_class::CaptureError, /not based on previous handoff/)
   end
 end

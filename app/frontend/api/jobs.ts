@@ -1233,14 +1233,28 @@ export type AgentConversationEdge = {
   to_id: string
 }
 
+export type AgentConversationWorkflow = {
+  id: number
+  slug: string
+  trigger_kind: string
+  trigger_label: string
+  state: string
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
 export type AgentConversationGraph = {
   job_id: number
+  selected_workflow_id: number | null
+  workflows: AgentConversationWorkflow[]
   nodes: AgentConversationNode[]
   edges: AgentConversationEdge[]
 }
 
-export function fetchJobAgentConversation(id: string | number) {
-  return getJson<AgentConversationGraph>(`/api/v1/app/jobs/${id}/agent_conversation`)
+export function fetchJobAgentConversation(id: string | number, workflowId?: string | number | null) {
+  const params = workflowId ? `?workflow_id=${encodeURIComponent(String(workflowId))}` : ""
+  return getJson<AgentConversationGraph>(`/api/v1/app/jobs/${id}/agent_conversation${params}`)
 }
 
 // Full current file text at a given ref, for on-demand diff-context expansion

@@ -850,18 +850,6 @@ describe("word-occurrence highlighting", () => {
     occurrences.forEach((el) => expect(el).not.toHaveClass("bg-amber-200"))
   })
 
-  it("clears the highlight from the explicit clear affordance", () => {
-    render(<ReviewableDiff files={highlightFiles} mode="continuous" showFileHeaders />)
-
-    fireEvent.click(screen.getAllByText("shared_token")[0])
-    expect(screen.getByText("Clear highlight")).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText("Clear highlight"))
-
-    expect(screen.queryByText("Clear highlight")).not.toBeInTheDocument()
-    screen.getAllByText("shared_token").forEach((el) => expect(el).not.toHaveClass("bg-amber-200"))
-  })
-
   it("never turns punctuation into a clickable highlight target", () => {
     const punctFiles = [{
       additions: 1,
@@ -873,6 +861,24 @@ describe("word-occurrence highlighting", () => {
 
     expect(screen.getByText("(")).not.toHaveClass("cursor-pointer")
     expect(screen.getByText(")")).not.toHaveClass("cursor-pointer")
+  })
+
+  it("does not render a highlight note and clears when clicking non-identifier diff content", () => {
+    const punctFiles = [{
+      additions: 1,
+      deletions: 1,
+      patch: ["diff --git a/a.rb b/a.rb", "--- a/a.rb", "+++ b/a.rb", "@@ -1,1 +1,1 @@", "-old", "+shared_token();"].join("\n"),
+      path: "a.rb"
+    }]
+    render(<ReviewableDiff files={punctFiles} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getByText("shared_token"))
+    expect(screen.queryByText(/Highlighting/)).not.toBeInTheDocument()
+    expect(screen.getByText("shared_token")).toHaveClass("bg-amber-200")
+
+    fireEvent.click(screen.getByText("("))
+
+    expect(screen.getByText("shared_token")).not.toHaveClass("bg-amber-200")
   })
 })
 

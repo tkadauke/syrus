@@ -118,6 +118,32 @@ RSpec.describe RuntimeTerminal::Provider do
     ensure
       relay&.stop
     end
+
+    it "reconnects when the cached relay socket closes and the session has a new relay address" do
+      first_relay = RuntimeTerminalFakeRelay.new(replay: "before restart\n")
+      second_relay = nil
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        workflow: nil,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        relay_address: first_relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+
+      expect(provider.inspect(runtime_session.id)).to include(scrollback: "before restart\n")
+
+      first_relay.stop
+      second_relay = RuntimeTerminalFakeRelay.new(replay: "after restart\n")
+      terminal_session.update!(relay_address: second_relay.address)
+
+      expect(provider.inspect(runtime_session.id)).to include(scrollback: "after restart\n")
+      expect(second_relay.auth_payload).to eq("token" => terminal_session.auth_token)
+    ensure
+      first_relay&.stop
+      second_relay&.stop
+    end
   end
 
   describe "#input" do

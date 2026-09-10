@@ -290,10 +290,10 @@ class ChatWorkspace
     new(chat_session).reclaim_coding_checkout!(repository)
   end
 
-  # After accepted submit_coding_changes captures HEAD to an immutable remote
-  # handoff branch, reset the chat checkout for the next unrelated Coding Mode
-  # task. This deliberately discards the local copy of the just-handoff commits:
-  # the handoff branch is now the reproducible artifact.
+  # Explicitly reset the chat checkout for the next unrelated Coding Mode task.
+  # Accepted submit_coding_changes no longer calls this automatically; it is the
+  # destructive/fresh-main escape hatch operators can request when they want the
+  # next handoff to start a new stack.
   def self.reset_after_coding_handoff!(chat_session, repository)
     new(chat_session).reset_after_coding_handoff!(repository)
   end
@@ -464,6 +464,7 @@ class ChatWorkspace
       coding_checkout_branch: default_branch,
       coding_checkout_uncommitted: false
     )
+    mark_coding_handoff_stack_fresh!(repository)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     delete_wip_tag!(repository, path)
     enqueue_prepare!(repository)
@@ -520,6 +521,18 @@ class ChatWorkspace
       before: before,
       after: after
     }
+  end
+
+  def mark_coding_handoff_stack_fresh!(repository)
+    @chat_session.set_artifact!(
+      "coding_handoff_stack",
+      {
+        "repository_id" => repository.id,
+        "lineage" => "fresh_main",
+        "default_branch" => repository.default_branch,
+        "updated_at" => Time.current.iso8601
+      }
+    )
   end
 
   # Sets up a writable coding checkout on an existing Job branch.

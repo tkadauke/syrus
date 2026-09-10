@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { StatusPill } from "../../components/StatusPill"
 import { CloseIcon } from "../../components/CloseIcon"
-import type { AgentConversationNode } from "../../api/jobs"
+import { GearIcon } from "../../components/GearIcon"
+import { Select } from "../../components/Select"
+import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
+import { workflowSlug } from "../../lib/slugs"
 import { PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import {
   avatarColorClass,
@@ -27,44 +31,95 @@ import {
 
 export function AgentConversationTab({ jobId, prUrl }: { jobId: number; prUrl: string | null }) {
   const { t } = useT("jobs")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedWorkflowId = new URLSearchParams(location.search).get("workflow_id")
   const [transcriptNodeId, setTranscriptNodeId] = useState<string | null>(null)
   const conversation = useQuery({
-    queryKey: ["jobs", String(jobId), "agent_conversation"],
-    queryFn: () => fetchJobAgentConversation(jobId)
+    queryKey: ["jobs", String(jobId), "agent_conversation", selectedWorkflowId || ""],
+    queryFn: () => fetchJobAgentConversation(jobId, selectedWorkflowId)
   })
+
+  useEffect(() => {
+    setTranscriptNodeId(null)
+  }, [selectedWorkflowId])
+
+  function selectWorkflow(workflowId: string) {
+    const search = new URLSearchParams(location.search)
+    if (workflowId) search.set("workflow_id", workflowId)
+    else search.delete("workflow_id")
+    const next = search.toString()
+    navigate(`${location.pathname}${next ? `?${next}` : ""}${location.hash}`)
+  }
 
   if (conversation.isPending) return <PanelMessage>{t("conversation_loading")}</PanelMessage>
   if (conversation.isError) return <PanelMessage tone="error">{errorMessage(conversation.error, t("conversation_load_error"))}</PanelMessage>
-  if (conversation.data.nodes.length === 0) return <PanelMessage>{t("conversation_empty")}</PanelMessage>
 
-  const rows = buildConversationRows(conversation.data.nodes, conversation.data.edges)
-  const transcriptNode = conversation.data.nodes.find((node) => node.id === transcriptNodeId) ?? null
+  const nodes = conversation.data.nodes || []
+  const edges = conversation.data.edges || []
+  const workflows = conversation.data.workflows || []
+  const selectedConversationWorkflowId = conversation.data.selected_workflow_id ?? null
+  const rows = buildConversationRows(nodes, edges)
+  const transcriptNode = nodes.find((node) => node.id === transcriptNodeId) ?? null
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 overflow-x-auto">
-      <ConversationLegend />
-      <ol className="space-y-0">
-        {rows.map((row, index) => (
-          <li key={row.map((node) => node.id).join(",")}>
-            {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
-            <div className="flex min-w-0 flex-wrap items-stretch gap-3">
-              {row.map((node) => (
-                <NodeCard
-                  jobId={jobId}
-                  key={node.id}
-                  node={node}
-                  onOpenTranscript={setTranscriptNodeId}
-                  prUrl={prUrl}
-                  transcriptOpen={node.id === transcriptNodeId}
-                />
-              ))}
-            </div>
-          </li>
-        ))}
-      </ol>
+      <WorkflowSelector workflows={workflows} selectedWorkflowId={selectedConversationWorkflowId} onSelect={selectWorkflow} />
+      {nodes.length === 0 ? (
+        <PanelMessage>{t("conversation_empty")}</PanelMessage>
+      ) : (
+        <>
+          <ConversationLegend />
+          <ol className="space-y-0">
+            {rows.map((row, index) => (
+              <li key={row.map((node) => node.id).join(",")}>
+                {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
+                <div className="flex min-w-0 flex-wrap items-stretch gap-3">
+                  {row.map((node) => (
+                    <NodeCard
+                      jobId={jobId}
+                      key={node.id}
+                      node={node}
+                      onOpenTranscript={setTranscriptNodeId}
+                      prUrl={prUrl}
+                      transcriptOpen={node.id === transcriptNodeId}
+                    />
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
       <TranscriptSidebar jobId={jobId} node={transcriptNode} onClose={() => setTranscriptNodeId(null)} />
     </div>
   )
+}
+
+function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflows: AgentConversationWorkflow[]; selectedWorkflowId: number | null; onSelect: (workflowId: string) => void }) {
+  const { t } = useT("jobs")
+
+  if (workflows.length <= 1) return null
+
+  return (
+    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+      <span className="mb-1 block">{t("conversation_select_workflow")}</span>
+      <Select
+        onChange={(event) => onSelect(event.target.value)}
+        value={selectedWorkflowId ? String(selectedWorkflowId) : ""}
+      >
+        {workflows.map((workflow) => (
+          <option key={workflow.id} value={workflow.id}>
+            {workflowOptionLabel(workflow)}
+          </option>
+        ))}
+      </Select>
+    </label>
+  )
+}
+
+function workflowOptionLabel(workflow: AgentConversationWorkflow) {
+  return `${workflow.slug || workflowSlug(workflow.id)} - ${workflow.trigger_label} - ${workflow.state}`
 }
 
 function ConversationLegend() {
@@ -237,14 +292,5 @@ function ExternalTriggerBanner({ node, prUrl }: { node: AgentConversationNode; p
       </div>
       {content ? <p className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-700 dark:text-gray-300">{content}</p> : null}
     </div>
-  )
-}
-
-function GearIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" viewBox="0 0 24 24">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V19.4a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H4.6a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H10.5a1.65 1.65 0 0 0 1-1.51V4.6a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V10.5a1.65 1.65 0 0 0 1.51 1H19.4a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
   )
 }
