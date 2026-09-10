@@ -1218,6 +1218,45 @@ RSpec.describe "Mcp::Tools admin tools" do
     )
   end
 
+  it "lists Runs without a COALESCE effective timestamp scan" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    run.update_columns(
+      state: "succeeded",
+      started_at: 3.minutes.ago,
+      finished_at: 1.minute.ago,
+      updated_at: 1.minute.ago
+    )
+
+    queries = capture_sql do
+      response = call_tool(
+        admin_session,
+        "admin_list_runs",
+        { since: 2.minutes.ago.iso8601, limit: 5 }
+      )
+      expect(payload_for(response).fetch(:runs).map { |row| row.fetch(:id) }).to include(run.id)
+    end
+
+    run_queries = queries.select { |sql| sql.squish.downcase.include?("from \"runs\"") }
+    expect(run_queries.join("\n")).not_to match(/coalesce/i)
+    expect(run_queries.join("\n")).to match(/order by "?runs"?\."?effective_at"? desc/i)
+  end
+
+  it "keeps since filtering on finished, started, or created time even when updated_at is stale" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    run.update_columns(
+      state: "cancelled",
+      started_at: 10.minutes.ago,
+      finished_at: 1.minute.ago,
+      updated_at: 1.day.ago
+    )
+
+    response = call_tool(admin_session, "admin_list_runs", { since: 2.minutes.ago.iso8601, limit: 5 })
+
+    expect(payload_for(response).fetch(:runs).map { |row| row.fetch(:id) }).to include(run.id)
+  end
+
   it "returns users with account flags and Job counts" do
     Factories.job(user: admin, repository: repository)
     user.update!(scheduling_paused: true)
