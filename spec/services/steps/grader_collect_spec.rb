@@ -48,6 +48,12 @@ RSpec.describe Steps::GraderCollect do
           "source_sha" => "abc123",
           "tree_sha" => "tree456"
         },
+        "target_fingerprints" => {
+          "input_fingerprint" => "input-fp",
+          "command_fingerprint" => "command-fp",
+          "environment_fingerprint" => "env-fp",
+          "metadata" => { "source_file_count" => 2 }
+        },
         "duration_s" => 12.3,
         "log_path" => "logs/tests.log",
         "log_bytes" => 1234
@@ -91,14 +97,14 @@ RSpec.describe Steps::GraderCollect do
       run: per_grader.run,
       project_id: "cli",
       commit_sha: "abc123",
-      input_fingerprint: "tree456",
+      input_fingerprint: "input-fp",
+      command_fingerprint: "command-fp",
+      environment_fingerprint: "env-fp",
       status: "passed",
       duration_s: 12.3,
       log_path: "logs/tests.log",
       log_bytes: 1234
     )
-    expect(target_health.command_fingerprint).to be_present
-    expect(target_health.environment_fingerprint).to be_present
     expect(target_health.artifacts).to include("log_path" => "logs/tests.log", "log_bytes" => 1234)
     expect(workflow.reload.artifact(TargetHealthRecorder::WORKFLOW_ARTIFACT_KEY)).to include(
       include(
