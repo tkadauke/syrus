@@ -84,19 +84,19 @@ describe("commits_behind_base column rendering", () => {
   it("renders an amber badge for a small number of commits behind (10-19)", () => {
     renderTable([ jobItem(2, 10) ])
     const badge = screen.getByLabelText("10 commits behind base")
-    expect(badge.className).toContain("amber")
+    expect(badge.className).toContain("bg-warning-surface")
   })
 
   it("renders a red badge for a moderate number of commits behind (20+)", () => {
     renderTable([ jobItem(3, 25) ])
     const badge = screen.getByLabelText("25 commits behind base")
-    expect(badge.className).toContain("red")
+    expect(badge.className).toContain("bg-danger-surface")
   })
 
   it("renders a red badge for many commits behind (50+)", () => {
     renderTable([ jobItem(4, 75) ])
     const badge = screen.getByLabelText("75 commits behind base")
-    expect(badge.className).toContain("red")
+    expect(badge.className).toContain("bg-danger-surface")
   })
 
   it("renders nothing when commits_behind_base is null", () => {

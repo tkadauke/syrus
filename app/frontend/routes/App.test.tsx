@@ -3142,7 +3142,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
     expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(4)
     for (const label of screen.getAllByText("Retryable failure")) {
-      expect(label.closest("[data-status-pill='true']")).toHaveClass("rounded-full", "ring-1")
+      expect(label.closest("[data-status-pill='true']")).toHaveClass("rounded-[var(--radius-pill)]", "ring-1")
     }
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
@@ -8244,7 +8244,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "New direct job" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "New direct job" })).toHaveClass("dark:text-gray-100")
+    expect(screen.getByRole("heading", { name: "New direct job" })).toHaveClass("text-text-primary")
     expect(await screen.findByDisplayValue("acme/widgets")).toBeInTheDocument()
     expect(screen.getByText("Target").closest("section")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
     expect(screen.getByLabelText("Create More")).toBeChecked()
@@ -8915,7 +8915,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Edit Epic" })).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { name: "Edit Epic" })).toHaveClass("dark:text-gray-100")
+    expect(await screen.findByRole("heading", { name: "Edit Epic" })).toHaveClass("text-text-primary")
     expect(screen.getByLabelText("Title")).toHaveClass("bg-surface", "text-text-primary", "border-border")
     expect(await screen.findByRole("link", { name: "Back to Epic" })).toHaveAttribute("href", "/app-shell/epics/7")
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/epics/7")
@@ -8956,7 +8956,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Epic" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: /EPIC-7/ })).toBeInTheDocument()
     expect(screen.getByText("Raise the forum", { selector: "h1,h2,h3" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: /EPIC-7/ })).toHaveClass("dark:text-gray-100")
+    expect(screen.getByRole("heading", { name: /EPIC-7/ })).toHaveClass("text-text-primary")
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).every((el) => el.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
@@ -9304,7 +9304,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Job" })).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { level: 1, name: /Repair aqueduct/ })).toHaveClass("dark:text-gray-100")
+    expect(await screen.findByRole("heading", { level: 1, name: /Repair aqueduct/ })).toHaveClass("text-text-primary")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
     expect(screen.getByRole("link", { name: "#12" })).toHaveAttribute("target", "_blank")
@@ -16364,7 +16364,7 @@ function objectOverrides(value: unknown): Record<string, unknown> {
 function expectRunningPill(label: HTMLElement) {
   const pill = label.closest("[data-status-pill='true']")
 
-  expect(pill).toHaveClass("bg-info/10", "text-info")
+  expect(pill).toHaveClass("bg-info-surface", "text-info-text")
   expect(pill?.querySelector("[data-running-spinner='true']")).toHaveClass("animate-spin")
 }
 

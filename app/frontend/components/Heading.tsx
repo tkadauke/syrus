@@ -15,8 +15,8 @@ import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react"
  * repo-wide rewrite in one pass.
  */
 
-const PAGE_HEADING_CLASS = "text-2xl font-semibold text-gray-900 dark:text-gray-100"
-const SECTION_HEADING_CLASS = "text-base font-semibold text-gray-900 dark:text-gray-100"
+const PAGE_HEADING_CLASS = "text-2xl font-semibold text-text-primary"
+const SECTION_HEADING_CLASS = "text-base font-semibold text-text-primary"
 
 type PageHeadingProps = { children: ReactNode; className?: string; mono?: boolean } & Omit<ComponentPropsWithoutRef<"h1">, "className" | "children">
 

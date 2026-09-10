@@ -25,7 +25,7 @@ describe("TestChannelBadge", () => {
     render(<TestChannelBadge />)
     const badge = screen.getByText("Test").closest("[data-status-pill]")
     expect(badge).not.toBeNull()
-    expect(badge?.className).toContain("amber")
+    expect(badge?.className).toContain("bg-warning-surface")
     expect(badge?.getAttribute("title")).toContain("test build")
   })
 })
