@@ -7,8 +7,18 @@ module AgentActivity
   class Filter
     include Filters::BaseFilter
 
-    def self.from_params(params, user: nil)
-      new(Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME]), user: user)
+    def self.from_params(params, smart_folder: nil, user: nil)
+      q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
+      folder_tree = smart_folder&.filter.presence
+
+      tree = [ folder_tree, q_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) }
+      tree ||= Filters::Ast.serialize(Filters::Ast::EMPTY)
+
+      new(tree, user: user)
+    end
+
+    def self.from_tree(tree, user: nil)
+      new(tree, user: user)
     end
 
     def self.schema

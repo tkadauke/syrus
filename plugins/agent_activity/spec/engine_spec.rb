@@ -32,12 +32,22 @@ RSpec.describe AgentActivity::Engine do
     expect(subject.chip_class("repository_id")).to eq(Filters::Chips::AgentActivity::RepositoryId)
   end
 
+  it "registers the agent session SmartFolder subject while enabled" do
+    definition = SmartFolder.registered_subjects.fetch("agent_session")
+
+    expect(definition.fetch(:label)).to eq("Agent Activity")
+    expect(definition.fetch(:builtins).map { |folder| folder.fetch(:name) }).to eq([ "All", "Running", "Failed" ])
+    expect(SmartFolder.path_for_subject("agent_session", smart_folder_id: 123)).to eq("/agent_activity?smart_folder_id=123")
+  end
+
   it "retires the filter subject when the plugin is disabled" do
     expect(Filters.subjects).to have_key(:agent_activity)
+    expect(SmartFolder.registered_subjects).to have_key("agent_session")
 
     PluginRecord.find_by!(name: "agent_activity").update!(enabled: false)
 
     expect(Filters.subjects).not_to have_key(:agent_activity)
+    expect(SmartFolder.registered_subjects).not_to have_key("agent_session")
   ensure
     PluginRecord.find_by!(name: "agent_activity").update!(enabled: true)
   end

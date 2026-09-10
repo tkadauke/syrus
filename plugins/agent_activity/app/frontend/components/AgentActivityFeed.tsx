@@ -1,13 +1,14 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { useState } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
+import { type ReactNode, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
+import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
+import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
-import { encodeFilterTree } from "@app/components/filterBar/helpers"
-import { Button } from "@app/components/Button"
+import { adminSmartFolderFilterLinkBuilder } from "@app/lib/adminSmartFolderLinks"
 import { TonePill } from "@app/components/StatusPill"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RunTranscriptLogs } from "@app/routes/jobDetail/components"
@@ -17,11 +18,6 @@ import {
   recordAgentActivityFilterUsage,
   type AgentActivitySession
 } from "../api/agentActivity"
-
-const QUICK_FILTERS: Record<string, Record<string, unknown>> = {
-  running_now: { and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] },
-  needs_work: { and: [ { field: "status", op: "is_one_of", value: [ "failed" ] } ] }
-}
 
 function stateTone(state: string): "blue" | "green" | "red" | "gray" {
   if (state === "running" || state === "queued") return "blue"
@@ -58,8 +54,8 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   const { t } = useT("agent_activity")
   usePageTitle(t(scope === "admin" ? "admin_heading" : "heading"))
   const location = useLocation()
-  const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
+  const queryClient = useQueryClient()
 
   const sessions = useQuery({
     queryKey: [ "agent_activity", scope, location.search ],
@@ -68,19 +64,46 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
     refetchInterval: 15_000
   })
 
-  function applyQuickFilter(key: keyof typeof QUICK_FILTERS | "all") {
-    if (key === "all") {
-      navigate(withRoutePrefix(location.pathname, prefix))
-      return
-    }
-    const q = encodeFilterTree(QUICK_FILTERS[key] as never)
-    navigate(withRoutePrefix(`${location.pathname}?q=${q}`, prefix))
-  }
-
   const runningCount = sessions.data?.running_count ?? 0
+  const activeUserFolderId = sessions.data?.smart_folders.find((folder) => folder.id === sessions.data?.active_smart_folder_id && folder.kind === "user_defined")?.id
+  const smartFolders = (sessions.data?.smart_folders ?? []).map((folder) => (
+    folder.i18n_key
+      ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) }
+      : folder
+  ))
+  const filterBar = (
+    <FilterBar
+      filter={sessions.data?.filter ?? null}
+      filterSchema={sessions.data?.filter_schema ?? []}
+      buildLink={scope === "admin" ? adminSmartFolderFilterLinkBuilder(activeUserFolderId) : undefined}
+      onFilterApplied={(tree) => {
+        void recordAgentActivityFilterUsage(scope, tree as Record<string, unknown>).catch(() => {})
+      }}
+      pathname={location.pathname}
+      search={location.search}
+      suggestionSearch={{ surface: scope === "admin" ? "agent_activity_admin" : "agent_activity", subject: "agent_activity" }}
+    />
+  )
+  const sessionList = (
+    <>
+      {sessions.isPending ? <p className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
+      {sessions.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(sessions.error, t("error_loading"))}</p> : null}
+      {sessions.data && sessions.data.sessions.length === 0 ? <p className="p-6 text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p> : null}
+
+      {sessions.data ? (
+        <ol className="space-y-2">
+          {sessions.data.sessions.map((session) => (
+            <SessionCard key={session.id} session={session} />
+          ))}
+        </ol>
+      ) : null}
+
+      {sessions.data ? <SessionsPagination payload={sessions.data} pathname={location.pathname} prefix={prefix} search={location.search} /> : null}
+    </>
+  )
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-5xl space-y-4 p-6">
+    <main aria-label={t("aria_page")} className="mx-auto max-w-6xl space-y-4 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("eyebrow")}</p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -95,43 +118,43 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t(scope === "admin" ? "admin_description" : "description")}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => applyQuickFilter("running_now")} size="sm" variant="secondary">
-          {t("quick_filter_running_now")}
-        </Button>
-        <Button onClick={() => applyQuickFilter("needs_work")} size="sm" variant="secondary">
-          {t("quick_filter_needs_work")}
-        </Button>
-        <Button onClick={() => applyQuickFilter("all")} size="sm" variant="secondary">
-          {t("quick_filter_all")}
-        </Button>
-      </div>
-
-      <FilterBar
-        filter={sessions.data?.filter ?? null}
-        filterSchema={sessions.data?.filter_schema ?? []}
-        onFilterApplied={(tree) => {
-          void recordAgentActivityFilterUsage(scope, tree as Record<string, unknown>).catch(() => {})
-        }}
-        pathname={location.pathname}
-        search={location.search}
-        suggestionSearch={{ surface: scope === "admin" ? "agent_activity_admin" : "agent_activity", subject: "agent_activity" }}
-      />
-
-      {sessions.isPending ? <p className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
-      {sessions.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(sessions.error, t("error_loading"))}</p> : null}
-      {sessions.data && sessions.data.sessions.length === 0 ? <p className="p-6 text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p> : null}
-
-      {sessions.data ? (
-        <ol className="space-y-2">
-          {sessions.data.sessions.map((session) => (
-            <SessionCard key={session.id} session={session} />
-          ))}
-        </ol>
-      ) : null}
-
-      {sessions.data ? <SessionsPagination payload={sessions.data} pathname={location.pathname} prefix={prefix} search={location.search} /> : null}
+      {scope === "admin" ? (
+        <AdminFiltersLayout
+          filterBar={filterBar}
+          smartFolders={
+            <AdminSmartFolderNav
+              activeFolderId={sessions.data?.active_smart_folder_id ?? null}
+              allLabel={t("smart_folder_all")}
+              allPath="/admin/agent_activity?smart_folder_id="
+              ariaLabel={t("smart_folders_aria")}
+              currentFilter={sessions.data?.filter ?? undefined}
+              folders={smartFolders}
+              heading={t("smart_folders_heading")}
+              onMutationSuccess={() => {
+                void queryClient.invalidateQueries({ queryKey: [ "agent_activity", scope ] })
+              }}
+              prefix={prefix}
+              queryKey={[ "agent_activity", scope ]}
+              rewriteRedirectTo={(path) => path.replace(/^\/agent_activity/, "/admin/agent_activity")}
+              subjectType="agent_session"
+            />
+          }
+        >
+          {sessionList}
+        </AdminFiltersLayout>
+      ) : (
+        <AgentActivityListLayout filterBar={filterBar}>{sessionList}</AgentActivityListLayout>
+      )}
     </main>
+  )
+}
+
+function AgentActivityListLayout({ children, filterBar }: { children: ReactNode; filterBar: ReactNode }) {
+  return (
+    <div className="space-y-3">
+      {filterBar}
+      {children}
+    </div>
   )
 }
 
