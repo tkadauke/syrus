@@ -361,6 +361,7 @@ export type ChatToolGroupCall = {
   progress_label: string
   raw_payload: unknown
   result_body: string
+  result_settled?: boolean
   // Best-effort JSON.parse of the tool result's complete, untruncated text
   // (see fullResultBodyUnbounded) -- `result_body` itself is a
   // display-bounded preview (fullResultBody/toolResultPreview) that can cut

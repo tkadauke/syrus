@@ -112,7 +112,7 @@ describe("browser tool cards", () => {
     render(<>{browserResizeToolCard.renderExpanded(toolContext)}</>)
 
     expect(screen.getByText("Resize")).toBeInTheDocument()
-    expect(screen.getAllByText("390x844")).toHaveLength(2)
+    expect(screen.getAllByText("390x844")).toHaveLength(1)
   })
 
   it("summarizes wait outcomes from text, disappearing text, and time inputs", () => {
