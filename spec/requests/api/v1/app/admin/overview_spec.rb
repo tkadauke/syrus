@@ -1,7 +1,12 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
-  before { Rails.cache.clear }
+  before(:all) { ensure_solid_queue_test_tables! }
+  after(:all) { drop_solid_queue_test_tables! }
+  before do
+    clear_solid_queue_test_tables!
+    Rails.cache.clear
+  end
 
   def cached_stuck_snapshot(items)
     Admin::StuckItemsCache::Snapshot.new(items: items, captured_at: Time.current)
@@ -65,10 +70,51 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "recurring"
     )
     expect(body["active_runs"]["total"]).to eq(1)
+    expect(body["recurring"]).to include("count" => 0)
+    expect(body["recurring"]).not_to have_key("overdue")
     expect(body).not_to have_key("resource_admission")
     expect(body).not_to have_key("chat_scoped_events")
     expect(body).not_to include("stuck", "stuck_pagination", "stuck_snapshot")
     expect(Admin::StuckItemsCache).not_to have_received(:read)
+  end
+
+  it "keeps the default overview query budget off recurring execution history" do
+    admin = Factories.user
+    task = SolidQueue::RecurringTask.create!(
+      key: "poll_repositories",
+      class_name: "PollAllRepositoriesJob",
+      schedule: "*/5 * * * *",
+      static: true,
+      created_at: Time.current,
+      updated_at: Time.current
+    )
+    recurring_job = SolidQueue::Job.create!(
+      class_name: "PollAllRepositoriesJob",
+      queue_name: "polling",
+      priority: 0,
+      arguments: { "arguments" => [] },
+      created_at: 20.minutes.ago,
+      updated_at: 20.minutes.ago,
+      finished_at: 19.minutes.ago
+    )
+    SolidQueue::RecurringExecution.create!(
+      task_key: task.key,
+      run_at: 20.minutes.ago,
+      job: recurring_job,
+      created_at: 20.minutes.ago
+    )
+    sign_in_as(admin)
+
+    metrics = capture_performance_budget { get api_v1_app_admin_overview_path }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("recurring")).to eq("count" => 1)
+    expect_performance_budget(
+      metrics,
+      max_sql: 32,
+      max_payload_bytes: 80.kilobytes,
+      forbidden_sql: [ /\bFROM "?solid_queue_recurring_executions"?/i ]
+    )
   end
 
   it "does not show stale false Codex model-list decode failures as provider usage circuits" do

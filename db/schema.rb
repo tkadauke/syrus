@@ -1696,9 +1696,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_223000) do
     t.index ["run_id", "tool_use_id"], name: "index_mcp_tool_usages_on_run_id_and_tool_use_id"
     t.index ["run_id"], name: "index_mcp_tool_usages_on_run_id"
     t.index ["server_name", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_server_tool_window"
+    t.index ["server_name", "created_at"], name: "idx_mcp_tool_usages_server_window"
     t.index ["surface", "created_at"], name: "index_mcp_tool_usages_on_surface_and_created_at"
     t.index ["surface", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_surface_tool_window"
     t.index ["surface", "sidecar_mode", "created_at"], name: "idx_mcp_tool_usages_surface_sidecar_mode_window"
+    t.index ["normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_tool_window"
     t.index ["user_id"], name: "index_mcp_tool_usages_on_user_id"
     t.index ["workflow_id"], name: "index_mcp_tool_usages_on_workflow_id"
   end
