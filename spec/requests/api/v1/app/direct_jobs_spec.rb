@@ -91,6 +91,31 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(body["accepted_file_content_types"]).to include("application/pdf")
   end
 
+  it "includes the target epic in the new-job form payload when epic_id is provided" do
+    sign_in_as(user)
+    epic = Factories.epic(repository: repository, user: user)
+
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: epic.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["selected_epic_id"]).to eq(epic.id.to_s)
+    expect(body["epic"]).to include("id" => epic.id, "display_number" => epic.slug, "title" => epic.title)
+  end
+
+  it "omits the epic from the new-job form payload when epic_id belongs to a different repository" do
+    sign_in_as(user)
+    other_repo = Factories.repository(user: user)
+    foreign_epic = Factories.epic(repository: other_repo, user: user)
+
+    get "/api/v1/app/jobs/new", params: { repository_id: repository.id, epic_id: foreign_epic.id }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["selected_epic_id"]).to be_nil
+    expect(body["epic"]).to be_nil
+  end
+
   it "creates a direct job, starts the workflow, and returns its redirect" do
     sign_in_as(user)
     RunJob.agent_runner = ->(**_) { raise "explicit direct job titles should not invoke the title agent" }

@@ -340,7 +340,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
-          {payload.epic.review_ready ? null : <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}`} prefix={prefix} />}
+          {payload.epic.review_ready ? null : <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`} prefix={prefix} />}
           <DependencyGraph graph={payload.graph} />
           <HistorySection versions={payload.versions || []} />
         </div>
