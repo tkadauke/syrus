@@ -83,7 +83,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
   def current_fingerprint
     GraderConclusionCache.fingerprint_for_plan(
-      RepoGradePlan.for(@ws_path),
+      LandingGraderPlan.effective(RepoGradePlan.for(@ws_path), trigger_kind: workflow.trigger_kind, iteration: run.iteration),
       target_graph: TargetGraph::Compiler.compile(@ws_path)
     )
   end

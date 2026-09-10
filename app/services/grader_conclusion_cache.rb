@@ -185,10 +185,14 @@ class GraderConclusionCache
         {
           "name" => grader.name.to_s,
           "command" => grader.command.to_s,
+          "phases" => Array(grader.phases).map(&:to_s).sort,
           "required" => !!grader.required,
           "timeout_minutes" => grader.timeout_minutes.to_i,
           "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort,
-          "deps" => Array(grader.deps).map(&:to_s).sort
+          "deps" => Array(grader.deps).map(&:to_s).sort,
+          "junit_output" => grader.junit_output.to_s,
+          "failures" => grader.failures.to_s,
+          "metadata" => normalize_hash(grader.metadata)
         }
       end,
       "target_graph" => target_graph_payload(target_graph)
@@ -204,9 +208,15 @@ class GraderConclusionCache
       {
         "label" => target.label.to_s,
         "kind" => target.kind,
+        "project_id" => target.project_id,
         "source_scope" => Array(target.source_scope).map(&:to_s).sort,
         "command" => target.command.to_s,
-        "dependencies" => Array(target.dependencies).map(&:to_s).sort
+        "dependencies" => Array(target.dependencies).map(&:to_s).sort,
+        "phases" => Array(target.phases).map(&:to_s).sort,
+        "required" => !!target.required,
+        "timeout_minutes" => target.timeout_minutes.to_i,
+        "owner_config_path" => target.owner_config_path.to_s,
+        "metadata" => normalize_hash(target.metadata)
       }
     end.sort_by { |entry| entry["label"] }
   end
@@ -251,7 +261,8 @@ class GraderConclusionCache
   private_class_method :project_id_for_target_label
 
   def self.input_fingerprint_for(commit_sha:, details:)
-    details.dig("source_snapshot", "fingerprint").presence ||
+    details.dig("target_fingerprints", "input_fingerprint").presence ||
+      details.dig("source_snapshot", "fingerprint").presence ||
       details.dig("source_snapshot", "tree_sha").presence ||
       details.dig("source_snapshot", "source_sha").presence ||
       commit_sha
@@ -259,19 +270,23 @@ class GraderConclusionCache
   private_class_method :input_fingerprint_for
 
   def self.command_fingerprint_for(details:, target_label:)
-    details["projected_target_fingerprint"].presence || digest(
-      "target_label" => target_label,
-      "name" => details["name"].to_s,
-      "command" => details["command"].to_s,
-      "required" => !!details["required"],
-      "timeout_minutes" => details["timeout_minutes"].to_i,
-      "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort,
-      "phase" => details["phase"].to_s
-    )
+    details.dig("target_fingerprints", "command_fingerprint").presence ||
+      details["projected_target_fingerprint"].presence ||
+      digest(
+        "target_label" => target_label,
+        "name" => details["name"].to_s,
+        "command" => details["command"].to_s,
+        "required" => !!details["required"],
+        "timeout_minutes" => details["timeout_minutes"].to_i,
+        "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort,
+        "phase" => details["phase"].to_s
+      )
   end
   private_class_method :command_fingerprint_for
 
   def self.environment_fingerprint_for(details:)
+    return details.dig("target_fingerprints", "environment_fingerprint") if details.dig("target_fingerprints", "environment_fingerprint").present?
+
     digest(
       "prepare_targets" => Array(details["prepare_targets"]).map { |entry| entry.to_h.sort.to_h },
       "prepare_commands" => Array(details["prepare_commands"]).map(&:to_s)
@@ -292,6 +307,20 @@ class GraderConclusionCache
     Digest::SHA256.hexdigest(JSON.generate(payload))
   end
   private_class_method :digest
+
+  def self.normalize_hash(value)
+    value.to_h.transform_keys(&:to_s).sort.to_h.transform_values do |entry|
+      case entry
+      when Hash
+        normalize_hash(entry)
+      when Array
+        entry.map { |item| item.is_a?(Hash) ? normalize_hash(item) : item }
+      else
+        entry
+      end
+    end
+  end
+  private_class_method :normalize_hash
 
   def self.metadata_for(workflow:, step:)
     {
