@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { StatusPill } from "../../components/StatusPill"
 import { CloseIcon } from "../../components/CloseIcon"
 import { GearIcon } from "../../components/GearIcon"
-import type { AgentConversationNode } from "../../api/jobs"
+import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
+import { workflowSlug } from "../../lib/slugs"
 import { PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import {
   avatarColorClass,
@@ -28,44 +30,96 @@ import {
 
 export function AgentConversationTab({ jobId, prUrl }: { jobId: number; prUrl: string | null }) {
   const { t } = useT("jobs")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedWorkflowId = new URLSearchParams(location.search).get("workflow_id")
   const [transcriptNodeId, setTranscriptNodeId] = useState<string | null>(null)
   const conversation = useQuery({
-    queryKey: ["jobs", String(jobId), "agent_conversation"],
-    queryFn: () => fetchJobAgentConversation(jobId)
+    queryKey: ["jobs", String(jobId), "agent_conversation", selectedWorkflowId || ""],
+    queryFn: () => fetchJobAgentConversation(jobId, selectedWorkflowId)
   })
+
+  useEffect(() => {
+    setTranscriptNodeId(null)
+  }, [selectedWorkflowId])
+
+  function selectWorkflow(workflowId: string) {
+    const search = new URLSearchParams(location.search)
+    if (workflowId) search.set("workflow_id", workflowId)
+    else search.delete("workflow_id")
+    const next = search.toString()
+    navigate(`${location.pathname}${next ? `?${next}` : ""}${location.hash}`)
+  }
 
   if (conversation.isPending) return <PanelMessage>{t("conversation_loading")}</PanelMessage>
   if (conversation.isError) return <PanelMessage tone="error">{errorMessage(conversation.error, t("conversation_load_error"))}</PanelMessage>
-  if (conversation.data.nodes.length === 0) return <PanelMessage>{t("conversation_empty")}</PanelMessage>
 
-  const rows = buildConversationRows(conversation.data.nodes, conversation.data.edges)
-  const transcriptNode = conversation.data.nodes.find((node) => node.id === transcriptNodeId) ?? null
+  const nodes = conversation.data.nodes || []
+  const edges = conversation.data.edges || []
+  const workflows = conversation.data.workflows || []
+  const selectedConversationWorkflowId = conversation.data.selected_workflow_id ?? null
+  const rows = buildConversationRows(nodes, edges)
+  const transcriptNode = nodes.find((node) => node.id === transcriptNodeId) ?? null
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 overflow-x-auto">
-      <ConversationLegend />
-      <ol className="space-y-0">
-        {rows.map((row, index) => (
-          <li key={row.map((node) => node.id).join(",")}>
-            {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
-            <div className="flex min-w-0 flex-wrap items-stretch gap-3">
-              {row.map((node) => (
-                <NodeCard
-                  jobId={jobId}
-                  key={node.id}
-                  node={node}
-                  onOpenTranscript={setTranscriptNodeId}
-                  prUrl={prUrl}
-                  transcriptOpen={node.id === transcriptNodeId}
-                />
-              ))}
-            </div>
-          </li>
-        ))}
-      </ol>
+      <WorkflowSelector workflows={workflows} selectedWorkflowId={selectedConversationWorkflowId} onSelect={selectWorkflow} />
+      {nodes.length === 0 ? (
+        <PanelMessage>{t("conversation_empty")}</PanelMessage>
+      ) : (
+        <>
+          <ConversationLegend />
+          <ol className="space-y-0">
+            {rows.map((row, index) => (
+              <li key={row.map((node) => node.id).join(",")}>
+                {index > 0 ? <ConnectorLabel text={connectorLabel(rows[index - 1], row)} /> : null}
+                <div className="flex min-w-0 flex-wrap items-stretch gap-3">
+                  {row.map((node) => (
+                    <NodeCard
+                      jobId={jobId}
+                      key={node.id}
+                      node={node}
+                      onOpenTranscript={setTranscriptNodeId}
+                      prUrl={prUrl}
+                      transcriptOpen={node.id === transcriptNodeId}
+                    />
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
       <TranscriptSidebar jobId={jobId} node={transcriptNode} onClose={() => setTranscriptNodeId(null)} />
     </div>
   )
+}
+
+function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflows: AgentConversationWorkflow[]; selectedWorkflowId: number | null; onSelect: (workflowId: string) => void }) {
+  const { t } = useT("jobs")
+
+  if (workflows.length <= 1) return null
+
+  return (
+    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+      <span className="mb-1 block">{t("conversation_select_workflow")}</span>
+      <select
+        className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        onChange={(event) => onSelect(event.target.value)}
+        value={selectedWorkflowId ? String(selectedWorkflowId) : ""}
+      >
+        {workflows.map((workflow) => (
+          <option key={workflow.id} value={workflow.id}>
+            {workflowOptionLabel(workflow)}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function workflowOptionLabel(workflow: AgentConversationWorkflow) {
+  return `${workflow.slug || workflowSlug(workflow.id)} - ${workflow.trigger_label} - ${workflow.state}`
 }
 
 function ConversationLegend() {
