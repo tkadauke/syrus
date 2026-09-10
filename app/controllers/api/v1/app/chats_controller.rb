@@ -305,6 +305,7 @@ module Api
             return
           end
           if !message_has_attachments? && (command_result = ChatGoalCommand.new(chat_session: chat_session, user: Current.user).call(text)).handled
+            enqueue_chat_title_for_goal(chat_session, command_result.goal)
             render json: chat_payload(chat_session.reload, message: command_result.message)
             return
           end
