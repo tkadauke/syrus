@@ -47,7 +47,7 @@ module Steps
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
-      selections = plan.graders.map { |g| [ g, target_graph.affected(target_label_for(g), changed_files: matching_files) ] }
+      selections = selections_for(plan.graders, matching_files)
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
 
@@ -96,7 +96,10 @@ module Steps
     private
 
     def changed_files
-      GitRunner.new.run("diff", "--name-only", "#{changed_files_base_ref}...HEAD", chdir: workspace.path.to_s)
+      base_ref = changed_files_base_ref
+      return [] if base_ref.blank?
+
+      GitRunner.new.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
     rescue GitRunner::GitError => e
       log("[grader_fanout] warning: could not determine changed files: #{e.message}")
@@ -104,9 +107,40 @@ module Steps
     end
 
     def changed_files_base_ref
+      return main_grader_changed_files_base_ref if workflow.trigger_kind == "main_grader"
       return workflow.artifact("predicted_base_sha").presence if workflow.work_definition.landing_validation_child?
 
       default_branch_ref
+    end
+
+    def main_grader_changed_files_base_ref
+      previous_sha = workflow.artifact("previous_main_sha").to_s.presence
+      if previous_sha
+        log("[grader_fanout] computing affected targets from previous main SHA #{previous_sha.first(7)}")
+        previous_sha
+      else
+        log("[grader_fanout] no previous main SHA recorded; baseline target health will run every configured grader")
+        nil
+      end
+    end
+
+    def selections_for(graders, matching_files)
+      return graders.map { |grader| [ grader, baseline_selection_for(grader) ] } if main_grader_baseline?
+
+      graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
+    end
+
+    def main_grader_baseline?
+      workflow.trigger_kind == "main_grader" && workflow.artifact("previous_main_sha").blank?
+    end
+
+    def baseline_selection_for(grader)
+      target = target_graph.target(target_label_for(grader))
+      TargetGraph::Selection.new(
+        target: target,
+        affected: true,
+        reason: "baseline main target health has no previous SHA"
+      )
     end
 
     # Explains every grader's selection/skip by name and target label -- the

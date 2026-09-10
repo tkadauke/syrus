@@ -268,6 +268,16 @@ RSpec.describe PollMainBranchHealthJob do
     }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
   end
 
+  it "passes the previous main SHA to target-health maintenance on main branch updates" do
+    repository.update!(last_health_checked_sha: "oldmain123", last_graded_sha: "oldergraded")
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha, previous_main_sha: "oldmain123")
+  end
+
   it "keeps broken grader_health while the main grader workflow is pending on a new SHA" do
     repository.update!(last_health_checked_sha: "oldsha", grader_health: "broken")
     stub_sha(sha)
