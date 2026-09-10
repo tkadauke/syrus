@@ -3,14 +3,14 @@
 The `syrus_dev` plugin (`plugins/syrus_dev/`) is tooling for developing Syrus
 *itself*, not a general admin plugin: performance diagnostics (slow
 requests/jobs/phases/browser traces/SQL fingerprints with revision-over-
-revision comparison), an operational-log search page, a SQL `EXPLAIN`
-helper, and workflow MCP tools that let Syrus-development agents read
-sanitized runtime diagnostics and log data about the very instance they're
-running on. It is a self-contained Rails engine plugin, installed but
-disabled by default (`default_enabled: false`, `disableable: true`,
-category `tooling`). Keep it disabled on ordinary customer/project
-installations — it exists to make Syrus better at building and debugging
-Syrus.
+revision comparison), an operational-log search page, a plugin-owned Design
+System gallery for DOC-27 component previews, a SQL `EXPLAIN` helper, and
+workflow MCP tools that let Syrus-development agents read sanitized runtime
+diagnostics and log data about the very instance they're running on. It is a
+self-contained Rails engine plugin, installed but disabled by default
+(`default_enabled: false`, `disableable: true`, category `tooling`). Keep it
+disabled on ordinary customer/project installations — it exists to make Syrus
+better at building and debugging Syrus.
 
 ## Configuration
 
@@ -35,8 +35,8 @@ events.
 
 ## Admin pages
 
-Both under group `observability`, present only when their underlying
-feature is on:
+The plugin contributes internal admin pages through the plugin admin-page
+registry:
 
 - **Admin → Performance** (`/admin/performance`) — renders
   `SyrusDev::PerformancePayload`: per-revision (or all-retained-revisions,
@@ -59,8 +59,15 @@ feature is on:
   the `read_syrus_logs` MCP tool below. This page is hidden entirely from
   `AdminPages.admin_pages` when `OperationalLogging.enabled_for_instance?`
   is false, rather than rendered empty.
+- **Admin → Design System** (`/admin/design_system`) — renders Syrus's live
+  component gallery from the real shared frontend primitives, including the
+  DOC-27 semantic page, section, notice, text, surface, toolbar, chip, and
+  layout helpers. This is the plugin-owned development/internal destination
+  for the gallery. The legacy `/design_system` path remains a hidden preview
+  alias so theming tools can keep opening `?theme_id=<id>` against the same
+  real components without requiring the normal admin navigation entry.
 
-Both are mirrored at `/api/v1/admin/performance`,
+The performance and operational-log APIs are mirrored at `/api/v1/admin/performance`,
 `/api/v1/admin/performance/explain`, and `/api/v1/admin/operational_logs`
 for the external Bearer-token admin API. Every action 404s with
 `{ "error": "syrus_dev_plugin_disabled" }` when the plugin itself is

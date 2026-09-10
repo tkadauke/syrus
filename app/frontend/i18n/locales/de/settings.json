@@ -245,6 +245,23 @@
       "page_example": "Beispiel-Seitenüberschrift",
       "section_example": "Beispiel-Abschnittsüberschrift",
       "subsection_example": "Beispiel-Unterabschnittsüberschrift"
+    },
+    "semantic": {
+      "heading": "Semantische Primitive",
+      "description": "Erste Bausteine für Seiten, Abschnitte, Hinweise, Flächen, Text, Toolbars, Chips und Layout.",
+      "badge": "Beta",
+      "pill": "Live-Vorschau",
+      "notice_title": "Hinweis",
+      "notice_body": "Theme-Vorschauen verwenden dieselben Primitive, die Operatoren in der App sehen.",
+      "toolbar_aria": "Aktionen semantischer Primitive",
+      "warning_badge": "Review nötig",
+      "neutral_badge": "Queued",
+      "surface_panel_label": "Panel-Fläche",
+      "surface_panel_body": "Standardfläche für Inhalte.",
+      "surface_inset_label": "Inset-Fläche",
+      "surface_inset_body": "Dezenter verschachtelter Kontext.",
+      "surface_success_label": "Erfolgsfläche",
+      "surface_success_body": "Positiver Feedback-Zustand."
     }
   },
   "personal_documents": {

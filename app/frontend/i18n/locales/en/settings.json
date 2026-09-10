@@ -245,6 +245,23 @@
       "page_example": "Example page heading",
       "section_example": "Example section heading",
       "subsection_example": "Example sub-section heading"
+    },
+    "semantic": {
+      "heading": "Semantic primitives",
+      "description": "First-slice building blocks for pages, sections, notices, surfaces, text, toolbars, chips, and layout.",
+      "badge": "Beta",
+      "pill": "Live preview",
+      "notice_title": "Notice",
+      "notice_body": "Theme previews use the same primitives operators see in the app.",
+      "toolbar_aria": "Semantic primitive actions",
+      "warning_badge": "Needs review",
+      "neutral_badge": "Queued",
+      "surface_panel_label": "Panel surface",
+      "surface_panel_body": "Default content surface.",
+      "surface_inset_label": "Inset surface",
+      "surface_inset_body": "Subtle nested context.",
+      "surface_success_label": "Success surface",
+      "surface_success_body": "Positive feedback state."
     }
   },
   "personal_documents": {
