@@ -9,6 +9,7 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { useTheme } from "../contexts/ThemeContext"
+import { useConfirm } from "../hooks/useConfirm"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -59,6 +60,7 @@ export function ThemesSettingsRoute() {
 function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const { colorTheme, previewColorTheme, setColorTheme } = useTheme()
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const themesQuery = useQuery({ queryKey: themesQueryKey, queryFn: fetchThemes })
   const allThemes = themesQuery.data?.themes ?? emptyThemes
   const builtInThemes = useMemo(() => allThemes.filter((theme) => theme.built_in), [allThemes])
@@ -169,6 +171,15 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     if (hexPattern.test(value)) previewColorTheme(nextDraft)
   }
 
+  async function requestDeleteTheme(theme: ThemeDraft) {
+    const confirmed = await confirm({
+      message: `Delete ${theme.name}?`,
+      confirmLabel: "Delete",
+      destructive: true
+    })
+    if (confirmed) deleteMutation.mutate(theme)
+  }
+
   function startDrag(index: number, event: DragEvent<HTMLElement>) {
     dragIndex.current = index
     event.dataTransfer.effectAllowed = "move"
@@ -203,6 +214,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
 
   return (
     <div className="space-y-6">
+      {confirmDialog}
       <section aria-label="Custom themes" className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <SectionHeading>Custom Themes</SectionHeading>
@@ -248,9 +260,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           contrastIssues={contrastIssues}
           deleting={deleteMutation.isPending}
           draft={draft}
-          onDelete={() => {
-            if (window.confirm(`Delete ${draft.name}?`)) deleteMutation.mutate(draft)
-          }}
+          onDelete={() => { void requestDeleteTheme(draft) }}
           onNameChange={updateDraftName}
           onSave={() => {
             if (!draftTokensValid(draft)) return
