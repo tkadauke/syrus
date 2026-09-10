@@ -277,7 +277,7 @@ RSpec.describe Steps::VisualReview do
         SyrusYml::Config.new(
           prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, agent_insight: nil,
           coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
-          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil,
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil, targets: [],
           visual_review: SyrusYml::VisualReviewConfig.new(
             enabled: true, rounds: 1,
             when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
