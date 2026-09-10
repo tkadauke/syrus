@@ -122,14 +122,15 @@ export function TerminalRoute() {
                 {workspaces.map((workspace) => (
                   <button
                     className="block w-full px-3 py-2 text-left text-sm text-gray-100 hover:bg-gray-800 disabled:opacity-50"
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || workspace.available === false}
                     key={`${workspace.kind}-${workspace.id ?? "scratch"}`}
                     onClick={() => createMutation.mutate(workspace)}
                     role="menuitem"
+                    title={workspace.available === false ? workspace.disabled_reason ?? undefined : undefined}
                     type="button"
                   >
                     <span className="block truncate font-medium">{workspace.label}</span>
-                    <span className="block truncate text-xs text-gray-400">{workspace.working_directory}</span>
+                    <span className="block truncate text-xs text-gray-400">{workspace.disabled_reason || workspace.working_directory}</span>
                   </button>
                 ))}
               </div>

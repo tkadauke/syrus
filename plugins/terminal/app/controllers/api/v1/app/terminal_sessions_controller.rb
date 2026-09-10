@@ -7,15 +7,20 @@ module Api
         end
 
         def create
+          availability = selected_workflow ? workflow_workspace_availability : nil
+          if availability && !availability.available?
+            return render_error("validation_failed", availability.reason, status: :unprocessable_content)
+          end
+
           session = ::Terminal::Session.create!(
             user: Current.user,
             workflow: selected_workflow,
             name: session_name,
-            working_directory: working_directory,
+            working_directory: working_directory(availability),
             auth_token: SecureRandom.hex(32),
             started_at: Time.current
           )
-          TerminalSessionJob.perform_later(session.id)
+          enqueue_terminal_session(session, availability)
 
           render json: { session: session_json(session) }, status: :created
         end
@@ -68,11 +73,14 @@ module Api
             .order(created_at: :desc)
             .limit(10)
             .map do |workflow|
+              availability = ::Terminal::WorkspaceAvailability.for(workflow)
               {
                 id: workflow.id,
                 label: "#{workflow.slug} - #{workflow.job.title}",
-                working_directory: WorkflowWorkspace.path_for(workflow).to_s,
-                kind: "workflow"
+                working_directory: availability.working_directory,
+                kind: "workflow",
+                available: availability.available?,
+                disabled_reason: availability.reason
               }
             end
 
@@ -88,9 +96,13 @@ module Api
           @selected_workflow = Current.user.workflows.find(workflow_id)
         end
 
-        def working_directory
+        def workflow_workspace_availability
+          @workflow_workspace_availability ||= ::Terminal::WorkspaceAvailability.for(selected_workflow)
+        end
+
+        def working_directory(availability = nil)
           if selected_workflow
-            WorkflowWorkspace.path_for(selected_workflow).to_s
+            (availability || workflow_workspace_availability).working_directory
           elsif terminal_session_params[:working_directory].present?
             terminal_session_params[:working_directory]
           else
@@ -106,6 +118,11 @@ module Api
           return params.permit(:workflow_id, :working_directory, :name) unless params[:terminal_session].is_a?(ActionController::Parameters)
 
           params.require(:terminal_session).permit(:workflow_id, :working_directory, :name)
+        end
+
+        def enqueue_terminal_session(session, availability)
+          queue = availability&.queue_name.presence || :chat
+          TerminalSessionJob.set(queue: queue).perform_later(session.id)
         end
       end
     end
