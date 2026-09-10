@@ -16,6 +16,7 @@ RSpec.describe Steps::BuilderFanout do
   let(:step) { Step.create!(workflow: workflow, kind: "builder_fanout", position: 1) }
   let(:run) { step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running") }
   let(:handler) { described_class.new(run) }
+  let(:changed_files) { [ "app/frontend/src/app.ts" ] }
 
   let(:success_result) do
     ProcessRunner::Result.new(
@@ -46,7 +47,7 @@ RSpec.describe Steps::BuilderFanout do
     git = instance_double(GitRunner)
     allow(GitRunner).to receive(:new).and_return(git)
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: @ws_path.to_s).and_return("abc123\n")
-    allow(git).to receive(:run).with("diff", "--name-only", "old123...HEAD", chdir: @ws_path.to_s).and_return("app/frontend/src/app.ts\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "old123...HEAD", chdir: @ws_path.to_s).and_return(changed_files.join("\n"))
   end
 
   def write_config(contents)
@@ -64,6 +65,16 @@ RSpec.describe Steps::BuilderFanout do
       args[:on_output_chunk].call("builder output\n")
       instance_double(ProcessRunner, run: result)
     end
+  end
+
+  def stub_runner_with_calls(result = success_result)
+    calls = []
+    allow(ProcessRunner).to receive(:new) do |**args|
+      calls << args
+      args[:on_output_chunk].call("builder output\n")
+      instance_double(ProcessRunner, run: result)
+    end
+    calls
   end
 
   def record_target_health(label, status: "passed")
@@ -156,6 +167,72 @@ RSpec.describe Steps::BuilderFanout do
     expect(workflow.reload.artifact(described_class::ARTIFACT_KEY)).to include(
       include("target_label" => "//:assets", "status" => "failed")
     )
+  end
+
+  context "with a nested builder target" do
+    let(:changed_files) { [ "packages/web/src/components/app.ts" ] }
+
+    it "runs the builder command from the owning project directory and records repo-relative artifacts" do
+      write_file("packages/web/src/components/app.ts", "console.log('hi')\n")
+      write_file("packages/web/dist/app.js", "compiled\n")
+      write_file("packages/web/.syrus.yml", <<~YAML)
+        targets:
+          - name: assets
+            kind: builder
+            run: npm run build
+            sources: ["src/**/*"]
+            hot: true
+            artifacts: ["dist/**/*"]
+      YAML
+      calls = stub_runner_with_calls
+
+      handler.call
+
+      expect(calls).to include(include(chdir: @ws_path.join("packages/web")))
+      record = TargetHealthRecord.where(repository: job.repository, target_label: "//packages/web:assets").sole
+      expect(record.artifacts).to include(
+        "declared_paths" => [ "dist/**/*" ],
+        "existing_paths" => [ include("path" => "packages/web/dist/app.js", "bytes" => 9) ]
+      )
+      expect(record.metadata).to include("workdir" => @ws_path.join("packages/web").to_s)
+    end
+  end
+
+  context "with prepare target dependencies" do
+    let(:changed_files) { [ "packages/web/src/components/app.ts" ] }
+
+    it "runs transitive prepare targets before the builder command" do
+      write_file("packages/web/src/components/app.ts", "console.log('hi')\n")
+      write_file("packages/web/.syrus.yml", <<~YAML)
+        targets:
+          - name: deps
+            kind: prepare
+            run: npm ci
+          - name: assets
+            kind: builder
+            run: npm run build
+            sources: ["src/**/*"]
+            hot: true
+            deps: [":deps"]
+      YAML
+      calls = stub_runner_with_calls
+
+      handler.call
+
+      expect(calls.map { |call| call[:display_command] }).to eq([ "npm ci", "npm run build" ])
+      expect(calls.map { |call| call[:chdir] }).to eq([
+        @ws_path.join("packages/web"),
+        @ws_path.join("packages/web")
+      ])
+      record = TargetHealthRecord.where(repository: job.repository, target_label: "//packages/web:assets").sole
+      expect(record.metadata["prepare_target_results"]).to include(
+        include(
+          "target_label" => "//packages/web:deps",
+          "status" => "ran",
+          "workdir" => @ws_path.join("packages/web").to_s
+        )
+      )
+    end
   end
 
   it "skips affected builders with reusable target health" do
