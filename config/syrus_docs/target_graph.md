@@ -247,29 +247,40 @@ timestamps, command results, and output tail. A failed command returns an MCP
 error response and leaves the failed audit entry in place; it does not change
 which prepare commands Syrus will run automatically on future workflows.
 
-### The `builder` kind is reserved, not compiled
+### Explicit `builder` targets
 
 `TargetGraph::Target::KINDS` already lists `builder` alongside
-`formatter`/`generator`/`grader`/`prepare` — DOC-20's Core Model names it as
-one of the eventual target kinds — but no `.syrus.yml` primitive compiles
-into it yet. There is no `build:` (or equivalent) legacy config section
-today, and none of the runtime pipelines this compiler mirrors
-(`RepoPrepPlan`, `Steps::Format`, `Steps::Generate`, `RepoGradePlan`) have a
-build-command concept to carry over. Constructing a `TargetGraph::Target`
-with `kind: "builder"` directly is supported by the model — the kind exists
-precisely so a later compiler change and this graph model don't need to land
-together — but `TargetGraph::Compiler` never produces one today.
+`formatter`/`generator`/`grader`/`prepare`. Repositories can declare builder
+targets through the explicit `targets:` list:
 
-Until a `build:` section exists, model an explicit build step as whichever
-existing primitive matches its role: a `grade:` entry if a failed build
-should fail the workflow like any other required check, or a `generated:`
-entry if the build produces checked-in output that `Steps::Generate` should
-keep in sync (see "Shared generated clients: targets, not projects" below).
-A future `build:` section, if one is added, should compile the same way
-`grade:`/`formatters:`/`generated:` already do: one `kind=builder` target per
-declared entry, under whichever project (root or nested) declared it, with
-the same directory-based `source_scope` defaulting described in
-"Affected-file scope defaults" below.
+```yaml
+targets:
+  - name: assets
+    kind: builder
+    run: npm run build
+    sources: ["app/frontend/**/*"]
+    cost: expensive
+    artifacts: ["dist/**/*"]
+```
+
+`TargetGraph::Compiler` compiles these like other executable explicit targets:
+they belong to the declaring project, use the same directory-based source
+scope rules, and can depend on other labels through `deps:`/`dependencies:`.
+Builder metadata controls opportunistic main-branch warming. A builder is
+eligible when it is explicitly opted in (`opportunistic_build: true` or
+`main_build: true`) or marked valuable by metadata such as `hot: true`,
+`critical: true`, `cost: expensive`, positive `downstream_dependents`,
+positive `recent_failures`, or `release_relevance: true`. Set
+`opportunistic_build: false` or `main_build: false` to disable warming for a
+builder even if other metadata would otherwise make it eligible.
+
+`Workflows::MainGrader` runs `builder_fanout` after `prepare` and before
+grader fanout. It selects only eligible builder targets affected by the main
+branch change, skips targets with reusable healthy target-health records, runs
+the remaining commands fail-soft, and records the result in
+`TargetHealthRecord`. Declared `artifacts:` paths are stored as references on
+the target-health row (`declared_paths` and any currently existing paths);
+workflow artifacts keep only target-health references.
 
 ## Explicit `project:`
 
