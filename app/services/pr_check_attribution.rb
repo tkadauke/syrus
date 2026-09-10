@@ -70,9 +70,9 @@ class PrCheckAttribution
     @base_failing_names ||= base_check ? normalize(base_check.ci_failed_checks) : []
   end
 
-  # Prefer the PR's own recorded base SHA; fall back to the repository's most
-  # recent settled CI poll, which is the best available statement of "what is
-  # red on main right now".
+  # Prefer the base SHA observed with the PR-check snapshot. `mergeability_*`
+  # is a separate cache with separate refresh timing, and using it here can
+  # compare today's failing checks with yesterday's base-health row.
   def base_check
     return @base_check if defined?(@base_check)
 
@@ -80,7 +80,7 @@ class PrCheckAttribution
   end
 
   def exact_base_check
-    sha = job.mergeability_base_sha.presence
+    sha = job.pr_checks_base_sha.presence || job.mergeability_base_sha.presence
     return nil if sha.blank?
 
     MainBranchHealthCheck.where(repository_id: job.repository_id, sha: sha)

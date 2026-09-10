@@ -1,0 +1,40 @@
+name: JOB-4622 stale PR check base
+repository:
+  owner: simulation
+  name: job-4622-stale-pr-check-base
+  auto_merge_enabled: true
+main_branch_health_checks:
+  - sha: stale-base-sha
+    checked_at: "2026-09-09 09:00:00"
+    ci_health: broken
+    grader_health: healthy
+    ci_failed_checks:
+      - name: rails-test
+  - sha: current-base-sha
+    checked_at: "2026-09-10 09:00:00"
+    ci_health: healthy
+    grader_health: healthy
+jobs:
+  job:
+    title: Add Tailwind CSS to the admin SPA and restyle existing screens
+    state: approved
+    approved_at: "2026-09-10 09:15:00"
+    pr_number: 71
+    branch_name: syrus/direct-4622
+    pr_checks_state: failing
+    pr_checks_sha: head-sha
+    pr_checks_base_sha: current-base-sha
+    pr_checks_failing_names:
+      - rails-test
+    mergeability_base_sha: stale-base-sha
+    mergeability_head_sha: head-sha
+expect:
+  jobs:
+    job:
+      - approved
+  queues:
+    active_runs: empty
+    active_work_units: empty
+    landing: present
+    landing_blocked_reasons:
+      job: pr_checks_failing

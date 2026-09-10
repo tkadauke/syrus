@@ -83,6 +83,21 @@ RSpec.describe PrCheckAttribution do
     expect(result.base_sha).to eq("some-other-main-sha")
   end
 
+  it "prefers the base SHA captured with PR checks over stale mergeability state" do
+    job.update!(
+      pr_checks_failing_names: [ "rspec" ],
+      pr_checks_base_sha: "current-base-sha",
+      mergeability_base_sha: "stale-base-sha"
+    )
+    record_base!(ci_health: "broken", failed: [ { "name" => "rspec" } ], sha: "stale-base-sha")
+    record_base!(ci_health: "healthy", failed: [], sha: "current-base-sha")
+
+    result = described_class.for(job)
+
+    expect(result).to be_own
+    expect(result.base_sha).to eq("current-base-sha")
+  end
+
   it "exposes the evidence both sides of the comparison rest on" do
     job.update!(pr_checks_failing_names: [ "rspec", "mine" ])
     record_base!(ci_health: "broken", failed: [ { "name" => "rspec" } ])

@@ -8,10 +8,11 @@ module WorkEngine
       World = Data.define(:name, :repository, :user, :jobs_by_key, :epics_by_key, :work_intents_by_key, :outcomes, :events, :expectations, :success_states, :wait_states, :reconciler, :runner)
       REPOSITORY_UPDATE_KEYS = %w[
         auto_merge_enabled main_branch_health_enabled main_branch_repair_enabled
-        main_branch_repair_blocks_work landing_paused
+        main_branch_repair_blocks_work landing_paused land_on_inherited_check_failure
       ].freeze
       JOB_UPDATE_KEYS = %w[
         state closure_reason pr_number branch_name pr_checks_state pr_checks_sha
+        pr_checks_base_sha pr_checks_failing_names
         commits_behind_base manual_paused approved_at approved_via landed_sha
         external_pr_number external_pr_author external_pr_fork mergeability_base_sha
         mergeability_head_sha github_mergeable github_mergeable_state
@@ -33,6 +34,7 @@ module WorkEngine
           user = create_user!(data.fetch("user", {}))
           configure_app_settings!(data.fetch("app_settings", {}))
           repository = create_repository!(user, data.fetch("repository", {}))
+          create_main_branch_health_checks!(repository, data.fetch("main_branch_health_checks", []))
           epics = create_epics!(user, repository, data.fetch("epics", {}))
           jobs = create_jobs!(user, repository, epics, data.fetch("jobs", {}))
           create_stack_parent_links!(jobs, data.fetch("jobs", {}))
@@ -98,6 +100,21 @@ module WorkEngine
             repository: repository,
             title: attrs.fetch("title", key.to_s.humanize),
             state: attrs.fetch("state", "in_progress")
+          )
+        end
+      end
+
+      def create_main_branch_health_checks!(repository, definitions)
+        Array(definitions).each_with_index do |attrs, index|
+          MainBranchHealthCheck.create!(
+            repository: repository,
+            sha: attrs.fetch("sha"),
+            checked_at: parse_optional_time(attrs["checked_at"]) || (Time.current - (definitions.length - index).minutes),
+            source: attrs.fetch("source", "ci_poll"),
+            ci_health: attrs.fetch("ci_health", "unknown"),
+            grader_health: attrs.fetch("grader_health", repository.grader_health),
+            ci_failed_checks: attrs["ci_failed_checks"],
+            grader_failed_names: attrs["grader_failed_names"]
           )
         end
       end

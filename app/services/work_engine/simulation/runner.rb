@@ -480,8 +480,16 @@ module WorkEngine
           when "active_runs" then matches_queue_state?(active_runs.empty?, expected)
           when "active_work_units" then matches_queue_state?(active_work_units.empty?, expected)
           when "landing" then matches_queue_state?(landing_queue.empty?, expected)
+          when "landing_blocked_reasons" then expected_landing_blocked_reasons_match?(expected)
           else raise ArgumentError, "unknown simulation queue expectation #{key.inspect}"
           end
+        end
+      end
+
+      def expected_landing_blocked_reasons_match?(expected)
+        entries = LandingQueueProcessor.entries(Job.where(id: job_ids)).index_by(&:job_id)
+        expected.to_h.all? do |id, reason|
+          entries[id.to_i]&.blocked_reason&.fetch(:key, nil).to_s == reason.to_s
         end
       end
 

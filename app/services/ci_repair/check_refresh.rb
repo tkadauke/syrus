@@ -49,6 +49,7 @@ module CiRepair
       state = state_for(detail)
       @job.update_columns(
         pr_checks_sha: head_sha,
+        pr_checks_base_sha: base_sha,
         pr_checks_state: state,
         pr_checks_checked_at: refreshed_at,
         pr_checks_failing_names: Job.failing_check_names_from(detail)

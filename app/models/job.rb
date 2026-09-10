@@ -184,10 +184,11 @@ class Job < ApplicationRecord
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
 
-  # Check-run names for the currently failing checks on `pr_checks_sha`, so the
-  # landing gate can tell a Job's own breakage from one inherited from its base
-  # (see PrCheckAttribution). Collectors hand us GitHub's richer check hashes;
-  # only the names are worth persisting.
+  # Check-run names for the currently failing checks on `pr_checks_sha`, plus
+  # the PR base SHA observed with those checks. The landing gate uses that pair
+  # to tell a Job's own breakage from one inherited from its base (see
+  # PrCheckAttribution). Collectors hand us GitHub's richer check hashes; only
+  # the names are worth persisting.
   def self.failing_check_names_from(detail)
     checks = Array(detail.is_a?(Hash) ? (detail[:failed_checks] || detail["failed_checks"]) : detail)
     checks.filter_map { |check|

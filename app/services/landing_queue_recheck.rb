@@ -94,6 +94,7 @@ class LandingQueueRecheck
     end
     @job.update_columns(
       pr_checks_sha: head_sha,
+      pr_checks_base_sha: MergeabilityRecorder.base_sha(pr).presence || @job.mergeability_base_sha.presence,
       pr_checks_state: state,
       pr_checks_checked_at: Time.current,
       pr_checks_failing_names: Job.failing_check_names_from(detail)

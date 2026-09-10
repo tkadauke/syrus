@@ -1228,6 +1228,7 @@ module App
       {
         state: state,
         sha: sha,
+        base_sha: @job.pr_checks_base_sha.to_s.presence,
         short_sha: sha&.first(7),
         checked_at: iso8601(@job.pr_checks_checked_at),
         checks_url: @job.pr_number.present? ? "#{pr_url(@job.pr_number)}/checks" : nil,

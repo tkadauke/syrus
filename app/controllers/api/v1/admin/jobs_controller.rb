@@ -207,6 +207,7 @@ module Api
             mergeability_base_sha: job.mergeability_base_sha,
             mergeability_base_ref: job.mergeability_base_ref,
             mergeability_checked_at: job.mergeability_checked_at,
+            pr_checks_base_sha: job.pr_checks_base_sha,
             local_mergeable: job.local_mergeable,
             local_mergeable_state: job.local_mergeable_state,
             local_mergeability_head_sha: job.local_mergeability_head_sha,
@@ -294,6 +295,7 @@ module Api
             landing_failure_reason: job.landing_failure_reason,
             pr_checks_state: job.pr_checks_state,
             pr_checks_sha: job.pr_checks_sha,
+            pr_checks_base_sha: job.pr_checks_base_sha,
             pr_checks_checked_at: job.pr_checks_checked_at,
             # Which checks are red and whether the base was already red on them,
             # so "is this Job at fault?" is answerable from the API alone rather

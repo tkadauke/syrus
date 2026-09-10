@@ -1449,7 +1449,12 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
     it "does not rewrite fresh unchanged PR check cache rows" do
       checked_at = 1.minute.ago
-      job.update_columns(pr_checks_sha: sha, pr_checks_state: "passing", pr_checks_checked_at: checked_at)
+      job.update_columns(
+        pr_checks_sha: sha,
+        pr_checks_base_sha: "base000000000000000000000000000000000000",
+        pr_checks_state: "passing",
+        pr_checks_checked_at: checked_at
+      )
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
       ])
@@ -1490,6 +1495,39 @@ RSpec.describe PollPullRequestJob, :ci_only do
       described_class.perform_now(job.id)
 
       expect(job.reload.pr_checks_sha).to eq(sha)
+    end
+
+    it "stores the PR base SHA with the check snapshot" do
+      base_sha = "basefeed00000000000000000000000000000000"
+      stub_pr(head_sha: sha, base_sha: base_sha)
+      stub_check_runs(sha, [
+        { name: "lint", status: "completed", conclusion: "success", html_url: "u", output: { summary: "clean" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_base_sha).to eq(base_sha)
+    end
+
+    it "refreshes a fresh unchanged check row when the PR base changed" do
+      old_base = "oldbase0000000000000000000000000000000000"
+      new_base = "newbase0000000000000000000000000000000000"
+      checked_at = 1.minute.ago
+      job.update_columns(
+        pr_checks_sha: sha,
+        pr_checks_base_sha: old_base,
+        pr_checks_state: "passing",
+        pr_checks_checked_at: checked_at
+      )
+      stub_pr(head_sha: sha, base_sha: new_base)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_base_sha).to eq(new_base)
+      expect(job.pr_checks_checked_at).to be > checked_at
     end
 
     it "clears a stale no-effective repair marker when the PR head advances" do
