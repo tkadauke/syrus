@@ -21,7 +21,29 @@ RSpec.describe "API: /api/v1/app/preview_panels", type: :request do
     expect(response).to have_http_status(:ok)
     body = JSON.parse(response.body)
     expect(body["app_file_base_path"]).to eq("/api/v1/app/preview_panels/#{panel.id}/files")
+    expect(body["app_visibility_path"]).to eq("/api/v1/app/preview_panels/#{panel.id}")
     expect(body["entry_viewer_kind"]).to eq("html")
+  end
+
+  it "updates visibility outside any chat" do
+    panel = panel_for(user)
+    sign_in_as(user)
+
+    patch "/api/v1/app/preview_panels/#{panel.id}", params: { visibility: "public" }
+
+    expect(response).to have_http_status(:ok)
+    expect(panel.reload.visibility).to eq("public")
+    expect(JSON.parse(response.body)["visibility"]).to eq("public")
+  end
+
+  it "rejects invalid visibility outside any chat" do
+    panel = panel_for(user)
+    sign_in_as(user)
+
+    patch "/api/v1/app/preview_panels/#{panel.id}", params: { visibility: "secret" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(panel.reload.visibility).to eq("private")
   end
 
   it "serves a file" do

@@ -53,6 +53,7 @@ module Api
             title: mockup.title,
             preview_panel_id: mockup.preview_panel_id,
             chat_session_id: mockup.chat_session_id,
+            chat_path: mockup.chat_session_id ? "/chats/#{mockup.chat_session_id}" : nil,
             entry_viewer_kind: version&.entry_viewer_kind || "html",
             file_count: version&.files&.size || 0,
             published_at: mockup.published_at&.iso8601,

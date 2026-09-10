@@ -1,4 +1,5 @@
-import { getJson } from "@app/api/client"
+import { getJson, patchJson } from "@app/api/client"
+import type { ChatPreviewPanelVisibility, PreviewPanelPayload } from "@app/api/chats"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type MockupSummary = {
@@ -7,6 +8,7 @@ export type MockupSummary = {
   title: string
   preview_panel_id: number
   chat_session_id: number | null
+  chat_path: string | null
   entry_viewer_kind: string
   file_count: number
   published_at: string | null
@@ -14,32 +16,11 @@ export type MockupSummary = {
   app_path: string
 }
 
-export type MockupPanelVersion = {
-  id: number
-  created_at: string
-  entry_path: string
-  entry_content_type: string
-  entry_viewer_kind: string
-}
-
 // The same panel shape the chat sidebar renders, pointed at the
 // chat-independent /api/v1/app/preview_panels routes.
-export type MockupPanel = {
-  id: number
-  title: string
+export type MockupPanel = PreviewPanelPayload & {
   state: string
-  visibility: string
-  file_count: number
-  url: string
-  app_export_path: string
-  app_file_base_path: string
-  app_token_path: string
-  current_version_id: number | null
-  entry_path: string
-  entry_content_type: string
-  entry_viewer_kind: string
   updated_at: string | null
-  versions: MockupPanelVersion[]
 }
 
 export type MockupsIndexPayload = {
@@ -61,4 +42,8 @@ export function fetchMockups(search: string): Promise<MockupsIndexPayload> {
 
 export function fetchMockup(ref: string): Promise<MockupDetailPayload> {
   return getJson<MockupDetailPayload>(`/api/v1/app/mockups/${encodeURIComponent(ref)}`)
+}
+
+export function updateMockupPanelVisibility(path: string, visibility: ChatPreviewPanelVisibility): Promise<MockupPanel> {
+  return patchJson<MockupPanel>(path, { visibility })
 }

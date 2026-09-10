@@ -24,6 +24,7 @@ class PreviewPanel
         visibility: @panel.visibility,
         file_count: current&.files&.size || 0,
         url: @panel.preview_url(@base_domain, scheme: @scheme),
+        app_visibility_path: @base_path,
         app_export_path: "#{@base_path}/export",
         app_file_base_path: "#{@base_path}/files",
         app_token_path: "#{@base_path}/token",

@@ -39,7 +39,7 @@ Two core seams make that work:
   does not know (`{ kind:, extensions: [], content_types: [] }`). Core's
   built-in kinds win, so a plugin extends the set rather than reinterpreting a
   file core already renders; an unrecognised kind falls back to source text.
-* **`/api/v1/app/preview_panels/:id`** (`show`, `files`, `export`, `token`) —
+* **`/api/v1/app/preview_panels/:id`** (`show`, `update`, `files`, `export`, `token`) —
   panel content addressed independently of the chat it was opened in, so a page
   outside chat can render one without inventing its own file serving. Scoped by
   `PreviewPanel.accessible_to`.
