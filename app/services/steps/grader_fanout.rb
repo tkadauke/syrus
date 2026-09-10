@@ -26,10 +26,12 @@ module Steps
       ActiveRecord::LockWaitTimeout
     ].freeze
     MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
+    TARGET_HEALTH_SKIPS_ARTIFACT_KEY = "target_health_skipped_targets".freeze
 
     def call
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
+      workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
@@ -62,6 +64,8 @@ module Steps
           record_carried_forward_graders!(carried_forward, passed_steps_by_name)
         end
       end
+
+      active_graders = skip_reusable_target_health!(active_graders)
 
       if active_graders.empty?
         log("[grader_fanout] all graders skipped — collect Step will pass through")
@@ -189,6 +193,43 @@ module Steps
         }.compact
       end
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
+    end
+
+    def skip_reusable_target_health!(graders)
+      skipped = []
+      remaining = graders.reject do |grader|
+        result = target_health_reuse.for_target(target_label_for(grader))
+        if result.reusable?
+          skipped << skipped_target_health_entry(grader, result)
+          true
+        else
+          log("[grader_fanout] target health miss for #{grader.name}: #{result.reason} [#{target_label_for(grader)}]")
+          false
+        end
+      end
+
+      record_target_health_skips!(skipped) if skipped.any?
+      remaining
+    end
+
+    def skipped_target_health_entry(grader, result)
+      ref = result.record_refs.first || {}
+      {
+        "name" => grader.name,
+        "required" => grader.required,
+        "target_label" => target_label_for(grader),
+        "reason" => result.reason,
+        "target_health_record_refs" => result.record_refs
+      }.merge(ref.slice("target_health_record_id", "commit_sha", "checked_at")).compact
+    end
+
+    def record_target_health_skips!(entries)
+      entries.each do |entry|
+        commit = entry["commit_sha"].to_s.first(7).presence || "unknown commit"
+        log("[grader_fanout] skipped #{entry['name']} (#{entry['reason']} from #{commit}) [#{entry['target_label']}]")
+      end
+      workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => entries))
     end
 
     def record_plan_source!(plan, grader_fingerprint)
@@ -472,6 +513,14 @@ module Steps
         workspace_path: workspace.path,
         graph: target_graph,
         label: target_label_for(grader)
+      )
+    end
+
+    def target_health_reuse
+      @target_health_reuse ||= TargetHealthReuse.new(
+        repository: repository,
+        graph: target_graph,
+        workspace_path: workspace.path
       )
     end
 

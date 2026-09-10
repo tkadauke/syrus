@@ -44,6 +44,26 @@ RSpec.describe Steps::Format do
     @ws_path.join(".syrus.yml").write(contents)
   end
 
+  def record_target_health(label)
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    target = graph.target(TargetGraph::Label.parse(label))
+    fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: @ws_path,
+      graph: graph,
+      label: target.label
+    )
+    TargetHealthRecorder.record!(
+      repository: job.repository,
+      target_label: target.label.to_s,
+      project_id: target.project_id,
+      commit_sha: "previous123",
+      input_fingerprint: fingerprints.input_fingerprint,
+      command_fingerprint: fingerprints.command_fingerprint,
+      environment_fingerprint: fingerprints.environment_fingerprint,
+      status: "passed"
+    )
+  end
+
   def register_autofix_provider(command)
     provider = Class.new { include Syrus::Plugin::AutofixCommand }
     provider.define_singleton_method(:autofix_command) { |workspace_path:| command }
@@ -195,6 +215,25 @@ RSpec.describe Steps::Format do
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
       expect(chunks).not_to include("plugin-default")
       expect(chunks).to include("no applicable formatters")
+    end
+
+    it "skips a formatter when target health proves the same inputs already passed" do
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: echo ruby-fixed
+            files: "**/*.rb"
+      YAML
+      record_target_health("//:format/0")
+      expect(handler).not_to receive(:commit_agent_changes)
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).not_to include("$ echo ruby-fixed")
+      expect(chunks).to include("skipped //:format/0 (latest target health record passed from previou)")
+      expect(workflow.reload.artifact("format_target_health_skips")).to include(
+        include("target_label" => "//:format/0", "commit_sha" => "previous123")
+      )
     end
   end
 
