@@ -522,7 +522,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
 
   const details = item.calls.map((call) => [call.detail, toolCardAwareResultSummary(call)].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   const summary = item.summary_label || item.tool
-  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
+  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Failed" : item.calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done")
   const expanded = open
   return (
     <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
