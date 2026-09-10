@@ -12,7 +12,8 @@ RSpec.describe Prompts::AdversarialReview do
       base_ref: base_ref,
       workflow_kind: workflow_kind,
       feedback_context: feedback_context,
-      criteria: criteria
+      criteria: criteria,
+      affected_projects: affected_projects
     ).to_s
   end
 
@@ -20,6 +21,7 @@ RSpec.describe Prompts::AdversarialReview do
   let(:workflow_kind) { nil }
   let(:feedback_context) { nil }
   let(:criteria) { [] }
+  let(:affected_projects) { [] }
   let(:base_ref) { "origin/main" }
 
   it "includes independence instruction" do
@@ -106,6 +108,27 @@ RSpec.describe Prompts::AdversarialReview do
     it "lists each criterion" do
       expect(prompt).to include("- Verify all endpoints enforce authentication")
       expect(prompt).to include("- No internal state in errors")
+    end
+  end
+
+  context "with affected project criteria" do
+    let(:criteria) { [ "Verify authorization boundaries" ] }
+    let(:affected_projects) do
+      [
+        {
+          "id" => "web",
+          "label" => "Web App",
+          "path" => "apps/web",
+          "owner_config_path" => "apps/web/.syrus.yml",
+          "criteria" => [ "Verify authorization boundaries" ]
+        }
+      ]
+    end
+
+    it "includes project metadata next to the criteria" do
+      expect(prompt).to include("Affected projects contributing review criteria")
+      expect(prompt).to include("Web App (id: web, path: apps/web, config: apps/web/.syrus.yml)")
+      expect(prompt.scan("Verify authorization boundaries").size).to eq(1)
     end
   end
 

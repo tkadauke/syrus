@@ -48,25 +48,26 @@ module Steps
     end
 
     def reviewer_prompt
+      diff = latest_agentic_diff
+      review_context = adversarial_review_context(diff)
       Prompts::AdversarialReview.new(
         issue: review_issue,
-        diff: latest_agentic_diff,
+        diff: diff,
         prior_findings: review_iterations,
         base_ref: workspace.base_ref,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
-        criteria: adversarial_review_criteria
+        criteria: adversarial_review_criteria(review_context),
+        affected_projects: review_context.projects.map(&:to_h)
       ).to_s
     end
 
-    def adversarial_review_criteria
-      syrus_yml_review_criteria + plugin_review_criteria
+    def adversarial_review_context(diff)
+      App::AdversarialReviewContext.call(workspace_path: workspace.path, diff: diff)
     end
 
-    def syrus_yml_review_criteria
-      SyrusYml.load_repo(workspace.path).adversarial_review&.criteria || []
-    rescue SyrusYml::ParseError, Errno::ENOENT
-      []
+    def adversarial_review_criteria(review_context)
+      [ *review_context.criteria, *plugin_review_criteria ].map(&:to_s).map(&:strip).reject(&:empty?).uniq
     end
 
     def plugin_review_criteria

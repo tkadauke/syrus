@@ -300,7 +300,7 @@ adversarial_review:
 
 `rounds` bounds the review loop. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable. In every workflow that has this loop (`initial`, `retry`, `pr_comment`, `chat_feedback`, `external_pr_feedback`), `implement`/`respond` always runs once as a bare top-level step regardless of this setting; `rounds` then controls how many review opinions the loop that follows seeks (and, on each `needs_work` verdict, reacts to with a repair) — see [`adversarial_review.md`](adversarial_review.md) for the exact iteration shape.
 
-`criteria` is an optional array of strings directing the reviewer toward repository-specific concerns. When present, each entry is included as a focus area in the reviewer prompt, supplementing the standard review checklist. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
+`criteria` is an optional array of strings directing the reviewer toward repository- or project-specific concerns. Root `.syrus.yml` criteria apply repo-wide. Criteria declared in a nested project `.syrus.yml` apply when that project is affected by the reviewed diff, and the reviewer prompt includes the affected project metadata alongside the relevant criteria. Identical criteria are de-duplicated in the prompt. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 
 ## visual_review
 

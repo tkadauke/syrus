@@ -74,9 +74,11 @@ Per-repo configuration overrides the instance-wide setting. Set `rounds: 0` to d
 
 ### criteria
 
-`criteria` is an optional array of strings under the `adversarial_review` key. Each entry is a reviewer focus area specific to the repository — security patterns, API contracts, coding standards, or any concern the operator wants the reviewer to always check.
+`criteria` is an optional array of strings under the `adversarial_review` key. Each entry is a reviewer focus area specific to the repository or project — security patterns, API contracts, coding standards, or any concern the operator wants the reviewer to always check.
 
-When `criteria` is present and non-empty, the reviewer prompt includes a "pay particular attention to the following criteria" section listing each item. These criteria supplement (not replace) the standard review checklist: the reviewer still checks for bugs, regressions, missing edge cases, and maintainability issues on top of any operator-provided criteria.
+When `criteria` is present and non-empty, the reviewer prompt includes a "pay particular attention to the following criteria" section listing each item. Root `.syrus.yml` criteria apply repo-wide. Criteria in a nested project `.syrus.yml` are included only when the reviewed diff affects that project, and the prompt names the affected project id, label, path, and owning config. Identical criteria across root and project declarations appear once.
+
+These criteria supplement (not replace) the standard review checklist: the reviewer still checks for bugs, regressions, missing edge cases, and maintainability issues on top of any operator-provided criteria.
 
 `criteria` is optional. Omitting it keeps existing behaviour. An empty array is valid. Blank entries are silently dropped.
 
