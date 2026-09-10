@@ -18,6 +18,7 @@ class RunHostAdmission
   # CPU held the only slot on its pod, deferring landing 73 times in 36
   # minutes while every host sat below 45% CPU.
   GUARDED_RUNS_PER_HOST = 3
+  HIGH_COST_GRADER_RUNS_PER_HOST = 1
 
   # The other half of the lag defence: after admitting, leave a gap so the next
   # decision on this host sees a sample that reflects it. Cheaper and more
@@ -25,15 +26,13 @@ class RunHostAdmission
   STAGGER_INTERVAL = 20.seconds
 
   # Agentic steps are the expensive ones by nature and are guarded on sight.
+  # High-cost grader runs are guarded separately under local warning pressure
+  # when command-attributed profiles show they are expensive.
   #
   # Everything else is judged by the host's *current* state rather than by a
-  # prediction of what the step will cost. Predicting was worse than useless
-  # here: `WorkflowStepResourceProfile` records the host's ambient CPU and
-  # memory while a step ran, not the step's own demand, so `prepare` (0.3%
-  # process CPU) profiled at 93.5 cpu_pressure and `grader_collect` (3
-  # seconds) at 88.2. Guarding on those numbers throttled cheap work hardest
-  # and got worse the busier the fleet was -- the readings rise with load, so
-  # the throttle tightened exactly when it should have relaxed.
+  # prediction of what the step will cost. We only trust command-attributed
+  # profiles for the grader exception; host-correlated profiles still describe
+  # ambient fleet pressure rather than the step's own demand.
   ALWAYS_GUARDED_STEP_KINDS = Step::AGENTIC_KINDS.freeze
 
   def self.call(...) = new(...).call
@@ -55,10 +54,12 @@ class RunHostAdmission
     # actually decides.
     return defer("local_worker_pressure_critical") if critical_local_pressure?
 
-    # Beyond that, only agentic runs are rationed per host, and only to bound
-    # how far a burst can overshoot a stale sample.
+    # Beyond that, agentic runs are rationed per host to bound how far a burst
+    # can overshoot a stale sample. High-cost graders get a narrower guard only
+    # when the host is already warning, using command-attributed profiles rather
+    # than ambient host-correlated profiles.
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
-    return defer("host_resource_semaphore_busy") if active_guarded_run_count >= GUARDED_RUNS_PER_HOST
+    return defer("host_resource_semaphore_busy") if resource_guard_full?
     return defer("host_admission_staggering") if admitted_within_stagger_window?
 
     admit("host_capacity_available")
@@ -79,8 +80,10 @@ class RunHostAdmission
   def details(reason)
     basic_details(reason).merge(
       "active_guarded_run_count" => active_guarded_run_count,
-      "guarded_runs_per_host" => GUARDED_RUNS_PER_HOST
-    )
+      "guarded_runs_per_host" => guarded_runs_per_host,
+      "resource_guard_kind" => resource_guard_kind,
+      "active_high_cost_grader_run_count" => high_cost_grader_guard? ? active_high_cost_grader_run_count : nil
+    ).compact
   end
 
   def basic_details(reason)
@@ -148,10 +151,96 @@ class RunHostAdmission
   end
 
   def resource_guarded?(candidate)
-    candidate_step = candidate.step
-    return false unless candidate_step
+    resource_guard_kind(candidate).present?
+  end
 
-    candidate_step.agentic?
+  def resource_guard_full?
+    case resource_guard_kind
+    when "agentic"
+      active_guarded_run_count >= GUARDED_RUNS_PER_HOST
+    when "high_cost_grader"
+      active_high_cost_grader_run_count >= HIGH_COST_GRADER_RUNS_PER_HOST
+    else
+      false
+    end
+  end
+
+  def guarded_runs_per_host
+    high_cost_grader_guard? ? HIGH_COST_GRADER_RUNS_PER_HOST : GUARDED_RUNS_PER_HOST
+  end
+
+  def high_cost_grader_guard?
+    resource_guard_kind == "high_cost_grader"
+  end
+
+  def resource_guard_kind(candidate = run)
+    candidate_step = candidate.step
+    return unless candidate_step
+    return "agentic" if candidate_step.agentic?
+    return unless local_health_warning?
+    return unless high_cost_grader_step?(candidate_step)
+    return unless high_cost_command_profile?(candidate_step)
+
+    "high_cost_grader"
+  end
+
+  def local_health_warning?
+    WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch(local_health.fetch("level"), 0) >=
+      WorkerHealthSampleAnalysis::LEVEL_ORDER.fetch("warning")
+  end
+
+  def high_cost_grader_step?(candidate_step)
+    candidate_step.kind.in?(%w[grader preflight_grader])
+  end
+
+  def high_cost_command_profile?(candidate_step)
+    high_cost_profile_for(candidate_step).present?
+  end
+
+  def high_cost_profile_for(candidate_step)
+    matching_profiles_for(candidate_step).find do |profile|
+      prediction = profile.conservative_prediction
+      prediction.fetch(:prediction_source) == "command_attributed" &&
+        (
+          prediction.fetch(:duration_seconds).to_f >= WorkflowAdmissionBudget::HIGH_COST_SECONDS ||
+          prediction.fetch(:cpu_pressure).to_f >= WorkflowAdmissionBudget::CPU_BUDGET ||
+          prediction.fetch(:io_pressure).to_f >= WorkflowAdmissionBudget::IO_BUDGET ||
+          prediction.fetch(:memory_used_percent).to_f >= WorkflowAdmissionBudget::MEMORY_BUDGET
+        )
+    end
+  end
+
+  def matching_profiles_for(candidate_step)
+    profile_keys = resource_profile_keys_for(candidate_step)
+    step_kinds = profile_keys.map(&:first).uniq
+    WorkflowStepResourceProfile
+      .where(
+        repository: candidate_step.workflow.job.repository,
+        agent_provider: candidate_step.workflow.agent_provider,
+        trigger_kind: candidate_step.workflow.trigger_kind,
+        job_kind: candidate_step.workflow.job.kind.to_s,
+        step_kind: step_kinds
+      )
+      .to_a
+      .select do |profile|
+        profile_keys.any? do |step_kind, grader_name|
+          profile.step_kind == step_kind && (grader_name.nil? || profile.grader_name.to_s == grader_name)
+        end
+      end
+  end
+
+  def resource_profile_keys_for(candidate_step)
+    Step::Kind.fetch(candidate_step.kind).resource_profile_keys_for(candidate_step)
+  rescue ArgumentError
+    [ [ candidate_step.kind, "" ] ]
+  end
+
+  def active_high_cost_grader_run_count
+    @active_high_cost_grader_run_count ||= active_run_scope
+      .where(steps: { kind: %w[grader preflight_grader] })
+      .includes(step: { workflow: :job })
+      .select { |active_run| high_cost_command_profile?(active_run.step) }
+      .size
   end
 
   def active_always_guarded_run_scope

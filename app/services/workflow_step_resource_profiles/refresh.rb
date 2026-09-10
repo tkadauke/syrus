@@ -284,10 +284,17 @@ module WorkflowStepResourceProfiles
 
       {
         duration_seconds: span_metrics.sum { |metrics| metrics.fetch(:duration_seconds).to_f },
-        cpu_pressure: span_metrics.sum { |metrics| metrics.fetch(:cpu_pressure).to_f },
-        io_pressure: span_metrics.sum { |metrics| metrics.fetch(:io_pressure).to_f },
-        memory_used_percent: span_metrics.map { |metrics| metrics.fetch(:memory_used_percent).to_f }.max
+        cpu_pressure: sum_optional_span_metric(span_metrics, :cpu_pressure),
+        io_pressure: sum_optional_span_metric(span_metrics, :io_pressure),
+        memory_used_percent: span_metrics.filter_map { |metrics| metrics[:memory_used_percent] }.max
       }
+    end
+
+    def sum_optional_span_metric(span_metrics, key)
+      values = span_metrics.filter_map { |metrics| metrics[key] }
+      return if values.empty?
+
+      values.sum
     end
 
     def attributed_span_metrics(span)
@@ -298,14 +305,27 @@ module WorkflowStepResourceProfiles
         samples_by_hostname: span_samples_by_hostname,
         span_window: span_window_for(span)
       ).as_json
-      return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
+      duration_seconds = span_duration_seconds(span, correlation)
+      return unless duration_seconds
 
-      {
-        duration_seconds: correlation.fetch(:effective_duration_s),
+      metrics = { duration_seconds: duration_seconds }
+      return metrics if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
+
+      metrics.merge(
         cpu_pressure: correlation.dig(:summary, :cpu_pressure_some, :max),
         io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
         memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
-      }
+      )
+    end
+
+    def span_duration_seconds(span, correlation)
+      return span.duration_ms.to_f / 1000.0 if span.duration_ms.to_i.positive?
+      effective_duration = correlation.fetch(:effective_duration_s)
+      return effective_duration if effective_duration
+
+      return unless span.started_at && span.finished_at
+
+      span.finished_at - span.started_at
     end
 
     def with_summary_metadata(summaries)
