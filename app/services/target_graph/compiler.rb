@@ -341,7 +341,9 @@ class TargetGraph
             source_scope: scoped_source_scope(package, target.sources),
             command: target.command,
             dependencies: resolved_dependencies(target.deps, package: package),
-            owner_config_path: config_path
+            timeout_minutes: positive_timeout(target.timeout_minutes),
+            owner_config_path: config_path,
+            metadata: target.metadata
           )
         )
       end
