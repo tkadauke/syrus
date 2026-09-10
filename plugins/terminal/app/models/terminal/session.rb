@@ -8,6 +8,7 @@ module Terminal
 
     belongs_to :user
     belongs_to :workflow, optional: true
+    belongs_to :chat_session, optional: true
 
     before_validation :default_auth_token, on: :create
 
@@ -15,6 +16,8 @@ module Terminal
     validates :outcome, inclusion: { in: OUTCOMES, allow_nil: true }
 
     def relay_ready? = relay_address.present?
+
+    def target_queue_name = queue_name.presence || "chat"
 
     private
 
