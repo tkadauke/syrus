@@ -13,6 +13,7 @@ module App
       AgentSessionSummary = Data.define(:session_id, :provider, :transcript_pruned, :transcript_bytes, :transcript_lines)
       MAX_STEPS_PER_WORKFLOW = Integer(ENV["SYRUS_JOB_DETAIL_MAX_STEPS_PER_WORKFLOW"], exception: false) || 250
       MAX_RUNS_PER_STEP = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_RUNS_PER_STEP"], exception: false) || 20, 1 ].max
+      MAX_COMMAND_SPANS_PER_RUN = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_COMMAND_SPANS_PER_RUN"], exception: false) || 50, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
       ACTIVE_STEP_STATES = %w[queued running].freeze
 
@@ -639,6 +640,9 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: latest_health_snapshot_for(run).then { |snapshot| snapshot ? [ health_snapshot_json(snapshot) ] : [] },
           active_process: active_process_json(run),
+          command_spans_total: command_span_counts_by_run_id.fetch(run.id, command_spans.size),
+          command_spans_displayed: command_spans.size,
+          command_spans_truncated: command_span_counts_by_run_id.fetch(run.id, command_spans.size) > command_spans.size,
           command_spans: command_spans,
           agent_session: agent_session_json(session),
           can_stop: run.may_cancel?,
@@ -913,11 +917,76 @@ module App
 
       def command_spans_by_run_id
         @command_spans_by_run_id ||= begin
-          ids = visible_run_ids
-          if ids.empty?
+          run_ids = visible_run_ids
+          if run_ids.empty?
             {}
           else
-            CommandSpan.where(run_id: ids).order(:run_id, :sequence, :id).group_by(&:run_id)
+            span_ids = visible_command_span_ids_by_run_id.values.flatten
+            span_ids.empty? ? {} : CommandSpan
+              .where(id: span_ids)
+              .select(
+                :id,
+                :run_id,
+                :job_id,
+                :workflow_id,
+                :step_id,
+                :spawned_process_id,
+                :sequence,
+                :name,
+                :command_excerpt,
+                :started_at,
+                :finished_at,
+                :duration_ms,
+                :exit_status,
+                :outcome,
+                :hostname,
+                :metadata
+              )
+              .order(:run_id, :sequence, :id)
+              .group_by(&:run_id)
+          end
+        end
+      end
+
+      def command_span_counts_by_run_id
+        @command_span_counts_by_run_id ||= begin
+          visible_command_span_ids_by_run_id
+          @command_span_counts_by_run_id_from_visible_query || {}
+        end
+      end
+
+      def visible_command_span_ids_by_run_id
+        @visible_command_span_ids_by_run_id ||= PerformanceLogging.phase("job_detail.workflow.command_span_ids.query", job_id: @job.id, run_count: visible_run_ids.size, span_limit: MAX_COMMAND_SPANS_PER_RUN) do
+          ids = visible_run_ids.map { |id| Integer(id) }
+          if ids.empty?
+            @command_span_counts_by_run_id_from_visible_query = {}
+            next {}
+          end
+
+          rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
+            SELECT id, run_id, run_command_span_count
+            FROM (
+              SELECT
+                command_spans.id,
+                command_spans.run_id,
+                COUNT(*) OVER (PARTITION BY command_spans.run_id) AS run_command_span_count,
+                ROW_NUMBER() OVER (
+                  PARTITION BY command_spans.run_id
+                  ORDER BY command_spans.sequence DESC, command_spans.id DESC
+                ) AS syrus_command_span_rank
+              FROM command_spans
+              WHERE command_spans.run_id IN (#{ids.join(",")})
+            ) ranked_command_spans
+            WHERE ranked_command_spans.syrus_command_span_rank <= #{MAX_COMMAND_SPANS_PER_RUN}
+          SQL
+
+          @command_span_counts_by_run_id_from_visible_query = rows.each_with_object({}) do |row, counts|
+            run_id = row.fetch("run_id").to_i
+            counts[run_id] ||= row.fetch("run_command_span_count").to_i
+          end
+
+          rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
+            grouped[row.fetch("run_id").to_i] << row.fetch("id").to_i
           end
         end
       end

@@ -137,6 +137,7 @@
   "section_no_workflows": "No workflows yet.",
   "workflow_steps_truncated": "Showing latest {{displayed}} of {{total}} steps.",
   "step_runs_truncated": "Showing latest {{displayed}} of {{total}} runs for this step.",
+  "run_command_spans_truncated": "Showing latest {{displayed}} of {{total}} commands for this run.",
   "section_no_attachments": "No attachments.",
   "section_no_artifacts": "No artifacts.",
   "section_no_runs": "No runs for this step.",

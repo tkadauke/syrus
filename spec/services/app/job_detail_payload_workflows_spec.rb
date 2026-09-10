@@ -948,6 +948,43 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(queries.grep(/FROM [`"]?spawned_processes[`"]? WHERE [`"]?spawned_processes[`"]?.[`"]?run_id[`"]? =/i)).to be_empty
     end
 
+    it "bounds serialized command span history per visible run" do
+      stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_COMMAND_SPANS_PER_RUN", 2)
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "prepare", position: 1, state: "running")
+      run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "running"
+      )
+
+      5.times do |index|
+        run.command_spans.create!(
+          job: job,
+          workflow: workflow,
+          step: step,
+          sequence: index + 1,
+          name: "command #{index + 1}",
+          command_excerpt: "bin/command #{index + 1}",
+          started_at: (5 - index).minutes.ago,
+          finished_at: (5 - index).minutes.ago + 10.seconds,
+          outcome: "succeeded"
+        )
+      end
+
+      run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+      expect(run_payload).to include(
+        command_spans_total: 5,
+        command_spans_displayed: 2,
+        command_spans_truncated: true
+      )
+      expect(run_payload.fetch(:command_spans).map { |span| span[:sequence] }).to eq([ 4, 5 ])
+    end
+
     it "does not load full run diff text for workflow rows" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
@@ -1298,5 +1335,4 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       end
     end
   end
-
 end

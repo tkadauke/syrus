@@ -717,6 +717,9 @@ export type JobRun = {
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
   health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
   active_process?: JobRunActiveProcess | null
+  command_spans_total?: number
+  command_spans_displayed?: number
+  command_spans_truncated?: boolean
   command_spans?: JobCommandSpan[]
   worker_health_correlation?: RunWorkerHealthCorrelation | null
   agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
