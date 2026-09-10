@@ -554,6 +554,64 @@ if Rails.env.development?
     end
   end
 
+  # Coverage report sample data for the core Job detail Summary/Review
+  # surfaces. A fresh preview does not run coverage_analyze, but the operator
+  # review flow should still show realistic coverage numbers, PR-delta data,
+  # and changed-file breakdowns for the seeded implemented Job.
+  quality_gate_workflow = implemented_job.workflows.order(:created_at).first
+  if quality_gate_workflow && quality_gate_workflow.artifact("coverage").blank?
+    quality_gate_workflow.set_artifact!(
+      "coverage",
+      {
+        "summary" => {
+          "lines_pct" => 87.1,
+          "branches_pct" => 70.2,
+          "functions_pct" => 91.4
+        },
+        "pr_delta" => {
+          "covered" => 12,
+          "total" => 15,
+          "pct" => 80.0,
+          "uncovered_files" => [ "app/services/dashboard_payload.rb" ]
+        },
+        "threshold_miss" => false,
+        "files" => {
+          "app/services/dashboard_payload.rb" => {
+            "lines_pct" => 76.5,
+            "branches_pct" => 61.2
+          },
+          "app/frontend/routes/Dashboard.tsx" => {
+            "lines_pct" => 92.3,
+            "branches_pct" => 84.0
+          }
+        },
+        "sources_status" => [
+          { "artifact" => "coverage/lcov.info", "found" => true, "lines_pct" => 87.1 }
+        ],
+        "hit_map_attached" => false
+      }
+    )
+  end
+
+  if quality_gate_workflow
+    implement_step = quality_gate_workflow.steps.find_by(kind: "implement")
+    if implement_step && quality_gate_workflow.workflow_warnings.where(kind: "coverage_branches_threshold_miss", step: implement_step).none?
+      WorkflowWarnings.record!(
+        workflow: quality_gate_workflow,
+        step: implement_step,
+        kind: "coverage_branches_threshold_miss",
+        severity: "medium",
+        title: "Branch coverage 70.2% is below the 75% threshold",
+        evidence: {
+          "branches_pct" => 70.2,
+          "threshold_branches" => 75,
+          "file" => "app/services/dashboard_payload.rb"
+        },
+        suggested_prompt: "Add tests that exercise the dashboard needs-attention count branches and raise branch coverage above the configured threshold."
+      )
+    end
+  end
+
   # Agent Insights sample report. The plugin is off by default
   # (default_enabled: false), so a fresh preview shows it disabled on
   # Admin -> Plugins, same as a real install -- but the repository's
