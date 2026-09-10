@@ -3,7 +3,9 @@ require "tmpdir"
 
 RSpec.describe TargetGraph::Compiler do
   around do |ex|
+    Syrus::PluginRegistry.reset!
     Dir.mktmpdir("syrus-target-graph-compiler") { |dir| @dir = dir; ex.run }
+    Syrus::PluginRegistry.reset!
   end
 
   describe ".compile" do
@@ -463,6 +465,109 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.validate!).to be(true)
     end
 
+    it "imports explicitly configured build-system graph provider targets with provenance" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "bazel", label: "Bazel", path: "")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:app"),
+              kind: "library",
+              project_id: "bazel",
+              source_scope: [ "src/**/*.rb" ],
+              dependencies: [ TargetGraph::Label.parse("//:app") ]
+            )
+          ],
+          diagnostics: { "query" => "//..." }
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: app
+            kind: library
+            sources: ["app/**/*.rb"]
+        target_graph:
+          imports:
+            - provider: fake
+              config:
+                query: //...
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      imported = graph.target(TargetGraph::Label.parse("//bazel:app"))
+      expect(imported.kind).to eq("library")
+      expect(imported.dependencies).to eq([ TargetGraph::Label.parse("//:app") ])
+      expect(imported.owner_config_path).to include("target_graph.imports[0]")
+      expect(imported.metadata["provenance"]).to include(
+        "provider" => "fake",
+        "provider_class" => "FakeBuildGraphProvider"
+      )
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include(
+          "provider" => "fake",
+          "provider_class" => "FakeBuildGraphProvider",
+          "status" => "imported",
+          "project_ids" => [ "bazel" ],
+          "target_labels" => [ "//bazel:app" ],
+          "diagnostics" => { "query" => "//..." }
+        )
+      )
+    end
+
+    it "fails strictly when an explicit graph import names no enabled provider" do
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: missing
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("build_system_graph_provider")
+        expect(error.message).to include("missing")
+      end
+    end
+
+    it "warns and continues when an explicit graph import opts into warning failures" do
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: missing
+              failures: warn
+      YAML
+
+      graph = described_class.compile(@dir)
+      expect(graph.targets.keys).to eq(%w[//:repo])
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("missing")
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include("status" => "error", "error" => include("missing"))
+      )
+    end
+
+    it "applies warning failure policy to provider exceptions" do
+      provider = fake_build_graph_provider(raise_error: RuntimeError.new("build file unreadable"))
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              failures: warn
+      YAML
+
+      expect(described_class.compile(@dir).targets.keys).to eq(%w[//:repo])
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics.error).to include("build file unreadable")
+    end
+
     it "raises a clear error when an explicit label collides with a generated legacy label" do
       write(".syrus.yml", <<~YAML)
         targets:
@@ -808,5 +913,25 @@ RSpec.describe TargetGraph::Compiler do
     path = File.join(@dir, rel)
     FileUtils.mkdir_p(File.dirname(path))
     File.write(path, contents)
+  end
+
+  def fake_build_graph_provider(result = nil, raise_error: nil)
+    stub_const(
+      "FakeBuildGraphProvider",
+      Class.new do
+        include Syrus::Plugin::BuildSystemGraphProvider
+
+        define_singleton_method(:provider_key) { "fake" }
+        define_singleton_method(:import_target_graph) do |repo_path:, config:|
+          raise raise_error if raise_error
+
+          @last_repo_path = repo_path
+          @last_config = config
+          result || TargetGraph::Import.new
+        end
+        define_singleton_method(:last_repo_path) { @last_repo_path }
+        define_singleton_method(:last_config) { @last_config }
+      end
+    )
   end
 end
