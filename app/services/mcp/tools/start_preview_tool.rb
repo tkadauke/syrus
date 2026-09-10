@@ -29,23 +29,31 @@ module Mcp::Tools
         port: {
           type: "integer",
           description: "TCP port to start the app on. Defaults to 3001."
+        },
+        project_id: {
+          type: "string",
+          description: "Affected preview project id to start when the workflow lists multiple project previews. Optional when there is exactly one affected preview project."
         }
       }
     )
 
     class << self
-      def call(port: 3001, server_context:)
+      def call(port: 3001, project_id: nil, server_context:)
         run = Mcp::Tools.run_from_context(server_context)
 
         workspace_path = workspace_path_for(run)
         return Mcp::Tools.invalid("no workflow workspace found") unless workspace_path
 
-        result = PreviewProcessLauncher.new(workspace_path).launch!(key: run.id, port: port)
-        Mcp::Tools.write_log(run, "[mcp] start_preview: pid=#{result.pid} port=#{port}") unless result.reused
+        project_id = resolve_project_id(run, project_id)
+        result = PreviewProcessLauncher.new(workspace_path, project_id: project_id).launch!(
+          key: preview_key(run, project_id),
+          port: port
+        )
+        log_start(run, result, port) unless result.reused
 
         MCP::Tool::Response.new([{
           type: "text",
-          text: JSON.generate({ url: result.url, pid: result.pid })
+          text: JSON.generate({ url: result.url, pid: result.pid, project_id: result.project_id }.compact)
         }])
       rescue PreviewProcessLauncher::LaunchError => e
         MCP::Tool::Response.new([{ type: "text", text: "Error: #{e.message}" }], error: true)
@@ -62,6 +70,35 @@ module Mcp::Tools
         workflow = step.workflow
         return nil unless workflow
         WorkflowWorkspace.path_for(workflow).to_s
+      end
+
+      def resolve_project_id(run, requested_project_id)
+        projects = Array(run.step&.workflow&.artifact("visual_review_preview_projects"))
+        requested_project_id = requested_project_id.to_s.strip.presence
+        return requested_project_id if projects.empty?
+
+        return projects.first.fetch("id") if requested_project_id.blank? && projects.one?
+        if requested_project_id.blank?
+          raise PreviewProcessLauncher::LaunchError,
+            "multiple affected preview projects are available; pass project_id (#{projects.map { |project| project['id'] }.join(', ')})"
+        end
+
+        unless projects.any? { |project| project["id"] == requested_project_id }
+          raise PreviewProcessLauncher::LaunchError,
+            "project_id #{requested_project_id.inspect} is not an affected preview project for this visual review"
+        end
+
+        requested_project_id
+      end
+
+      def preview_key(run, project_id)
+        project_id.present? ? "#{run.id}:#{project_id}" : run.id
+      end
+
+      def log_start(run, result, port)
+        detail = "[mcp] start_preview: pid=#{result.pid} port=#{port}"
+        detail = "#{detail} project_id=#{result.project_id}" if result.project_id.present?
+        Mcp::Tools.write_log(run, detail)
       end
     end
   end
