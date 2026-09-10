@@ -23,7 +23,7 @@ RSpec.describe SyrusBrowser::Session do
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
         command: "playwright-mcp",
-        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
+        args: %w[--headless --isolated --block-service-workers --executable-path /opt/syrus-browser/chromium],
         env: nil
       )
     end
@@ -35,7 +35,7 @@ RSpec.describe SyrusBrowser::Session do
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
         command: "playwright-mcp",
-        args: %w[--headless --isolated --executable-path /custom/chromium],
+        args: %w[--headless --isolated --block-service-workers --executable-path /custom/chromium],
         env: nil
       )
     end
@@ -55,7 +55,7 @@ RSpec.describe SyrusBrowser::Session do
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
         command: "playwright-mcp",
-        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
+        args: %w[--headless --isolated --block-service-workers --executable-path /opt/syrus-browser/chromium],
         env: {
           "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
           "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright"
@@ -68,7 +68,7 @@ RSpec.describe SyrusBrowser::Session do
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
         command: "playwright-mcp",
-        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
+        args: %w[--headless --isolated --block-service-workers --executable-path /opt/syrus-browser/chromium],
         env: {
           "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
           "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright",
@@ -88,6 +88,52 @@ RSpec.describe SyrusBrowser::Session do
       expect(client).to have_received(:connect).once
       expect(client).to have_received(:call_tool).with(name: "browser_snapshot", arguments: {})
       expect(client).to have_received(:call_tool).with(name: "browser_click", arguments: { "ref" => "e1" })
+    end
+
+    it "clears browser state and reloads after the first successful navigation" do
+      session = described_class.new(1)
+
+      session.call_tool(name: "browser_navigate", arguments: { "url" => "http://localhost:3001/dashboard" })
+
+      expect(client).to have_received(:call_tool).with(
+        name: "browser_navigate",
+        arguments: { "url" => "http://localhost:3001/dashboard" }
+      ).twice
+      expect(client).to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: { "function" => described_class::CLEAR_BROWSER_STATE_SCRIPT }
+      ).once
+    end
+
+    it "clears browser state only once per session" do
+      session = described_class.new(1)
+
+      session.call_tool(name: "browser_navigate", arguments: { "url" => "http://localhost:3001/dashboard" })
+      session.call_tool(name: "browser_navigate", arguments: { "url" => "http://localhost:3001/jobs" })
+
+      expect(client).to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: { "function" => described_class::CLEAR_BROWSER_STATE_SCRIPT }
+      ).once
+      expect(client).to have_received(:call_tool).with(
+        name: "browser_navigate",
+        arguments: { "url" => "http://localhost:3001/jobs" }
+      ).once
+    end
+
+    it "does not clear browser state after a failed navigation" do
+      allow(client).to receive(:call_tool).with(
+        name: "browser_navigate",
+        arguments: { "url" => "http://localhost:3001/dashboard" }
+      ).and_return({ "result" => { "isError" => true, "content" => [] } })
+
+      session = described_class.new(1)
+      session.call_tool(name: "browser_navigate", arguments: { "url" => "http://localhost:3001/dashboard" })
+
+      expect(client).not_to have_received(:call_tool).with(
+        name: "browser_evaluate",
+        arguments: anything
+      )
     end
 
     it "returns the underlying client's response" do

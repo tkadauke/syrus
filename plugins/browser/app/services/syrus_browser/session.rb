@@ -21,9 +21,28 @@ module SyrusBrowser
   class Session
     DEFAULT_COMMAND = "playwright-mcp".freeze
     DEFAULT_EXECUTABLE_PATH = "/opt/syrus-browser/chromium".freeze
+    CLEAR_BROWSER_STATE_SCRIPT = <<~JS.squish.freeze
+      async () => {
+        try { localStorage.clear(); } catch {}
+        try { sessionStorage.clear(); } catch {}
+        try {
+          if ("caches" in window) {
+            const names = await caches.keys();
+            await Promise.all(names.map((name) => caches.delete(name)));
+          }
+        } catch {}
+        try {
+          if (navigator.serviceWorker) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+        } catch {}
+        return true;
+      }
+    JS
 
     def self.default_args
-      %W[--headless --isolated --executable-path #{browser_executable_path}]
+      %W[--headless --isolated --block-service-workers --executable-path #{browser_executable_path}]
     end
 
     def self.browser_executable_path
@@ -46,6 +65,7 @@ module SyrusBrowser
       @transport = MCP::Client::Stdio.new(command: command, args: args, env: env)
       @client = MCP::Client.new(transport: @transport)
       @connected = false
+      @browser_state_cleared = false
       @mutex = Mutex.new
     end
 
@@ -55,6 +75,11 @@ module SyrusBrowser
     def call_tool(name:, arguments:)
       @mutex.synchronize do
         connect!
+        response = @client.call_tool(name: name, arguments: arguments)
+        return response unless name == "browser_navigate" && successful_tool_response?(response)
+
+        return response unless clear_browser_state_once!
+
         @client.call_tool(name: name, arguments: arguments)
       end
     end
@@ -72,6 +97,26 @@ module SyrusBrowser
 
       @client.connect(client_info: { name: "syrus-browser", version: Syrus::PluginApi.default_version })
       @connected = true
+    end
+
+    def clear_browser_state_once!
+      return false if @browser_state_cleared
+
+      @client.call_tool(
+        name: "browser_evaluate",
+        arguments: { "function" => CLEAR_BROWSER_STATE_SCRIPT }
+      )
+      true
+    rescue StandardError => e
+      Rails.logger.warn("[SyrusBrowser::Session] browser state reset failed for #{@session_key}: #{e.class}: #{e.message}")
+      false
+    ensure
+      @browser_state_cleared = true
+    end
+
+    def successful_tool_response?(response)
+      result = response.is_a?(Hash) ? response["result"] : nil
+      !result.is_a?(Hash) || result["isError"] != true
     end
   end
 end
