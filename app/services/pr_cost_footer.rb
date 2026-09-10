@@ -12,7 +12,7 @@ class PrCostFooter
 
   def apply(body)
     stripped = strip_existing(body.to_s.rstrip)
-    return stripped unless @job.repository.pr_cost_footer_enabled?
+    return stripped unless @job.repository.reload.pr_cost_footer_enabled?
 
     parts = [ sentence ]
     parts << backlinks if backlinks.present?

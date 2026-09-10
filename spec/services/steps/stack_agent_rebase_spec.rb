@@ -38,10 +38,11 @@ RSpec.describe Steps::StackAgentRebase do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
     allow(GithubClient).to receive(:for)
-      .with(repository: repository, user: user)
+      .with(repository: kind_of(Repository), user: user)
       .and_return(instance_double(GithubClient, access_token: "token"))
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
     allow(git).to receive(:run).and_return("")
     handler.send(:fetch_pending_branches)
 

@@ -8,6 +8,10 @@ RSpec.describe Steps::Push do
   let(:step) { Step.create!(workflow: workflow, kind: "push", position: 0) }
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "pr_comment", agent_provider: "claude") }
 
+  before do
+    allow(GithubClient).to receive(:active_installation_for).and_return(nil)
+  end
+
   it "replaces the managed PR cost footer after follow-up pushes" do
     job.initial_run.update!(cost_usd: 0.10)
     run.update!(cost_usd: 0.20)
@@ -41,8 +45,8 @@ RSpec.describe Steps::Push do
     git = instance_double(GitRunner)
     client = instance_double(GithubClient, access_token: "token")
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
     allow(git).to receive(:run)
     allow(JobMetadataRefreshApplier).to receive(:new).with(workflow).and_return(instance_double(JobMetadataRefreshApplier, call: "applied refreshed Job metadata"))
     workflow.set_artifact!("job_metadata_applied", { "changed" => true })
@@ -88,8 +92,8 @@ RSpec.describe Steps::Push do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
     allow(handler).to receive(:update_managed_pr_footers)
 
     expect(git).to receive(:run).with(
@@ -146,8 +150,8 @@ RSpec.describe Steps::Push do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
 
     allow(git).to receive(:run).with(
       "push", push_url, "HEAD:refs/heads/syrus/issue-42",
@@ -200,8 +204,8 @@ RSpec.describe Steps::Push do
 
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+    allow(GithubClient).to receive(:for).with(repository: kind_of(Repository), user: user).and_return(client)
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
 
     expect(git).to receive(:run).with(
       "push", push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1",
