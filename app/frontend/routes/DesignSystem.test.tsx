@@ -67,6 +67,8 @@ describe("DesignSystemRoute", () => {
 
     const main = screen.getByRole("main")
     expect(main.style.getPropertyValue("--color-brand")).toBe("#1d6fa5")
+    expect(main.style.getPropertyValue("--color-link")).toBe("var(--color-brand-emphasis)")
+    expect(main.style.getPropertyValue("--color-info-surface")).toBe("color-mix(in srgb, var(--color-surface) 94%, var(--color-info))")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("")
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false)
   })

@@ -17,6 +17,7 @@ import { useTheme } from "../contexts/ThemeContext"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useColorTokens } from "../lib/colorTokens"
+import { semanticColorProperties } from "../lib/semanticColorTokens"
 
 const TOKEN_SPECS: { key: string; cssVar: string }[] = [
   { key: "brand", cssVar: "--color-brand" },
@@ -56,7 +57,7 @@ export function DesignSystemRoute() {
   // Applied on this page's own root <main> only (via inline style below) --
   // never on document.documentElement -- so a draft theme preview can never
   // leak into the surrounding app chrome, sidebar, or other open tabs.
-  const previewTokens = previewTheme ? previewTheme.tokens[resolvedTheme] : null
+  const previewTokens = previewTheme ? semanticColorProperties(previewTheme.tokens[resolvedTheme] ?? {}) : null
   const previewStyle = previewTokens
     ? (Object.fromEntries(Object.entries(previewTokens).map(([key, value]) => [`--color-${key}`, value])) as CSSProperties)
     : undefined
