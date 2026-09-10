@@ -152,6 +152,32 @@ a target that leaves uncommitted changes records a
 `kind: "prepare_target_side_effect"` `WorkflowWarning` instead of failing
 the grader Step — see `workflow_warnings.md`.
 
+### Target health records
+
+Executable target status is persisted in `TargetHealthRecord`, not only in a
+workflow artifact. The initial producer is `grader_collect`: every real
+materialized `grader` Step with a target label writes or updates one record for
+the tuple of repository, target label, commit SHA, input fingerprint, command
+fingerprint, and environment fingerprint. That lookup key is intentionally
+workflow-independent so main-branch scheduling and later target selection can
+reuse status across workflow attempts.
+
+Target health statuses include `passed`, `failed`, `stale`, `unknown`,
+`timed_out`, `cancelled`, `skipped`, and `inconclusive`. The model exposes
+healthy/unhealthy scopes for selection code, while keeping `stale` and
+`unknown` separate from hard failures. Timing, exit code, log path/size, and
+other artifact references live on the target health row. Workflow artifacts
+store only `target_health_record_refs` with record ids plus target label,
+project id, commit SHA, and status; they are navigation breadcrumbs, not the
+source of truth.
+
+For distributed grader Steps, the input fingerprint is stable across workflows:
+Syrus uses the source snapshot fingerprint when one exists, otherwise the tree
+SHA, otherwise the source SHA. It does not use the source snapshot database id,
+because that id is scoped to one workflow and would make the same source input
+look different in another workflow. Non-distributed legacy grader Steps fall
+back to the commit SHA.
+
 ### Agent-requested prepare targets
 
 The agent environment snapshot includes a "Target prepare options" line built

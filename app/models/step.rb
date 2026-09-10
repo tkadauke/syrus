@@ -9,6 +9,7 @@ class Step < ApplicationRecord
   belongs_to :workflow
   belongs_to :next_step, class_name: "Step", optional: true
   has_one :previous_step, class_name: "Step", foreign_key: :next_step_id
+  has_many :target_health_records, dependent: :nullify
   # Now that backfill (commit 8) has populated runs.step_id for
   # every existing Run, Step is the canonical owner of Runs. Job's
   # has_many :runs cascade was removed in the same change — the
