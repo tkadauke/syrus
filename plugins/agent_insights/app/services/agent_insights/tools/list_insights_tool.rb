@@ -58,7 +58,7 @@ module AgentInsights
           offset   = (page_num - 1) * per_page
 
           insights = scope
-            .includes(:repository)
+            .includes(:repository, job: { runs: { step: :workflow } })
             .order(created_at: :desc, id: :desc)
             .limit(per_page)
             .offset(offset)
@@ -131,11 +131,16 @@ module AgentInsights
           payload = {
             id:         insight.id,
             title:      insight.redacted_title,
+            category:   insight.redacted_category,
             state:      insight.state,
             proposal_type: insight.effective_proposal_type,
             severity:   insight.severity,
             confidence: insight.confidence,
-            created_at: insight.created_at.iso8601
+            job:        job_payload(insight.job),
+            source_workflow: workflow_payload(source_workflow(insight)),
+            source_run: run_payload(source_run(insight)),
+            created_at: insight.created_at.iso8601,
+            updated_at: insight.updated_at.iso8601
           }
           if include_repository
             payload[:repository] = {
@@ -144,6 +149,49 @@ module AgentInsights
             }
           end
           payload
+        end
+
+        def source_run(insight)
+          insight.job.runs.last
+        end
+
+        def source_workflow(insight)
+          source_run(insight)&.workflow || insight.job.workflows.last
+        end
+
+        def job_payload(job)
+          return nil unless job
+
+          {
+            id: job.id,
+            slug: job.slug,
+            title: job_title(job),
+            path: "/jobs/#{job.id}"
+          }
+        end
+
+        def job_title(job)
+          job.issue_title.presence || job.title
+        end
+
+        def workflow_payload(workflow)
+          return nil unless workflow
+
+          {
+            id: workflow.id,
+            slug: workflow.slug,
+            path: "/jobs/#{workflow.job_id}?tab=workflows#workflow-#{workflow.id}"
+          }
+        end
+
+        def run_payload(run)
+          return nil unless run
+
+          {
+            id: run.id,
+            slug: run.slug,
+            path: "/admin/runs/#{run.id}/transcript"
+          }
         end
       end
     end

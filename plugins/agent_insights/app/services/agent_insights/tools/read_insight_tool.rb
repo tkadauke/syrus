@@ -49,7 +49,7 @@ module AgentInsights
         private
 
         def visible_scope(context)
-          scope = Suggestion.includes(:job, :repository)
+          scope = Suggestion.includes(:repository, job: { runs: { step: :workflow } })
 
           if context.run?
             repository = context.repository || context.run&.job&.repository
@@ -81,7 +81,9 @@ module AgentInsights
             retired_reason:    insight.redacted_retired_reason,
             superseded_by_insight_id: insight.superseded_by_insight_id,
             superseded_by_job_id:     insight.superseded_by_job_id,
-            job:               { id: insight.job_id, title: insight.job.title },
+            job:               job_payload(insight.job),
+            source_workflow:    workflow_payload(source_workflow(insight)),
+            source_run:         run_payload(source_run(insight)),
             created_at:        insight.created_at.iso8601,
             updated_at:        insight.updated_at.iso8601
           }
@@ -92,6 +94,49 @@ module AgentInsights
             }
           end
           payload
+        end
+
+        def source_run(insight)
+          insight.job.runs.last
+        end
+
+        def source_workflow(insight)
+          source_run(insight)&.workflow || insight.job.workflows.last
+        end
+
+        def job_payload(job)
+          return nil unless job
+
+          {
+            id: job.id,
+            slug: job.slug,
+            title: job_title(job),
+            path: "/jobs/#{job.id}"
+          }
+        end
+
+        def job_title(job)
+          job.issue_title.presence || job.title
+        end
+
+        def workflow_payload(workflow)
+          return nil unless workflow
+
+          {
+            id: workflow.id,
+            slug: workflow.slug,
+            path: "/jobs/#{workflow.job_id}?tab=workflows#workflow-#{workflow.id}"
+          }
+        end
+
+        def run_payload(run)
+          return nil unless run
+
+          {
+            id: run.id,
+            slug: run.slug,
+            path: "/admin/runs/#{run.id}/transcript"
+          }
         end
       end
     end

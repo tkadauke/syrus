@@ -61,7 +61,10 @@ RSpec.describe AgentInsights::Tools::ListInsightsTool do
       create_insight(title: "Scoped finding", severity: "high", confidence: 0.9)
 
       result = parsed_response(call)[:insights].first
-      expect(result.keys).to match_array(%i[id title state proposal_type severity confidence created_at])
+      expect(result.keys).to match_array(%i[id title category state proposal_type severity confidence job source_workflow source_run created_at updated_at])
+      expect(result[:job]).to include(id: run.job.id, slug: run.job.slug, path: "/jobs/#{run.job.id}")
+      expect(result[:source_workflow]).to include(id: run.workflow_id, slug: run.workflow.slug)
+      expect(result[:source_run]).to include(id: run.id, slug: run.slug, path: "/admin/runs/#{run.id}/transcript")
     end
 
     it "orders results newest-first" do
