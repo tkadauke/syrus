@@ -119,6 +119,7 @@ describe("AgentConversationTab", () => {
     renderTab()
 
     expect(await screen.findByText("rspec")).toBeInTheDocument()
+    expect(document.querySelector("svg path")?.getAttribute("d")).toContain("M12.22 2h-.44")
     fireEvent.click(screen.getByRole("button", { name: /rspec/ }))
 
     expect(await screen.findByText("1 example, 1 failure")).toBeInTheDocument()

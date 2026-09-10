@@ -4,6 +4,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { StatusPill } from "../../components/StatusPill"
 import { CloseIcon } from "../../components/CloseIcon"
+import { GearIcon } from "../../components/GearIcon"
 import type { AgentConversationNode } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
 import { PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
@@ -237,14 +238,5 @@ function ExternalTriggerBanner({ node, prUrl }: { node: AgentConversationNode; p
       </div>
       {content ? <p className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-700 dark:text-gray-300">{content}</p> : null}
     </div>
-  )
-}
-
-function GearIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" viewBox="0 0 24 24">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M19.4 13.5a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V19.4a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H4.6a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H10.5a1.65 1.65 0 0 0 1-1.51V4.6a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V10.5a1.65 1.65 0 0 0 1.51 1H19.4a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
   )
 }
