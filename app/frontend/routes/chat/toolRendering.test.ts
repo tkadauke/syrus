@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fullResultBody, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
+import { fullResultBody, normalizedToolCardParsedResult, shortenWorkspacePaths, toolDetail, toolLabel, toolPresentation, toolResultPresentation, typedToolResult } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -104,6 +104,18 @@ describe("toolPresentation", () => {
 })
 
 describe("toolResultPresentation", () => {
+  it("normalizes a Codex MCP envelope with JSON text before custom-card summary dispatch", () => {
+    const result = toolResultPresentation(
+      "read_job",
+      JSON.stringify({
+        content: [{ type: "text", text: JSON.stringify({ job: { id: 4048, state: "running" } }) }],
+        structured_content: null
+      })
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "JOB-4048 (running)" })
+  })
+
   it("prioritizes a core-registered card's collapsed summary over the generic list heuristic", () => {
     // list_chat_media's card lives under routes/chat/tool_cards/  —
     // this proves the registered card wins over the blind generic guess.
@@ -198,6 +210,43 @@ describe("toolResultPresentation", () => {
     )
 
     expect(result).toMatchObject({ kind: "error", summary: "Navigate http://evil.example.com · failed" })
+  })
+})
+
+describe("normalizedToolCardParsedResult", () => {
+  it("unwraps a Codex MCP content envelope with JSON text", () => {
+    expect(normalizedToolCardParsedResult({
+      content: [{ type: "text", text: JSON.stringify({ epic: { id: 349, state: "running" }, child_jobs: [] }) }],
+      structured_content: null
+    })).toEqual({ epic: { id: 349, state: "running" }, child_jobs: [] })
+  })
+
+  it("prefers structured_content over text content", () => {
+    expect(normalizedToolCardParsedResult({
+      content: [{ type: "text", text: JSON.stringify({ job: { id: 1, state: "stale" } }) }],
+      structured_content: { job: { id: 2, state: "running" } }
+    })).toEqual({ job: { id: 2, state: "running" } })
+  })
+
+  it("leaves direct unwrapped payloads unchanged", () => {
+    const payload = { job: { id: 3, state: "queued" } }
+
+    expect(normalizedToolCardParsedResult(payload)).toBe(payload)
+  })
+
+  it("falls back to the original envelope when inner text is malformed JSON", () => {
+    const envelope = {
+      content: [{ type: "text", text: "{\"job\":" }],
+      structured_content: null
+    }
+
+    expect(normalizedToolCardParsedResult(envelope)).toBe(envelope)
+  })
+
+  it("leaves generic raw fallback payloads unchanged", () => {
+    const payload = { content: [{ type: "image", data: "abc123" }], structured_content: null }
+
+    expect(normalizedToolCardParsedResult(payload)).toBe(payload)
   })
 })
 

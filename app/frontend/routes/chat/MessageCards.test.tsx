@@ -859,6 +859,89 @@ describe("tool result rendering", () => {
     expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
   })
 
+  it("renders read_job expanded cards from Codex MCP result envelopes while preserving raw details", async () => {
+    const envelope = {
+      content: [{ type: "text", text: JSON.stringify({ job: { id: 4795, issue_title: "Normalize Codex envelopes", state: "running", branch_name: "syrus/direct-4795" } }) }],
+      structured_content: null
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read job",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_job",
+          raw_name: "read_job",
+          detail: "4795",
+          display_label: "Read job",
+          progress_label: "Reading",
+          raw_payload: { job_id: 4795 },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "JOB-4795 (running)"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expandToolGroup("Read job")
+
+    expect(screen.getByText("JOB-4795")).toBeInTheDocument()
+    expect(screen.getByText("Normalize Codex envelopes")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-4795")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Raw details"))
+
+    await waitFor(() => {
+      expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("structured_content") === true)).toBeInTheDocument()
+    })
+  })
+
+  it("renders read_epic expanded cards from Codex MCP result envelopes", () => {
+    const envelope = {
+      content: [{ type: "text", text: JSON.stringify({
+        epic: { id: 349, display_number: "EPIC-349", title: "Chat tool cards", state: "running", repository: "tkadauke/syrus" },
+        child_jobs: [{ id: 4795, issue_title: "Normalize Codex envelopes", state: "running" }]
+      }) }],
+      structured_content: null
+    }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read epic",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "read_epic",
+          raw_name: "read_epic",
+          detail: "349",
+          display_label: "Read epic",
+          progress_label: "Reading",
+          raw_payload: { epic_id: 349 },
+          result_body: JSON.stringify(envelope),
+          result_json: envelope,
+          result_error: false,
+          result_kind: "record",
+          result_summary: "EPIC-349: Chat tool cards"
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expandToolGroup("Read epic")
+
+    expect(screen.getByText("EPIC-349")).toBeInTheDocument()
+    expect(screen.getByText("Chat tool cards")).toBeInTheDocument()
+    expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
+    expect(screen.getByText("Child Jobs (0/1)")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4795")).toBeInTheDocument()
+  })
+
   it("falls back to formatted raw output for unknown and malformed typed payloads", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
