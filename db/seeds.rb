@@ -228,7 +228,16 @@ if Rails.env.development?
       body: "Representative implemented job with a PR waiting for review.",
       pr_number: 101,
       branch_name: "syrus/demo-dashboard-states",
-      diff_fixture: demo_diff_review_fixture
+      diff_fixture: demo_diff_review_fixture,
+      # The demo repository leaves auto-merge off by default (a deliberate,
+      # unconfigured starting point for a fresh preview), but the Approve
+      # button on an implemented Job hard-gates on `job.auto_merge_enabled?`
+      # (repository setting OR this per-Job override) before it will even
+      # transition the Job -- without this override, clicking Approve in a
+      # fresh preview always 422s. Override it just on this one seeded Job
+      # instead of flipping the repository-wide setting, so approving it is
+      # actually reachable without changing the demo repo's default posture.
+      auto_merge_enabled: true
     },
     {
       title: "Repair seeded background workflow",
@@ -287,7 +296,8 @@ if Rails.env.development?
       approved_at: attrs[:approved_at],
       approved_via: attrs[:approved_via],
       approved_by_user: attrs[:approved_by_user],
-      diff_fixture: attrs[:diff_fixture]
+      diff_fixture: attrs[:diff_fixture],
+      auto_merge_enabled: attrs.fetch(:auto_merge_enabled, false)
     )
     job.save!
     demo_jobs_by_title[attrs.fetch(:title)] = job
@@ -372,6 +382,74 @@ if Rails.env.development?
       JobLog.append!(run: run, kind: "agent", chunk: "Reviewing db/seeds.rb for preview coverage gaps.")
       JobLog.append!(run: run, kind: "agent", chunk: "Adding a full Workflow/Step/Run chain for the implemented demo job, plus queued/approved demo jobs.")
     end
+  end
+
+  # The seeded "failed" Job also gets a real (failed) Workflow/Step chain --
+  # without one, `App::JobRetryActions` has no failed Step to point at, so
+  # the Job detail page's only recovery action is "Start over" (which
+  # abandons the branch and creates a whole new Job). A real failed
+  # `implement` Step is what makes the "Retry failed step" / "Retry
+  # implementation" affordances -- the actually-common recovery path --
+  # reachable in a fresh preview at all.
+  failed_job = demo_jobs_by_title.fetch("Repair seeded background workflow")
+  if failed_job.workflows.none?
+    failed_workflow = Workflow.create!(
+      job: failed_job,
+      user: demo_user,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "failed",
+      started_at: 40.minutes.ago,
+      finished_at: 25.minutes.ago,
+      failure_reason: "grader_failed"
+    )
+
+    failed_prepare_step = Step.create!(
+      workflow: failed_workflow,
+      kind: "prepare",
+      position: 0,
+      iteration: 1,
+      state: "succeeded",
+      started_at: 40.minutes.ago,
+      finished_at: 39.minutes.ago
+    )
+    failed_implement_step = Step.create!(
+      workflow: failed_workflow,
+      kind: "implement",
+      position: 1,
+      iteration: 1,
+      state: "failed",
+      started_at: 38.minutes.ago,
+      finished_at: 25.minutes.ago
+    )
+    failed_prepare_step.update!(next_step_id: failed_implement_step.id)
+
+    Run.create!(
+      job: failed_job,
+      user: demo_user,
+      step: failed_prepare_step,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      iteration: 1,
+      started_at: failed_prepare_step.started_at,
+      finished_at: failed_prepare_step.finished_at
+    )
+    failed_run = Run.create!(
+      job: failed_job,
+      user: demo_user,
+      step: failed_implement_step,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "failed",
+      iteration: 1,
+      started_at: failed_implement_step.started_at,
+      finished_at: failed_implement_step.finished_at,
+      prompt: "Repair the background workflow that keeps failing on retry."
+    )
+
+    JobLog.append!(run: failed_run, kind: "agent", chunk: "Attempting to repair the background workflow retry path.")
+    JobLog.append!(run: failed_run, kind: "system", chunk: "Required grader failed: bin/rspec spec/jobs/run_job_spec.rb")
   end
 
   # Build Cache sample sccache stats capture. The plugin is enabled by
