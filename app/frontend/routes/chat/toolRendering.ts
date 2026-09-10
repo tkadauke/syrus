@@ -280,9 +280,9 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}): ToolResultPresentation {
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}, parsedResult?: unknown): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
-  const parsed = parseJsonText(parseBody)
+  const parsed = parsedResult === undefined ? parseJsonText(parseBody) : parsedResult
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
@@ -405,6 +405,16 @@ export function parseJsonText(value: string): unknown {
 
 export function fullResultBody(content: unknown): string {
   return toolResultPreview(fullResultBodyUnbounded(content))
+}
+
+export function parsedToolResult(content: unknown, unboundedBody: string): unknown {
+  const parsed = parseJsonText(unboundedBody)
+  if (parsed != null) return parsed
+
+  if (!Array.isArray(content)) return parsed
+
+  const records = content.map((item) => contentRecord(item)).filter((item): item is Record<string, unknown> => item != null)
+  return records.length > 0 && records.some((record) => record.type !== "text") ? records : parsed
 }
 
 // Unbounded counterpart of fullResultBody, exported so callers building a

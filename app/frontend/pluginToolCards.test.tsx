@@ -33,6 +33,7 @@ describe("pluginToolCards", () => {
     expect(pluginToolCardRendererKeys()).toEqual(expect.arrayContaining([
       "browser_navigate",
       "browser_snapshot",
+      "browser_screenshot",
       "browser_resize",
       "browser_wait_for",
       "browser_close"

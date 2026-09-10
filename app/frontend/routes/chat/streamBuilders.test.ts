@@ -145,6 +145,24 @@ describe("renderChatMessages tool grouping", () => {
     expect(item.calls[0].result_summary).toBe("Navigate http://evil.example.com · failed")
   })
 
+  it("keeps Browser screenshot image blocks available for plugin cards without dumping them into the result body", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_screenshot", toolName: "browser_screenshot", input: {} }),
+      toolResult(2, {
+        toolUseId: "tu_screenshot",
+        content: [
+          { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }
+        ]
+      })
+    ])
+
+    const item = group(items[0])
+
+    expect(item.calls[0].result_summary).toBe("Screenshot · Browser screenshot · success")
+    expect(item.calls[0].result_body).toBe("")
+    expect(item.calls[0].result_json).toEqual([{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }])
+  })
+
   it("renders prefixed MCP tool calls with human labels and retained raw payloads", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_media", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
