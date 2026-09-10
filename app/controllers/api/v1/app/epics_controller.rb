@@ -177,6 +177,7 @@ module Api
             epic.start_implementing!(actor: Current.user)
             auto_claim_started_epic!(epic, "in_progress")
           end
+          epic.reload.start_released_child_workflows_if_ready!
 
           render json: detail_payload(epic.reload, message: I18n.t("api.epics.started"))
         rescue Epic::NotStartable => e
@@ -190,6 +191,7 @@ module Api
             params[:target_state].to_s,
             override: ActiveModel::Type::Boolean.new.cast(params[:override])
           )
+          epic.reload.start_released_child_workflows_if_ready! if params[:target_state].to_s == "in_progress"
 
           render json: detail_payload(epic.reload, message: I18n.t("api.epics.updated"))
         rescue ArgumentError
