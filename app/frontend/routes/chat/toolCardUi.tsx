@@ -33,7 +33,7 @@ export function durationLabel(startedAt: unknown, finishedAt: unknown): string |
   return label === "-" ? null : label
 }
 
-type Tone = "success" | "failure" | "warning" | "info" | "neutral"
+export type Tone = "success" | "failure" | "warning" | "info" | "neutral"
 
 const TONE_CLASSES: Record<Tone, string> = {
   success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200",
