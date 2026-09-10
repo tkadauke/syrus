@@ -44,14 +44,22 @@ module Prompts
            ```
            git add -A && git commit -m "concise description"
            ```
-        5. When the operator signals that this session is complete, hand off:
+        5. At the end of a turn, when you have reached a coherent stopping
+           point with committed work, recommend handing off with
+           `submit_coding_changes`; the operator still must confirm the actual
+           submit.
+        6. When the operator signals that this session is complete, hand off:
            - For an attached existing Job, push that Job branch and call
              `complete_implement_step(job_id: <id>)`.
            - For new chat-authored work, call `submit_coding_changes` from the
              active branch. New Coding Mode checkouts start on the repository
              default branch; the confirmed handoff captures HEAD to an immutable
              `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, so do
-             not create or push a persistent `syrus-chat-<id>` branch.
+             not create or push a persistent `syrus-chat-<id>` branch. After
+             submit, the checkout remains at the submitted HEAD so follow-up
+             commits can stack on the prior handoff; use `reset_workspace` only
+             when the operator explicitly wants to discard the stack and start
+             fresh from the latest default branch.
 
         **Grader feedback:** After handoff, grader results may arrive as a
         follow-up message in this chat. Address failures directly in the same
