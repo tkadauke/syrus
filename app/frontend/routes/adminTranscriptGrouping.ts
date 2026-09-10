@@ -57,6 +57,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         progress_label: simpleToolProgressLabel(name),
         raw_payload: presentation.raw_payload,
         result_body: "",
+        result_settled: false,
         result_error: false,
         result_kind: "unknown" as const,
         result_summary: ""
@@ -83,6 +84,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         const body = fullResultBody(data.content)
         open.call.result_body = body
         open.call.result_json = parseJsonText(unboundedBody)
+        open.call.result_settled = true
         open.call.result_error = data.error === true
         const resultPresentation = toolResultPresentation(
           open.call.tool_name,

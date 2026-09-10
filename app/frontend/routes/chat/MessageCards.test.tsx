@@ -687,6 +687,43 @@ describe("tool result rendering", () => {
     expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
   })
 
+  it("renders plugin card bodies for settled Browser calls with empty result content", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Browser resize",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "browser_resize",
+          raw_name: "browser_resize",
+          detail: "390x844",
+          display_label: "Browser resize",
+          progress_label: "Thinking",
+          raw_payload: { width: 390, height: 844 },
+          result_body: "",
+          result_settled: true,
+          result_error: false,
+          result_kind: "text",
+          result_summary: "Resize 390x844 · success"
+        }
+      ],
+      summary_label: "Browser resize",
+      outcome_label: "Done",
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Done")).toBeInTheDocument()
+    expect(screen.getByText("Resize 390x844 · success")).toBeInTheDocument()
+
+    expandToolGroup("Browser resize")
+
+    expect(screen.getByText("Resize")).toBeInTheDocument()
+    expect(screen.getByText("Viewport")).toBeInTheDocument()
+    expect(screen.getAllByText("390x844")).toHaveLength(1)
+  })
+
   it("renders typed success and record outputs instead of raw JSON", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
