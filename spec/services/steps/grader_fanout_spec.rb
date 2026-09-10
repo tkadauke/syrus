@@ -129,6 +129,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "records immutable placement and descriptive DAG metadata for materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     write_config(<<~YAML)
       grade:
         - name: rspec
@@ -178,7 +179,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
   end
 
-  it "keeps distributed metadata but preserves serial links until worker-slot admission is enabled" do
+  it "falls back to pinned serial in-workflow grading until worker-slot admission is enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
@@ -193,7 +194,12 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     handler.call
 
     grader_steps = workflow.steps.where(kind: "grader").order(:position).to_a
-    expect(grader_steps.map { |s| s.details["source_snapshot_id"] }).to all(be_present)
+    expect(grader_steps.map(&:placement_policy)).to eq([
+      Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE,
+      Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    ])
+    expect(grader_steps.map { |s| s.details["source_snapshot_id"] }).to all(be_nil)
+    expect(workflow.source_snapshots).to be_empty
     expect(step.reload.next_step_id).to eq(grader_steps.first.id)
     expect(grader_steps.first.next_step_id).to eq(grader_steps.second.id)
     expect(grader_steps.second.next_step_id).to eq(collect.id)
@@ -203,6 +209,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "prefers a published checkpoint ref for the current source snapshot" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     implement_step = Step.create!(
       workflow: workflow,
       kind: "implement",
@@ -251,6 +258,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
   it "reuses the current workflow source snapshot for all materialized graders when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     write_config(<<~YAML)
       grade:
         - name: rspec

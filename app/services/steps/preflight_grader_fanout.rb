@@ -66,7 +66,7 @@ module Steps
             kind: "preflight_grader",
             position: insertion_position + index,
             iteration: step.iteration,
-            placement_policy: Step::Kind.fetch("preflight_grader").placement_policy_for(repository),
+            placement_policy: grader_placement_policy,
             details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
@@ -91,7 +91,7 @@ module Steps
     end
 
     def distributed_grader_details(grader, source_snapshot:)
-      return {} unless Feature.distributed_workflow_dag_enabled?(repository)
+      return {} unless distributed_grader_projection_enabled?
 
       {
         "projected_target_label" => "//:preflight-grade/#{grader.name}",
@@ -108,7 +108,7 @@ module Steps
     end
 
     def current_source_snapshot_for_projection
-      return nil unless Feature.distributed_workflow_dag_enabled?(repository)
+      return nil unless distributed_grader_projection_enabled?
 
       source_sha = current_head_sha.presence
       tree_sha = current_tree_sha.presence
@@ -118,15 +118,30 @@ module Steps
       end
 
       current = WorkflowSourceSnapshots.current_for(workflow)
-      return current if current&.source_sha == source_sha && current&.tree_sha == tree_sha && current&.source_ref == source_ref
+      if current&.source_sha == source_sha && current&.tree_sha == tree_sha && current&.source_ref == source_ref
+        log("[preflight_grader_fanout] verified existing source snapshot ##{current.id} for #{source_sha.first(7)}")
+        return current
+      end
 
-      WorkflowSourceSnapshots.record!(
+      snapshot = WorkflowSourceSnapshots.record!(
         workflow: workflow,
         creator_step: step,
         source_sha: source_sha,
         source_ref: source_ref,
         tree_sha: tree_sha
       )
+      log("[preflight_grader_fanout] recorded source snapshot ##{snapshot.id} #{source_ref}@#{source_sha.first(7)}")
+      snapshot
+    end
+
+    def distributed_grader_projection_enabled?
+      Feature.distributed_workflow_dag_enabled?(repository) && WorkflowStepWorkerSlot.enabled?
+    end
+
+    def grader_placement_policy
+      return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE unless distributed_grader_projection_enabled?
+
+      Step::Kind.fetch("preflight_grader").placement_policy_for(repository)
     end
 
     def current_head_sha
