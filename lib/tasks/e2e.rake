@@ -21,6 +21,22 @@ namespace :e2e do
                               title: "Preview the operator workflow")
     demo_epic.update!(state: "done", done_at: demo_epic.done_at || Time.current)
 
+    # e2e/chat.spec.ts drives the demo user's real Chat UI, which gates the
+    # whole message stream -- including already-seeded history -- behind
+    # User#chat_available? (see ChatView in app/frontend/routes/Chat.tsx).
+    # db/seeds.rb intentionally seeds no credentials, so without this the
+    # seeded "Preview walkthrough" chat never renders. A fake key is enough:
+    # no worker process runs against this preview server, so nothing ever
+    # calls out with it.
+    demo_user.update!(codex_api_key: "sk-e2e-demo-chat") if demo_user.codex_api_key.blank?
+
+    # Clicking "New Chat" reuses any existing message-less ChatSession
+    # instead of creating one (see firstUnstartedChat in
+    # app/frontend/lib/unstartedChat.ts). Repeated local runs of this task --
+    # or ordinary manual use of this preview -- can leave several behind, so
+    # clear them here to keep that click deterministic.
+    demo_user.chat_sessions.where(onboarding: false, last_message_at: nil).destroy_all
+
     onboarding_user = User.find_or_initialize_by(email_address: "onboarding@syrus.local")
     onboarding_user.assign_attributes(
       name: "Onboarding Operator",
