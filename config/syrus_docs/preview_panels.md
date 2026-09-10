@@ -122,7 +122,9 @@ cookie, so "private" access needs its own plumbing:
 `PreviewPanel::Service#update_visibility!(visibility)` is the sanctioned
 mutation path (validates against `PreviewPanel::VISIBILITIES`, persists, and
 broadcasts the same `preview_panels` app event as every other panel
-mutation), invoked via `PATCH /api/v1/app/chats/:id/preview_panels/:panel_id`.
+mutation), invoked via `PATCH /api/v1/app/chats/:id/preview_panels/:panel_id`
+inside chat or `PATCH /api/v1/app/preview_panels/:id` on chat-independent
+surfaces such as the Mockups page.
 
 ## Chat sidebar UI
 
@@ -276,11 +278,11 @@ own conventions, not boilerplate to copy verbatim.
 
 Panel routes used to live only under `chats/:id/preview_panels/...`, which meant
 a panel could be shown only inside the chat it was opened in.
-`/api/v1/app/preview_panels/:id` (`show`, `files/*path`, `export`, `token`)
-serves the same content addressed by panel, authorized by
-`PreviewPanel.accessible_to(user)` -- the same rule as before, just not implied
-by the URL. `PreviewPanel::Payload` is the one serialization both surfaces use;
-only the base path differs.
+`/api/v1/app/preview_panels/:id` (`show`, `update`, `files/*path`, `export`,
+`token`) serves the same content and sharing controls addressed by panel,
+authorized by `PreviewPanel.accessible_to(user)` -- the same rule as before,
+just not implied by the URL. `PreviewPanel::Payload` is the one serialization
+both surfaces use; only the base path differs.
 
 ## Contributing a viewer kind
 
