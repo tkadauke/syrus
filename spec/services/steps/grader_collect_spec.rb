@@ -111,6 +111,23 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "does not use workflow-local source snapshot ids as input fingerprints" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      details: {
+        "name" => "tests",
+        "target_label" => "//cli:grade/tests",
+        "command" => "bundle exec rspec",
+        "required" => true,
+        "source_snapshot_id" => 202,
+        "source_snapshot" => { "id" => 202 }
+      }
+    )
+
+    expect { handler.call }.to change(TargetHealthRecord, :count).by(1)
+
+    expect(TargetHealthRecord.sole.input_fingerprint).to eq("abc123")
+  end
+
   it "records timeout conclusions without making them reusable" do
     fingerprint = "timeout-fingerprint"
     workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, fingerprint)
