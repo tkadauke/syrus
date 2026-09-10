@@ -724,6 +724,38 @@ describe("tool result rendering", () => {
     expect(screen.getAllByText("390x844")).toHaveLength(1)
   })
 
+  it("shows a done outcome for settled Browser screenshot calls with empty display bodies", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Browser screenshot",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "browser_screenshot",
+          raw_name: "browser_screenshot",
+          detail: "Hero panel",
+          display_label: "Browser screenshot",
+          progress_label: "Thinking",
+          raw_payload: { element: "Hero panel" },
+          result_body: "",
+          result_json: [{ type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }],
+          result_settled: true,
+          result_error: false,
+          result_kind: "text",
+          result_summary: "Screenshot Hero panel · Browser screenshot · success"
+        }
+      ],
+      summary_label: "Browser screenshot",
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Done")).toBeInTheDocument()
+    expect(screen.queryByText("Running")).not.toBeInTheDocument()
+    expect(screen.getByText("Screenshot Hero panel · Browser screenshot · success")).toBeInTheDocument()
+  })
+
   it("renders typed success and record outputs instead of raw JSON", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
