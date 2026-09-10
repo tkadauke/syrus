@@ -27,6 +27,7 @@ namespace :e2e do
       agent_provider: "codex",
       chat_provider: "codex",
       codex_api_key: "sk-e2e-codex",
+      api_token: "syrus_e2e_cli_token",
       landing_paused: false
     )
     demo_epic = Epic.find_by!(repository: Repository.find_by!(owner: "demo", name: "syrus-preview"),
