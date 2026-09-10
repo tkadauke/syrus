@@ -24,6 +24,10 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     response.fetch(:result).fetch(:content).first.fetch(:text)
   end
 
+  def response_payload(response)
+    JSON.parse(response_text(response), symbolize_names: true)
+  end
+
   before do
     # Plugins contribute their own docs (and a teaser when disabled), so these
     # examples pin the plugin set rather than depending on which plugins happen
@@ -54,14 +58,22 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     MD
 
     response = call_tool(query: "bundle install")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(text).to include("## Prepare Step >")
-    expect(text).to include("bundle install")
+    expect(payload).to include(query: "bundle install", count: 1)
+    expect(payload[:results].first).to include(
+      rank: 1,
+      title: "Prepare Step",
+      heading: "Commands",
+      path: a_string_ending_with("prepare.md"),
+      source: "core"
+    )
+    expect(payload[:results].first[:snippet]).to include("bundle install")
+    expect(payload[:results].first[:text]).to include("## Prepare Step > Commands")
   end
 
-  it "returns at most 3 sections" do
+  it "returns total hit count while limiting ranked results to 3 sections" do
     # Four docs each with one matching section
     %w[alpha beta gamma delta].each do |name|
       write_doc("#{name}.md", <<~MD)
@@ -73,11 +85,11 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     end
 
     response = call_tool(query: "frobulate")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    section_count = text.split("\n\n---\n\n").length
-    expect(section_count).to eq(described_class::MAX_RESULTS)
+    expect(payload[:results].length).to eq(described_class::MAX_RESULTS)
+    expect(payload[:count]).to eq(4)
   end
 
   it "returns a not-found message when nothing matches" do
@@ -89,29 +101,32 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     MD
 
     response = call_tool(query: "xyzzy gobbledygook")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(text).to eq("No matching documentation found for 'xyzzy gobbledygook'. Try broader terms.")
+    expect(payload[:query]).to eq("xyzzy gobbledygook")
+    expect(payload[:count]).to eq(0)
+    expect(payload[:results]).to eq([])
+    expect(payload[:message]).to eq("No matching documentation found for 'xyzzy gobbledygook'. Try broader terms.")
   end
 
   it "handles an empty corpus directory gracefully" do
     # @docs_dir exists but has no .md files
     response = call_tool(query: "anything")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(text).to include("No matching documentation found for 'anything'")
+    expect(payload[:message]).to include("No matching documentation found for 'anything'")
   end
 
   it "handles a missing corpus directory gracefully" do
     allow(described_class).to receive(:docs_dir).and_return(Pathname.new("/nonexistent/path/syrus_docs"))
 
     response = call_tool(query: "anything")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(text).to include("No matching documentation found for 'anything'")
+    expect(payload[:message]).to include("No matching documentation found for 'anything'")
   end
 
   it "truncates long section bodies to MAX_SECTION_CHARS characters" do
@@ -124,11 +139,11 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     MD
 
     response = call_tool(query: "long")
-    text = response_text(response)
+    payload = response_payload(response)
 
-    section_body = text.split("\n", 2).last
+    section_body = payload[:results].first[:snippet]
     expect(section_body.length).to be <= described_class::MAX_SECTION_CHARS + 10
-    expect(text).to include("…")
+    expect(section_body).to include("…")
   end
 
   it "matches case-insensitively" do
@@ -140,10 +155,10 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     MD
 
     response = call_tool(query: "grader")
-    text = response_text(response)
+    payload = response_payload(response)
 
     expect(response[:result][:isError]).to be_falsey
-    expect(text).to include("## Graders >")
+    expect(payload[:results].first[:text]).to include("## Graders >")
   end
 
   it "returns an error for a blank query" do
@@ -175,7 +190,9 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
       allow(described_class).to receive(:plugin_docs_dir).with("terminal").and_return(dir)
       with_plugins(manifest(name: "terminal", enabled: true))
 
-      expect(response_text(call_tool(query: "session survives navigation"))).to include("survives browser navigation")
+      payload = response_payload(call_tool(query: "session survives navigation"))
+      expect(payload[:results].first).to include(source: "plugin:terminal")
+      expect(payload[:results].first[:snippet]).to include("survives browser navigation")
     ensure
       FileUtils.rm_rf(dir)
     end
@@ -186,7 +203,8 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
       allow(described_class).to receive(:plugin_docs_dir).with("terminal").and_return(dir)
       with_plugins(manifest(name: "terminal", enabled: false))
 
-      expect(response_text(call_tool(query: "session survives navigation"))).not_to include("survives browser navigation")
+      payload = response_payload(call_tool(query: "session survives navigation"))
+      expect(payload[:results].pluck(:snippet).join("\n")).not_to include("survives browser navigation")
     ensure
       FileUtils.rm_rf(dir)
     end
@@ -196,7 +214,8 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
     it "offers a teaser for a disabled plugin, leading with the fact that it is off" do
       with_plugins(manifest(name: "terminal", enabled: false))
 
-      text = response_text(call_tool(query: "terminal"))
+      payload = response_payload(call_tool(query: "terminal"))
+      text = payload[:results].first[:text]
 
       expect(text).to include("Terminal (plugin disabled)")
       expect(text).to include("currently DISABLED")
@@ -208,13 +227,15 @@ RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
       allow(described_class).to receive(:plugin_docs_dir).and_return(Pathname.new(Dir.mktmpdir))
       with_plugins(manifest(name: "terminal", enabled: true))
 
-      expect(response_text(call_tool(query: "terminal"))).not_to include("plugin disabled")
+      payload = response_payload(call_tool(query: "terminal"))
+      expect(payload[:results].pluck(:text).join("\n")).not_to include("plugin disabled")
     end
 
     it "skips a disabled plugin with nothing to say rather than offering an empty teaser" do
       with_plugins(manifest(name: "terminal", enabled: false, long_description: nil))
 
-      text = response_text(call_tool(query: "terminal"))
+      payload = response_payload(call_tool(query: "terminal"))
+      text = payload[:message].to_s.presence || payload[:results].pluck(:text).join("\n")
 
       expect(text).to include("No matching documentation").or include("short blurb")
     end
