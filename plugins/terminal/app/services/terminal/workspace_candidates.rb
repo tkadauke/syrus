@@ -66,8 +66,9 @@ module Terminal
         .where.not(workspace_path: [ nil, "" ])
         .includes(:attached_repositories)
         .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
-        .limit(40)
-        .map { |chat| ChatCandidate.new(chat) }
+        .limit(80)
+        .filter_map { |chat| ChatCandidate.for(chat) }
+        .first(40)
     end
 
     def worker_candidates
@@ -261,8 +262,16 @@ module Terminal
     end
 
     class ChatCandidate < Candidate
-      def initialize(chat)
+      def self.for(chat)
+        working_directory = ChatWorkspace.path_for(chat)
+        return nil unless working_directory.directory?
+
+        new(chat, working_directory:)
+      end
+
+      def initialize(chat, working_directory:)
         @chat = chat
+        @working_directory = working_directory
       end
 
       def key = "chat:#{@chat.id}"
@@ -273,7 +282,7 @@ module Terminal
       def section_order = 1
       def chat_session_id = @chat.id
       def timestamp = @chat.last_message_at || @chat.updated_at || @chat.created_at
-      def working_directory = ChatWorkspace.path_for(@chat).to_s
+      def working_directory = @working_directory.to_s
       def state = @chat.mode
       def queue_name = "chat"
 
@@ -287,7 +296,7 @@ module Terminal
           repository_label(repository),
           @chat.mode&.titleize,
           @chat.coding_checkout_branch,
-          @chat.workspace_path.presence || ChatWorkspace.path_for(@chat).to_s
+          @chat.workspace_path.presence || working_directory
         ].compact_blank.join(" · ")
       end
 
