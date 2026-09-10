@@ -130,6 +130,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
     end
 
+    it "includes :build_system_graph_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:build_system_graph_provider)
+    end
+
     it "includes :workspace_tab" do
       expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
@@ -195,6 +199,21 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :prepare_detector to Syrus::Plugin::PrepareDetector" do
       expect(described_class::INTERFACE_FOR[:prepare_detector].call).to eq(Syrus::Plugin::PrepareDetector)
+    end
+
+    it "maps :build_system_graph_provider to Syrus::Plugin::BuildSystemGraphProvider" do
+      expect(described_class::INTERFACE_FOR[:build_system_graph_provider].call).to eq(Syrus::Plugin::BuildSystemGraphProvider)
+    end
+
+    it "gives build-system graph providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::BuildSystemGraphProvider }
+
+      expect(provider).to respond_to(:provider_key)
+      expect(provider).to respond_to(:import_target_graph)
+      expect { provider.provider_key }.to raise_error(NotImplementedError, /provider_key is required/)
+      expect {
+        provider.import_target_graph(repo_path: "/tmp/repo", config: {})
+      }.to raise_error(NotImplementedError, /import_target_graph is required/)
     end
 
     it "gives prepare detector providers the class contract used by the registry" do
@@ -1304,5 +1323,4 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(logger).to have_received(:error).with(/dependent is degraded: requires absent/)
     end
   end
-
 end

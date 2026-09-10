@@ -48,9 +48,11 @@ project-scoped dependency install is needed (see "Agent-requested prepare
 targets" below).
 
 Explicit `targets:` declarations are available for hand-authored dependency
-nodes. Build-system plugin import (later adoption levels in `DOC-20`) does
-not exist yet — do not describe it as available. The `project:` primitive
-described below names/labels the project that owns a config file's targets.
+nodes. Build-system plugin imports are also available, but only as explicit
+repository declarations under `target_graph.imports`; Syrus never guesses
+Buck/Bazel/Pants-style targets from repository structure on its own. The
+`project:` primitive described below names/labels the project that owns a
+config file's targets.
 
 ## Projects vs. targets
 
@@ -129,6 +131,35 @@ Explicit target fields:
 Unlike legacy executable declarations, explicit `targets:` do **not** gain an
 implicit dependency on `//:repo`; the only edges they declare initially are the
 labels listed in `deps`.
+
+## Imported build-system graphs
+
+Repositories can ask an enabled plugin to import target nodes and dependency
+edges from an external build system:
+
+```yaml
+target_graph:
+  imports:
+    - provider: bazel
+      failures: strict
+      config:
+        query: //...
+```
+
+`provider` is the registered `:build_system_graph_provider` key. `config` is a
+free-form mapping passed to that provider so the repository, not Syrus core,
+declares what should be imported. Providers return `TargetGraph::Import`
+fragments containing normal `TargetGraph::Project` and `TargetGraph::Target`
+objects; the compiler merges them after `.syrus.yml` targets and validates the
+same duplicate-label, missing-dependency, and cycle rules as hand-authored
+targets. Imported targets carry `metadata["provenance"]` with the provider key,
+provider class, and owning import declaration, and
+`TargetGraph::Compiler.diagnose` includes one `import_diagnostics` entry per
+provider call.
+
+`failures` controls what happens when the configured provider is unavailable or
+raises while importing: `strict` (default) fails graph compilation, while `warn`
+records the error in diagnostics and continues with the rest of the graph.
 
 Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
 also accept `deps:`. For graders, runtime fanout uses those dependency

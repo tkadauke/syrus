@@ -68,7 +68,18 @@ class TargetGraph
     # `error`, when present, is a human-readable message naming the owning
     # `.syrus.yml` path (and target label, for validation failures) so an
     # operator can find the offending config without reading source.
-    Diagnostics = Data.define(:source, :owner_config_path, :target_labels, :project_count, :error) do
+    Diagnostics = Data.define(:source, :owner_config_path, :target_labels, :project_count, :error, :import_diagnostics) do
+      def initialize(source:, owner_config_path:, target_labels:, project_count:, error:, import_diagnostics: [])
+        super(
+          source: source,
+          owner_config_path: owner_config_path,
+          target_labels: target_labels,
+          project_count: project_count,
+          error: error,
+          import_diagnostics: import_diagnostics
+        )
+      end
+
       def error?
         !error.nil?
       end
@@ -80,7 +91,8 @@ class TargetGraph
           "target_labels" => target_labels,
           "target_count" => target_labels.size,
           "project_count" => project_count,
-          "error" => error
+          "error" => error,
+          "import_diagnostics" => import_diagnostics
         }
       end
     end
@@ -98,6 +110,8 @@ class TargetGraph
     end
 
     def compile
+      @import_errors = []
+      @import_diagnostics = []
       graph = TargetGraph.new(root_project: root_project_override)
       compile_explicit_targets!(graph)
       compile_prepare!(graph)
@@ -105,6 +119,7 @@ class TargetGraph
       compile_generated!(graph)
       compile_graders!(graph)
       compile_nested_configs!(graph)
+      compile_imported_build_system_graphs!(graph)
       graph.validate!
       graph
     end
@@ -121,7 +136,8 @@ class TargetGraph
         owner_config_path: owner_config_path,
         target_labels: graph.targets.keys.sort,
         project_count: graph.projects.size,
-        error: combined_error
+        error: combined_error,
+        import_diagnostics: import_diagnostics
       )
     rescue StandardError => e
       Diagnostics.new(
@@ -129,13 +145,22 @@ class TargetGraph
         owner_config_path: owner_config_path,
         target_labels: [],
         project_count: nil,
-        error: "#{owner_config_path}: #{e.message}"
+        error: "#{owner_config_path}: #{e.message}",
+        import_diagnostics: import_diagnostics
       )
+    end
+
+    def record_import_error(error_message)
+      import_errors << error_message
+      import_diagnostics << {
+        "status" => "error",
+        "error" => error_message
+      }
     end
 
     private
 
-    attr_reader :workspace_path, :parse_error
+    attr_reader :workspace_path, :parse_error, :import_errors, :import_diagnostics
 
     def config
       return @config if defined?(@config)
@@ -301,7 +326,84 @@ class TargetGraph
       messages = []
       messages << "#{owner_config_path}: #{parse_error.message}" if parse_error
       messages.concat(Array(@nested_parse_errors))
+      messages.concat(Array(import_errors))
       messages.join("; ").presence
+    end
+
+    def compile_imported_build_system_graphs!(graph)
+      config&.target_graph&.imports&.each_with_index do |import_config, index|
+        provider = build_system_graph_provider(import_config.provider)
+        label = "#{owner_config_path} target_graph.imports[#{index}] provider #{import_config.provider.inspect}"
+
+        unless provider
+          TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
+            error_message: "#{label}: no enabled build_system_graph_provider is registered for #{import_config.provider.inspect}",
+            compiler: self
+          )
+          next
+        end
+
+        apply_import!(graph, provider: provider, import_config: import_config, label: label)
+      rescue StandardError => e
+        TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
+          error_message: "#{label}: #{e.class}: #{e.message}",
+          compiler: self
+        )
+      end
+    end
+
+    def build_system_graph_provider(provider_key)
+      Syrus::PluginRegistry.providers_for(:build_system_graph_provider).find do |provider|
+        provider.public_send(:provider_key).to_s == provider_key.to_s
+      end
+    end
+
+    def apply_import!(graph, provider:, import_config:, label:)
+      imported = provider.import_target_graph(repo_path: workspace_path, config: import_config.config)
+      unless imported.is_a?(TargetGraph::Import)
+        raise TargetGraph::ValidationError, "#{provider_description(provider)} returned #{imported.class}, expected TargetGraph::Import"
+      end
+
+      provider_provenance = {
+        "provider" => import_config.provider,
+        "provider_class" => provider_description(provider),
+        "declaration" => label
+      }
+
+      imported.projects.each do |project|
+        graph.add_project(project.with(owner_config_path: project.owner_config_path || label))
+      end
+
+      imported.targets.each do |target|
+        target = target.with(
+          owner_config_path: target.owner_config_path || label,
+          metadata: target.metadata.merge("provenance" => provider_provenance, "declaration" => "imported build-system target")
+        )
+        graph.add_target(target)
+      rescue TargetGraph::ValidationError
+        existing = graph.target(target.label)
+        raise unless existing
+
+        raise TargetGraph::ValidationError,
+          "target #{target.label} (#{label}) conflicts with already declared target " \
+          "#{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
+          "#{existing.metadata['declaration'] || existing.kind})"
+      end
+
+      import_diagnostics << {
+        "provider" => import_config.provider,
+        "provider_class" => provider_description(provider),
+        "status" => "imported",
+        "project_ids" => imported.projects.map(&:id),
+        "target_labels" => imported.targets.map { |target| target.label.to_s },
+        "diagnostics" => imported.diagnostics
+      }.compact
+    end
+
+    def provider_description(provider)
+      return provider.name if provider.respond_to?(:name) && provider.name.present?
+
+      provider.class.name || provider.class.inspect
     end
 
     # Root prepare is left out of the dependency graph on purpose: it is the
