@@ -53,6 +53,8 @@
     "group": "Job Detail"
   },
   "open_terminal_in_workspace": "Open terminal in workspace",
+  "terminal_workspace_open_failed": "Unable to open terminal workspace.",
+  "terminal_workspace_unavailable": "Workflow workspace is unavailable.",
   "open_in_coding_mode": "Open in Coding Mode",
   "retry_failed_step": "Retry failed step",
   "push_commits": "Push commits",

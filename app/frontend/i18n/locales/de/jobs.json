@@ -53,6 +53,8 @@
     "group": "Job-Details"
   },
   "open_terminal_in_workspace": "Terminal im Workspace öffnen",
+  "terminal_workspace_open_failed": "Terminal-Workspace kann nicht geöffnet werden.",
+  "terminal_workspace_unavailable": "Workflow-Workspace ist nicht verfügbar.",
   "open_in_coding_mode": "Im Coding-Modus öffnen",
   "retry_failed_step": "Fehlgeschlagenen Schritt erneut versuchen",
   "push_commits": "Commits pushen",
