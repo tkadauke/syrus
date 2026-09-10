@@ -199,6 +199,122 @@ func TestPostCheckoutHooksReportFailingCommandExitStatus(t *testing.T) {
 	}
 }
 
+func TestPostCheckoutHooksRootOnlyDoNotNeedDiff(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeCheckoutConfig(t, repoRoot, ".syrus.yml", "hooks:\n  post_checkout:\n    - bin/root-hook\n")
+
+	var gitCalls [][]string
+	runner := func(ctx context.Context, dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, append([]string{}, args...))
+		if strings.Join(args, " ") == "rev-parse --show-toplevel" {
+			return repoRoot + "\n", nil
+		}
+		return "", fmt.Errorf("unexpected git command: %v", args)
+	}
+
+	hookCalls := collectHookCalls(t)
+	stderr := &bytes.Buffer{}
+	err := runPostCheckoutHooks(context.Background(), runner, hookCalls.runner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{
+		baseBranch: "main",
+		headRef:    "syrus/issue-1",
+	})
+	if err != nil {
+		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
+	}
+
+	if !reflect.DeepEqual(hookCalls.commands, []string{"bin/root-hook"}) {
+		t.Fatalf("hook calls = %#v", hookCalls.commands)
+	}
+	if len(gitCalls) != 1 {
+		t.Fatalf("git calls = %#v", gitCalls)
+	}
+	if !strings.Contains(stderr.String(), "running post-checkout hook from .syrus.yml (root project Repository): bin/root-hook") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestPostCheckoutHooksRunAffectedNestedProject(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeCheckoutConfig(t, repoRoot, ".syrus.yml", "hooks:\n  post_checkout:\n    - bin/root-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/web/.syrus.yml", "project:\n  id: web\n  label: Web\nhooks:\n  post_checkout:\n    - npm --prefix apps/web install\n")
+	writeCheckoutConfig(t, repoRoot, "apps/api/.syrus.yml", "hooks:\n  post_checkout:\n    - bundle exec rake api:setup\n")
+
+	runner := checkoutHookGitRunner(t, repoRoot, "main", "apps/web/package.json\nREADME.md\n", true)
+	hookCalls := collectHookCalls(t)
+	stderr := &bytes.Buffer{}
+
+	err := runPostCheckoutHooks(context.Background(), runner, hookCalls.runner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{
+		baseBranch: "main",
+		headRef:    "syrus/issue-1",
+	})
+	if err != nil {
+		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
+	}
+
+	want := []string{"bin/root-hook", "npm --prefix apps/web install"}
+	if !reflect.DeepEqual(hookCalls.commands, want) {
+		t.Fatalf("hook calls = %#v, want %#v", hookCalls.commands, want)
+	}
+	log := stderr.String()
+	if !strings.Contains(log, "apps/web/.syrus.yml (project web (Web)): npm --prefix apps/web install") {
+		t.Fatalf("stderr = %q", log)
+	}
+	if strings.Contains(log, "apps/api/.syrus.yml") {
+		t.Fatalf("stderr included unrelated project: %q", log)
+	}
+}
+
+func TestPostCheckoutHooksRunMultipleAffectedProjects(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeCheckoutConfig(t, repoRoot, ".syrus.yml", "hooks:\n  post_checkout:\n    - bin/root-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/web/.syrus.yml", "hooks:\n  post_checkout:\n    - web-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/admin/.syrus.yml", "hooks:\n  post_checkout:\n    - admin-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/api/.syrus.yml", "hooks:\n  post_checkout:\n    - api-hook\n")
+
+	runner := checkoutHookGitRunner(t, repoRoot, "main", "apps/web/src/App.tsx\napps/admin/src/App.tsx\n", true)
+	hookCalls := collectHookCalls(t)
+
+	err := runPostCheckoutHooks(context.Background(), runner, hookCalls.runner, &bytes.Buffer{}, &bytes.Buffer{}, postCheckoutHookOptions{
+		baseBranch: "main",
+		headRef:    "syrus/issue-1",
+	})
+	if err != nil {
+		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
+	}
+
+	want := []string{"bin/root-hook", "admin-hook", "web-hook"}
+	if !reflect.DeepEqual(hookCalls.commands, want) {
+		t.Fatalf("hook calls = %#v, want %#v", hookCalls.commands, want)
+	}
+}
+
+func TestPostCheckoutHooksRunAllProjectsWhenDiffUnknown(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeCheckoutConfig(t, repoRoot, ".syrus.yml", "hooks:\n  post_checkout:\n    - bin/root-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/web/.syrus.yml", "hooks:\n  post_checkout:\n    - web-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/api/.syrus.yml", "hooks:\n  post_checkout:\n    - api-hook\n")
+
+	runner := checkoutHookGitRunner(t, repoRoot, "main", "", false)
+	hookCalls := collectHookCalls(t)
+	stderr := &bytes.Buffer{}
+
+	err := runPostCheckoutHooks(context.Background(), runner, hookCalls.runner, &bytes.Buffer{}, stderr, postCheckoutHookOptions{
+		baseBranch: "main",
+		headRef:    "syrus/issue-1",
+	})
+	if err != nil {
+		t.Fatalf("runPostCheckoutHooks returned error: %v", err)
+	}
+
+	want := []string{"bin/root-hook", "api-hook", "web-hook"}
+	if !reflect.DeepEqual(hookCalls.commands, want) {
+		t.Fatalf("hook calls = %#v, want %#v", hookCalls.commands, want)
+	}
+	if !strings.Contains(stderr.String(), "warning: could not determine changed files for post-checkout hooks; running all project hooks") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
 func TestCheckoutCommandHandlesAlreadyCheckedOutBranch(t *testing.T) {
 	server := checkoutServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1630,6 +1746,56 @@ func writeTestCredentials(t *testing.T, url string) {
 	contents := fmt.Sprintf("url=%s\ntoken=secret-token\n", url)
 	if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func writeCheckoutConfig(t *testing.T, repoRoot string, relativePath string, contents string) {
+	t.Helper()
+	path := filepath.Join(repoRoot, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type hookCallCollector struct {
+	commands []string
+}
+
+func collectHookCalls(t *testing.T) *hookCallCollector {
+	t.Helper()
+	return &hookCallCollector{}
+}
+
+func (collector *hookCallCollector) runner(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+	collector.commands = append(collector.commands, command)
+	return nil
+}
+
+func checkoutHookGitRunner(t *testing.T, repoRoot string, baseBranch string, changedFiles string, diffAvailable bool) gitRunner {
+	t.Helper()
+	baseRef := "refs/remotes/origin/" + baseBranch
+	return func(ctx context.Context, dir string, args ...string) (string, error) {
+		switch strings.Join(args, " ") {
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		case "show-ref --verify --quiet " + baseRef:
+			if diffAvailable {
+				return "", nil
+			}
+			return "", fmt.Errorf("exit status 1")
+		case "fetch origin +refs/heads/" + baseBranch + ":" + baseRef:
+			return "", fmt.Errorf("fetch failed")
+		case "diff --name-only " + baseRef + "...syrus/issue-1":
+			if diffAvailable {
+				return changedFiles, nil
+			}
+			return "", fmt.Errorf("diff failed")
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
 	}
 }
 

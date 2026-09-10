@@ -263,6 +263,14 @@ exit code, then exits non-zero. The checkout itself is not rolled back:
 fix the local problem and rerun the command manually, or run checkout
 again with `--no-hooks` if you only need the branch.
 
+Root hooks are repository-wide. Nested project `.syrus.yml` files can also
+declare `hooks.post_checkout`; Job checkout runs root hooks plus hooks for
+projects touched by the Job branch diff against its effective base branch.
+Plain branch checkout uses the local `origin/HEAD` default branch when it can.
+If Syrus cannot compute the diff, it runs all project hooks and prints a
+warning. Each hook is logged with the `.syrus.yml` path and project that
+selected it.
+
 ## Worked Examples
 
 Syrus's own repo uses `.syrus.yml` to pin Bundler output into the cloned

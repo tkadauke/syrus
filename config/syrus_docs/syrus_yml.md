@@ -26,6 +26,20 @@ hooks:
     - bin/setup-local
 ```
 
+Root `hooks.post_checkout` declarations are repository-wide and run after
+every `syrus checkout` unless the operator passes `--no-hooks`. Nested
+project `.syrus.yml` files may declare their own hooks; after a Job checkout,
+the CLI runs root hooks plus the nested project hooks whose project path is
+touched by the branch diff against the Job's effective base branch. After a
+plain branch checkout, the CLI uses the branch diff against the local
+`origin/HEAD` default branch when that ref is available. If the diff cannot be
+computed, Syrus falls back to running all project hooks so local setup is not
+silently skipped.
+
+The CLI logs each hook command to stderr with the `.syrus.yml` file and project
+that selected it. Hook commands still run from the repository root, matching
+legacy root hook behavior.
+
 ## preview
 
 Preview commands tell Syrus how to boot an app for the Job detail Preview

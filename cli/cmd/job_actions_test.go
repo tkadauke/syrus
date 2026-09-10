@@ -2,13 +2,19 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/tkadauke/syrus/cli/pkg/cliplugin/cliplugintest"
 )
 
 func TestJobCreatePostsDirectJob(t *testing.T) {
@@ -298,6 +304,91 @@ func TestJobCheckoutFailsWhenBranchMissing(t *testing.T) {
 	err := command.Execute()
 	if err == nil || err.Error() != "JOB-456 has no branch yet" {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestJobCheckoutRunsProjectHooksAgainstEffectiveBaseBranch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/jobs/456" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"job":{
+				"id":456,
+				"repository_slug":"acme/widgets",
+				"branch_name":"syrus/issue-42-456",
+				"effective_base_branch":"release"
+			},
+			"repository":{"slug":"acme/widgets","default_branch":"main"}
+		}`))
+	}))
+	defer server.Close()
+	writeJobActionTestCredentials(t, server.URL)
+	cliplugintest.WithRepoSlug(t, "acme/widgets")
+
+	repoRoot := t.TempDir()
+	writeCheckoutConfig(t, repoRoot, ".syrus.yml", "hooks:\n  post_checkout:\n    - bin/root-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/web/.syrus.yml", "hooks:\n  post_checkout:\n    - web-hook\n")
+	writeCheckoutConfig(t, repoRoot, "apps/api/.syrus.yml", "hooks:\n  post_checkout:\n    - api-hook\n")
+
+	var gitCalls [][]string
+	checkoutRunGit = func(ctx context.Context, dir string, args ...string) (string, error) {
+		gitCalls = append(gitCalls, append([]string{}, args...))
+		switch strings.Join(args, " ") {
+		case "rev-parse --is-inside-work-tree":
+			return "true\n", nil
+		case "remote get-url origin":
+			return "git@github.com:acme/widgets.git\n", nil
+		case "fetch origin +refs/heads/syrus/issue-42-456:refs/remotes/origin/syrus/issue-42-456":
+			return "", nil
+		case "branch --show-current":
+			return "main\n", nil
+		case "show-ref --verify --quiet refs/heads/syrus/issue-42-456":
+			return "", fmt.Errorf("exit status 1")
+		case "checkout --track -b syrus/issue-42-456 refs/remotes/origin/syrus/issue-42-456":
+			return "", nil
+		case "rev-parse --show-toplevel":
+			return repoRoot + "\n", nil
+		case "show-ref --verify --quiet refs/remotes/origin/release":
+			return "", nil
+		case "diff --name-only refs/remotes/origin/release...syrus/issue-42-456":
+			return "apps/api/Gemfile\n", nil
+		default:
+			return "", fmt.Errorf("unexpected git command: %v", args)
+		}
+	}
+	t.Cleanup(func() { checkoutRunGit = runGit })
+
+	var hookCalls []string
+	checkoutRunHookCommand = func(ctx context.Context, dir string, command string, stdout io.Writer, stderr io.Writer) error {
+		hookCalls = append(hookCalls, command)
+		return nil
+	}
+	t.Cleanup(func() { checkoutRunHookCommand = runHookCommand })
+
+	output := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetOut(output)
+	command.SetErr(stderr)
+	command.SetArgs([]string{"job", "checkout", "456"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	wantHooks := []string{"bin/root-hook", "api-hook"}
+	if !reflect.DeepEqual(hookCalls, wantHooks) {
+		t.Fatalf("hook calls = %#v, want %#v", hookCalls, wantHooks)
+	}
+	if !strings.Contains(stderr.String(), "apps/api/.syrus.yml (project apps-api): api-hook") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	for _, call := range gitCalls {
+		if strings.Join(call, " ") == "diff --name-only refs/remotes/origin/main...syrus/issue-42-456" {
+			t.Fatalf("diffed against default branch instead of effective base: %#v", gitCalls)
+		}
 	}
 }
 
