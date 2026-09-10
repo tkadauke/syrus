@@ -457,7 +457,10 @@ compilation with errors naming the target and owning config where possible.
 
 Use `target_graph.imports` to explicitly import targets and dependency edges
 from an external build-system plugin. Syrus only calls a provider named here;
-it does not infer build targets from repository layout.
+it does not infer build targets from repository layout. When an import is
+active, the imported build-system graph is the base graph and must be precise
+for the labels it returns: kinds, source scopes, and dependency edges come from
+the provider's Buck/Bazel/Pants-style query, not from Syrus guesses.
 
 ```yaml
 target_graph:
@@ -473,6 +476,14 @@ target_graph:
 | `provider` | yes | — | Registered `:build_system_graph_provider` key. |
 | `failures` | no | `strict` | `strict` fails graph compilation on provider errors; `warn` records diagnostics and continues. |
 | `config` / `options` | no | `{}` | Free-form mapping passed to the provider. |
+
+Syrus declarations layer on top of imported graphs. A `targets:` entry with the
+same canonical label as an imported target may only add Syrus execution metadata
+(`phases`, `required: true`, `timeout_minutes`). It cannot redefine imported
+sources, dependencies, command, or kind; those collisions fail graph
+compilation with a message naming both declarations. Use distinct labels for
+Syrus-only prepare targets, graders, previews, coverage or workflow helper
+nodes, and point them at imported labels through `deps:`.
 
 ### targets fields
 
