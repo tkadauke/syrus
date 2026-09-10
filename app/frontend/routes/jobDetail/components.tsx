@@ -8,6 +8,7 @@ import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
+import { Notice, Pill, Section, surfaceClasses, Text } from "../../components/ui"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
@@ -32,16 +33,16 @@ import { coalesceTranscriptLogs, isRunTranscriptAtBottom, scrollRunTranscriptToB
 // the workflow/step/run render subtree can import them without a circular edge.
 
 export function SmallPill({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{children}</span>
+  return <Pill>{children}</Pill>
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
+  const tones = {
+    error: "danger",
+    success: "success",
+    muted: "neutral"
+  } as const
+  return <Notice tone={tones[tone]}>{children}</Notice>
 }
 
 // Live wall-clock, ticking every second while `active`. Used so a
@@ -79,18 +80,18 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
 
   if (queued) {
     return (
-      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+      <Notice className="mt-2 px-3 py-2 text-xs" tone="warning">
         <span className="font-semibold">{t("run_queued_waiting", { id: run.id })}{elapsed ? ` · ${t("run_queued_suffix", { elapsed })}` : ""}</span>
-        <span className="mt-1 block text-amber-700 dark:text-amber-300">
+        <span className="mt-1 block">
           {t("run_queued_backlog")}{" "}
           <Link className="underline hover:text-amber-900 dark:hover:text-amber-100" to={withRoutePrefix("/admin/queue/pending", prefix)}>{t("run_queued_backlog_link")}</Link> {t("run_queued_backlog_suffix")}
         </span>
-      </div>
+      </Notice>
     )
   }
 
   return (
-    <div className="mt-2 rounded border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
+    <Notice className="mt-2 px-3 py-2 text-xs" tone="info">
       <span className="font-semibold">{t("run_running", { id: run.id })}{elapsed ? ` · ${elapsed}` : ""}</span>
       <span> {t("run_running_suffix", { date: run.started_at ? formatRelativeDate(new Date(run.started_at)) : "-" })}</span>
       {activeProcess ? (
@@ -102,7 +103,7 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
           {budgetParts.length > 0 ? <span>{t("run_active_process_budget", { budget: budgetParts.join(" · ") })}</span> : null}
         </div>
       ) : null}
-    </div>
+    </Notice>
   )
 }
 
@@ -200,16 +201,16 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
 
   if (embedded) {
     return (
-      <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+      <div className="mt-3 border-t border-border pt-3">
         {content}
       </div>
     )
   }
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+    <Section.Root>
       {content}
-    </section>
+    </Section.Root>
   )
 }
 
@@ -245,11 +246,10 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
   })() : null
 
   return (
-    <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-      <p className="font-medium">{t("action_needed")}</p>
-      <p className="mt-1">{message}</p>
-      {gracePeriodText ? <p className="mt-1 text-amber-700 dark:text-amber-300">{gracePeriodText}</p> : null}
-    </div>
+    <Notice title={t("action_needed")} tone="warning">
+      <Text as="p" tone="warning">{message}</Text>
+      {gracePeriodText ? <Text className="mt-1" tone="warning">{gracePeriodText}</Text> : null}
+    </Notice>
   )
 }
 
@@ -262,13 +262,12 @@ export function TriageDecisionBanner({ job }: { job: JobDetailPayload["job"] }) 
   if (job.triaging_reason !== "classifier_uncertain") return null
 
   return (
-    <div className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-      <p className="font-medium">{t("triage_uncertain_title")}</p>
-      <p className="mt-1">{t("triage_uncertain_body")}</p>
+    <Notice title={t("triage_uncertain_title")} tone="warning">
+      <Text as="p" tone="warning">{t("triage_uncertain_body")}</Text>
       {job.triaging_uncertainty_reason ? (
-        <p className="mt-2 font-mono text-xs text-amber-700 dark:text-amber-300">{job.triaging_uncertainty_reason}</p>
+        <Text className="mt-2 text-xs" tone="warning" variant="mono">{job.triaging_uncertainty_reason}</Text>
       ) : null}
-    </div>
+    </Notice>
   )
 }
 
@@ -315,32 +314,32 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
   if (!canView) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" data-tour="job-timeline">
+    <Section.Root padding="none" data-tour="job-timeline">
       <button
         aria-expanded={expanded}
-        className="flex w-full items-center gap-2 p-4 text-left text-sm font-semibold text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+        className="flex w-full items-center gap-2 p-4 text-left text-sm font-semibold text-text-primary hover:bg-surface-raised"
         onClick={() => setExpanded((value) => !value)}
         type="button"
       >
         <svg aria-hidden="true" className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} fill="currentColor" viewBox="0 0 20 20">
           <path clipRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 0 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" fillRule="evenodd" />
         </svg>
-        {t("section_timeline")} <span className="font-normal text-gray-500 dark:text-gray-400">{t("timeline_runs", { count: runsCount })}</span>
+        {t("section_timeline")} <Text as="span" className="font-normal" muted variant="caption">{t("timeline_runs", { count: runsCount })}</Text>
       </button>
       {expanded ? (
-        <div className="border-t border-gray-100 px-4 pb-4 dark:border-gray-800">
-          {timeline.isPending ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("timeline_loading")}</p> : null}
-          {timeline.isError ? <p className="mt-3 text-sm text-red-700">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</p> : null}
+        <div className="border-t border-border px-4 pb-4">
+          {timeline.isPending ? <Text className="mt-3" muted>{t("timeline_loading")}</Text> : null}
+          {timeline.isError ? <Text className="mt-3" tone="danger">{errorMessage(timeline.error || new Error("Timeline failed."), t("timeline_error"))}</Text> : null}
           {timeline.data && timeline.data.events.length > 0 ? (
             <ol className="mt-3 space-y-3">
               {timeline.data.events.map((event, index) => (
-                <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
-                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                <li className="border-l border-border pl-3 text-sm" key={`${event.at}-${event.title}-${index}`}>
+                  <div className="font-medium text-text-primary">
                     {event.workflow_path ? (
                       <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
                     ) : event.title}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs text-text-muted">
                     <RelativeTimestamp value={event.at} /> · {event.source}
                     {event.ref_label ? (
                       <>
@@ -351,14 +350,14 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
                       </>
                     ) : null}
                   </div>
-                  {event.detail ? <div className="mt-1 text-gray-600 dark:text-gray-300">{event.detail}</div> : null}
+                  {event.detail ? <Text className="mt-1" muted>{event.detail}</Text> : null}
                 </li>
               ))}
             </ol>
           ) : null}
         </div>
       ) : null}
-    </section>
+    </Section.Root>
   )
 }
 
@@ -367,12 +366,12 @@ export function AttachmentPreview({ attachments }: { attachments: JobAttachment[
   if (!attachments || attachments.length === 0) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_attachments")}</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <Section.Root>
+      <Section.Title>{t("section_attachments")}</Section.Title>
+      <Section.Body className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" padding="md">
         {attachments.slice(0, 6).map((attachment) => <AttachmentCard attachment={attachment} key={attachment.id} />)}
-      </div>
-    </section>
+      </Section.Body>
+    </Section.Root>
   )
 }
 
@@ -391,8 +390,8 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   })
 
   return (
-    <article className="rounded border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <div className="font-medium text-gray-900 dark:text-gray-100">
+    <article className={surfaceClasses("panel", "sm", "text-sm")}>
+      <div className="font-medium text-text-primary">
         {previewable ? (
           <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">{title}</button>
         ) : attachment.file_path ? (
@@ -401,10 +400,10 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
           title
         )}
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      <Text as="div" className="mt-1" muted variant="caption">
         {attachment.google_doc_url ? <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
-      </div>
+      </Text>
       {previewOpen && imagePreviewable ? (
         <DocumentPreviewModal
           file={{
