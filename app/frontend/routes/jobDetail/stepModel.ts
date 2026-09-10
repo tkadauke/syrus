@@ -90,30 +90,109 @@ export function workflowStepItems(steps: JobStep[]): WorkflowStepItem[] {
 export function displayStepItems(steps: JobStep[]): DisplayStepItem[] {
   const items: DisplayStepItem[] = []
   const sortedSteps = [...steps].sort((left, right) => left.position - right.position)
+  const consumedStepIds = new Set<number>()
 
   for (let index = 0; index < sortedSteps.length;) {
     const step = sortedSteps[index]
+    if (consumedStepIds.has(step.id)) {
+      index += 1
+      continue
+    }
+
     if (!isGradeDisplayStep(step)) {
       items.push({ type: "step", step })
       index += 1
       continue
     }
 
-    const gradeSteps: JobStep[] = []
-    while (index < sortedSteps.length && isGradeDisplayStep(sortedSteps[index])) {
-      gradeSteps.push(sortedSteps[index])
-      index += 1
-    }
-    items.push({
-      type: "grade",
-      key: `grade-${gradeSteps.map((gradeStep) => gradeStep.id).join("-")}`,
-      steps: gradeSteps,
-      graders: gradeSteps.filter((gradeStep) => gradeStep.kind === "grader" || gradeStep.kind === "grade" || gradeStep.kind === "preflight_grader"),
-      preflight: gradeSteps.some((gradeStep) => gradeStep.kind === "preflight_grader_fanout" || gradeStep.kind === "preflight_grader" || gradeStep.kind === "preflight_grader_collect")
-    })
+    const gradeSteps = gradeBatchStepsFor(step, sortedSteps, index, consumedStepIds)
+    gradeSteps.forEach((gradeStep) => consumedStepIds.add(gradeStep.id))
+    items.push(gradeStepItem(gradeSteps))
+    index += 1
   }
 
   return items
+}
+
+function gradeStepItem(gradeSteps: JobStep[]): GradeStepItem {
+  return {
+    type: "grade",
+    key: `grade-${gradeSteps.map((gradeStep) => gradeStep.id).join("-")}`,
+    steps: gradeSteps,
+    graders: gradeSteps.filter((gradeStep) => isGraderStep(stepKind(gradeStep))),
+    preflight: gradeSteps.some((gradeStep) => isPreflightGradeStep(stepKind(gradeStep)))
+  }
+}
+
+function gradeBatchStepsFor(step: JobStep, sortedSteps: JobStep[], startIndex: number, consumedStepIds: Set<number>) {
+  const dependencyIds = gradeBatchDependencyIdsFor(step, sortedSteps)
+  if (dependencyIds.size === 0) return contiguousGradeStepsFrom(sortedSteps, startIndex, consumedStepIds)
+
+  const collectSteps = sortedSteps.filter((candidate) => isGradeCollectKind(stepKind(candidate)) && hasDependencyOverlap(candidate, dependencyIds))
+  const fanoutSteps = sortedSteps.filter((candidate) => isGradeFanoutKind(stepKind(candidate)) && hasDependentOverlap(candidate, dependencyIds))
+  const batchStepIds = new Set<number>([
+    ...dependencyIds,
+    ...collectSteps.map((candidate) => candidate.id),
+    ...fanoutSteps.map((candidate) => candidate.id)
+  ])
+
+  return sortedSteps.filter((candidate) => isGradeDisplayStep(candidate) && batchStepIds.has(candidate.id))
+}
+
+function gradeBatchDependencyIdsFor(step: JobStep, sortedSteps: JobStep[]) {
+  if (isGradeCollectKind(stepKind(step))) return numberSet(step.dependencies?.depends_on_step_ids)
+  if (isGraderStep(stepKind(step))) {
+    const collectStep = sortedSteps.find((candidate) => isGradeCollectKind(stepKind(candidate)) && candidate.dependencies?.depends_on_step_ids?.includes(step.id))
+    return numberSet(collectStep?.dependencies?.depends_on_step_ids)
+  }
+  if (isGradeFanoutKind(stepKind(step))) {
+    const dependentIds = numberSet(step.dependencies?.dependent_step_ids)
+    const collectStep = sortedSteps.find((candidate) => isGradeCollectKind(stepKind(candidate)) && hasDependencyOverlap(candidate, dependentIds))
+    return numberSet(collectStep?.dependencies?.depends_on_step_ids)
+  }
+  return new Set<number>()
+}
+
+function contiguousGradeStepsFrom(sortedSteps: JobStep[], startIndex: number, consumedStepIds: Set<number>) {
+  const gradeSteps: JobStep[] = []
+  let index = startIndex
+  while (index < sortedSteps.length && isGradeDisplayStep(sortedSteps[index]) && !consumedStepIds.has(sortedSteps[index].id)) {
+    gradeSteps.push(sortedSteps[index])
+    index += 1
+  }
+  return gradeSteps
+}
+
+function hasDependencyOverlap(step: JobStep, ids: Set<number>) {
+  return step.dependencies?.depends_on_step_ids?.some((id) => ids.has(id)) || false
+}
+
+function hasDependentOverlap(step: JobStep, ids: Set<number>) {
+  return step.dependencies?.dependent_step_ids?.some((id) => ids.has(id)) || false
+}
+
+function numberSet(values: number[] | null | undefined) {
+  return new Set(values || [])
+}
+
+function stepKind(step: JobStep) {
+  return step.kind
+}
+
+function isGraderStep(kind: string) {
+  return kind === "grader" || kind === "grade" || kind === "preflight_grader"
+}
+
+function isGradeFanoutKind(kind: string) {
+  return kind === "grader_fanout" || kind === "preflight_grader_fanout"
+}
+
+function isGradeCollectKind(kind: string) {
+  return kind === "grader_collect" || kind === "preflight_grader_collect"
+}
+
+function isPreflightGradeStep(kind: string) {
+  return kind === "preflight_grader_fanout" || kind === "preflight_grader" || kind === "preflight_grader_collect"
 }
 
 export function loopIterations(steps: JobStep[]) {

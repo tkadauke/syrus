@@ -632,6 +632,7 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Batch progress")).toBeInTheDocument()
     expect(screen.getAllByText("2/5 complete").length).toBeGreaterThan(0)
+    expect(screen.queryByText("1/1 complete")).not.toBeInTheDocument()
     expect(screen.getByText("1 running")).toBeInTheDocument()
     expect(screen.getByText("1 waiting")).toBeInTheDocument()
     expect(screen.getByText("1 failed")).toBeInTheDocument()
@@ -809,7 +810,7 @@ function distributedGradeWorkflow() {
     display_status: state,
     position: id,
     iteration: 1,
-    loop_id: "grade-loop",
+    loop_id: null,
     state,
     started_at: "2026-08-25T12:00:00Z",
     finished_at: state === "running" || state === "queued" ? null : "2026-08-25T12:01:00Z",
@@ -832,7 +833,17 @@ function distributedGradeWorkflow() {
       depends_on_step_ids: [20],
       dependent_step_ids: [30],
       barrier_group: "workflow:10:grader_collect",
-      barrier_labels: ["grader_collect"]
+      barrier_labels: ["grader_collect"],
+      barrier_progress: {
+        total: 1,
+        completed: 1,
+        queued: 0,
+        running: 0,
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        skipped: 0
+      }
     },
     details: { name, required: true, command: `bin/${name}` },
     warnings: [],
@@ -860,8 +871,8 @@ function distributedGradeWorkflow() {
     app_push_commits_path: "/push",
     app_force_push_branch_path: "/force",
     app_discard_branch_output_path: "/discard",
-    steps_total: 7,
-    steps_displayed: 7,
+    steps_total: 8,
+    steps_displayed: 8,
     steps_truncated: false,
     steps: [
       {
@@ -871,7 +882,7 @@ function distributedGradeWorkflow() {
         display_status: "succeeded",
         position: 1,
         iteration: 1,
-        loop_id: "grade-loop",
+        loop_id: null,
         state: "succeeded",
         started_at: "2026-08-25T12:00:00Z",
         finished_at: "2026-08-25T12:00:01Z",
@@ -886,6 +897,26 @@ function distributedGradeWorkflow() {
       },
       grader(21, "alpha", "succeeded"),
       grader(22, "beta", "queued"),
+      {
+        id: 26,
+        kind: "prepare",
+        display_name: "Prepare workspace",
+        display_status: "succeeded",
+        position: 22.5,
+        iteration: 1,
+        loop_id: null,
+        state: "succeeded",
+        started_at: "2026-08-25T12:00:00Z",
+        finished_at: "2026-08-25T12:00:01Z",
+        created_at: "2026-08-25T12:00:00Z",
+        updated_at: "2026-08-25T12:00:00Z",
+        placement: { policy: "pinned_workflow_workspace" },
+        dependencies: { depends_on_step_ids: [], dependent_step_ids: [] },
+        details: null,
+        warnings: [],
+        latest: false,
+        runs: []
+      },
       grader(23, "gamma", "running"),
       grader(24, "delta", "failed"),
       grader(25, "epsilon", "skipped"),
@@ -896,7 +927,7 @@ function distributedGradeWorkflow() {
         display_status: "queued",
         position: 7,
         iteration: 1,
-        loop_id: "grade-loop",
+        loop_id: null,
         state: "queued",
         started_at: null,
         finished_at: null,
