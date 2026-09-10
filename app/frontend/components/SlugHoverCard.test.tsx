@@ -97,6 +97,16 @@ describe("SlugHoverCard on a pointer:fine device", () => {
     expect(screen.getByTestId("job-card").textContent).toBe("JOB-42")
   })
 
+  it("constrains the floating card width to the viewport", async () => {
+    renderCard("job", 42)
+    const span = screen.getByRole("link", { name: "JOB-42" }).parentElement!
+    fireEvent.mouseEnter(span)
+
+    await act(async () => { vi.advanceTimersByTime(300) })
+
+    expect(screen.getByTestId("job-card").parentElement).toHaveClass("[&>*]:max-w-[calc(100vw-1rem)]")
+  })
+
   it("shows the epic card for kind=epic", async () => {
     renderCard("epic", 7)
     const span = screen.getByRole("link", { name: "EPIC-7" }).parentElement!
