@@ -23,6 +23,16 @@ module SyrusDev
           component: "syrus_dev/AdminOperationalLogs",
           group_id: "observability",
           order: 45
+        },
+        {
+          id: "syrus_dev.design_system",
+          label: "Design System",
+          label_key: "syrus_dev:nav_design_system",
+          path: "/admin/design_system",
+          paths: [ "/admin/design_system" ],
+          component: "syrus_dev/AdminDesignSystem",
+          group_id: "development",
+          order: 90
         }
       ]
 

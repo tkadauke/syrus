@@ -245,6 +245,23 @@
       "page_example": "Exemplum tituli paginae",
       "section_example": "Exemplum tituli sectionis",
       "subsection_example": "Exemplum tituli subsectionis"
+    },
+    "semantic": {
+      "heading": "Primitiva Significantia",
+      "description": "Prima elementa paginarum, sectionum, nuntiorum, superficierum, textus, instrumentorum, pittaciorum, et ordinationis.",
+      "badge": "Beta",
+      "pill": "Prospectus vivus",
+      "notice_title": "Nuntius",
+      "notice_body": "Prospectus thematum iisdem primitivis utitur quae administratores in applicatione vident.",
+      "toolbar_aria": "Actiones primitivorum significantium",
+      "warning_badge": "Recognitio opus",
+      "neutral_badge": "In ordine",
+      "surface_panel_label": "Superficies tabulae",
+      "surface_panel_body": "Superficies communis contenti.",
+      "surface_inset_label": "Superficies inclusa",
+      "surface_inset_body": "Contextus subtilis inclusus.",
+      "surface_success_label": "Superficies successus",
+      "surface_success_body": "Status responsi boni."
     }
   },
   "personal_documents": {
