@@ -18,19 +18,23 @@ type ShortcutHandler = (event: KeyboardEvent) => void
 interface StackEntry {
   registration: ShortcutRegistration
   handler: ShortcutHandler
+  layerId: number
 }
 
 type Registry = Map<string, StackEntry[]>
 
 interface ShortcutsContextValue {
-  register: (keys: string, handler: ShortcutHandler, options: ShortcutOptions) => () => void
+  register: (keys: string, handler: ShortcutHandler, options: ShortcutOptions, layerId?: number) => () => void
+  registerLayer: (id: number) => () => void
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => ShortcutRegistration[]
 }
 
 const ShortcutsContext = createContext<ShortcutsContextValue | null>(null)
+const ShortcutLayerContext = createContext(0)
 
 let nextRegistrationId = 0
+let nextLayerId = 1
 
 // Same input/textarea/contentEditable guard as AppChromeV2's sidebar search
 // shortcut (SidebarSearchForm) -- shortcuts must never fire while the user is
@@ -85,6 +89,7 @@ function eventMatchesCombo(event: KeyboardEvent, combo: ParsedCombo): boolean {
 
 export function ShortcutsProvider({ children }: { children: ReactNode }) {
   const registryRef = useRef<Registry>(new Map())
+  const layerStackRef = useRef<number[]>([])
   const listenersRef = useRef<Set<() => void>>(new Set())
   const snapshotRef = useRef<ShortcutRegistration[]>([])
 
@@ -96,14 +101,28 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
   // correct for the provider's whole lifetime.
   const valueRef = useRef<ShortcutsContextValue | null>(null)
   if (!valueRef.current) {
-    function notify() {
-      snapshotRef.current = Array.from(registryRef.current.values())
-        .map((stack) => stack[stack.length - 1]?.registration)
+    function activeLayerId() {
+      return layerStackRef.current[layerStackRef.current.length - 1] ?? 0
+    }
+
+    function activeRegistrations() {
+      const layerId = activeLayerId()
+      return Array.from(registryRef.current.values())
+        .map((stack) => {
+          for (let index = stack.length - 1; index >= 0; index -= 1) {
+            if (stack[index].layerId === layerId) return stack[index].registration
+          }
+          return null
+        })
         .filter((registration): registration is ShortcutRegistration => registration != null)
+    }
+
+    function notify() {
+      snapshotRef.current = activeRegistrations()
       listenersRef.current.forEach((listener) => listener())
     }
 
-    function register(keys: string, handler: ShortcutHandler, options: ShortcutOptions) {
+    function register(keys: string, handler: ShortcutHandler, options: ShortcutOptions, layerId = 0) {
       const normalizedKeys = keys.toLowerCase()
       const registration: ShortcutRegistration = {
         id: nextRegistrationId++,
@@ -114,7 +133,7 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
       }
 
       const stack = registryRef.current.get(normalizedKeys) ?? []
-      stack.push({ registration, handler })
+      stack.push({ registration, handler, layerId })
       registryRef.current.set(normalizedKeys, stack)
       notify()
 
@@ -133,6 +152,16 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
 
     valueRef.current = {
       register,
+      registerLayer(id) {
+        layerStackRef.current.push(id)
+        notify()
+
+        return () => {
+          const index = layerStackRef.current.lastIndexOf(id)
+          if (index !== -1) layerStackRef.current.splice(index, 1)
+          notify()
+        }
+      },
       subscribe(listener) {
         listenersRef.current.add(listener)
         return () => listenersRef.current.delete(listener)
@@ -148,8 +177,10 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
       if (isTypingTarget(event.target)) return
 
       for (const stack of registryRef.current.values()) {
-        const active = stack[stack.length - 1]
+        const layerId = layerStackRef.current[layerStackRef.current.length - 1] ?? 0
+        const active = [...stack].reverse().find((entry) => entry.layerId === layerId)
         if (active && eventMatchesCombo(event, parseCombo(active.registration.keys))) {
+          event.preventDefault()
           active.handler(event)
           return
         }
@@ -169,18 +200,53 @@ function useShortcutsContext(): ShortcutsContextValue {
   return context
 }
 
+function useOptionalShortcutsContext(): ShortcutsContextValue | null {
+  return useContext(ShortcutsContext)
+}
+
 // Registers a keyboard shortcut for as long as the calling component is
 // mounted. Overlapping registrations for the same combo shadow LIFO by mount
 // order (e.g. a modal opened over a page wins over the page's shortcut);
 // unmounting restores whichever registration was active before it.
 export function useShortcut(keys: string, handler: ShortcutHandler, options: ShortcutOptions): void {
   const context = useShortcutsContext()
+  const layerId = useContext(ShortcutLayerContext)
   const handlerRef = useRef(handler)
   handlerRef.current = handler
 
   useEffect(() => {
-    return context.register(keys, (event) => handlerRef.current(event), options)
-  }, [context, keys, options.description, options.group, options.groupOrder])
+    return context.register(keys, (event) => handlerRef.current(event), options, layerId)
+  }, [context, keys, layerId, options.description, options.group, options.groupOrder])
+}
+
+// Like useShortcut, but quietly does nothing when a component is rendered
+// outside the app shell's provider (common in focused component tests).
+export function useOptionalShortcut(keys: string, handler: ShortcutHandler, options: ShortcutOptions): void {
+  const context = useOptionalShortcutsContext()
+  const layerId = useContext(ShortcutLayerContext)
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
+  useEffect(() => {
+    if (!context) return
+    return context.register(keys, (event) => handlerRef.current(event), options, layerId)
+  }, [context, keys, layerId, options.description, options.group, options.groupOrder])
+}
+
+// Creates a modal/tool-local shortcut layer. While mounted, shortcuts from
+// lower layers are neither dispatched nor listed in the help modal unless
+// this layer declares them again.
+export function ShortcutLayer({ children }: { children: ReactNode }) {
+  const context = useOptionalShortcutsContext()
+  const layerIdRef = useRef<number | null>(null)
+  if (layerIdRef.current == null) layerIdRef.current = nextLayerId++
+
+  useEffect(() => {
+    if (!context) return
+    return context.registerLayer(layerIdRef.current!)
+  }, [context])
+
+  return <ShortcutLayerContext.Provider value={layerIdRef.current}>{children}</ShortcutLayerContext.Provider>
 }
 
 // Live snapshot of every currently-active (i.e. not shadowed) shortcut
