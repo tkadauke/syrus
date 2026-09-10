@@ -127,7 +127,8 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => attachment.mime_type.startsWith("image/"))
-  const [lightboxImage, setLightboxImage] = useState<ChatMessageImageAttachment | null>(null)
+  const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
+  const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
 
   if (images.length === 0) return null
 
@@ -141,7 +142,7 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
               aria-label={`Open ${attachment.name || "image attachment"}`}
               className="min-h-12 min-w-12 max-h-[10rem] max-w-[16rem] overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-brand/30 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-900"
               key={`${attachment.name}-${index}`}
-              onClick={() => setLightboxImage(attachment)}
+              onClick={() => setLightboxImageIndex(index)}
               type="button"
             >
               <img alt={attachment.name || "Image attachment"} className="max-h-[10rem] min-h-12 min-w-12 max-w-[16rem] object-contain" src={src} />
@@ -149,7 +150,17 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           )
         })}
       </div>
-      {lightboxImage ? <ImageLightbox name={lightboxImage.name || "Image attachment"} onClose={() => setLightboxImage(null)} src={attachmentDataUrl(lightboxImage)} /> : null}
+      {lightboxImage ? (
+        <ImageLightbox
+          hasNext={lightboxImageIndex != null && lightboxImageIndex < images.length - 1}
+          hasPrevious={lightboxImageIndex != null && lightboxImageIndex > 0}
+          name={lightboxImage.name || "Image attachment"}
+          onClose={() => setLightboxImageIndex(null)}
+          onNext={() => setLightboxImageIndex((index) => index == null ? index : Math.min(index + 1, images.length - 1))}
+          onPrevious={() => setLightboxImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          src={attachmentDataUrl(lightboxImage)}
+        />
+      ) : null}
     </>
   )
 }
@@ -177,16 +188,37 @@ function MessageFileAttachments({ attachments, align = "start" }: { attachments?
   )
 }
 
-export function ImageLightbox({ name, onClose, src, extraAction }: { name: string; onClose: () => void; src: string; extraAction?: { label: string; onClick: () => void } }) {
+type ImageLightboxProps = {
+  name: string
+  onClose: () => void
+  src: string
+  extraAction?: { label: string; onClick: () => void }
+  hasPrevious?: boolean
+  hasNext?: boolean
+  onPrevious?: () => void
+  onNext?: () => void
+}
+
+export function ImageLightbox({ name, onClose, src, extraAction, hasPrevious = false, hasNext = false, onPrevious, onNext }: ImageLightboxProps) {
   const { t } = useT("chat")
+  const showNavigation = Boolean(onPrevious && onNext && (hasPrevious || hasNext))
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") onClose()
+      if (shortcutTargetAcceptsText(event.target)) return
+      if (event.key === "ArrowLeft" && hasPrevious) {
+        event.preventDefault()
+        onPrevious?.()
+      }
+      if (event.key === "ArrowRight" && hasNext) {
+        event.preventDefault()
+        onNext?.()
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
+  }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
@@ -210,10 +242,38 @@ export function ImageLightbox({ name, onClose, src, extraAction }: { name: strin
             <CloseIcon className="h-4 w-4" />
           </button>
         </div>
+        {showNavigation ? (
+          <>
+            <button
+              aria-label={t("aria_previous_image")}
+              className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              disabled={!hasPrevious}
+              onClick={onPrevious}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button
+              aria-label={t("aria_next_image")}
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              disabled={!hasNext}
+              onClick={onNext}
+              type="button"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </>
+        ) : null}
         <img alt={name} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
       </section>
     </div>
   )
+}
+
+export function shortcutTargetAcceptsText(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
 }
 
 type WorkspaceFileLink = { path: string; line: number | null }
