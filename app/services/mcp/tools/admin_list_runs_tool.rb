@@ -23,11 +23,11 @@ module Mcp::Tools
       def call(state: nil, trigger_kind: nil, job_id: nil, since: nil, limit: DEFAULT_LIMIT, server_context:)
         return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
 
-        scope = Run.includes(step: :workflow).order(Arel.sql("COALESCE(finished_at, started_at, created_at) DESC"))
+        scope = Run.includes(step: :workflow).order(updated_at: :desc, id: :desc)
         scope = scope.where(state: state) if state.present?
         scope = scope.where(trigger_kind: trigger_kind) if trigger_kind.present?
         scope = scope.where(job_id: job_id) if job_id.present?
-        scope = scope.where("COALESCE(finished_at, started_at, created_at) >= ?", Time.iso8601(since)) if since.present?
+        scope = scope.where(updated_at: Time.iso8601(since)..) if since.present?
 
         runs = scope.limit(normalize_limit(limit)).map { |run| run_payload(run) }
         Mcp::Tools.success(runs: runs)

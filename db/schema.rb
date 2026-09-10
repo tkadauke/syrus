@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_193000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2323,6 +2323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
+    t.index ["started_at", "id"], name: "idx_runs_started_latest"
     t.index ["state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_failed_recent"
     t.index ["state", "finished_at", "step_id"], name: "idx_runs_throughput_state_finished"
     t.index ["state", "finished_at"], name: "idx_runs_state_finished_at"
@@ -2335,6 +2336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["step_id", "state", "finished_at", "id"], name: "idx_runs_step_state_finished_for_throughput"
     t.index ["step_id", "state", "id"], name: "idx_runs_step_state_id"
     t.index ["step_id"], name: "index_runs_on_step_id"
+    t.index ["updated_at", "id"], name: "idx_runs_updated_latest"
     t.index ["user_id", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_latest_finished"
     t.index ["user_id", "agent_provider", "state", "finished_at", "updated_at", "id"], name: "idx_runs_user_provider_state_recent"
     t.index ["user_id", "agent_provider", "state", "finished_at"], name: "idx_runs_user_provider_state_finished"

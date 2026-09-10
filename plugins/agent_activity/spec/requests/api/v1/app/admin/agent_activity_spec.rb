@@ -7,6 +7,17 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   describe "GET /sessions" do
     it "rejects non-admins" do
       sign_in_as(member)
@@ -28,6 +39,24 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
       expect(response).to have_http_status(:ok)
       job_ids = parse_body.fetch("sessions").map { |row| row.dig("job", "id") }
       expect(job_ids).to include(job.id)
+    end
+
+    it "does not count the full admin-wide run relation for the default feed" do
+      sign_in_as(admin)
+      Factories.job_with_run(repository: repository, run_attrs: { state: "running", started_at: 2.minutes.ago })
+
+      queries = capture_sql do
+        get "/api/v1/app/admin/agent_activity/sessions"
+      end
+
+      expect(response).to have_http_status(:ok)
+      broad_run_counts = queries.select do |sql|
+        normalized = sql.squish.downcase
+        normalized.include?("count(") &&
+          normalized.include?("from \"runs\"") &&
+          !normalized.match?(/"runs"\."state"\s*=\s*(?:\?|'.*?')/)
+      end
+      expect(broad_run_counts).to be_empty
     end
 
     it "gives each session an admin-scoped transcript_path" do
