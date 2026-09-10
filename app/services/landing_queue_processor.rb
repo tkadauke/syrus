@@ -807,6 +807,7 @@ class LandingQueueProcessor
       # equally guilty while main was broken.
       attribution = PrCheckAttribution.for(job)
       if attribution.inherited?
+        trigger_main_repair_for_inherited_pr_checks(job, attribution)
         # Repositories whose check names are granular enough that "same check
         # name" really does mean "same failure" can opt out of this hold and keep
         # landing while main is red. Note this only clears the *checks* gate --
@@ -878,6 +879,22 @@ class LandingQueueProcessor
 
   def blocked(reason, waiting_for = nil, waiting_for_jobs: [])
     { blocked_reason: reason, waiting_for: waiting_for, waiting_for_jobs: waiting_for_jobs }
+  end
+
+  def trigger_main_repair_for_inherited_pr_checks(job, attribution)
+    repository = job.repository
+    return unless repository.main_branch_health_enabled?
+    return unless repository.main_branch_repair_enabled?
+    return if attribution.base_sha.blank?
+
+    unless repository.ci_health_broken? && repository.last_ci_evaluated_sha == attribution.base_sha
+      repository.update!(
+        ci_health: "broken",
+        last_health_checked_sha: attribution.base_sha,
+        last_ci_evaluated_sha: attribution.base_sha
+      )
+    end
+    MainHealthChangedService.on_health_change!(repository.reload)
   end
 
   def waiting_for_github_mergeability?(job)

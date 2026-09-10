@@ -1062,11 +1062,14 @@ RSpec.describe LandingQueueProcessor, :ci_only do
         repository: job.repository, sha: "base-sha", checked_at: Time.current, source: "ci_poll",
         ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
       )
+      expect(MainHealthChangedService).to receive(:on_health_change!).with(job.repository)
 
       entry = described_class.entries(Job.where(id: job.id)).first
 
       expect(entry.blocked_reason[:key]).to eq("pr_checks_failing_inherited")
       expect(entry.blocked_reason[:params][:checks]).to eq("rspec")
+      expect(job.repository.reload.ci_health).to eq("broken")
+      expect(job.repository.last_ci_evaluated_sha).to eq("base-sha")
       # Still held -- name matching cannot prove innocence -- but the operator
       # can now override it, which a plain pr_checks_failing never allowed.
       expect(job.reload).to be_approved
