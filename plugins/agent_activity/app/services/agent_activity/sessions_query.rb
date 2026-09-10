@@ -10,6 +10,17 @@ module AgentActivity
 
     def self.call(...) = new(...).call
 
+    def self.base_relation
+      Run.joins(:step, :job).where(steps: { kind: Step::AGENTIC_KINDS })
+    end
+
+    def self.visible_relation(scope:, user:)
+      return base_relation if scope == :admin
+
+      visible_job_ids = Job.accessible_to(user).or(Job.effectively_owned_by(user)).select(:id)
+      base_relation.where(job_id: visible_job_ids)
+    end
+
     def initialize(scope:, user:, filter:, page: 1, per: DEFAULT_PER)
       @visibility_scope = scope
       @user = user
@@ -19,7 +30,7 @@ module AgentActivity
     end
 
     def call
-      visible = visibility_scoped(base_relation)
+      visible = self.class.visible_relation(scope: @visibility_scope, user: @user)
       filtered = @filter.apply(visible)
 
       total = filtered.count
@@ -38,17 +49,5 @@ module AgentActivity
       }
     end
 
-    private
-
-    def base_relation
-      Run.joins(:step, :job).where(steps: { kind: Step::AGENTIC_KINDS })
-    end
-
-    def visibility_scoped(relation)
-      return relation if @visibility_scope == :admin
-
-      visible_job_ids = Job.accessible_to(@user).or(Job.effectively_owned_by(@user)).select(:id)
-      relation.where(job_id: visible_job_ids)
-    end
   end
 end

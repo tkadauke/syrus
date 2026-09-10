@@ -13,7 +13,7 @@ module Api
         # authorization/lookup path differs, not the JSON shape.
         class AgentActivityController < BaseController
           def sessions
-            filter = ::AgentActivity::Filter.from_params(params, user: Current.user)
+            filter = current_filter
             result = ::AgentActivity::SessionsQuery.call(
               scope: :admin,
               user: Current.user,
@@ -29,7 +29,9 @@ module Api
               per: result[:per],
               running_count: result[:running_count],
               filter: filter.to_h,
-              filter_schema: ::AgentActivity::Filter.schema
+              filter_schema: ::AgentActivity::Filter.schema,
+              active_smart_folder_id: active_smart_folder&.id,
+              smart_folders: smart_folders(:admin)
             }
           end
 
@@ -44,6 +46,31 @@ module Api
           end
 
           private
+
+          def current_filter
+            @current_filter ||= ::AgentActivity::Filter.from_params(params, smart_folder: active_smart_folder, user: Current.user)
+          end
+
+          def active_smart_folder
+            @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
+              subject: ::AgentActivity::SmartFolders::SUBJECT,
+              user: Current.user,
+              params: params
+            )
+          end
+
+          def smart_folders(scope)
+            ::SmartFolder.ensure_builtins_for_subject!(::AgentActivity::SmartFolders::SUBJECT)
+            ::Admin::SmartFolderNavigation.new(
+              subject: ::AgentActivity::SmartFolders::SUBJECT,
+              user: Current.user,
+              active_folder: active_smart_folder,
+              base_scope: ::AgentActivity::SessionsQuery.visible_relation(scope: scope, user: Current.user),
+              filter_class: ::AgentActivity::Filter
+            ).folders.map do |folder|
+              folder.merge(path: folder.fetch(:path).sub(%r{\A/agent_activity}, "/admin/agent_activity"))
+            end
+          end
 
           def serialize(run)
             ::AgentActivity::SessionSerializer.call(

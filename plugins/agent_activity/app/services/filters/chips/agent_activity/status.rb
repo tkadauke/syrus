@@ -5,7 +5,7 @@ module Filters
         filter_name "status"
         label "Status"
         column :state
-        operators :is_one_of
+        operators :is, :is_one_of
         values "queued", "running", "succeeded", "failed", "cancelled", "skipped"
       end
     end

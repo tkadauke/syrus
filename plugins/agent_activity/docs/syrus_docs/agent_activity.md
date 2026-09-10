@@ -98,8 +98,10 @@ The primary `sidebar_page` registration and admin `admin_page` registration shar
   by `SpaController#admin_spa_path?` (any `/admin/*` path requires admin) and
   by the admin API controller's own `require_admin`.
 
-Both render a pulsing "N running now" indicator, three quick-filter pills
-(Running now / Needs work / All history -- fixed local presets, not
-user-defined `SmartFolder`s; this pass intentionally scoped smart folders
-out, see the Epic), the shared `FilterBar`, and a card-per-session feed
-where each card leads with the session's own submitted outcome text/verdict.
+Both render a pulsing "N running now" indicator, the shared `FilterBar`, and a
+card-per-session feed where each card leads with the session's own submitted
+outcome text/verdict. Agent Activity's built-in `SmartFolder`s are `All`,
+`Running`, and `Failed`: the operator page exposes them through the normal app
+sidebar, while the admin page renders the same folders in an in-page
+`AdminSmartFolderNav` column because admin plugin pages do not have a nested
+sidebar hook.
