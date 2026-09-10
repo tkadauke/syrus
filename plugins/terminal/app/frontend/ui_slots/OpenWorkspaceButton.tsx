@@ -30,7 +30,7 @@ export default function OpenWorkspaceButton({
 
   if (!workflow) return null
   const availability = availability_by_workflow_id?.[String(workflow.id)]
-  const disabledReason = availability?.available === false ? availability.reason || t("terminal_workspace_unavailable") : null
+  if (availability?.available === false) return null
 
   async function open() {
     if (!workflow) return
@@ -51,10 +51,9 @@ export default function OpenWorkspaceButton({
 
   return (
     <div className="flex max-w-80 flex-col items-start gap-1">
-      <Button disabled={opening || Boolean(disabledReason)} onClick={open} title={disabledReason || undefined} variant="secondary">
+      <Button disabled={opening} onClick={open} variant="secondary">
         {t("open_terminal_in_workspace")}
       </Button>
-      {disabledReason ? <p className="text-xs text-gray-500 dark:text-gray-400">{disabledReason}</p> : null}
       {error ? <p className="text-xs text-red-600 dark:text-red-300">{error}</p> : null}
     </div>
   )
