@@ -1,7 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { Button } from "../components/Button"
-import { Input } from "../components/Input"
-import { PageHeading, SectionHeading } from "../components/Heading"
+import { Button, Input, Notice, Page, Section, SectionHeading, Surface, Text, buttonClasses } from "../components/ui"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -100,30 +98,26 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
   const prefix = routePrefix(location.pathname)
 
   return (
-    <main aria-label={t("aria_queue")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <PageHeading className="mt-1">{t("queue.heading")}</PageHeading>
-        </div>
+    <Page.Root aria-label={t("aria_queue")} size="wide">
+      <Page.Header className="items-end border-b border-border pb-4">
+        <Page.HeadingGroup>
+          <Text as="p" muted variant="label">{t("section_label")}</Text>
+          <Page.Title className="mt-1">{t("queue.heading")}</Page.Title>
+        </Page.HeadingGroup>
         <Button
-          className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500"
+          className="shrink-0"
           disabled={reaper.isPending}
           onClick={() => reaper.mutate()}
           variant="secondary"
         >
           {reaper.isPending ? t("queue.reaper_running") : t("queue.run_reaper")}
         </Button>
-      </header>
+      </Page.Header>
 
       <nav aria-label={t("aria_queue_tabs")} className="flex flex-wrap gap-2">
         {queueTabs.map((candidate) => (
           <Link
-            className={`rounded border px-3 py-1.5 text-sm ${
-              candidate === tab
-                ? "border-gray-900 dark:border-gray-100 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
-                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-            }`}
+            className={candidate === tab ? buttonClasses("primary", "sm") : buttonClasses("secondary", "sm")}
             key={candidate}
             to={`${basePath}/${candidate}`}
           >
@@ -133,10 +127,10 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       </nav>
 
       {reaper.isSuccess ? (
-        <p className="rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">{reaper.data.message}</p>
+        <Notice tone="success">{reaper.data.message}</Notice>
       ) : null}
       {reaper.isError ? (
-        <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300">{t("queue.reaper_error")}</p>
+        <Notice tone="danger">{t("queue.reaper_error")}</Notice>
       ) : null}
 
       {queue.isPending ? <PanelMessage>{t("queue.loading")}</PanelMessage> : null}
@@ -146,7 +140,7 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
           void queryClient.invalidateQueries({ queryKey: ["admin", "queue"] })
         }} pathname={location.pathname} payload={queue.data} prefix={prefix} queryKey={queueQueryKey} search={location.search} tab={tab} />
       ) : null}
-    </main>
+    </Page.Root>
   )
 }
 
@@ -187,9 +181,9 @@ function QueueContent({ basePath, onNavigate, onSmartFolderMutationSuccess, path
         />
       ) : null}
     >
-      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <Section.Root padding="none">
         <QueueTabPanel tab={tab} payload={payload} />
-      </section>
+      </Section.Root>
     </AdminFiltersLayout>
   )
 }
@@ -221,7 +215,7 @@ function PendingTable({ payload }: { payload: PendingQueuePayload }) {
 
   return (
     <>
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}</div>
+      <Text className="border-b border-border px-4 py-3" muted>{t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}</Text>
       <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} />
     </>
   )
@@ -370,7 +364,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <SectionHeading>{t("queue.worker_health")}</SectionHeading>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</p>
+          <Text className="mt-1" muted variant="caption">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</Text>
         </div>
         <form
           aria-label="Worker health range"
@@ -387,7 +381,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
             {workerHealthQuickRanges.map((range) =>
               Math.abs(activeMinutes - range.minutes) <= 1 ? (
                 <button
-                  className="rounded border border-gray-900 bg-gray-900 px-2 py-1 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900"
+                  className={buttonClasses("primary", "sm")}
                   key={range.label}
                   onClick={() => applyQuickRange(range.minutes)}
                   type="button"
@@ -401,22 +395,22 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
               )
             )}
           </div>
-          <label className="grid gap-1 text-gray-600 dark:text-gray-300">
+          <label className="grid gap-1 text-text-muted">
             <span>{t("queue.worker_health_start")}</span>
             <Input defaultValue={startValue} fullWidth={false} name="since" type="datetime-local" />
           </label>
-          <label className="grid gap-1 text-gray-600 dark:text-gray-300">
+          <label className="grid gap-1 text-text-muted">
             <span>{t("queue.worker_health_end")}</span>
             <Input defaultValue={endValue} fullWidth={false} name="until" type="datetime-local" />
           </label>
-          <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1.5 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" type="submit">{t("queue.worker_health_apply")}</button>
+          <Button size="sm" type="submit">{t("queue.worker_health_apply")}</Button>
         </form>
       </div>
       {activeHosts.length > 0 ? <WorkerHealthHostGrid hosts={activeHosts} /> : null}
       {historicalHosts.length > 0 ? (
-        <details className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health_historical_workers", { count: historicalHosts.length })}</summary>
-          <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+        <details className="rounded-[var(--radius-panel)] border border-border bg-surface text-text-primary">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">{t("queue.worker_health_historical_workers", { count: historicalHosts.length })}</summary>
+          <div className="border-t border-border p-3">
             <WorkerHealthHostGrid hosts={historicalHosts} />
           </div>
         </details>
@@ -448,14 +442,14 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
   const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
 
   return (
-    <details className={`rounded border ${workerHealthBorder(level)} bg-white dark:bg-gray-900`} open={level === "critical" || level === "warning"}>
+    <details className={`rounded-[var(--radius-panel)] border ${workerHealthBorder(level)} bg-surface`} open={level === "critical" || level === "warning"}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{host.hostname}</span>
+            <span className="font-mono text-sm font-semibold text-text-primary">{host.hostname}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${workerHealthBadge(level)}`}>{workerHealthLabel(level, t)}</span>
           </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{current?.health.reasons.length ? current.health.reasons.join("; ") : status === "current" ? t("queue.worker_health_ok") : t("queue.worker_health_historical")}</p>
+          <Text className="mt-1" muted variant="caption">{current?.health.reasons.length ? current.health.reasons.join("; ") : status === "current" ? t("queue.worker_health_ok") : t("queue.worker_health_historical")}</Text>
         </div>
         <div className="grid grid-cols-2 gap-3 text-right text-xs sm:grid-cols-3 lg:grid-cols-6">
           <HealthStat label={t("queue.metric_cpu")} value={formatPercent(sample?.cpu_used_percent)} />
@@ -466,7 +460,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
           <HealthStat label={t("queue.metric_io_pressure")} value={formatPercent(sample?.io_pressure_some)} />
         </div>
       </summary>
-      <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3">
+      <div className="border-t border-border px-4 py-3">
         <div className="grid gap-3 text-xs sm:grid-cols-3">
           <HealthStat label={t("queue.col_version")} value={current?.version || sample?.version || "-"} />
           <HealthStat label={t("queue.last_sample")} value={sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"} />
@@ -476,10 +470,10 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
         </div>
         <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">{t("queue.worker_health_exact_values")}</summary>
+          <summary className="cursor-pointer text-xs font-medium text-text-muted hover:text-text-primary">{t("queue.worker_health_exact_values")}</summary>
           <WorkerHealthTrendTable windows={host.windows} />
         {minuteBuckets.length > 0 ? (
-          <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+          <Surface className="mt-3 overflow-x-auto" padding="none">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
               <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
                 <tr>
@@ -508,7 +502,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Surface>
         ) : null}
         </details>
       </div>
@@ -522,7 +516,7 @@ function WorkerHealthCharts({ buckets, hostname }: { buckets: WorkerHealthBucket
   const metrics = workerHealthChartMetricSpecs.map(({ colorVar, ...spec }, index) => ({ ...spec, color: colors[index] }))
 
   if (buckets.length === 0) {
-    return <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("queue.no_worker_health_buckets")}</p>
+    return <Text className="mt-3" muted variant="caption">{t("queue.no_worker_health_buckets")}</Text>
   }
 
   return (
@@ -615,7 +609,7 @@ function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hos
   if (rows.length === 0) return null
 
   return (
-    <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+    <Surface className="mt-3 overflow-x-auto" padding="none">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
@@ -642,7 +636,7 @@ function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hos
           ))}
         </tbody>
       </table>
-    </div>
+    </Surface>
   )
 }
 
@@ -661,7 +655,7 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
   if (workers.length === 0) return <PanelMessage>{t("queue.no_workers")}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+    <Surface className="overflow-x-auto" padding="none">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
@@ -686,7 +680,7 @@ function WorkerTable({ workers }: { workers: QueueWorker[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Surface>
   )
 }
 
@@ -696,7 +690,7 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
   if (processes.length === 0) return <PanelMessage>{t("queue.no_processes")}</PanelMessage>
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+    <Surface className="overflow-x-auto" padding="none">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
@@ -719,7 +713,7 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Surface>
   )
 }
 
@@ -732,10 +726,10 @@ function QueueError({ error }: { error: Error }) {
 }
 
 function workerHealthBorder(level: string) {
-  if (level === "critical") return "border-red-300 dark:border-red-800"
-  if (level === "warning" || level === "unknown") return "border-amber-300 dark:border-amber-800"
-  if (level === "historical") return "border-gray-200 dark:border-gray-700"
-  return "border-emerald-200 dark:border-emerald-800"
+  if (level === "critical") return "border-danger-border"
+  if (level === "warning" || level === "unknown") return "border-warning-border"
+  if (level === "historical") return "border-border"
+  return "border-success-border"
 }
 
 function workerHealthBadge(level: string) {
@@ -851,7 +845,7 @@ function formatQueues(queues: QueueWorker["queues"]) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
+  return <Notice className="rounded-none border-0" tone={tone === "error" ? "danger" : "neutral"}>{children}</Notice>
 }
 
 function formatArguments(value: unknown[] | null) {
