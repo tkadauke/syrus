@@ -4,6 +4,9 @@ class Workflow
   # and the UI serializer.
   #
   # Shape:
+  #   project:           { "id" => String, "label" => String, "path" => String,
+  #                        "owner_config_path" => String, "target_label" => String }
+  #   projects:          [same shape as this artifact, scoped per project]
   #   summary:           { "lines_pct" => Float, "branches_pct" => Float, "functions_pct" => Float }
   #   files:             { filepath => { "lines_pct" => Float, "branches_pct" => Float } }
   #   diff_annotations:  { filepath => { "12" => "covered"|"uncovered"|"not_executable" } }
