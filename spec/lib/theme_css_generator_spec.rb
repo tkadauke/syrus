@@ -8,7 +8,7 @@ RSpec.describe ThemeCssGenerator do
   end
 
   describe ".css_for" do
-    it "emits a :root[data-theme] block and a .dark variant per theme, with all 13 tokens" do
+    it "emits a :root[data-theme] block and a .dark variant per theme, with all persisted tokens" do
       theme = unsaved_theme(Seeds::Themes::DEFINITIONS.first)
       css = described_class.css_for([ theme ])
 
@@ -17,6 +17,15 @@ RSpec.describe ThemeCssGenerator do
       Theme::TOKEN_KEYS.each do |key|
         expect(css).to include("--color-#{key}: #{theme.tokens.fetch('light').fetch(key)};")
         expect(css).to include("--color-#{key}: #{theme.tokens.fetch('dark').fetch(key)};")
+      end
+    end
+
+    it "emits derived semantic aliases inside each scoped theme block" do
+      theme = unsaved_theme(Seeds::Themes::DEFINITIONS.first)
+      css = described_class.css_for([ theme ])
+
+      Theme::DERIVED_COLOR_TOKENS.each do |key, value|
+        expect(css.scan(/--color-#{Regexp.escape(key)}: #{Regexp.escape(value)};/).length).to eq(2)
       end
     end
 
