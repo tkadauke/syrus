@@ -916,6 +916,51 @@ RSpec.describe SyrusYml do
       expect(stage.tag).to be_nil
     end
 
+    it "defaults deployment stage scope to repository" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: staging
+            tag: staging
+      YAML
+
+      expect(config.deployment_stages.first.scope).to eq("repository")
+    end
+
+    it "accepts explicit repository-scoped deployment stages" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: production
+            scope: repository
+            tag: production
+      YAML
+
+      expect(config.deployment_stages.first.scope).to eq("repository")
+    end
+
+    it "rejects project-scoped deployment stages until they have storage and polling semantics" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: ios_testflight
+              scope: project
+              project_id: ios
+              tag: ios-testflight
+        YAML
+      }.to raise_error(described_class::ParseError, /deployment_stages\[0\]\.scope: must be repository/)
+    end
+
+    it "rejects project_id on repository-scoped deployment stages" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: android_internal
+              scope: repository
+              project_id: android
+              tag: android-internal
+        YAML
+      }.to raise_error(described_class::ParseError, /deployment_stages\[0\]\.project_id: is reserved/)
+    end
+
     it "defaults label to titleized name when label is omitted" do
       config = parse(<<~YAML)
         deployment_stages:

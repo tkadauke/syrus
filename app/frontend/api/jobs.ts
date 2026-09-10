@@ -1001,6 +1001,7 @@ export type JobFeedbackHistoryEntry = {
 export type JobDeploymentStage = {
   name: string
   label: string
+  scope?: "repository"
   reached: boolean
   reached_at: string | null
   tag_sha: string | null

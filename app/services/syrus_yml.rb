@@ -63,6 +63,8 @@ class SyrusYml
   ConfigError = Class.new(ParseError)
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
+  DEPLOYMENT_STAGE_SCOPES = %w[repository].freeze
+  DEFAULT_DEPLOYMENT_STAGE_SCOPE = "repository".freeze
 
   # Charset for an explicit `project.id` -- matches TargetGraph::Project::ID_PATTERN
   # and TargetGraph::Label::SEGMENT_PATTERN so a validly-parsed id can never
@@ -73,7 +75,9 @@ class SyrusYml
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :project, :targets, :target_graph)
-  DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
+  DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
+    def scope = DEFAULT_DEPLOYMENT_STAGE_SCOPE
+  end
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
   # auto-detected fallback for a deploy command. `mode` is `"manual"`
@@ -791,6 +795,13 @@ class SyrusYml
 
     tag = raw["tag"].to_s.strip.presence
     tag_pattern = raw["tag_pattern"].to_s.strip.presence
+    scope = raw.key?("scope") ? raw["scope"].to_s.strip : DEFAULT_DEPLOYMENT_STAGE_SCOPE
+    unless DEPLOYMENT_STAGE_SCOPES.include?(scope)
+      raise ParseError, "#{label}.scope: must be repository (project-scoped deployment stages are not supported yet)"
+    end
+    if raw.key?("project_id")
+      raise ParseError, "#{label}.project_id: is reserved for future project-scoped deployment stages"
+    end
 
     if tag.nil? && tag_pattern.nil?
       raise ParseError, "#{label}: must specify either 'tag' or 'tag_pattern'"

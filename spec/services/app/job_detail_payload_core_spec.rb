@@ -431,6 +431,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         {
           name: "staging",
           label: "Staging",
+          scope: "repository",
           reached: true,
           reached_at: reached_at.iso8601,
           tag_sha: "tag-sha"
@@ -438,6 +439,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         {
           name: "production",
           label: "Production",
+          scope: "repository",
           reached: false,
           reached_at: nil,
           tag_sha: nil
@@ -744,9 +746,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       job.deployment_stage_statuses.create!(stage_name: "staging", reached_at: reached_at, tag_sha: "tagsha")
 
       expect(payload_for(job)[:deployment_stages]).to eq([
-        { name: "staging", label: "On Staging", reached: true, reached_at: "2026-07-30T12:00:00Z", tag_sha: "tagsha" },
-        { name: "production", label: "In Production", reached: false, reached_at: nil, tag_sha: nil },
-        { name: "public", label: "Released to Public", reached: false, reached_at: nil, tag_sha: nil }
+        { name: "staging", label: "On Staging", scope: "repository", reached: true, reached_at: "2026-07-30T12:00:00Z", tag_sha: "tagsha" },
+        { name: "production", label: "In Production", scope: "repository", reached: false, reached_at: nil, tag_sha: nil },
+        { name: "public", label: "Released to Public", scope: "repository", reached: false, reached_at: nil, tag_sha: nil }
       ])
     end
 

@@ -269,6 +269,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         {
           "name" => "staging",
           "label" => "Staging",
+          "scope" => "repository",
           "reached" => true,
           "reached_at" => reached_at.iso8601,
           "tag_sha" => "tag-sha"
@@ -276,6 +277,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         {
           "name" => "production",
           "label" => "Production",
+          "scope" => "repository",
           "reached" => false,
           "reached_at" => nil,
           "tag_sha" => nil
@@ -367,6 +369,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       {
         "name" => "staging",
         "label" => "Staging",
+        "scope" => "repository",
         "reached_count" => 2,
         "total" => 2,
         "reached_at" => staging_at_2.iso8601
@@ -374,6 +377,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       {
         "name" => "production",
         "label" => "Production",
+        "scope" => "repository",
         "reached_count" => 1,
         "total" => 2,
         "reached_at" => production_at_1.iso8601
