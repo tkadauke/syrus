@@ -38,7 +38,7 @@ preview:
 
 visual_review:
   enabled: true
-  rounds: 1
+  rounds: 2
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
