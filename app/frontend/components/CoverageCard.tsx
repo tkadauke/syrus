@@ -93,7 +93,7 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
       ) : null}
 
       {projectRows.length > 1 ? (
-        <div className="mt-3 overflow-hidden rounded border border-gray-200 dark:border-gray-700" data-testid="coverage-project-table">
+        <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700" data-testid="coverage-project-table">
           <table className="min-w-full text-xs">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800">
