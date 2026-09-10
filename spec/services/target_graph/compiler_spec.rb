@@ -568,6 +568,51 @@ RSpec.describe TargetGraph::Compiler do
       expect(diagnostics.error).to include("build file unreadable")
     end
 
+    it "does not partially apply an invalid imported fragment in warning mode" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "bazel", label: "Bazel", path: "")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:valid"),
+              kind: "library",
+              project_id: "bazel",
+              source_scope: [ "src/**/*.rb" ]
+            ),
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:invalid"),
+              kind: "library",
+              project_id: "bazel",
+              dependencies: [ TargetGraph::Label.parse("//bazel:missing") ]
+            )
+          ]
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              failures: warn
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.project("bazel")).to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//bazel:valid"))).to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//bazel:invalid"))).to be_nil
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("//bazel:invalid")
+      expect(diagnostics.error).to include("//bazel:missing")
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include("status" => "error", "error" => include("//bazel:missing"))
+      )
+    end
+
     it "raises a clear error when an explicit label collides with a generated legacy label" do
       write(".syrus.yml", <<~YAML)
         targets:

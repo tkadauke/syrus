@@ -364,21 +364,62 @@ class TargetGraph
         raise TargetGraph::ValidationError, "#{provider_description(provider)} returned #{imported.class}, expected TargetGraph::Import"
       end
 
-      provider_provenance = {
+      provider_provenance = import_provenance(provider: provider, import_config: import_config, label: label)
+      imported_projects = imported_projects(imported, label: label)
+      imported_targets = imported_targets(imported, label: label, provider_provenance: provider_provenance)
+
+      dry_run = duplicate_graph(graph)
+      merge_import_fragment!(dry_run, projects: imported_projects, targets: imported_targets, label: label)
+      dry_run.validate!
+
+      merge_import_fragment!(graph, projects: imported_projects, targets: imported_targets, label: label)
+
+      import_diagnostics << {
+        "provider" => import_config.provider,
+        "provider_class" => provider_description(provider),
+        "status" => "imported",
+        "project_ids" => imported_projects.map(&:id),
+        "target_labels" => imported_targets.map { |target| target.label.to_s },
+        "diagnostics" => imported.diagnostics
+      }.compact
+    end
+
+    def import_provenance(provider:, import_config:, label:)
+      {
         "provider" => import_config.provider,
         "provider_class" => provider_description(provider),
         "declaration" => label
       }
+    end
 
-      imported.projects.each do |project|
-        graph.add_project(project.with(owner_config_path: project.owner_config_path || label))
-      end
+    def imported_projects(imported, label:)
+      imported.projects.map { |project| project.with(owner_config_path: project.owner_config_path || label) }
+    end
 
-      imported.targets.each do |target|
-        target = target.with(
+    def imported_targets(imported, label:, provider_provenance:)
+      imported.targets.map do |target|
+        target.with(
           owner_config_path: target.owner_config_path || label,
           metadata: target.metadata.merge("provenance" => provider_provenance, "declaration" => "imported build-system target")
         )
+      end
+    end
+
+    def duplicate_graph(graph)
+      duplicate = TargetGraph.new(root_project: graph.root_project)
+      graph.projects.each_value do |project|
+        duplicate.add_project(project) unless project.id == root_project_id
+      end
+      graph.targets.each_value do |target|
+        duplicate.add_target(target) unless target.label == TargetGraph.root_label
+      end
+      duplicate
+    end
+
+    def merge_import_fragment!(graph, projects:, targets:, label:)
+      projects.each { |project| graph.add_project(project) }
+
+      targets.each do |target|
         graph.add_target(target)
       rescue TargetGraph::ValidationError
         existing = graph.target(target.label)
@@ -389,15 +430,6 @@ class TargetGraph
           "#{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
           "#{existing.metadata['declaration'] || existing.kind})"
       end
-
-      import_diagnostics << {
-        "provider" => import_config.provider,
-        "provider_class" => provider_description(provider),
-        "status" => "imported",
-        "project_ids" => imported.projects.map(&:id),
-        "target_labels" => imported.targets.map { |target| target.label.to_s },
-        "diagnostics" => imported.diagnostics
-      }.compact
     end
 
     def provider_description(provider)
