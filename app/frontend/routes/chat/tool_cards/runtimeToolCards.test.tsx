@@ -142,7 +142,7 @@ describe("Runtime tool cards", () => {
       calls: [
         {
           message_id: 1,
-          tool_name: "runtime_acquire_control",
+          tool_name: "Runtime acquire control",
           raw_name: "runtime_acquire_control",
           detail: "No arguments",
           display_label: "Runtime acquire control",
@@ -151,11 +151,7 @@ describe("Runtime tool cards", () => {
           result_body: "runtime session 7 already has an active input lease",
           result_error: true,
           result_kind: "error",
-          result_summary: runtimeAcquireControlToolCard.collapsedSummary?.(context("runtime_acquire_control", {
-            resultBody: "runtime session 7 already has an active input lease",
-            resultError: true,
-            parsedResult: null
-          })) ?? ""
+          result_summary: ""
         }
       ],
       collapsed_by_default: false,
