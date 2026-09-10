@@ -201,6 +201,10 @@ function parseSection<T>(value: unknown, parseRow: (row: unknown) => T | null): 
     : { available: false, rows, error: parseMysqlError(value.error) }
 }
 
+function slowLogDeferred(section: SectionSummary<SlowLogRow>) {
+  return section.available === false && section.error?.message === "slow-log rows are loaded on demand"
+}
+
 function statusHealth(payload: {
   available: boolean
   error: MysqlError | null
@@ -214,7 +218,8 @@ function statusHealth(payload: {
   if (payload.processes.some((process) => process.lockedOrWaiting)) return "degraded"
   const rowLockWaits = integer(payload.status.Innodb_row_lock_current_waits)
   if (rowLockWaits != null && rowLockWaits > 0) return "degraded"
-  if (payload.statementDigests.available === false || payload.slowLog.available === false) return "degraded"
+  if (payload.statementDigests.available === false) return "degraded"
+  if (payload.slowLog.available === false && !slowLogDeferred(payload.slowLog)) return "degraded"
   return "healthy"
 }
 
@@ -366,6 +371,14 @@ function DigestSummary({ section }: { section: SectionSummary<StatementDigestRow
 
 function SlowLogSummary({ section }: { section: SectionSummary<SlowLogRow> }) {
   if (!section.available) {
+    if (slowLogDeferred(section)) {
+      return (
+        <div className="rounded border border-gray-200 bg-white px-2 py-1 text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+          <div className="font-mono">{section.error?.message}</div>
+          {section.error?.hint ? <div className="mt-1 text-gray-500 dark:text-gray-400">{section.error.hint}</div> : null}
+        </div>
+      )
+    }
     return section.error ? <MysqlErrorNotice error={section.error} /> : <div className="text-gray-500 dark:text-gray-400">Slow-log rows unavailable.</div>
   }
   if (section.rows.length === 0) return <div className="text-gray-500 dark:text-gray-400">No slow-log rows returned.</div>
