@@ -157,8 +157,7 @@ RSpec.describe AgentActivity::SessionsQuery do
     # directly instead of once over `jobs` alone, which is what actually made
     # the query hard to plan.
     it "filters through one job_id subquery instead of an OR across the joined relation" do
-      query = described_class.new(scope: :mine, user: operator, filter: AgentActivity::Filter.new(nil, user: operator))
-      relation = query.send(:visibility_scoped, query.send(:base_relation))
+      relation = described_class.visible_relation(scope: :mine, user: operator)
 
       sql = relation.to_sql
       outer_clause = sql.split("(SELECT", 2).first
