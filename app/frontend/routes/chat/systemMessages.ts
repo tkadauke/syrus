@@ -16,7 +16,7 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   const input = contentRecord(content?.input) || {}
   const presentation = toolPresentation(name, input)
   const resultBody = message.role === "tool_result" ? stringValue(content?.content ?? content?.result ?? message.content ?? message.text) : ""
-  const resultPresentation = resultBody ? toolResultPresentation(presentation.name, resultBody, content?.is_error === true) : null
+  const resultPresentation = resultBody ? toolResultPresentation(presentation.name, resultBody, content?.is_error === true, resultBody, input) : null
 
   return {
     name,

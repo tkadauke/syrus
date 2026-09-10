@@ -289,14 +289,14 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(parseBody)
 
   // A registered card's own summary is more accurate than the blind
   // generic guess below (which can only pattern-match on the tool name and
   // a handful of well-known array/count keys), so it takes priority.
-  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
+  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, input, resultBody: body, resultError: error, parsedResult: parsed })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
 
   if (error) return { kind: "error", summary: "" }
