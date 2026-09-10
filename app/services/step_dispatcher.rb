@@ -803,6 +803,7 @@ class StepDispatcher
         self.class.create_run_and_enqueue(step, @workflow, check_phase_admission: @check_phase_admission)
       end
       dispatch_parallel_inline_runs!(created_runs)
+      created_runs.first
     elsif downstream_work_pending?
       nil
     else
@@ -1336,7 +1337,7 @@ class StepDispatcher
   def dispatch_parallel_inline_runs!(created_runs)
     return unless Thread.current[:syrus_current_run]&.workflow_id == @workflow.id
 
-    created_runs.drop(1).each(&:dispatch_run_job!)
+    created_runs.drop(1).each(&:reenqueue!)
   end
 
   # Empty edges mean "just my predecessor", so a Step materialized before A5 --

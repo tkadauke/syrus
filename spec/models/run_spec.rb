@@ -680,6 +680,16 @@ RSpec.describe Run, :ci_only do
       expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
     end
 
+    it "forces reenqueue even when the inline workflow driver is active" do
+      run  # force Job/Run creation before clearing so factory noise is excluded
+      clear_enqueued_jobs
+      Thread.current[:syrus_current_run] = run
+
+      expect { run.reenqueue! }.to have_enqueued_job(RunJob).on_queue("runs")
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
     it "routes to the pod's resume queue when the recorded worker is live" do
       workflow.update_column(:worker_hostname, "syrus-worker-1")
       fresh_worker!("syrus-worker-1")
