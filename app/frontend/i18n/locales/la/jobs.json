@@ -51,6 +51,8 @@
     "group": "Opus"
   },
   "open_terminal_in_workspace": "Terminale in spatio operis aperi",
+  "terminal_workspace_open_failed": "Spatium operis terminale aperiri non potest.",
+  "terminal_workspace_unavailable": "Spatium operis cursus non praesto est.",
   "open_in_coding_mode": "Aperi in Modo Codificandi",
   "retry_failed_step": "Gradum defectum itera",
   "push_commits": "Committere mitte",
