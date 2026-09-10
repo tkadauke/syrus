@@ -8,7 +8,7 @@ class RepoCoveragePlan
   DEFAULT_HITMAP_TTL_DAYS = 30
 
   attr_reader :sources, :threshold, :on_miss, :hitmap_ttl_days, :pr_comment, :schedule_prompt,
-    :project_id, :project_label, :project_path, :owner_config_path, :target_label
+    :project_id, :project_label, :project_path, :owner_config_path, :coverage_base_path, :target_label
 
   def self.for(workspace_path)
     path = Pathname.new(workspace_path)
@@ -100,7 +100,7 @@ class RepoCoveragePlan
 
   def initialize(sources:, threshold:, on_miss:, hitmap_ttl_days:, pr_comment:, schedule_prompt:,
     project_id: TargetGraph::ROOT_PROJECT_ID, project_label: "Repository", project_path: "",
-    owner_config_path: SyrusYml::CONFIG_FILE, target_label: nil)
+    owner_config_path: SyrusYml::CONFIG_FILE, coverage_base_path: nil, target_label: nil)
     @sources        = sources
     @threshold      = threshold
     @on_miss        = on_miss
@@ -111,7 +111,8 @@ class RepoCoveragePlan
     @project_label = project_label.to_s.presence || @project_id
     @project_path = project_path.to_s
     @owner_config_path = owner_config_path&.to_s
-    @target_label = target_label&.to_s || coverage_target_label(@project_path)
+    @coverage_base_path = coverage_base_path.nil? ? coverage_base_path_for(@owner_config_path) : coverage_base_path.to_s
+    @target_label = target_label&.to_s || coverage_target_label(@coverage_base_path)
   end
 
   def with_project(project)
@@ -126,7 +127,7 @@ class RepoCoveragePlan
       project_label: project.label,
       project_path: project.path,
       owner_config_path: project.owner_config_path,
-      target_label: coverage_target_label(project.path)
+      coverage_base_path: coverage_base_path_for(project.owner_config_path)
     )
   end
 
@@ -156,6 +157,13 @@ class RepoCoveragePlan
   def coverage_target_label(path)
     package = path.to_s
     package.present? ? "//#{package}:coverage" : "//:coverage"
+  end
+
+  def coverage_base_path_for(owner_config_path)
+    path = owner_config_path.to_s
+    return "" if path.blank? || path == SyrusYml::CONFIG_FILE
+
+    File.dirname(path)
   end
 
   def self.parse_sources_from_config(raw)

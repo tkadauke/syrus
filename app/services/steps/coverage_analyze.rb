@@ -294,30 +294,31 @@ module Steps
         "id" => plan.project_id,
         "label" => plan.project_label,
         "path" => plan.project_path,
+        "coverage_base_path" => plan.coverage_base_path,
         "owner_config_path" => plan.owner_config_path,
         "target_label" => plan.target_label
       }
     end
 
     def coverage_artifact_path(plan, source)
-      return workspace.path.join(source.artifact) if plan.project_path.blank?
+      return workspace.path.join(source.artifact) if plan.coverage_base_path.blank?
 
-      workspace.path.join(plan.project_path, source.artifact)
+      workspace.path.join(plan.coverage_base_path, source.artifact)
     end
 
     def source_status_path(plan, source)
-      return source.artifact if plan.project_path.blank?
+      return source.artifact if plan.coverage_base_path.blank?
 
-      "#{plan.project_path}/#{source.artifact}"
+      "#{plan.coverage_base_path}/#{source.artifact}"
     end
 
     def normalize_coverage_path(path, workspace_prefix, plan)
       path = path.to_s
       return path.delete_prefix(workspace_prefix) if path.start_with?(workspace_prefix)
-      return path if plan.project_path.blank?
-      return path if path == plan.project_path || path.start_with?("#{plan.project_path}/")
+      return path if plan.coverage_base_path.blank?
+      return path if path == plan.coverage_base_path || path.start_with?("#{plan.coverage_base_path}/")
 
-      "#{plan.project_path}/#{path}"
+      "#{plan.coverage_base_path}/#{path}"
     end
 
     def merged_hit_map(project_artifacts)

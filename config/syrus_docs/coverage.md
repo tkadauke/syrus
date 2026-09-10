@@ -36,7 +36,7 @@ Multiple sources are merged before threshold evaluation. Use multiple sources wh
 
 Coverage may be declared in the root `.syrus.yml` or in nested `.syrus.yml` files. The root coverage block keeps the legacy repository-wide behavior: its sources are read from the repository root, its thresholds apply to the repository aggregate, and existing repositories do not need to change their configuration.
 
-A nested coverage block applies to the project that owns that nested `.syrus.yml`. Its artifact paths are resolved relative to that project directory, relative paths inside the coverage file are normalized back to repository-relative paths, and thresholds are evaluated for that project only. Syrus reports each affected project's status in the workflow artifact, PR comment, and coverage card.
+A nested coverage block applies to the project that owns that nested `.syrus.yml`. Its artifact paths are resolved relative to the directory containing that `.syrus.yml`, relative paths inside the coverage file are normalized back to repository-relative paths using that same declaring directory, and thresholds are evaluated for that project only. An explicit `project.path` is reported as project metadata but does not move coverage artifact lookup or path normalization. Syrus reports each affected project's status in the workflow artifact, PR comment, and coverage card.
 
 When root coverage is configured, the top-level repository summary is the root coverage result. When only nested project coverage is configured, Syrus computes a repository aggregate from the configured project results. Projects with coverage blocks are included when their project path is touched by the diff under review; root coverage remains repo-wide.
 

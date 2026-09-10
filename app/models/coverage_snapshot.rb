@@ -22,7 +22,8 @@ class CoverageSnapshot < ApplicationRecord
   # avg_branches_pct, avg_functions_pct — grouped by calendar day on the
   # repository's default branch over the past +days+ days.
   def self.daily_averages(repository:, days: 30)
-    on_branch(repository.default_branch)
+    for_project(TargetGraph::ROOT_PROJECT_ID)
+      .on_branch(repository.default_branch)
       .since(days.days.ago)
       .group("DATE(created_at)")
       .select(
