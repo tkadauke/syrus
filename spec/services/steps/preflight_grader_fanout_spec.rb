@@ -99,6 +99,7 @@ RSpec.describe Steps::PreflightGraderFanout do
   it "records immutable placement and descriptive DAG metadata when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
     write_grade_config(<<~YAML)
       grade:
         - name: tests
