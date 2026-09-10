@@ -181,6 +181,15 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
     if (confirmed) deleteMutation.mutate(theme)
   }
 
+  async function requestDeleteTheme(theme: ThemeDraft) {
+    const confirmed = await confirm({
+      message: `Delete ${theme.name}?`,
+      confirmLabel: "Delete",
+      destructive: true
+    })
+    if (confirmed) deleteMutation.mutate(theme)
+  }
+
   function startDrag(index: number, event: DragEvent<HTMLElement>) {
     dragIndex.current = index
     event.dataTransfer.effectAllowed = "move"
