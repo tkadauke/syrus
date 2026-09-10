@@ -2,14 +2,21 @@ module Admin
   class McpToolUsagePayload
     DEFAULT_WINDOW = 7.days
     MAX_WINDOW = 90.days
+    DEFAULT_CARD_GAP_LIMIT = 20
 
-    def initialize(params: {})
+    def initialize(params: {}, chat_session: nil, repository: nil)
       @params = params
+      @chat_session = chat_session
+      @repository = repository
     end
 
     def as_json
       usages = scoped_usages
-      advertised = McpToolUsageRecorder.advertised_tools(surface: surface)
+      advertised = McpToolUsageRecorder.advertised_tools(
+        surface: surface,
+        chat_session: chat_session,
+        repository: repository
+      )
       used = usages.distinct.pluck(:normalized_tool_name)
 
       {
@@ -33,6 +40,7 @@ module Admin
         server_breakdown: server_rows(usages),
         sidecar_mode_breakdown: sidecar_mode_rows(usages),
         unused_advertised_tools: (advertised - used).sort,
+        custom_card_gaps: custom_card_gaps(usages),
         recent_calls: recent_call_rows(usages)
       }
     end
@@ -213,6 +221,12 @@ module Admin
             .sort_by { |row| row[:sidecar_mode].to_s }
     end
 
+    def custom_card_gaps(usages)
+      chat_usages = usages.where(surface: "chat")
+      advertised = McpToolUsageRecorder.advertised_tools(surface: "chat", chat_session: chat_session)
+      Admin::McpToolCardCoverage.call(usages: chat_usages, advertised_tools: advertised)
+    end
+
     def limit
       value = params[:limit].to_i
       return 20 if value <= 0
@@ -263,5 +277,7 @@ module Admin
 
       [ value, 100 ].min
     end
+
+    attr_reader :chat_session, :repository
   end
 end
