@@ -41,7 +41,8 @@ class PollMainBranchHealthJob < ApplicationJob
 
     repository.reset_main_health_poll_error_streak!
 
-    sha_changed = sha != repository.last_health_checked_sha
+    previous_main_sha = repository.last_health_checked_sha.presence
+    sha_changed = sha != previous_main_sha
     previous_health = repository.main_health
     grading_needed = sha != repository.last_graded_sha
 
@@ -66,7 +67,15 @@ class PollMainBranchHealthJob < ApplicationJob
     # if one is already running it will skip and PollMainBranchHealthJob will
     # retry on the next tick (grading_needed stays true until the workflow
     # records a settled grader result).
-    MainGraderWorkflowJob.perform_later(repository.id, sha) if grading_needed
+    if grading_needed && sha_changed && previous_main_sha
+      MainGraderWorkflowJob.perform_later(
+        repository.id,
+        sha,
+        previous_main_sha: previous_main_sha
+      )
+    elsif grading_needed
+      MainGraderWorkflowJob.perform_later(repository.id, sha)
+    end
 
     # Skip CI health check when SHA unchanged, health is already known, and
     # grading is also up to date — nothing new to evaluate. `ci_evaluated`

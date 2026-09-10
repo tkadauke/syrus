@@ -446,6 +446,27 @@ module WorkDefinitions
     self.workflow_trigger_kind = "main_grader"
     self.runtime_role = "infrastructure"
     self.scope = "repository"
+
+    def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
+      workflow.artifact("previous_main_sha").to_s.presence
+    end
+
+    def grader_fanout_changed_files_log(workflow)
+      previous_sha = workflow.artifact("previous_main_sha").to_s.presence
+      if previous_sha
+        "[grader_fanout] computing affected targets from previous main SHA #{previous_sha.first(7)}"
+      else
+        "[grader_fanout] no previous main SHA recorded; baseline target health will run every configured grader"
+      end
+    end
+
+    def grader_fanout_baseline_selection_reason(workflow)
+      return nil if workflow.artifact("previous_main_sha").present?
+
+      "baseline main target health has no previous SHA"
+    end
+
+    def record_grader_target_selection_inputs? = true
   end
 
   class MainBranchRepair < Base

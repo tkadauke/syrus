@@ -452,6 +452,58 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(details["phase"]).to eq("ci")
   end
 
+  it "selects main branch grader targets affected since the previous main SHA" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("previous_main_sha", "oldmain123")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+    expect(@git).to receive(:run)
+      .with("diff", "--name-only", "oldmain123...HEAD", chdir: @ws_path.to_s)
+      .and_return("app/models/job.rb\n")
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq([ "app-tests" ])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("computing affected targets from previous main SHA oldmain")
+    expect(chunks).to include("selected app-tests (own source scope matched a changed file) [//:grade/app-tests]")
+    expect(chunks).to include("skipped docs-tests (no matching files changed) [//:grade/docs-tests]")
+  end
+
+  it "runs all main branch grader targets when no previous main SHA exists" do
+    workflow.update!(trigger_kind: "main_grader")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("no previous main SHA recorded; baseline target health will run every configured grader")
+    expect(chunks).to include("selected app-tests (baseline main target health has no previous SHA) [//:grade/app-tests]")
+    expect(chunks).to include("selected docs-tests (baseline main target health has no previous SHA) [//:grade/docs-tests]")
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
