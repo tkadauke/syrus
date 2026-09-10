@@ -49,6 +49,36 @@ describe("toolDetail", () => {
     expect(detail).not.toContain("Which path?")
     expect(detail).not.toContain("{")
   })
+
+  it("keeps Runtime input collapsed details compact instead of dumping raw event JSON", () => {
+    const detail = toolDetail("runtime_input", {
+      event: {
+        type: "stdin",
+        target: "terminal",
+        data: `whoami\n${"x".repeat(140)}`,
+        internal_payload: { page: "noise" }
+      }
+    })
+
+    expect(detail).toBe("stdin on terminal")
+    expect(detail).not.toContain("whoami")
+    expect(detail).not.toContain("internal_payload")
+  })
+
+  it("keeps Runtime click and failed-input collapsed details compact", () => {
+    expect(toolDetail("runtime_input", { event: { type: "click", target: "button#save", data: "raw" } })).toBe("click on button#save")
+  })
+
+  it("keeps Runtime snapshot collapsed details compact instead of dumping options JSON", () => {
+    const detail = toolDetail("runtime_snapshot", { session_id: 7, options: { target: "main", full_page: true } })
+
+    expect(detail).toBe("target main, session 7")
+    expect(detail).not.toContain("full_page")
+  })
+
+  it("keeps Runtime artifact capture collapsed details compact", () => {
+    expect(toolDetail("runtime_capture_artifact", { session_id: 7, artifact_type: "screenshot" })).toBe("screenshot, session 7")
+  })
 })
 
 describe("toolLabel", () => {
