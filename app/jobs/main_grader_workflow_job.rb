@@ -10,11 +10,11 @@ class MainGraderWorkflowJob < ApplicationJob
   # is already running (for any SHA), this is a no-op — the poll job will
   # re-trigger for the latest SHA once the active one finishes. The repository's
   # last_graded_sha advances only after the workflow records a settled result.
-  def perform(repository_id, sha, previous_main_sha: nil)
+  def perform(repository_id, sha, previous_main_sha: nil, target_selection_mode: "affected")
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
-    return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, sha: sha)
+    return if target_selection_mode != "broad" && MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, sha: sha)
     return if active_grading_workflow?(repository) || active_main_branch_repair_workflow?(repository, sha)
 
     user = repository.user
@@ -29,7 +29,7 @@ class MainGraderWorkflowJob < ApplicationJob
         issue_number: nil
       )
 
-      artifacts = { "main_sha" => sha }
+      artifacts = { "main_sha" => sha, "target_selection_mode" => target_selection_mode }
       artifacts["previous_main_sha"] = previous_main_sha if previous_main_sha.present?
 
       workflow = WorkUnits::Launcher.instantiate(

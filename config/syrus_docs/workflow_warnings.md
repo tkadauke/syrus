@@ -91,6 +91,18 @@ in `.syrus.yml`, with `evidence: { "branches_pct" => ..., "threshold_branches" =
 `coverage.on_miss` (block/warn/schedule) and never fails the step — it is
 always this soft warning. See `coverage.md`.
 
+## Fourth consumer: target-selection missed edges
+
+Main-branch CI and broad target sweeps can prove that affected-target
+selection skipped too much. When a CI check or a broad main-grader sweep fails
+for a grader/target that the latest affected main-grader workflow skipped,
+Syrus records a `kind: "target_selection_missed_edge"` warning. Its evidence
+captures the skipped selection entry, the failing target/check, and whether CI
+or the broad sweep found the miss. The suggested prompt asks a follow-up agent
+to audit `.syrus.yml` and either add missing `deps:` edges, move the grader
+into a nested `.syrus.yml`, define explicit `project:`/`targets:` nodes, or
+broaden `when_files_changed`.
+
 ## Frontend rendering
 
 The Job details page (`app/frontend/routes/jobDetail/WorkflowGraph.tsx`)

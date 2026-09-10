@@ -166,6 +166,36 @@ RSpec.describe Workflows::MainGrader do
       expect(check.grader_failed_names).to eq([ "rspec" ])
     end
 
+    it "records a missed-edge warning when a broad sweep fails a target the previous affected run skipped" do
+      previous_workflow = described_class.instantiate(job: job, artifacts: { "main_sha" => "oldsha", "previous_main_sha" => "older" })
+      previous_workflow.set_artifact!(
+        Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY,
+        [
+          target_selection("docs-tests", "//:grade/docs-tests", affected: false)
+        ]
+      )
+      workflow.set_artifact!("target_selection_mode", "broad")
+      failed = create_failed_required_grader!(
+        workflow,
+        name: "docs-tests",
+        details: { "target_label" => "//:grade/docs-tests" }
+      )
+
+      expect {
+        described_class.after_fail(workflow)
+      }.to change(WorkflowWarning.where(kind: TargetSelectionMissedEdgeRecorder::KIND), :count).by(1)
+
+      warning = WorkflowWarning.last
+      expect(warning.workflow).to eq(workflow)
+      expect(warning.step).to eq(failed)
+      expect(warning.evidence).to include(
+        "grader_name" => "docs-tests",
+        "target_label" => "//:grade/docs-tests",
+        "detected_by" => "broad_target_sweep"
+      )
+      expect(warning.evidence.dig("skipped_selection", "reason")).to eq("no matching files changed")
+    end
+
     it "links the created health check record to the workflow" do
       create_failed_required_grader!(workflow)
 

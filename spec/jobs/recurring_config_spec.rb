@@ -34,6 +34,17 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "schedules a daily broad target health sweep" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("broad_target_health_sweep")).to include(
+      "class" => "PollAllMainBranchHealthJob",
+      "queue" => "polling",
+      "args" => [ { "target_selection_mode" => "broad" } ],
+      "schedule" => "every day at 2:30am"
+    )
+  end
+
   it "prunes old notifications daily" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 

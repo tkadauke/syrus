@@ -432,6 +432,31 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("selected docs-tests (baseline main target health has no previous SHA) [//:grade/docs-tests]")
   end
 
+  it "runs all main branch grader targets for a broad target sweep even with a previous main SHA" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("target_selection_mode", "broad")
+    workflow.set_artifact!("previous_main_sha", "oldmain123")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("broad target sweep requested; baseline target health will run every configured grader")
+    expect(chunks).to include("selected docs-tests (broad target sweep requested) [//:grade/docs-tests]")
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)

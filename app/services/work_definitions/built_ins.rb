@@ -448,10 +448,16 @@ module WorkDefinitions
     self.scope = "repository"
 
     def grader_fanout_changed_files_base_ref(workflow:, default_base_ref:)
+      return nil if broad_target_sweep?(workflow)
+
       workflow.artifact("previous_main_sha").to_s.presence
     end
 
     def grader_fanout_changed_files_log(workflow)
+      if broad_target_sweep?(workflow)
+        return "[grader_fanout] broad target sweep requested; baseline target health will run every configured grader"
+      end
+
       previous_sha = workflow.artifact("previous_main_sha").to_s.presence
       if previous_sha
         "[grader_fanout] computing affected targets from previous main SHA #{previous_sha.first(7)}"
@@ -461,12 +467,19 @@ module WorkDefinitions
     end
 
     def grader_fanout_baseline_selection_reason(workflow)
+      return "broad target sweep requested" if broad_target_sweep?(workflow)
       return nil if workflow.artifact("previous_main_sha").present?
 
       "baseline main target health has no previous SHA"
     end
 
     def record_grader_target_selection_inputs? = true
+
+    private
+
+    def broad_target_sweep?(workflow)
+      workflow.artifact("target_selection_mode").to_s == "broad"
+    end
   end
 
   class MainBranchRepair < Base

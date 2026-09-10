@@ -18,6 +18,12 @@ default: &default
     class: PollAllMainBranchHealthJob
     queue: polling
     schedule: every 5 minutes
+  broad_target_health_sweep:
+    class: PollAllMainBranchHealthJob
+    queue: polling
+    args:
+      - target_selection_mode: broad
+    schedule: every day at 2:30am
   poll_pull_requests:
     class: PollAllPullRequestsJob
     queue: polling

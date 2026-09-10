@@ -334,6 +334,19 @@ therefore keep the understandable legacy shape: a repo-wide grader target with
 no file scope is affected by every main update and runs unless target health
 proves the same inputs already passed.
 
+A daily `broad_target_health_sweep` recurring task runs the same
+`main_grader` workflow with `target_selection_mode: "broad"`. Broad sweeps
+select every configured required grader target even when the current SHA
+already has an affected-target health result, giving operators a scheduled
+full-closure backstop before release windows or after graph changes.
+
+When CI or a broad sweep fails a grader/target that the latest affected
+selection skipped, Syrus records a generic `WorkflowWarning` with
+`kind: "target_selection_missed_edge"`. The warning's one-click fix prompt
+points the follow-up Job at the likely target-graph repairs: missing `deps:`
+edges, nested `.syrus.yml` placement, explicit `project:`/`targets:` nodes, or
+broader `when_files_changed` scopes.
+
 Main-branch CI health is intentionally narrower than "any failed GitHub check on the SHA." For GitHub Actions, Syrus only treats checks from the regular `CI` workflow as the CI signal. Release, test-build, website deploy, and other packaging/operations workflows can fail on the same commit without marking main broken or spawning a main-branch repair job.
 
 **GitHub outage handling:** `PollMainBranchHealthJob` (every 5 minutes, per `config/recurring.yml`) rescues transient GitHub-side failures (`Octokit::ServerError`, `Faraday::TimeoutError`, `Faraday::ConnectionFailed`) around its two GitHub calls instead of letting them crash the job. A single failed poll is normal noise — it's logged, `Repository#main_health_poll_error_streak` is incremented, and `last_main_health_poll_error_at` is stamped; the next scheduled tick retries. Only after `Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD` (3, roughly 15 minutes of sustained outage) *consecutive* failures, and only when `ci_health` is already `"broken"`, does the job downgrade `ci_health` to `"inconclusive"` and call `MainHealthChangedService.on_health_change!` — this reuses the existing inconclusive path (resumes landing, emits a `main_inconclusive` notification) instead of a distinct outage notification, and never fabricates a `"healthy"` result from missing data. Any successful poll resets the streak to zero and normal broken/healthy/inconclusive/not_configured evaluation resumes.

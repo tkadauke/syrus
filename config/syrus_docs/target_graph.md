@@ -44,6 +44,23 @@ environment snapshot and may run one explicitly through `run_target_prepare`
 when they discover that a project-scoped dependency install is needed (see
 "Agent-requested prepare targets" below).
 
+Main branch health supports two selection modes. Normal polling uses
+`target_selection_mode: "affected"` and compares the new default-branch SHA to
+the previous one. A scheduled or release-time backstop can enqueue
+`PollAllMainBranchHealthJob`/`PollMainBranchHealthJob` with
+`target_selection_mode: "broad"`; the resulting main-grader workflow records
+the mode in artifacts and treats every configured required grader target as
+selected, bypassing the "already graded this SHA" shortcut while still honoring
+the normal one-active-main-grader-per-repository guard.
+
+If CI or a broad target sweep finds a required target failing after the latest
+affected selection skipped that same grader/target, Syrus records a generic
+`WorkflowWarning` with `kind: "target_selection_missed_edge"`. The warning
+evidence includes the skipped selection reason, target label, and failure
+evidence, and its suggested fix prompt asks the operator/agent to add missing
+`deps:` edges, move graders into a nested `.syrus.yml`, define explicit
+`project:`/`targets:` nodes, or broaden `when_files_changed` as appropriate.
+
 Explicit `targets:` declarations are available for hand-authored dependency
 nodes. Build-system plugin import (later adoption levels in `DOC-20`) does
 not exist yet — do not describe it as available. The `project:` primitive
