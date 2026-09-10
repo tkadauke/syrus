@@ -168,23 +168,24 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared
+      return nil unless declared || config&.preview
 
-      if declared.id && declared.id != root_project_id
+      if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.id must be #{root_project_id.inspect} for the root .syrus.yml; got #{declared.id.inspect}"
       end
-      if declared.path
+      if declared&.path
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.path must be empty for the root .syrus.yml; got #{declared.path.inspect}"
       end
 
       TargetGraph::Project.new(
         id: root_project_id,
-        label: declared.label || "Repository",
-        kind: declared.kind,
+        label: declared&.label || "Repository",
+        kind: declared&.kind,
         path: "",
-        owner_config_path: owner_config_path
+        owner_config_path: owner_config_path,
+        preview: config&.preview
       )
     end
 
@@ -256,7 +257,8 @@ class TargetGraph
             label: declared_project&.label || relative_dir,
             kind: declared_project&.kind,
             path: declared_project&.path || relative_dir,
-            owner_config_path: nested_owner_config_path
+            owner_config_path: nested_owner_config_path,
+            preview: nested_config.preview
           )
         )
 

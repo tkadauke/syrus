@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
-import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord } from "../api/jobs"
+import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord, type PreviewProjectRecord } from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { Button, buttonClasses } from "./Button"
@@ -71,6 +71,8 @@ export function PreviewPanel({
   previewLogsPath,
   canStart,
   initialPreview,
+  initialPreviewProjects = [],
+  previewUnavailableReason,
   deployPath,
   canDeploy,
   initialDeploy,
@@ -83,6 +85,8 @@ export function PreviewPanel({
   previewLogsPath: string
   canStart: boolean
   initialPreview: PreviewEnvironmentRecord | null
+  initialPreviewProjects?: PreviewProjectRecord[]
+  previewUnavailableReason?: string | null
   deployPath?: string
   canDeploy?: boolean
   initialDeploy?: DeployWorkflowRecord | null
@@ -96,19 +100,24 @@ export function PreviewPanel({
   const [deployError, setDeployError] = useState<string | null>(null)
   const previewQueryKey = [`${queryKeyPrefix}-preview`, entityId] as const
   const deployQueryKey = [`${queryKeyPrefix}-deploy`, entityId] as const
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
+    const storageKey = previewProjectStorageKey(queryKeyPrefix, entityId)
+    return initialPreview?.project_id || window.localStorage.getItem(storageKey) || initialPreviewProjects[0]?.id || null
+  })
 
   const preview = useQuery({
     queryKey: previewQueryKey,
     queryFn: () => fetchPreview(previewPath),
-    select: (data) => data.preview,
-    initialData: { preview: initialPreview },
+    initialData: { preview: initialPreview, preview_projects: initialPreviewProjects },
     refetchInterval: (query) => {
       const env = query.state.data?.preview
       return env && isActive(env.state) ? POLL_INTERVAL_MS : false
     }
   })
 
-  const env = preview.data
+  const env = preview.data.preview
+  const previewProjects = preview.data.preview_projects ?? initialPreviewProjects
+  const selectedPreviewProjectId = previewProjects.length > 1 ? selectedProjectId : previewProjects[0]?.id ?? selectedProjectId
 
   // Workflow/Run/Step state changes only broadcast a granular AppEvent that
   // invalidates the workflows-tab query (see appEvents.ts's
@@ -130,10 +139,14 @@ export function PreviewPanel({
   const deployRecord = deploy.data
 
   const start = useMutation({
-    mutationFn: () => startPreview(previewPath),
+    mutationFn: () => startPreview(previewPath, previewProjects.length > 1 ? selectedPreviewProjectId : null),
     onSuccess: (data) => {
-      queryClient.setQueryData(previewQueryKey, { preview: data.preview })
+      queryClient.setQueryData(previewQueryKey, { preview: data.preview, preview_projects: data.preview_projects ?? previewProjects })
       void queryClient.invalidateQueries({ queryKey })
+      if (data.preview.project_id) {
+        window.localStorage.setItem(previewProjectStorageKey(queryKeyPrefix, entityId), data.preview.project_id)
+        setSelectedProjectId(data.preview.project_id)
+      }
       setError(null)
     },
     onError: (err) => setError(errorMessage(err, t("preview_failed")))
@@ -142,7 +155,7 @@ export function PreviewPanel({
   const stop = useMutation({
     mutationFn: () => stopPreview(previewPath),
     onSuccess: (data) => {
-      queryClient.setQueryData(previewQueryKey, { preview: data.preview })
+      queryClient.setQueryData(previewQueryKey, { preview: data.preview, preview_projects: previewProjects })
       void queryClient.invalidateQueries({ queryKey })
       setError(null)
     },
@@ -179,7 +192,11 @@ export function PreviewPanel({
 
   const showDeploy = Boolean(deployPath) && (canDeploy || Boolean(deployRecord))
 
-  if (!canStart && !env && !showDeploy) return null
+  const previewUnavailableMessage = previewUnavailableReason === "no_affected_preview_project"
+    ? t("preview_no_affected_project")
+    : null
+
+  if (!canStart && !env && !showDeploy && !previewUnavailableMessage) return null
 
   const isPending = start.isPending || stop.isPending
 
@@ -187,6 +204,9 @@ export function PreviewPanel({
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("preview_section")}>
       <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("preview_section")}</h2>
       <div className="mt-3 space-y-2">
+        {previewUnavailableMessage ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">{previewUnavailableMessage}</p>
+        ) : null}
         {(canStart || env) ? (
           <>
             {error ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p> : null}
@@ -195,6 +215,12 @@ export function PreviewPanel({
               canStart={canStart}
               expired={expired}
               isPending={isPending}
+              previewProjects={previewProjects}
+              selectedProjectId={selectedPreviewProjectId}
+              onSelectProject={(projectId) => {
+                setSelectedProjectId(projectId)
+                window.localStorage.setItem(previewProjectStorageKey(queryKeyPrefix, entityId), projectId)
+              }}
               onStart={() => start.mutate()}
               onStop={() => stop.mutate()}
               t={t}
@@ -236,6 +262,10 @@ export function PreviewPanel({
       </div>
     </section>
   )
+}
+
+function previewProjectStorageKey(queryKeyPrefix: string, entityId: number) {
+  return `syrus:${queryKeyPrefix}:${entityId}:preview_project_id`
 }
 
 function PreviewLogs({ queryKeyPrefix, entityId, previewLogsPath, running }: { queryKeyPrefix: string; entityId: number; previewLogsPath: string; running: boolean }) {
@@ -345,6 +375,9 @@ function PreviewControls({
   canStart,
   expired,
   isPending,
+  previewProjects,
+  selectedProjectId,
+  onSelectProject,
   onStart,
   onStop,
   t
@@ -353,6 +386,9 @@ function PreviewControls({
   canStart: boolean
   expired: boolean
   isPending: boolean
+  previewProjects: PreviewProjectRecord[]
+  selectedProjectId: string | null | undefined
+  onSelectProject: (projectId: string) => void
   onStart: () => void
   onStop: () => void
   t: ReturnType<typeof useT>["t"]
@@ -362,13 +398,29 @@ function PreviewControls({
   if (!state || state === "stopped" || state === "failed") {
     if (!canStart && !expired) return null
     return (
-      <Button
-        size="sm"
-        disabled={isPending}
-        onClick={onStart}
-      >
-        {t("preview_start")}
-      </Button>
+      <div className="space-y-2">
+        {previewProjects.length > 1 ? (
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+            <span className="mb-1 block">{t("preview_project_label")}</span>
+            <select
+              className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              value={selectedProjectId ?? ""}
+              onChange={(event) => onSelectProject(event.currentTarget.value)}
+            >
+              {previewProjects.map((project) => (
+                <option key={project.id} value={project.id}>{project.label}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <Button
+          size="sm"
+          disabled={isPending || (previewProjects.length > 1 && !selectedProjectId)}
+          onClick={onStart}
+        >
+          {t("preview_start")}
+        </Button>
+      </div>
     )
   }
 
@@ -414,6 +466,9 @@ function PreviewControls({
 
     return (
       <div className="flex flex-wrap items-center gap-2">
+        {env!.project_label ? (
+          <span className="text-xs text-gray-500 dark:text-gray-400">{env!.project_label}</span>
+        ) : null}
         <a
           className={buttonClasses("success", "sm")}
           href={env!.url ?? "#"}

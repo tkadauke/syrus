@@ -241,6 +241,37 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.validate!).to be(true)
     end
 
+    it "stores root preview config on the root project" do
+      write(".syrus.yml", <<~YAML)
+        preview:
+          start: bin/dev
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.root_project.preview.start).to eq("bin/dev")
+      expect(graph.root_project.owner_config_path).to eq(".syrus.yml")
+    end
+
+    it "stores nested preview config on that nested project" do
+      write("apps/web/.syrus.yml", <<~YAML)
+        project:
+          id: web
+          label: Web App
+        preview:
+          start: npm run dev -- --port $PORT
+          logs: [logs/web.log]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      project = graph.project("web")
+      expect(project.label).to eq("Web App")
+      expect(project.path).to eq("apps/web")
+      expect(project.preview.start).to eq("npm run dev -- --port $PORT")
+      expect(project.preview.logs).to eq([ "logs/web.log" ])
+    end
+
     describe "affected-file scope defaults (DOC-20 'First Implementation Slice' step 3)" do
       it "keeps root-only declarations repo-wide, with or without an explicit selector" do
         write(".syrus.yml", <<~YAML)

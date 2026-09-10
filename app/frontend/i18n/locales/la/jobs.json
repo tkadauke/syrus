@@ -661,6 +661,8 @@
   "preview_expired": "Praevisum exspiravit — reinitiare?",
   "preview_expires_in": "Exspirat post {{time}}",
   "preview_section": "Praevisum",
+  "preview_project_label": "Proiectum",
+  "preview_no_affected_project": "Nullum proiectum affectum praevisum configuratum habet.",
   "preview_stop_on_action_title": "Ambitus praevisi currit",
   "preview_stop_on_action_body": "Pro hoc opere ambitus praevisi currit. Nunc sistere?",
   "preview_stop_yes": "Ita, siste",

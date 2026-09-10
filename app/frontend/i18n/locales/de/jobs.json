@@ -665,6 +665,8 @@
   "preview_expired": "Vorschau abgelaufen — neu starten?",
   "preview_expires_in": "Läuft ab in {{time}}",
   "preview_section": "Vorschau",
+  "preview_project_label": "Projekt",
+  "preview_no_affected_project": "Kein betroffenes Projekt hat eine Vorschau konfiguriert.",
   "preview_stop_on_action_title": "Eine Vorschau-Umgebung läuft",
   "preview_stop_on_action_body": "Für diesen Job läuft eine Vorschau-Umgebung. Jetzt stoppen?",
   "preview_stop_yes": "Ja, stoppen",

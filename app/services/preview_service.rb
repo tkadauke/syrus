@@ -109,11 +109,12 @@ class PreviewService
   def start_environment(env)
     workspace_path = ensure_workspace!(env)
 
-    source = PreviewCommandSource.new(workspace_path).resolve
+    source = PreviewCommandSource.new(workspace_path, project_id: env.project_id).resolve
     unless source
       mark_failed(env, "no preview command configured for this repository")
       return
     end
+    workdir = preview_workdir(env, workspace_path)
 
     port = allocate_port
     unless port
@@ -124,15 +125,15 @@ class PreviewService
     env.update_columns(port: port, internal_host: INTERNAL_HOST)
     env.begin_seeding! && env.save!
 
-    process_env = preview_process_env(source, workspace_path)
+    process_env = preview_process_env(source, workdir)
 
-    run_setup_commands(source, workspace_path, process_env)
+    run_setup_commands(source, workdir, process_env)
     return if stop_requested?(env)
 
-    run_seed_command(source, workspace_path, process_env) if source.seed_command
+    run_seed_command(source, workdir, process_env) if source.seed_command
     return if stop_requested?(env)
 
-    child = spawn_app(source.start_command_for.call(port: port), workspace_path, port, env, process_env)
+    child = spawn_app(source.start_command_for.call(port: port), workdir, port, env, process_env)
     @mutex.synchronize { @children[env.id] = child }
 
     await_health_check(env, port, source.health_check_path)
@@ -152,6 +153,18 @@ class PreviewService
     Rails.logger.info("[PreviewService] running #{label}: #{command}")
     result = system(process_env, "bash", "-c", command, chdir: workspace_path, exception: false, unsetenv_others: true)
     raise "preview #{label} command exited non-zero: #{command}" unless result
+  end
+
+  def preview_workdir(env, workspace_path)
+    return workspace_path if env.project_id.blank?
+
+    project = TargetGraph::Compiler.compile(workspace_path).project(env.project_id)
+    return workspace_path unless project&.path.present?
+
+    File.join(workspace_path, project.path)
+  rescue StandardError => e
+    Rails.logger.warn("[PreviewService] could not resolve preview project #{env.project_id.inspect}: #{e.class}: #{e.message}")
+    workspace_path
   end
 
   def ensure_workspace!(env)
