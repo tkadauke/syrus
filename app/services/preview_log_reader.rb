@@ -28,7 +28,7 @@ class PreviewLogReader
   private
 
   def log_paths
-    source = PreviewCommandSource.new(@workspace_path).resolve
+    source = preview_command_source.resolve
     Array(source&.log_paths).presence || default_log_paths
   end
 
@@ -37,11 +37,30 @@ class PreviewLogReader
   end
 
   def resolve_path(path)
-    absolute = Pathname.new(path).absolute? ? File.expand_path(path) : File.expand_path(path, @workspace_path)
+    absolute = Pathname.new(path).absolute? ? File.expand_path(path) : File.expand_path(path, preview_workdir)
     root = File.expand_path(@workspace_path)
     return unless absolute == root || absolute.start_with?("#{root}/")
 
     absolute
+  end
+
+  def preview_workdir
+    return @workspace_path if @preview_environment.project_id.blank?
+
+    project = TargetGraph::Compiler.compile(@workspace_path).project(@preview_environment.project_id)
+    return @workspace_path unless project&.path.present?
+
+    File.join(@workspace_path, project.path)
+  rescue StandardError
+    @workspace_path
+  end
+
+  def preview_command_source
+    if @preview_environment.project_id.present?
+      PreviewCommandSource.new(@workspace_path, project_id: @preview_environment.project_id)
+    else
+      PreviewCommandSource.new(@workspace_path)
+    end
   end
 
   def display_path(path)

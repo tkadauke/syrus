@@ -674,6 +674,8 @@
   "preview_expired": "Preview expired — restart?",
   "preview_expires_in": "Expires in {{time}}",
   "preview_section": "Preview",
+  "preview_project_label": "Project",
+  "preview_no_affected_project": "No affected project has a preview configured.",
   "preview_stop_on_action_title": "A preview environment is running",
   "preview_stop_on_action_body": "A preview environment is running for this job. Stop it now?",
   "preview_stop_yes": "Yes, stop it",

@@ -16,15 +16,18 @@ class PreviewCommandSource
   # `start_command_for` — callable(port:) → String
   Config = Data.define(:start_command_for, :setup_commands, :seed_command, :health_check_path, :log_paths, :env, :unset_env)
 
-  def initialize(workspace_path)
+  def initialize(workspace_path, project_id: nil)
     @workspace_path = workspace_path
+    @project_id = project_id
   end
 
   def resolve
-    from_syrus_yml || from_plugin
+    from_project_syrus_yml || from_syrus_yml || from_plugin
   end
 
   private
+
+  attr_reader :project_id
 
   def from_syrus_yml
     config = SyrusYml.load_repo(@workspace_path)
@@ -41,6 +44,27 @@ class PreviewCommandSource
       unset_env:         p.unset_env
     )
   rescue SyrusYml::ParseError, Errno::ENOENT
+    nil
+  end
+
+  def from_project_syrus_yml
+    return nil if project_id.blank?
+
+    graph = TargetGraph::Compiler.compile(@workspace_path)
+    project = graph.project(project_id)
+    p = project&.preview
+    return nil unless p
+
+    Config.new(
+      start_command_for: ->(port:) { p.start.gsub("${PORT}", port.to_s).gsub("$PORT", port.to_s) },
+      setup_commands:    p.setup,
+      seed_command:      p.seed,
+      health_check_path: p.health_check,
+      log_paths:         p.logs,
+      env:               p.env,
+      unset_env:         p.unset_env
+    )
+  rescue SyrusYml::ParseError, TargetGraph::Error, Errno::ENOENT
     nil
   end
 

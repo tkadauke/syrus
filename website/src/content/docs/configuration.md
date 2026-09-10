@@ -169,6 +169,13 @@ preview:
   health_check: /up
 ```
 
+In monorepos, nested `.syrus.yml` files can define their own `preview` blocks.
+Syrus scopes those preview commands to the project directory that declared
+them. On a Job detail page, one affected previewable project starts directly;
+multiple affected previewable projects show a selector; and changes that do not
+touch a previewable project show a clear no-preview message. A root-only
+repository keeps the original root preview behavior.
+
 ### `grade`
 
 `grade` defines checks Syrus runs after agent work. Syrus runs the command

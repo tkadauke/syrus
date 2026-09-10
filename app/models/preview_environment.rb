@@ -13,6 +13,7 @@ class PreviewEnvironment < ApplicationRecord
   belongs_to :repository, optional: true
 
   validates :state, presence: true, inclusion: { in: STATES }
+  validates :project_id, format: { with: /\A[A-Za-z0-9_-]+\z/ }, allow_blank: true
   validates :error_message, absence: true, unless: :failed?
   validate :exactly_one_owner
   validate :only_one_active_per_owner, on: :create

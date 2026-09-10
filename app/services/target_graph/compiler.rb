@@ -193,23 +193,24 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared
+      return nil unless declared || config&.preview
 
-      if declared.id && declared.id != root_project_id
+      if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.id must be #{root_project_id.inspect} for the root .syrus.yml; got #{declared.id.inspect}"
       end
-      if declared.path
+      if declared&.path
         raise TargetGraph::ValidationError,
           "#{owner_config_path} project.path must be empty for the root .syrus.yml; got #{declared.path.inspect}"
       end
 
       TargetGraph::Project.new(
         id: root_project_id,
-        label: declared.label || "Repository",
-        kind: declared.kind,
+        label: declared&.label || "Repository",
+        kind: declared&.kind,
         path: "",
-        owner_config_path: owner_config_path
+        owner_config_path: owner_config_path,
+        preview: config&.preview
       )
     end
 
@@ -275,12 +276,14 @@ class TargetGraph
         declared_project_ids[project_id] = nested_owner_config_path
 
         declared_project = nested_config.project
+<<<<<<< HEAD
         add_or_overlay_project!(
           graph,
           project_id: project_id,
           declared_project: declared_project,
           relative_dir: relative_dir,
-          config_path: nested_owner_config_path
+          config_path: nested_owner_config_path,
+          preview: nested_config.preview
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -295,17 +298,18 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && declared_project
+        return unless imported_project?(existing) && (declared_project || preview)
 
         graph.replace_project(
           existing.with(
-            label: declared_project.label || existing.label,
-            kind: declared_project.kind || existing.kind,
-            path: declared_project.path || existing.path,
-            owner_config_path: config_path
+            label: declared_project&.label || existing.label,
+            kind: declared_project&.kind || existing.kind,
+            path: declared_project&.path || existing.path,
+            owner_config_path: config_path,
+            preview: preview || existing.preview
           )
         )
         return
@@ -317,7 +321,8 @@ class TargetGraph
           label: declared_project&.label || relative_dir,
           kind: declared_project&.kind,
           path: declared_project&.path || relative_dir,
-          owner_config_path: config_path
+          owner_config_path: config_path,
+          preview: preview
         )
       )
     end

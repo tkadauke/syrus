@@ -68,6 +68,8 @@ module App
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
+          preview_projects: PerformanceLogging.phase("job_detail.preview_projects", job_id: @job.id) { preview_project_selection.to_a },
+          preview_unavailable_reason: preview_project_selection.unavailable_reason,
           deploy: PerformanceLogging.phase("job_detail.deploy", job_id: @job.id) { deploy_workflow_json },
           current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.current_intent", job_id: @job.id) { current_intent_json } : nil,
           active_work: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.active_work", job_id: @job.id) { active_work_json } : nil,
@@ -959,7 +961,7 @@ module App
         can_open_in_coding_mode: writable && Feature.coding_mode_enabled? &&
           (@job.implemented? || @job.approved?) &&
           @job.branch_name.present?,
-        can_start_preview: @job.previewable? && preview_provider_configured?,
+        can_start_preview: @job.previewable? && preview_project_selection.available?,
         can_deploy: @job.deployable? && deploy_configured?,
         can_run_visual_review: visual_review_enabled && visual_review_actionable,
         can_run_visual_diff: visual_review_enabled && visual_diff_actionable && visual_diff_available?,
@@ -1278,8 +1280,15 @@ module App
         state: env.state,
         url: env.running? ? env.preview_url(base_domain) : nil,
         expires_at: env.expires_at&.iso8601,
-        error_message: env.error_message
+        error_message: env.error_message,
+        error_reason: env.error_reason,
+        project_id: env.project_id,
+        project_label: preview_project_selection.choice(env.project_id)&.label
       }
+    end
+
+    def preview_project_selection
+      @preview_project_selection ||= App::PreviewProjects.for_job(@job)
     end
 
     def latest_preview_environment

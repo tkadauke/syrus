@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
-import type { DeployWorkflowRecord, PreviewEnvironmentRecord } from "../api/jobs"
+import type { DeployWorkflowRecord, PreviewEnvironmentRecord, PreviewProjectRecord } from "../api/jobs"
 
 function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -35,6 +35,16 @@ function deploy(overrides: Partial<DeployWorkflowRecord> = {}): DeployWorkflowRe
   }
 }
 
+function previewProject(overrides: Partial<PreviewProjectRecord> = {}): PreviewProjectRecord {
+  return {
+    id: "web",
+    label: "Web",
+    path: "apps/web",
+    owner_config_path: "apps/web/.syrus.yml",
+    ...overrides
+  }
+}
+
 function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
   render(
     <MemoryRouter>
@@ -59,7 +69,10 @@ function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
 }
 
 describe("PreviewPanel", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
 
   it("renders nothing when canStart is false and no preview exists", () => {
     const { container } = render(
@@ -84,6 +97,82 @@ describe("PreviewPanel", () => {
   it("shows Start Preview button when canStart is true and no preview exists", () => {
     renderPanel({ canStart: true, initialPreview: null })
     expect(screen.getByRole("button", { name: "Start Preview" })).toBeInTheDocument()
+  })
+
+  it("shows a project selector and starts the selected preview project", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        preview: preview({ state: "starting", url: null, expires_at: null, project_id: "admin", project_label: "Admin" }),
+        preview_projects: [
+          previewProject({ id: "web", label: "Web" }),
+          previewProject({ id: "admin", label: "Admin", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml" })
+        ],
+        message: "Preview environment starting."
+      }, 201)
+    )
+
+    renderPanel({
+      initialPreview: null,
+      initialPreviewProjects: [
+        previewProject({ id: "web", label: "Web" }),
+        previewProject({ id: "admin", label: "Admin", path: "apps/admin", owner_config_path: "apps/admin/.syrus.yml" })
+      ]
+    })
+
+    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "admin" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start Preview" }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/preview",
+        expect.objectContaining({ body: JSON.stringify({ project_id: "admin" }) })
+      )
+    })
+  })
+
+  it("resets a remembered project id that is not in the current preview choices", async () => {
+    window.localStorage.setItem("syrus:job:42:preview_project_id", "admin")
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        preview: preview({ state: "starting", url: null, expires_at: null, project_id: "web", project_label: "Web" }),
+        preview_projects: [
+          previewProject({ id: "web", label: "Web" }),
+          previewProject({ id: "api", label: "API", path: "apps/api", owner_config_path: "apps/api/.syrus.yml" })
+        ],
+        message: "Preview environment starting."
+      }, 201)
+    )
+
+    renderPanel({
+      initialPreview: null,
+      initialPreviewProjects: [
+        previewProject({ id: "web", label: "Web" }),
+        previewProject({ id: "api", label: "API", path: "apps/api", owner_config_path: "apps/api/.syrus.yml" })
+      ]
+    })
+
+    await waitFor(() => expect(screen.getByLabelText("Project")).toHaveValue("web"))
+    fireEvent.click(screen.getByRole("button", { name: "Start Preview" }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/preview",
+        expect.objectContaining({ body: JSON.stringify({ project_id: "web" }) })
+      )
+    })
+    expect(window.localStorage.getItem("syrus:job:42:preview_project_id")).toBe("web")
+  })
+
+  it("shows a clear message when no affected project has a preview", () => {
+    renderPanel({
+      canStart: false,
+      initialPreview: null,
+      previewUnavailableReason: "no_affected_preview_project",
+      deployPath: undefined
+    })
+
+    expect(screen.getByText("No affected project has a preview configured.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Start Preview" })).not.toBeInTheDocument()
   })
 
   it("shows spinner and 'Starting preview…' when state is starting", () => {
@@ -363,7 +452,7 @@ describe("PreviewPanel", () => {
       </MemoryRouter>
     )
 
-    expect(queryClient.getQueryData(["repository-preview", 7])).toEqual({ preview: runningPreview })
+    expect(queryClient.getQueryData(["repository-preview", 7])).toEqual({ preview: runningPreview, preview_projects: [] })
     expect(queryClient.getQueryData(["job-preview", 7])).toBeUndefined()
   })
 })
