@@ -26,7 +26,8 @@ namespace :e2e do
     demo_user.update!(
       agent_provider: "codex",
       chat_provider: "codex",
-      codex_api_key: "sk-e2e-codex"
+      codex_api_key: "sk-e2e-codex",
+      landing_paused: false
     )
     demo_epic = Epic.find_by!(repository: Repository.find_by!(owner: "demo", name: "syrus-preview"),
                               title: "Preview the operator workflow")
