@@ -3620,7 +3620,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       "work_unit_blocked_reason" => "admission_control",
       "start_blocked_reason" => "admission_control"
     )
-    expect(plan(result, :wait_for_resource_admission)).to have_attributes(auto_executable: false, target_id: workflow.id)
+    expect(plan(result, :wait_for_resource_admission)).to have_attributes(auto_executable: false, target_id: unit.id)
   end
 
   it "rechecks expired WorkUnit-only admission start blocks by starting the workflow again" do

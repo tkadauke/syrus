@@ -658,7 +658,7 @@ RSpec.describe RunJob, :ci_only do
       expect(workflow.artifact(Steps::MergeTrainLand::INTEGRATION_PR_ARTIFACT)).to eq(3095)
       expect(run.job_logs.pluck(:chunk).join("\n")).to include(
         "handler merge_train_land returned successfully, but terminal state was observed",
-        "run reconciled after terminal success race: merge_train_land: integration PR already merged on GitHub"
+        "run reconciled after terminal success race: merge_train_land: integration PR #3095 already merged on GitHub"
       )
       expect(StateTransition.where(subject: workflow, from_state: "cancelled", to_state: "succeeded", source: "reconciler")).to exist
     end
