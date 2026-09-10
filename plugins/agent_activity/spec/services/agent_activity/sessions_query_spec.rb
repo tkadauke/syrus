@@ -10,6 +10,17 @@ RSpec.describe AgentActivity::SessionsQuery do
     described_class.call(scope: scope, user: user, filter: filter, page: page, per: per)
   end
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "only includes Runs whose Step is agentic" do
     job = Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "implement" }, run_attrs: { state: "running", started_at: 1.minute.ago })
     Factories.job_with_run(repository: my_repository, user: operator, step_attrs: { kind: "prepare" }, run_attrs: { state: "running", started_at: 1.minute.ago })
@@ -134,6 +145,19 @@ RSpec.describe AgentActivity::SessionsQuery do
       expect(result[:total]).to eq(3)
       expect(result[:page]).to eq(1)
       expect(result[:per]).to eq(2)
+    end
+
+    it "uses a page-probe total for unfiltered feeds instead of counting every matching run" do
+      22.times { |n| Factories.job_with_run(repository: my_repository, user: operator, issue_number: n + 1, run_attrs: { state: "running", started_at: (n + 1).minutes.ago }) }
+
+      queries = capture_sql do
+        result = sessions_for(scope: :mine, user: operator)
+
+        expect(result[:rows].size).to eq(20)
+        expect(result[:total]).to eq(21)
+      end
+
+      expect(queries.grep(/COUNT/i)).to be_empty
     end
   end
 

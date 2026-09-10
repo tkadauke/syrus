@@ -33,5 +33,9 @@ module AgentActivity
     def apply(scope)
       Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :agent_activity)
     end
+
+    def empty?
+      @ast == Filters::Ast::EMPTY
+    end
   end
 end

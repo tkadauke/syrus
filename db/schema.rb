@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_193000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2290,6 +2290,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.bigint "cache_read_input_tokens"
     t.decimal "cost_usd", precision: 12, scale: 6
     t.datetime "created_at", null: false
+    t.datetime "effective_at", null: false
     t.datetime "finished_at"
     t.string "head_sha"
     t.bigint "input_tokens"
@@ -2316,6 +2317,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["cost_usd", "created_at"], name: "idx_runs_spending_top_cost"
     t.index ["created_at", "cost_usd"], name: "index_runs_on_created_at_and_cost_usd"
     t.index ["created_at", "job_id", "cost_usd"], name: "idx_runs_spending_window_jobs"
+    t.index ["effective_at", "id"], name: "idx_runs_effective_latest"
     t.index ["job_id", "cost_usd"], name: "idx_runs_job_cost"
     t.index ["job_id", "created_at", "id"], name: "idx_runs_job_latest"
     t.index ["job_id", "id"], name: "idx_runs_job_id_id"
@@ -2323,6 +2325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
+    t.index ["started_at", "id"], name: "idx_runs_started_latest"
     t.index ["state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_failed_recent"
     t.index ["state", "finished_at", "step_id"], name: "idx_runs_throughput_state_finished"
     t.index ["state", "finished_at"], name: "idx_runs_state_finished_at"
