@@ -94,7 +94,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
         open.call.result_json = parseJsonText(unboundedBody)
         open.call.result_error = content?.is_error === true
-        const resultPresentation = toolResultPresentation(open.call.tool_name, open.call.result_body, open.call.result_error, unboundedBody)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, open.call.result_body, open.call.result_error, unboundedBody, contentRecord(open.call.raw_payload) || {})
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata

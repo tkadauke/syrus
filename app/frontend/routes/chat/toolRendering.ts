@@ -4,9 +4,11 @@
 // argument detail, and a trimmed result summary/body — shortening the long
 // per-workflow workspace paths that show up in tool output. Pure functions
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
+import { isPlainObject } from "../../toolCardParsing"
 import { contentRecord, firstLine, stringValue } from "./utils"
 import type { ChatToolResultKind, ChatToolSummaryMetadata } from "../../api/chats"
 import { pluginToolCardCollapsedSummary } from "../../pluginToolCards"
+export { isPlainObject } from "../../toolCardParsing"
 
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
@@ -33,10 +35,6 @@ export type ToolResultPresentation = {
 
 export type TypedToolResult =
   | { type: "success_row"; label: string }
-
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Object.prototype.toString.call(value) === "[object Object]"
-}
 
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableJsonValue)
@@ -325,7 +323,7 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
-export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
+export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body, input: Record<string, unknown> = {}): ToolResultPresentation {
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(parseBody)
 
@@ -334,7 +332,7 @@ export function toolResultPresentation(name: string, body: string, error = false
   // a handful of well-known array/count keys), so it takes priority. Run it
   // before the error fallback too: MCP tools can report a plain-text or
   // structured failure that still has a purpose-built card summary.
-  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
+  const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, input, resultBody: body, resultError: error, parsedResult: parsed })
   if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
 
   if (error) return { kind: "error", summary: "" }
