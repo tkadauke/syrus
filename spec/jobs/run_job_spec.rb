@@ -777,6 +777,54 @@ RSpec.describe RunJob, :ci_only do
   end
 
   describe "immutable-source graders" do
+    it "uses per-run Solid Queue concurrency keys for distributed immutable-source grader projections" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      workflow = job.workflows.last
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 100, state: "succeeded")
+      grader = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 101,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        depends_on_ids: [ fanout.id ],
+        details: { "name" => "rspec", "command" => "bin/rspec", "required" => true }
+      )
+      run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      expect(described_class.concurrency_key_for(run.id)).to eq("run:#{run.id}")
+    end
+
+    it "keeps mutable-workspace and partially gated runs on the per-job Solid Queue concurrency key" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
+      workflow = job.workflows.last
+      grader = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "name" => "rspec", "command" => "bin/rspec", "required" => true }
+      )
+      immutable_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+      pinned_run = workflow.steps.find_by!(kind: "implement").runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider
+      )
+
+      expect(described_class.concurrency_key_for(immutable_run.id)).to eq("job:#{job.id}")
+      expect(described_class.concurrency_key_for(pinned_run.id)).to eq("job:#{job.id}")
+    end
+
     it "grades an unpublished initial branch through the published implementation checkpoint" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"

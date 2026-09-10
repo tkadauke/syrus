@@ -8,15 +8,15 @@ class RunJob < ApplicationJob
   # can't get a thread. Splitting queues keeps short jobs fast.
   queue_as :runs
 
-  # One Run at a time per Job. Per-Job (not per-repo) is the right
-  # granularity: the Workflow's per-Workflow workspace at
-  # $SYRUS_DATA_ROOT/workflows/<workflow_id>/ is shared across the
-  # chain's steps, but two concurrent Workflows on the same Job
-  # would race on that path. The collision risk is *within* a Job;
-  # the per-Job key prevents two Runs (same Workflow's next step or
-  # a parallel Workflow) from interleaving.
+  # One mutable-workspace Run at a time per Job. Per-Job (not per-repo) is the
+  # right granularity for Steps that share the Workflow workspace at
+  # $SYRUS_DATA_ROOT/workflows/<workflow_id>/, because two concurrent Runs on
+  # the same Job could interleave on disk. Distributed immutable-source Steps
+  # are different: each projected grader gets its own detached checkout and
+  # worker-slot admission bounds per-worker pressure, so their Solid Queue key
+  # is per Run under the distributed gate.
   limits_concurrency to: 1, key: ->(run_id) {
-    "job:#{::Run.where(id: run_id).pick(:job_id)}"
+    ::RunJob.concurrency_key_for(run_id)
   }
 
   discard_on ActiveRecord::RecordNotFound
@@ -24,6 +24,23 @@ class RunJob < ApplicationJob
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
     attr_accessor :agent_runner
+
+    def concurrency_key_for(run_id)
+      run = ::Run.includes(step: { workflow: { job: :repository } }).find_by(id: run_id)
+      return "run:#{run_id}" unless run
+      return "run:#{run.id}" if distributed_parallel_run?(run)
+
+      "job:#{run.job_id}"
+    end
+
+    def distributed_parallel_run?(run)
+      step = run.step
+      repository = step&.workflow&.job&.repository
+      step&.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+        repository.present? &&
+        Feature.distributed_workflow_dag_enabled?(repository) &&
+        WorkflowStepWorkerSlot.enabled?
+    end
   end
 
   # Every Run in the new model belongs to a Step (via `runs.step_id`),
