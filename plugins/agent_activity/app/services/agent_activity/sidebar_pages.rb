@@ -15,6 +15,8 @@ module AgentActivity
           paths: [ "/agent_activity" ],
           component: "agent_activity/AgentActivity",
           icon: "activity",
+          smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+          smart_folder_subject: AgentActivity::SmartFolders::SUBJECT,
           order: 35
         }
       ]

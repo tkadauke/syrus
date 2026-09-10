@@ -23,6 +23,7 @@ export function AdminSmartFolderNav({
   onMutationSuccess,
   prefix,
   queryKey,
+  rewriteRedirectTo,
   subjectType
 }: {
   activeFolderId?: number | null
@@ -38,6 +39,7 @@ export function AdminSmartFolderNav({
   onMutationSuccess?: () => void
   prefix: string
   queryKey?: unknown[]
+  rewriteRedirectTo?: (path: string) => string
   search?: string
   subjectType?: string
 }) {
@@ -69,7 +71,7 @@ export function AdminSmartFolderNav({
     onSuccess: (data) => {
       setFolderName("")
       if (data.redirect_to) {
-        navigate(withRoutePrefix(data.redirect_to, prefix), { replace: true })
+        navigate(withRoutePrefix(rewriteRedirectTo ? rewriteRedirectTo(data.redirect_to) : data.redirect_to, prefix), { replace: true })
       } else {
         navigate(cleanFilterOverrideUrl(location), { replace: true })
       }
