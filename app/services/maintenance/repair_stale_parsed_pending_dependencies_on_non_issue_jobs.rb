@@ -11,11 +11,12 @@ module Maintenance
     def call
       removed_count = 0
       affected_open_job_ids = Set.new
+      run_counts_before_cleanup = {}
 
       resolvable_proposal_dependencies.find_each do |dependency|
         job = dependency.job
         proposal = dependency.unresolved_chat_proposal
-        affected_open_job_ids << job.id if job.open?
+        track_affected_open_job!(job, affected_open_job_ids, run_counts_before_cleanup)
 
         dependency.resolve!(depends_on_job: proposal.job)
         Rails.logger.info(
@@ -34,7 +35,7 @@ module Maintenance
 
         job = dependency.job
         ref = dependency.unresolved_slug
-        affected_open_job_ids << job.id if job.open?
+        track_affected_open_job!(job, affected_open_job_ids, run_counts_before_cleanup)
 
         Rails.logger.info(
           "[JobDependencyRepair] removed stale parsed pending dependency " \
@@ -47,7 +48,7 @@ module Maintenance
       stale_proposal_dependencies.find_each do |dependency|
         job = dependency.job
         ref = dependency.unresolved_slug
-        affected_open_job_ids << job.id if job.open?
+        track_affected_open_job!(job, affected_open_job_ids, run_counts_before_cleanup)
 
         Rails.logger.info(
           "[JobDependencyRepair] removed stale pending proposal dependency " \
@@ -57,11 +58,18 @@ module Maintenance
         removed_count += 1
       end
 
-      restarted_job_ids = restart_affected_jobs(affected_open_job_ids)
+      restarted_job_ids = restart_affected_jobs(affected_open_job_ids, run_counts_before_cleanup)
       Result.new(removed_count:, restarted_job_ids:)
     end
 
     private
+
+    def track_affected_open_job!(job, affected_open_job_ids, run_counts_before_cleanup)
+      return unless job.open?
+
+      affected_open_job_ids << job.id
+      run_counts_before_cleanup[job.id] ||= job.runs.count
+    end
 
     def stale_parsed_dependencies
       JobDependency
@@ -95,11 +103,12 @@ module Maintenance
         )
     end
 
-    def restart_affected_jobs(job_ids)
+    def restart_affected_jobs(job_ids, run_counts_before_cleanup)
       restarted = []
 
       Job.where(id: job_ids.to_a).find_each do |job|
-        restarted << job.id if job.start_pending_workflows_if_dependencies_satisfied!
+        started = job.start_pending_workflows_if_dependencies_satisfied!
+        restarted << job.id if started || job.runs.count > run_counts_before_cleanup.fetch(job.id, 0)
       end
 
       restarted

@@ -156,6 +156,7 @@ module WorkUnits
     def self.active_dedup_unique_violation?(error)
       message = error.message.to_s
       message.include?("idx_work_units_active_dedup_key_unique") ||
+        message.include?("UNIQUE constraint failed: work_units.active_dedup_key") ||
         message.match?(/Duplicate entry .*active_dedup_key/i)
     end
 
