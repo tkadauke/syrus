@@ -174,6 +174,8 @@ describe("ThemeContext", () => {
 
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false)
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
+    expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("var(--color-brand-emphasis)")
+    expect(document.documentElement.style.getPropertyValue("--color-warning-surface")).toBe("color-mix(in srgb, var(--color-surface) 94%, var(--color-warning))")
   })
 
   it("re-applies the custom theme's dark token set when resolved mode changes", () => {
@@ -189,11 +191,13 @@ describe("ThemeContext", () => {
     renderProbe("light", customColorTheme(), queryClient)
 
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("#abcdef")
+    expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("var(--color-brand-emphasis)")
 
     screen.getByRole("button", { name: "ocean" }).click()
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("ocean")
     expect(document.documentElement.style.getPropertyValue("--color-brand")).toBe("")
+    expect(document.documentElement.style.getPropertyValue("--color-link")).toBe("")
   })
 
   it("persists a color theme change and updates the shared bootstrap cache", async () => {

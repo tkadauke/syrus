@@ -133,6 +133,8 @@ RSpec.describe "User signup", type: :request do
       expect(response.body).to include('<html class="" data-mode-pref="light">')
       expect(response.body).not_to include('data-theme="my-custom"')
       expect(response.body).to include('id="syrus-custom-color-theme-data"')
+      expect(response.body).to include('"warning-surface": "color-mix(in srgb, var(--color-surface) 94%, var(--color-warning))"')
+      expect(response.body).to include('link: "var(--color-brand-emphasis)"')
       expect(response.body.index('id="syrus-custom-color-theme-data"')).to be < response.body.index("dataset.modePref")
     end
   end
