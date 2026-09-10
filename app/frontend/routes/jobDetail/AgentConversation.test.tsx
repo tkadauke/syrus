@@ -2,23 +2,30 @@ import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { AgentConversationGraph } from "../../api/jobs"
 import { AgentConversationTab } from "./AgentConversation"
 
 function graph(overrides: Partial<AgentConversationGraph> = {}): AgentConversationGraph {
   return {
     job_id: 1,
+    selected_workflow_id: 9,
+    workflows: [{ id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }],
     nodes: [],
     edges: [],
     ...overrides
   }
 }
 
-function renderTab(jobId = 1, prUrl: string | null = null) {
+function renderTab(jobId = 1, prUrl: string | null = null, initialEntry = "/jobs/1?tab=conversation") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AgentConversationTab jobId={jobId} prUrl={prUrl} />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route element={<AgentConversationTab jobId={jobId} prUrl={prUrl} />} path="/jobs/:id" />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -227,5 +234,80 @@ describe("AgentConversationTab", () => {
     expect(container.querySelector(".overflow-x-auto")).toHaveClass("max-w-3xl")
     expect(summary).toHaveClass("max-h-48", "overflow-y-auto", "break-words")
     expect(summary.closest(".basis-64")).toHaveClass("min-w-0", "overflow-hidden")
+  })
+
+  it("shows a workflow selector and refetches the selected workflow only", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/1/agent_conversation") {
+        return Promise.resolve(jsonResponse(graph({
+          selected_workflow_id: 10,
+          workflows: [
+            { id: 10, slug: "WF-10", trigger_kind: "retry", trigger_label: "Retry", state: "running", created_at: null, started_at: null, finished_at: null },
+            { id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }
+          ],
+          nodes: [
+            {
+              id: "agent_session-1002",
+              kind: "agent_session",
+              workflow_id: 10,
+              trigger_kind: "retry",
+              step_id: 2,
+              step_kind: "implement",
+              run_id: 1002,
+              role: "workflow:implement",
+              label: "Retry implement",
+              state: "running",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "Retry work",
+              detail: {}
+            }
+          ]
+        })))
+      }
+      if (path === "/api/v1/app/jobs/1/agent_conversation?workflow_id=9") {
+        return Promise.resolve(jsonResponse(graph({
+          selected_workflow_id: 9,
+          workflows: [
+            { id: 10, slug: "WF-10", trigger_kind: "retry", trigger_label: "Retry", state: "running", created_at: null, started_at: null, finished_at: null },
+            { id: 9, slug: "WF-9", trigger_kind: "initial", trigger_label: "Initial", state: "succeeded", created_at: null, started_at: null, finished_at: null }
+          ],
+          nodes: [
+            {
+              id: "agent_session-901",
+              kind: "agent_session",
+              workflow_id: 9,
+              trigger_kind: "initial",
+              step_id: 1,
+              step_kind: "implement",
+              run_id: 901,
+              role: "workflow:implement",
+              label: "Initial implement",
+              state: "succeeded",
+              started_at: null,
+              finished_at: null,
+              agentic: true,
+              summary: "Initial work",
+              detail: {}
+            }
+          ]
+        })))
+      }
+      return Promise.reject(new Error(`unexpected fetch ${path}`))
+    })
+
+    renderTab()
+
+    const selector = await screen.findByLabelText("Workflow")
+    expect(screen.getByRole("option", { name: "WF-10 - Retry - running" })).toBeInTheDocument()
+    expect(screen.getByText("Retry work")).toBeInTheDocument()
+
+    fireEvent.change(selector, { target: { value: "9" } })
+
+    expect(await screen.findByText("Initial work")).toBeInTheDocument()
+    expect(screen.queryByText("Retry work")).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs/1/agent_conversation?workflow_id=9", expect.anything())
   })
 })

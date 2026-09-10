@@ -93,6 +93,7 @@
   "conversation_loading": "Colloquium agentis oneratur…",
   "conversation_load_error": "Colloquium agentis onerari non potuit.",
   "conversation_empty": "Nulla actio agentis huic Operi adhuc notata est.",
+  "conversation_select_workflow": "Fluxus laboris",
   "conversation_legend_agent_session": "Sessio agentis",
   "conversation_legend_deterministic_check": "Probatio determinata",
   "conversation_legend_external_trigger": "Causa externa",
