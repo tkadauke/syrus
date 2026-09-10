@@ -345,21 +345,58 @@ module App
 
     def unique_visible_dependencies(dependencies)
       seen = {}
-      dependencies.select do |dependency|
-        key = visible_dependency_identity(dependency)
-        next true unless key
-        next false if seen.key?(key)
+      selected = []
 
-        seen[key] = true
-        true
+      dependencies.each do |dependency|
+        identities = visible_dependency_identities(dependency)
+        if identities.empty?
+          selected << dependency
+          next
+        end
+
+        index = identities.filter_map { |identity| seen[identity] }.first
+        if index
+          selected[index] = preferred_visible_dependency(selected[index], dependency)
+        else
+          index = selected.length
+          selected << dependency
+        end
+
+        identities.each { |identity| seen[identity] = index }
+        visible_dependency_identities(selected[index]).each { |identity| seen[identity] = index }
       end
+
+      selected
     end
 
-    def visible_dependency_identity(dependency)
+    def visible_dependency_identities(dependency)
+      identities = []
       path = dependency[:materialized_path].presence
-      return "path:#{path}" if path
+      identities << "path:#{path}" if path
 
-      nil
+      label = [
+        dependency[:display_label],
+        dependency[:materialized_label],
+        dependency[:title],
+        dependency[:slug]
+      ].find(&:present?)
+      identities << "label:#{label.upcase}" if label.to_s.match?(/\A(?:EPIC|JOB)-\d+\z/i)
+
+      identities
+    end
+
+    def preferred_visible_dependency(current, candidate)
+      return candidate if (visible_dependency_score(candidate) <=> visible_dependency_score(current)).positive?
+
+      current
+    end
+
+    def visible_dependency_score(dependency)
+      [
+        dependency[:materialized_path].present? ? 1 : 0,
+        dependency[:confirmed] ? 1 : 0,
+        dependency[:anchor_message_id].present? ? 1 : 0
+      ]
     end
 
     def child_proposal_json(proposal, chat_session:)
