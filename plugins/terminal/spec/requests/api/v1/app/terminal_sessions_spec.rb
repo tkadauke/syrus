@@ -15,6 +15,35 @@ RSpec.describe "App API terminal sessions", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def workflow_workspace_path(workflow)
+    WorkflowWorkspace.path_for(workflow)
+  end
+
+  def create_workflow_workspace!(workflow)
+    FileUtils.mkdir_p(workflow_workspace_path(workflow))
+  end
+
+  def live_worker_queue!(queue_name, hostname: "syrus-worker-1")
+    ensure_solid_queue_test_tables!
+    SolidQueue::Process.create!(
+      hostname: hostname,
+      kind: "worker",
+      last_heartbeat_at: Time.current,
+      metadata: { "queues" => [ queue_name, "chat", "runs" ] },
+      name: "#{hostname}:1",
+      pid: 123,
+      created_at: Time.current
+    )
+    InstanceVersion.create!(
+      hostname: hostname,
+      role: "worker",
+      version: "test",
+      started_at: Time.current,
+      last_heartbeat_at: Time.current,
+      data_root_path: "/syrus-data/#{hostname}"
+    )
+  end
+
   it "returns 404 for every endpoint when the terminal plugin is disabled" do
     sign_in_as(user)
     session = Terminal::Session.create!(
@@ -66,27 +95,6 @@ RSpec.describe "App API terminal sessions", type: :request do
 
     post "/api/v1/app/terminal_sessions/#{session.id}/kill", as: :json
     expect(response).to have_http_status(:unauthorized)
-  end
-
-  def live_worker_queue!(queue_name, hostname:)
-    ensure_solid_queue_test_tables!
-    SolidQueue::Process.create!(
-      hostname: hostname,
-      kind: "worker",
-      last_heartbeat_at: Time.current,
-      metadata: { "queues" => [ queue_name, "chat" ] },
-      name: "#{hostname}:1",
-      pid: 123,
-      created_at: Time.current
-    )
-    InstanceVersion.create!(
-      hostname: hostname,
-      role: "worker",
-      version: "test",
-      started_at: Time.current,
-      last_heartbeat_at: Time.current,
-      data_root_path: "/syrus-data/#{hostname}"
-    )
   end
 
   it "lists current-user running sessions and structured terminal workspace candidates" do
@@ -148,7 +156,8 @@ RSpec.describe "App API terminal sessions", type: :request do
       "section_title" => "Interesting workflows",
       "worker_hostname" => "worker-a",
       "worker_storage_key" => "storage-a",
-      "queue_name" => "resume-storage-a"
+      "queue_name" => "resume-storage-a",
+      "available" => true
     )
     expect(parse_body["workspaces"]).to include(
       hash_including(
@@ -254,6 +263,69 @@ RSpec.describe "App API terminal sessions", type: :request do
     }.not_to change { Terminal::Session.count }
 
     expect(response).to have_http_status(:not_found)
+  end
+
+  it "rejects a workflow-scoped terminal session when the workspace was cleaned up" do
+    sign_in_as(user)
+    create_workflow_workspace!(workflow)
+    workflow.update!(cleaned_up_at: Time.current)
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell" } }, as: :json
+    }.not_to change { Terminal::Session.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("This workflow workspace has been cleaned up.")
+  end
+
+  it "rejects a workflow-scoped terminal session when the local workspace path is missing" do
+    sign_in_as(user)
+    FileUtils.rm_rf(workflow_workspace_path(workflow))
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell" } }, as: :json
+    }.not_to change { Terminal::Session.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("This workflow workspace is not present on this storage root.")
+  end
+
+  it "rejects a workflow-scoped terminal session when the owning storage queue is dead" do
+    sign_in_as(user)
+    workflow.update!(worker_storage_key: "storage-dead")
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell" } }, as: :json
+    }.not_to change { Terminal::Session.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("This workflow workspace is on a worker storage root that is not currently reachable.")
+  end
+
+  it "rejects a workflow-scoped terminal session when the owning remote worker is dead" do
+    sign_in_as(user)
+    workflow.update!(worker_hostname: "syrus-worker-dead")
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell" } }, as: :json
+    }.not_to change { Terminal::Session.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("This workflow workspace is on a worker that is not currently reachable.")
+  end
+
+  it "routes a workflow-scoped terminal session to the live owning storage queue" do
+    sign_in_as(user)
+    workflow.update!(worker_storage_key: "storage-a")
+    live_worker_queue!("resume-storage-a")
+
+    expect {
+      post "/api/v1/app/terminal_sessions", params: { terminal_session: { workflow_id: workflow.id, name: "Workspace shell" } }, as: :json
+    }.to change { Terminal::Session.count }.by(1)
+      .and have_enqueued_job(TerminalSessionJob).on_queue("resume-storage-a")
+
+    expect(response).to have_http_status(:created)
+    expect(Terminal::Session.last.working_directory).to eq(workflow_workspace_path(workflow).to_s)
   end
 
   it "uses the scratch working directory when no workflow is supplied" do

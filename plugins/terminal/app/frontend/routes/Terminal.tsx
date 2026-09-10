@@ -142,17 +142,18 @@ export function TerminalRoute() {
                       {group.items.map((workspace) => (
                         <button
                           className="block w-full px-3 py-2 text-left text-sm text-gray-100 hover:bg-gray-800 disabled:opacity-50"
-                          disabled={createMutation.isPending}
+                          disabled={createMutation.isPending || workspace.available === false}
                           key={workspace.key}
                           onClick={() => createMutation.mutate(workspace)}
                           role="menuitem"
+                          title={workspace.available === false ? workspace.disabled_reason ?? undefined : undefined}
                           type="button"
                         >
                           <span className="flex min-w-0 items-center gap-2">
                             <span className="min-w-0 flex-1 truncate font-medium">{workspace.label}</span>
                             {workspace.actionability ? <span className="shrink-0 rounded border border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-400">{workspace.actionability}</span> : null}
                           </span>
-                          <span className="block truncate text-xs text-gray-400">{workspace.secondary_text || workspace.working_directory}</span>
+                          <span className="block truncate text-xs text-gray-400">{workspace.disabled_reason || workspace.secondary_text || workspace.working_directory}</span>
                           {workspace.secondary_text ? <span className="block truncate font-mono text-[11px] text-gray-500">{workspace.working_directory}</span> : null}
                         </button>
                       ))}

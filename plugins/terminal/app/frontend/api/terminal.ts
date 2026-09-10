@@ -33,6 +33,8 @@ export type TerminalWorkspaceRecord = {
   queue_name?: string
   default_visible?: boolean
   search_text?: string
+  available?: boolean
+  disabled_reason?: string | null
 }
 
 export type TerminalSessionsPayload = {

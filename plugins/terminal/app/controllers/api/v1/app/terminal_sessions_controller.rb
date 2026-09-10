@@ -7,16 +7,14 @@ module Api
         end
 
         def create
+          availability = selected_workflow ? workflow_workspace_availability : nil
+          if availability && !availability.available?
+            return render_error("validation_failed", availability.reason, status: :unprocessable_content)
+          end
+
           session = ::Terminal::Session.create!(
             user: Current.user,
-            workflow: session_attributes[:workflow],
-            chat_session: session_attributes[:chat_session],
-            name: session_attributes[:name],
-            working_directory: session_attributes[:working_directory],
-            worker_hostname: session_attributes[:worker_hostname],
-            worker_storage_key: session_attributes[:worker_storage_key],
-            queue_name: session_attributes[:queue_name],
-            workspace_kind: session_attributes[:workspace_kind],
+            **session_attributes(availability),
             auth_token: SecureRandom.hex(32),
             started_at: Time.current
           )
@@ -94,16 +92,18 @@ module Api
           @selected_chat_session = nil
         end
 
-        def session_attributes
+        def session_attributes(availability = nil)
           if selected_candidate
+            candidate_workflow = selected_workflow
+            candidate_availability = candidate_workflow ? (availability || workflow_workspace_availability) : nil
             return {
-              workflow: selected_workflow,
+              workflow: candidate_workflow,
               chat_session: selected_chat_session,
               name: terminal_session_params[:name].presence || selected_candidate.fetch(:label),
-              working_directory: selected_candidate.fetch(:working_directory),
+              working_directory: candidate_availability&.working_directory || selected_candidate.fetch(:working_directory),
               worker_hostname: selected_candidate[:worker_hostname],
               worker_storage_key: selected_candidate[:worker_storage_key],
-              queue_name: selected_candidate[:queue_name],
+              queue_name: candidate_availability&.queue_name.presence || selected_candidate[:queue_name],
               workspace_kind: selected_candidate.fetch(:kind)
             }
           end
@@ -112,10 +112,10 @@ module Api
             workflow: selected_workflow,
             chat_session: nil,
             name: terminal_session_params[:name].presence || selected_workflow&.slug || "Scratch",
-            working_directory: working_directory,
+            working_directory: working_directory(availability),
             worker_hostname: selected_workflow&.worker_hostname,
             worker_storage_key: selected_workflow&.worker_storage_key,
-            queue_name: selected_workflow&.runs&.order(created_at: :desc)&.first&.resume_worker_queue,
+            queue_name: availability&.queue_name.presence || selected_workflow&.runs&.order(created_at: :desc)&.first&.resume_worker_queue,
             workspace_kind: selected_workflow ? "workflow" : "scratch"
           }
         end
@@ -134,9 +134,13 @@ module Api
           Current.user.accessible_chat_sessions.active.find(chat_id)
         end
 
-        def working_directory
+        def workflow_workspace_availability
+          @workflow_workspace_availability ||= ::Terminal::WorkspaceAvailability.for(selected_workflow)
+        end
+
+        def working_directory(availability = nil)
           if selected_workflow
-            WorkflowWorkspace.path_for(selected_workflow).to_s
+            (availability || workflow_workspace_availability).working_directory
           elsif terminal_session_params[:working_directory].present?
             terminal_session_params[:working_directory]
           else

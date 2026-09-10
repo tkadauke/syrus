@@ -101,6 +101,8 @@ module Terminal
           worker_hostname: worker_hostname,
           worker_storage_key: worker_storage_key,
           queue_name: queue_name,
+          available: available,
+          disabled_reason: disabled_reason,
           default_visible: default_visible?,
           search_text: search_text
         }.compact
@@ -114,6 +116,8 @@ module Terminal
       def worker_hostname = nil
       def worker_storage_key = nil
       def queue_name = nil
+      def available = nil
+      def disabled_reason = nil
       def timestamp = Time.at(0)
       def default_visible? = true
 
@@ -144,11 +148,13 @@ module Terminal
       def workflow_id = @workflow.id
       def state = @workflow.state
       def timestamp = @workflow.updated_at || @workflow.created_at
-      def working_directory = WorkflowWorkspace.path_for(@workflow).to_s
+      def working_directory = availability.working_directory
       def worker_hostname = @workflow.worker_hostname.presence
       def worker_storage_key = @workflow.worker_storage_key.presence
+      def available = availability.available?
+      def disabled_reason = availability.reason
 
-      def queue_name = @queue_name
+      def queue_name = availability.queue_name.presence || @queue_name
 
       def label
         "#{@workflow.slug} - #{@workflow.job.title}"
@@ -206,11 +212,16 @@ module Terminal
           worker_hostname,
           worker_storage_key,
           queue_name,
+          disabled_reason,
           working_directory
         ].compact_blank.join(" ").downcase
       end
 
       private
+
+      def availability
+        @availability ||= Terminal::WorkspaceAvailability.for(@workflow)
+      end
 
       def worker_context
         return if worker_hostname.blank? && worker_storage_key.blank?
