@@ -1457,12 +1457,12 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
         {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         <div
-          className="overflow-hidden"
+          className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
           style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
           <div
-            className="space-y-3"
+            className="space-y-3 max-xl:!transform-none"
             data-testid="design-doc-rail-stack"
             ref={railStackRef}
             style={{ transform: railStackShift !== 0 ? `translateY(${railStackShift}px)` : undefined }}
