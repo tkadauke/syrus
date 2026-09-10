@@ -113,12 +113,16 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   return kind
 }
 
-export function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"] }) {
+export function RunTranscriptLogs({ logs, fillHeight = false }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]; fillHeight?: boolean }) {
   const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
   const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
   const displayLogs = coalesceTranscriptLogs(logs)
+  const streamClassName = [
+    fillHeight ? "min-h-0 flex-1 max-h-none" : "max-h-[32rem] max-md:min-h-0 max-md:flex-1 max-md:max-h-none",
+    "overflow-auto divide-y divide-gray-200 dark:divide-gray-800"
+  ].join(" ")
 
   function handleScroll(event: UIEvent<HTMLOListElement>) {
     atBottomRef.current = isRunTranscriptAtBottom(event.currentTarget)
@@ -129,7 +133,7 @@ export function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fe
   }, [logSignature])
 
   return (
-    <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200 max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:divide-gray-800" data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
+    <ol className={streamClassName} data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
         <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
           <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
