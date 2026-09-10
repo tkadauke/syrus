@@ -96,8 +96,14 @@ class RunPreAdmissionSkip
 
   class VisualReview < Base
     def call
-      config = SyrusYml.load_repo(workspace_path).visual_review
-      patterns = Array(config&.when_files_changed)
+      selection = App::VisualReviewProjects.call(workspace_path: workspace_path, changed_files: changed_files)
+      return skip_unavailable(selection) unless selection.available?
+
+      config = root_visual_review_config
+      patterns = [
+        *Array(config&.when_files_changed),
+        *selection.when_files_changed
+      ].compact_blank.uniq
       return pass if patterns.empty?
       return pass if changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
 
@@ -119,14 +125,50 @@ class RunPreAdmissionSkip
 
     private
 
-    def changed_files
-      diff = latest_agentic_diff
-      return diff_file_paths(diff) if diff.present?
+    def root_visual_review_config
+      SyrusYml.load_repo(workspace_path).visual_review
+    rescue SyrusYml::ParseError, Errno::ENOENT
+      nil
+    end
 
-      GitRunner.new.run(
-        "diff", "--name-only", "#{WorkflowWorkspace.base_ref_for(job, workflow: workflow)}...HEAD",
-        chdir: workspace_path.to_s
-      ).split("\n").map(&:strip).reject(&:empty?)
+    def skip_unavailable(selection)
+      message = unavailable_message(selection.unavailable_reason)
+      iterations = Array(workflow.artifact("visual_review_iterations"))
+      skip(
+        "visual_review_preview_project_unavailable",
+        "[visual_review] skipped: #{message}",
+        "visual_review_preview_projects_unavailable_reason" => selection.unavailable_reason,
+        "visual_review_iterations" => iterations + [
+          {
+            "iteration" => step.iteration,
+            "critique" => message,
+            "verdict" => "skipped"
+          }
+        ]
+      )
+    end
+
+    def unavailable_message(reason)
+      {
+        "no_preview_configured" => "No preview is configured for this repository.",
+        "no_affected_preview_project" => "No affected project has a preview configured.",
+        "no_affected_visual_review_project" => "No affected preview project has visual_review enabled.",
+        "visual_review_project_resolution_failed" => "Could not resolve affected preview projects for visual review."
+      }.fetch(reason.to_s, "Affected preview projects are unavailable for visual review.")
+    end
+
+    def changed_files
+      @changed_files ||= begin
+        diff = latest_agentic_diff
+        if diff.present?
+          diff_file_paths(diff)
+        else
+          GitRunner.new.run(
+            "diff", "--name-only", "#{WorkflowWorkspace.base_ref_for(job, workflow: workflow)}...HEAD",
+            chdir: workspace_path.to_s
+          ).split("\n").map(&:strip).reject(&:empty?)
+        end
+      end
     end
 
     def latest_agentic_diff

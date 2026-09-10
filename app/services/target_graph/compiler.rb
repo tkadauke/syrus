@@ -193,7 +193,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview
+      return nil unless declared || config&.preview || config&.visual_review
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -210,7 +210,8 @@ class TargetGraph
         kind: declared&.kind,
         path: "",
         owner_config_path: owner_config_path,
-        preview: config&.preview
+        preview: config&.preview,
+        visual_review: config&.visual_review
       )
     end
 
@@ -282,7 +283,8 @@ class TargetGraph
           declared_project: declared_project,
           relative_dir: relative_dir,
           config_path: nested_owner_config_path,
-          preview: nested_config.preview
+          preview: nested_config.preview,
+          visual_review: nested_config.visual_review
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -297,10 +299,10 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && (declared_project || preview)
+        return unless imported_project?(existing) && (declared_project || preview || visual_review)
 
         graph.replace_project(
           existing.with(
@@ -308,7 +310,8 @@ class TargetGraph
             kind: declared_project&.kind || existing.kind,
             path: declared_project&.path || existing.path,
             owner_config_path: config_path,
-            preview: preview || existing.preview
+            preview: preview || existing.preview,
+            visual_review: visual_review || existing.visual_review
           )
         )
         return
@@ -321,7 +324,8 @@ class TargetGraph
           kind: declared_project&.kind,
           path: declared_project&.path || relative_dir,
           owner_config_path: config_path,
-          preview: preview
+          preview: preview,
+          visual_review: visual_review
         )
       )
     end
