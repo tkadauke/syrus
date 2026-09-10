@@ -1345,6 +1345,7 @@ export function fetchJobRunArtifacts(path: string) {
 // can import them without depending on this module.
 
 export type CoverageArtifact = {
+  project?: CoverageProjectIdentity
   summary?: { lines_pct: number | null; branches_pct: number | null; functions_pct: number | null }
   files?: Record<string, { lines_pct: number | null; branches_pct: number | null }>
   diff_annotations?: Record<string, Record<string, "covered" | "uncovered" | "not_executable">>
@@ -1354,6 +1355,15 @@ export type CoverageArtifact = {
   coverage_unavailable?: boolean
   sources_status?: Array<{ artifact: string; found: boolean; lines_pct: number | null }>
   hit_map_attached?: boolean
+  projects?: CoverageArtifact[]
+}
+
+export type CoverageProjectIdentity = {
+  id: string
+  label: string
+  path: string
+  owner_config_path?: string | null
+  target_label?: string | null
 }
 
 // Latest sccache compiler-cache stats capture for the Job (EPIC-251), mirrors

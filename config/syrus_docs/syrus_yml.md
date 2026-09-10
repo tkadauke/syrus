@@ -362,14 +362,17 @@ coverage:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| `sources` | yes | — | Array of artifact paths + format |
+| `sources` | yes | — | Array of artifact paths + format, relative to the declaring `.syrus.yml` |
 | `threshold.lines` | no | — | Overall line coverage % (0–100) |
 | `threshold.pr_lines` | no | — | PR-diff line coverage % (0–100) |
+| `threshold.branches` | no | — | Overall branch coverage % (0–100), recorded as a warning rather than a hard gate |
 | `on_miss` | no | `warn` | `block`, `warn`, or `schedule` |
 | `pr_comment` | no | `false` | Post coverage summary as PR comment |
 | `hitmap_ttl_days` | no | 7 | Days to retain the hit-map blob |
 
 `on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
+
+Nested `.syrus.yml` files may declare their own `coverage:` blocks. Those sources and thresholds apply to the owning project, not the whole repository; root coverage keeps the legacy repository-wide behavior. A repository aggregate is computed only when root coverage is configured or when nested project coverage is the only configured coverage source.
 
 ## deployment_stages
 

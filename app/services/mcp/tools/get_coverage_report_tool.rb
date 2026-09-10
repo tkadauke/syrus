@@ -23,6 +23,7 @@ module Mcp::Tools
             "files"            => artifact["files"],
             "diff_annotations" => artifact["diff_annotations"],
             "pr_delta"         => artifact["pr_delta"],
+            "projects"         => artifact["projects"],
             "threshold_miss"   => artifact["threshold_miss"],
             "sources_status"   => artifact["sources_status"]
           }

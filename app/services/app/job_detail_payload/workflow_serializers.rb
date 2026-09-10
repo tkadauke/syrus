@@ -624,6 +624,7 @@ module App
           "files",
           "hit_map_attached",
           "pr_delta",
+          "projects",
           "sources_status",
           "summary",
           "threshold_miss",

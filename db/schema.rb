@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -782,8 +782,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
     t.integer "job_id"
     t.decimal "lines_pct", precision: 5, scale: 2
     t.decimal "pr_delta_pct", precision: 5, scale: 2
+    t.string "project_id"
+    t.string "project_label"
     t.integer "repository_id", null: false
     t.string "sha", null: false
+    t.string "target_label"
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
     t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
@@ -791,6 +794,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
     t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
     t.index ["repository_id", "branch"], name: "index_coverage_snapshots_on_repository_id_and_branch"
     t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
+    t.index ["repository_id", "project_id", "branch", "created_at"], name: "idx_coverage_snapshots_project_branch"
     t.index ["repository_id"], name: "index_coverage_snapshots_on_repository_id"
     t.index ["workflow_id"], name: "index_coverage_snapshots_on_workflow_id"
   end
