@@ -356,6 +356,9 @@ RSpec.describe TargetGraph::Compiler do
             kind: grader
             run: npm run typecheck
             deps: [":renderer"]
+            phases: [review, landing]
+            required: true
+            timeout_minutes: 20
       YAML
 
       graph = described_class.compile(@dir)
@@ -368,6 +371,25 @@ RSpec.describe TargetGraph::Compiler do
       expect(typecheck.kind).to eq("grader")
       expect(typecheck.command).to eq("npm run typecheck")
       expect(typecheck.dependencies).to eq([ TargetGraph::Label.parse("//desktop:renderer") ])
+      expect(typecheck.phases).to eq(%w[review landing])
+      expect(typecheck.required).to be(true)
+      expect(typecheck.timeout_minutes).to eq(20)
+    end
+
+    it "preserves command-list metadata for explicit prepare targets" do
+      write("desktop/.syrus.yml", <<~YAML)
+        targets:
+          - name: deps
+            kind: prepare
+            run: npm ci
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      deps = graph.target(TargetGraph::Label.parse("//desktop:deps"))
+      expect(deps.kind).to eq("prepare")
+      expect(deps.command).to eq("npm ci")
+      expect(deps.metadata["commands"]).to eq([ "npm ci" ])
     end
 
     it "wires legacy executable deps to generated graph node dependencies" do
