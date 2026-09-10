@@ -123,11 +123,13 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
 
   it "lists only current user's tags" do
     mine = Factories.tag(user: user, name: "urgent", color: "red")
+    tagged_job = Factories.job(repository: repository)
+    tagged_job.job_tags.create!(tag: mine)
     Factories.tag(user: Factories.user, name: "other", color: "blue")
 
     response = call_tool("list_tags")
 
-    expect(payload(response)[:tags]).to contain_exactly(id: mine.id, name: "urgent", color: "red")
+    expect(payload(response)[:tags]).to contain_exactly(id: mine.id, name: "urgent", color: "red", job_ids: [ tagged_job.id ])
   end
 
   it "creates tags and validates blank and duplicate names" do
@@ -135,7 +137,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
     body = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(body).to include(name: "area:auth", color: "#123abc")
+    expect(body).to include(name: "area:auth", color: "#123abc", job_ids: [])
     expect(user.tags.find(body[:id])).to have_attributes(name: "area:auth", color: "#123abc")
 
     blank = call_tool("create_tag", name: " ")
