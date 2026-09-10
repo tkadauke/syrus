@@ -36,7 +36,10 @@ RSpec.describe Mcp::Tools::ListOpenIssuesTool do
             body: long_body,
             labels: [ { name: "bug" }, { name: "frontend" } ],
             user: { login: "ada" },
-            created_at: "2026-05-01T12:00:00Z"
+            state: "open",
+            created_at: "2026-05-01T12:00:00Z",
+            updated_at: "2026-05-02T12:00:00Z",
+            html_url: "https://github.com/acme/widgets/issues/12"
           },
           {
             number: 13,
@@ -61,8 +64,11 @@ RSpec.describe Mcp::Tools::ListOpenIssuesTool do
         number: 12,
         title: "Button sticks",
         labels: %w[bug frontend],
+        state: "open",
         author: "ada",
         created_at: "2026-05-01T12:00:00Z",
+        updated_at: "2026-05-02T12:00:00Z",
+        url: "https://github.com/acme/widgets/issues/12",
         body_excerpt: "a" * 2_048
       }
     ])
