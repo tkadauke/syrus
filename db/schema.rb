@@ -2616,7 +2616,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
 
   create_table "terminal_sessions", force: :cascade do |t|
     t.string "auth_token", null: false
-    t.integer "chat_session_id"
+    t.bigint "chat_session_id"
     t.datetime "created_at", null: false
     t.datetime "finished_at"
     t.string "name", null: false
@@ -3199,5 +3199,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "terminal_sessions", "chat_sessions"
 end

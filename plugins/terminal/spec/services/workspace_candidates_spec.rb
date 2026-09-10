@@ -49,7 +49,9 @@ RSpec.describe Terminal::WorkspaceCandidates, type: :service do
     workflow.update_columns(worker_hostname: "worker-alpha", worker_storage_key: "storage-alpha")
     live_worker_queue!("resume-storage-alpha", hostname: "worker-alpha")
     chat = ChatSession.create!(user: user, mode: "coding", repository: repo, title: "Needle chat")
-    chat.update_columns(workspace_path: "/tmp/chat-#{chat.id}", coding_checkout_branch: "needle-branch")
+    chat_workspace_path = Rails.root.join("tmp", "spec-chat-workspaces", chat.id.to_s)
+    FileUtils.mkdir_p(chat_workspace_path)
+    chat.update_columns(workspace_path: chat_workspace_path.to_s, coding_checkout_branch: "needle-branch")
 
     payload = described_class.for(user: user, query: "storage-alpha")
     expect(payload).to include(hash_including(kind: "workflow", workflow_id: workflow.id))
@@ -63,6 +65,15 @@ RSpec.describe Terminal::WorkspaceCandidates, type: :service do
     ChatSession.create!(user: user, mode: "coding", repository: repo, title: "Unmaterialized chat")
 
     payload = described_class.for(user: user, query: "unmaterialized")
+
+    expect(payload).to be_empty
+  end
+
+  it "does not emit chat candidates whose recorded workspace path is not materialized on disk" do
+    chat = ChatSession.create!(user: user, mode: "coding", repository: repo, title: "Missing directory")
+    chat.update_columns(workspace_path: Rails.root.join("tmp", "missing-chat-workspace-#{chat.id}").to_s)
+
+    payload = described_class.for(user: user, query: "missing directory")
 
     expect(payload).to be_empty
   end

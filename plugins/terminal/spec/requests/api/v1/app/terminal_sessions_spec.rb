@@ -216,7 +216,9 @@ RSpec.describe "App API terminal sessions", type: :request do
   it "creates a chat workspace terminal from a candidate" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, mode: "coding", repository: repo, title: "Fix terminal picker")
-    chat.update_columns(workspace_path: "/tmp/chat-workspaces/#{chat.id}", coding_checkout_branch: "main")
+    chat_workspace_path = Rails.root.join("tmp", "spec-chat-workspaces", chat.id.to_s)
+    FileUtils.mkdir_p(chat_workspace_path)
+    chat.update_columns(workspace_path: chat_workspace_path.to_s, coding_checkout_branch: "main")
 
     expect {
       post "/api/v1/app/terminal_sessions", params: { terminal_session: { candidate_key: "chat:#{chat.id}" } }, as: :json
@@ -227,13 +229,14 @@ RSpec.describe "App API terminal sessions", type: :request do
     expect(response).to have_http_status(:created)
     expect(session.chat_session).to eq(chat)
     expect(session.name).to eq("Chat ##{chat.id} - Fix terminal picker")
-    expect(session.working_directory).to eq("/tmp/chat-workspaces/#{chat.id}")
+    expect(session.working_directory).to eq(chat_workspace_path.to_s)
     expect(session.workspace_kind).to eq("chat")
   end
 
   it "does not create a terminal session for an unmaterialized chat workspace candidate" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, mode: "coding", repository: repo, title: "Unmaterialized chat")
+    chat.update_columns(workspace_path: Rails.root.join("tmp", "missing-chat-workspace-#{chat.id}").to_s)
 
     expect {
       post "/api/v1/app/terminal_sessions", params: { terminal_session: { candidate_key: "chat:#{chat.id}" } }, as: :json
