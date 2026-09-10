@@ -449,8 +449,10 @@ describe("RecentChatsSidebar overflow menu slug", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Roadmap sync" }))
 
     const nav = screen.getByRole("navigation", { name: "Recent chats" })
+    const renameButton = screen.getByRole("button", { name: "Rename" })
     expect(within(nav).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument()
+    expect(renameButton).toBeInTheDocument()
+    expect(renameButton.closest("div.z-50")).not.toBeNull()
   })
 
   it("does not close the dropdown when a pointerdown event targets its portaled content", () => {
