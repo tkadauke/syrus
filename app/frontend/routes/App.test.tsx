@@ -3107,6 +3107,11 @@ describe("App", () => {
                       retry_delayed_until: null,
                       retry_delay_reason: null,
                       state_label: "Retryable failure"
+                    },
+                    bulk_actions: {
+                      retry: true,
+                      claim: true,
+                      close: true
                     }
                   })
                 ]
@@ -3343,6 +3348,191 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
+  }, 30000)
+
+  it("shows only bulk job actions that apply to every selected dashboard row", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                total: 4,
+                preferences: {
+                  ...dashboardPayload().preferences,
+                  visible_columns: ["checkbox", "issue", "state"]
+                },
+                items: [
+                  dashboardJobItem({
+                    id: 42,
+                    title: "Backlogged aqueduct",
+                    state: "backlog",
+                    issue_number: 42,
+                    can_release_from_backlog: true,
+                    bulk_actions: {
+                      release_from_backlog: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 43,
+                    title: "Queued aqueduct",
+                    state: "queued",
+                    issue_number: 43,
+                    can_release_from_backlog: false,
+                    bulk_actions: {
+                      move_to_backlog: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 44,
+                    title: "Paused aqueduct",
+                    state: "running",
+                    issue_number: 44,
+                    manual_paused: true,
+                    bulk_actions: {
+                      unpause: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 45,
+                    title: "Reviewable aqueduct",
+                    state: "implemented",
+                    issue_number: 45,
+                    can_approve: true,
+                    bulk_actions: {
+                      approve: true,
+                      close: true
+                    }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    expect(await screen.findByText("Backlogged aqueduct")).toBeInTheDocument()
+    const bulkToolbar = () => screen.getByText(/\d selected/).closest("div")!.parentElement!
+
+    fireEvent.click(screen.getByLabelText("Select Backlogged aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Start" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Backlogged aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Paused aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Unpause" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Unpause" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Paused aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Reviewable aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Approve" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+  }, 30000)
+
+  it("uses conservative bulk job action fallback when row payloads omit bulk_actions", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                total: 2,
+                preferences: {
+                  ...dashboardPayload().preferences,
+                  visible_columns: ["checkbox", "issue", "state"]
+                },
+                items: [
+                  dashboardJobItem({
+                    id: 46,
+                    title: "Implemented fixture",
+                    state: "implemented",
+                    issue_number: 46,
+                    can_approve: true,
+                    can_release_from_backlog: false,
+                    can_move_to_backlog: false,
+                    claimed_by_user: null
+                  }),
+                  dashboardJobItem({
+                    id: 47,
+                    title: "Failed fixture",
+                    state: "failed",
+                    issue_number: 47,
+                    can_approve: false,
+                    can_release_from_backlog: false,
+                    can_move_to_backlog: false,
+                    claimed_by_user: null,
+                    retry_state: {
+                      classification: "git_failure",
+                      classification_label: "Git failure",
+                      retryable: true,
+                      next_auto_retry_at: null,
+                      retry_attempt_count: 1,
+                      retry_budget_remaining: 2,
+                      retry_budget: 3,
+                      auto_retry_exhausted: false,
+                      provider_circuit_open: false,
+                      retry_delayed_until: null,
+                      retry_delay_reason: null,
+                      state_label: "Retryable failure"
+                    }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    expect(await screen.findByText("Implemented fixture")).toBeInTheDocument()
+    const bulkToolbar = () => screen.getByText(/\d selected/).closest("div")!.parentElement!
+
+    fireEvent.click(screen.getByLabelText("Select Implemented fixture"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Backlog" })).not.toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Unpause" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Failed fixture"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Backlog" })).not.toBeInTheDocument()
   }, 30000)
 
   it("renders dashboard timestamp columns as relative times with absolute tooltips", async () => {
