@@ -26,26 +26,23 @@ execution" below for how that's kept to once per workflow workspace.
 `#affected`/
 `#affected_targets` are kind-agnostic (`grader`, `formatter`, `generator`,
 `builder`, ...) and work across the whole graph, root and nested projects
-alike, so they're the one place this selection logic lives — but only
-`Steps::GraderFanout`'s root graders are wired to them today. Nested
-projects already compile into the same graph (their own source scope
-correctly resolved relative to the directory that declared them — see
-"Affected-file scope defaults" below), but nothing yet materializes a
-nested project's formatter/generator/builder/grader targets as workflow
-Steps: doing so needs an execution-directory story (does a nested target's
-command run from the repo root or its own project directory?) that hasn't
-been decided yet. `Steps::GraderFanout` logs both outcomes by name and
-target label — `[grader_fanout] selected rspec (repo-wide (no source scope
-declared)) [//:grade/rspec]` / `... skipped website-build (no matching
-files changed) [//:grade/website-build]` — so an operator can see why a
-grader ran or didn't without reading `.syrus.yml`. Formatter/generator
-runtime selection (`Steps::Format`/`Steps::Generate`) is still legacy-config
-driven and root-only; their graph nodes carry dependency metadata for
-diagnostics and later target-aware execution. Workflow implementation agents
-also see the compiled prepare targets in their environment snapshot and may run
-one explicitly through `run_target_prepare` when they discover that a
-project-scoped dependency install is needed (see "Agent-requested prepare
-targets" below).
+alike, so they're the one place this selection logic lives. Today
+`Steps::GraderFanout` wires root graders through that selection, and
+`Steps::BuilderFanout` wires explicit builder targets through it for
+opportunistic main-branch warming. Nested explicit builder commands run from
+their owning project directory; nested formatter/generator/grader runtime
+materialization is still pending a separate execution policy. Grader fanout
+logs both outcomes by name and target label — `[grader_fanout] selected rspec
+(repo-wide (no source scope declared)) [//:grade/rspec]` / `... skipped
+website-build (no matching files changed) [//:grade/website-build]` — so an
+operator can see why a grader ran or didn't without reading `.syrus.yml`.
+Formatter/generator runtime selection (`Steps::Format`/`Steps::Generate`) is
+still legacy-config driven and root-only; their graph nodes carry dependency
+metadata for diagnostics and later target-aware execution. Workflow
+implementation agents also see the compiled prepare targets in their
+environment snapshot and may run one explicitly through `run_target_prepare`
+when they discover that a project-scoped dependency install is needed (see
+"Agent-requested prepare targets" below).
 
 Explicit `targets:` declarations are available for hand-authored dependency
 nodes. Build-system plugin imports are also available, but only as explicit
@@ -399,10 +396,12 @@ records the error in diagnostics and continues with the rest of the graph.
 
 Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
 also accept `deps:`. For graders, runtime fanout uses those dependency
-targets to decide whether the grader is affected by the diff. If a dependency
-chain includes an executable `kind: prepare` target, the materialized grader
-step runs that prepare command before the grader command — see "Prepare
-target execution" below for what "runs" means once more than one grader
+targets to decide whether the grader is affected by the diff. For explicit
+builders, `builder_fanout` uses the same dependency-aware affected-target and
+target-health-reuse logic. If a dependency chain includes an executable
+`kind: prepare` target, the materialized grader step or selected builder run
+executes that prepare command before its own command — see "Prepare target
+execution" below for what "runs" means once more than one executable target
 depends on the same prepare target.
 
 ### Prepare target execution
@@ -411,24 +410,25 @@ depends on the same prepare target.
 materialized grader Step's transitive `kind: prepare` target dependencies
 (`TargetGraph#prepare_dependencies_for`) onto its own `Step#details` as
 `prepare_targets` — one entry per target, each an ordered list of commands
-plus the declaring project path for nested targets. Root prepare targets run
-from the repository root; nested prepare targets run from their project
-directory, matching the `run_target_prepare` MCP tool.
+plus the declaring project path for nested targets. `Steps::BuilderFanout`
+computes the same prepare-target list for each selected builder target before
+running the builder command. Root prepare targets run from the repository
+root; nested prepare targets run from their project directory, matching the
+`run_target_prepare` MCP tool.
 At execution time (`Steps::PrepareTargetExecution`, included into
-`Steps::Grader` and, through it, `Steps::PreflightGrader`), a prepare
-target's commands run **at most once per workflow workspace**, not once per
-grader Step: a workspace-local marker under `.syrus/prepare-targets/`
-records that a target has already run in this workspace, so a second
-grader Step later in the same workflow that depends on the same target
-reuses the marker instead of re-running the commands. If the workspace gets
-rebuilt from scratch mid-workflow (a worker hop onto a machine with no
-existing clone), there is no marker there either, so the commands safely
-rerun — safe precisely because prepare targets are declared idempotent
-environment setup (see "Prepare Semantics" above) and must not modify
-tracked source files. An OS `flock` on a sibling per-target lock file (held
-only for the duration of that target's commands) keeps grader Steps
-dispatched in parallel from the same workflow (landing workflows can do
-this) from running the same target's commands concurrently.
+`Steps::Grader` and `Steps::BuilderFanout`), a prepare target's commands run
+**at most once per workflow workspace**, not once per dependent target: a
+workspace-local marker under `.syrus/prepare-targets/` records that a target
+has already run in this workspace, so a second grader or builder later in the
+same workflow that depends on the same target reuses the marker instead of
+re-running the commands. If the workspace gets rebuilt from scratch
+mid-workflow (a worker hop onto a machine with no existing clone), there is no
+marker there either, so the commands safely rerun — safe precisely because
+prepare targets are declared idempotent environment setup (see "Prepare
+Semantics" above) and must not modify tracked source files. An OS `flock` on
+a sibling per-target lock file (held only for the duration of that target's
+commands) keeps executable targets dispatched in parallel from the same
+workflow from running the same target's commands concurrently.
 
 Each grader Step records what it did with its own prepare targets on its
 own `Step#details["prepare_target_results"]` — one entry per target with
@@ -569,9 +569,11 @@ builder even if other metadata would otherwise make it eligible.
 `Workflows::MainGrader` runs `builder_fanout` after `prepare` and before
 grader fanout. It selects only eligible builder targets affected by the main
 branch change, skips targets with reusable healthy target-health records, runs
-the remaining commands fail-soft, and records the result in
-`TargetHealthRecord`. Declared `artifacts:` paths are stored as references on
-the target-health row (`declared_paths` and any currently existing paths);
+any transitive prepare target dependencies, then runs the builder command
+fail-soft from the owning project directory. The result is recorded in
+`TargetHealthRecord`. Declared `artifacts:` paths are resolved relative to the
+owning project directory and stored as repository-relative references on the
+target-health row (`declared_paths` and any currently existing paths);
 workflow artifacts keep only target-health references.
 
 There is still no legacy `build:` section; builder execution is only wired for

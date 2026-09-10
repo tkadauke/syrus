@@ -611,12 +611,15 @@ selection.
 Before running a selected builder, it checks target health for the builder and
 its executable dependencies. A reusable healthy record skips the command and
 records a workflow entry pointing at the existing target-health row. Otherwise
-the builder command runs in the workflow workspace with the same dependency
-environment as graders, and its pass/fail/timeout outcome is recorded in
-`TargetHealthRecord`. Builder failures are fail-soft: they record unhealthy
-target health for reuse decisions and diagnostics but do not make main health
-broken by themselves. Declared `artifacts:` paths are stored as references on
-the target-health row.
+it runs any transitive `kind: prepare` target dependencies once per workflow
+workspace, then runs the builder command from the target's owning project
+directory with the same dependency environment as graders. The
+pass/fail/timeout outcome is recorded in `TargetHealthRecord`. Builder
+failures are fail-soft: they record unhealthy target health for reuse
+decisions and diagnostics but do not make main health broken by themselves.
+Declared `artifacts:` paths are resolved relative to the owning project
+directory and stored as repository-relative references on the target-health
+row.
 
 ### grade
 
