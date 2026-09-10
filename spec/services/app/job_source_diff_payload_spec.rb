@@ -56,8 +56,9 @@ RSpec.describe App::JobSourceDiffPayload do
       version_index: 1,
       base_sha: "aabbccdd1234567",
       head_sha: "deadbeef12345678",
-      label: "Initial implementation",
-      reason: "initial"
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
     )
     expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
       "path" => "app/models/user.rb",
@@ -183,57 +184,87 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(job.diff_review_versions.count).to eq(1)
   end
 
-  it "defaults to the latest run-scoped diff version instead of a newer synthetic branch comparison" do
+  it "defaults to the full branch range when the latest implement repair step changed fewer files" do
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
-    run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
-                      base_sha: "step-base", head_sha: "step-head")
-    run_scoped = DiffReviewVersions::Creator.call(
+    initial_run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
+                              base_sha: "branch-base", head_sha: "initial-head")
+    repair_run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
+                             base_sha: "initial-head", head_sha: "branch-head")
+    initial_version = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
-      run: run,
-      base_sha: "step-base",
-      head_sha: "step-head",
+      run: initial_run,
+      base_sha: "branch-base",
+      head_sha: "initial-head",
       base_ref: "syrus/parent",
       head_ref: "syrus/issue-42",
       files: [
-        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" },
+        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" }
       ],
       reason: "initial"
     )
-    synthetic = DiffReviewVersions::Creator.call(
+    repair_step = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
-      base_sha: "branch-base",
+      run: repair_run,
+      base_sha: "initial-head",
       head_sha: "branch-head",
-      base_ref: "main",
+      base_ref: "syrus/parent",
       head_ref: "syrus/issue-42",
       files: [
-        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" },
-        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
+        { path: "db/migrate/20260910113000_add_reusable_input_index_to_target_health_records.rb", status: "added", additions: 6, deletions: 0, patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex" }
       ],
-      reason: "source_diff"
+      reason: "initial"
     )
-    expect(synthetic.version_index).to be > run_scoped.version_index
+    expect(repair_step.version_index).to be > initial_version.version_index
 
     allow(github).to receive(:compare_commits)
       .with("acme/widgets", "main", "syrus/issue-42")
       .and_return(commits: [
-        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") }
+        { sha: "branch-head", short_sha: "branch-h", message: "Current branch", date: Time.zone.parse("2026-05-02T12:00:00Z") },
+        { sha: "initial-head", short_sha: "initial", message: "Initial implementation", date: Time.zone.parse("2026-05-01T12:00:00Z") }
       ], merge_base_sha: "branch-base")
-    expect(github).not_to receive(:compare_files)
+    allow(github).to receive(:compare_files)
+      .with("acme/widgets", "branch-base", "branch-head")
+      .and_return(files: [
+        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" },
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" },
+        { path: "db/migrate/20260910113000_add_reusable_input_index_to_target_health_records.rb", status: "added", additions: 6, deletions: 0, patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex" }
+      ], truncated: false)
 
     payload = described_class.build(job: job, user: user)
 
-    expect(payload.dig(:version, :id)).to eq(run_scoped.id)
+    expect(payload[:version]).to include(
+      label: "All changes",
+      reason: "source_diff",
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      metadata: { "range_kind" => "all_changes" }
+    )
     expect(payload[:files]).to contain_exactly(
+      {
+        path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx",
+        status: "modified",
+        additions: 10,
+        deletions: 0,
+        patch: "@@ -1 +1,2 @@\n+ui"
+      },
+      {
+        path: "db/migrate/20260910113000_add_reusable_input_index_to_target_health_records.rb",
+        status: "added",
+        additions: 6,
+        deletions: 0,
+        patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex"
+      },
       path: "app/services/step_dispatcher.rb",
       status: "modified",
       additions: 2,
       deletions: 0,
       patch: "@@ -1 +1,2 @@\n+backend"
     )
-    expect(payload[:versions].map { |version| version[:id] }).to include(synthetic.id, run_scoped.id)
+    expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, payload.dig(:version, :id))
   end
 
   describe "preview diff fixture" do

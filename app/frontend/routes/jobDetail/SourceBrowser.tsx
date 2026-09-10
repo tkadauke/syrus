@@ -279,7 +279,7 @@ function SourceDiffBrowser({
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
   const versions = payload.versions || []
   const selectedVersionId = payload.version?.id ?? null
-  const latestVersionId = versions[versions.length - 1]?.id ?? payload.version?.id ?? null
+  const latestVersionId = payload.version?.id ?? versions[versions.length - 1]?.id ?? null
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,
     buildContext: sourceBrowserCommentContext,
