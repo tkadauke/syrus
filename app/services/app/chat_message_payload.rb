@@ -346,20 +346,29 @@ module App
     def unique_visible_dependencies(dependencies)
       seen = {}
       dependencies.select do |dependency|
-        key = visible_dependency_identity(dependency)
-        next true unless key
-        next false if seen.key?(key)
+        identities = visible_dependency_identities(dependency)
+        next true if identities.empty?
+        next false if identities.any? { |identity| seen.key?(identity) }
 
-        seen[key] = true
+        identities.each { |identity| seen[identity] = true }
         true
       end
     end
 
-    def visible_dependency_identity(dependency)
+    def visible_dependency_identities(dependency)
+      identities = []
       path = dependency[:materialized_path].presence
-      return "path:#{path}" if path
+      identities << "path:#{path}" if path
 
-      nil
+      label = [
+        dependency[:display_label],
+        dependency[:materialized_label],
+        dependency[:title],
+        dependency[:slug]
+      ].find(&:present?)
+      identities << "label:#{label.upcase}" if label.to_s.match?(/\A(?:EPIC|JOB)-\d+\z/i)
+
+      identities
     end
 
     def child_proposal_json(proposal, chat_session:)
