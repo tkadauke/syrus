@@ -97,11 +97,15 @@ module Workflows
       )
       effective_artifacts = (effective_artifacts || {}).merge(resolution.provenance)
 
+      provider_selection = agent_provider.present? ? "explicit" : "default"
+      resolved_agent_provider = agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider
+      effective_artifacts = (effective_artifacts || {}).merge("agent_provider_selection" => provider_selection)
+
       Workflow.transaction do
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
-          agent_provider: agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider,
+          agent_provider: resolved_agent_provider,
           chain_template: resolution.graph,
           artifacts: effective_artifacts
         )

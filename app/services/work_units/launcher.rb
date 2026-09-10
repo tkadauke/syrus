@@ -60,6 +60,7 @@ module WorkUnits
     end
 
     def self.start!(workflow, **options)
+      StepDispatcher.refresh_default_workflow_agent_provider!(workflow)
       unit = workflow.work_unit
       ensure_landing_job_state!(workflow, unit)
       if unit

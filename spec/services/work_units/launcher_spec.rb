@@ -52,6 +52,24 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
+  it "refreshes default-backed workflow providers before WorkUnit gates run" do
+    user.update!(agent_provider: "claude", codex_api_key: "ck-test")
+    job.update!(agent_provider: "claude", job_provider_setting: "default")
+    workflow = described_class.instantiate(kind: "initial", job: job)
+    user.update!(agent_provider: "codex")
+
+    allow(WorkUnits::Scheduler).to receive(:evaluate!) do |unit, **|
+      expect(unit.workflow.agent_provider).to eq("codex")
+      WorkUnits::GateResult.pass
+    end
+    allow(StepDispatcher).to receive(:start_workflow)
+
+    described_class.start!(workflow)
+
+    expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
+    expect(workflow.reload.agent_provider).to eq("codex")
+  end
+
   it "does not start workflow runs for backlogged jobs" do
     backlogged = Factories.job_record(user: user, repository: repository, state: "backlog")
     workflow = described_class.instantiate(kind: "initial", job: backlogged)

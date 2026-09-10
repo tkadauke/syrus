@@ -56,11 +56,17 @@ RSpec.describe DefaultProviderChangeWakeup do
   end
 
   it "cancels active provider-blocked WorkUnits whose workflow provider is stale" do
-    workflow.update!(agent_provider: "claude", state: "running", started_at: 5.minutes.ago)
-    step.update!(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
-    run.update!(state: "succeeded", agent_provider: "claude", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+    stale_job = Factories.job_record(user: user, repository: repository, agent_provider: "claude", job_provider_setting: "default")
+    stale_workflow = Workflow.create!(
+      job: stale_job,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "running",
+      started_at: 5.minutes.ago
+    )
+    Step.create!(workflow: stale_workflow, kind: "implement", position: 0)
     unit = attach_work_unit(
-      workflow,
+      stale_workflow,
       state: "blocked",
       blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON,
       blocked_until: 1.day.from_now
@@ -69,7 +75,7 @@ RSpec.describe DefaultProviderChangeWakeup do
     result = described_class.call(user: user, previous_provider: "claude", current_provider: "codex")
 
     expect(result.released_work_unit_ids).to eq([ unit.id ])
-    expect(workflow.reload).to be_cancelled
+    expect(stale_workflow.reload).to be_cancelled
     expect(unit.reload).to have_attributes(state: "cancelled", preemption_reason: WorkUnits::StaleProviderRelauncher::PREEMPTION_REASON)
   end
 end

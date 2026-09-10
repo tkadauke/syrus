@@ -44,6 +44,7 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("initial")
       expect(wf.agent_provider).to eq("claude")
       expect(wf.state).to eq("queued")
+      expect(wf.artifact("agent_provider_selection")).to eq("default")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "format", 2 ], [ "generate", 3 ], [ "grader_fanout", 4 ], [ "grader_collect", 5 ],
         [ "coverage_analyze", 6 ], [ "dependency_audit", 7 ], [ "summarize", 8 ], [ "test_plan", 9 ], [ "pr_open", 10 ]
@@ -58,6 +59,13 @@ RSpec.describe Workflows do
         }
       )
       expect(wf.steps.pluck(:kind)).not_to include("adversarial_review")
+    end
+
+    it "records explicit provider selection separately from default-derived provider selection" do
+      wf = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
+
+      expect(wf.agent_provider).to eq("codex")
+      expect(wf.artifact("agent_provider_selection")).to eq("explicit")
     end
 
     it "inserts the adversarial review loop before the grade loop for Initial when enabled" do

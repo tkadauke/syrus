@@ -52,6 +52,76 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(s1.runs.last.agent_provider).to eq("codex")
     end
 
+    it "refreshes a default-backed workflow to the current repo provider before the first Run" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "queued",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      first_step = Step.create!(workflow: default_workflow, kind: "implement", position: 0)
+      user.update!(agent_provider: "codex")
+
+      described_class.start_workflow(default_workflow)
+
+      expect(default_workflow.reload.agent_provider).to eq("codex")
+      expect(first_step.runs.last.agent_provider).to eq("codex")
+    end
+
+    it "keeps explicit workflow provider overrides pinned when the default provider changes" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "queued",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      explicit_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "explicit" }
+      )
+      first_step = Step.create!(workflow: explicit_workflow, kind: "implement", position: 0)
+      user.update!(agent_provider: "codex")
+
+      described_class.start_workflow(explicit_workflow)
+
+      expect(explicit_workflow.reload.agent_provider).to eq("claude")
+      expect(first_step.runs.last.agent_provider).to eq("claude")
+    end
+
+    it "freezes the workflow provider after the first agentic Run exists" do
+      user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
+      repository = Factories.repository(user: user)
+      default_job = Factories.job_record(user: user, repository: repository, state: "running",
+                                         agent_provider: "claude", job_provider_setting: "default")
+      default_workflow = Workflow.create!(
+        job: default_job,
+        trigger_kind: "initial",
+        state: "running",
+        agent_provider: "claude",
+        artifacts: { "agent_provider_selection" => "default" }
+      )
+      implement = Step.create!(workflow: default_workflow, kind: "implement", position: 0, state: "succeeded")
+      summarize = Step.create!(workflow: default_workflow, kind: "summarize", position: 1)
+      implement.runs.create!(
+        job: default_job,
+        trigger_kind: default_workflow.trigger_kind,
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      user.update!(agent_provider: "codex")
+
+      described_class.create_run_and_enqueue(summarize, default_workflow)
+
+      expect(default_workflow.reload.agent_provider).to eq("claude")
+      expect(summarize.runs.last.agent_provider).to eq("claude")
+    end
+
     it "is idempotent — won't double-create a Run" do
       described_class.start_workflow(workflow)
       expect {

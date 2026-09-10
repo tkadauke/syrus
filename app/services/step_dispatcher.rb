@@ -136,6 +136,8 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
+    refresh_default_workflow_agent_provider!(workflow)
+
     provider_pause = ProviderAvailabilityPause.call(workflow: workflow)
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover?
     if provider_pause.pause?
@@ -482,6 +484,8 @@ class StepDispatcher
         return nil
       end
 
+      refresh_default_workflow_agent_provider!(workflow)
+
       if check_phase_admission && provider_availability_deferred?(step, workflow)
         return nil
       end
@@ -514,6 +518,32 @@ class StepDispatcher
       schedule_blocked_work_unit_recheck!(workflow, result)
     end
     true
+  end
+
+  def self.refresh_default_workflow_agent_provider!(workflow)
+    return unless workflow.job.job_provider_setting_default?
+    selection = workflow.artifact("agent_provider_selection")
+    return if selection == "explicit"
+    return if selection.blank? && workflow.agent_provider != workflow.job.agent_provider
+    return if workflow_has_agentic_run?(workflow)
+
+    desired_provider = workflow.job.reload.workflow_agent_provider.presence
+    return if desired_provider.blank? || desired_provider == workflow.agent_provider
+
+    artifacts = workflow.artifacts.to_h.merge(
+      "agent_provider_selection" => "default",
+      "agent_provider_refreshed_at" => Time.current.iso8601,
+      "agent_provider_previous" => workflow.agent_provider,
+      "agent_provider_resolved" => desired_provider
+    )
+    workflow.update!(agent_provider: desired_provider, artifacts: artifacts)
+  end
+
+  def self.workflow_has_agentic_run?(workflow)
+    workflow.steps
+      .joins(:runs)
+      .where(steps: { kind: Step::AGENTIC_KINDS })
+      .exists?
   end
 
   def self.schedule_blocked_work_unit_recheck!(workflow, gate_result)
