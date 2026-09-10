@@ -10,9 +10,8 @@ class AddReusableInputIndexToTargetHealthRecords < ActiveRecord::Migration[8.1]
       :created_at
     ]
 
-    add_index :target_health_records,
-      columns,
-      name: "idx_target_health_records_reusable_inputs",
-      if_not_exists: true
+    unless index_exists?(:target_health_records, columns, name: "idx_target_health_records_reusable_inputs")
+      add_index :target_health_records, columns, name: "idx_target_health_records_reusable_inputs"
+    end
   end
 end
