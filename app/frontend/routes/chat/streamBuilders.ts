@@ -49,6 +49,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         progress_label: simpleToolProgressLabel(toolName),
         raw_payload: presentation.raw_payload,
         result_body: "",
+        result_settled: false,
         result_error: false,
         result_kind: "unknown",
         result_summary: "",
@@ -87,12 +88,13 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         if (lastGroup && lastCall) open = { call: lastCall, group: lastGroup, container: containerByParentKey.get(parentKey)! }
       }
 
-      if (open && open.call.result_body === "") {
+      if (open && open.call.result_settled !== true) {
         const content = contentRecord(message.content)
         const rawResult = content ? content.content ?? content.result : message.content ?? message.text
         const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
         open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
         open.call.result_json = parseJsonText(unboundedBody)
+        open.call.result_settled = true
         open.call.result_error = content?.is_error === true
         const resultPresentation = toolResultPresentation(
           open.call.tool_name,
@@ -132,11 +134,11 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 function updateToolGroupState(group: ChatToolGroupItem) {
   const calls = group.calls
   const failed = calls.some((call) => call.result_error)
-  const pendingSideEffect = calls.some((call) => call.result_body === "" && !readOnlyTool(call.tool_name))
+  const pendingSideEffect = calls.some((call) => !toolCallSettled(call) && !readOnlyTool(call.tool_name))
   const sideEffecting = calls.some((call) => sideEffectingTool(call.tool_name))
   group.prominent = failed || pendingSideEffect || sideEffecting
   group.collapsed_by_default = true
-  group.outcome_label = failed ? "Failed" : calls.some((call) => call.result_body === "") ? "Running" : "Done"
+  group.outcome_label = failed ? "Failed" : calls.some((call) => !toolCallSettled(call)) ? "Running" : "Done"
 
   if (calls.length > 1 && calls.every((call) => readOnlyTool(call.tool_name))) {
     group.tool = "Inspection"
@@ -146,6 +148,10 @@ function updateToolGroupState(group: ChatToolGroupItem) {
   } else {
     group.summary_label = calls[0]?.display_label || group.tool
   }
+}
+
+function toolCallSettled(call: ChatToolGroupCall) {
+  return call.result_settled === true || call.result_body !== ""
 }
 
 function canJoinToolGroup(group: ChatToolGroupItem, nextToolName: string, nextToolLabel: string) {
