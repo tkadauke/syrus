@@ -88,6 +88,28 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  def record_target_health(label, status: "passed", checked_at: 1.minute.ago, overrides: {})
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    target = graph.target(TargetGraph::Label.parse(label))
+    fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: @ws_path,
+      graph: graph,
+      label: target.label
+    )
+
+    TargetHealthRecorder.record!(
+      repository: job.repository,
+      target_label: target.label.to_s,
+      project_id: target.project_id,
+      commit_sha: overrides.fetch(:commit_sha, "previous123"),
+      input_fingerprint: overrides.fetch(:input_fingerprint, fingerprints.input_fingerprint),
+      command_fingerprint: overrides.fetch(:command_fingerprint, fingerprints.command_fingerprint),
+      environment_fingerprint: overrides.fetch(:environment_fingerprint, fingerprints.environment_fingerprint),
+      status: status,
+      checked_at: checked_at
+    )
+  end
+
   # --- when_files_changed skip (PR #41) ---------------------------------
 
   it "materializes graders without when_files_changed regardless of changed files" do
@@ -665,6 +687,95 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("selected rspec (repo-wide (no source scope declared)) [//:grade/rspec]")
+  end
+
+  it "skips materializing a grader target when target health proves the same inputs already passed" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    health = record_target_health("//:grade/rspec", status: "passed")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader")).to be_empty
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to include(
+      include(
+        "name" => "rspec",
+        "target_label" => "//:grade/rspec",
+        "target_health_record_id" => health.id,
+        "commit_sha" => "previous123"
+      )
+    )
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
+  end
+
+  it "materializes a required grader when the matching target health fingerprint is stale" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed", overrides: { input_fingerprint: "stale-input" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
+  end
+
+  it "materializes a grader when an executable dependency target is stale" do
+    write_config(<<~YAML)
+      targets:
+        - name: deps
+          kind: prepare
+          run: npm ci
+      grade:
+        - name: rspec
+          run: bin/rspec
+          deps: [":deps"]
+    YAML
+    record_target_health("//:grade/rspec", status: "passed")
+    record_target_health("//:deps", status: "passed", overrides: { input_fingerprint: "stale-dependency-input" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: dependency //:deps target health is unknown [//:grade/rspec]")
+  end
+
+  it "materializes a grader when the latest matching target health record failed" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed", checked_at: 2.hours.ago, overrides: { commit_sha: "oldpass" })
+    record_target_health("//:grade/rspec", status: "failed", checked_at: 1.hour.ago, overrides: { commit_sha: "newfail" })
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: latest target health is failed [//:grade/rspec]")
+  end
+
+  it "materializes a grader when no matching target health record exists" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
   end
 
   it "explains a dependency-triggered selection by the dependency's target label" do
