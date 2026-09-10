@@ -82,7 +82,7 @@ export function BrowserCardBody({ card }: { card: BrowserCard }) {
       </div>
       {card.errorMessage ? <div className="text-red-600 dark:text-red-300">{card.errorMessage}</div> : null}
       <dl className="grid gap-1 sm:grid-cols-2">
-        {card.target ? <Row label={config.targetLabel} value={card.target} /> : null}
+        {card.target && card.action !== "resize" ? <Row label={config.targetLabel} value={card.target} /> : null}
         {card.title ? <Row label="Title" value={card.title} /> : null}
         {card.url ? <Row label="Current URL" value={card.url} /> : null}
         {card.viewport ? <Row label="Viewport" value={card.viewport} /> : null}

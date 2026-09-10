@@ -124,6 +124,7 @@ describe("renderChatMessages tool grouping", () => {
 
     const item = group(items[0])
 
+    expect(item.outcome_label).toBe("Done")
     expect(item.calls[0].result_summary).toBe("Resize 390x844 · success")
   })
 
