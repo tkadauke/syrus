@@ -116,6 +116,34 @@ describe("buildMessageStreamItems pending action groups", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("uses Browser plugin collapsed summaries with the paired tool input", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_resize", toolName: "browser_resize", input: { width: 390, height: 844 } }),
+      toolResult(2, { toolUseId: "tu_resize", content: "" })
+    ])
+
+    const item = group(items[0])
+
+    expect(item.calls[0].result_summary).toBe("Resize 390x844 · success")
+  })
+
+  it("uses Browser plugin collapsed summaries for errored tool results", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_navigate", toolName: "browser_navigate", input: { url: "http://evil.example.com" } }),
+      toolResult(2, {
+        toolUseId: "tu_navigate",
+        content: "Error: Navigation to \"http://evil.example.com\" was blocked",
+        isError: true
+      })
+    ])
+
+    const item = group(items[0])
+
+    expect(item.outcome_label).toBe("Failed")
+    expect(item.calls[0].result_kind).toBe("error")
+    expect(item.calls[0].result_summary).toBe("Navigate http://evil.example.com · failed")
+  })
+
   it("renders prefixed MCP tool calls with human labels and retained raw payloads", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_media", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
