@@ -230,6 +230,7 @@ export type DashboardJobItem = {
   manual_paused_at?: string | null
   manual_paused_by_user?: DashboardOwnerUser | null
   active_repair_work?: ActiveRepairWork | null
+  bulk_actions?: Partial<Record<DashboardBulkJobAction, boolean>>
   can_approve?: boolean
   can_release_from_backlog?: boolean
   can_move_to_backlog?: boolean
