@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_sample: true, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
     run_finished_at = finished_at || now
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
@@ -55,15 +55,17 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
         outcome: "succeeded",
         exit_status: 0
       )
-      WorkerHostHealthSample.create!(
-        hostname: span.hostname,
-        role: "worker",
-        version: "test",
-        observed_at: span.started_at + 10.seconds,
-        cpu_pressure_some: command_cpu,
-        io_pressure_some: command_io,
-        memory_used_percent: command_memory
-      )
+      if command_sample
+        WorkerHostHealthSample.create!(
+          hostname: span.hostname,
+          role: "worker",
+          version: "test",
+          observed_at: span.started_at + 10.seconds,
+          cpu_pressure_some: command_cpu,
+          io_pressure_some: command_io,
+          memory_used_percent: command_memory
+        )
+      end
     end
 
     RunResourceSummary.create!(
@@ -224,6 +226,32 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(WorkflowStepResourceProfile.pluck(:grader_name, :p50_duration_seconds)).to contain_exactly(
       [ "rspec", 120.0 ],
       [ "typecheck", 45.0 ]
+    )
+  end
+
+  it "uses command span duration as attributed grader evidence without overlapping host samples" do
+    10.times do
+      resource_summary(
+        repository: repository,
+        duration: 2_700,
+        step_kind: "grader",
+        grader_name: "rspec",
+        command_span: true,
+        command_sample: false
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.find_by!(step_kind: "grader", grader_name: "rspec")
+    expect(profile.attributed_sample_count).to eq(10)
+    expect(profile.p90_attributed_duration_seconds).to eq(30.0)
+    expect(profile.p90_attributed_cpu_pressure).to be_nil
+    expect(profile.conservative_prediction).to include(
+      prediction_source: "command_attributed",
+      duration_seconds: 30.0,
+      cpu_pressure: WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:cpu_pressure),
+      fallback_reason: nil
     )
   end
 
