@@ -432,6 +432,31 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("selected docs-tests (baseline main target health has no previous SHA) [//:grade/docs-tests]")
   end
 
+  it "runs all main branch grader targets for a broad target sweep even with a previous main SHA" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("target_selection_mode", "broad")
+    workflow.set_artifact!("previous_main_sha", "oldmain123")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("broad target sweep requested; baseline target health will run every configured grader")
+    expect(chunks).to include("selected docs-tests (broad target sweep requested) [//:grade/docs-tests]")
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
@@ -710,6 +735,24 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("skipped rspec (latest target health record passed from previou) [//:grade/rspec]")
+  end
+
+  it "materializes broad-sweep graders even when target health proves the same inputs already passed" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("target_selection_mode", "broad")
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+    YAML
+    record_target_health("//:grade/rspec", status: "passed")
+
+    handler.call
+
+    expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("broad target sweep bypasses target-health reuse")
   end
 
   it "materializes a required grader when the matching target health fingerprint is stale" do
@@ -1069,6 +1112,30 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       "conclusion_id" => cached.id
     )
     expect(fanout.reload.next_step).to eq(collect)
+  end
+
+  it "materializes broad-sweep graders after a successful conclusion for the same commit and plan" do
+    workflow.update!(trigger_kind: "main_grader")
+    workflow.set_artifact!("target_selection_mode", "broad")
+    write_grade_config("bin/rspec")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      step: fanout,
+      run: run,
+      commit_sha: "abc123",
+      grader_fingerprint: current_fingerprint,
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "passed",
+      checked_at: 1.hour.ago
+    )
+
+    expect { handler.call }.to change { workflow.steps.where(kind: "grader").count }.by(1)
+    expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
+    chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+    expect(chunks).to include("broad target sweep bypasses grader-conclusion reuse")
   end
 
   it "does not reuse failed conclusions for the same commit and plan" do

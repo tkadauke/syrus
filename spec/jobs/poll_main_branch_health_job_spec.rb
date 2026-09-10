@@ -307,6 +307,16 @@ RSpec.describe PollMainBranchHealthJob do
     }.not_to have_enqueued_job(MainGraderWorkflowJob)
   end
 
+  it "enqueues a broad MainGraderWorkflowJob even when the SHA has already been graded" do
+    repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, last_ci_evaluated_sha: sha, ci_health: "healthy", grader_health: "healthy")
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, failed_checks: [] })
+
+    expect {
+      described_class.perform_now(repository.id, target_selection_mode: "broad")
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha, target_selection_mode: "broad")
+  end
+
   it "enqueues MainGraderWorkflowJob when SHA is current but has not been graded yet" do
     # SHA hasn't changed for CI purposes but grading hasn't run for it yet
     repository.update!(last_health_checked_sha: sha, ci_health: "healthy", grader_health: "healthy")

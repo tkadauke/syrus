@@ -38,6 +38,7 @@ module Workflows
       failed_names = failed_required_grader_names(actual_failures)
 
       if failed_names.any?
+        record_broad_sweep_missed_edges!(workflow, actual_failures) if broad_target_sweep?(workflow)
         update_grader_health!(workflow, "broken", failed_names)
       elsif inconclusive_steps.any?
         update_grader_health!(workflow, "inconclusive", failed_required_grader_names(inconclusive_steps))
@@ -216,6 +217,22 @@ module Workflows
         job = workflow.job
         job.close_with_reason!(Job::MAIN_GRADER_CLOSURE_REASON) if job.may_close?
       end
+    end
+
+    private_class_method def self.broad_target_sweep?(workflow)
+      workflow.artifact("target_selection_mode").to_s == "broad"
+    end
+
+    private_class_method def self.record_broad_sweep_missed_edges!(workflow, failed_steps)
+      TargetSelectionMissedEdgeRecorder.record_broad_sweep_failures!(
+        workflow: workflow,
+        failed_steps: failed_steps
+      )
+    rescue StandardError => e
+      Rails.logger.warn(
+        "[Workflows::MainGrader] failed to record broad-sweep missed-edge warnings for Workflow ##{workflow.id}: " \
+        "#{e.class}: #{e.message}"
+      )
     end
   end
 end

@@ -62,7 +62,8 @@ module Steps
         end
       end
 
-      active_graders = skip_reusable_target_health!(active_graders)
+      active_graders = broad_target_sweep? ? active_graders : skip_reusable_target_health!(active_graders)
+      log("[grader_fanout] broad target sweep bypasses target-health reuse") if broad_target_sweep?
 
       if active_graders.empty?
         log("[grader_fanout] all graders skipped — collect Step will pass through")
@@ -72,7 +73,7 @@ module Steps
       # A recorded success for this exact head SHA + grader set short-circuits
       # the re-run. Safe alongside the skip above: the fingerprint is the full
       # plan, so a full-plan success implies the active subset would pass too.
-      if (cache_hit = reusable_success(grader_fingerprint))
+      if !broad_target_sweep? && (cache_hit = reusable_success(grader_fingerprint))
         workflow.set_artifact!(
           GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY,
           {
@@ -85,6 +86,7 @@ module Steps
         log("[grader_fanout] reused successful grader conclusion for #{cache_hit.commit_sha.first(7)} - collect Step will pass through")
         return
       end
+      log("[grader_fanout] broad target sweep bypasses grader-conclusion reuse") if broad_target_sweep?
 
       if materialized_grader_steps.exists?
         log("[grader_fanout] grader Steps already materialized for iteration #{step.iteration}; reusing existing Step chain")
@@ -524,6 +526,10 @@ module Steps
       return @target_graph if defined?(@target_graph)
 
       @target_graph = TargetGraph::Compiler.compile(workspace.path)
+    end
+
+    def broad_target_sweep?
+      workflow.trigger_kind == "main_grader" && workflow.artifact("target_selection_mode").to_s == "broad"
     end
 
     def review_grader_context?

@@ -12,7 +12,7 @@ class PollMainBranchHealthJob < ApplicationJob
     Faraday::ConnectionFailed
   ].freeze
 
-  def perform(repository_id)
+  def perform(repository_id, target_selection_mode: "affected")
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
@@ -42,7 +42,8 @@ class PollMainBranchHealthJob < ApplicationJob
     previous_main_sha = repository.last_health_checked_sha.presence
     sha_changed = sha != previous_main_sha
     previous_health = repository.main_health
-    grading_needed = sha != repository.last_graded_sha
+    broad_target_sweep = target_selection_mode == "broad"
+    grading_needed = broad_target_sweep || sha != repository.last_graded_sha
 
     # Health is scoped to the default-branch SHA. When main advances, stale
     # healthy states from the prior SHA must not leak onto the new one while
@@ -65,7 +66,13 @@ class PollMainBranchHealthJob < ApplicationJob
     # if one is already running it will skip and PollMainBranchHealthJob will
     # retry on the next tick (grading_needed stays true until the workflow
     # records a settled grader result).
-    if grading_needed && sha_changed && previous_main_sha
+    if broad_target_sweep
+      MainGraderWorkflowJob.perform_later(
+        repository.id,
+        sha,
+        target_selection_mode: "broad"
+      )
+    elsif grading_needed && sha_changed && previous_main_sha
       MainGraderWorkflowJob.perform_later(
         repository.id,
         sha,
@@ -151,6 +158,7 @@ class PollMainBranchHealthJob < ApplicationJob
         ci_health: new_ci_health,
         ci_failed_checks: summary[:failed_checks]
       )
+      record_ci_missed_edge_warnings!(repository, sha, summary[:failed_checks]) if new_ci_health == "broken"
     end
 
     repository.reload
@@ -182,5 +190,18 @@ class PollMainBranchHealthJob < ApplicationJob
     repository.update_columns(ci_health: "inconclusive")
     repository.reload
     MainHealthChangedService.on_health_change!(repository) if repository.main_health != previous_health
+  end
+
+  def record_ci_missed_edge_warnings!(repository, sha, failed_checks)
+    TargetSelectionMissedEdgeRecorder.record_ci_failures!(
+      repository: repository,
+      sha: sha,
+      failed_checks: failed_checks
+    )
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[PollMainBranchHealthJob] failed to record CI missed-edge warnings for #{repository.slug}@#{sha}: " \
+      "#{e.class}: #{e.message}"
+    )
   end
 end

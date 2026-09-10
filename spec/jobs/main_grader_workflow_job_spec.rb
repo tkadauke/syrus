@@ -42,6 +42,12 @@ RSpec.describe MainGraderWorkflowJob do
     expect(workflow.artifact("previous_main_sha")).to eq("oldmain123")
   end
 
+  it "stores the target selection mode artifact" do
+    described_class.perform_now(repository.id, sha, target_selection_mode: "broad")
+
+    expect(Workflow.last.artifact("target_selection_mode")).to eq("broad")
+  end
+
   it "materializes prepare → builder_fanout → grader_fanout → grader_collect steps" do
     described_class.perform_now(repository.id, sha)
 
@@ -208,6 +214,14 @@ RSpec.describe MainGraderWorkflowJob do
     }.not_to change(Job, :count)
 
     expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "allows a broad target sweep when a conclusive affected result already exists for the SHA" do
+    MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "healthy")
+
+    expect {
+      described_class.perform_now(repository.id, sha, target_selection_mode: "broad")
+    }.to change(Job, :count).by(1)
   end
 
   it "allows creation when the only prior grader result for the SHA is unknown" do
