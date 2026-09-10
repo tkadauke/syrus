@@ -71,7 +71,37 @@ RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
       "repository_id" => repository.id,
       "branch" => "feature/my-work",
       "title" => "Add user profile page",
-      "description" => "Adds a user profile page with avatar and bio fields."
+      "description" => "Adds a user profile page with avatar and bio fields.",
+      "stack" => { "lineage" => "fresh_main" }
+    )
+  end
+
+  it "records the current coding handoff stack context in the pending action" do
+    chat_session.set_artifact!(
+      "coding_handoff_stack",
+      {
+        "repository_id" => repository.id,
+        "lineage" => "continuous",
+        "last_handoff_job_id" => 123,
+        "last_base_sha" => "base123",
+        "last_head_sha" => "head123",
+        "last_handoff_branch" => "syrus/chat-1-handoff-1",
+        "last_source_branch" => "main"
+      }
+    )
+
+    response = call_tool(branch: "main", title: "Follow-up", description: "Adds a follow-up commit.")
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action.payload["stack"]).to eq(
+      "lineage" => "continuous",
+      "last_handoff_job_id" => 123,
+      "last_base_sha" => "base123",
+      "last_head_sha" => "head123",
+      "last_handoff_branch" => "syrus/chat-1-handoff-1",
+      "last_source_branch" => "main"
     )
   end
 

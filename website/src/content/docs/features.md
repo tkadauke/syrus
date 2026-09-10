@@ -152,23 +152,26 @@ known prep status or failure.
 
 New chat-authored work starts on the repository default branch unless the agent
 intentionally checks out another ref. The `submit_coding_changes` chat tool
-creates a new direct Job from the active committed HEAD; after operator
-confirmation Syrus captures that HEAD to an immutable
-`syrus/chat-<chat_id>-handoff-<pending_action_id>` branch and dispatches the
-CodingHandoff workflow. After a successful capture and dispatch, Syrus resets
-the chat checkout back to the repository default branch tip and queues
-preparation again, so the next unrelated Coding Mode request starts from a
-fresh baseline instead of accidentally carrying over handoff commits. The
+creates a new direct Job from the active committed stack; after operator
+confirmation Syrus captures the submit base SHA, submitted HEAD SHA, changed
+files, and source branch, publishes the HEAD to an immutable
+`syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, and dispatches the
+CodingHandoff workflow. After a successful capture and dispatch, Syrus leaves
+the chat checkout at the submitted HEAD so the operator and agent can continue
+iterating from that exact state. A later submit from the same continuous
+checkout uses the prior submitted HEAD as its stack base and links the new Job
+to the prior handoff Job when appropriate. The
 `complete_implement_step` chat tool signals that a coding session on an
 existing Job branch is complete and ready for review, grading, summarize, and
 PR open.
-The `reset_workspace` chat tool is available for abandoned experiments: without
+The `reset_workspace` chat tool is available for abandoned experiments or for
+starting a new unrelated task from the latest default branch: without
 confirmation it only reports the checkout path, current branch/ref, dirty state,
 commits ahead of the default branch, and prep status. When called with explicit
 discard confirmation, it resets the checkout to the repository default branch
-tip, clears uncommitted work and local-only commits, and queues preparation
-again. After that reset, `submit_coding_changes` has no committed changes to
-capture until new work is done.
+tip, clears uncommitted work and local-only commits, records the submit lineage
+as fresh-main, and queues preparation again. After that reset, the next
+`submit_coding_changes` starts a new independent handoff stack.
 
 Coding Mode chats also get a set of generic `runtime_*` tools for working
 with a live Runtime Session — a dev server, browser, or other running
