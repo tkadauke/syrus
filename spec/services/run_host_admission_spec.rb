@@ -142,25 +142,37 @@ RSpec.describe RunHostAdmission do
     }.merge(attrs))
   end
 
-  def low_cost_profile(step_kind:)
+  def low_cost_profile(step_kind:, grader_name: "")
+    create_profile(step_kind: step_kind, grader_name: grader_name, duration: 10, cpu: 1.0)
+  end
+
+  def high_cost_grader_profile(grader_name:)
+    create_profile(step_kind: "grader", grader_name: grader_name, duration: 2_700, cpu: 80.0)
+  end
+
+  def create_profile(step_kind:, grader_name:, duration:, cpu:)
     WorkflowStepResourceProfile.create!(
       repository: repository,
       agent_provider: workflow.agent_provider,
       trigger_kind: workflow.trigger_kind,
       step_kind: step_kind,
-      grader_name: "",
+      grader_name: grader_name,
       job_kind: job.kind.to_s,
       sample_count: 30,
       attributed_sample_count: 30,
       process_attributed_sample_count: 30,
       host_pressure_sample_count: 30,
       attribution_quality: "process_attributed",
-      p90_duration_seconds: 10,
-      p90_cpu_pressure: 1.0,
+      p90_duration_seconds: duration,
+      p90_cpu_pressure: cpu,
       p90_io_pressure: 1.0,
       p90_memory_used_percent: 10.0,
-      p90_process_attributed_duration_seconds: 10,
-      p90_process_attributed_cpu_percent: 1.0,
+      p90_attributed_duration_seconds: duration,
+      p90_attributed_cpu_pressure: cpu,
+      p90_attributed_io_pressure: 1.0,
+      p90_attributed_memory_used_percent: 10.0,
+      p90_process_attributed_duration_seconds: duration,
+      p90_process_attributed_cpu_percent: cpu,
       p90_process_attributed_memory_bytes: 10.megabytes,
       p90_process_attributed_io_bytes: 1.megabyte,
       timeout_rate: 0.0,
@@ -170,20 +182,31 @@ RSpec.describe RunHostAdmission do
     )
   end
 
-  # Graders used to be guarded on sight, then guarded by predicted cost. They
-  # are now not rationed at all: only agentic steps take a per-host slot, and
-  # everything is stopped by measured host pressure regardless of kind. The
-  # cost prediction was the thing that never worked -- profiles recorded the
-  # host's ambient load, not the step's demand.
-  describe "rationing applies to agentic work, not to graders" do
-    def grader_run(kind: "grader")
-      step = Step.create!(workflow: workflow, kind: kind, position: rand(100..999))
+  def running_grader_run(name:)
+    other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + rand(1000))
+    other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+    other_workflow.update!(state: "running", worker_hostname: "worker-a")
+    other_step = Step.create!(workflow: other_workflow, kind: "grader", position: rand(100..999), state: "running", details: { "name" => name })
+    other_step.runs.create!(
+      job: other,
+      trigger_kind: other_workflow.trigger_kind,
+      agent_provider: other_workflow.agent_provider,
+      state: "running",
+      started_at: 5.minutes.ago
+    )
+  end
+
+  describe "grader rationing" do
+    def grader_run(kind: "grader", name: "rspec")
+      details = kind.in?(%w[grader preflight_grader]) ? { "name" => name } : {}
+      step = Step.create!(workflow: workflow, kind: kind, position: rand(100..999), details: details)
       step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
     end
 
-    it "guards agentic steps and nothing else" do
-      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader", "mergeability_preflight")
+    it "guards agentic steps separately from high-cost graders" do
+      expect(described_class::ALWAYS_GUARDED_STEP_KINDS).not_to include("grader", "preflight_grader")
       expect(described_class::ALWAYS_GUARDED_STEP_KINDS).to include("implement")
+      expect(described_class::HIGH_COST_GRADER_RUNS_PER_HOST).to eq(1)
     end
 
     it "admits a grader on a healthy host regardless of what else is running" do
@@ -194,6 +217,32 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("resource_guard_not_needed")
+    end
+
+    it "admits a cheap grader on a warning host without consuming high-cost grader slots" do
+      worker_sample(cpu_pressure_some: 25.0)
+      low_cost_profile(step_kind: "grader", grader_name: "rspec")
+
+      decision = described_class.call(run: grader_run)
+
+      expect(decision).to be_admit
+      expect(decision.reason).to eq("resource_guard_not_needed")
+    end
+
+    it "defers a second high-cost grader on a warning host" do
+      worker_sample(cpu_pressure_some: 25.0)
+      high_cost_grader_profile(grader_name: "rspec")
+      running_grader_run(name: "rspec")
+
+      decision = described_class.call(run: grader_run(name: "rspec"))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect(decision.details).to include(
+        "resource_guard_kind" => "high_cost_grader",
+        "active_high_cost_grader_run_count" => 1,
+        "guarded_runs_per_host" => 1
+      )
     end
 
     # The landing step that deferred 73 times in 36 minutes on an idle fleet.
