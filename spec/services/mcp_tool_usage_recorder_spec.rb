@@ -20,16 +20,17 @@ RSpec.describe McpToolUsageRecorder do
   end
 
   describe ".advertised_tools" do
-    it "derives chat and workflow advertised tools from the registry" do
-      expect(described_class.advertised_tools(surface: "chat")).to eq(
-        McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }.uniq.sort
-      )
-      expect(described_class.advertised_tools(surface: "workflow")).to eq(
-        (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
-          .map { |entry| entry[:tool_name].to_s }
-          .uniq
-          .sort
-      )
+    it "derives chat and workflow advertised tools from core and plugin registries" do
+      core_chat_tools = McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }
+      core_workflow_tools = (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
+        .map { |entry| entry[:tool_name].to_s }
+      plugin_chat_tools = plugin_tool_names(:chat_mcp_tool_set)
+      plugin_workflow_tools = plugin_tool_names(:mcp_tool_set)
+
+      expect(described_class.advertised_tools(surface: "chat")).to include(*core_chat_tools)
+      expect(described_class.advertised_tools(surface: "workflow")).to include(*core_workflow_tools)
+      expect(described_class.advertised_tools(surface: "chat")).to include(*plugin_chat_tools) if plugin_chat_tools.any?
+      expect(described_class.advertised_tools(surface: "workflow")).to include(*plugin_workflow_tools) if plugin_workflow_tools.any?
     end
   end
 
@@ -175,5 +176,21 @@ RSpec.describe McpToolUsageRecorder do
     usage = McpToolUsage.sole
     expect(usage.error_class).to eq("RuntimeError")
     expect(usage.backtrace_excerpt).to eq("app/services/mcp/tools/read_live_state_tool.rb:12")
+  end
+
+  def plugin_tool_names(extension_point)
+    Syrus::PluginRegistry.providers_for(extension_point).flat_map do |tool_set|
+      method = tool_set.method(:tool_definitions)
+      keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
+      definitions =
+        if keywords.include?(:tier)
+          tool_set.tool_definitions(tier: nil)
+        elsif keywords.include?(:context)
+          tool_set.tool_definitions(context: nil)
+        else
+          tool_set.tool_definitions
+        end
+      Array(definitions).filter_map { |definition| definition[:name].presence&.to_s }
+    end.uniq
   end
 end

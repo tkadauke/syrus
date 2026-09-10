@@ -133,6 +133,7 @@ class McpToolUsageRecorder
   def self.workflow_tool_names
     (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
       .map { |entry| entry[:tool_name].to_s }
+      .concat(plugin_tool_names(:mcp_tool_set))
       .uniq
       .sort
   end
@@ -140,9 +141,31 @@ class McpToolUsageRecorder
   def self.chat_tool_names
     McpToolRegistry.summaries(surface: :chat)
       .map { |entry| entry[:tool_name].to_s }
+      .concat(plugin_tool_names(:chat_mcp_tool_set))
       .uniq
       .sort
   end
+
+  def self.plugin_tool_names(extension_point)
+    Syrus::PluginRegistry.providers_for(extension_point).flat_map do |tool_set|
+      tool_definitions(tool_set).filter_map { |definition| definition[:name].presence&.to_s }
+    end
+  end
+  private_class_method :plugin_tool_names
+
+  def self.tool_definitions(tool_set)
+    return [] unless tool_set.respond_to?(:tool_definitions)
+
+    method = tool_set.method(:tool_definitions)
+    keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
+    return Array(tool_set.tool_definitions(tier: nil)) if keywords.include?(:tier)
+    return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
+
+    Array(tool_set.tool_definitions)
+  rescue StandardError, NotImplementedError
+    []
+  end
+  private_class_method :tool_definitions
 
   def initialize(surface:, run: nil, chat_session: nil, provider: nil, sidecar_mode: nil, daemon_identity: nil)
     @surface = surface
