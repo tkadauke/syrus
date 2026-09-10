@@ -192,6 +192,34 @@ then source SHA, then commit SHA. Syrus still never uses the source snapshot
 database id, because that id is scoped to one workflow and would make the same
 source input look different in another workflow.
 
+### Reusing target health at runtime
+
+Before running an explicit executable target, Syrus checks whether the same
+target input, command, and environment fingerprints already have reusable
+target health. The lookup intentionally ignores the producing commit SHA: the
+target-health row still records that commit for provenance, but identical
+fingerprints mean the relevant inputs are the same even when unrelated files
+changed on a newer branch.
+
+`format` checks explicit `formatter` targets compiled from `formatters:` as
+`//:format/<index>`, and `generate` checks explicit `generator` targets
+compiled from `generated:` as `//:generate/<index>`. Plugin-default
+formatters from `formatters: []` do not currently have stable target labels,
+so they are not target-health skipped. `grader_fanout` checks each selected
+`grader` target before materializing its `grader` Step. The `builder` kind is
+reserved in the graph model, but no `.syrus.yml` primitive materializes a
+builder target yet.
+
+A target is skipped only when its latest matching health record is healthy
+(`passed` or `skipped`) and every executable dependency in its dependency
+closure is also healthy for its own current fingerprints. Unknown, stale,
+failed, timed-out, cancelled, or inconclusive target health is treated as a
+miss, so required targets still run. Skip decisions are recorded in workflow
+logs and artifacts: `format_target_health_skips`,
+`generate_target_health_skips`, and `target_health_skipped_targets` for
+grader fanout. Each entry includes the skipped target label, reason, producing
+commit SHA, checked timestamp, and target-health record references.
+
 ### Agent-requested prepare targets
 
 The agent environment snapshot includes a "Target prepare options" line built
