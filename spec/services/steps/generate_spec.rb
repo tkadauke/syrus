@@ -34,6 +34,26 @@ RSpec.describe Steps::Generate do
     @ws_path.join(".syrus.yml").write(contents)
   end
 
+  def record_target_health(label)
+    graph = TargetGraph::Compiler.compile(@ws_path)
+    target = graph.target(TargetGraph::Label.parse(label))
+    fingerprints = TargetGraph::Fingerprints.for_target(
+      workspace_path: @ws_path,
+      graph: graph,
+      label: target.label
+    )
+    TargetHealthRecorder.record!(
+      repository: job.repository,
+      target_label: target.label.to_s,
+      project_id: target.project_id,
+      commit_sha: "previous123",
+      input_fingerprint: fingerprints.input_fingerprint,
+      command_fingerprint: fingerprints.command_fingerprint,
+      environment_fingerprint: fingerprints.environment_fingerprint,
+      status: "passed"
+    )
+  end
+
   describe "no changed files" do
     it "skips without consulting .syrus.yml" do
       allow(handler).to receive(:changed_files).and_return([])
@@ -141,6 +161,26 @@ RSpec.describe Steps::Generate do
       failures = workflow.reload.artifact("generate_failures")
       expect(failures.first).to include("command" => "bad-generator", "exit_status" => 1, "soft" => true)
       expect(step.reload.details["generate_failures"]).to eq(failures)
+    end
+
+    it "skips a generator when target health proves the same inputs already passed" do
+      write_syrus_yml(<<~YAML)
+        generated:
+          - command: echo buf-generated
+            sources: "proto/**/*.proto"
+            generates: "lib/proto/thing.rb"
+      YAML
+      record_target_health("//:generate/0")
+      expect(handler).not_to receive(:commit_agent_changes)
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).not_to include("$ echo buf-generated")
+      expect(chunks).to include("skipped //:generate/0 (latest target health record passed from previou)")
+      expect(workflow.reload.artifact("generate_target_health_skips")).to include(
+        include("target_label" => "//:generate/0", "commit_sha" => "previous123")
+      )
     end
   end
 
