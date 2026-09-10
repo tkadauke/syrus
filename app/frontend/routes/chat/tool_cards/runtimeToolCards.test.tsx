@@ -5,11 +5,14 @@ import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
 import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
+import runtimeCaptureArtifactToolCard from "./runtime_capture_artifact"
 import runtimeInspectToolCard from "./runtime_inspect"
+import runtimeInputToolCard from "./runtime_input"
 import runtimeLaunchToolCard from "./runtime_launch"
 import runtimeListSessionsToolCard from "./runtime_list_sessions"
 import runtimeLogsToolCard from "./runtime_logs"
 import runtimeReleaseControlToolCard from "./runtime_release_control"
+import runtimeSnapshotToolCard from "./runtime_snapshot"
 import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
 import runtimeStopToolCard from "./runtime_stop"
@@ -77,6 +80,9 @@ describe("Runtime tool cards", () => {
     expect(runtimeStopToolCard.toolName).toBe("runtime_stop")
     expect(runtimeAcquireControlToolCard.toolName).toBe("runtime_acquire_control")
     expect(runtimeReleaseControlToolCard.toolName).toBe("runtime_release_control")
+    expect(runtimeInputToolCard.toolName).toBe("runtime_input")
+    expect(runtimeSnapshotToolCard.toolName).toBe("runtime_snapshot")
+    expect(runtimeCaptureArtifactToolCard.toolName).toBe("runtime_capture_artifact")
   })
 
   it("covers no sessions with a collapsed summary and empty expanded state", () => {
@@ -333,6 +339,110 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("released")).toBeInTheDocument()
   })
 
+  it("summarizes delivered text input without exposing a large raw payload by default", () => {
+    const longText = "x".repeat(140)
+    const parsedResult = { delivered: true, echoed_event: { raw: "not shown outside details" } }
+    const toolContext = context("runtime_input", {
+      parsedResult,
+      input: { event: { type: "text", target: "terminal", text: longText, internal_payload: { huge: true } } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(toolContext)).toBe("Runtime input delivered: text on terminal")
+
+    render(<>{runtimeInputToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("delivered")).toBeInTheDocument()
+    expect(screen.getAllByText("terminal").length).toBeGreaterThan(0)
+    expect(screen.getByText(`${"x".repeat(80)}...`)).toBeInTheDocument()
+    expect(screen.getByText("Input event")).toBeInTheDocument()
+    expect(screen.queryByText(`Runtime input delivered: text on terminal`)).not.toBeInTheDocument()
+  })
+
+  it("renders click-like Runtime input outcomes and provider failures", () => {
+    const delivered = context("runtime_input", {
+      parsedResult: { delivered: true },
+      input: { event: { type: "click", target: "button#save" } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(delivered)).toBe("Runtime input delivered: click on button#save")
+    render(<>{runtimeInputToolCard.renderExpanded(delivered)}</>)
+    expect(screen.getAllByText("click").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("button#save").length).toBeGreaterThan(0)
+
+    const failed = context("runtime_input", {
+      parsedResult: { error: "lease_required", message: "the agent must hold an active input lease before sending input events" },
+      input: { event: { type: "click", target: "button#save" } }
+    })
+
+    expect(runtimeInputToolCard.collapsedSummary?.(failed)).toBe("Runtime input failed: lease_required")
+    render(<>{runtimeInputToolCard.renderExpanded(failed)}</>)
+    expect(screen.getByText("the agent must hold an active input lease before sending input events")).toBeInTheDocument()
+  })
+
+  it("shows Runtime snapshot preview and page metadata", () => {
+    const parsedResult = {
+      error: false,
+      content: [{ type: "image", data: "abc123", mimeType: "image/png" }],
+      page_url: "http://127.0.0.1:4173/settings",
+      title: "Settings",
+      viewport: { width: 1280, height: 720 },
+      captured_at: "2026-09-10T12:10:00Z"
+    }
+    const toolContext = context("runtime_snapshot", {
+      parsedResult,
+      input: { options: { target: "main" } }
+    })
+
+    expect(runtimeSnapshotToolCard.collapsedSummary?.(toolContext)).toBe("Runtime snapshot captured of main, 1280x720")
+
+    render(<>{runtimeSnapshotToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByRole("img", { name: "Runtime snapshot preview" })).toHaveAttribute("src", "data:image/png;base64,abc123")
+    expect(screen.getByText("http://127.0.0.1:4173/settings")).toBeInTheDocument()
+    expect(screen.getByText("Settings")).toBeInTheDocument()
+    expect(screen.getByText("1280x720")).toBeInTheDocument()
+    expect(screen.getByText("Open preview")).toBeInTheDocument()
+  })
+
+  it("shows missing Runtime artifacts as an explicit empty state", () => {
+    const parsedResult = { found: false }
+
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe("No Runtime artifact captured")
+
+    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
+    expect(screen.getByText("No Runtime artifact was returned.")).toBeInTheDocument()
+    expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it("renders Runtime artifact metadata with preview and download affordances", () => {
+    const parsedResult = {
+      artifact: {
+        id: "chat_image:3",
+        filename: "settings.png",
+        type: "image/png",
+        file_path: "/api/v1/app/chats/12/media/chat_images/3/file",
+        preview_url: "/api/v1/app/chats/12/media/chat_images/3/file",
+        download_url: "/api/v1/app/chats/12/media/chat_images/3/file?download=1"
+      }
+    }
+
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe("Runtime artifact captured: settings.png")
+
+    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
+    expect(screen.getByRole("img", { name: "settings.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
+    expect(screen.getAllByText("chat_image:3").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("settings.png").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("image/png").length).toBeGreaterThan(0)
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/chats/12/media/chat_images/3/file?download=1")
+  })
+
+  it("renders Runtime capture failures distinctly", () => {
+    const parsedResult = { error: true, message: "screenshot timed out" }
+
+    expect(runtimeCaptureArtifactToolCard.collapsedSummary?.(context("runtime_capture_artifact", { parsedResult }))).toBe("Runtime artifact capture failed")
+
+    render(<>{runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult }))}</>)
+    expect(screen.getByText("screenshot timed out")).toBeInTheDocument()
+  })
+
   it("renders no-op release distinctly", () => {
     const parsedResult = { released: [] }
 
@@ -347,6 +457,9 @@ describe("Runtime tool cards", () => {
     expect(runtimeStatusToolCard.renderExpanded(context("runtime_status", { parsedResult: { id: null } }))).toBeNull()
     expect(runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: "not json" }))).toBeNull()
     expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult: { entries: "nope" } }))).toBeNull()
+    expect(runtimeInputToolCard.renderExpanded(context("runtime_input", { parsedResult: "not json" }))).toBeNull()
+    expect(runtimeSnapshotToolCard.renderExpanded(context("runtime_snapshot", { parsedResult: "not json" }))).toBeNull()
+    expect(runtimeCaptureArtifactToolCard.renderExpanded(context("runtime_capture_artifact", { parsedResult: "not json" }))).toBeNull()
     expect(runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult: "not json" }))).toBeNull()
     expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult: { released: "nope" } }))).toBeNull()
   })
