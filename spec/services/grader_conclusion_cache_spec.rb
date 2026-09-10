@@ -62,6 +62,27 @@ RSpec.describe GraderConclusionCache do
     expect(described_class.fingerprint_for_plan(first)).not_to eq(described_class.fingerprint_for_plan(second))
   end
 
+  it "fingerprints execution config that changes grader semantics" do
+    first = RepoGradePlan::Result.new(
+      graders: [
+        grader(name: "site", command: "npm test", required: true, timeout_minutes: 10)
+          .with(phases: %w[review landing], failures: "strict", junit_output: "tmp/site.xml")
+      ],
+      source: ".syrus.yml",
+      note: nil,
+      max_iterations: 1,
+      rerun_only_failed: false
+    )
+    second = first.with(
+      graders: [
+        grader(name: "site", command: "npm test", required: false, timeout_minutes: 20)
+          .with(phases: %w[landing], failures: "lenient", junit_output: "tmp/changed.xml")
+      ]
+    )
+
+    expect(described_class.fingerprint_for_plan(first)).not_to eq(described_class.fingerprint_for_plan(second))
+  end
+
   it "reads grader status from the latest run projection when step state is stale" do
     user = Factories.user
     repository = Factories.repository(user: user)
