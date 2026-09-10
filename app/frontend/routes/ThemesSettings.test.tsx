@@ -75,14 +75,18 @@ describe("ThemesSettingsRoute", () => {
   })
 
   it("deletes a custom theme after confirmation", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+    const confirmSpy = vi.spyOn(window, "confirm")
     const fetchSpy = mockFetch()
     renderRoute()
 
     await screen.findByRole("button", { name: /Solar Draft/ })
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
-    expect(confirmSpy).toHaveBeenCalledWith("Delete Solar Draft?")
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.getByText("Delete Solar Draft?")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]) === "/api/v1/app/themes/2" && call[1]?.method === "DELETE")).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/themes/2", expect.objectContaining({ method: "DELETE" }))
     })

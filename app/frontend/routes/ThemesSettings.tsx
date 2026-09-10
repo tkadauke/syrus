@@ -9,6 +9,7 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { useTheme } from "../contexts/ThemeContext"
+import { useConfirm } from "../hooks/useConfirm"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -59,6 +60,7 @@ export function ThemesSettingsRoute() {
 function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const { colorTheme, previewColorTheme, setColorTheme } = useTheme()
+  const { confirm, dialog } = useConfirm()
   const themesQuery = useQuery({ queryKey: themesQueryKey, queryFn: fetchThemes })
   const allThemes = themesQuery.data?.themes ?? emptyThemes
   const builtInThemes = useMemo(() => allThemes.filter((theme) => theme.built_in), [allThemes])
@@ -248,8 +250,8 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           contrastIssues={contrastIssues}
           deleting={deleteMutation.isPending}
           draft={draft}
-          onDelete={() => {
-            if (window.confirm(`Delete ${draft.name}?`)) deleteMutation.mutate(draft)
+          onDelete={async () => {
+            if (await confirm({ message: `Delete ${draft.name}?`, destructive: true })) deleteMutation.mutate(draft)
           }}
           onNameChange={updateDraftName}
           onSave={() => {
@@ -266,6 +268,7 @@ function ThemesSettingsPanel({ onNotice }: { onNotice: (message: string | null) 
           <p className="mt-2 text-sm text-text-secondary">Create a custom theme to edit its colors.</p>
         </section>
       )}
+      {dialog}
     </div>
   )
 }
