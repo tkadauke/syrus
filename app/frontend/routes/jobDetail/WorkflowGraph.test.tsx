@@ -632,6 +632,7 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("Batch progress")).toBeInTheDocument()
     expect(screen.getAllByText("2/5 complete").length).toBeGreaterThan(0)
+    expect(screen.queryByText("1/1 complete")).not.toBeInTheDocument()
     expect(screen.getByText("1 running")).toBeInTheDocument()
     expect(screen.getByText("1 waiting")).toBeInTheDocument()
     expect(screen.getByText("1 failed")).toBeInTheDocument()
@@ -832,7 +833,17 @@ function distributedGradeWorkflow() {
       depends_on_step_ids: [20],
       dependent_step_ids: [30],
       barrier_group: "workflow:10:grader_collect",
-      barrier_labels: ["grader_collect"]
+      barrier_labels: ["grader_collect"],
+      barrier_progress: {
+        total: 1,
+        completed: 1,
+        queued: 0,
+        running: 0,
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        skipped: 0
+      }
     },
     details: { name, required: true, command: `bin/${name}` },
     warnings: [],

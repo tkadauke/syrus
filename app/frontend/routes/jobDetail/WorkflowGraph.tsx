@@ -623,7 +623,8 @@ function GradeBatchProgressPanel({ progress }: { progress: NonNullable<ReturnTyp
 }
 
 function gradeBatchProgress(item: GradeStepItem) {
-  const collectStep = item.steps.find((step) => step.dependencies?.barrier_progress)
+  const collectStep = item.steps.find((step) => isGradeCollectStep(step) && step.dependencies?.barrier_progress)
+    || item.steps.find((step) => step.dependencies?.barrier_progress)
   if (collectStep?.dependencies?.barrier_progress) return collectStep.dependencies.barrier_progress
   if (item.graders.length === 0) return null
 
@@ -643,6 +644,10 @@ function gradeBatchProgress(item: GradeStepItem) {
     cancelled: counts.cancelled || 0,
     skipped: counts.skipped || 0
   }
+}
+
+function isGradeCollectStep(step: JobStep) {
+  return step.kind === "grader_collect" || step.kind === "preflight_grader_collect"
 }
 
 function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
