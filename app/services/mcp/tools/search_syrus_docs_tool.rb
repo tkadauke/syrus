@@ -38,12 +38,12 @@ module Mcp::Tools
 
         top = scored.sort_by { |s| -s[:score] }.first(MAX_RESULTS)
 
-        if top.empty?
-          return MCP::Tool::Response.new([ { type: "text", text: "No matching documentation found for '#{query}'. Try broader terms." } ])
-        end
-
-        text = top.map { |s| format_section(s) }.join("\n\n---\n\n")
-        MCP::Tool::Response.new([ { type: "text", text: text } ])
+        Mcp::Tools.success(
+          query: query,
+          count: scored.length,
+          results: top.each_with_index.map { |section, index| result_payload(section, index + 1) },
+          message: top.empty? ? "No matching documentation found for '#{query}'. Try broader terms." : nil
+        )
       end
 
       def docs_dir
@@ -69,7 +69,7 @@ module Mcp::Tools
       def core_sections
         return [] unless Dir.exist?(docs_dir)
 
-        Dir.glob(docs_dir.join("*.md")).flat_map { |path| parse_sections(path) }
+        Dir.glob(docs_dir.join("*.md")).flat_map { |path| parse_sections(path, source: "core") }
       end
 
       def plugin_sections
@@ -85,7 +85,7 @@ module Mcp::Tools
         dir = plugin_docs_dir(manifest.name)
         return [] unless Dir.exist?(dir)
 
-        Dir.glob(dir.join("**/*.md")).flat_map { |path| parse_sections(path) }
+        Dir.glob(dir.join("**/*.md")).flat_map { |path| parse_sections(path, source: "plugin:#{manifest.name}") }
       end
 
       # Deliberately not a separate teaser file: every manifest already carries
@@ -101,6 +101,8 @@ module Mcp::Tools
         [ {
           doc_title: title,
           plugin_name: manifest.name.to_s.downcase,
+          path: "plugins/#{manifest.name}/.codex-plugin/plugin.json",
+          source: "plugin:#{manifest.name}",
           heading: "What enabling this would add",
           # The notice leads: a long description would otherwise push it past
           # MAX_SECTION_CHARS and the agent would read the blurb as a
@@ -111,8 +113,9 @@ module Mcp::Tools
         } ]
       end
 
-      def parse_sections(path)
+      def parse_sections(path, source:)
         content = File.read(path, encoding: "utf-8")
+        relative_path = display_path(path)
         filename = File.basename(path, ".md")
         doc_title = content.match(/\A#\s+(.+)/)&.captures&.first&.strip || filename
 
@@ -124,20 +127,36 @@ module Mcp::Tools
             lines = part.lines
             heading = lines.first.sub(/\A##\s+/, "").strip
             body = lines[1..].join.strip
-            sections << { doc_title: doc_title, heading: heading, body: body }
+            sections << { doc_title: doc_title, heading: heading, body: body, path: relative_path, source: source }
           else
             body = part.sub(/\A#\s+.+\n/, "").strip
-            sections << { doc_title: doc_title, heading: doc_title, body: body } unless body.empty?
+            sections << { doc_title: doc_title, heading: doc_title, body: body, path: relative_path, source: source } unless body.empty?
           end
         end
 
         sections
       end
 
-      def format_section(section)
+      def result_payload(section, rank)
         body = section[:body].to_s
         body = "#{body[0, MAX_SECTION_CHARS]}…" if body.length > MAX_SECTION_CHARS
-        "## #{section[:doc_title]} > #{section[:heading]}\n#{body}"
+        {
+          rank: rank,
+          score: section[:score],
+          title: section[:doc_title],
+          heading: section[:heading],
+          path: section[:path],
+          source: section[:source],
+          reference: [ section[:path], section[:heading] ].compact.join(" > "),
+          snippet: body,
+          text: "## #{section[:doc_title]} > #{section[:heading]}\n#{body}"
+        }
+      end
+
+      def display_path(path)
+        Pathname.new(path).relative_path_from(Rails.root).to_s
+      rescue ArgumentError
+        File.basename(path)
       end
     end
   end
