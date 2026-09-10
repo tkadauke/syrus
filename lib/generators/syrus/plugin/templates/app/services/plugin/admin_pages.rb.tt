@@ -1,0 +1,18 @@
+module <%= module_name %>
+  class AdminPages
+    def self.admin_pages
+      [
+        {
+          id: "<%= file_name %>.overview",
+          label: "<%= display_name %>",
+          label_key: "<%= file_name %>:admin.title",
+          path: "/admin/<%= file_name %>",
+          paths: [ "/admin/<%= file_name %>" ],
+          component: "<%= file_name %>/AdminExample",
+          group_id: "system",
+          order: 100
+        }
+      ]
+    end
+  end
+end
