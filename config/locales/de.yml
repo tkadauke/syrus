@@ -230,6 +230,9 @@ de:
       not_previewable: "Preview ist nur für implementierte, genehmigte, landende oder gelandete Aufgaben verfügbar."
       already_active: "Für diese Aufgabe ist bereits eine Preview-Umgebung aktiv."
       active_not_found: "Keine aktive Preview-Umgebung für diese Aufgabe gefunden."
+      project_required: "Wähle aus, welches betroffene Projekt als Preview gestartet werden soll."
+      no_affected_preview_project: "Für kein betroffenes Projekt ist eine Preview konfiguriert."
+      no_preview_configured: "Für dieses Repository ist keine Preview konfiguriert."
 
     speech_to_text:
       backend_batch_unavailable: "Backend-Batch-Transkription ist nicht konfiguriert."

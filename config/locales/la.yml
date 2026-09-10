@@ -230,6 +230,9 @@ la:
       not_previewable: "Praevisio tantum operibus effectis, probatis, descendentibus, aut descensis praesto est."
       already_active: "Ambitus praevisionis huic operi iam activus est."
       active_not_found: "Nullus ambitus praevisionis activus huic operi inventus est."
+      project_required: "Elige quod proiectum affectum praevidendum sit."
+      no_affected_preview_project: "Nullum proiectum affectum praevisionem configuratam habet."
+      no_preview_configured: "Huic repositorio nulla praevisio configurata est."
 
     speech_to_text:
       backend_batch_unavailable: "Transcriptio fasciculorum in tergo non configurata est."

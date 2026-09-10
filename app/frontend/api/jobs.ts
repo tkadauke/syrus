@@ -892,10 +892,21 @@ export type PreviewEnvironmentRecord = {
   expires_at: string | null
   error_message: string | null
   error_reason: "not_reachable" | null
+  project_id?: string | null
+  project_label?: string | null
+}
+
+export type PreviewProjectRecord = {
+  id: string
+  label: string
+  path: string
+  owner_config_path: string | null
 }
 
 export type PreviewStatusPayload = {
   preview: PreviewEnvironmentRecord | null
+  preview_projects?: PreviewProjectRecord[]
+  unavailable_reason?: string | null
 }
 
 export type PreviewLogRecord = {
@@ -911,6 +922,7 @@ export type PreviewLogsPayload = {
 
 export type PreviewActionPayload = {
   preview: PreviewEnvironmentRecord
+  preview_projects?: PreviewProjectRecord[]
   message: string
 }
 
@@ -961,6 +973,8 @@ export type JobDetailPayload = {
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
+  preview_projects?: PreviewProjectRecord[]
+  preview_unavailable_reason?: string | null
   deploy: DeployWorkflowRecord | null
   current_intent?: JobWorkIntent | null
   active_work?: JobWorkUnit | null
@@ -1499,8 +1513,8 @@ export function fetchPreviewLogs(path: string) {
   return getJson<PreviewLogsPayload>(path)
 }
 
-export function startPreview(path: string) {
-  return postJson<PreviewActionPayload>(path)
+export function startPreview(path: string, projectId?: string | null) {
+  return postJson<PreviewActionPayload>(path, projectId ? { project_id: projectId } : undefined)
 }
 
 export function stopPreview(path: string) {
