@@ -20,7 +20,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
+import { TOOL_RESULT_PREVIEW_LINE_CHARS, isPlainObject, normalizedToolCardParsedResult, normalizedToolName, parseJsonText, typedToolResult, type TypedToolResult } from "./toolRendering"
 import { pluginToolCardCollapsedSummary, pluginToolCardExpandedBody } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
@@ -572,12 +572,13 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
+  const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
   const pluginBody = pluginToolCardExpandedBody({
     toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
     resultError: call.result_error,
-    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
+    parsedResult: normalizedToolCardParsedResult(parsedResult)
   })
   if (pluginBody != null) return <>{pluginBody}</>
 
@@ -591,12 +592,13 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
 function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number]) {
   if (call.result_summary) return call.result_summary
 
+  const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
   const cardSummary = pluginToolCardCollapsedSummary({
     toolName: toolCardName(call),
     input: isPlainObject(call.raw_payload) ? call.raw_payload : {},
     resultBody: call.result_body,
     resultError: call.result_error,
-    parsedResult: call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
+    parsedResult: normalizedToolCardParsedResult(parsedResult)
   })
 
   return cardSummary || call.result_summary
