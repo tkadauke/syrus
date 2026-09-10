@@ -40,6 +40,11 @@ module RuntimeTerminal
         end
       end
 
+      def replace_relay_client!(runtime_session_id, terminal_session)
+        relay_clients_lock.synchronize { relay_clients.delete(runtime_session_id.to_i) }&.close
+        relay_client_for(runtime_session_id, terminal_session)
+      end
+
       private
 
       def relay_clients
@@ -89,7 +94,9 @@ module RuntimeTerminal
 
       runtime_session = runtime_session_for(session_id)
       terminal_session = relay_ready_terminal_session_for(runtime_session)
-      scrollback = relay_client_for(runtime_session, terminal_session).inspect_scrollback
+      scrollback = with_fresh_relay_client(runtime_session, terminal_session) do |client|
+        client.inspect_scrollback
+      end
 
       { kind: "terminal_scrollback", scrollback: scrollback, bytes: scrollback.bytesize }
     end
@@ -108,7 +115,9 @@ module RuntimeTerminal
       end
 
       terminal_session = relay_ready_terminal_session_for(runtime_session)
-      relay_client_for(runtime_session, terminal_session).input(event)
+      with_fresh_relay_client(runtime_session, terminal_session) do |client|
+        client.input(event)
+      end
       lease.record_input!(event)
 
       { delivered: true }
@@ -155,6 +164,16 @@ module RuntimeTerminal
 
     def relay_client_for(runtime_session, terminal_session)
       self.class.relay_client_for(runtime_session.id, terminal_session)
+    end
+
+    def with_fresh_relay_client(runtime_session, terminal_session)
+      client = relay_client_for(runtime_session, terminal_session)
+      result = yield(client)
+      return result unless client.closed?
+
+      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
+    rescue RelayClient::ConnectionError
+      yield(self.class.replace_relay_client!(runtime_session.id, terminal_session))
     end
 
     def not_supported(operation)
