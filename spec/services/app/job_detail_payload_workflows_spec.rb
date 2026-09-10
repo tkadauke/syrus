@@ -677,6 +677,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         barrier_group: "workflow:#{workflow.id}:grader_collect",
         barrier_labels: [ "grader_collect" ]
       )
+      expect(alpha_payload.dig(:dependencies, :barrier_progress)).to be_nil
+      expect(beta_payload.dig(:dependencies, :barrier_progress)).to be_nil
       expect(alpha_payload.dig(:runs, 0, :command_spans)).to contain_exactly(include(hostname: "worker-alpha", name: "alpha"))
       expect(beta_payload.dig(:placement, :admission)).to include(
         "reason" => "worker_slot_busy",

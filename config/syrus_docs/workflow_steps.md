@@ -68,12 +68,15 @@ what the Step is checking but are not the Step identity.
 The UI groups parallel grader batches from generic Step data rather than from a
 separate grader-batch model: `grader_fanout` materializes `grader` Steps,
 `grader_collect` / `preflight_grader_collect` depend on those Steps, and
-`dependencies.barrier_progress` summarizes the dependency states. Admission
-blocks are likewise Step-scoped. Worker-slot admission artifacts include a
-`step_id`; host pickup deferrals include a `run_id`, which the payload resolves
-back to the owning Step before showing the block. Sibling Steps therefore remain
-queued, running, failed, or completed on their own merits instead of making the
-whole workflow look paused.
+`dependencies.barrier_progress` on the collector Step summarizes those grader
+dependency states. Individual grader Steps still expose their own Step
+dependency edges, target metadata, placement, and admission state, but they do
+not present the collector's batch progress as their own. Admission blocks are
+likewise Step-scoped. Worker-slot admission artifacts include a `step_id`; host
+pickup deferrals include a `run_id`, which the payload resolves back to the
+owning Step before showing the block. Sibling Steps therefore remain queued,
+running, failed, or completed on their own merits instead of making the whole
+workflow look paused.
 
 ## How a step reports failure
 
