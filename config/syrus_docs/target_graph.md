@@ -91,8 +91,16 @@ targets:
     kind: prepare
     run: npm ci
 
-grade:
   - name: typecheck
+    kind: grader
+    run: npm run typecheck
+    sources: ["src/**/*.ts", "src/**/*.tsx"]
+    phases: [review, landing]
+    required: true
+    timeout_minutes: 10
+
+grade:
+  - name: legacy-typecheck
     run: npm run typecheck
     when_files_changed: ["src/**/*.ts", "src/**/*.tsx"]
     deps: [":renderer", ":deps"]
@@ -104,6 +112,23 @@ Dependencies use one edge only: `deps` (or the equivalent spelling
 `dependencies`). Missing labels, duplicate labels, and dependency cycles are
 reported as `TargetGraph::ValidationError` messages naming the target label
 and owning `.syrus.yml` path where possible.
+
+Explicit target fields:
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | yes | — | Target name within the declaring package; the canonical label is `//package:name`. |
+| `kind` | no | `library` | One of the supported target kinds above. |
+| `sources` | no | — | Glob or array of globs, resolved relative to the declaring `.syrus.yml` directory. Absolute paths and `..` segments are rejected so a nested file cannot claim files outside its scope. `source_scope` is accepted as an alias. |
+| `deps` | no | `[]` | Label string or array of label strings. `:name` resolves within the same package; `//package:name` is absolute. `dependencies` is accepted as an alias. |
+| `run` / `command` | no | — | Shell command metadata for executable targets. Pure dependency nodes normally omit it. |
+| `phases` | no | `[]` | Optional phase metadata for executable validation targets. Values use the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
+| `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
+| `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+
+Unlike legacy executable declarations, explicit `targets:` do **not** gain an
+implicit dependency on `//:repo`; the only edges they declare initially are the
+labels listed in `deps`.
 
 Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
 also accept `deps:`. For graders, runtime fanout uses those dependency
@@ -179,28 +204,28 @@ timestamps, command results, and output tail. A failed command returns an MCP
 error response and leaves the failed audit entry in place; it does not change
 which prepare commands Syrus will run automatically on future workflows.
 
-### The `builder` kind is reserved, not compiled
+### The `builder` kind has no legacy section yet
 
-`TargetGraph::Target::KINDS` already lists `builder` alongside
+`TargetGraph::Target::KINDS` lists `builder` alongside
 `formatter`/`generator`/`grader`/`prepare` — DOC-20's Core Model names it as
-one of the eventual target kinds — but no `.syrus.yml` primitive compiles
-into it yet. There is no `build:` (or equivalent) legacy config section
-today, and none of the runtime pipelines this compiler mirrors
-(`RepoPrepPlan`, `Steps::Format`, `Steps::Generate`, `RepoGradePlan`) have a
-build-command concept to carry over. Constructing a `TargetGraph::Target`
-with `kind: "builder"` directly is supported by the model — the kind exists
-precisely so a later compiler change and this graph model don't need to land
-together — but `TargetGraph::Compiler` never produces one today.
+one of the target kinds. A hand-authored `targets:` entry may declare
+`kind: builder`, but no legacy `.syrus.yml` primitive compiles into it yet:
+there is no `build:` (or equivalent) legacy config section today, and none of
+the runtime pipelines this compiler mirrors (`RepoPrepPlan`, `Steps::Format`,
+`Steps::Generate`, `RepoGradePlan`) have a build-command concept to carry over.
 
-Until a `build:` section exists, model an explicit build step as whichever
-existing primitive matches its role: a `grade:` entry if a failed build
-should fail the workflow like any other required check, or a `generated:`
-entry if the build produces checked-in output that `Steps::Generate` should
-keep in sync (see "Shared generated clients: targets, not projects" below).
-A future `build:` section, if one is added, should compile the same way
-`grade:`/`formatters:`/`generated:` already do: one `kind=builder` target per
-declared entry, under whichever project (root or nested) declared it, with
-the same directory-based `source_scope` defaulting described in
+Until a `build:` section exists, a build that must actually run in today's
+workflow should still be modeled as whichever existing executable primitive
+matches its role: a `grade:` entry if a failed build should fail the workflow
+like any other required check, or a `generated:` entry if the build produces
+checked-in output that `Steps::Generate` should keep in sync (see "Shared
+generated clients: targets, not projects" below). An explicit
+`targets: { kind: builder }` node is graph metadata today; it can participate
+in dependency selection, but no runtime step materializes from that kind by
+itself. A future `build:` section, if one is added, should compile the same
+way `grade:`/`formatters:`/`generated:` already do: one `kind=builder` target
+per declared entry, under whichever project (root or nested) declared it,
+with the same directory-based `source_scope` defaulting described in
 "Affected-file scope defaults" below.
 
 ## Explicit `project:`
@@ -339,10 +364,10 @@ ways it can be broken have different severity:
 ## Common monorepo layouts
 
 The pieces above — implicit/explicit `project:`, nested `.syrus.yml`
-discovery, and per-declaration file-selector scoping — compose into a small
-set of concrete layouts. None of the examples below need the still-unbuilt
-`targets:` block or cross-project dependency edges (DOC-20 "Adoption Levels"
-2/3); everything here works with what's implemented today.
+discovery, per-declaration file-selector scoping, and optional explicit
+`targets:` dependency nodes — compose into a small set of concrete layouts.
+Most layouts below do not need explicit `targets:` at all; they work with
+legacy sections alone.
 
 The invariant that shapes every layout: **one `.syrus.yml` file compiles
 into exactly one project.** There is no way for two files to share a
@@ -464,11 +489,10 @@ grade:
 ```
 
 All four graders share the `desktop` project; each is wired only to the
-subtree it actually validates. There is no `targets:` block yet to declare
-`renderer`/`electron`/`packaging`/`updater` as their own dependency-linked
-nodes (DOC-20 Level 2) — until that lands, per-subtree scoping via
-`when_files_changed`/`files` is the available tool for keeping them from
-all running on every unrelated change inside the project.
+subtree it actually validates. If those subtrees need reusable dependency
+nodes, declare them with `targets:` and point the legacy graders at them with
+`deps:`; otherwise per-subtree scoping via `when_files_changed`/`files` is
+enough to keep unrelated checks from running.
 
 ### Plugin ecosystems where many targets belong to one project
 
@@ -555,12 +579,10 @@ grade:
     run: bin/rspec-fast spec/api
 ```
 
-What this layout can't yet express: a real dependency edge saying "ios and
-android depend on api," so that an api-only change automatically re-runs
-ios's and android's graders too. Cross-project dependency edges are DOC-20
-Level 2 (explicit `targets:` plus dependency edges) and don't exist in the
-current implementation. Until they do, a project that needs to react to a
-shared directory's changes has to say so itself, by widening its own
+This layout can express dependency edges with explicit target labels, for
+example `deps: ["//api:client-contract"]` from an iOS or Android grader to an
+API target. A project that does not declare those dependency nodes yet can
+still react to a shared directory's changes by widening its own
 `when_files_changed`:
 
 ```yaml
