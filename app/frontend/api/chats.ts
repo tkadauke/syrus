@@ -804,6 +804,13 @@ export type ChatPayload = {
   local_tunnel_connected: boolean
 }
 
+export type ChatMetadataUpdatePayload = {
+  message?: string | null
+  chat: Partial<ChatRecord> & Pick<ChatRecord, "id">
+}
+
+export type ChatPayloadUpdate = ChatPayload | ChatMetadataUpdatePayload
+
 export type ChatProposalMutationPayload = {
   message?: string | null
   proposal?: ChatProposal | null
@@ -1048,7 +1055,7 @@ export function renameChat(path: string, title: string) {
 }
 
 export function updateChatPinned(id: number | string, pinned: boolean) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
 }
 
 export function switchChatProvider(path: string, chatProvider: string) {
@@ -1056,15 +1063,15 @@ export function switchChatProvider(path: string, chatProvider: string) {
 }
 
 export function updateChatMode(id: number | string, mode: ChatMode | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { mode: mode ?? "" } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { mode: mode ?? "" } })
 }
 
 export function updateChatModel(id: number | string, chatModel: string | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_model: chatModel ?? "" } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { chat_model: chatModel ?? "" } })
 }
 
 export function updateChatEffort(id: number | string, effort: string | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
 }
 
 export function upsertChatGoal(chatId: number | string, goal: ChatGoalInput & { prompt: string }) {
