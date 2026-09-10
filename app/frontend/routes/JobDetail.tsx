@@ -454,6 +454,8 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           <PreviewPanel
             canStart={payload.actions.can_start_preview}
             initialPreview={payload.preview}
+            initialPreviewProjects={payload.preview_projects}
+            previewUnavailableReason={payload.preview_unavailable_reason}
             queryKeyPrefix="job"
             entityId={payload.job.id}
             previewLogsPath={payload.paths.app_preview_logs_path}

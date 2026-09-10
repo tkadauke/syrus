@@ -68,6 +68,24 @@ preview:
 
 `start` may use `$PORT` or `${PORT}`; Syrus replaces it with a dynamically allocated port. `setup` runs first in the fresh preview checkout, then `seed` runs before the server starts. Setup, seed, and server commands receive the same preview environment. Any nonzero setup or seed command fails the preview instead of starting a partially prepared app. `env` sets repository-specific variables and `unset_env` strips inherited variables such as production database URLs. Use these keys for repo-specific preview guardrails rather than hardcoding repository checks into Syrus.
 
+Monorepo repositories can define `preview:` in nested `.syrus.yml` files. A
+nested preview belongs to the project declared by that `.syrus.yml` location,
+and Syrus starts its setup, seed, start, health-check, and log commands from
+that project's directory. Root-only repositories keep the legacy behavior: a
+root `preview:` block starts from the repository root, and plugin-provided
+preview detection is still used only when no explicit `.syrus.yml` preview is
+configured.
+
+For Job previews, Syrus compares the Job branch against its effective base and
+offers only affected projects that have a preview. If exactly one affected
+project is previewable, the existing Start Preview action starts it directly.
+If multiple affected projects are previewable, the Job detail Preview panel
+shows a project selector and remembers the last selected project for that Job.
+If none of the affected projects has a preview, the panel explains that no
+affected project has a preview configured instead of starting an unrelated
+project. Repository-scoped "Preview main" is not diff-scoped, so it can offer
+all configured preview projects for the repository.
+
 `logs` declares files, relative to the preview workspace, that should be
 available to operators and agents while debugging a running preview. The Job
 detail Preview panel exposes these logs on demand, and workflow agents can read
