@@ -1135,6 +1135,51 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk).grep(/compute host admission deferred/)).to be_empty
     end
 
+    it "does not skip visual_review when the captured agent diff matches even if the workspace diff does not" do
+      job = job_with_single_run(step_kind: "visual_review")
+      wf = job.workflows.last
+      step = wf.first_step
+      run = step.runs.first
+      implement = wf.steps.create!(kind: "implement", position: 0, state: "succeeded")
+      implement.runs.create!(
+        job: job,
+        trigger_kind: wf.trigger_kind,
+        agent_provider: job.agent_provider,
+        state: "succeeded",
+        step_agent_diff: "diff --git a/app/frontend/routes/card.tsx b/app/frontend/routes/card.tsx\n+export const card = true\n"
+      )
+      syrus_yml = <<~YAML
+        visual_review:
+          enabled: true
+          when_files_changed:
+            - "app/frontend/**"
+      YAML
+      initialize_workspace_repo(
+        wf,
+        ".syrus.yml" => syrus_yml,
+        "lib/backend.rb" => "class Backend; end\n"
+      )
+      decision = RunHostAdmission::Decision.new(
+        action: "defer",
+        reason: "local_worker_pressure_critical",
+        delay: 30.seconds,
+        details: { "hostname" => "worker-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run, queue_name: "runs").and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(step.reload.details).not_to include("skip_reason" => "visual_review_when_files_changed_no_match")
+      expect(wf.reload.artifact("visual_review_iterations")).to be_nil
+      expect(wf.artifact("run_host_admission")).to include(
+        "action" => "defer",
+        "reason" => "local_worker_pressure_critical"
+      )
+    end
+
     it "abandons a Run as cancelled when its Workflow is already terminal" do
       job
       wf = job.workflows.last

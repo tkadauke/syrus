@@ -120,10 +120,33 @@ class RunPreAdmissionSkip
     private
 
     def changed_files
+      diff = latest_agentic_diff
+      return diff_file_paths(diff) if diff.present?
+
       GitRunner.new.run(
         "diff", "--name-only", "#{WorkflowWorkspace.base_ref_for(job, workflow: workflow)}...HEAD",
         chdir: workspace_path.to_s
       ).split("\n").map(&:strip).reject(&:empty?)
+    end
+
+    def latest_agentic_diff
+      workflow.steps.where(kind: agentic_kind, state: "succeeded")
+        .order(:position)
+        .last
+        &.latest_run
+        &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
+    end
+
+    def agentic_kind
+      Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present? ? "respond" : "implement"
+    end
+
+    def diff_file_paths(diff)
+      diff.to_s.each_line.filter_map do |line|
+        next unless line.start_with?("diff --git ")
+
+        line[/\Ab\/(.+)\z/, 1] || line.split.last&.sub(/\Ab\//, "")
+      end.compact_blank.uniq
     end
   end
 end
