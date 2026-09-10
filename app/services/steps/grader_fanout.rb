@@ -22,6 +22,7 @@ module Steps
     # never a stale entry left over from an earlier one.
     CARRIED_FORWARD_ARTIFACT_KEY = "grade_carried_forward_graders".freeze
     TARGET_HEALTH_SKIPS_ARTIFACT_KEY = "target_health_skipped_targets".freeze
+    TARGET_SELECTIONS_ARTIFACT_KEY = "grader_target_selections".freeze
 
     def call
       workspace.setup
@@ -47,9 +48,10 @@ module Steps
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
-      selections = plan.graders.map { |g| [ g, target_graph.affected(target_label_for(g), changed_files: matching_files) ] }
+      selections = selections_for(plan.graders, matching_files)
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
+      record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
@@ -96,7 +98,10 @@ module Steps
     private
 
     def changed_files
-      GitRunner.new.run("diff", "--name-only", "#{changed_files_base_ref}...HEAD", chdir: workspace.path.to_s)
+      base_ref = changed_files_base_ref
+      return [] if base_ref.blank?
+
+      GitRunner.new.run("diff", "--name-only", "#{base_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
     rescue GitRunner::GitError => e
       log("[grader_fanout] warning: could not determine changed files: #{e.message}")
@@ -106,7 +111,44 @@ module Steps
     def changed_files_base_ref
       return workflow.artifact("predicted_base_sha").presence if workflow.work_definition.landing_validation_child?
 
-      default_branch_ref
+      context_log = workflow.work_definition.grader_fanout_changed_files_log(workflow)
+      log(context_log) if context_log
+      workflow.work_definition.grader_fanout_changed_files_base_ref(
+        workflow: workflow,
+        default_base_ref: default_branch_ref
+      )
+    end
+
+    def selections_for(graders, matching_files)
+      baseline_reason = workflow.work_definition.grader_fanout_baseline_selection_reason(workflow)
+      return graders.map { |grader| [ grader, baseline_selection_for(grader, baseline_reason) ] } if baseline_reason
+
+      graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
+    end
+
+    def baseline_selection_for(grader, reason)
+      target = target_graph.target(target_label_for(grader))
+      TargetGraph::Selection.new(
+        target: target,
+        affected: true,
+        reason: reason
+      )
+    end
+
+    def record_target_selection_inputs!(selections)
+      entries = selections.map do |grader, selection|
+        fingerprints = target_fingerprints_for(grader)
+        {
+          "name" => grader.name,
+          "required" => grader.required,
+          "target_label" => target_label_for(grader),
+          "affected" => selection.affected,
+          "reason" => selection.reason,
+          "target_fingerprints" => fingerprints.to_h
+        }
+      end
+      workflow.set_artifact!(TARGET_SELECTIONS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(TARGET_SELECTIONS_ARTIFACT_KEY => entries))
     end
 
     # Explains every grader's selection/skip by name and target label -- the
@@ -487,10 +529,12 @@ module Steps
     end
 
     def target_fingerprints_for(grader)
-      TargetGraph::Fingerprints.for_target(
+      label = target_label_for(grader)
+      @target_fingerprints_by_label ||= {}
+      @target_fingerprints_by_label[label] ||= TargetGraph::Fingerprints.for_target(
         workspace_path: workspace.path,
         graph: target_graph,
-        label: target_label_for(grader)
+        label: label
       )
     end
 
