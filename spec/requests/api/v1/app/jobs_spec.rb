@@ -112,6 +112,22 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(jobs_payload.find { |j| j["id"] == without_epic.id }).to include("epic_title" => nil)
   end
 
+  it "treats state=open as any non-terminal job for CLI clients" do
+    user.update!(api_token: "syrus_cli_token")
+    running = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Running job", state: "open")
+    implemented = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Implemented job", state: "implemented")
+    approved = Factories.job_record(repository: repo, issue_number: 103, issue_title: "Approved job", state: "approved")
+    closed = Factories.job_record(repository: repo, issue_number: 104, issue_title: "Closed job", state: "closed")
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "open", limit: 10 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    job_ids = parse_body.fetch("jobs").map { |payload| payload.fetch("id") }
+    expect(job_ids).to include(running.id, implemented.id, approved.id)
+    expect(job_ids).not_to include(closed.id)
+  end
+
   it "includes latest_deployment_stage for compact jobs when stages are configured" do
     user.update!(api_token: "syrus_cli_token")
     staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
