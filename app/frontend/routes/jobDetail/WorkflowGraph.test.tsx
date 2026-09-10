@@ -364,7 +364,7 @@ describe("WorkflowsTab", () => {
               label: "Merge train",
               state: "requested",
               scope_type: "epic",
-              scope_id: 260,
+              scope_id: 30,
               wait_reason: null,
               wait_label: null,
               wait_until: null,
