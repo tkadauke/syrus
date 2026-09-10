@@ -266,10 +266,7 @@ module Steps
           )
         end
 
-        # Chain the new Steps in order and re-link the last one to
-        # the original continuation (grader_collect).
-        ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
-        new_steps.last.update!(next_step_id: continuation&.id)
+        link_materialized_grader_steps!(new_steps, continuation)
 
         # workflow-engine-v3 A5: the graders all run from this fanout, and the
         # continuation waits for every one of them. Stating the fan-in as edges
@@ -277,6 +274,18 @@ module Steps
         # plus a per-kind waits_for_terminal_step_kind rule.
         new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
         continuation&.update!(depends_on_ids: new_steps.map(&:id))
+      end
+    end
+
+    def link_materialized_grader_steps!(new_steps, continuation)
+      if distributed_parallel_grader_projection_enabled?
+        step.update!(next_step_id: new_steps.first&.id || continuation&.id)
+        new_steps.each { |grader| grader.update!(next_step_id: continuation&.id) }
+      else
+        # Gate-off workflows preserve the legacy linked-list shape: graders run
+        # one after another, then the original continuation collects them.
+        ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
+        new_steps.last.update!(next_step_id: continuation&.id)
       end
     end
 
@@ -301,7 +310,7 @@ module Steps
     end
 
     def distributed_grader_details(grader, source_snapshot:)
-      return {} unless Feature.distributed_workflow_dag_enabled?(repository)
+      return {} unless distributed_grader_projection_enabled?
 
       target_label = "//:grade/#{grader.name}"
       target_fingerprint = projected_target_fingerprint(grader, target_label)
@@ -324,7 +333,7 @@ module Steps
     end
 
     def current_source_snapshot_for_projection
-      return nil unless Feature.distributed_workflow_dag_enabled?(repository)
+      return nil unless distributed_grader_projection_enabled?
 
       source_sha = current_head_sha.presence
       tree_sha = current_tree_sha.presence
@@ -399,6 +408,14 @@ module Steps
 
     def grader_barrier_group
       [ "workflow", workflow.id, "loop", step.loop_id.presence || "none", "iteration", step.iteration, "grader_collect" ].join(":")
+    end
+
+    def distributed_grader_projection_enabled?
+      Feature.distributed_workflow_dag_enabled?(repository)
+    end
+
+    def distributed_parallel_grader_projection_enabled?
+      distributed_grader_projection_enabled? && WorkflowStepWorkerSlot.enabled?
     end
 
     def materialized_grader_steps

@@ -159,6 +159,50 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "projects legacy graders as parallel siblings behind a collect barrier when worker-slot admission is enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position).to_a
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
+    expect(step.reload.next_step_id).to eq(grader_steps.first.id)
+    expect(grader_steps.map(&:next_step_id)).to eq([ collect.id, collect.id ])
+    expect(grader_steps.map(&:depends_on_step_ids)).to eq([ [ step.id ], [ step.id ] ])
+    expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
+  end
+
+  it "keeps distributed metadata but preserves serial links until worker-slot admission is enabled" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: false)
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position).to_a
+    expect(grader_steps.map { |s| s.details["source_snapshot_id"] }).to all(be_present)
+    expect(step.reload.next_step_id).to eq(grader_steps.first.id)
+    expect(grader_steps.first.next_step_id).to eq(grader_steps.second.id)
+    expect(grader_steps.second.next_step_id).to eq(collect.id)
+    expect(collect.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
+  end
+
   it "prefers a published checkpoint ref for the current source snapshot" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
