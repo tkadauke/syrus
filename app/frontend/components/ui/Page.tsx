@@ -20,8 +20,8 @@ function Root({ size = "default", className = "", ...props }: PageRootProps) {
   return <main className={classes("mx-auto w-full space-y-6 px-[var(--space-page-x)] py-[var(--space-page-y)]", PAGE_SIZE_CLASSES[size], className)} {...props} />
 }
 
-function Header({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={classes("flex flex-wrap items-start justify-between gap-4", className)} {...props} />
+function Header({ className = "", ...props }: HTMLAttributes<HTMLElement>) {
+  return <header className={classes("flex flex-wrap items-start justify-between gap-4", className)} {...props} />
 }
 
 function HeadingGroup({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {

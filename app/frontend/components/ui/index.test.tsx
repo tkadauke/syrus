@@ -164,6 +164,7 @@ describe("@app/components/ui", () => {
 
     expect(screen.getByRole("main", { name: "Dashboard page" }).className).toContain("max-w-[96rem]")
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" }).className).toContain("text-[length:var(--text-page-title)]")
+    expect(screen.getByRole("heading", { level: 1, name: "Dashboard" }).closest("header")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Work attempts" }).className).toContain("bg-surface-subtle")
     expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
   })
@@ -188,6 +189,10 @@ describe("@app/components/ui", () => {
         <Notice aria-live="polite" title="Landing queue is blocked" tone="warning">
           A dependency is waiting.
         </Notice>
+        <Notice contentClassName="flex justify-between" title="Repository health" tone="danger">
+          <span>Broken</span>
+          <button>Repair</button>
+        </Notice>
         <Pill active aria-label="Running" tone="info">Running</Pill>
         <Badge data-testid="badge" tone="success">primary</Badge>
       </>
@@ -195,6 +200,8 @@ describe("@app/components/ui", () => {
 
     expect(screen.getByText("Landing queue is blocked").closest("div")).toHaveAttribute("aria-live", "polite")
     expect(screen.getByText("Landing queue is blocked").closest("div")?.className).toContain("bg-warning-surface")
+    expect(screen.getByRole("button", { name: "Repair" }).parentElement?.className).toContain("flex")
+    expect(screen.getByRole("button", { name: "Repair" }).parentElement?.className).toContain("justify-between")
     expect(screen.getByLabelText("Running").className).toContain("bg-info-surface")
     expect(screen.getByLabelText("Running").querySelector("[data-running-spinner]")).toBeInTheDocument()
     expect(screen.getByTestId("badge").className).toContain("rounded-[var(--radius-control)]")

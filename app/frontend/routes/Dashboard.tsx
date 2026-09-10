@@ -337,75 +337,73 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
           : null
 
         return (
-          <Notice className="px-4 py-3" key={repo.id} role="alert" tone="danger">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <span>
-                  <span className="font-mono font-medium">{repo.slug}</span>
-                  {" — "}{t(repo.main_health === "inconclusive"
-                    ? "main_health_inconclusive_banner_not_held"
-                    : (repo.landing_paused && repo.main_branch_repair_blocks_work ? "broken_main_banner" : "broken_main_banner_not_held")
-                  )}
-                </span>
-                {repair ? (
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    {blockingJob ? (
-                      <span>
-                        {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
-                        <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
-                          {blockingJob.slug}
-                        </Link>
-                      </span>
-                    ) : null}
-                    {failedJobs.length > 0 ? (
-                      <span>
-                        {t("broken_main_repair_failed_jobs")}{" "}
-                        {failedJobs.map((job, index) => (
-                          <span key={job.id}>
-                            {index > 0 ? ", " : null}
-                            <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(job.job_path, prefix)}>
-                              {job.slug}
-                            </Link>
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                    {repair.blocked_reason === "waiting_for_health_signals" ? <span>{t("broken_main_repair_waiting_for_signals")}</span> : null}
-                    {repair.blocked_reason === "failed_open_cap" ? <span>{t("broken_main_repair_cap")}</span> : null}
-                    {repairError ? <span className="font-medium">{repairError}</span> : null}
-                  </div>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {repair?.can_request ? (
-                  <button
-                    className={buttonClasses("secondary", "sm", "disabled:cursor-not-allowed disabled:opacity-60")}
-                    disabled={isStartingRepair}
-                    onClick={() => requestRepair.mutate(repo.repair_path)}
-                    type="button"
-                  >
-                    {isStartingRepair ? t("broken_main_repair_starting") : t("broken_main_repair_start")}
-                  </button>
-                ) : null}
-                <Link
-                  className={buttonClasses("secondary", "sm")}
-                  to={withRoutePrefix(repo.repository_path, prefix)}
-                >
-                  {t("broken_main_view_details")}
-                </Link>
+          <Notice className="px-4 py-3" contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert" tone="danger">
+            <div className="min-w-0">
+              <span>
+                <span className="font-mono font-medium">{repo.slug}</span>
+                {" — "}{t(repo.main_health === "inconclusive"
+                  ? "main_health_inconclusive_banner_not_held"
+                  : (repo.landing_paused && repo.main_branch_repair_blocks_work ? "broken_main_banner" : "broken_main_banner_not_held")
+                )}
+              </span>
+              {repair ? (
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  {blockingJob ? (
+                    <span>
+                      {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
+                      <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
+                        {blockingJob.slug}
+                      </Link>
+                    </span>
+                  ) : null}
+                  {failedJobs.length > 0 ? (
+                    <span>
+                      {t("broken_main_repair_failed_jobs")}{" "}
+                      {failedJobs.map((job, index) => (
+                        <span key={job.id}>
+                          {index > 0 ? ", " : null}
+                          <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(job.job_path, prefix)}>
+                            {job.slug}
+                          </Link>
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                  {repair.blocked_reason === "waiting_for_health_signals" ? <span>{t("broken_main_repair_waiting_for_signals")}</span> : null}
+                  {repair.blocked_reason === "failed_open_cap" ? <span>{t("broken_main_repair_cap")}</span> : null}
+                  {repairError ? <span className="font-medium">{repairError}</span> : null}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {repair?.can_request ? (
                 <button
-                  aria-label={t("broken_main_dismiss")}
-                  className="text-danger hover:text-danger-text"
-                  onClick={() => setDismissals((prev) => {
-                    const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
-                    writeHealthBannerDismissals(next)
-                    return next
-                  })}
+                  className={buttonClasses("secondary", "sm", "disabled:cursor-not-allowed disabled:opacity-60")}
+                  disabled={isStartingRepair}
+                  onClick={() => requestRepair.mutate(repo.repair_path)}
                   type="button"
                 >
-                  <CloseIcon />
+                  {isStartingRepair ? t("broken_main_repair_starting") : t("broken_main_repair_start")}
                 </button>
-              </div>
+              ) : null}
+              <Link
+                className={buttonClasses("secondary", "sm")}
+                to={withRoutePrefix(repo.repository_path, prefix)}
+              >
+                {t("broken_main_view_details")}
+              </Link>
+              <button
+                aria-label={t("broken_main_dismiss")}
+                className="text-danger hover:text-danger-text"
+                onClick={() => setDismissals((prev) => {
+                  const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
+                  writeHealthBannerDismissals(next)
+                  return next
+                })}
+                type="button"
+              >
+                <CloseIcon />
+              </button>
             </div>
           </Notice>
         )
@@ -456,36 +454,34 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
   if (dismissedToken === token) return null
 
   return (
-    <Notice className={className} role="status" tone="warning">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <span>
-            {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
-            {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
-          </span>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            {untaggedIssues.repositories.map((repo, index) => (
-              <span key={repo.id}>
-                {index > 0 ? ", " : null}
-                <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(repo.issues_path, prefix)}>
-                  {repo.slug} ({repo.count})
-                </Link>
-              </span>
-            ))}
-          </div>
+    <Notice className={className} contentClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" role="status" tone="warning">
+      <div className="min-w-0">
+        <span>
+          {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
+          {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
+        </span>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {untaggedIssues.repositories.map((repo, index) => (
+            <span key={repo.id}>
+              {index > 0 ? ", " : null}
+              <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(repo.issues_path, prefix)}>
+                {repo.slug} ({repo.count})
+              </Link>
+            </span>
+          ))}
         </div>
-        <button
-          aria-label={t("untagged_issues_dismiss")}
-          className="shrink-0 text-warning hover:text-warning-text"
-          onClick={() => {
-            setDismissedToken(token)
-            writeUntaggedIssuesDismissal(token)
-          }}
-          type="button"
-        >
-          <CloseIcon />
-        </button>
       </div>
+      <button
+        aria-label={t("untagged_issues_dismiss")}
+        className="shrink-0 text-warning hover:text-warning-text"
+        onClick={() => {
+          setDismissedToken(token)
+          writeUntaggedIssuesDismissal(token)
+        }}
+        type="button"
+      >
+        <CloseIcon />
+      </button>
     </Notice>
   )
 }
