@@ -3,12 +3,13 @@ class CodingHandoffCapture
 
   def self.capture!(...) = new(...).capture!
 
-  def initialize(chat_session:, repository:, user:, source_branch:, handoff_branch:, git: GitRunner.new(env: { "GIT_TERMINAL_PROMPT" => "0" }))
+  def initialize(chat_session:, repository:, user:, source_branch:, handoff_branch:, base_ref: nil, git: GitRunner.new(env: { "GIT_TERMINAL_PROMPT" => "0" }))
     @chat_session = chat_session
     @repository = repository
     @user = user
     @source_branch = source_branch.to_s
     @handoff_branch = handoff_branch.to_s
+    @base_ref = base_ref.to_s.presence
     @git = git
   end
 
@@ -20,9 +21,9 @@ class CodingHandoffCapture
     fetch_default_branch!
 
     head_sha = rev_parse("HEAD")
-    base_sha = rev_parse(default_ref)
-    changed_files = diff_files
-    raise CaptureError, "coding handoff branch has no committed changes against #{repository.default_branch}" if changed_files.empty?
+    base_sha = diff_base_sha
+    changed_files = diff_files(base_sha)
+    raise CaptureError, "coding handoff branch has no committed changes against #{base_label}" if changed_files.empty?
 
     publish_snapshot!(head_sha)
 
@@ -31,6 +32,8 @@ class CodingHandoffCapture
       "handoff_branch" => handoff_branch,
       "head_sha" => head_sha,
       "base_sha" => base_sha,
+      "base_ref" => base_ref,
+      "base_label" => base_label,
       "default_branch" => repository.default_branch,
       "changed_files" => changed_files,
       "captured_at" => Time.current.iso8601,
@@ -40,7 +43,7 @@ class CodingHandoffCapture
 
   private
 
-  attr_reader :chat_session, :repository, :user, :source_branch, :handoff_branch, :git
+  attr_reader :chat_session, :repository, :user, :source_branch, :handoff_branch, :base_ref, :git
 
   def checkout_path
     @checkout_path ||= ChatWorkspace.repo_path_for(chat_session, repository)
@@ -74,8 +77,26 @@ class CodingHandoffCapture
     git.run("rev-parse", ref, chdir: checkout_path.to_s).strip
   end
 
-  def diff_files
-    git.run("diff", "--name-only", "#{default_ref}...HEAD", chdir: checkout_path.to_s)
+  def diff_base_sha
+    if base_ref.present?
+      sha = rev_parse(base_ref)
+      begin
+        git.run("merge-base", "--is-ancestor", sha, "HEAD", chdir: checkout_path.to_s)
+      rescue GitRunner::GitError
+        raise CaptureError, "coding checkout HEAD is not based on previous handoff #{sha}"
+      end
+      return sha
+    end
+
+    git.run("merge-base", default_ref, "HEAD", chdir: checkout_path.to_s).strip
+  end
+
+  def base_label
+    base_ref.presence || repository.default_branch
+  end
+
+  def diff_files(base_sha)
+    git.run("diff", "--name-only", "#{base_sha}..HEAD", chdir: checkout_path.to_s)
       .lines
       .map(&:strip)
       .reject(&:empty?)

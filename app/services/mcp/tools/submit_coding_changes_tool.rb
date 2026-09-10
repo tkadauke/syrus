@@ -60,7 +60,8 @@ module Mcp::Tools
           "repository_id" => repository.id,
           "branch" => branch,
           "title" => title,
-          "description" => description
+          "description" => description,
+          "stack" => stack_context_for(chat_session, repository)
         }
 
         pending_action = chat_session.pending_actions.create!(
@@ -100,6 +101,21 @@ module Mcp::Tools
 
       def auto_submit_coding_handoff?(chat_session)
         chat_session.active_goal&.auto_submit_coding_handoff? || false
+      end
+
+      def stack_context_for(chat_session, repository)
+        stack = chat_session.artifact("coding_handoff_stack")
+        return { "lineage" => "fresh_main" } unless stack.is_a?(Hash)
+        return { "lineage" => "fresh_main" } unless stack["repository_id"].to_i == repository.id
+
+        stack.slice(
+          "lineage",
+          "last_handoff_job_id",
+          "last_base_sha",
+          "last_head_sha",
+          "last_handoff_branch",
+          "last_source_branch"
+        ).compact
       end
 
       def message_for(branch:, auto_submitted:)

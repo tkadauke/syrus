@@ -270,6 +270,8 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received[:prompt]).to include("Coding Mode")
     expect(received[:prompt]).to include("implement code")
     expect(received[:prompt]).to include("complete_implement_step")
+    expect(received[:prompt]).to include("recommend handing off with")
+    expect(received[:prompt]).to include("checkout remains at the submitted HEAD")
     expect(received[:prompt]).to include("grader")
   end
 
