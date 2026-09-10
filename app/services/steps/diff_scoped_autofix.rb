@@ -54,6 +54,44 @@ module Steps
       end
     end
 
+    def reusable_target_health?(target_label)
+      result = target_health_reuse.for_target(target_label)
+      if result.reusable?
+        record_target_health_skip!(target_label, result)
+        true
+      else
+        log("[#{step.kind}] target health miss for #{target_label}: #{result.reason}")
+        false
+      end
+    rescue TargetGraph::Error => e
+      log("[#{step.kind}] target health unavailable for #{target_label}: #{e.message}")
+      false
+    end
+
+    def record_target_health_skip!(target_label, result)
+      ref = result.record_refs.first || {}
+      entry = {
+        "target_label" => target_label,
+        "reason" => result.reason,
+        "target_health_record_refs" => result.record_refs
+      }.merge(ref.slice("target_health_record_id", "commit_sha", "checked_at")).compact
+      key = "#{step.kind}_target_health_skips"
+      entries = Array(step.details&.dig(key)) + [ entry ]
+      step.update!(details: step.details.to_h.merge(key => entries))
+      workflow.set_artifact!(key, entries)
+
+      commit = entry["commit_sha"].to_s.first(7).presence || "unknown commit"
+      log("[#{step.kind}] skipped #{target_label} (#{result.reason} from #{commit})")
+    end
+
+    def target_health_reuse
+      @target_health_reuse ||= TargetHealthReuse.new(
+        repository: repository,
+        graph: TargetGraph::Compiler.compile(workspace.path),
+        workspace_path: workspace.path
+      )
+    end
+
     def run_shell(cmd)
       tail = +""
       result = ProcessRunner.new(
