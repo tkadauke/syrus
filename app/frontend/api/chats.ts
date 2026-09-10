@@ -651,13 +651,12 @@ export type ChatPreviewPanelVersion = {
 export type ChatPreviewPanelVisibility = "private" | "public"
 export type ChatPreviewPanelViewerKind = "html" | "markdown" | "pdf" | "image" | "unsupported"
 
-export type ChatPreviewPanel = {
+export type PreviewPanelPayload = {
   id: number
   title: string
   file_count: number
   url: string
   visibility: ChatPreviewPanelVisibility
-  app_close_path: string
   app_visibility_path: string
   app_export_path: string
   app_file_base_path: string
@@ -667,6 +666,10 @@ export type ChatPreviewPanel = {
   entry_content_type: string
   entry_viewer_kind: ChatPreviewPanelViewerKind
   versions: ChatPreviewPanelVersion[]
+}
+
+export type ChatPreviewPanel = PreviewPanelPayload & {
+  app_close_path: string
 }
 
 export type ChatPreviewPanelFileContent = {
