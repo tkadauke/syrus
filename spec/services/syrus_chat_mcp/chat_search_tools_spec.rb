@@ -53,7 +53,9 @@ RSpec.describe "Mcp::Tools chat search tools" do
       expect(results.map { |result| result[:chat_session_id] }).to eq([ chat_session.id, chat_session.id ])
       expect(results.map { |result| result[:role] }).to eq(%w[user assistant])
       expect(results.first).to include(
+        message_id: stronger.id,
         chat_title: "Current chat",
+        repository: repository.slug,
         snippet: a_string_including("<b>needle</b>"),
         created_at: stronger.created_at.iso8601
       )
