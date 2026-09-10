@@ -187,6 +187,25 @@ describe("renderChatMessages tool grouping", () => {
     expect(call.result_summary).toBe("DOC-99 — Big Design Doc")
   })
 
+  it("includes tool input in custom collapsed result summaries", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_cancel", toolName: "cancel_job", input: { job_id: 44 } }),
+      toolResult(2, {
+        toolUseId: "tu_cancel",
+        content: JSON.stringify({
+          pending_action_id: 7,
+          state: "pending",
+          message: "Job cancellation requires operator confirmation."
+        })
+      })
+    ])
+
+    const call = group(items[0]).calls[0]
+
+    expect(call.detail).toBe('{"job_id":44}')
+    expect(call.result_summary).toBe("Cancel requested · JOB-44 · pending #7")
+  })
+
   it("groups consecutive read-only calls under a compact inspection summary", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

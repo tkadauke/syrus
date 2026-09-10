@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { isPlainObject } from "@app/pluginToolCards"
+import { isPlainObject } from "../../toolCardParsing"
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared presentation for the pending-action MCP tool family (the pending-action tool-card work /

@@ -84,7 +84,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         open.call.result_body = body
         open.call.result_json = parseJsonText(unboundedBody)
         open.call.result_error = data.error === true
-        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error, unboundedBody)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error, unboundedBody, isRecord(open.call.raw_payload) ? open.call.raw_payload : {})
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata

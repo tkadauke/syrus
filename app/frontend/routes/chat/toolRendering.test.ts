@@ -120,6 +120,18 @@ describe("toolResultPresentation", () => {
 
     expect(result).toMatchObject({ kind: "error", summary: "Delete document \"Old notes\"?" })
   })
+
+  it("passes tool input to registered collapsed-summary cards", () => {
+    const result = toolResultPresentation(
+      "cancel_job",
+      JSON.stringify({ pending_action_id: 7, state: "pending", message: "Job cancellation requires operator confirmation." }),
+      false,
+      JSON.stringify({ pending_action_id: 7, state: "pending", message: "Job cancellation requires operator confirmation." }),
+      { job_id: 44 }
+    )
+
+    expect(result).toMatchObject({ kind: "text", summary: "Cancel requested · JOB-44 · pending #7" })
+  })
 })
 
 describe("typedToolResult", () => {

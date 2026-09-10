@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
 //
@@ -39,12 +40,6 @@ export type ToolCardRenderer = {
   // regardless of which body renders (see MessageCards.tsx ToolGroup),
   // and the row itself stays collapsed by default .
   renderExpanded: (context: ToolCardContext) => ReactNode | null
-}
-
-// Small guard card authors can reuse to defend against a malformed or
-// unexpected parsedResult shape instead of hand-rolling their own check.
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Object.prototype.toString.call(value) === "[object Object]"
 }
 
 type ToolCardModule = { default?: ToolCardRenderer }

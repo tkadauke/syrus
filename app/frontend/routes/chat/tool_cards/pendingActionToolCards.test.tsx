@@ -1,12 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import rebaseJobCard from "./rebase_job"
 import retryJobCard from "./retry_job"
 import runVisualReviewCard from "./run_visual_review"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"
-import pollJobFeedbackCard from "./poll_job_feedback"
 import pauseLandingQueueCard from "./pause_landing_queue"
 import resumeLandingQueueCard from "./resume_landing_queue"
 import adminCleanupWorkspaceCard from "./admin_cleanup_workspace"
@@ -46,12 +44,10 @@ import reconcileJobStateCard from "./reconcile_job_state"
 // This file exports no ToolCardRenderer of its own; pluginToolCards.tsx
 // excludes *.test.tsx from its card glob, so it is never discovered.
 const CARDS: Array<[string, ToolCardRenderer]> = [
-  ["rebase_job", rebaseJobCard],
   ["retry_job", retryJobCard],
   ["run_visual_review", runVisualReviewCard],
   ["delegate_issue", delegateIssueCard],
   ["check_job_mergeability", checkJobMergeabilityCard],
-  ["poll_job_feedback", pollJobFeedbackCard],
   ["pause_landing_queue", pauseLandingQueueCard],
   ["resume_landing_queue", resumeLandingQueueCard],
   ["admin_cleanup_workspace", adminCleanupWorkspaceCard],
@@ -88,8 +84,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(34)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(34)
+    expect(CARDS).toHaveLength(32)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(32)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {
@@ -114,8 +110,8 @@ describe("pending action tool card family", () => {
       message: "Rebase JOB-322 onto main?"
     }
 
-    expect(rebaseJobCard.collapsedSummary?.(context("rebase_job", parsedResult))).toBe("Rebase JOB-322 onto main?")
-    render(<>{rebaseJobCard.renderExpanded(context("rebase_job", parsedResult))}</>)
+    expect(retryJobCard.collapsedSummary?.(context("retry_job", parsedResult))).toBe("Rebase JOB-322 onto main?")
+    render(<>{retryJobCard.renderExpanded(context("retry_job", parsedResult))}</>)
     expect(screen.getByText("#501")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
   })
