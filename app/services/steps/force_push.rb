@@ -112,7 +112,7 @@ module Steps
     def current_landing_grader_fingerprint
       plan = RepoGradePlan.for(workspace.path)
       plan = LandingGraderPlan.landing(plan)
-      GraderConclusionCache.fingerprint_for_plan(plan)
+      GraderConclusionCache.fingerprint_for_plan(plan, target_graph: TargetGraph::Compiler.compile(workspace.path))
     rescue StandardError => e
       log("force_push: could not fingerprint current landing graders for carry-forward: #{e.message}", kind: "system")
       nil

@@ -14,6 +14,8 @@ module Steps
   # can evolve over the workflow's lifetime without re-interpreting
   # historical Steps.
   class Grader < Base
+    include PrepareTargetExecution
+
     TIMEOUT_EXIT_CODE = 124
     OUTPUT_INLINE_BYTES = 16 * 1024
 
@@ -24,6 +26,7 @@ module Steps
       name = definition.fetch("name") { raise StepFailed, "grader Step missing details[name]" }
       command = definition.fetch("command") { raise StepFailed, "grader Step missing details[command]" }
       timeout_minutes = (definition["timeout_minutes"] || 15).to_i
+      prepare_target_results = run_prepare_target_dependencies!(definition["prepare_targets"], requested_by: "#{step.kind}:#{name}")
 
       log("[grader:#{name}] $ #{command}")
 
@@ -96,6 +99,7 @@ module Steps
       # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
       step.update!(details: definition.merge(
+        "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
         "duration_s" => duration_s.round(1),
         "timed_out" => timed_out,
@@ -112,6 +116,14 @@ module Steps
     end
 
     private
+
+    def prepare_dependency_status(result)
+      return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?
+      return "operator killed" if result.operator_killed?
+      return "stopped" if result.stopped?
+
+      "exit #{result.exit_status || "unknown"}"
+    end
 
     def run_with_span_recording(runner_command:, display_command:, timeout_minutes:, span_recorder:, file:, sink:)
       ProcessRunner.new(

@@ -141,6 +141,15 @@ Agentic. The primary coding step: the agent reads the issue, explores the repo, 
 
 In `initial` and `retry` (and `respond` in the feedback workflows), the agent step is always a bare top-level step — it runs exactly once, unconditionally, regardless of whether adversarial review, visual review, or a grade loop are configured for the repository. The `adversarial_review`, `visual_review`, and grader retry loops that follow only decide whether (and how) that work gets revised; see the `adversarial_review` step and the `format`/`generate` section below.
 
+The agent environment snapshot lists compiled TargetGraph prepare targets under
+"Target prepare options". An implementation agent that discovers it needs a
+project-specific environment can call the workflow MCP tool
+`run_target_prepare(label:, reason:)` for one of those targets. This is an
+explicit, audited request path only; it does not make Syrus infer
+implementation scope up front, and root `prepare` remains the only automatic
+pre-implementation setup step. Requests are recorded on
+`Workflow#artifacts["target_prepare_requests"]`.
+
 **No-change outcome:** When the agent runs successfully but produces no diff
 (it correctly determined the requested work was already done), the step raises
 `Steps::Base::NoChangesProduced`. The workflow fails as normal for audit

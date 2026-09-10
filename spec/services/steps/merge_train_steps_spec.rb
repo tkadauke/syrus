@@ -428,6 +428,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler = described_class.new(run)
       git = stub_git(handler)
       allow(handler).to receive(:run_agent)
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(TargetGraph.new)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
       allow(git).to receive(:run).with("diff", "--name-only", "basesha123...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
 
@@ -471,6 +472,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler = described_class.new(run)
       git = stub_git(handler, head: "newint222")
       allow(handler).to receive(:run_agent)
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(TargetGraph.new)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
       allow(git).to receive(:run).with("diff", "--name-only", "basesha123...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
 
@@ -1601,7 +1603,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
       allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
-      allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+      target_graph = TargetGraph.new
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(target_graph)
+      expect(GraderConclusionCache).to receive(:fingerprint_for_plan).with(anything, target_graph: target_graph).and_return("fp")
 
       handler.call
 
@@ -1663,6 +1667,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
       allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/ws")).and_return(TargetGraph.new)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("new-fp")
 
       handler.call

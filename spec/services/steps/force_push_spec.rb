@@ -203,13 +203,17 @@ RSpec.describe Steps::ForcePush do
         grader_fingerprint: "fp",
         changed_files_fingerprint: LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
       )
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/workspace")).and_return(TargetGraph.new)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
     end
 
     it "re-stamps the landing validation for the new head/base when the repo trusts clean rebases" do
       job.repository.update!(trust_clean_rebase_grade: true)
       handler = described_class.new(run)
+      target_graph = TargetGraph.new
       stub_git(handler)
+      allow(TargetGraph::Compiler).to receive(:compile).with(Pathname.new("/tmp/workspace")).and_return(target_graph)
+      expect(GraderConclusionCache).to receive(:fingerprint_for_plan).with(anything, target_graph: target_graph).and_return("fp")
 
       handler.call
 

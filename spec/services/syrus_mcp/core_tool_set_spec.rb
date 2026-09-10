@@ -27,7 +27,7 @@ RSpec.describe SyrusMcp::CoreToolSet do
         "get_coverage_report", "read_run_worker_health",
         "start_preview", "stop_preview", "read_preview_log",
         "report_main_concern",
-        "submit_summary", "submit_test_plan", "submit_artifact", "submit_visual_artifact", "submit_job_metadata", "submit_adversarial_review"
+        "submit_summary", "submit_test_plan", "submit_artifact", "run_target_prepare", "submit_visual_artifact", "submit_job_metadata", "submit_adversarial_review"
       )
     end
 

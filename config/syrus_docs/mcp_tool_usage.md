@@ -113,6 +113,12 @@ the agent to call the exact name shown in its tool list; a bare call such as
 `submit_summary` can fail when the sidecar is connected but the tool was
 advertised under a prefixed name.
 
+Workflow implementation agents also get `run_target_prepare`, a mutation tool
+for explicitly running a compiled TargetGraph `kind: prepare` target after the
+agent discovers it needs that project environment. Its durable audit trail is
+the workflow artifact `target_prepare_requests`; MCP usage rows still record
+the tool call itself the same way as other workflow-sidecar tools.
+
 Tool implementations live under `Mcp::Tools`, and the stdio server processes
 are built through the shared `Mcp::Sidecar` infrastructure. Protocol-visible
 server names remain stable: `syrus-chat-sidecar`,

@@ -12,6 +12,7 @@ RSpec.describe GraderConclusionCache do
       when_files_changed: when_files_changed,
       junit_output: nil,
       failures: "strict",
+      deps: [],
       metadata: {}
     )
   end
@@ -44,6 +45,21 @@ RSpec.describe GraderConclusionCache do
     )
 
     expect(described_class.fingerprint_for_plan(first)).to eq(described_class.fingerprint_for_plan(second))
+  end
+
+  it "fingerprints dependency refs because they affect grader selection" do
+    first = RepoGradePlan::Result.new(
+      graders: [ grader(name: "site").with(deps: [ ":frontend" ]) ],
+      source: ".syrus.yml",
+      note: nil,
+      max_iterations: 1,
+      rerun_only_failed: false
+    )
+    second = first.with(
+      graders: [ grader(name: "site").with(deps: [ ":backend" ]) ]
+    )
+
+    expect(described_class.fingerprint_for_plan(first)).not_to eq(described_class.fingerprint_for_plan(second))
   end
 
   it "reads grader status from the latest run projection when step state is stale" do

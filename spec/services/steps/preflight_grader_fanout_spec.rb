@@ -196,6 +196,28 @@ RSpec.describe Steps::PreflightGraderFanout do
     )
   end
 
+  it "snapshots prepare dependency commands onto the step details" do
+    write_grade_config(<<~YAML)
+      targets:
+        - name: deps
+          kind: prepare
+          run: npm ci
+      grade:
+        - name: tests
+          run: npm test
+          deps: [":deps"]
+    YAML
+
+    handler.call
+
+    details = workflow.steps.find_by!(kind: "preflight_grader").details
+    expect(details["target_label"]).to eq("//:grade/tests")
+    expect(details["prepare_commands"]).to eq([ "npm ci" ])
+    expect(details["prepare_targets"]).to eq([
+      { "target_label" => "//:deps", "commands" => [ "npm ci" ] }
+    ])
+  end
+
   # `fast:` no longer selects anything — a config still carrying it falls back
   # to `run:`, which is the parallel command now.
   it "ignores a legacy fast command for main-branch repair preflight checks" do

@@ -13,6 +13,11 @@ class TargetGraph
     :label, :kind, :project_id, :source_scope, :command, :dependencies,
     :phases, :required, :timeout_minutes, :owner_config_path, :metadata
   ) do
+    # `builder` is reserved: no `.syrus.yml` primitive compiles into it yet
+    # (there is no `build:` legacy section), but the kind is defined here so
+    # a later compiler change doesn't also need a graph-model change. See
+    # "The `builder` kind is reserved, not compiled" in
+    # config/syrus_docs/target_graph.md.
     KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
     # Mirrors SyrusYml::GRADE_PHASES's vocabulary, but this graph model does
     # not depend on SyrusYml -- it is meant to stand on its own so a future

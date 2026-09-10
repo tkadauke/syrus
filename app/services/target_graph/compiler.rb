@@ -9,16 +9,29 @@ class TargetGraph
   # project, with its legacy sections compiled into targets under that
   # project the exact same way the root file's sections are.
   #
-  # This is representation only: nothing in the runtime prepare/format/
-  # generate/grader pipelines (RepoPrepPlan, Steps::Format, Steps::Generate,
-  # RepoGradePlan/grader_fanout) reads from the compiled graph yet, and this
-  # class does not change what those pipelines do -- including for nested
-  # `.syrus.yml` files, which today have no effect on any of those pipelines
-  # either. Root `.syrus.yml` compilation is unchanged by this: a repository
-  # with no nested config compiles exactly as it did before nested discovery
-  # existed. It exists so operator tooling and later graph-aware selection
-  # code (explicit projects/targets) have one real compiler to build on
-  # instead of a graph model nothing populates.
+  # There is no `#compile_builders!` here on purpose: `builder` is a
+  # reserved TargetGraph::Target kind (see its KINDS comment) with no
+  # `.syrus.yml` primitive behind it yet. A future `build:` section should
+  # add a `#compile_builders!` alongside the methods below, following the
+  # same per-section shape (root + nested, `scoped_source_scope` for its
+  # affected-file default) -- see "The `builder` kind is reserved, not
+  # compiled" in config/syrus_docs/target_graph.md.
+  #
+  # `Steps::GraderFanout` is the one runtime consumer so far: it calls
+  # `TargetGraph#affected`/`#affected_targets` (see config/syrus_docs/
+  # target_graph.md) to decide whether a root grader is affected by the
+  # current diff, through its own source scope or a `deps:` dependency's.
+  # `RepoPrepPlan`, `Steps::Format`, and `Steps::Generate` still don't read
+  # the compiled graph, and a nested `.syrus.yml`'s formatter/generator/
+  # builder/grader targets don't materialize as workflow Steps yet -- they
+  # compile into the graph (so graph-level tooling and dependency closures
+  # can already see them) but nothing executes them, pending a decision on
+  # what directory a nested target's command should run from. Root
+  # `.syrus.yml` compilation is unchanged by any of this: a repository with
+  # no nested config compiles exactly as it did before nested discovery
+  # existed. This class exists so operator tooling and later graph-aware
+  # selection code (explicit projects/targets) have one real compiler to
+  # build on instead of a graph model nothing populates.
   #
   # Step 3 of that same slice -- see #scoped_source_scope -- resolves each
   # legacy executable declaration's affected-file scope by the directory of
@@ -86,6 +99,7 @@ class TargetGraph
 
     def compile
       graph = TargetGraph.new(root_project: root_project_override)
+      compile_explicit_targets!(graph)
       compile_prepare!(graph)
       compile_formatters!(graph)
       compile_generated!(graph)
@@ -246,6 +260,7 @@ class TargetGraph
           )
         )
 
+        compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_prepare!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_formatters!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
         compile_generated!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -314,6 +329,24 @@ class TargetGraph
       )
     end
 
+    def compile_explicit_targets!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
+      return unless syrus_config
+
+      syrus_config.targets.each do |target|
+        graph.add_target(
+          TargetGraph::Target.new(
+            label: label_for(target.name, package: package),
+            kind: target.kind,
+            project_id: project_id,
+            source_scope: scoped_source_scope(package, target.sources),
+            command: target.command,
+            dependencies: resolved_dependencies(target.deps, package: package),
+            owner_config_path: config_path
+          )
+        )
+      end
+    end
+
     def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
       return unless syrus_config
       return unless syrus_config.formatters.is_a?(Array)
@@ -326,7 +359,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, formatter.files),
             command: formatter.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(formatter.deps, package: package),
             owner_config_path: config_path
           )
         )
@@ -345,7 +378,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, entry.sources),
             command: entry.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(entry.deps, package: package),
             owner_config_path: config_path,
             metadata: { "generates" => entry.generates, "codegen_ignore" => entry.codegen_ignore }
           )
@@ -362,7 +395,7 @@ class TargetGraph
             project_id: project_id,
             source_scope: scoped_source_scope(package, grader.when_files_changed),
             command: grader.command,
-            dependencies: [ TargetGraph.root_label ],
+            dependencies: legacy_dependencies(grader.deps, package: package),
             phases: grader.phases,
             required: grader.required,
             timeout_minutes: positive_timeout(grader.timeout_minutes),
@@ -382,6 +415,16 @@ class TargetGraph
     # shouldn't blow up compilation of an otherwise-valid legacy config.
     def positive_timeout(timeout_minutes)
       timeout_minutes if timeout_minutes.is_a?(Integer) && timeout_minutes.positive?
+    end
+
+    def legacy_dependencies(raw_dependencies, package:)
+      [ TargetGraph.root_label, *resolved_dependencies(raw_dependencies, package: package) ].uniq
+    end
+
+    def resolved_dependencies(raw_dependencies, package:)
+      Array(raw_dependencies).map { |dependency| TargetGraph::Label.resolve(dependency, package: package) }
+    rescue TargetGraph::Label::ParseError => e
+      raise TargetGraph::ValidationError, e.message
     end
   end
 end

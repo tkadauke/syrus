@@ -26,7 +26,7 @@ module Steps
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
-      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan)
+      grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
       apply_loop_max_iterations!(plan.max_iterations)
 
@@ -39,12 +39,15 @@ module Steps
       end
       log("[grader_fanout] using #{grader_phase} grader phase") unless review_grader_context?
 
-      # Skip graders whose when_files_changed globs don't match this PR's diff.
+      # Skip graders whose target isn't affected by this PR's diff -- own
+      # source scope (when_files_changed) or, transitively, a declared
+      # dependency's source scope (TargetGraph#affected).
       files = changed_files
       record_changed_files!(files)
       matching_files = matching_files_for(files)
-      active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, matching_files) }
-      skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
+      selections = plan.graders.map { |g| [ g, target_graph.affected(target_label_for(g), changed_files: matching_files) ] }
+      active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
+      log_selections(selections)
 
       if plan.rerun_only_failed? && step.iteration > 1
         passed_steps_by_name = previous_iteration_passed_steps_by_name
@@ -102,10 +105,14 @@ module Steps
       default_branch_ref
     end
 
-    def files_match?(grader, changed_files)
-      return true if grader.when_files_changed.nil? || grader.when_files_changed.empty?
-      changed_files.any? do |file|
-        grader.when_files_changed.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
+    # Explains every grader's selection/skip by name and target label -- the
+    # existing "skipped <name> (no matching files changed)" prefix is kept
+    # verbatim so it stays a stable substring for anything already grepping
+    # workflow logs; the target label is appended rather than interleaved.
+    def log_selections(selections)
+      selections.each do |grader, selection|
+        verb = selection.affected ? "selected" : "skipped"
+        log("[grader_fanout] #{verb} #{grader.name} (#{selection.reason}) [#{target_label_for(grader)}]")
       end
     end
 
@@ -246,6 +253,8 @@ module Steps
         )
 
         new_steps = graders.each_with_index.map do |grader, index|
+          prepare_targets = prepare_targets_for(grader)
+
           Step.create!(
             workflow: workflow,
             kind: "grader",
@@ -253,7 +262,7 @@ module Steps
             iteration: step.iteration,
             loop_id: step.loop_id,
             placement_policy: Step::Kind.fetch("grader").placement_policy_for(repository),
-            details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
+            details: grader_details(grader, prepare_targets: prepare_targets).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
 
@@ -271,9 +280,10 @@ module Steps
       end
     end
 
-    def grader_details(grader)
+    def grader_details(grader, prepare_targets:)
       {
         "name" => grader.name,
+        "target_label" => target_label_for(grader),
         "command" => grader.command,
         "phase" => grader.metadata["phase"],
         "configured_phases" => grader.metadata["configured_phases"],
@@ -283,6 +293,8 @@ module Steps
         "required" => grader.required,
         "timeout_minutes" => grader.timeout_minutes,
         "when_files_changed" => grader.when_files_changed,
+        "prepare_targets" => prepare_targets,
+        "prepare_commands" => prepare_targets.flat_map { |target| target["commands"] },
         "junit_output" => grader.junit_output,
         "failures" => grader.failures
       }
@@ -397,6 +409,32 @@ module Steps
 
     def effective_plan(plan)
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+    end
+
+    # One entry per transitive `kind: prepare` dependency target, in
+    # dependency order -- Steps::Grader (via PrepareTargetExecution) runs
+    # each of these at most once per workflow workspace before the grader
+    # command itself.
+    def prepare_targets_for(grader)
+      target_graph.prepare_dependencies_for(target_label_for(grader)).map do |target|
+        project_path = target_graph.project(target.project_id)&.path.to_s
+        {
+          "target_label" => target.label.to_s,
+          "commands" => Array(target.metadata.fetch("commands") { [ target.command ] }).flatten.map(&:to_s)
+        }.tap do |payload|
+          payload["project_path"] = project_path if project_path.present?
+        end
+      end
+    end
+
+    def target_label_for(grader)
+      "//:grade/#{grader.name}"
+    end
+
+    def target_graph
+      return @target_graph if defined?(@target_graph)
+
+      @target_graph = TargetGraph::Compiler.compile(workspace.path)
     end
 
     def review_grader_context?

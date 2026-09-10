@@ -74,6 +74,83 @@ class TargetGraph
     target(self.class.root_label)
   end
 
+  def dependency_closure_for(label)
+    label = label.to_s
+    seen = []
+    collect_dependencies(label, seen)
+    seen
+  end
+
+  def prepare_dependencies_for(label)
+    dependency_closure_for(label).filter_map do |dependency_label|
+      dependency = target(dependency_label)
+      dependency if dependency&.kind == "prepare" && dependency.executable?
+    end
+  end
+
+  def source_scopes_for(labels)
+    Array(labels).filter_map { |label| target(label)&.source_scope }.flatten.uniq
+  end
+
+  # One target's affected-by-diff verdict, with a human-readable `reason`
+  # naming which scope decided it (its own, a dependency's, or "repo-wide"
+  # for a declaration with no file selector at all) -- callers such as
+  # Steps::GraderFanout's logging use this to explain a selection or a skip
+  # by target label instead of a bare yes/no.
+  Selection = Data.define(:target, :affected, :reason)
+
+  # DOC-20's "Target And Project Selection" pipeline stage: changed files ->
+  # affected projects by declaration scope -> affected targets by source
+  # scope and dependency closure. A target is affected when:
+  #
+  #   - it declares no source scope at all -- a root declaration with no
+  #     file selector stays repo-wide, the same as legacy
+  #     `when_files_changed`-less behavior always has (see
+  #     TargetGraph::Compiler#scoped_source_scope: only a root declaration
+  #     can end up with an empty scope; every nested declaration defaults to
+  #     its own directory);
+  #   - its own source scope (already resolved relative to the `.syrus.yml`
+  #     that declared it) matches one of the changed files; or
+  #   - a target in its dependency closure has a non-empty source scope that
+  #     matches one of the changed files. A dependency with an empty scope
+  #     (e.g. the implicit root target every legacy declaration depends on)
+  #     never counts -- otherwise every target would be "affected" through
+  #     that one universal edge.
+  #
+  # `label` may be a TargetGraph::Label or its string form. An unknown label
+  # is reported as unaffected rather than raising -- callers already surface
+  # "unknown target" as a validation error elsewhere (see #validate!).
+  def affected(label, changed_files:)
+    found = target(label)
+    return Selection.new(target: nil, affected: false, reason: "unknown target #{label}") unless found
+
+    changed_files = Array(changed_files).map(&:to_s)
+    return Selection.new(target: found, affected: true, reason: "repo-wide (no source scope declared)") if found.source_scope.empty?
+    if scope_matches?(found.source_scope, changed_files)
+      return Selection.new(target: found, affected: true, reason: "own source scope matched a changed file")
+    end
+
+    dependency_closure_for(label).each do |dependency_label|
+      dependency = target(dependency_label)
+      next unless dependency&.source_scope&.any?
+
+      if scope_matches?(dependency.source_scope, changed_files)
+        return Selection.new(target: found, affected: true, reason: "dependency #{dependency_label} source scope matched a changed file")
+      end
+    end
+
+    Selection.new(target: found, affected: false, reason: "no matching files changed")
+  end
+
+  # Every executable target of the given kind(s) (formatter, generator,
+  # builder, grader, ...) across the whole graph -- root project and every
+  # nested project alike -- each paired with its #affected verdict. Callers
+  # that only want the affected subset can filter on `.affected`.
+  def affected_targets(kind:, changed_files:)
+    changed_files = Array(changed_files).map(&:to_s)
+    executable_targets_of_kind(kind).map { |candidate| affected(candidate.label, changed_files: changed_files) }
+  end
+
   # Confirms the graph is internally consistent: every declared dependency
   # label resolves to a real target, and the dependency edges contain no
   # cycles. Collects every problem instead of raising on the first one so
@@ -92,6 +169,15 @@ class TargetGraph
   end
 
   private
+
+  def executable_targets_of_kind(kind)
+    kinds = Array(kind).map(&:to_s)
+    @targets.values.select { |candidate| kinds.include?(candidate.kind) && candidate.executable? }
+  end
+
+  def scope_matches?(patterns, changed_files)
+    changed_files.any? { |file| patterns.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) } }
+  end
 
   def missing_dependency_errors
     @targets.each_value.flat_map do |declared_target|
@@ -125,6 +211,16 @@ class TargetGraph
     nodes = cycle[0...-1]
     rotations = nodes.each_index.map { |index| nodes.rotate(index) }
     rotations.min.join("\0")
+  end
+
+  def collect_dependencies(label, seen)
+    Array(@targets[label]&.dependencies).each do |dependency|
+      dependency_label = dependency.to_s
+      next if seen.include?(dependency_label)
+
+      seen << dependency_label
+      collect_dependencies(dependency_label, seen)
+    end
   end
 
   def seed_implicit_root!(custom_root_project)

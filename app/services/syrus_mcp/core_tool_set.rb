@@ -22,9 +22,10 @@ module SyrusMcp
       ::Mcp::Tools::SubmitSummaryTool,
       ::Mcp::Tools::SubmitTestPlanTool,
       SubmitArtifactTool,
+      RunTargetPrepareTool,
       SubmitVisualArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
-      ::Mcp::Tools::SubmitAdversarialReviewTool,
+      ::Mcp::Tools::SubmitAdversarialReviewTool
     ].freeze
 
     # The set of tool names managed by McpToolPolicy role filtering.

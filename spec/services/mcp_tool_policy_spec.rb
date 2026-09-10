@@ -41,11 +41,12 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitTestPlanTool,
         Mcp::Tools::SubmitReviewPlanTool,
         SyrusMcp::SubmitArtifactTool,
+        SyrusMcp::RunTargetPrepareTool,
         SyrusMcp::SubmitVisualArtifactTool,
         Mcp::Tools::ReportMainConcernTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool, Mcp::Tools::SubmitJobMetadataTool)
-      expect(tools.size).to eq(13)
+      expect(tools.size).to eq(14)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -166,6 +167,16 @@ RSpec.describe McpToolPolicy do
       it "permits submit_artifact for the implement role" do
         context = McpToolContext.from_run(run)
         expect(described_class.capability_permitted?(context, :submit_artifact)).to be(true)
+      end
+
+      it "permits run_target_prepare for the implement role" do
+        context = McpToolContext.from_run(run)
+        expect(described_class.capability_permitted?(context, :run_target_prepare)).to be(true)
+      end
+
+      it "denies run_target_prepare for the summary role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN, user: user)
+        expect(described_class.capability_permitted?(context, :run_target_prepare)).to be(false)
       end
 
       it "denies submit_artifact for the adversarial_reviewer role" do

@@ -7,18 +7,50 @@ canonically labeled `Project`s and `Target`s (`//package:name`, e.g.
 project-aware workflow work has one real graph to build on instead of a model
 nothing populates.
 
-**This is internal plumbing, not a feature yet.** `TargetGraph::Compiler`
+`TargetGraph::Compiler`
 reads a repository's root `.syrus.yml` legacy sections (`prepare`,
 `formatters`, `generated`, `grade`) and compiles them into targets under an
 implicit root project (`//:repo`), then does the same for every nested
 `.syrus.yml` it discovers below the root (see "Nested `.syrus.yml`
-discovery" below). Nothing in the runtime prepare, format, generate, or
-grader pipelines reads from the compiled graph — root or nested — and
-compiling it does not change what those pipelines run. Explicit `targets:`
-declarations and build-system plugin import (later adoption levels in
-`DOC-20`) do not exist yet — do not describe them as available. The
-`project:` primitive described below does exist, but it only names/labels a
-project; it carries no targets of its own yet.
+discovery" below). `Steps::GraderFanout` reads the compiled graph through
+`TargetGraph#affected`/`#affected_targets` to decide which root grader is
+affected by the current diff: a grader is affected when it declares no
+source scope at all (repo-wide, the legacy no-`when_files_changed`
+default), when its own source scope (`when_files_changed`) matches a
+changed file, or — transitively, through `deps:` — when a dependency
+target's source scope matches a changed file (a dependency with an empty
+source scope, such as the implicit root target every legacy declaration
+depends on, never counts as a match on its own). Any transitive `prepare`
+target still executes before that grader command — see "Prepare target
+execution" below for how that's kept to once per workflow workspace.
+`#affected`/
+`#affected_targets` are kind-agnostic (`grader`, `formatter`, `generator`,
+`builder`, ...) and work across the whole graph, root and nested projects
+alike, so they're the one place this selection logic lives — but only
+`Steps::GraderFanout`'s root graders are wired to them today. Nested
+projects already compile into the same graph (their own source scope
+correctly resolved relative to the directory that declared them — see
+"Affected-file scope defaults" below), but nothing yet materializes a
+nested project's formatter/generator/builder/grader targets as workflow
+Steps: doing so needs an execution-directory story (does a nested target's
+command run from the repo root or its own project directory?) that hasn't
+been decided yet. `Steps::GraderFanout` logs both outcomes by name and
+target label — `[grader_fanout] selected rspec (repo-wide (no source scope
+declared)) [//:grade/rspec]` / `... skipped website-build (no matching
+files changed) [//:grade/website-build]` — so an operator can see why a
+grader ran or didn't without reading `.syrus.yml`. Formatter/generator
+runtime selection (`Steps::Format`/`Steps::Generate`) is still legacy-config
+driven and root-only; their graph nodes carry dependency metadata for
+diagnostics and later target-aware execution. Workflow implementation agents
+also see the compiled prepare targets in their environment snapshot and may run
+one explicitly through `run_target_prepare` when they discover that a
+project-scoped dependency install is needed (see "Agent-requested prepare
+targets" below).
+
+Explicit `targets:` declarations are available for hand-authored dependency
+nodes. Build-system plugin import (later adoption levels in `DOC-20`) does
+not exist yet — do not describe it as available. The `project:` primitive
+described below names/labels the project that owns a config file's targets.
 
 ## Projects vs. targets
 
@@ -42,6 +74,134 @@ A `.syrus.yml` file's `project:` block just gives its implicit project (the
 root project for the root file, or the directory-derived project for a
 nested file) a stable identity — it does not change which targets that file
 compiles into, or what those targets do.
+
+## Explicit `targets:`
+
+A config file can declare explicit target nodes. Relative dependency labels
+(`:renderer`) resolve within the same `.syrus.yml` package; absolute labels
+(`//desktop:renderer`) resolve from the repository root.
+
+```yaml
+targets:
+  - name: renderer
+    kind: library
+    sources: ["src/**/*.ts", "src/**/*.tsx"]
+
+  - name: deps
+    kind: prepare
+    run: npm ci
+
+grade:
+  - name: typecheck
+    run: npm run typecheck
+    when_files_changed: ["src/**/*.ts", "src/**/*.tsx"]
+    deps: [":renderer", ":deps"]
+```
+
+Supported target kinds are `default`, `library`, `binary`, `application`,
+`formatter`, `builder`, `grader`, `prepare`, `generator`, and `repo_check`.
+Dependencies use one edge only: `deps` (or the equivalent spelling
+`dependencies`). Missing labels, duplicate labels, and dependency cycles are
+reported as `TargetGraph::ValidationError` messages naming the target label
+and owning `.syrus.yml` path where possible.
+
+Legacy executable declarations (`grade:`, `formatters:`, and `generated:`)
+also accept `deps:`. For graders, runtime fanout uses those dependency
+targets to decide whether the grader is affected by the diff. If a dependency
+chain includes an executable `kind: prepare` target, the materialized grader
+step runs that prepare command before the grader command — see "Prepare
+target execution" below for what "runs" means once more than one grader
+depends on the same prepare target.
+
+### Prepare target execution
+
+`Steps::GraderFanout`/`Steps::PreflightGraderFanout` snapshot each
+materialized grader Step's transitive `kind: prepare` target dependencies
+(`TargetGraph#prepare_dependencies_for`) onto its own `Step#details` as
+`prepare_targets` — one entry per target, each an ordered list of commands
+plus the declaring project path for nested targets. Root prepare targets run
+from the repository root; nested prepare targets run from their project
+directory, matching the `run_target_prepare` MCP tool.
+At execution time (`Steps::PrepareTargetExecution`, included into
+`Steps::Grader` and, through it, `Steps::PreflightGrader`), a prepare
+target's commands run **at most once per workflow workspace**, not once per
+grader Step: a workspace-local marker under `.syrus/prepare-targets/`
+records that a target has already run in this workspace, so a second
+grader Step later in the same workflow that depends on the same target
+reuses the marker instead of re-running the commands. If the workspace gets
+rebuilt from scratch mid-workflow (a worker hop onto a machine with no
+existing clone), there is no marker there either, so the commands safely
+rerun — safe precisely because prepare targets are declared idempotent
+environment setup (see "Prepare Semantics" above) and must not modify
+tracked source files. An OS `flock` on a sibling per-target lock file (held
+only for the duration of that target's commands) keeps grader Steps
+dispatched in parallel from the same workflow (landing workflows can do
+this) from running the same target's commands concurrently.
+
+Each grader Step records what it did with its own prepare targets on its
+own `Step#details["prepare_target_results"]` — one entry per target with
+`status` (`"ran"` or `"reused"`) and a human-readable `reason` (which grader
+first triggered the run, and when). Root `prepare:` (and a nested
+`.syrus.yml`'s own `prepare:`) is untouched by any of this — it stays the
+unconditional pre-implementation baseline `Steps::Prepare` always runs (see
+"Prepare Semantics" above).
+
+Just like grader side-effect detection, a prepare target's commands are
+checked for tracked-file mutations (`git status --porcelain` before/after);
+a target that leaves uncommitted changes records a
+`kind: "prepare_target_side_effect"` `WorkflowWarning` instead of failing
+the grader Step — see `workflow_warnings.md`.
+
+### Agent-requested prepare targets
+
+The agent environment snapshot includes a "Target prepare options" line built
+from the same `TargetGraph::Compiler` output. Each entry names the target
+label, owning `.syrus.yml`, project id, and command list, for example
+`//cli:prepare (cli/.syrus.yml, project=cli): "go mod download"`. This is
+informational only: Syrus still automatically runs only the root
+`Steps::Prepare` before implementation unless a later policy explicitly opts
+into intent-based pre-prepare.
+
+Implementation-style workflow agents (`implement`, rebase-conflict repair, and
+manual workflow agents) can explicitly call the workflow MCP tool
+`run_target_prepare(label:, reason:)` when code exploration proves they need a
+specific project environment. The tool accepts only executable
+`kind: prepare` targets from the compiled graph. It runs the target's command
+list in that target project's directory (root target in the repository root,
+nested target in the nested config's directory) using the same scrubbed
+dependency environment as `Steps::Prepare`.
+
+Every call is auditable. The tool writes JobLog lines for the request and each
+command, registers the spawned subprocesses as `kind: "prepare"`, and appends a
+`Workflow#artifacts["target_prepare_requests"]` entry containing the label,
+reason, commands, workdir, owner config path, project id, run id, status,
+timestamps, command results, and output tail. A failed command returns an MCP
+error response and leaves the failed audit entry in place; it does not change
+which prepare commands Syrus will run automatically on future workflows.
+
+### The `builder` kind is reserved, not compiled
+
+`TargetGraph::Target::KINDS` already lists `builder` alongside
+`formatter`/`generator`/`grader`/`prepare` — DOC-20's Core Model names it as
+one of the eventual target kinds — but no `.syrus.yml` primitive compiles
+into it yet. There is no `build:` (or equivalent) legacy config section
+today, and none of the runtime pipelines this compiler mirrors
+(`RepoPrepPlan`, `Steps::Format`, `Steps::Generate`, `RepoGradePlan`) have a
+build-command concept to carry over. Constructing a `TargetGraph::Target`
+with `kind: "builder"` directly is supported by the model — the kind exists
+precisely so a later compiler change and this graph model don't need to land
+together — but `TargetGraph::Compiler` never produces one today.
+
+Until a `build:` section exists, model an explicit build step as whichever
+existing primitive matches its role: a `grade:` entry if a failed build
+should fail the workflow like any other required check, or a `generated:`
+entry if the build produces checked-in output that `Steps::Generate` should
+keep in sync (see "Shared generated clients: targets, not projects" below).
+A future `build:` section, if one is added, should compile the same way
+`grade:`/`formatters:`/`generated:` already do: one `kind=builder` target per
+declared entry, under whichever project (root or nested) declared it, with
+the same directory-based `source_scope` defaulting described in
+"Affected-file scope defaults" below.
 
 ## Explicit `project:`
 
