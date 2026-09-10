@@ -101,7 +101,7 @@ module Api
             end
 
             chat_session.update!(chat_model: model)
-            render json: chat_payload(chat_session.reload, message: "Chat model updated.")
+            render json: chat_metadata_payload(chat_session, message: "Chat model updated.")
             return
           end
 
@@ -121,7 +121,7 @@ module Api
             end
 
             chat_session.update!(mode: mode)
-            render json: chat_payload(chat_session.reload, message: "Chat mode updated.")
+            render json: chat_metadata_payload(chat_session, message: "Chat mode updated.")
             return
           end
 
@@ -133,7 +133,7 @@ module Api
             end
 
             chat_session.update!(chat_effort: effort)
-            render json: chat_payload(chat_session.reload, message: "Chat effort updated.")
+            render json: chat_metadata_payload(chat_session, message: "Chat effort updated.")
             return
           end
 
@@ -155,7 +155,7 @@ module Api
 
           chat_session.update!(pinned: pinned)
 
-          render json: chat_payload(chat_session.reload, message: chat_session.pinned? ? "Chat pinned" : "Chat unpinned")
+          render json: chat_metadata_payload(chat_session, message: chat_session.pinned? ? "Chat pinned" : "Chat unpinned")
         end
 
         def share
@@ -1709,6 +1709,35 @@ module Api
               agent_busy: agent_busy
             )
           end
+        end
+
+        def chat_metadata_payload(chat_session, message: nil)
+          PerformanceLogging.phase("chat_metadata_payload", chat_id: chat_session.id) do
+            {
+              message: message,
+              chat: chat_metadata_json(chat_session)
+            }
+          end
+        end
+
+        def chat_metadata_json(chat_session)
+          effective_provider = chat_session.effective_chat_provider
+
+          {
+            id: chat_session.id,
+            title: chat_session.title,
+            title_pending: chat_session.title.blank? && chat_session.title_pending?,
+            system_kind: chat_session.system_kind,
+            pinned: chat_session.pinned?,
+            pinned_context: chat_session.pinned_context,
+            chat_provider: chat_session.chat_provider,
+            effective_chat_provider: effective_provider,
+            effective_chat_provider_label: chat_provider_label(effective_provider),
+            chat_model: chat_session.chat_model,
+            mode: chat_session.mode,
+            chat_effort: chat_session.chat_effort,
+            stop_requested_at: chat_session.stop_requested_at&.iso8601
+          }
         end
 
         def chat_session_json(chat_session, counts: nil, turn_in_flight: nil, agent_busy: nil)
