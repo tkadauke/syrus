@@ -10,7 +10,7 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionGroup, ChatPe
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parseJsonText, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
+import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -93,7 +93,8 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         const rawResult = content ? content.content ?? content.result : message.content ?? message.text
         const unboundedBody = content ? fullResultBodyUnbounded(rawResult) : shortenWorkspacePaths(String(rawResult))
         open.call.result_body = content ? fullResultBody(rawResult) : unboundedBody
-        open.call.result_json = parseJsonText(unboundedBody)
+        const parsedResult = parsedToolResult(rawResult, unboundedBody)
+        open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
         const resultPresentation = toolResultPresentation(
@@ -101,7 +102,8 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
           open.call.result_body,
           open.call.result_error,
           unboundedBody,
-          isPlainObject(open.call.raw_payload) ? open.call.raw_payload : {}
+          isPlainObject(open.call.raw_payload) ? open.call.raw_payload : {},
+          parsedResult
         )
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
