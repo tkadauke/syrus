@@ -421,6 +421,86 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.target(TargetGraph::Label.parse("//:grade/tests")).dependencies).to eq([ TargetGraph.root_label, app ])
     end
 
+    it "keeps explicit executable targets alongside generated legacy executable targets in one scope" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: typecheck
+            kind: grader
+            run: npm run typecheck
+            sources: ["app/frontend/**/*.ts"]
+            phases: [review]
+            required: true
+          - name: bundle
+            kind: builder
+            run: npm run build
+            sources: ["app/frontend/**/*"]
+        formatters:
+          - command: eslint --fix app/frontend
+            files: ["app/frontend/**/*.ts"]
+        generated:
+          - command: npm run generate
+            sources: ["schema/**/*.json"]
+            generates: ["app/frontend/generated/**/*.ts"]
+        grade:
+          - name: tests
+            run: npm test
+            deps: [":typecheck", ":bundle"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:typecheck")).kind).to eq("grader")
+      expect(graph.target(TargetGraph::Label.parse("//:bundle")).kind).to eq("builder")
+      expect(graph.target(TargetGraph::Label.parse("//:format/0")).kind).to eq("formatter")
+      expect(graph.target(TargetGraph::Label.parse("//:generate/0")).kind).to eq("generator")
+
+      tests = graph.target(TargetGraph::Label.parse("//:grade/tests"))
+      expect(tests.dependencies).to eq([
+        TargetGraph.root_label,
+        TargetGraph::Label.parse("//:typecheck"),
+        TargetGraph::Label.parse("//:bundle")
+      ])
+      expect(graph.validate!).to be(true)
+    end
+
+    it "raises a clear error when an explicit label collides with a generated legacy label" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: grade/tests
+            kind: grader
+            run: npm test
+        grade:
+          - name: tests
+            run: bin/rspec
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//:grade/tests")
+        expect(error.message).to include('explicit targets: "grade/tests"')
+        expect(error.message).to include('legacy grade "tests"')
+        expect(error.message).to include(".syrus.yml")
+      end
+    end
+
+    it "raises a clear error when nested explicit and generated labels collide in their package" do
+      write("cli/.syrus.yml", <<~YAML)
+        targets:
+          - name: format/0
+            kind: formatter
+            run: gofmt -w .
+        formatters:
+          - command: gofmt -w .
+            files: ["**/*.go"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//cli:format/0")
+        expect(error.message).to include('explicit targets: "format/0"')
+        expect(error.message).to include("legacy formatters[0]")
+        expect(error.message).to include("cli/.syrus.yml")
+      end
+    end
+
     it "raises a clear validation error for missing dependency labels" do
       write(".syrus.yml", <<~YAML)
         grade:
