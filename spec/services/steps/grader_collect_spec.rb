@@ -376,14 +376,14 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
-  it "records grader loop timing without fanout-specific fields" do
+  it "records grader loop timing and rollout metrics" do
     base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
     workflow.steps.where(kind: "grader").delete_all
-    [
+    grader_steps = [
       [ "alpha", base_time, base_time + 0.30.seconds ],
       [ "beta", base_time + 0.02.seconds, base_time + 0.32.seconds ],
       [ "gamma", base_time + 0.04.seconds, base_time + 0.34.seconds ]
-    ].each_with_index do |(name, started_at, finished_at), index|
+    ].each_with_index.map do |(name, started_at, finished_at), index|
       Step.create!(
         workflow: workflow,
         kind: "grader",
@@ -393,7 +393,32 @@ RSpec.describe Steps::GraderCollect do
         state: "succeeded",
         started_at: started_at,
         finished_at: finished_at,
-        details: { "name" => name, "required" => true, "duration_s" => 0.30 }
+        details: {
+          "name" => name,
+          "required" => true,
+          "duration_s" => 0.30,
+          "prepare_cache" => { "status" => index.zero? ? "miss" : "hit" }
+        }
+      )
+    end
+    grader_steps.each_with_index do |grader_step, index|
+      grader_run = grader_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        created_at: base_time - (index + 1).seconds,
+        started_at: grader_step.started_at,
+        finished_at: grader_step.finished_at
+      )
+      WorkflowStepWorkerSlot.create!(
+        workflow: workflow,
+        step: grader_step,
+        run: grader_run,
+        worker_key: "storage:worker-#{index % 2}",
+        worker_storage_key: "worker-#{index % 2}",
+        worker_hostname: "host-#{index % 2}",
+        released_at: Time.current,
+        release_reason: "run_terminal"
       )
     end
 
@@ -405,7 +430,15 @@ RSpec.describe Steps::GraderCollect do
       "grader_count" => 3,
       "wall_clock_s" => be_within(0.001).of(0.34),
       "summed_duration_s" => be_within(0.001).of(0.9),
-      "failed_required_count" => 0
+      "failed_required_count" => 0,
+      "queue_wait_avg_s" => be_within(0.001).of(2.02),
+      "queue_wait_max_s" => be_within(0.001).of(3.04),
+      "worker_spread" => 2,
+      "worker_keys" => contain_exactly("storage:worker-0", "storage:worker-1"),
+      "prepare_cache_hits" => 2,
+      "prepare_cache_misses" => 1,
+      "source_snapshot_mismatch_count" => 0,
+      "infrastructure_failure_count" => 0
     )
     metrics = workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_loops").first
     expect(metrics).to include(
@@ -414,12 +447,112 @@ RSpec.describe Steps::GraderCollect do
       "wall_clock_s" => be_within(0.001).of(0.34),
       "summed_duration_s" => be_within(0.001).of(0.9),
       "failed_required_count" => 0,
-      "outcome" => "passed"
+      "outcome" => "passed",
+      "queue_wait_avg_s" => be_within(0.001).of(2.02),
+      "queue_wait_max_s" => be_within(0.001).of(3.04),
+      "worker_spread" => 2,
+      "prepare_cache_hits" => 2,
+      "prepare_cache_misses" => 1,
+      "source_snapshot_mismatch_count" => 0,
+      "infrastructure_failure_count" => 0
     )
     expect(metrics).not_to have_key("cap")
     expect(metrics).not_to have_key("parallelism_speedup")
     expect(metrics).not_to have_key("parallelism_efficiency")
-    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("grader wall-clock 0.3s vs summed duration 0.9s")
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+      "grader wall-clock 0.3s vs summed duration 0.9s; worker spread 2 worker(s); queue wait avg 2.02s max 3.04s"
+    )
+  end
+
+  it "records source snapshot and infrastructure failure counts for failed immutable graders" do
+    base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
+    workflow.steps.where(kind: "grader").delete_all
+    grader_step = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      started_at: base_time,
+      finished_at: base_time + 0.5.seconds,
+      details: { "name" => "rspec", "required" => true, "duration_s" => 0.5 }
+    )
+    grader_run = grader_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      state: "failed",
+      created_at: base_time - 2.seconds,
+      started_at: base_time,
+      finished_at: base_time + 0.5.seconds
+    )
+    grader_run.create_run_failure_classification!(
+      classification: "source_snapshot_metadata_invalid",
+      confidence: 0.95,
+      retryable: true,
+      reason: "Workflow source snapshot metadata is missing.",
+      classified_at: Time.current
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    metrics = workflow.reload.artifact("grader_loops").first
+    expect(metrics).to include(
+      "source_snapshot_mismatch_count" => 1,
+      "infrastructure_failure_count" => 1,
+      "queue_wait_avg_s" => 2.0,
+      "queue_wait_max_s" => 2.0
+    )
+  end
+
+  it "batch-loads rollout metric inputs for grader batches" do
+    base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
+    workflow.steps.where(kind: "grader").delete_all
+    grader_steps = 6.times.map do |index|
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100 + index,
+        iteration: 1,
+        loop_id: loop_id,
+        state: "succeeded",
+        started_at: base_time + index.seconds,
+        finished_at: base_time + index.seconds + 0.5.seconds,
+        details: { "name" => "grader-#{index}", "required" => true, "duration_s" => 0.5 }
+      )
+    end
+    grader_steps.each do |grader_step|
+      grader_run = grader_step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        created_at: base_time - 1.second,
+        started_at: grader_step.started_at,
+        finished_at: grader_step.finished_at
+      )
+      grader_run.create_run_failure_classification!(
+        classification: "grader_failure",
+        confidence: 0.9,
+        retryable: false,
+        reason: "not used for passed rollout metrics",
+        classified_at: Time.current
+      )
+      WorkflowStepWorkerSlot.create!(
+        workflow: workflow,
+        step: grader_step,
+        run: grader_run,
+        worker_key: "storage:worker-#{grader_step.id}",
+        worker_storage_key: "worker-#{grader_step.id}",
+        released_at: Time.current,
+        release_reason: "run_terminal"
+      )
+    end
+
+    queries = capture_sql { handler.call }
+
+    expect(selects_from(queries, "runs").grep(/"runs"\."step_id" IN/).size).to eq(1)
+    expect(selects_from(queries, "workflow_step_worker_slots").grep(/"workflow_step_worker_slots"\."step_id" IN/).size).to eq(1)
+    expect(selects_from(queries, "run_failure_classifications").size).to eq(1)
   end
 
   it "records failed grader loop metrics before raising" do
@@ -506,5 +639,21 @@ RSpec.describe Steps::GraderCollect do
         include("name" => "lint", "status" => "passed", "carried_forward" => true)
       )
     end
+  end
+
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      next if payload[:name] == "SCHEMA"
+
+      queries << sql
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
+  def selects_from(queries, table_name)
+    queries.grep(/\ASELECT\b.*FROM "#{table_name}"/i)
   end
 end

@@ -30,6 +30,7 @@ class ImmutableSourceCheckout
     raise_infrastructure!("immutable source checkout is disabled for #{@repository.slug}") unless enabled_for_step?
 
     snapshot = source_snapshot
+    log("[immutable_source_checkout] verifying source snapshot ##{snapshot.id} #{snapshot.source_ref}@#{snapshot.source_sha.first(7)}")
     materialize!(snapshot) unless valid_checkout?(snapshot)
     verify_head!(snapshot)
     ensure_exclude_entry
@@ -67,6 +68,7 @@ class ImmutableSourceCheckout
     FileUtils.rm_rf(path.to_s)
     FileUtils.mkdir_p(path.dirname)
 
+    log("[immutable_source_checkout] materializing detached checkout at #{path}")
     @git.run("init", path.to_s)
     @git.run("remote", "add", "origin", @repository.remote_url, chdir: path.to_s)
     fetch_snapshot!(snapshot)
@@ -76,10 +78,12 @@ class ImmutableSourceCheckout
   end
 
   def fetch_snapshot!(snapshot)
+    log("[immutable_source_checkout] fetching #{snapshot.source_ref} for snapshot ##{snapshot.id}")
     authenticated_git("git_immutable_source_fetch") do |url|
       @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
     end
     record_origin_head!(snapshot)
+    log("[immutable_source_checkout] fetched #{snapshot.source_ref} for snapshot ##{snapshot.id}")
   rescue GitRunner::GitError => e
     raise_infrastructure!("immutable source checkout missing ref #{snapshot.source_ref}: #{e.message}")
   end
@@ -114,7 +118,10 @@ class ImmutableSourceCheckout
 
   def verify_head!(snapshot)
     actual = @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
-    return if actual == snapshot.source_sha
+    if actual == snapshot.source_sha
+      log("[immutable_source_checkout] verified HEAD #{actual.first(7)} for snapshot ##{snapshot.id}")
+      return
+    end
 
     raise_infrastructure!(
       "immutable source checkout SHA mismatch: expected #{snapshot.source_sha}, got #{actual}"

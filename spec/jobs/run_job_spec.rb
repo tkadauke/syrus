@@ -948,6 +948,53 @@ RSpec.describe RunJob, :ci_only do
       expect(run.job_logs.where(kind: "grade_log").pluck(:chunk).join).to include("validated immutable snapshot")
       expect(workflow.reload.cleaned_up_at).to be_present
     end
+
+    it "persists source snapshot infrastructure failures on immutable grader runs" do
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      AppSetting.current.update!(workflow_step_worker_slot_admission_enabled: true)
+      File.write(File.join(@data_root, WorkerStorageIdentity::FILE_NAME), "storage-infra\n")
+      allow(SyrusVersion).to receive(:hostname).and_return("worker-infra")
+
+      immutable_job = Factories.job_record(user: user, repository: repository, issue_number: 78, state: "running")
+      workflow = Workflow.create!(
+        job: immutable_job,
+        user: user,
+        trigger_kind: "initial",
+        agent_provider: immutable_job.agent_provider
+      )
+      step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 0,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: {
+          "name" => "snapshot-check",
+          "command" => "true",
+          "required" => true,
+          "timeout_minutes" => 1
+        }
+      )
+      run = step.runs.create!(
+        job: immutable_job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: immutable_job.agent_provider
+      )
+
+      expect { RunJob.perform_now(run.id) }
+        .to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /source_snapshot_id/)
+
+      expect(run.reload.run_failure_classification).to have_attributes(
+        classification: "source_snapshot_metadata_invalid",
+        retryable: true
+      )
+      expect(run.run_diagnostic).to have_attributes(
+        error_class: "WorkflowSourceSnapshots::InfrastructureStateError"
+      )
+    end
   end
 
   describe "failure cap (per-Workflow)" do

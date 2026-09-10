@@ -16,7 +16,7 @@ class LandingThroughputMetrics
     append!(workflow, "validation_decisions", event)
   end
 
-  def self.record_grader_loop!(workflow:, iteration:, grader_count:, started_at:, finished_at:, wall_clock_s:, summed_duration_s:, failed_required_count:)
+  def self.record_grader_loop!(workflow:, iteration:, grader_count:, started_at:, finished_at:, wall_clock_s:, summed_duration_s:, failed_required_count:, rollout_metrics: {})
     event = {
       "iteration" => iteration,
       "grader_count" => grader_count,
@@ -27,7 +27,7 @@ class LandingThroughputMetrics
       "failed_required_count" => failed_required_count,
       "outcome" => failed_required_count.to_i.positive? ? "failed" : "passed",
       "recorded_at" => Time.current.iso8601
-    }.compact
+    }.merge(rollout_metrics.to_h).compact
 
     append!(workflow, "grader_loops", event)
   end

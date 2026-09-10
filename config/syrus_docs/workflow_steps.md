@@ -440,17 +440,29 @@ of the grader Steps it explicitly depends on are terminal. When either gate is
 disabled, the dispatcher preserves the legacy successor-walk behavior and only
 starts the first runnable successor.
 
-When both the instance `distributed_workflow_dag` feature and the repository
-opt-in are enabled, legacy grader fanout records target-style projection
-metadata on each materialized `grader` Step:
+When the instance `distributed_workflow_dag` feature, the repository opt-in,
+and `workflow_step_worker_slot_admission_enabled` are all enabled, legacy
+grader fanout records target-style projection metadata on each materialized
+`grader` Step:
 `projected_target_label` (`//:grade/<name>`),
 `projected_target_fingerprint`, `projected_resource_key`, `barrier_group`, and
 `barrier_labels`. The same gated payload connects the Step to the current
 workflow source snapshot through `source_snapshot_id` plus a nested
 `source_snapshot` summary (`source_sha`, `source_ref`, `tree_sha`, and optional
-`fingerprint`). When either gate is disabled, fanout keeps the legacy pinned
-placement, writes none of this projection/source-snapshot detail, and creates no
-workflow source snapshot solely for grader metadata.
+`fingerprint`). When any rollout gate is disabled, fanout keeps the legacy
+pinned placement, writes none of this projection/source-snapshot detail, and
+creates no workflow source snapshot solely for grader metadata. Operators can
+therefore disable the repository opt-in or the instance worker-slot setting to
+fall back to serial in-workflow grading for newly materialized grader batches.
+
+Each `grader_collect` records rollout measurements under the workflow's
+`grader_loops` artifact and under
+`landing_throughput_metrics["grader_loops"]`: wall-clock batch duration,
+summed grader duration, average/max grader queue wait, distinct worker spread,
+prepare cache hit/miss counts, source snapshot mismatch count, and
+infrastructure failure count. Source snapshot publication, immutable checkout
+fetch, and HEAD verification are logged in the run transcript so operators can
+separate repository grader failures from rollout infrastructure failures.
 
 Before matching a grader's `when_files_changed` globs, this step also asks
 every registered `:affected_test_analyzer` plugin (see
