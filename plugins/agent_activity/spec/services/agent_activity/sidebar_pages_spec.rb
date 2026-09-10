@@ -13,7 +13,13 @@ RSpec.describe AgentActivity::SidebarPages do
     Current.api_user = member
 
     expect(described_class.sidebar_pages).to contain_exactly(
-      include(id: "agent_activity.mine", path: "/agent_activity", component: "agent_activity/AgentActivity")
+      include(
+        id: "agent_activity.mine",
+        path: "/agent_activity",
+        component: "agent_activity/AgentActivity",
+        smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+        smart_folder_subject: "agent_session"
+      )
     )
   end
 
@@ -21,7 +27,13 @@ RSpec.describe AgentActivity::SidebarPages do
     Current.api_user = admin
 
     expect(described_class.sidebar_pages).to contain_exactly(
-      include(id: "agent_activity.mine", path: "/agent_activity", component: "agent_activity/AgentActivity")
+      include(
+        id: "agent_activity.mine",
+        path: "/agent_activity",
+        component: "agent_activity/AgentActivity",
+        smart_folder_api_path: "/api/v1/app/agent_activity/sessions",
+        smart_folder_subject: "agent_session"
+      )
     )
   end
 

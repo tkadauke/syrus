@@ -27,7 +27,7 @@ function filterSchema() {
       field: "status",
       label: "Status",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: [ "is", "is_one_of" ],
       values: [
         { value: "queued", label: "Queued" },
         { value: "running", label: "Running" },
@@ -73,6 +73,35 @@ function sessionsPayload(overrides: Record<string, unknown> = {}) {
     running_count: 1,
     filter: { and: [] },
     filter_schema: filterSchema(),
+    active_smart_folder_id: null,
+    smart_folders: [
+      {
+        id: 10,
+        name: "All",
+        i18n_key: "agent_activity_all",
+        position: 0,
+        kind: "builtin",
+        subject_type: "agent_session",
+        visibility: "always",
+        count: 1,
+        active: false,
+        filter: { and: [] },
+        path: "/agent_activity?smart_folder_id=10"
+      },
+      {
+        id: 11,
+        name: "Running",
+        i18n_key: "agent_activity_running",
+        position: 1,
+        kind: "builtin",
+        subject_type: "agent_session",
+        visibility: "always",
+        count: 1,
+        active: false,
+        filter: { and: [ { field: "status", op: "is", value: "running" } ] },
+        path: "/agent_activity?smart_folder_id=11"
+      }
+    ],
     ...overrides
   }
 }
@@ -180,30 +209,53 @@ describe("AgentActivityFeed", () => {
     expect(await screen.findByText("No agent sessions match this filter.")).toBeInTheDocument()
   })
 
-  it("applies the 'Running now' quick filter as a status=running chip", async () => {
-    const calls = setupFetchMock()
+  it("leaves folder navigation to the app sidebar for the operator-scoped feed", async () => {
+    setupFetchMock()
     renderFeed()
 
     await screen.findByText("Fix the aqueducts")
-    fireEvent.click(screen.getByRole("button", { name: "Running now" }))
-
-    await waitFor(() => {
-      const last = calls.filter((url) => url.includes("q=")).at(-1)
-      expect(last && decodeQ(last)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
-    })
+    expect(screen.queryByRole("navigation", { name: "Agent Activity smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Running now" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Needs work" })).not.toBeInTheDocument()
   })
 
-  it("applies the 'Needs work' quick filter as a status=failed chip", async () => {
-    const calls = setupFetchMock()
-    renderFeed()
-
-    await screen.findByText("Fix the aqueducts")
-    fireEvent.click(screen.getByRole("button", { name: "Needs work" }))
-
-    await waitFor(() => {
-      const last = calls.filter((url) => url.includes("q=")).at(-1)
-      expect(last && decodeQ(last)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "failed" ] } ] })
+  it("renders the admin SmartFolder column inline", async () => {
+    setupFetchMock({
+      active_smart_folder_id: 11,
+      smart_folders: [
+        {
+          id: 10,
+          name: "All",
+          i18n_key: "agent_activity_all",
+          position: 0,
+          kind: "builtin",
+          subject_type: "agent_session",
+          visibility: "always",
+          count: 2,
+          active: false,
+          filter: { and: [] },
+          path: "/admin/agent_activity?smart_folder_id=10"
+        },
+        {
+          id: 11,
+          name: "Running",
+          i18n_key: "agent_activity_running",
+          position: 1,
+          kind: "builtin",
+          subject_type: "agent_session",
+          visibility: "always",
+          count: 1,
+          active: true,
+          filter: { and: [ { field: "status", op: "is", value: "running" } ] },
+          path: "/admin/agent_activity?smart_folder_id=11"
+        }
+      ]
     })
+    renderFeed("admin", "/admin/agent_activity?smart_folder_id=11")
+
+    expect(await screen.findByRole("navigation", { name: "Agent Activity smart folders" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "All history" })).toHaveAttribute("href", "/admin/agent_activity?smart_folder_id=")
+    expect(await screen.findByRole("link", { name: "Running 1" })).toHaveAttribute("href", "/admin/agent_activity?smart_folder_id=11")
   })
 
   it("opens a transcript drawer reusing the shared transcript log renderer when a card is expanded", async () => {
