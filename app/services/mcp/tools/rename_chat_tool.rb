@@ -28,10 +28,12 @@ module Mcp::Tools
           return Mcp::Tools.invalid("name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer")
         end
 
+        previous_title = chat_session.title
         chat_session.rename!(name)
 
         Mcp::Tools.success(
           session_id: chat_session.id,
+          previous_title: previous_title,
           title: chat_session.title
         )
       rescue ActiveRecord::RecordInvalid => e
