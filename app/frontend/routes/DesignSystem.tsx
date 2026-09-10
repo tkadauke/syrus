@@ -3,16 +3,33 @@ import type { CSSProperties, ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 import { fetchTheme } from "../api/themes"
-import { Button } from "../components/Button"
-import { Card, Skeleton } from "../components/Card"
-import { Checkbox } from "../components/Checkbox"
-import { PageHeading, SectionHeading } from "../components/Heading"
-import { Input } from "../components/Input"
-import { Modal } from "../components/Modal"
-import { PanelMessage } from "../components/PanelMessage"
-import { Select } from "../components/Select"
-import { PILL_TONE_CLASSES, StatusPill, TonePill, type PillTone } from "../components/StatusPill"
-import { Toggle } from "../components/Toggle"
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Cluster,
+  Inline,
+  Input,
+  Modal,
+  Notice,
+  Page,
+  PanelMessage,
+  Pill,
+  PILL_TONE_CLASSES,
+  Section,
+  SectionHeading,
+  Select,
+  Skeleton,
+  Stack,
+  StatusPill,
+  Surface,
+  Text,
+  Toggle,
+  TonePill,
+  Toolbar,
+  type PillTone
+} from "../components/ui"
 import { useTheme } from "../contexts/ThemeContext"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -72,11 +89,13 @@ export function DesignSystemRoute() {
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
-    <main aria-label={t("aria_design_system")} className="mx-auto max-w-5xl space-y-10 p-6" data-design-system-preview={previewTheme?.slug} style={previewStyle}>
-      <header>
-        <PageHeading>{t("design_system.heading")}</PageHeading>
-        <p className="mt-1 text-sm text-text-secondary">{t("design_system.description")}</p>
-      </header>
+    <Page.Root aria-label={t("aria_design_system")} data-design-system-preview={previewTheme?.slug} size="narrow" style={previewStyle}>
+      <Page.Header>
+        <Page.HeadingGroup>
+          <Page.Title>{t("design_system.heading")}</Page.Title>
+          <Page.Description>{t("design_system.description")}</Page.Description>
+        </Page.HeadingGroup>
+      </Page.Header>
 
       {themeId != null && previewTheme ? (
         <PanelMessage tone="success">{t("design_system.preview_banner", { name: previewTheme.name })}</PanelMessage>
@@ -102,7 +121,8 @@ export function DesignSystemRoute() {
       <ModalSection onClose={() => setModalOpen(false)} onOpen={() => setModalOpen(true)} open={modalOpen} />
       <StatusPillsSection />
       <HeadingsSection />
-    </main>
+      <SemanticPrimitivesSection />
+    </Page.Root>
   )
 }
 
@@ -272,10 +292,67 @@ function HeadingsSection() {
       <SectionHeading>{t("design_system.headings.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("design_system.headings.description")}</p>
       <div className="mt-4 space-y-3 rounded border border-border bg-surface p-4">
-        <PageHeading>{t("design_system.headings.page_example")}</PageHeading>
+        <Page.Title>{t("design_system.headings.page_example")}</Page.Title>
         <SectionHeading>{t("design_system.headings.section_example")}</SectionHeading>
         <SectionHeading as="h3">{t("design_system.headings.subsection_example")}</SectionHeading>
       </div>
     </section>
+  )
+}
+
+function SemanticPrimitivesSection() {
+  const { t } = useT("settings")
+
+  return (
+    <Section.Root>
+      <Section.Header>
+        <div>
+          <Section.Title>{t("design_system.semantic.heading")}</Section.Title>
+          <Section.Description>{t("design_system.semantic.description")}</Section.Description>
+        </div>
+        <Section.Actions>
+          <Badge tone="info">{t("design_system.semantic.badge")}</Badge>
+          <Pill active tone="success">{t("design_system.semantic.pill")}</Pill>
+        </Section.Actions>
+      </Section.Header>
+      <Section.Body className="space-y-4" padding="md">
+        <Notice title={t("design_system.semantic.notice_title")} tone="info">
+          <Text as="span" tone="info">{t("design_system.semantic.notice_body")}</Text>
+          <Notice.Actions>
+            <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
+          </Notice.Actions>
+        </Notice>
+        <Toolbar aria-label={t("design_system.semantic.toolbar_aria")}>
+          <Inline gap="xs" wrap>
+            <Button size="sm" variant="primary">{t("design_system.buttons.primary")}</Button>
+            <Button size="sm" variant="secondary">{t("design_system.buttons.secondary")}</Button>
+          </Inline>
+          <Cluster gap="xs">
+            <Badge tone="warning">{t("design_system.semantic.warning_badge")}</Badge>
+            <Badge tone="neutral">{t("design_system.semantic.neutral_badge")}</Badge>
+          </Cluster>
+        </Toolbar>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Surface variant="panel">
+            <Stack gap="xs">
+              <Text variant="label">{t("design_system.semantic.surface_panel_label")}</Text>
+              <Text>{t("design_system.semantic.surface_panel_body")}</Text>
+            </Stack>
+          </Surface>
+          <Surface variant="inset">
+            <Stack gap="xs">
+              <Text variant="label">{t("design_system.semantic.surface_inset_label")}</Text>
+              <Text muted>{t("design_system.semantic.surface_inset_body")}</Text>
+            </Stack>
+          </Surface>
+          <Surface variant="success">
+            <Stack gap="xs">
+              <Text tone="success" variant="label">{t("design_system.semantic.surface_success_label")}</Text>
+              <Text tone="success">{t("design_system.semantic.surface_success_body")}</Text>
+            </Stack>
+          </Surface>
+        </div>
+      </Section.Body>
+    </Section.Root>
   )
 }

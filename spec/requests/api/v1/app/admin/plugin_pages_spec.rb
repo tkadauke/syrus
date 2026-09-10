@@ -83,6 +83,14 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
         "paths" => [ "/admin/performance" ],
         "component" => "syrus_dev/AdminPerformance",
         "group_id" => "observability"
+      ),
+      include(
+        "id" => "syrus_dev.design_system",
+        "label_key" => "syrus_dev:nav_design_system",
+        "path" => "/admin/design_system",
+        "paths" => [ "/admin/design_system" ],
+        "component" => "syrus_dev/AdminDesignSystem",
+        "group_id" => "development"
       )
     )
   end
