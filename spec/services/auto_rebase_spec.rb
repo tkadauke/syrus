@@ -179,9 +179,10 @@ RSpec.describe AutoRebase, :ci_only do
   it "uses force-with-lease when pushing a rebased branch" do
     git = instance_double(GitRunner)
     client = instance_double(GithubClient, access_token: "ghp_test_token")
+    repository_for_job = job.repository
 
-    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
-    allow(repository).to receive(:authenticated_push_url).with("ghp_test_token").and_return("https://push.example/repo.git")
+    allow(GithubClient).to receive(:for).with(repository: repository_for_job, user: user).and_return(client)
+    allow(repository_for_job).to receive(:authenticated_push_url).with("ghp_test_token").and_return("https://push.example/repo.git")
 
     expect(git).to receive(:run).with(
       "push", "--force-with-lease=refs/heads/#{job.branch_name}:old-sha", "https://push.example/repo.git",

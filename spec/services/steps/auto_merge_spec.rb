@@ -483,7 +483,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
   end
 
   it "rebases and keeps merging when the base branch moved and clean rebases are trusted" do
-    repository.update!(trust_clean_rebase_grade: true)
+    job.repository.update!(trust_clean_rebase_grade: true)
     job.approve!(via: "github_review")
     job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
     job.start_landing!

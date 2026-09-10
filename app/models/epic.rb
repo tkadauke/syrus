@@ -456,6 +456,16 @@ class Epic < ApplicationRecord
     jobs.where(owner_user_id: nil).update_all(owner_user_id: owner.id, updated_at: Time.current)
   end
 
+  def start_released_child_workflows_if_ready!
+    return false unless releases_jobs_for_execution?
+
+    started = false
+    jobs.find_each do |job|
+      started = true if job.start_pending_workflows_if_dependencies_satisfied!
+    end
+    started
+  end
+
   def reassign_child_jobs_to_owner!(owner)
     jobs.update_all(owner_user_id: owner.id, updated_at: Time.current)
   end
@@ -474,12 +484,30 @@ class Epic < ApplicationRecord
           # workflow without a Run. Explicitly start pending workflows
           # so the chain actually advances.
           job.start_pending_workflows_if_dependencies_satisfied!
+          start_legacy_child_workflows!(job)
         else
           job.start_pending_workflows_if_dependencies_satisfied!
         end
       end
     ensure
       @releasing_jobs_for_execution = false
+    end
+  end
+
+  def start_legacy_child_workflows!(job)
+    return unless self.class.where(id: id, state: %w[in_progress done]).exists?
+
+    job.workflows.where(state: "queued").find_each do |workflow|
+      next if workflow.runs.exists?
+
+      job.epic = self
+      workflow.association(:job).target = job if workflow.job_id == job.id
+      WorkUnits::Launcher.start!(workflow)
+    rescue WorkUnits::Launcher::LockConflict => e
+      Rails.logger.info(
+        "[Epic] #{slug}: skipped starting #{workflow.slug}; " \
+        "#{e.lock_key} is already owned by #{e.work_unit&.slug}"
+      )
     end
   end
 

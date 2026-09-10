@@ -282,7 +282,7 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
     it "appends the human co-author trailer when the App bot is the actual commit author" do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "tkadauke-syrus")
       installation = Factories.installation(user: job.user, account_login: repository.owner)
-      repository.update!(installation: installation)
+      job.repository.update!(installation: installation)
       stub_agent(title: "Address review feedback: tighten docstring", body: nil)
       handler.call
       expect(commit_message).to eq("Address review feedback: tighten docstring\n\nCo-Authored-By: Ada Lovelace <ada@example.com>")
