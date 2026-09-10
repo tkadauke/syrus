@@ -18,6 +18,7 @@ module ChatSerialization
       PerformanceLogging.phase("chat_payload.preload", chat_id: chat_session.id) { preload_chat_payload_associations(chat_session) }
       messages, has_more_older = PerformanceLogging.phase("chat_payload.messages_page", chat_id: chat_session.id) { paginated_tail(chat_session) }
       repository = chat_session.repository
+      visible_goal = PerformanceLogging.phase("chat_payload.visible_goal", chat_id: chat_session.id) { visible_chat_goal(chat_session) }
       attachment_groups = PerformanceLogging.phase("chat_payload.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }
       counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
         chat_session_payload_counts(chat_session.id)
@@ -57,7 +58,7 @@ module ChatSerialization
         pending_action_groups: PerformanceLogging.phase("chat_payload.pending_action_groups", chat_id: chat_session.id) { pending_action_groups_json(chat_session) },
         agent_questions: PerformanceLogging.phase("chat_payload.agent_questions", chat_id: chat_session.id) { chat_session.agent_questions_payload },
         queued_messages: PerformanceLogging.phase("chat_payload.queued_messages", chat_id: chat_session.id) { chat_session.queued_messages_payload },
-        active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_chat_goal(chat_session)) },
+        active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(visible_goal) },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
@@ -300,7 +301,6 @@ module ChatSerialization
 
   def pending_actions_json(chat_session)
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
-    chat_session.association(:pending_actions).reset
 
     pending_actions_for_payload(chat_session).map do |action|
       {
