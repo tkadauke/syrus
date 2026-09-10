@@ -59,7 +59,7 @@ Rounds range: 0–10. Default is 0 (disabled).
 
 `rounds: 1` seeks exactly one review opinion. If that review comes back `needs_work`, it still gets a repair reaction — the reviewer's feedback is always addressed by a repair `implement`/`respond`, it just doesn't get reviewed a second time since the budget is exhausted after one opinion. Set `rounds: 2` or higher to have the repair reviewed again before grading.
 
-### Per-repo (.syrus.yml)
+### Per-repo and per-project (.syrus.yml)
 
 ```yaml
 adversarial_review:
@@ -74,9 +74,11 @@ Per-repo configuration overrides the instance-wide setting. Set `rounds: 0` to d
 
 ### criteria
 
-`criteria` is an optional array of strings under the `adversarial_review` key. Each entry is a reviewer focus area specific to the repository — security patterns, API contracts, coding standards, or any concern the operator wants the reviewer to always check.
+`criteria` is an optional array of strings under the `adversarial_review` key. Each entry is a reviewer focus area — security patterns, API contracts, coding standards, or any concern the operator wants the reviewer to check.
 
-When `criteria` is present and non-empty, the reviewer prompt includes a "pay particular attention to the following criteria" section listing each item. These criteria supplement (not replace) the standard review checklist: the reviewer still checks for bugs, regressions, missing edge cases, and maintainability issues on top of any operator-provided criteria.
+Root `.syrus.yml` criteria are repo-wide by declaration scope. In a root-only repository, this preserves the legacy behavior: every adversarial review receives the root criteria. In a monorepo, nested `.syrus.yml` files can also declare `adversarial_review.criteria`; those project criteria are added only when the diff under review touches that project's directory. The reviewer prompt includes affected project metadata and the union of relevant root and project criteria.
+
+Identical criteria are included only once in the prompt. These criteria supplement (not replace) the standard review checklist: the reviewer still checks for bugs, regressions, missing edge cases, and maintainability issues on top of any operator-provided criteria.
 
 `criteria` is optional. Omitting it keeps existing behaviour. An empty array is valid. Blank entries are silently dropped.
 
