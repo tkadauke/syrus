@@ -13,6 +13,7 @@ function summary(overrides: Record<string, unknown> = {}) {
     title: "Nav sketch",
     preview_panel_id: 4,
     chat_session_id: 2,
+    chat_path: "/chats/2",
     entry_viewer_kind: "html",
     file_count: 3,
     published_at: "2026-09-05T10:00:00Z",
@@ -35,6 +36,7 @@ function detail() {
       app_export_path: "/api/v1/app/preview_panels/4/export",
       app_file_base_path: "/api/v1/app/preview_panels/4/files",
       app_token_path: "/api/v1/app/preview_panels/4/token",
+      app_visibility_path: "/api/v1/app/preview_panels/4",
       current_version_id: 9,
       entry_path: "index.html",
       entry_content_type: "text/html",
@@ -96,6 +98,9 @@ describe("MockupsPage", () => {
     expect(await screen.findByRole("complementary", { name: "Mockup preview" })).toBeInTheDocument()
     // The html panel renders in a sandboxed iframe titled after the mockup.
     expect(await screen.findByTitle("Nav sketch")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open chat" })).toHaveAttribute("href", "/chats/2")
+    expect(screen.getByRole("link", { name: "Open Nav sketch in new tab" })).toHaveAttribute("href", "http://preview-panel-4.lvh.me/?v=9")
+    expect(screen.getByRole("link", { name: "Export Nav sketch as zip" })).toHaveAttribute("href", "/api/v1/app/preview_panels/4/export?v=9")
   })
 
   it("renders the preview directly when the route carries a slug", async () => {
@@ -108,5 +113,34 @@ describe("MockupsPage", () => {
     renderPage("/mockups/MOCKUP-1")
 
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Mockup preview" })).toBeInTheDocument())
+  })
+
+  it("updates sharing through the standalone preview panel endpoint and copies the public link", async () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/preview_panels/4" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ ...detail().panel, visibility: "public" }))
+      }
+      if (path.startsWith("/api/v1/app/mockups/")) {
+        return Promise.resolve(jsonResponse({ ...detail(), panel: { ...detail().panel, visibility: "private" } }))
+      }
+      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+    })
+
+    renderPage("/mockups/MOCKUP-1")
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change sharing for Nav sketch" }))
+    fireEvent.click(screen.getByRole("option", { name: /Public/ }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/preview_panels/4", expect.objectContaining({ method: "PATCH" }))
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Change sharing for Nav sketch" }))
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://preview-panel-4.lvh.me")
+    expect(await screen.findByRole("status")).toHaveTextContent("Link copied to clipboard")
   })
 })

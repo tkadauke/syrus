@@ -17,6 +17,20 @@ module Api
           render json: PreviewPanel::Payload.new(panel).as_json
         end
 
+        def update
+          panel = find_panel
+          return if performed?
+
+          visibility = (params.dig(:preview_panel, :visibility).presence || params[:visibility]).to_s
+
+          unless PreviewPanel::VISIBILITIES.include?(visibility)
+            return render_error("validation_failed", "Invalid visibility. Must be one of: #{PreviewPanel::VISIBILITIES.join(", ")}.", status: :unprocessable_content)
+          end
+
+          PreviewPanel::Service.new(panel).update_visibility!(visibility)
+          render json: PreviewPanel::Payload.new(panel.reload).as_json
+        end
+
         def file
           panel = find_panel
           return if performed?
