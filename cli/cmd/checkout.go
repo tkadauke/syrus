@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -85,7 +86,12 @@ func NewCheckoutCommand() *cobra.Command {
 				return err
 			}
 			if !noHooks {
-				if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+				hookOptions := postCheckoutHookOptions{
+					baseBranch:    job.Job.EffectiveBaseBranch,
+					defaultBranch: job.Repository.DefaultBranch,
+					headRef:       "HEAD",
+				}
+				if err := runPostCheckoutHooks(cmd.Context(), checkoutRunGit, checkoutRunHookCommand, cmd.OutOrStdout(), cmd.ErrOrStderr(), hookOptions); err != nil {
 					return err
 				}
 			}
@@ -568,14 +574,35 @@ func checkoutPlainBranch(ctx context.Context, runner gitRunner, branchName strin
 }
 
 type checkoutSyrusYml struct {
-	Hooks checkoutHooks `yaml:"hooks"`
+	Project checkoutProject `yaml:"project"`
+	Hooks   checkoutHooks   `yaml:"hooks"`
+}
+
+type checkoutProject struct {
+	ID    string `yaml:"id"`
+	Label string `yaml:"label"`
 }
 
 type checkoutHooks struct {
 	PostCheckout []string `yaml:"post_checkout"`
 }
 
-func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hookCommandRunner, stdout io.Writer, stderr io.Writer) error {
+type postCheckoutHookOptions struct {
+	baseBranch    string
+	defaultBranch string
+	headRef       string
+}
+
+type postCheckoutHookConfig struct {
+	configPath string
+	dir        string
+	relDir     string
+	projectID  string
+	label      string
+	commands   []string
+}
+
+func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hookCommandRunner, stdout io.Writer, stderr io.Writer, options ...postCheckoutHookOptions) error {
 	repoRootOutput, err := runner(ctx, "", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return fmt.Errorf("could not find git repository root for post-checkout hooks: %w", err)
@@ -585,34 +612,216 @@ func runPostCheckoutHooks(ctx context.Context, runner gitRunner, hookRunner hook
 		return errors.New("could not find git repository root for post-checkout hooks")
 	}
 
-	configPath := filepath.Join(repoRoot, ".syrus.yml")
-	contents, err := os.ReadFile(configPath)
-	if errors.Is(err, os.ErrNotExist) {
+	configs, err := discoverPostCheckoutHookConfigs(repoRoot)
+	if err != nil {
+		return err
+	}
+	if len(configs) == 0 {
 		return nil
 	}
+
+	affectedFiles := []string(nil)
+	diffKnown := true
+	if postCheckoutHasNestedConfig(configs) {
+		hookOptions := postCheckoutHookOptions{}
+		if len(options) > 0 {
+			hookOptions = options[0]
+		}
+		affectedFiles, err = postCheckoutAffectedFiles(ctx, runner, hookOptions)
+		if err != nil {
+			diffKnown = false
+			fmt.Fprintf(stderr, "warning: could not determine affected projects for post-checkout hooks; running all discovered project hooks: %v\n", err)
+		}
+	}
+
+	for _, config := range configs {
+		if config.relDir != "" && diffKnown && !postCheckoutProjectAffected(config.relDir, affectedFiles) {
+			continue
+		}
+		for _, command := range config.commands {
+			fmt.Fprintf(stderr, "running post-checkout hook from %s (%s): %s\n", config.configPath, postCheckoutProjectDescription(config), command)
+			if err := hookRunner(ctx, config.dir, command, stdout, stderr); err != nil {
+				if exitCode, ok := exitCodeFromError(err); ok {
+					return fmt.Errorf("post-checkout hook failed: %q exited with status %d", command, exitCode)
+				}
+				return fmt.Errorf("post-checkout hook failed: %q: %w", command, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func discoverPostCheckoutHookConfigs(repoRoot string) ([]postCheckoutHookConfig, error) {
+	configs := []postCheckoutHookConfig{}
+	rootConfig, err := readPostCheckoutHookConfig(repoRoot, "")
+	if err == nil && len(rootConfig.commands) > 0 {
+		configs = append(configs, rootConfig)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	var nested []postCheckoutHookConfig
+	err = filepath.WalkDir(repoRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() {
+			return nil
+		}
+		if path == repoRoot {
+			return nil
+		}
+		if entry.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		configPath := filepath.Join(path, ".syrus.yml")
+		if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("could not read %s: %w", configPath, err)
+		}
+		relDir, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		config, err := readPostCheckoutHookConfig(repoRoot, filepath.ToSlash(relDir))
+		if err != nil {
+			return err
+		}
+		if len(config.commands) > 0 {
+			nested = append(nested, config)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("could not read %s: %w", configPath, err)
+		return nil, err
+	}
+	sort.Slice(nested, func(i, j int) bool { return nested[i].configPath < nested[j].configPath })
+	configs = append(configs, nested...)
+	return configs, nil
+}
+
+func postCheckoutHasNestedConfig(configs []postCheckoutHookConfig) bool {
+	for _, config := range configs {
+		if config.relDir != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func readPostCheckoutHookConfig(repoRoot string, relDir string) (postCheckoutHookConfig, error) {
+	configPath := filepath.Join(repoRoot, filepath.FromSlash(relDir), ".syrus.yml")
+	contents, err := os.ReadFile(configPath)
+	if err != nil {
+		return postCheckoutHookConfig{}, fmt.Errorf("could not read %s: %w", configPath, err)
 	}
 
 	var config checkoutSyrusYml
 	if err := yaml.Unmarshal(contents, &config); err != nil {
-		return fmt.Errorf("could not parse %s: %w", configPath, err)
+		return postCheckoutHookConfig{}, fmt.Errorf("could not parse %s: %w", configPath, err)
 	}
 
+	commands := []string{}
 	for _, command := range config.Hooks.PostCheckout {
 		command = strings.TrimSpace(command)
 		if command == "" {
 			continue
 		}
-		if err := hookRunner(ctx, repoRoot, command, stdout, stderr); err != nil {
-			if exitCode, ok := exitCodeFromError(err); ok {
-				return fmt.Errorf("post-checkout hook failed: %q exited with status %d", command, exitCode)
-			}
-			return fmt.Errorf("post-checkout hook failed: %q: %w", command, err)
+		commands = append(commands, command)
+	}
+
+	projectID := strings.TrimSpace(config.Project.ID)
+	if projectID == "" {
+		projectID = strings.ReplaceAll(relDir, "/", "-")
+	}
+	label := strings.TrimSpace(config.Project.Label)
+	if label == "" {
+		label = projectID
+	}
+	if relDir == "" {
+		projectID = "root"
+		if label == "" {
+			label = "Repository"
 		}
 	}
 
-	return nil
+	return postCheckoutHookConfig{
+		configPath: postCheckoutConfigDisplayPath(relDir),
+		dir:        filepath.Join(repoRoot, filepath.FromSlash(relDir)),
+		relDir:     relDir,
+		projectID:  projectID,
+		label:      label,
+		commands:   commands,
+	}, nil
+}
+
+func postCheckoutConfigDisplayPath(relDir string) string {
+	if relDir == "" {
+		return ".syrus.yml"
+	}
+	return relDir + "/.syrus.yml"
+}
+
+func postCheckoutProjectDescription(config postCheckoutHookConfig) string {
+	if config.relDir == "" {
+		return "root project " + config.label
+	}
+	return fmt.Sprintf("project %s (%s)", config.label, config.relDir)
+}
+
+func postCheckoutAffectedFiles(ctx context.Context, runner gitRunner, options postCheckoutHookOptions) ([]string, error) {
+	base := strings.TrimSpace(options.baseBranch)
+	if base == "" {
+		base = strings.TrimSpace(options.defaultBranch)
+	}
+	if base == "" {
+		baseOutput, err := runner(ctx, "", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+		if err != nil {
+			return nil, fmt.Errorf("could not determine default branch: %w", err)
+		}
+		base = strings.TrimPrefix(strings.TrimSpace(baseOutput), "origin/")
+	}
+	if base == "" {
+		return nil, errors.New("could not determine default branch")
+	}
+
+	baseRef := "refs/remotes/origin/" + base
+	if _, err := runner(ctx, "", "fetch", "origin", "+refs/heads/"+base+":"+baseRef); err != nil {
+		return nil, fmt.Errorf("could not fetch origin/%s: %w", base, err)
+	}
+
+	headRef := strings.TrimSpace(options.headRef)
+	if headRef == "" {
+		headRef = "HEAD"
+	}
+	output, err := runner(ctx, "", "diff", "--name-only", baseRef+"..."+headRef)
+	if err != nil {
+		return nil, fmt.Errorf("could not diff %s...%s: %w", baseRef, headRef, err)
+	}
+	files := []string{}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, filepath.ToSlash(line))
+		}
+	}
+	return files, nil
+}
+
+func postCheckoutProjectAffected(relDir string, affectedFiles []string) bool {
+	relDir = strings.Trim(strings.TrimSpace(filepath.ToSlash(relDir)), "/")
+	if relDir == "" {
+		return true
+	}
+	for _, file := range affectedFiles {
+		file = strings.Trim(strings.TrimSpace(filepath.ToSlash(file)), "/")
+		if file == relDir || strings.HasPrefix(file, relDir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func backupLocalBranchIfNeeded(ctx context.Context, runner gitRunner, branchName string, localRef string, remoteRef string) error {

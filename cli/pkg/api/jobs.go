@@ -15,23 +15,24 @@ type JobList struct {
 type JobResponse json.RawMessage
 
 type JobItem struct {
-	ID              int64          `json:"id"`
-	State           string         `json:"state"`
-	SummaryState    string         `json:"summary_state"`
-	Title           string         `json:"title"`
-	IssueTitle      string         `json:"issue_title"`
-	RepositorySlug  string         `json:"repository_slug"`
-	BranchName      string         `json:"branch_name"`
-	DependsOnJobIDs []int64        `json:"depends_on_job_ids"`
-	PRNumber        int64          `json:"pr_number"`
-	PRURL           string         `json:"pr_url"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-	StartedAt       string         `json:"started_at"`
-	FinishedAt      string         `json:"finished_at"`
-	CurrentStep     string         `json:"current_step"`
-	LatestRunID     int64          `json:"latest_run_id"`
-	Workflow        *WorkflowBrief `json:"workflow"`
+	ID                  int64          `json:"id"`
+	State               string         `json:"state"`
+	SummaryState        string         `json:"summary_state"`
+	Title               string         `json:"title"`
+	IssueTitle          string         `json:"issue_title"`
+	RepositorySlug      string         `json:"repository_slug"`
+	BranchName          string         `json:"branch_name"`
+	EffectiveBaseBranch string         `json:"effective_base_branch"`
+	DependsOnJobIDs     []int64        `json:"depends_on_job_ids"`
+	PRNumber            int64          `json:"pr_number"`
+	PRURL               string         `json:"pr_url"`
+	CreatedAt           string         `json:"created_at"`
+	UpdatedAt           string         `json:"updated_at"`
+	StartedAt           string         `json:"started_at"`
+	FinishedAt          string         `json:"finished_at"`
+	CurrentStep         string         `json:"current_step"`
+	LatestRunID         int64          `json:"latest_run_id"`
+	Workflow            *WorkflowBrief `json:"workflow"`
 }
 
 type WorkflowBrief struct {
@@ -55,7 +56,8 @@ type StepBrief struct {
 type JobDetail struct {
 	Job        JobItem `json:"job"`
 	Repository struct {
-		Slug string `json:"slug"`
+		Slug          string `json:"slug"`
+		DefaultBranch string `json:"default_branch"`
 	} `json:"repository"`
 	Summary   *JobSummary     `json:"summary"`
 	TestPlan  *JobTestPlan    `json:"test_plan"`
