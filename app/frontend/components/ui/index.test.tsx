@@ -1,20 +1,33 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import {
+  Badge,
   Button,
   Card,
   Checkbox,
+  Cluster,
   Input,
+  Inline,
+  LinkText,
   Modal,
+  Notice,
+  Page,
   PageHeading,
   PanelMessage,
+  Pill,
   Select,
+  Section,
   Skeleton,
+  Stack,
   StatusPill,
+  Surface,
+  Text,
   Toggle,
   TonePill,
+  Toolbar,
   buttonClasses
 } from "@app/components/ui"
+import { MemoryRouter } from "react-router-dom"
 
 describe("@app/components/ui", () => {
   it("exposes the stable primitive import surface without changing button behavior", () => {
@@ -68,9 +81,124 @@ describe("@app/components/ui", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeInTheDocument()
     expect(screen.getByTestId("card").className).toContain("border-border")
     expect(screen.getByTestId("skeleton").className).toContain("animate-pulse")
-    expect(screen.getByText("Careful").className).toContain("border-amber-200")
+    expect(screen.getByText("Careful").parentElement?.className).toContain("border-warning-border")
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("Queued")).toBeInTheDocument()
+  })
+
+  it("exports Surface with tokenized variants, passthrough props, and className escape hatches", () => {
+    const onClick = vi.fn()
+    render(
+      <>
+        <Surface aria-label="Repository settings" className="min-h-20" data-testid="surface" onClick={onClick} role="region" variant="raised">
+          Settings
+        </Surface>
+        <Surface data-testid="danger" padding="sm" variant="danger">Failed</Surface>
+      </>
+    )
+
+    const surface = screen.getByRole("region", { name: "Repository settings" })
+    fireEvent.click(surface)
+    expect(onClick).toHaveBeenCalled()
+    expect(surface.className).toContain("bg-surface")
+    expect(surface.className).toContain("shadow-[var(--shadow-panel)]")
+    expect(surface.className).toContain("min-h-20")
+    expect(screen.getByTestId("danger").className).toContain("bg-danger-surface")
+  })
+
+  it("exports Text variants and semantic tone classes without raw gray output", () => {
+    render(
+      <>
+        <Text data-testid="body">Normal</Text>
+        <Text data-testid="muted" muted>Muted</Text>
+        <Text as="code" data-testid="mono" variant="mono">JOB-1</Text>
+        <Text data-testid="danger" tone="danger">Failed</Text>
+      </>
+    )
+
+    expect(screen.getByTestId("body").className).toContain("text-text-primary")
+    expect(screen.getByTestId("muted").className).toContain("text-text-muted")
+    expect(screen.getByTestId("mono").tagName).toBe("CODE")
+    expect(screen.getByTestId("mono").className).toContain("font-mono")
+    expect(screen.getByTestId("danger").className).toContain("text-danger-text")
+    expect(screen.getByTestId("muted").className).not.toMatch(/\btext-gray-/)
+  })
+
+  it("exports Stack, Inline, Cluster, and Toolbar layout helpers with passthrough props", () => {
+    render(
+      <>
+        <Stack className="custom-stack" data-testid="stack" gap="lg" />
+        <Inline aria-label="metadata" data-testid="inline" justify="between" wrap />
+        <Cluster data-testid="cluster" gap="xs" />
+        <Toolbar aria-label="Actions" data-testid="toolbar" />
+      </>
+    )
+
+    expect(screen.getByTestId("stack").className).toContain("space-y-4")
+    expect(screen.getByTestId("stack").className).toContain("custom-stack")
+    expect(screen.getByTestId("inline").className).toContain("flex-wrap")
+    expect(screen.getByTestId("inline")).toHaveAttribute("aria-label", "metadata")
+    expect(screen.getByTestId("cluster").className).toContain("gap-1.5")
+    expect(screen.getByRole("toolbar", { name: "Actions" })).toBeInTheDocument()
+  })
+
+  it("exports Page and Section compound primitives", () => {
+    render(
+      <Page.Root aria-label="Dashboard page" size="wide">
+        <Page.Header>
+          <Page.HeadingGroup>
+            <Page.Title>Dashboard</Page.Title>
+            <Page.Description>Queue and work state</Page.Description>
+          </Page.HeadingGroup>
+          <Page.Actions><Button>New Job</Button></Page.Actions>
+        </Page.Header>
+        <Section.Root aria-label="Work attempts" divided tone="subtle">
+          <Section.Header>
+            <Section.Title>Attempts</Section.Title>
+            <Section.Actions><Button size="sm">Retry</Button></Section.Actions>
+          </Section.Header>
+          <Section.Body padding="sm"><Text muted>No attempts yet.</Text></Section.Body>
+        </Section.Root>
+      </Page.Root>
+    )
+
+    expect(screen.getByRole("main", { name: "Dashboard page" }).className).toContain("max-w-[96rem]")
+    expect(screen.getByRole("heading", { level: 1, name: "Dashboard" }).className).toContain("text-[length:var(--text-page-title)]")
+    expect(screen.getByRole("region", { name: "Work attempts" }).className).toContain("bg-surface-subtle")
+    expect(screen.getByRole("region", { name: "Work attempts" })).toHaveAttribute("data-section-divided", "true")
+  })
+
+  it("exports LinkText for router and external anchor links", () => {
+    render(
+      <MemoryRouter>
+        <LinkText to="/jobs/1">JOB-1</LinkText>
+        <LinkText external href="https://example.test">External</LinkText>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: "JOB-1" })).toHaveAttribute("href", "/jobs/1")
+    expect(screen.getByRole("link", { name: "JOB-1" }).className).toContain("text-link")
+    expect(screen.getByRole("link", { name: "External" })).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("link", { name: "External" })).toHaveAttribute("rel", "noreferrer")
+  })
+
+  it("exports Notice, Pill, and Badge with semantic tones and accessibility passthrough", () => {
+    render(
+      <>
+        <Notice aria-live="polite" title="Landing queue is blocked" tone="warning">
+          A dependency is waiting.
+        </Notice>
+        <Pill active aria-label="Running" tone="info">Running</Pill>
+        <Badge data-testid="badge" tone="success">primary</Badge>
+      </>
+    )
+
+    expect(screen.getByText("Landing queue is blocked").closest("div")).toHaveAttribute("aria-live", "polite")
+    expect(screen.getByText("Landing queue is blocked").closest("div")?.className).toContain("bg-warning-surface")
+    expect(screen.getByLabelText("Running").className).toContain("bg-info-surface")
+    expect(screen.getByLabelText("Running").querySelector("[data-running-spinner]")).toBeInTheDocument()
+    expect(screen.getByTestId("badge").className).toContain("rounded-[var(--radius-control)]")
+    expect(screen.getByTestId("badge").className).not.toMatch(/\bbg-green-/)
   })
 
   it("preserves Modal portal and close behavior", () => {
