@@ -147,16 +147,21 @@ The pickup guard applies to Runs whose workflow template uses the `:runs` or
 `:merges` compute queues, including sticky `resume-<worker-storage-key>` retry
 queues. It uses the current worker hostname (`SyrusVersion.hostname`), fresh
 `worker_host_health_samples`, `workflows.worker_hostname` on already running
-workflows, and `workflow_step_resource_profiles` where available.
+workflows, and command-attributed `workflow_step_resource_profiles` for the
+narrow high-cost grader guard.
 
 - If the selected host's latest fresh sample is critical, `RunJob` leaves the
   Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
-- If the candidate Run is resource-guarded and that same host already has a
-  resource-guarded Run executing, `RunJob` also defers it. Resource-guarded
-  means any agentic Step, `grader` / `preflight_grader`, or another Step whose
-  resource profile predicts CPU-heavy or long-running work. Missing profiles
-  use conservative defaults, so unknown expensive work is guarded until real
-  samples prove it cheap.
+- Agentic Steps are resource-guarded on sight. If the same host already has
+  `RunHostAdmission::GUARDED_RUNS_PER_HOST` guarded agentic Runs executing,
+  `RunJob` defers the pickup.
+- `grader` and `preflight_grader` Steps are resource-guarded only when the
+  selected host is already at warning pressure **and** the matching
+  grader-specific profile has command-attributed evidence showing high cost
+  (for example a long `rspec` command span). Host-correlated profile values and
+  missing/default-only profiles do not make a grader guarded. These costly
+  graders are capped separately by `HIGH_COST_GRADER_RUNS_PER_HOST` so multiple
+  full-suite jobs are not admitted onto a contended host at once.
 - Non-critical hosts with no existing guarded Run admit the pickup normally.
   Missing host telemetry is reported as `unknown`; it is not treated as either
   healthy or critical by this host-local guard.
@@ -166,9 +171,9 @@ This is intentionally a pickup-time deferral, not a failure. The Run remains
 iteration is spent, and the re-enqueued job preserves the current Solid Queue
 queue and priority. On deferral, the Workflow artifact
 `run_host_admission` records the action, reason, hostname, sampled health,
-guard count/limit, step kind, Run id, queue name, whether the queue was sticky
-resume, `deferred_at`, and `retry_at`. The Run also receives a system `JobLog`
-line:
+guard count/limit, resource guard kind, high-cost grader count when relevant,
+step kind, Run id, queue name, whether the queue was sticky resume,
+`deferred_at`, and `retry_at`. The Run also receives a system `JobLog` line:
 `compute host admission deferred before <step_kind>: <reason>`.
 The Job detail payload uses that `run_id` to attach the admission block only to
 the Step that owns the queued Run. Worker-slot admission artifacts use their
@@ -384,32 +389,40 @@ conflating host pressure with process-owned cost.
 
 ## How Workflow Admission Decides
 
-Admission measures the host instead of predicting the step.
+Admission measures the host first and only uses step profiles where command
+spans identify an individual costly grader.
 
 - **`RunHostAdmission`** (per Run, on the compute queues) defers anything when
   the worker's own health sample reads critical — grader, agent or otherwise.
-  Beyond that it rations only *agentic* runs, `GUARDED_RUNS_PER_HOST` at a
-  time, and leaves `STAGGER_INTERVAL` between admissions on a host so each
-  decision sees a sample that reflects the previous one. Host readings lag the
-  work that produced them; the slot count and the stagger are there to bound
-  that lag, not to model capacity.
+  Beyond that it rations *agentic* runs, `GUARDED_RUNS_PER_HOST` at a time, and
+  high-cost command-attributed graders, `HIGH_COST_GRADER_RUNS_PER_HOST` at a
+  time, only while the selected host is already warning. It leaves
+  `STAGGER_INTERVAL` between guarded admissions on a host so each decision sees
+  a sample that reflects the previous one. Host readings lag the work that
+  produced them; the slot counts and stagger are there to bound that lag, not
+  to model full capacity.
 - **`WorkflowAdmissionBudget`** (per Workflow/phase) keeps the hard
   memory/disk gates, the urgent override, the landing-queue reservation, the
   minimum-progress floor, and one soft gate: `soft_host_pressure?`, which is a
   live reading of worker CPU, IO, memory and disk against `SOFT_HOST_PRESSURE`.
 
-**There are no predictions left in the decision path.** `WorkflowStepResourceProfile`
-rows are still recorded and are still useful for spotting a step whose cost
-regressed, but nothing admits or defers on them.
+**Host-correlated profile predictions are not admission gates.**
+`WorkflowStepResourceProfile` rows remain useful for spotting a step whose cost
+regressed. The pickup guard only admits/defers on a profile when the candidate
+is a grader/preflight-grader and the profile's prediction source is
+`command_attributed`; ambient host-correlated pressure and conservative
+defaults are diagnostics, not throttles.
 
-They were removed because they measured the wrong thing. `p90_cpu_pressure` and
-`p90_memory_used_percent` recorded the *host's ambient state* while a step ran,
-not the step's own demand — so `mergeability_preflight`, a 52-second GitHub API
-call using 2.7% CPU, profiled at 84.1 cpu_pressure and 75.9% memory, and was
-rationed as if it were an agent. `p90_process_attributed_cpu_percent` is the
-real per-process figure, on a different scale again (0.3 for `prepare`, 230 for
-a multi-core rspec run). Three scales were being compared against budgets as if
-they were one.
+Broad predictive gates were removed because they measured the wrong thing.
+`p90_cpu_pressure` and `p90_memory_used_percent` recorded the *host's ambient
+state* while a step ran, not the step's own demand — so
+`mergeability_preflight`, a 52-second GitHub API call using 2.7% CPU, profiled
+at 84.1 cpu_pressure and 75.9% memory, and was rationed as if it were an agent.
+`p90_process_attributed_cpu_percent` is the real per-process figure, on a
+different scale again (0.3 for `prepare`, 230 for a multi-core rspec run).
+Three scales were being compared against budgets as if they were one. The
+remaining grader guard deliberately uses only command-attributed predictions
+and only under local warning pressure.
 
 The result was self-reinforcing: ambient readings rise with load, so the
 throttle tightened exactly when it should have relaxed. Production sat at ~18%
@@ -460,11 +473,13 @@ rather than `within_budget`, that is the symptom to look for.
 `AppSetting.workflow_admission_control_enabled` is the global operator kill
 switch for the soft workflow admission budget. It defaults to `true`. When an
 admin disables it from Admin Settings, `WorkflowAdmissionBudget` still blocks
-hard worker memory/disk exhaustion but bypasses soft worker pressure,
-conservative/default-only predictions, pending high-cost work, and repository
-concurrency throttles. Other start blockers remain outside this switch:
-provider circuits, explicit landing pauses, dependency blockers, archived
-repositories, missing PRs, and Job readiness checks still apply.
+hard worker memory/disk exhaustion but bypasses soft worker pressure and
+landing-queue capacity reservation. Per-host `RunHostAdmission` is separate:
+it still prevents pickups on critically pressured workers and still applies
+host-local guarded-run limits once a queued Run is claimed. Other start
+blockers remain outside this switch: provider circuits, explicit landing
+pauses, dependency blockers, archived repositories, missing PRs, and Job
+readiness checks still apply.
 
 Every disabled admission decision records `admission_control_disabled=true`,
 the last changed timestamp/user, and the `bypassed_gates` list in the Workflow
@@ -476,12 +491,12 @@ landing queue so existing sleepers are reconsidered promptly.
 While admission control is enabled, Syrus also keeps a minimum-progress floor:
 at least one admission-controlled workflow may start per healthy worker while
 running agentic work is below that floor. This makes soft host pressure and
-conservative/default-only predictions throttling signals instead of a total
-stop, so landing and merge-train progress cannot starve behind uncertain
-estimates. Hard worker memory/disk exhaustion and the non-admission blockers
-above still win. Admission artifacts include the healthy worker count, active
-agentic run count, floor capacity, whether the floor override was used, and the
-soft gates that were present.
+other workflow-level throttling signals a backstop rather than a total stop,
+so landing and merge-train progress cannot starve behind uncertain conditions.
+Hard worker memory/disk exhaustion and the non-admission blockers above still
+win. Admission artifacts include the healthy worker count, active agentic run
+count, floor capacity, whether the floor override was used, and the soft gates
+that were present.
 
 Every admission decision also records `pressure.host.telemetry_state` (and a
 copy under `details.telemetry_state`): `"present"` when fresh
@@ -492,21 +507,19 @@ recorded (e.g. the per-worker heartbeat thread never started). A `"stale"` or
 `"absent"` state reports an explicit, documented neutral/zero-pressure host
 reading — full headroom, not a synthesized worst case — so a total telemetry
 outage cannot masquerade as maxed-out hosts. It only changes what the
-host-pressure gate itself can see; step-level `WorkflowStepResourceProfile`
-predictions still fall back to `WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS`
-when a profile is genuinely missing, independent of host telemetry
-availability. Admin and dashboard surfaces reading `start_blocked_details` or
-`workflow_admission_decision` should treat `telemetry_state` as the source of
-truth for "no data" versus "data says busy" rather than inferring it from a
-0% pressure reading.
+host-pressure gate itself can see; profile prediction diagnostics are computed
+separately from host telemetry. Admin and dashboard surfaces reading
+`start_blocked_details` or `workflow_admission_decision` should treat
+`telemetry_state` as the source of truth for "no data" versus "data says busy"
+rather than inferring it from a 0% pressure reading.
 
 **Operator-facing visibility.** The full diagnostics view lives at
 `/admin/resource_admission` (admin-only), backed by
 `Admin::ResourceAdmissionDiagnosticsPayload`. For an admission-blocked Job,
 the Job detail page also renders a pressure breakdown directly — which
-dimension tripped (hard host pressure, soft ambient host pressure, or
-predicted step-profile pressure), its current value versus the threshold
-that tripped it, and the telemetry state behind the reading — via
+dimension tripped (hard host pressure, soft ambient host pressure, or another
+workflow-level admission gate), its current value versus the threshold that
+tripped it, and the telemetry state behind the reading — via
 `App::JobDetailPayload#job_json`'s `start_blocked_breakdown` field. Both
 surfaces format the same recorded `WorkflowAdmissionBudget::Decision#artifact`
 through the shared `AdmissionDiagnostics::Breakdown` service (never
