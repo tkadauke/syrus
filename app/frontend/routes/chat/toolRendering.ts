@@ -281,8 +281,6 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
 export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
-  if (error) return { kind: "error", summary: "" }
-
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(parseBody)
 
@@ -290,7 +288,9 @@ export function toolResultPresentation(name: string, body: string, error = false
   // generic guess below (which can only pattern-match on the tool name and
   // a handful of well-known array/count keys), so it takes priority.
   const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
-  if (pluginSummary) return { kind: "text", summary: pluginSummary }
+  if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
+
+  if (error) return { kind: "error", summary: "" }
 
   const mcpSummary = mcpResultSummary(normalizedName, parsed)
   if (mcpSummary) return mcpSummary

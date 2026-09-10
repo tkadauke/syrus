@@ -24,8 +24,13 @@ module Mcp::Tools
         payload = {
           id: document.id,
           kind: document.kind,
-          title: document.title
+          title: document.title,
+          status: document_status(document)
         }
+        if (repository = document_repository(document))
+          payload[:repository_id] = repository.id
+          payload[:repository] = repository.slug
+        end
 
         if document.file?
           payload[:content_type] = document.content_type
@@ -35,6 +40,22 @@ module Mcp::Tools
         end
 
         payload
+      end
+
+      def document_repository(document)
+        attachable = document.attachable
+        return attachable if attachable.respond_to?(:slug)
+        return attachable.repository if attachable.respond_to?(:repository)
+
+        nil
+      end
+
+      def document_status(document)
+        return "attached" if document.file.attached?
+        return "cached" if document.content_cache.present?
+        return "linked" if document.google_docs_url.present?
+
+        "unavailable"
       end
     end
   end
