@@ -779,6 +779,7 @@ module Api
             {
               name: stage.name,
               label: stage.label,
+              scope: stage.scope,
               reached_count: reached_statuses.count,
               total: landed_jobs.count,
               reached_at: reached_statuses.filter_map(&:reached_at).max&.iso8601

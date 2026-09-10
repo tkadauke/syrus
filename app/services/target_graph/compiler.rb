@@ -234,6 +234,7 @@ class TargetGraph
 
         begin
           nested_config = SyrusYml.load_file(workspace_path.join(relative_dir, SyrusYml::CONFIG_FILE))
+          validate_nested_deployment_stages!(nested_config)
         rescue SyrusYml::ParseError => e
           @nested_parse_errors << "#{nested_owner_config_path}: #{e.message}"
           next
@@ -278,6 +279,13 @@ class TargetGraph
 
     def nested_relative_dirs
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
+    end
+
+    def validate_nested_deployment_stages!(nested_config)
+      return if nested_config.deployment_stages.empty?
+
+      raise SyrusYml::ParseError,
+        "deployment_stages are repository-scoped in v1; declare them only in the root .syrus.yml"
     end
 
     # An explicit `project.id` in the nested file (already charset-validated

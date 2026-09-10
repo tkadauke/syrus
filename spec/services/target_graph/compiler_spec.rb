@@ -498,6 +498,23 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.validate!).to be(true)
     end
 
+    it "skips nested deployment_stages because v1 stages are repository-scoped" do
+      write(".syrus.yml", "grade:\n  - name: root-tests\n    run: bin/rspec\n")
+      write("ios/.syrus.yml", <<~YAML)
+        deployment_stages:
+          - name: ios_testflight
+            tag: ios-testflight
+      YAML
+
+      graph = described_class.compile(@dir)
+      diagnostics = described_class.diagnose(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:grade/root-tests"))).not_to be_nil
+      expect(graph.project("ios")).to be_nil
+      expect(diagnostics.error).to include("ios/.syrus.yml")
+      expect(diagnostics.error).to include("deployment_stages are repository-scoped in v1")
+    end
+
     it "raises a validation error naming both files when two nested directories resolve to the same project id" do
       write("foo/bar/.syrus.yml", "prepare: []\n")
       write("foo-bar/.syrus.yml", "prepare: []\n")

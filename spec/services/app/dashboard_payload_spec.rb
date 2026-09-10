@@ -648,6 +648,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:latest_deployment_stage]).to eq(
         name: "production",
         label: "In Production",
+        scope: "repository",
         reached_at: "2026-07-30T13:00:00Z"
       )
     end

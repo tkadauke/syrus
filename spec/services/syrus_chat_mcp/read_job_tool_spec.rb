@@ -110,8 +110,8 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:job]).to include(landed_sha: "merge-sha")
     expect(payload[:job][:deployment_stages]).to eq([
-      { name: "staging", label: "Staging", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
-      { name: "production", label: "Production", reached: false, reached_at: nil, tag_sha: nil }
+      { name: "staging", label: "Staging", scope: "repository", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
+      { name: "production", label: "Production", scope: "repository", reached: false, reached_at: nil, tag_sha: nil }
     ])
   end
 

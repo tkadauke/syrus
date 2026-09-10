@@ -18,6 +18,7 @@ module App
         {
           name: stage.name,
           label: stage.label,
+          scope: stage.scope,
           reached: status.present?,
           reached_at: status&.reached_at&.iso8601,
           tag_sha: status&.tag_sha
