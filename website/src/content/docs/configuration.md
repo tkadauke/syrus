@@ -131,6 +131,12 @@ rounds before the normal grade loop. A reviewer verdict of `needs_work`
 feeds another implement/respond iteration; an `approved` verdict exits the
 loop early.
 
+`adversarial_review.criteria` adds repository- or project-specific focus
+areas to the reviewer prompt. Root `.syrus.yml` criteria apply repo-wide. In
+monorepos, nested `.syrus.yml` files can declare their own criteria, and Syrus
+adds those project criteria only when the diff under review touches that
+project directory. Identical criteria are shown once.
+
 The workflow chain is created before the workspace clone exists, so Syrus
 reads this setting from `.syrus.yml` on the repository's default branch. If
 the file or setting is absent, adversarial review is disabled.

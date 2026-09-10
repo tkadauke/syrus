@@ -412,6 +412,13 @@ repair loops.
 
 Agentic. An independent reviewer agent critiques the implementation, calls the available `submit_adversarial_review` MCP tool name with a verdict and findings, and any workspace changes it makes are discarded. Runs in a bounded loop before graders when `adversarial_review.rounds > 0`.
 
+The reviewer prompt includes configured `adversarial_review.criteria`.
+Criteria declared in the root `.syrus.yml` apply repo-wide. Criteria declared
+in nested project `.syrus.yml` files are added only when the diff under review
+touches that project directory. Syrus de-duplicates identical criteria and
+includes the affected project metadata that made each project criteria source
+relevant.
+
 Most workflows that have this loop (`initial`, `retry`, `pr_comment`,
 `chat_feedback`, `external_pr_feedback`) lead with a bare top-level
 `implement`/`respond` step that runs regardless of whether adversarial review
