@@ -10,7 +10,7 @@ Enable it from Admin -> Plugins, or:
 PluginRecord.find_by(name: "terminal").update(enabled: true)
 ```
 
-Once enabled, a Terminal entry appears in the sidebar (badged with the number of open sessions) and an "Open terminal in workspace" button appears on each workflow card on the Job page. Disabling the plugin withholds both, and its API routes return `plugin_disabled`; the Action Cable channel rejects new subscriptions.
+Once enabled, a Terminal entry appears in the sidebar (badged with the number of open sessions) and an "Open terminal in workspace" button appears on each workflow card on the Job page. The Terminal page's plus menu opens a searchable workspace picker grouped into actionable workflows, retained coding chat workspaces, and live worker scratch targets. Disabling the plugin withholds both, and its API routes return `plugin_disabled`; the Action Cable channel rejects new subscriptions.
 
 The plugin owns `Terminal::Session` (table `terminal_sessions`), `TerminalChannel`, `TerminalSessionJob`, `Terminal::Relay`, its controller, and the SPA route. It reaches the sidebar through `:sidebar_page` and the Job page through the `job.workflow.actions` `:ui_slot`.
 
@@ -33,6 +33,9 @@ Traefik and public ingress are not involved — the relay is internal only.
 ### Session lifecycle
 
 - Sessions start when an operator opens the terminal panel.
+- New sessions created from the picker use a server-side workspace candidate key. Workflow candidates keep the selected workflow path and, when the workflow's `worker_storage_key` has a live `resume-<storage-key>` queue, enqueue the relay job on that storage-affinity queue.
+- Scratch sessions are chosen from explicit worker candidates and are labeled as `Scratch on <hostname>`. Exact hostname targeting is only guaranteed when the candidate has a live storage-affinity queue; hostname-only fallback workers enqueue on the generic `chat` queue and are labeled best-effort.
+- Chat workspace candidates are only offered for active visible chats with a recorded `workspace_path`; newly created chats that have not materialized a workspace are omitted so the PTY is not started with a missing `chdir`.
 - Sessions survive browser navigation; the PTY lives in the worker process until it exits or the operator kills it.
 - Sessions die on worker restart or redeploy; there is no wall-clock idle timeout.
 - Security is enforced by a per-session auth token exchanged over the relay socket after the browser's authenticated Action Cable subscription is authorized.
@@ -64,7 +67,7 @@ the plugin's routes.
 
 ## Limitations
 
-- One terminal session per workflow run.
+- Workspace-backed routing depends on live worker/storage queue metadata. If the storage queue is gone, the candidate remains visible for context but falls back to generic relay scheduling.
 - Sessions do not persist across worker restarts.
 - The relay is not exposed through public ingress; it requires direct network access between web and worker pods/containers.
-- Only available while a Run is in `running` state. Completed or failed runs do not have an active PTY.
+- Terminal sessions are independent PTYs, not the agent process itself. Killing a terminal session closes that shell without directly cancelling the Workflow or Chat turn.

@@ -142,11 +142,72 @@ describe("TerminalRoute", () => {
         "/api/v1/app/terminal_sessions",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining("\"workflow_id\":99")
+          body: expect.stringContaining("\"candidate_key\":\"workflow:99\"")
         })
       )
     })
     expect(await screen.findByRole("tab", { name: "WF-100 - Follow-up" })).toBeInTheDocument()
+  })
+
+  it("groups the default workspace picker and limits each section to three choices", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
+      workspaces: [
+        workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:3", id: 3, label: "WF-3 - Approved checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:4", id: 4, label: "WF-4 - Search-only checkout", section: "interesting_workflows", section_title: "Interesting workflows", search_text: "needle workflow" }),
+        workspace({ key: "workflow:5", id: 5, label: "WF-5 - Stale succeeded checkout", section: "interesting_workflows", section_title: "Interesting workflows", default_visible: false, search_text: "stale-only workflow" }),
+        workspace({ key: "chat:10", id: 10, label: "Chat #10 - Coding terminal", kind: "chat", section: "coding_chats", section_title: "Coding chats" }),
+        workspace({ key: "worker:alpha:storage-a", id: "worker:alpha:storage-a", label: "Scratch on alpha", kind: "worker", section: "workers", section_title: "Workers", worker_hostname: "alpha", worker_storage_key: "storage-a" })
+      ]
+    })))
+
+    renderTerminalRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "+" }))
+
+    expect(screen.getByText("Interesting workflows")).toBeInTheDocument()
+    expect(screen.getByText("Coding chats")).toBeInTheDocument()
+    expect(screen.getByText("Workers")).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: /WF-1 - Failed checkout/ })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /WF-4 - Search-only checkout/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).not.toBeInTheDocument()
+  })
+
+  it("searches workspace candidates across hidden default entries and worker metadata", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
+      workspaces: [
+        workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:3", id: 3, label: "WF-3 - Approved checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+        workspace({ key: "workflow:4", id: 4, label: "WF-4 - Search-only checkout", section: "interesting_workflows", section_title: "Interesting workflows", search_text: "needle workflow" }),
+        workspace({ key: "worker:beta:storage-b", id: "worker:beta:storage-b", label: "Scratch on beta", kind: "worker", section: "workers", section_title: "Workers", worker_hostname: "beta", worker_storage_key: "storage-b", search_text: "beta storage-b" })
+      ]
+    })))
+
+    renderTerminalRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "+" }))
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspaces" }), { target: { value: "storage-b" } })
+
+    expect(screen.getByRole("menuitem", { name: /Scratch on beta/ })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /WF-1 - Failed checkout/ })).not.toBeInTheDocument()
+  })
+
+  it("can find stale workflow candidates through search without showing them by default", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(terminalSessionsPayload({
+      workspaces: [
+        workspace({ key: "workflow:5", id: 5, label: "WF-5 - Stale succeeded checkout", section: "interesting_workflows", section_title: "Interesting workflows", default_visible: false, search_text: "stale-only workflow" })
+      ]
+    })))
+
+    renderTerminalRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "+" }))
+    expect(screen.queryByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspaces" }), { target: { value: "stale-only" } })
+    expect(screen.getByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).toBeInTheDocument()
   })
 
   it("kills a session from its tab close button", async () => {
@@ -352,9 +413,27 @@ function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {
       terminalSession({ id: 2, name: "Deploy shell", working_directory: "/syrus-home/.syrus/workflows/99" })
     ],
     workspaces: [
-      { id: null, label: "Scratch", working_directory: "/app", kind: "scratch" },
-      { id: 99, label: "WF-99 - Build terminal", working_directory: "/syrus-home/.syrus/workflows/99", kind: "workflow" }
+      workspace({ key: "worker:local", id: "worker:local", label: "Scratch on local", working_directory: "/app", kind: "worker", section: "workers", section_title: "Workers" }),
+      workspace({ key: "workflow:99", id: 99, label: "WF-99 - Build terminal", working_directory: "/syrus-home/.syrus/workflows/99", kind: "workflow", section: "interesting_workflows", section_title: "Interesting workflows", workflow_id: 99 })
     ],
+    ...overrides
+  }
+}
+
+function workspace(overrides: Partial<TerminalSessionsPayload["workspaces"][number]> = {}): TerminalSessionsPayload["workspaces"][number] {
+  return {
+    key: "workflow:99",
+    id: 99,
+    label: "WF-99 - Build terminal",
+    secondary_text: "acme/widgets · JOB-99 · failed",
+    working_directory: "/syrus-home/.syrus/workflows/99",
+    kind: "workflow",
+    section: "interesting_workflows",
+    section_title: "Interesting workflows",
+    actionability: "needs attention",
+    workflow_id: 99,
+    default_visible: true,
+    search_text: "wf-99 build terminal acme widgets",
     ...overrides
   }
 }
@@ -368,6 +447,11 @@ function terminalSession(overrides: Partial<TerminalSessionRecord> = {}): Termin
     finished_at: null,
     outcome: null,
     workflow_id: null,
+    chat_session_id: null,
+    worker_hostname: null,
+    worker_storage_key: null,
+    queue_name: null,
+    workspace_kind: null,
     ...overrides
   }
 }
@@ -411,4 +495,3 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     ...overrides
   }
 }
-
