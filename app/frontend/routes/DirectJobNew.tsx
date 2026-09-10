@@ -25,6 +25,7 @@ import { providerIconSrc } from "../lib/pluginIcon"
 type DirectJobFormState = {
   repositoryId: string
   agentProvider: string
+  epicId: string
   title: string
   prompt: string
   priority: string
@@ -184,6 +185,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             </Field>
           ) : null}
         </div>
+        {payload.epic ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t("form_epic_note")}{" "}
+            <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(`/epics/${payload.epic.id}`, prefix)}>
+              {payload.epic.display_number} · {payload.epic.title}
+            </Link>
+          </p>
+        ) : null}
       </section>
 
       {payload.prompt_templates.length > 0 ? (
@@ -314,6 +323,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
   return {
     repositoryId: payload.selected_repository_id || "",
     agentProvider: payload.selected_agent_provider || "",
+    epicId: payload.selected_epic_id || "",
     title: "",
     prompt: "",
     priority: "medium",
