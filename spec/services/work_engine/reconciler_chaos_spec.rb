@@ -164,7 +164,12 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       )
       workflow = job.latest_workflow
       step = workflow.first_step
-      run = step.runs.first
+      run = step.runs.first || step.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider,
+        iteration: step.iteration
+      )
       trace << "job=#{job.id} workflow=#{workflow.id} step=#{step.id} run=#{run.id}"
       [ job, workflow, step, run ]
     end
