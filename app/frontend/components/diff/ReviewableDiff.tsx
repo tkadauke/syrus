@@ -1019,6 +1019,8 @@ export function UnifiedDiffTable({
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
   const isMobileViewport = useIsMobileViewport()
+  const hideOldLineGutter = isAddedFileDiff(file)
+  const gutterColSpan = hideOldLineGutter ? 1 : 2
 
   let hunkIndex = -1
 
@@ -1049,7 +1051,7 @@ export function UnifiedDiffTable({
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
-              return <HunkRow controls={hunkControls?.[hunkIndex]} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
+              return <HunkRow controls={hunkControls?.[hunkIndex]} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1068,12 +1070,14 @@ export function UnifiedDiffTable({
                 data-diff-kind={line.kind}
                 onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
-                <td className={`relative ${diffGutterClass(line.kind)}`}>
-                  {commentSide === "old" && canComment ? (
-                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
-                  ) : null}
-                  {line.oldLine ?? ""}
-                </td>
+                {hideOldLineGutter ? null : (
+                  <td className={`relative ${diffGutterClass(line.kind)}`}>
+                    {commentSide === "old" && canComment ? (
+                      <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                    ) : null}
+                    {line.oldLine ?? ""}
+                  </td>
+                )}
                 <td className={`relative ${diffGutterClass(line.kind)}`}>
                   {commentSide === "new" && canComment ? (
                     <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
@@ -1099,7 +1103,7 @@ export function UnifiedDiffTable({
               </tr>
               {threads.length > 0 ? (
                 <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={2} />
+                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
                   <td className="text-amber-700 dark:text-amber-300">*</td>
                   <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
                     <div className="space-y-2">
@@ -1154,7 +1158,7 @@ export function UnifiedDiffTable({
               ) : null}
               {isComposingHere ? (
                 <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20 max-md:hidden" colSpan={2} />
+                  <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
                   <td className="text-brand max-md:hidden">*</td>
                   <td className="px-3 py-2 max-md:p-0" colSpan={2}>
                     <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
@@ -1189,6 +1193,10 @@ export function UnifiedDiffTable({
       </table>
     </div>
   )
+}
+
+function isAddedFileDiff(file: ReviewableDiffFile) {
+  return file.status === "added" || Boolean(file.patch && /^new file mode /m.test(file.patch))
 }
 
 function closestInteractiveElement(target: EventTarget | null) {
@@ -1295,12 +1303,14 @@ function DiffCode({
   )
 }
 
-function HunkRow({ controls, line }: { controls?: HunkControls; line: DiffLine }) {
+function HunkRow({ controls, hideOldLineGutter, line }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine }) {
   return (
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
-      <td className={diffGutterClass("hunk")}>
-        {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
-      </td>
+      {hideOldLineGutter ? null : (
+        <td className={diffGutterClass("hunk")}>
+          {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+        </td>
+      )}
       <td className={diffGutterClass("hunk")}>
         {controls?.down ? <HunkContextButton direction="down" loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
       </td>

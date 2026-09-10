@@ -363,6 +363,34 @@ describe("ReviewableDiff", () => {
     expect(row?.querySelectorAll("td")[1]).toBe(gutterCell)
   })
 
+  it("omits the old line-number gutter for added files", () => {
+    const addedFile = {
+      additions: 2,
+      deletions: 0,
+      patch: [
+        "diff --git a/app/models/new_file.rb b/app/models/new_file.rb",
+        "new file mode 100644",
+        "index 0000000..1111111",
+        "--- /dev/null",
+        "+++ b/app/models/new_file.rb",
+        "@@ -0,0 +1,2 @@",
+        "+first",
+        "+second"
+      ].join("\n"),
+      path: "app/models/new_file.rb",
+      status: "added"
+    }
+
+    const { container } = render(<ReviewableDiff files={[addedFile]} mode="single-file" selectedPath="app/models/new_file.rb" />)
+    const hunkRow = container.querySelector('tr[data-diff-kind="hunk"]')
+    const addedRows = Array.from(container.querySelectorAll('tr[data-diff-kind="add"]'))
+
+    expect(hunkRow?.querySelectorAll("td")).toHaveLength(4)
+    expect(addedRows).toHaveLength(2)
+    expect(addedRows[0]?.querySelectorAll("td")).toHaveLength(4)
+    expect(addedRows[0]?.querySelector("td")?.textContent).toBe("1")
+  })
+
   it("opens a line comment when tapping a code token on mobile", () => {
     const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
     Object.defineProperty(window, "matchMedia", {
