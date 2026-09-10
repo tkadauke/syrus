@@ -21,6 +21,15 @@ RSpec.describe "e2e:seed" do
     expect(demo_user.chat_provider).to eq("codex")
     expect(demo_epic.state).to eq("done")
     expect(demo_epic.done_at).to be_present
+    expect(Feature.find_by!(slug: "coding_mode")).to be_enabled
+    coding_chat = demo_user.chat_sessions.find_by!(title: "Coding Mode handoff UI")
+    expect(coding_chat).to have_attributes(
+      mode: "planning",
+      repository: demo_repo,
+      coding_checkout_branch: "syrus/e2e-coding-mode",
+      coding_checkout_uncommitted: true
+    )
+    expect(coding_chat.pending_actions.pluck(:action)).to contain_exactly("complete_implement_step", "submit_coding_changes")
   end
 
   it "is idempotent: running it twice keeps the original done_at" do
