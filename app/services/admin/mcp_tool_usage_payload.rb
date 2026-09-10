@@ -11,6 +11,7 @@ module Admin
       usages = scoped_usages
       advertised = McpToolUsageRecorder.advertised_tools(surface: surface)
       used = usages.distinct.pluck(:normalized_tool_name)
+      totals = totals_for(usages)
 
       {
         window: {
@@ -23,8 +24,8 @@ module Admin
           server_name: server_name
         },
         totals: {
-          calls: usages.count,
-          errors: usages.where(error: true).count
+          calls: totals.fetch(:calls),
+          errors: totals.fetch(:errors)
         },
         top_tools: tool_rows(usages, order_by: :calls),
         error_rates: tool_rows(usages, order_by: :error_rate),
@@ -47,6 +48,14 @@ module Admin
       scope = scope.where(normalized_tool_name: tool_name) if tool_name.present?
       scope = scope.where(server_name: server_name) if server_name.present?
       scope
+    end
+
+    def totals_for(usages)
+      calls, errors = usages.pick(count_sql, error_count_sql)
+      {
+        calls: calls.to_i,
+        errors: errors.to_i
+      }
     end
 
     def surface
@@ -119,32 +128,27 @@ module Admin
     end
 
     def tool_rows(usages, order_by:)
-      grouped = usages.group(:normalized_tool_name, :server_name)
-                     .pluck(:normalized_tool_name, :server_name, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
-
-      rows = grouped.map do |tool_name, server_name, count, errors|
-        errors = errors.to_i
-        count = count.to_i
-        {
-          tool_name: tool_name,
-          server_name: server_name,
-          calls: count,
-          errors: errors,
-          error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
-        }
-      end
-
-      sorted = if order_by == :error_rate
-        rows.sort_by { |row| [ -row[:error_rate], -row[:errors], row[:tool_name].to_s ] }
-      else
-        rows.sort_by { |row| [ -row[:calls], row[:tool_name].to_s ] }
-      end
-      sorted.first(limit)
+      usages
+        .group(:normalized_tool_name, :server_name)
+        .order(tool_rows_order(order_by))
+        .limit(limit)
+        .pluck(:normalized_tool_name, :server_name, count_sql, error_count_sql)
+        .map do |tool_name, server_name, count, errors|
+          errors = errors.to_i
+          count = count.to_i
+          {
+            tool_name: tool_name,
+            server_name: server_name,
+            calls: count,
+            errors: errors,
+            error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
+          }
+        end
     end
 
     def surface_rows(usages)
       usages.group(:surface)
-            .pluck(:surface, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .pluck(:surface, count_sql, error_count_sql)
             .map do |surface, count, errors|
               count = count.to_i
               errors = errors.to_i
@@ -160,7 +164,7 @@ module Admin
 
     def provider_rows(usages)
       usages.group(:provider)
-            .pluck(:provider, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .pluck(:provider, count_sql, error_count_sql)
             .map do |provider, count, errors|
               count = count.to_i
               errors = errors.to_i
@@ -176,7 +180,7 @@ module Admin
 
     def server_rows(usages)
       usages.group(:server_name)
-            .pluck(:server_name, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .pluck(:server_name, count_sql, error_count_sql)
             .map do |server_name, count, errors|
               count = count.to_i
               errors = errors.to_i
@@ -199,7 +203,7 @@ module Admin
     # so historical gaps stay visible instead of silently misattributed.
     def sidecar_mode_rows(usages)
       usages.group(:sidecar_mode)
-            .pluck(:sidecar_mode, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .pluck(:sidecar_mode, count_sql, error_count_sql)
             .map do |sidecar_mode, count, errors|
               count = count.to_i
               errors = errors.to_i
@@ -218,6 +222,34 @@ module Admin
       return 20 if value <= 0
 
       [ value, 100 ].min
+    end
+
+    def tool_rows_order(order_by)
+      if order_by == :error_rate
+        Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
+      else
+        Arel.sql("#{count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
+      end
+    end
+
+    def count_sql
+      Arel.sql(count_expression)
+    end
+
+    def error_count_sql
+      Arel.sql(error_count_expression)
+    end
+
+    def count_expression
+      "COUNT(*)"
+    end
+
+    def error_count_expression
+      "SUM(CASE WHEN #{McpToolUsage.quoted_table_name}.error THEN 1 ELSE 0 END)"
+    end
+
+    def error_rate_expression
+      "(#{error_count_expression} * 1.0 / NULLIF(#{count_expression}, 0))"
     end
 
     # Individual call rows for operators tracing a specific failure or

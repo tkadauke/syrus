@@ -166,4 +166,71 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       [ [ "browser_navigate", "syrus-mcp-sidecar" ] ]
     )
   end
+
+  it "keeps tool usage aggregates bounded to the selected window and filters" do
+    now = Time.zone.parse("2026-09-10 19:15:00")
+    travel_to(now) do
+      30.times do |index|
+        McpToolUsage.create!(
+          surface: "workflow",
+          raw_tool_name: "syrus-mcp-sidecar.match_#{index}",
+          server_name: "syrus-mcp-sidecar",
+          tool_name: "match_#{index}",
+          normalized_tool_name: "submit_summary",
+          status: "completed",
+          error: index.even?,
+          created_at: index.minutes.ago,
+          updated_at: index.minutes.ago
+        )
+      end
+      McpToolUsage.create!(
+        surface: "workflow",
+        raw_tool_name: "syrus-mcp-sidecar.submit_summary",
+        server_name: "syrus-mcp-sidecar",
+        tool_name: "submit_summary",
+        normalized_tool_name: "submit_summary",
+        status: "completed",
+        error: false,
+        created_at: 2.days.ago,
+        updated_at: 2.days.ago
+      )
+      McpToolUsage.create!(
+        surface: "workflow",
+        raw_tool_name: "other-sidecar.submit_summary",
+        server_name: "other-sidecar",
+        tool_name: "submit_summary",
+        normalized_tool_name: "submit_summary",
+        status: "completed",
+        error: false,
+        created_at: 5.minutes.ago,
+        updated_at: 5.minutes.ago
+      )
+
+      sign_in_as(admin)
+      metrics = capture_performance_budget do
+        get "/api/v1/app/admin/mcp_tool_usage", params: {
+          start: 1.hour.ago.iso8601,
+          end: 1.second.from_now.iso8601,
+          tool_name: "submit_summary",
+          server_name: "syrus-mcp-sidecar",
+          limit: 5,
+          recent_limit: 5
+        }
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["totals"]).to eq("calls" => 30, "errors" => 15)
+      expect(body["top_tools"].size).to eq(1)
+      expect(body["recent_calls"].size).to eq(5)
+
+      usage_queries = metrics.fetch(:queries).grep(/\bFROM "?mcp_tool_usages"?/i)
+      aggregate_tool_queries = usage_queries.grep(/GROUP BY .*normalized_tool_name/i)
+      expect(usage_queries).to all(match(/created_at/i))
+      expect(usage_queries).to all(match(/normalized_tool_name/i))
+      expect(usage_queries).to all(match(/server_name/i))
+      expect(aggregate_tool_queries).to all(match(/LIMIT/i))
+      expect_performance_budget(metrics, max_sql: 14, max_payload_bytes: 80.kilobytes)
+    end
+  end
 end
