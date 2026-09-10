@@ -92,7 +92,7 @@ RSpec.describe TestInsights::TestIdentity do
       test_case_selects = []
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
         sql = payload[:sql].to_s
-        test_case_selects << sql if sql.match?(/\ASELECT .*FROM "?test_cases"?/i)
+        test_case_selects << sql if sql.match?(/\ASELECT .*FROM [`"]?test_insight_cases[`"]?/i) || sql.include?("test_insight_cases")
       end
 
       described_class.refresh_many!(identities.map(&:id))
@@ -108,7 +108,7 @@ RSpec.describe TestInsights::TestIdentity do
       expect(identities.first.last_passed_at).to be_present
     end
 
-    it "selects latest test cases without reserved window-function alias collisions" do
+    it "selects latest test cases with bounded indexed probes instead of ranking each batch" do
       first_identity = create_identity!("first case")
       second_identity = create_identity!("second case")
       create_test_case!(first_identity, status: "failed", created_at: 2.minutes.ago)
@@ -134,7 +134,25 @@ RSpec.describe TestInsights::TestIdentity do
       sql = sql_statements.join("\n").downcase
       expect(sql).not_to match(/\bas\s+`?row_number`?\b/)
       expect(sql).not_to match(/\bwhere\s+`?row_number`?\s*=/)
-      expect(sql).to include("syrus_latest_case_rank")
+      expect(sql).not_to include("row_number() over")
+      expect(sql).not_to include("syrus_latest_case_rank")
+      expect(sql).to include("union all")
+      expect(sql).to include("order by")
+      expect(sql).to include("limit")
+    end
+
+    it "plans latest test case probes through the identity-created index on SQLite" do
+      skip "SQLite-specific EXPLAIN output" unless described_class.connection.adapter_name == "SQLite"
+
+      identity = create_identity!("planned case")
+      create_test_case!(identity, status: "passed", created_at: 1.minute.ago)
+
+      plan = described_class.connection
+        .select_rows("EXPLAIN QUERY PLAN #{described_class.send(:latest_case_sql, identity.id)}")
+        .flatten
+        .join(" ")
+
+      expect(plan).to include("idx_test_cases_identity_created_id")
     end
 
     it "updates identity summaries in bulk" do

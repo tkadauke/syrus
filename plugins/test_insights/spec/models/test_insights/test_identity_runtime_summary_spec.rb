@@ -25,13 +25,13 @@ RSpec.describe TestInsights::RuntimeSummary do
     )
   end
 
-  def create_case!(test_run:, duration_ms:, created_at:)
+  def create_case!(test_run:, duration_ms:, created_at:, test_identity: identity)
     TestInsights::TestCase.create!(
       test_run: test_run,
       repository: repository,
-      test_identity: identity,
-      suite_name: identity.suite_name,
-      name: identity.name,
+      test_identity: test_identity,
+      suite_name: test_identity.suite_name,
+      name: test_identity.name,
       status: "passed",
       duration_ms: duration_ms,
       created_at: created_at,
@@ -55,9 +55,16 @@ RSpec.describe TestInsights::RuntimeSummary do
     expect(all_summary.avg_duration_ms).to eq(280)
   end
 
-  it "uses bounded bulk lookups when refreshing touched identities for one grader" do
+  it "uses bounded indexed probes when refreshing touched identities for one grader" do
     rspec = create_test_run!(grader_name: "rspec")
+    other_identity = TestInsights::TestIdentity.create!(
+      repository: repository,
+      fingerprint: TestInsights::TestIdentity.fingerprint_for(suite_name: "Suite", name: "other example"),
+      suite_name: "Suite",
+      name: "other example"
+    )
     3.times { |index| create_case!(test_run: rspec, duration_ms: 100 + index, created_at: index.minutes.ago) }
+    3.times { |index| create_case!(test_run: rspec, duration_ms: 200 + index, created_at: index.minutes.ago, test_identity: other_identity) }
 
     selects = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
@@ -65,13 +72,31 @@ RSpec.describe TestInsights::RuntimeSummary do
       selects << sql if sql.match?(/FROM "?test_insight_cases"?/i)
     end
 
-    described_class.refresh_many!([ identity.id ], grader_names: [ "rspec" ])
+    described_class.refresh_many!([ identity.id, other_identity.id ], grader_names: [ "rspec" ])
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
     expect(selects.size).to be <= 2
-    expect(selects).to all(match(/syrus_runtime_rank/i))
+    expect(selects.join("\n")).to include("UNION ALL")
+    expect(selects.join("\n")).to include("ORDER BY")
+    expect(selects.join("\n")).to include("LIMIT")
+    expect(selects.join("\n")).not_to match(/ROW_NUMBER\(\) OVER/i)
+    expect(selects.join("\n")).not_to match(/syrus_runtime_rank/i)
     expect(selects).not_to include(match(/\bas\s+["`]?row_number["`]?\b/i))
+  end
+
+  it "plans runtime window probes through the identity-created index on SQLite" do
+    skip "SQLite-specific EXPLAIN output" unless described_class.connection.adapter_name == "SQLite"
+
+    rspec = create_test_run!(grader_name: "rspec")
+    create_case!(test_run: rspec, duration_ms: 120, created_at: Time.current)
+
+    plan = described_class.connection
+      .select_rows("EXPLAIN QUERY PLAN #{described_class.send(:all_grader_duration_sql, identity.id)}")
+      .flatten
+      .join(" ")
+
+    expect(plan).to include("idx_test_cases_identity_created_id")
   end
 
   it "does not pass unique_by to adapters without conflict-target support" do
