@@ -1,5 +1,37 @@
-import type { QueryClient } from "@tanstack/react-query"
-import type { ChatGroupRecord, ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import type { QueryClient, QueryKey } from "@tanstack/react-query"
+import type { ChatGroupRecord, ChatNavRecord, ChatPayload, ChatPayloadUpdate, ChatRecord, ChatsIndexPayload } from "../api/chats"
+
+export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: QueryKey, update: ChatPayloadUpdate) {
+  let merged: ChatPayload | undefined
+
+  queryClient.setQueryData<ChatPayload>(queryKey, (current) => {
+    if (isFullChatPayload(update)) {
+      merged = update
+      return update
+    }
+
+    if (!current) {
+      merged = update as ChatPayload
+      return merged
+    }
+
+    merged = {
+      ...current,
+      message: update.message ?? current.message,
+      chat: {
+        ...current.chat,
+        ...update.chat
+      }
+    }
+    return merged
+  })
+
+  return merged || (update as ChatPayload)
+}
+
+function isFullChatPayload(update: ChatPayloadUpdate): update is ChatPayload {
+  return "messages" in update
+}
 
 export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
