@@ -572,6 +572,8 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
   const status = gradeDisplayStatus(item)
   const phases = gradePhases(item, t)
   const summaries = gradeSummaries(item)
+  const barrier = item.steps.find((step) => step.barrier)?.barrier
+  const distributed = item.graders.some((grader) => Boolean(grader.placement?.projected_target_label))
 
   return (
     <WorkflowGroup
@@ -581,6 +583,8 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       pills={(
         <>
           {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
+          {distributed ? <SmallPill>distributed</SmallPill> : null}
+          {barrier && (barrier.total_count ?? 0) > 0 ? <SmallPill>{`${barrier.completed_count ?? 0}/${barrier.total_count ?? 0} barrier`}</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </>
       )}
@@ -739,6 +743,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
+          <StepPlacementPanel step={step} />
           {pendingWarnings(step).map((warning) => (
             <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
           ))}
@@ -773,6 +778,71 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
       ) : null}
     </div>
   )
+}
+
+function StepPlacementPanel({ step }: { step: JobStep }) {
+  const rows = stepPlacementRows(step)
+  if (rows.length === 0) return null
+
+  return (
+    <section className="mt-2 rounded border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900" data-testid={`step-placement-${step.id}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-semibold text-gray-900 dark:text-gray-100">Step placement</div>
+        {step.admission_block?.reason ? <SmallPill>{humanize(step.admission_block.reason)}</SmallPill> : null}
+      </div>
+      <dl className="mt-2 grid gap-x-4 gap-y-1 md:grid-cols-[max-content_1fr]">
+        {rows.map(([label, value]) => (
+          <div className="contents" key={label}>
+            <dt className="font-medium text-gray-500 dark:text-gray-400">{label}</dt>
+            <dd className="min-w-0 break-words font-mono text-gray-800 dark:text-gray-200">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {step.barrier && (step.barrier.total_count ?? 0) > 0 ? (
+        <div className="mt-3" aria-label="Barrier progress">
+          <div className="flex items-center justify-between text-2xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            <span>Barrier progress</span>
+            <span>{step.barrier.completed_count ?? 0}/{step.barrier.total_count ?? 0}</span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded bg-gray-200 dark:bg-gray-800">
+            <div className="h-full bg-emerald-500" style={{ width: `${barrierProgressPercent(step.barrier.completed_count, step.barrier.total_count)}%` }} />
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function stepPlacementRows(step: JobStep): Array<[string, string]> {
+  const placement = step.placement
+  const source = step.source_snapshot
+  const worker = step.worker
+  const cache = step.prepare_cache
+  const block = step.admission_block
+  const barrier = step.barrier
+  const rows: Array<[string, string | null | undefined]> = [
+    ["Step", `STEP-${step.id}`],
+    ["Placement policy", placement?.policy],
+    ["Target", placement?.projected_target_label],
+    ["Target fingerprint", shortSha(placement?.projected_target_fingerprint || null)],
+    ["Resource key", placement?.projected_resource_key],
+    ["Source snapshot", source?.id != null ? `WSS-${source.id}` : null],
+    ["Source SHA", shortSha(source?.source_sha || null)],
+    ["Source ref", source?.source_ref],
+    ["Worker host", worker?.hostname],
+    ["Worker storage", worker?.storage_key],
+    ["Prepare cache", cache?.status ? `${cache.status}${cache.short_cache_key ? ` (${cache.short_cache_key})` : ""}` : null],
+    ["Admission block", block?.reason],
+    ["Retry at", block?.retry_at || null],
+    ["Barrier", barrier?.group],
+    ["Waiting on", barrier?.waiting_on_step_ids?.length ? barrier.waiting_on_step_ids.map((id) => `STEP-${id}`).join(", ") : null]
+  ]
+  return rows.filter((row): row is [string, string] => Boolean(row[1]))
+}
+
+function barrierProgressPercent(completed: number | undefined, total: number | undefined) {
+  if (!total || total <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round(((completed || 0) / total) * 100)))
 }
 
 function StepSummaryPanel({ summary, onClose }: { summary: string; onClose: () => void }) {

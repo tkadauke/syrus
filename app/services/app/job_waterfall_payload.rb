@@ -23,7 +23,7 @@ module App
 
       {
         workflow: strip_worker_identity(result[:workflow]),
-        steps: result[:steps].map { |step| strip_worker_identity(step).merge(runs: step[:runs]) }
+        steps: result[:steps].map { |step| strip_step_worker_identity(step) }
       }
     end
 
@@ -31,6 +31,15 @@ module App
 
     def strip_worker_identity(hash)
       hash.except(*WORKER_IDENTITY_FIELDS)
+    end
+
+    def strip_step_worker_identity(step)
+      stripped = strip_worker_identity(step).except(:worker)
+      stripped[:prepare_cache] = stripped[:prepare_cache].except(:worker_storage_key) if stripped[:prepare_cache].is_a?(Hash)
+      stripped[:runs] = Array(step[:runs]).map do |run|
+        run.merge(command_spans: Array(run[:command_spans]).map { |span| span.except(:hostname) })
+      end
+      stripped
     end
   end
 end

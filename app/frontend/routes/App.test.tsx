@@ -9656,6 +9656,44 @@ describe("App", () => {
     )
   })
 
+  it("renders distributed grader placement metadata without making the whole workflow look paused", async () => {
+    const payload = jobDetailPayload({
+      workflows: [
+        {
+          ...jobDetailPayload().workflows[0],
+          state: "running",
+          steps: distributedGraderSteps()
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload)))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("WF-5")).toBeInTheDocument()
+    expect(screen.getByText("distributed")).toBeInTheDocument()
+    expect(screen.getByText("1/2 barrier")).toBeInTheDocument()
+    expect(screen.queryByText("Workflow admission delayed")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Grade/ }))
+    fireEvent.click(screen.getByRole("button", { name: /rspec/ }))
+
+    expect(screen.getByTestId("step-placement-7")).toHaveTextContent("STEP-7")
+    expect(screen.getByTestId("step-placement-7")).toHaveTextContent("//:grade/rspec")
+    expect(screen.getByTestId("step-placement-7")).toHaveTextContent("abc1234")
+    expect(screen.getByTestId("step-placement-7")).toHaveTextContent("hit")
+    expect(screen.getByTestId("step-placement-7")).toHaveTextContent("worker-a")
+
+    fireEvent.click(screen.getByRole("button", { name: /eslint/ }))
+    expect(screen.getByTestId("step-placement-8")).toHaveTextContent("predicted_budget_pressure_high")
+  })
+
   it("shares one workflow-list fetch between the Workflows and Timeline tabs and renders the selected workflow's waterfall", async () => {
     const payload = jobDetailPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
@@ -9751,6 +9789,32 @@ describe("App", () => {
     fireEvent.mouseEnter(runBar)
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Run #500")
     expect(screen.getByRole("tooltip")).not.toHaveTextContent("undefined")
+  })
+
+  it("renders Timeline distributed grader metadata for mixed batch states", async () => {
+    const payload = jobDetailPayload()
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/jobs/42/waterfall")) {
+        return Promise.resolve(jsonResponse(jobWaterfallPayload({ admin: true, distributed: true })))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=timeline"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("//:grade/rspec")).toBeInTheDocument()
+    expect(screen.getByText("cache hit")).toBeInTheDocument()
+    expect(screen.getByText("blocked predicted_budget_pressure_high")).toBeInTheDocument()
+    expect(screen.getByText("barrier 2/4")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Run #502 · failed" })).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Run #503 · running" })).toBeInTheDocument()
   })
 
   it("renders running Job, Step, and Run pills with progress spinners", async () => {
@@ -16337,9 +16401,10 @@ function jobTimelinePayload() {
   }
 }
 
-function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: string; status?: string; admin?: boolean } = {}) {
+function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: string; status?: string; admin?: boolean; distributed?: boolean } = {}) {
   const workflowId = overrides.workflowId ?? 5
   const identityFields = overrides.admin ? { hostname: "worker-a", pid: 4242 } : {}
+  const distributedFields = overrides.admin ? { worker: { hostname: "worker-a", storage_key: "storage-a" } } : {}
   return {
     workflow: {
       id: workflowId,
@@ -16350,7 +16415,64 @@ function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: str
       finished_at: overrides.status === "running" ? null : "2026-05-30T12:00:00Z",
       ...identityFields
     },
-    steps: [
+    steps: overrides.distributed ? [
+      {
+        id: workflowId * 10,
+        kind: "grader_fanout",
+        status: "succeeded",
+        position: 1,
+        iteration: 1,
+        started_at: "2026-05-30T10:01:00Z",
+        finished_at: "2026-05-30T10:02:00Z",
+        placement: { policy: "control_plane" },
+        ...identityFields,
+        ...distributedFields,
+        runs: []
+      },
+      ...["succeeded", "failed", "running", "queued"].map((status, index) => ({
+        id: workflowId * 10 + index + 1,
+        kind: "grader",
+        status,
+        position: index + 2,
+        iteration: 1,
+        started_at: status === "queued" ? null : `2026-05-30T10:0${index + 2}:00Z`,
+        finished_at: status === "running" || status === "queued" ? null : `2026-05-30T10:1${index + 2}:00Z`,
+        placement: {
+          policy: "immutable_source_checkout",
+          projected_target_label: `//:grade/${["rspec", "eslint", "typecheck", "assets"][index]}`
+        },
+        source_snapshot: { id: 3, source_sha: "abc123456789", source_ref: "refs/heads/main" },
+        prepare_cache: index === 0 ? { status: "hit", short_cache_key: "cache123" } : null,
+        admission_block: status === "queued" ? { reason: "predicted_budget_pressure_high", phase_step_id: workflowId * 10 + index + 1, phase_step_kind: "grader" } : null,
+        ...identityFields,
+        ...distributedFields,
+        runs: status === "queued" ? [] : [
+          {
+            id: workflowId * 100 + index + 1,
+            status,
+            iteration: 1,
+            started_at: `2026-05-30T10:0${index + 2}:00Z`,
+            finished_at: status === "running" ? null : `2026-05-30T10:1${index + 2}:00Z`,
+            last_heartbeat_at: "2026-05-30T10:09:00Z",
+            command_spans: []
+          }
+        ]
+      })),
+      {
+        id: workflowId * 10 + 5,
+        kind: "grader_collect",
+        status: "queued",
+        position: 6,
+        iteration: 1,
+        started_at: null,
+        finished_at: null,
+        placement: { policy: "control_plane" },
+        barrier: { waiting_on_step_ids: [workflowId * 10 + 1, workflowId * 10 + 2, workflowId * 10 + 3, workflowId * 10 + 4], completed_count: 2, total_count: 4, pending_count: 2 },
+        ...identityFields,
+        ...distributedFields,
+        runs: []
+      }
+    ] : [
       {
         id: workflowId * 10,
         kind: "implement",
@@ -16373,6 +16495,125 @@ function jobWaterfallPayload(overrides: { workflowId?: number; triggerKind?: str
       }
     ]
   }
+}
+
+function distributedGraderSteps() {
+  const baseStep = jobDetailPayload().workflows[0].steps[0]
+  const baseRun = baseStep.runs[0]
+  return [
+    {
+      ...baseStep,
+      id: 6,
+      kind: "grader_fanout",
+      display_name: "Grade setup",
+      display_status: "succeeded",
+      state: "succeeded",
+      position: 1,
+      runs: []
+    },
+    {
+      ...baseStep,
+      id: 7,
+      kind: "grader",
+      display_name: "rspec",
+      display_status: "running",
+      state: "running",
+      position: 2,
+      details: { name: "rspec", command: "bundle exec rspec", required: true },
+      placement: {
+        policy: "immutable_source_checkout",
+        projected_target_label: "//:grade/rspec",
+        projected_target_fingerprint: "target123456789",
+        projected_resource_key: "target://:grade/rspec"
+      },
+      source_snapshot: {
+        id: 3,
+        source_sha: "abc123456789",
+        source_ref: "refs/heads/main"
+      },
+      worker: {
+        hostname: "worker-a",
+        storage_key: "storage-a"
+      },
+      prepare_cache: {
+        status: "hit",
+        short_cache_key: "cache123"
+      },
+      runs: [
+        {
+          ...baseRun,
+          id: 70,
+          state: "running",
+          app_grade_log_path: "/api/v1/app/jobs/42/runs/70/grade_log",
+          command_spans: [
+            {
+              id: 1,
+              run_id: 70,
+              job_id: 42,
+              workflow_id: 5,
+              step_id: 7,
+              spawned_process_id: null,
+              sequence: 1,
+              name: "rspec",
+              command_excerpt: "bundle exec rspec",
+              started_at: "2026-05-30T10:30:00Z",
+              finished_at: null,
+              duration_ms: null,
+              duration_s: null,
+              exit_status: null,
+              outcome: null,
+              hostname: "worker-a",
+              metadata: {},
+              sample_count: 0,
+              samples_missing: true,
+              retention_limited: false,
+              summary: {},
+              pressure: { level: "unknown", reasons: [] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      ...baseStep,
+      id: 8,
+      kind: "grader",
+      display_name: "eslint",
+      display_status: null,
+      state: "queued",
+      position: 3,
+      details: { name: "eslint", command: "npm run lint", required: true },
+      placement: {
+        policy: "immutable_source_checkout",
+        projected_target_label: "//:grade/eslint"
+      },
+      admission_block: {
+        source: "workflow_admission_decision",
+        reason: "predicted_budget_pressure_high",
+        phase_step_id: 8,
+        phase_step_kind: "grader"
+      },
+      runs: []
+    },
+    {
+      ...baseStep,
+      id: 9,
+      kind: "grader_collect",
+      display_name: "Grade result",
+      display_status: null,
+      state: "queued",
+      position: 4,
+      details: null,
+      barrier: {
+        group: "workflow:5:loop:grade-loop:iteration:1:grader_collect",
+        waiting_on_step_ids: [7, 8],
+        completed_count: 1,
+        total_count: 2,
+        pending_count: 1
+      },
+      runs: []
+    }
+  ]
 }
 
 function jobSourcePayload(overrides: { withFile?: boolean } = {}) {

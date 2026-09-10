@@ -605,12 +605,21 @@ class RunJob < ApplicationJob
   # must swallow these so the outer perform loop can continue inline
   # on the next Step's Run.
   def workflow_controlled_failure?
-    loop_controlled_grade_failure? || dispatcher_continued_workflow?
+    loop_controlled_grade_failure? || advance_controlled_step_failure? || dispatcher_continued_workflow?
   end
 
   def loop_controlled_grade_failure?
     return false unless @step&.loop_id.present?
     %w[ grade grader grader_collect ].include?(@step.kind)
+  end
+
+  def advance_controlled_step_failure?
+    return false unless @workflow && @step
+    return false if @workflow.reload.terminal?
+
+    Step::Kind.fetch(@step.kind).fail_policy == :advance
+  rescue ArgumentError
+    false
   end
 
   def dispatcher_continued_workflow?

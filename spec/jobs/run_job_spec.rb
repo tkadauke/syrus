@@ -1025,6 +1025,50 @@ RSpec.describe RunJob, :ci_only do
       expect(JobLog.where(run: run).pluck(:chunk)).to include("worker slot admission deferred before prepare: worker_slot_busy")
     end
 
+    it "treats non-loop advance-policy grader failures as workflow-controlled while sibling barriers wait" do
+      job
+      wf = job.workflows.last
+      wf.update!(state: "running", started_at: 1.minute.ago)
+      fanout = wf.first_step
+      fanout.update!(kind: "grader_fanout", state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      failed_grader = wf.steps.create!(
+        kind: "grader",
+        state: "failed",
+        position: 1,
+        depends_on_ids: [ fanout.id ],
+        details: { "name" => "rspec" }
+      )
+      waiting_grader = wf.steps.create!(
+        kind: "grader",
+        state: "queued",
+        position: 2,
+        depends_on_ids: [ fanout.id ],
+        details: { "name" => "eslint" }
+      )
+      collect = wf.steps.create!(
+        kind: "grader_collect",
+        state: "queued",
+        position: 3,
+        depends_on_ids: [ failed_grader.id, waiting_grader.id ]
+      )
+      failed_grader.update!(next_step_id: collect.id)
+      waiting_grader.update!(next_step_id: collect.id)
+      run = failed_grader.runs.create!(
+        job: job,
+        user: user,
+        trigger_kind: wf.trigger_kind,
+        agent_provider: wf.agent_provider,
+        state: "failed"
+      )
+      runner = described_class.new
+      runner.instance_variable_set(:@job, job)
+      runner.instance_variable_set(:@workflow, wf)
+      runner.instance_variable_set(:@step, failed_grader)
+      runner.instance_variable_set(:@run, run)
+
+      expect(runner.send(:workflow_controlled_failure?)).to be(true)
+    end
+
     it "skips an unconfigured review_plan before host admission under critical worker pressure" do
       job = job_with_single_run(step_kind: "review_plan")
       wf = job.workflows.last

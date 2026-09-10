@@ -430,6 +430,12 @@ module App
             created_at: iso8601(step.created_at),
             updated_at: iso8601(step.updated_at),
             details: step.details.presence,
+            placement: step_placement_json(step),
+            source_snapshot: step_source_snapshot_json(step),
+            worker: step_worker_json(step),
+            prepare_cache: step_prepare_cache_json(step),
+            admission_block: step_admission_block_json(step, workflow),
+            barrier: step_barrier_json(step, workflow),
             warnings: warnings_for(step).map { |warning| workflow_warning_json(warning) },
             latest: step == latest_step,
             runs_total: run_counts_by_step_id.fetch(step.id, runs.size),
@@ -474,6 +480,126 @@ module App
         return nil if step.queued? && ordered_runs_for(step).empty?
 
         projection.visible_state
+      end
+
+      def step_placement_json(step)
+        {
+          policy: step.placement_policy,
+          projected_target_label: string_presence(step.details.to_h["projected_target_label"]),
+          projected_target_fingerprint: string_presence(step.details.to_h["projected_target_fingerprint"]),
+          projected_resource_key: string_presence(step.details.to_h["projected_resource_key"])
+        }.compact
+      end
+
+      def step_source_snapshot_json(step)
+        snapshot = step.details.to_h["source_snapshot"].to_h
+        snapshot_id = step.details.to_h["source_snapshot_id"].presence || snapshot["id"].presence
+        return nil if snapshot_id.blank? && snapshot.blank?
+
+        {
+          id: snapshot_id,
+          source_sha: string_presence(snapshot["source_sha"]),
+          source_ref: string_presence(snapshot["source_ref"]),
+          tree_sha: string_presence(snapshot["tree_sha"]),
+          fingerprint: string_presence(snapshot["fingerprint"])
+        }.compact
+      end
+
+      def step_worker_json(step)
+        checkout = step.details.to_h["immutable_source_checkout"].to_h
+        slot = latest_worker_slot_for(step)
+        active_process = ordered_runs_for(step).filter_map { |run| active_processes_by_run_id[run.id] }.last
+        hostname = checkout["worker_hostname"].presence || slot&.worker_hostname.presence || active_process&.hostname.presence
+        storage_key = checkout["worker_storage_key"].presence || slot&.worker_storage_key.presence
+        return nil if hostname.blank? && storage_key.blank?
+
+        {
+          hostname: hostname,
+          storage_key: storage_key,
+          slot_acquired_at: iso8601(slot&.acquired_at),
+          slot_released_at: iso8601(slot&.released_at),
+          slot_release_reason: string_presence(slot&.release_reason)
+        }.compact
+      end
+
+      def step_prepare_cache_json(step)
+        cache = step.details.to_h["prepare_cache"].to_h
+        return nil if cache.blank?
+
+        {
+          status: string_presence(cache["status"]),
+          cache_key: string_presence(cache["cache_key"]),
+          short_cache_key: string_presence(cache["short_cache_key"]),
+          worker_storage_key: string_presence(cache["worker_storage_key"]),
+          prepare_fingerprint: string_presence(cache["prepare_fingerprint"]),
+          source_snapshot_id: cache["source_snapshot_id"].presence,
+          source_snapshot_sha: string_presence(cache["source_snapshot_sha"]),
+          recorded_at: string_presence(cache["recorded_at"])
+        }.compact
+      end
+
+      def step_admission_block_json(step, workflow)
+        artifacts = workflow.artifacts.to_h
+        candidates = [
+          [ "workflow_step_worker_slot_admission", artifacts["workflow_step_worker_slot_admission"].to_h ],
+          [ "run_host_admission", artifacts["run_host_admission"].to_h ],
+          [ "start_blocked_details", artifacts["start_blocked_details"].to_h ],
+          [ "workflow_admission_decision", artifacts["workflow_admission_decision"].to_h ]
+        ]
+        key, details = candidates.find { |_candidate_key, candidate| admission_block_matches_step?(candidate, step) }
+        return nil unless details.present?
+
+        {
+          source: key,
+          reason: string_presence(details["reason"]),
+          action: string_presence(details["action"]),
+          retry_at: string_presence(details["retry_at"]),
+          deferred_at: string_presence(details["deferred_at"]),
+          phase_step_id: details["phase_step_id"].presence || details["step_id"].presence,
+          phase_step_kind: string_presence(details["phase_step_kind"] || details["step_kind"]),
+          details: CommandRedactor.redact_value(details.except("reason", "action", "retry_at", "deferred_at", "phase_step_id", "step_id", "phase_step_kind", "step_kind"))
+        }.compact
+      end
+
+      def admission_block_matches_step?(details, step)
+        return false if details.blank?
+
+        step_id = details["phase_step_id"].presence || details["step_id"].presence
+        step_id.to_i == step.id
+      end
+
+      def step_barrier_json(step, workflow)
+        details = step.details.to_h
+        labels = Array(details["barrier_labels"]).filter_map { |label| string_presence(label) }
+        group = string_presence(details["barrier_group"])
+        waiting_on_ids = step.depends_on_step_ids
+        return nil if labels.empty? && group.blank? && waiting_on_ids.empty? && !step.kind.to_s.end_with?("_collect")
+
+        dependency_steps = waiting_on_ids.empty? ? [] : workflow.steps.select { |candidate| waiting_on_ids.include?(candidate.id) }
+        completed = dependency_steps.count(&:terminal?)
+        {
+          group: group,
+          labels: labels,
+          waiting_on_step_ids: waiting_on_ids,
+          completed_count: completed,
+          total_count: dependency_steps.size,
+          pending_count: [ dependency_steps.size - completed, 0 ].max
+        }.compact
+      end
+
+      def latest_worker_slot_for(step)
+        worker_slots_by_step_id.fetch(step.id, []).last
+      end
+
+      def worker_slots_by_step_id
+        @worker_slots_by_step_id ||= begin
+          ids = visible_step_ids
+          ids.empty? ? {} : WorkflowStepWorkerSlot.where(step_id: ids).order(:step_id, :acquired_at, :id).group_by(&:step_id)
+        end
+      end
+
+      def string_presence(value)
+        value.to_s.presence if value.present?
       end
 
       def current_projected_step(workflow)
