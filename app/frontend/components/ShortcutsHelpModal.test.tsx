@@ -37,7 +37,7 @@ describe("formatShortcutCombo", () => {
   })
 
   it("labels Mod as the platform command key", () => {
-    expect(formatShortcutCombo("mod+enter", "MacIntel")).toBe("Cmd + Enter")
+    expect(formatShortcutCombo("mod+enter", "MacIntel")).toBe("⌘ + Enter")
     expect(formatShortcutCombo("mod+enter", "Win32")).toBe("Ctrl + Enter")
   })
 
