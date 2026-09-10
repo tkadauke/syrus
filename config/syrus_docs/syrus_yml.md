@@ -414,6 +414,90 @@ Omitting `deploy` entirely disables the feature for the repository — the same 
 
 `mode: manual` deploys only run when explicitly launched. `mode: continuous` additionally auto-triggers a deploy after a landing Workflow succeeds, throttled by `min_interval_minutes` when set. `min_interval_minutes` is a plain integer count of minutes — not a duration string — matching `timeout_minutes` and `hitmap_ttl_days` elsewhere in this file.
 
+## targets
+
+Declares explicit TargetGraph nodes for project-aware dependency selection.
+Use `targets:` for reusable dependency nodes (libraries, applications,
+prepare commands, build/check nodes) that legacy executable sections can
+depend on through `deps:`. A target declared in a nested `.syrus.yml` is
+labeled in that file's package, so `desktop/.syrus.yml` target `renderer`
+becomes `//desktop:renderer`.
+
+```yaml
+targets:
+  - name: renderer
+    kind: library
+    sources: ["src/**/*.ts", "src/**/*.tsx"]
+
+  - name: deps
+    kind: prepare
+    run: npm ci
+
+  - name: typecheck
+    kind: grader
+    run: npm run typecheck
+    sources: ["src/**/*.ts", "src/**/*.tsx"]
+    phases: [review, landing]
+    required: true
+    timeout_minutes: 10
+
+grade:
+  - name: legacy-typecheck
+    run: npm run typecheck
+    deps: [":renderer", ":deps"]
+```
+
+Dependencies are the only graph edges in this initial schema. Relative labels
+such as `:renderer` resolve within the declaring `.syrus.yml`; absolute labels
+such as `//api:contract` resolve from the repository root. Missing
+dependencies, duplicate labels, invalid kinds, and cycles fail TargetGraph
+compilation with errors naming the target and owning config where possible.
+
+## target_graph.imports
+
+Use `target_graph.imports` to explicitly import targets and dependency edges
+from an external build-system plugin. Syrus only calls a provider named here;
+it does not infer build targets from repository layout. When an import is
+active, the imported build-system graph is the base graph and must be precise
+for the labels it returns: kinds, source scopes, and dependency edges come from
+the provider's Buck/Bazel/Pants-style query, not from Syrus guesses.
+
+```yaml
+target_graph:
+  imports:
+    - provider: bazel
+      failures: strict
+      config:
+        query: //...
+```
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `provider` | yes | — | Registered `:build_system_graph_provider` key. |
+| `failures` | no | `strict` | `strict` fails graph compilation on provider errors; `warn` records diagnostics and continues. |
+| `config` / `options` | no | `{}` | Free-form mapping passed to the provider. |
+
+Syrus declarations layer on top of imported graphs. A `targets:` entry with the
+same canonical label as an imported target may only add Syrus execution metadata
+(`phases`, `required: true`, `timeout_minutes`). It cannot redefine imported
+sources, dependencies, command, or kind; those collisions fail graph
+compilation with a message naming both declarations. Use distinct labels for
+Syrus-only prepare targets, graders, previews, coverage or workflow helper
+nodes, and point them at imported labels through `deps:`.
+
+### targets fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | yes | — | Target name within the declaring package; combined with the package to form `//package:name`. |
+| `kind` | no | `library` | One of `default`, `library`, `binary`, `application`, `formatter`, `builder`, `grader`, `prepare`, `generator`, `repo_check`. |
+| `sources` | no | — | Glob or array of globs resolved relative to the declaring `.syrus.yml` directory. Absolute paths and `..` segments are rejected. `source_scope` is accepted as an alias. |
+| `deps` | no | `[]` | Label string or array of label strings. `dependencies` is accepted as an alias. |
+| `run` / `command` | no | — | Shell command metadata for executable targets. |
+| `phases` | no | `[]` | Optional phase metadata using the grader phase vocabulary: `review`, `landing`, `ci`, `promotion`. |
+| `required` | no | `false` | Optional requiredness metadata for executable validation targets. |
+| `timeout_minutes` | no | — | Optional positive integer timeout metadata. |
+
 ## project
 
 Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for later project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` never changes which commands run — every `prepare`/`formatters`/`generated`/`grade` section in this file still compiles into targets exactly as documented above.

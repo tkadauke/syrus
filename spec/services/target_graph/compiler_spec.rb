@@ -3,7 +3,9 @@ require "tmpdir"
 
 RSpec.describe TargetGraph::Compiler do
   around do |ex|
+    Syrus::PluginRegistry.reset!
     Dir.mktmpdir("syrus-target-graph-compiler") { |dir| @dir = dir; ex.run }
+    Syrus::PluginRegistry.reset!
   end
 
   describe ".compile" do
@@ -356,6 +358,9 @@ RSpec.describe TargetGraph::Compiler do
             kind: grader
             run: npm run typecheck
             deps: [":renderer"]
+            phases: [review, landing]
+            required: true
+            timeout_minutes: 20
       YAML
 
       graph = described_class.compile(@dir)
@@ -368,6 +373,25 @@ RSpec.describe TargetGraph::Compiler do
       expect(typecheck.kind).to eq("grader")
       expect(typecheck.command).to eq("npm run typecheck")
       expect(typecheck.dependencies).to eq([ TargetGraph::Label.parse("//desktop:renderer") ])
+      expect(typecheck.phases).to eq(%w[review landing])
+      expect(typecheck.required).to be(true)
+      expect(typecheck.timeout_minutes).to eq(20)
+    end
+
+    it "preserves command-list metadata for explicit prepare targets" do
+      write("desktop/.syrus.yml", <<~YAML)
+        targets:
+          - name: deps
+            kind: prepare
+            run: npm ci
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      deps = graph.target(TargetGraph::Label.parse("//desktop:deps"))
+      expect(deps.kind).to eq("prepare")
+      expect(deps.command).to eq("npm ci")
+      expect(deps.metadata["commands"]).to eq([ "npm ci" ])
     end
 
     it "wires legacy executable deps to generated graph node dependencies" do
@@ -397,6 +421,409 @@ RSpec.describe TargetGraph::Compiler do
       expect(graph.target(TargetGraph::Label.parse("//:format/0")).dependencies).to eq([ TargetGraph.root_label, app ])
       expect(graph.target(TargetGraph::Label.parse("//:generate/0")).dependencies).to eq([ TargetGraph.root_label, app ])
       expect(graph.target(TargetGraph::Label.parse("//:grade/tests")).dependencies).to eq([ TargetGraph.root_label, app ])
+    end
+
+    it "keeps explicit executable targets alongside generated legacy executable targets in one scope" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: typecheck
+            kind: grader
+            run: npm run typecheck
+            sources: ["app/frontend/**/*.ts"]
+            phases: [review]
+            required: true
+          - name: bundle
+            kind: builder
+            run: npm run build
+            sources: ["app/frontend/**/*"]
+        formatters:
+          - command: eslint --fix app/frontend
+            files: ["app/frontend/**/*.ts"]
+        generated:
+          - command: npm run generate
+            sources: ["schema/**/*.json"]
+            generates: ["app/frontend/generated/**/*.ts"]
+        grade:
+          - name: tests
+            run: npm test
+            deps: [":typecheck", ":bundle"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.target(TargetGraph::Label.parse("//:typecheck")).kind).to eq("grader")
+      expect(graph.target(TargetGraph::Label.parse("//:bundle")).kind).to eq("builder")
+      expect(graph.target(TargetGraph::Label.parse("//:format/0")).kind).to eq("formatter")
+      expect(graph.target(TargetGraph::Label.parse("//:generate/0")).kind).to eq("generator")
+
+      tests = graph.target(TargetGraph::Label.parse("//:grade/tests"))
+      expect(tests.dependencies).to eq([
+        TargetGraph.root_label,
+        TargetGraph::Label.parse("//:typecheck"),
+        TargetGraph::Label.parse("//:bundle")
+      ])
+      expect(graph.validate!).to be(true)
+    end
+
+    it "imports explicitly configured build-system graph provider targets with provenance" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "bazel", label: "Bazel", path: "")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:app"),
+              kind: "library",
+              project_id: "bazel",
+              source_scope: [ "src/**/*.rb" ]
+            )
+          ],
+          diagnostics: { "query" => "//..." }
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              config:
+                query: //...
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      imported = graph.target(TargetGraph::Label.parse("//bazel:app"))
+      expect(imported.kind).to eq("library")
+      expect(imported.dependencies).to eq([])
+      expect(imported.owner_config_path).to include("target_graph.imports[0]")
+      expect(imported.metadata["provenance"]).to include(
+        "provider" => "fake",
+        "provider_class" => "FakeBuildGraphProvider"
+      )
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include(
+          "provider" => "fake",
+          "provider_class" => "FakeBuildGraphProvider",
+          "status" => "imported",
+          "project_ids" => [ "bazel" ],
+          "target_labels" => [ "//bazel:app" ],
+          "diagnostics" => { "query" => "//..." }
+        )
+      )
+    end
+
+    it "treats an imported Buck/Bazel graph as the base graph and overlays Syrus metadata on matching labels" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "frontend", label: "Frontend", path: "frontend")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//frontend:bundle"),
+              kind: "builder",
+              project_id: "frontend",
+              source_scope: [ "frontend/src/**/*.ts" ],
+              dependencies: [ TargetGraph::Label.parse("//frontend:lib") ]
+            ),
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//frontend:lib"),
+              kind: "library",
+              project_id: "frontend",
+              source_scope: [ "frontend/src/**/*.ts" ]
+            )
+          ],
+          diagnostics: { "query" => "//frontend:all" }
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              config:
+                query: //frontend:all
+        grade:
+          - name: frontend-build
+            run: npm --prefix frontend run build
+            when_files_changed: ["frontend/**/*"]
+            deps: ["//frontend:bundle", "//frontend:syrus-preview"]
+            description: Validates the imported frontend bundle target.
+      YAML
+      write("frontend/.syrus.yml", <<~YAML)
+        targets:
+          - name: bundle
+            phases: [review, landing]
+            required: true
+            timeout_minutes: 20
+          - name: syrus-preview
+            kind: prepare
+            run: npm run preview:setup
+            deps: ["//frontend:bundle"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      bundle = graph.target(TargetGraph::Label.parse("//frontend:bundle"))
+      expect(bundle.kind).to eq("builder")
+      expect(bundle.source_scope).to eq([ "frontend/src/**/*.ts" ])
+      expect(bundle.dependencies).to eq([ TargetGraph::Label.parse("//frontend:lib") ])
+      expect(bundle.phases).to eq(%w[review landing])
+      expect(bundle.required).to be(true)
+      expect(bundle.timeout_minutes).to eq(20)
+      expect(bundle.metadata["syrus_overlay"]).to contain_exactly(
+        include(
+          "owner_config_path" => "frontend/.syrus.yml",
+          "declaration" => 'explicit targets: "bundle"',
+          "applied" => {
+            "phases" => %w[review landing],
+            "required" => true,
+            "timeout_minutes" => 20
+          }
+        )
+      )
+
+      preview = graph.target(TargetGraph::Label.parse("//frontend:syrus-preview"))
+      expect(preview.kind).to eq("prepare")
+      expect(preview.dependencies).to eq([ TargetGraph::Label.parse("//frontend:bundle") ])
+
+      build = graph.target(TargetGraph::Label.parse("//:grade/frontend-build"))
+      expect(build.dependencies).to eq([
+        TargetGraph.root_label,
+        TargetGraph::Label.parse("//frontend:bundle"),
+        TargetGraph::Label.parse("//frontend:syrus-preview")
+      ])
+      expect(build.metadata["description"]).to eq("Validates the imported frontend bundle target.")
+      expect(graph.validate!).to be(true)
+    end
+
+    it "rejects Syrus declarations that structurally redefine imported Buck/Bazel labels" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "app", label: "App", path: "app")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//app:lib"),
+              kind: "library",
+              project_id: "app",
+              source_scope: [ "app/src/**/*.rb" ]
+            )
+          ]
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+      YAML
+      write("app/.syrus.yml", <<~YAML)
+        targets:
+          - name: lib
+            sources: ["app/other/**/*.rb"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//app:lib")
+        expect(error.message).to include('explicit targets: "lib"')
+        expect(error.message).to include("imported build-system target")
+      end
+    end
+
+    it "fails strictly when an explicit graph import names no enabled provider" do
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: missing
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("build_system_graph_provider")
+        expect(error.message).to include("missing")
+      end
+    end
+
+    it "warns and continues when an explicit graph import opts into warning failures" do
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: missing
+              failures: warn
+      YAML
+
+      graph = described_class.compile(@dir)
+      expect(graph.targets.keys).to eq(%w[//:repo])
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("missing")
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include("status" => "error", "error" => include("missing"))
+      )
+    end
+
+    it "applies warning failure policy to provider exceptions" do
+      provider = fake_build_graph_provider(raise_error: RuntimeError.new("build file unreadable"))
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              failures: warn
+      YAML
+
+      expect(described_class.compile(@dir).targets.keys).to eq(%w[//:repo])
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics.error).to include("build file unreadable")
+    end
+
+    it "does not partially apply an invalid imported fragment in warning mode" do
+      provider = fake_build_graph_provider(
+        TargetGraph::Import.new(
+          projects: [
+            TargetGraph::Project.new(id: "bazel", label: "Bazel", path: "")
+          ],
+          targets: [
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:valid"),
+              kind: "library",
+              project_id: "bazel",
+              source_scope: [ "src/**/*.rb" ]
+            ),
+            TargetGraph::Target.new(
+              label: TargetGraph::Label.parse("//bazel:invalid"),
+              kind: "library",
+              project_id: "bazel",
+              dependencies: [ TargetGraph::Label.parse("//bazel:missing") ]
+            )
+          ]
+        )
+      )
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              failures: warn
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.project("bazel")).to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//bazel:valid"))).to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//bazel:invalid"))).to be_nil
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("//bazel:invalid")
+      expect(diagnostics.error).to include("//bazel:missing")
+      expect(diagnostics.import_diagnostics).to contain_exactly(
+        include("status" => "error", "error" => include("//bazel:missing"))
+      )
+    end
+
+    it "does not partially apply a warning-mode import that conflicts with an earlier imported graph" do
+      provider = fake_build_graph_provider do |config|
+        if config["name"] == "base"
+          TargetGraph::Import.new(
+            projects: [
+              TargetGraph::Project.new(id: "base", label: "Base", path: "base")
+            ],
+            targets: [
+              TargetGraph::Target.new(
+                label: TargetGraph::Label.parse("//base:lib"),
+                kind: "library",
+                project_id: "base",
+                source_scope: [ "base/**/*.rb" ]
+              )
+            ]
+          )
+        else
+          TargetGraph::Import.new(
+            projects: [
+              TargetGraph::Project.new(id: "extra", label: "Extra", path: "extra")
+            ],
+            targets: [
+              TargetGraph::Target.new(
+                label: TargetGraph::Label.parse("//base:lib"),
+                kind: "library",
+                project_id: "extra",
+                source_scope: [ "extra/**/*.rb" ]
+              )
+            ]
+          )
+        end
+      end
+      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      write(".syrus.yml", <<~YAML)
+        target_graph:
+          imports:
+            - provider: fake
+              config:
+                name: base
+            - provider: fake
+              failures: warn
+              config:
+                name: conflicting
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      expect(graph.project("base")).not_to be_nil
+      expect(graph.target(TargetGraph::Label.parse("//base:lib")).project_id).to eq("base")
+      expect(graph.project("extra")).to be_nil
+      expect(graph.targets.keys).to match_array(%w[//:repo //base:lib])
+
+      diagnostics = described_class.diagnose(@dir)
+      expect(diagnostics).to be_error
+      expect(diagnostics.error).to include("//base:lib")
+      expect(diagnostics.import_diagnostics).to include(
+        include("status" => "error", "error" => include("//base:lib"))
+      )
+    end
+
+    it "raises a clear error when an explicit label collides with a generated legacy label" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: grade/tests
+            kind: grader
+            run: npm test
+        grade:
+          - name: tests
+            run: bin/rspec
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//:grade/tests")
+        expect(error.message).to include('explicit targets: "grade/tests"')
+        expect(error.message).to include('legacy grade "tests"')
+        expect(error.message).to include(".syrus.yml")
+      end
+    end
+
+    it "raises a clear error when nested explicit and generated labels collide in their package" do
+      write("cli/.syrus.yml", <<~YAML)
+        targets:
+          - name: format/0
+            kind: formatter
+            run: gofmt -w .
+        formatters:
+          - command: gofmt -w .
+            files: ["**/*.go"]
+      YAML
+
+      expect { described_class.compile(@dir) }.to raise_error(TargetGraph::ValidationError) do |error|
+        expect(error.message).to include("//cli:format/0")
+        expect(error.message).to include('explicit targets: "format/0"')
+        expect(error.message).to include("legacy formatters[0]")
+        expect(error.message).to include("cli/.syrus.yml")
+      end
     end
 
     it "raises a clear validation error for missing dependency labels" do
@@ -706,5 +1133,25 @@ RSpec.describe TargetGraph::Compiler do
     path = File.join(@dir, rel)
     FileUtils.mkdir_p(File.dirname(path))
     File.write(path, contents)
+  end
+
+  def fake_build_graph_provider(result = nil, raise_error: nil, &resolver)
+    stub_const(
+      "FakeBuildGraphProvider",
+      Class.new do
+        include Syrus::Plugin::BuildSystemGraphProvider
+
+        define_singleton_method(:provider_key) { "fake" }
+        define_singleton_method(:import_target_graph) do |repo_path:, config:|
+          raise raise_error if raise_error
+
+          @last_repo_path = repo_path
+          @last_config = config
+          resolver ? resolver.call(config) : (result || TargetGraph::Import.new)
+        end
+        define_singleton_method(:last_repo_path) { @last_repo_path }
+        define_singleton_method(:last_config) { @last_config }
+      end
+    )
   end
 end

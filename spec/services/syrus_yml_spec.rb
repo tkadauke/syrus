@@ -1957,7 +1957,7 @@ RSpec.describe SyrusYml do
       expect(parse("grade: []").targets).to eq([])
     end
 
-    it "parses explicit targets and dependencies" do
+    it "parses explicit targets and metadata" do
       config = parse(<<~YAML)
         targets:
           - name: renderer
@@ -1967,11 +1967,14 @@ RSpec.describe SyrusYml do
             kind: grader
             run: npm run typecheck
             deps: [":renderer"]
+            phases: [review, landing]
+            required: true
+            timeout_minutes: 20
       YAML
 
       expect(config.targets).to eq([
-        described_class::TargetConfig.new(name: "renderer", kind: "library", command: nil, sources: [ "src/**/*.ts" ], deps: []),
-        described_class::TargetConfig.new(name: "typecheck", kind: "grader", command: "npm run typecheck", sources: [], deps: [ ":renderer" ])
+        described_class::TargetConfig.new(name: "renderer", kind: "library", command: nil, sources: [ "src/**/*.ts" ], deps: [], phases: [], required: false, timeout_minutes: nil),
+        described_class::TargetConfig.new(name: "typecheck", kind: "grader", command: "npm run typecheck", sources: [], deps: [ ":renderer" ], phases: %w[review landing], required: true, timeout_minutes: 20)
       ])
     end
 
@@ -1995,6 +1998,71 @@ RSpec.describe SyrusYml do
       expect {
         parse("targets:\n  - name: tests\n    deps: [renderer]\n")
       }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.deps/)
+    end
+
+    it "rejects source scopes that escape the declaring directory" do
+      expect {
+        parse("targets:\n  - name: renderer\n    sources: [\"../shared/**/*.ts\"]\n")
+      }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.sources/)
+    end
+
+    it "rejects non-positive timeout metadata" do
+      expect {
+        parse("targets:\n  - name: tests\n    timeout_minutes: 0\n")
+      }.to raise_error(SyrusYml::ParseError, /targets\[0\]\.timeout_minutes/)
+    end
+  end
+
+  describe "target_graph.imports" do
+    it "defaults to no imports when absent" do
+      expect(parse("grade: []").target_graph.imports).to eq([])
+    end
+
+    it "parses explicit build-system graph imports" do
+      config = parse(<<~YAML)
+        target_graph:
+          imports:
+            - provider: bazel
+              failures: warn
+              config:
+                query: //...
+      YAML
+
+      expect(config.target_graph.imports).to eq([
+        described_class::TargetGraphImportConfig.new(
+          provider: "bazel",
+          failures: "warn",
+          config: { "query" => "//..." }
+        )
+      ])
+    end
+
+    it "defaults imported graph failures to strict" do
+      config = parse(<<~YAML)
+        target_graph:
+          imports:
+            - provider: buck
+      YAML
+
+      expect(config.target_graph.imports.first.failures).to eq("strict")
+    end
+
+    it "rejects imports without a provider key" do
+      expect {
+        parse("target_graph:\n  imports:\n    - config: {}\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.provider/)
+    end
+
+    it "rejects unknown failure policies" do
+      expect {
+        parse("target_graph:\n  imports:\n    - provider: bazel\n      failures: maybe\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.failures/)
+    end
+
+    it "rejects non-mapping import config" do
+      expect {
+        parse("target_graph:\n  imports:\n    - provider: bazel\n      config: nope\n")
+      }.to raise_error(SyrusYml::ParseError, /target_graph\.imports\[0\]\.config/)
     end
   end
 end

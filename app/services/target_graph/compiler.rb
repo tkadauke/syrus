@@ -68,7 +68,18 @@ class TargetGraph
     # `error`, when present, is a human-readable message naming the owning
     # `.syrus.yml` path (and target label, for validation failures) so an
     # operator can find the offending config without reading source.
-    Diagnostics = Data.define(:source, :owner_config_path, :target_labels, :project_count, :error) do
+    Diagnostics = Data.define(:source, :owner_config_path, :target_labels, :project_count, :error, :import_diagnostics) do
+      def initialize(source:, owner_config_path:, target_labels:, project_count:, error:, import_diagnostics: [])
+        super(
+          source: source,
+          owner_config_path: owner_config_path,
+          target_labels: target_labels,
+          project_count: project_count,
+          error: error,
+          import_diagnostics: import_diagnostics
+        )
+      end
+
       def error?
         !error.nil?
       end
@@ -80,7 +91,8 @@ class TargetGraph
           "target_labels" => target_labels,
           "target_count" => target_labels.size,
           "project_count" => project_count,
-          "error" => error
+          "error" => error,
+          "import_diagnostics" => import_diagnostics
         }
       end
     end
@@ -98,7 +110,10 @@ class TargetGraph
     end
 
     def compile
+      @import_errors = []
+      @import_diagnostics = []
       graph = TargetGraph.new(root_project: root_project_override)
+      compile_imported_build_system_graphs!(graph)
       compile_explicit_targets!(graph)
       compile_prepare!(graph)
       compile_formatters!(graph)
@@ -121,7 +136,8 @@ class TargetGraph
         owner_config_path: owner_config_path,
         target_labels: graph.targets.keys.sort,
         project_count: graph.projects.size,
-        error: combined_error
+        error: combined_error,
+        import_diagnostics: import_diagnostics
       )
     rescue StandardError => e
       Diagnostics.new(
@@ -129,13 +145,22 @@ class TargetGraph
         owner_config_path: owner_config_path,
         target_labels: [],
         project_count: nil,
-        error: "#{owner_config_path}: #{e.message}"
+        error: "#{owner_config_path}: #{e.message}",
+        import_diagnostics: import_diagnostics
       )
+    end
+
+    def record_import_error(error_message)
+      import_errors << error_message
+      import_diagnostics << {
+        "status" => "error",
+        "error" => error_message
+      }
     end
 
     private
 
-    attr_reader :workspace_path, :parse_error
+    attr_reader :workspace_path, :parse_error, :import_errors, :import_diagnostics
 
     def config
       return @config if defined?(@config)
@@ -250,14 +275,12 @@ class TargetGraph
         declared_project_ids[project_id] = nested_owner_config_path
 
         declared_project = nested_config.project
-        graph.add_project(
-          TargetGraph::Project.new(
-            id: project_id,
-            label: declared_project&.label || relative_dir,
-            kind: declared_project&.kind,
-            path: declared_project&.path || relative_dir,
-            owner_config_path: nested_owner_config_path
-          )
+        add_or_overlay_project!(
+          graph,
+          project_id: project_id,
+          declared_project: declared_project,
+          relative_dir: relative_dir,
+          config_path: nested_owner_config_path
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -270,6 +293,37 @@ class TargetGraph
 
     def nested_relative_dirs
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
+    end
+
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:)
+      existing = graph.project(project_id)
+      if existing
+        return unless imported_project?(existing) && declared_project
+
+        graph.replace_project(
+          existing.with(
+            label: declared_project.label || existing.label,
+            kind: declared_project.kind || existing.kind,
+            path: declared_project.path || existing.path,
+            owner_config_path: config_path
+          )
+        )
+        return
+      end
+
+      graph.add_project(
+        TargetGraph::Project.new(
+          id: project_id,
+          label: declared_project&.label || relative_dir,
+          kind: declared_project&.kind,
+          path: declared_project&.path || relative_dir,
+          owner_config_path: config_path
+        )
+      )
+    end
+
+    def imported_project?(project)
+      project.owner_config_path.to_s.include?("target_graph.imports[")
     end
 
     # An explicit `project.id` in the nested file (already charset-validated
@@ -301,7 +355,138 @@ class TargetGraph
       messages = []
       messages << "#{owner_config_path}: #{parse_error.message}" if parse_error
       messages.concat(Array(@nested_parse_errors))
+      messages.concat(Array(import_errors))
       messages.join("; ").presence
+    end
+
+    def compile_imported_build_system_graphs!(graph)
+      config&.target_graph&.imports&.each_with_index do |import_config, index|
+        provider = build_system_graph_provider(import_config.provider)
+        label = "#{owner_config_path} target_graph.imports[#{index}] provider #{import_config.provider.inspect}"
+
+        unless provider
+          TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
+            error_message: "#{label}: no enabled build_system_graph_provider is registered for #{import_config.provider.inspect}",
+            compiler: self
+          )
+          next
+        end
+
+        apply_import!(graph, provider: provider, import_config: import_config, label: label)
+      rescue StandardError => e
+        TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
+          error_message: "#{label}: #{e.class}: #{e.message}",
+          compiler: self
+        )
+      end
+    end
+
+    def build_system_graph_provider(provider_key)
+      Syrus::PluginRegistry.providers_for(:build_system_graph_provider).find do |provider|
+        provider.public_send(:provider_key).to_s == provider_key.to_s
+      end
+    end
+
+    def apply_import!(graph, provider:, import_config:, label:)
+      imported = provider.import_target_graph(repo_path: workspace_path, config: import_config.config)
+      unless imported.is_a?(TargetGraph::Import)
+        raise TargetGraph::ValidationError, "#{provider_description(provider)} returned #{imported.class}, expected TargetGraph::Import"
+      end
+
+      provider_provenance = import_provenance(provider: provider, import_config: import_config, label: label)
+      imported_projects = imported_projects(imported, label: label)
+      imported_targets = imported_targets(imported, label: label, provider_provenance: provider_provenance)
+
+      validate_import_fragment!(projects: imported_projects, targets: imported_targets, label: label)
+      dry_run = duplicate_graph(graph)
+      merge_import_fragment!(dry_run, projects: imported_projects, targets: imported_targets, label: label)
+      dry_run.validate!
+
+      merge_import_fragment!(graph, projects: imported_projects, targets: imported_targets, label: label)
+
+      import_diagnostics << {
+        "provider" => import_config.provider,
+        "provider_class" => provider_description(provider),
+        "status" => "imported",
+        "project_ids" => imported_projects.map(&:id),
+        "target_labels" => imported_targets.map { |target| target.label.to_s },
+        "diagnostics" => imported.diagnostics
+      }.compact
+    end
+
+    def import_provenance(provider:, import_config:, label:)
+      {
+        "provider" => import_config.provider,
+        "provider_class" => provider_description(provider),
+        "declaration" => label
+      }
+    end
+
+    def validate_import_fragment!(projects:, targets:, label:)
+      scratch = TargetGraph.new
+      projects.each do |project|
+        next if project.id == root_project_id
+
+        scratch.add_project(project)
+      end
+      targets.each do |target|
+        scratch.add_target(target)
+      rescue TargetGraph::ValidationError => e
+        raise TargetGraph::ValidationError, "#{label}: #{e.message}"
+      end
+      scratch.validate!
+    rescue TargetGraph::ValidationError => e
+      raise TargetGraph::ValidationError, "#{label}: #{e.message}"
+    end
+
+    def imported_projects(imported, label:)
+      imported.projects.map { |project| project.with(owner_config_path: project.owner_config_path || label) }
+    end
+
+    def imported_targets(imported, label:, provider_provenance:)
+      imported.targets.map do |target|
+        target.with(
+          owner_config_path: target.owner_config_path || label,
+          metadata: target.metadata.merge("provenance" => provider_provenance, "declaration" => "imported build-system target")
+        )
+      end
+    end
+
+    def duplicate_graph(graph)
+      duplicate = TargetGraph.new(root_project: graph.root_project)
+      graph.projects.each_value do |project|
+        duplicate.add_project(project) unless project.id == root_project_id
+      end
+      graph.targets.each_value do |target|
+        duplicate.add_target(target) unless target.label == TargetGraph.root_label
+      end
+      duplicate
+    end
+
+    def merge_import_fragment!(graph, projects:, targets:, label:)
+      projects.each do |project|
+        next if project.id == root_project_id
+
+        graph.add_project(project)
+      end
+
+      targets.each do |target|
+        graph.add_target(target)
+      rescue TargetGraph::ValidationError
+        existing = graph.target(target.label)
+        raise unless existing
+
+        raise TargetGraph::ValidationError,
+          "target #{target.label} (#{label}) conflicts with already declared target " \
+          "#{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
+          "#{existing.metadata['declaration'] || existing.kind})"
+      end
+    end
+
+    def provider_description(provider)
+      return provider.name if provider.respond_to?(:name) && provider.name.present?
+
+      provider.class.name || provider.class.inspect
     end
 
     # Root prepare is left out of the dependency graph on purpose: it is the
@@ -317,7 +502,8 @@ class TargetGraph
       commands = syrus_config.prepare.map(&:to_s).map(&:strip).reject(&:empty?)
       return if commands.empty?
 
-      graph.add_target(
+      add_target!(
+        graph,
         TargetGraph::Target.new(
           label: label_for("prepare", package: package),
           kind: "prepare",
@@ -325,7 +511,8 @@ class TargetGraph
           command: commands.join(" && "),
           owner_config_path: config_path,
           metadata: { "commands" => commands }
-        )
+        ),
+        declaration: "legacy prepare"
       )
     end
 
@@ -333,7 +520,8 @@ class TargetGraph
       return unless syrus_config
 
       syrus_config.targets.each do |target|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for(target.name, package: package),
             kind: target.kind,
@@ -341,10 +529,21 @@ class TargetGraph
             source_scope: scoped_source_scope(package, target.sources),
             command: target.command,
             dependencies: resolved_dependencies(target.deps, package: package),
-            owner_config_path: config_path
-          )
+            phases: target.phases,
+            required: target.required,
+            timeout_minutes: target.timeout_minutes,
+            owner_config_path: config_path,
+            metadata: explicit_target_metadata(target)
+          ),
+          declaration: "explicit targets: #{target.name.inspect}"
         )
       end
+    end
+
+    def explicit_target_metadata(target)
+      return {} unless target.kind == "prepare" && target.command.present?
+
+      { "commands" => [ target.command ] }
     end
 
     def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
@@ -352,7 +551,8 @@ class TargetGraph
       return unless syrus_config.formatters.is_a?(Array)
 
       syrus_config.formatters.each_with_index do |formatter, index|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("format/#{index}", package: package),
             kind: "formatter",
@@ -361,7 +561,8 @@ class TargetGraph
             command: formatter.command,
             dependencies: legacy_dependencies(formatter.deps, package: package),
             owner_config_path: config_path
-          )
+          ),
+          declaration: "legacy formatters[#{index}]"
         )
       end
     end
@@ -371,7 +572,8 @@ class TargetGraph
       return unless syrus_config.generated.is_a?(Array)
 
       syrus_config.generated.each_with_index do |entry, index|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("generate/#{index}", package: package),
             kind: "generator",
@@ -381,14 +583,16 @@ class TargetGraph
             dependencies: legacy_dependencies(entry.deps, package: package),
             owner_config_path: config_path,
             metadata: { "generates" => entry.generates, "codegen_ignore" => entry.codegen_ignore }
-          )
+          ),
+          declaration: "legacy generated[#{index}]"
         )
       end
     end
 
     def compile_graders!(graph, syrus_workspace_path: workspace_path, package: "", project_id: root_project_id, config_path: owner_config_path)
       RepoGradePlan.for(syrus_workspace_path).graders.each do |grader|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("grade/#{grader.name}", package: package),
             kind: "grader",
@@ -405,9 +609,67 @@ class TargetGraph
               "junit_output" => grader.junit_output,
               "failures" => grader.failures
             }.merge(grader.metadata).compact
-          )
+          ),
+          declaration: "legacy grade #{grader.name.inspect}"
         )
       end
+    end
+
+    def add_target!(graph, target, declaration:)
+      target = target.with(metadata: target.metadata.merge("declaration" => declaration))
+      graph.add_target(target)
+    rescue TargetGraph::ValidationError
+      existing = graph.target(target.label)
+      raise unless existing
+      if imported_target?(existing) && overlay_metadata_only?(target, existing)
+        graph.replace_target(overlay_imported_target(existing, target, declaration: declaration))
+        return
+      end
+
+      raise TargetGraph::ValidationError,
+        "target #{target.label} (#{target.owner_config_path}, #{declaration}) conflicts with already declared " \
+        "target #{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
+        "#{existing.metadata['declaration'] || existing.kind})"
+    end
+
+    def imported_target?(target)
+      target.metadata["declaration"] == "imported build-system target" &&
+        target.metadata["provenance"].is_a?(Hash)
+    end
+
+    def overlay_metadata_only?(overlay, base)
+      no_structural_command = overlay.command.nil?
+      no_structural_sources = overlay.source_scope.empty? || overlay.source_scope == default_source_scope_for(overlay.label.package)
+      no_structural_dependencies = overlay.dependencies.empty?
+      compatible_kind = overlay.kind == base.kind || overlay.kind == "library"
+
+      no_structural_command && no_structural_sources && no_structural_dependencies && compatible_kind
+    end
+
+    def default_source_scope_for(package)
+      package.present? ? [ "#{package}/**/*" ] : []
+    end
+
+    def overlay_imported_target(base, overlay, declaration:)
+      applied = {}
+      applied["phases"] = overlay.phases if overlay.phases.any?
+      applied["required"] = true if overlay.required
+      applied["timeout_minutes"] = overlay.timeout_minutes if overlay.timeout_minutes
+
+      base.with(
+        phases: applied.fetch("phases", base.phases),
+        required: applied.fetch("required", base.required),
+        timeout_minutes: applied.fetch("timeout_minutes", base.timeout_minutes),
+        metadata: base.metadata.merge(
+          "syrus_overlay" => Array(base.metadata["syrus_overlay"]) + [
+            {
+              "owner_config_path" => overlay.owner_config_path,
+              "declaration" => declaration,
+              "applied" => applied
+            }
+          ]
+        )
+      )
     end
 
     # RepoGradePlan/SyrusYml don't enforce timeout_minutes > 0 the way
