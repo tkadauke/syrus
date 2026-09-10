@@ -92,9 +92,10 @@ module JobLifecycle
   end
 
   def sync_skip_prepare_from_source!
-    return skip_prepare? unless issue? && issue_number.present? && (repository.installation&.active? || user.github_token.present?)
+    source_user = user.reload
+    return skip_prepare? unless issue? && issue_number.present? && (repository.installation&.active? || source_user.github_token.present?)
 
-    issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, issue_number)
+    issue = GithubClient.for(repository: repository, user: source_user).fetch_issue(repository.slug, issue_number)
     names = Workflows.label_names(issue.labels)
     skip = names.include?(Workflows::SKIP_PREPARE_LABEL)
 

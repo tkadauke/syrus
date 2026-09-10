@@ -45,7 +45,7 @@ class RetryWorkflowEnqueuer
 
   class ProviderValidation::Configured < ProviderValidation
     def agent_provider_allowed?(agent_provider)
-      job.user.agent_provider_configured?(agent_provider)
+      job.user.reload.agent_provider_configured?(agent_provider)
     end
   end
 
