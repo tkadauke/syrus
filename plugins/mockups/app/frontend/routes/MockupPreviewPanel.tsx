@@ -21,11 +21,12 @@ function usePanelAccessToken(panel: MockupPanel | null, enabled: boolean) {
 }
 
 function versionedUrl(panel: MockupPanel, versionId: number | null, token: string | null) {
-  const params = new URLSearchParams()
-  if (versionId) params.set("v", String(versionId))
-  if (token) params.set("t", token)
-  const query = params.toString()
-  return `${panel.url}${query ? `?${query}` : ""}`
+  if (!versionId && !token) return panel.url
+
+  const url = new URL(panel.url)
+  if (versionId) url.searchParams.set("v", String(versionId))
+  if (token) url.searchParams.set("token", token)
+  return url.toString()
 }
 
 export function MockupPreviewPanel({ panel }: { panel: MockupPanel }) {
