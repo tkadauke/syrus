@@ -20,6 +20,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
+import { Notice, Page, Section, Surface, Text } from "../components/ui"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
@@ -89,10 +90,10 @@ export function DashboardRoute() {
     })
   }, [dashboardChrome.data, dashboardRows.data, payload, queryClient, traceKey])
 
-  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
+  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <Page.Root aria-label={t("title")}><Text muted>{t("loading")}</Text></Page.Root>
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />
-  if (!payload) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
+  if (!payload) return <Page.Root aria-label={t("title")}><Text muted>{t("loading")}</Text></Page.Root>
 
   return <DashboardView pathname={location.pathname} search={location.search} payload={payload} />
 }
@@ -177,12 +178,12 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   const isLegacyEpicsView = payload.simple_mode && payload.subject === "epic"
 
   return (
-    <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
-      <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
+    <Page.Root aria-label={t("title")} className="space-y-5 px-0 py-4 sm:p-6" size="wide">
+      <Page.Header className="items-center gap-3 px-4 sm:px-0">
         <PageHeading className="flex-1">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</PageHeading>
         {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
-      </header>
+      </Page.Header>
       {isLegacyEpicsView ? <LegacyEpicsBanner className="mx-4 sm:mx-0" /> : null}
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
@@ -200,7 +201,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         </>
       )}
       <DashboardTour simpleMode={payload.simple_mode} />
-    </main>
+    </Page.Root>
   )
 }
 
@@ -259,30 +260,30 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
   if (failingChecks.length === 0) return null
 
   return (
-    <section aria-label={t("system_readiness")} className={`${className} rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40`}>
+    <Section.Root aria-label={t("system_readiness")} className={className} tone="warning">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
-          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{t("readiness_description")}</p>
+          <Text as="h2" tone="warning" variant="heading-sm">{t("readiness_title")}</Text>
+          <Text className="mt-1" tone="warning">{t("readiness_description")}</Text>
         </div>
-        <Link className="rounded border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900" to={`${prefix}/credentials`}>
+        <Link className={buttonClasses("secondary", "sm")} to={`${prefix}/credentials`}>
           {t("open_settings")}
         </Link>
       </div>
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
         {failingChecks.map((check) => (
-          <div className="rounded border border-amber-200 bg-white p-3 dark:border-amber-900 dark:bg-gray-950" key={check.key}>
+          <Surface padding="sm" variant="inset" key={check.key}>
             <div className="flex items-center gap-2">
               <TonePill tone={check.status === "error" ? "red" : "amber"}>{check.status}</TonePill>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{check.label}</h3>
-              {check.optional ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("optional")}</span> : null}
+              <Text as="h3" variant="heading-sm">{check.label}</Text>
+              {check.optional ? <Text as="span" muted variant="caption">{t("optional")}</Text> : null}
             </div>
-            <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">{check.message}</p>
-            {check.remediation ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{check.remediation}</p> : null}
-          </div>
+            <Text className="mt-2">{check.message}</Text>
+            {check.remediation ? <Text className="mt-1" muted>{check.remediation}</Text> : null}
+          </Surface>
         ))}
       </div>
-    </section>
+    </Section.Root>
   )
 }
 
@@ -336,9 +337,9 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
           : null
 
         return (
-          <div className="flex flex-col gap-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert">
+          <Notice className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert" tone="danger">
             <div className="min-w-0">
-              <span className="text-red-800 dark:text-red-200">
+              <span>
                 <span className="font-mono font-medium">{repo.slug}</span>
                 {" — "}{t(repo.main_health === "inconclusive"
                   ? "main_health_inconclusive_banner_not_held"
@@ -346,7 +347,7 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
                 )}
               </span>
               {repair ? (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-200">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   {blockingJob ? (
                     <span>
                       {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
@@ -377,7 +378,7 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
             <div className="flex shrink-0 items-center gap-2">
               {repair?.can_request ? (
                 <button
-                  className="rounded border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900"
+                  className={buttonClasses("secondary", "sm", "disabled:cursor-not-allowed disabled:opacity-60")}
                   disabled={isStartingRepair}
                   onClick={() => requestRepair.mutate(repo.repair_path)}
                   type="button"
@@ -386,14 +387,14 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
                 </button>
               ) : null}
               <Link
-                className="rounded border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900"
+                className={buttonClasses("secondary", "sm")}
                 to={withRoutePrefix(repo.repository_path, prefix)}
               >
                 {t("broken_main_view_details")}
               </Link>
               <button
                 aria-label={t("broken_main_dismiss")}
-                className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+                className="text-danger hover:text-danger-text"
                 onClick={() => setDismissals((prev) => {
                   const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
                   writeHealthBannerDismissals(next)
@@ -404,7 +405,7 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
                 <CloseIcon />
               </button>
             </div>
-          </div>
+          </Notice>
         )
       })}
     </div>
@@ -437,9 +438,9 @@ export function LegacyEpicsBanner({ className = "" }: { className?: string }) {
   const { t } = useT("dashboard")
 
   return (
-    <div className={`${className} rounded border border-info/30 bg-info/10 px-4 py-3 text-sm text-info`} role="status">
+    <Notice className={className} role="status" tone="info">
       {t("legacy_epics_banner")}
-    </div>
+    </Notice>
   )
 }
 
@@ -453,8 +454,8 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
   if (dismissedToken === token) return null
 
   return (
-    <div className={`${className} flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between`} role="status">
-      <div className="min-w-0 text-amber-900 dark:text-amber-200">
+    <Notice className={`${className} flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between`} role="status" tone="warning">
+      <div className="min-w-0">
         <span>
           {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
           {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
@@ -472,7 +473,7 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
       </div>
       <button
         aria-label={t("untagged_issues_dismiss")}
-        className="shrink-0 text-amber-600 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-100"
+        className="shrink-0 text-warning hover:text-warning-text"
         onClick={() => {
           setDismissedToken(token)
           writeUntaggedIssuesDismissal(token)
@@ -481,7 +482,7 @@ export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }:
       >
         <CloseIcon />
       </button>
-    </div>
+    </Notice>
   )
 }
 
@@ -495,17 +496,17 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
     <div className="space-y-3 px-4 sm:px-0">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" pathname={pathname} payload={payload} prefix={prefix} />
+          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" pathname={pathname} payload={payload} prefix={prefix} />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} isDesktop={false} />
       </div>
-      <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+      <details className="group rounded-[var(--radius-panel)] border border-border bg-surface text-text-primary">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium">
           <span>{t("folders_and_filters")}</span>
-          <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("show")}</span>
-          <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("hide")}</span>
+          <Text as="span" className="group-open:hidden" muted variant="caption">{t("show")}</Text>
+          <Text as="span" className="hidden group-open:inline" muted variant="caption">{t("hide")}</Text>
         </summary>
-        <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
+        <div className="space-y-4 border-t border-border p-4">
           <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
@@ -532,7 +533,7 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
     if (!isDesktop) {
       return (
         <section className="min-w-0 space-y-4">
-          <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("dependencies_mobile_unavailable")}</div>
+          <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("dependencies_mobile_unavailable")}</Text></Surface>
         </section>
       )
     }
@@ -570,26 +571,26 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
   if (subject === "workflow") return null
 
   if (graphQuery.isPending) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("loading")}</div>
+    return <Surface padding="lg"><Text muted>{t("loading")}</Text></Surface>
   }
 
   if (graphQuery.isError) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-red-300" role="alert">{t("load_error")}</div>
+    return <Notice role="alert" tone="danger">{t("load_error")}</Notice>
   }
 
   const { nodes, edges } = graphQuery.data ?? { nodes: [], edges: [] }
 
   if (nodes.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(subject, 2) })}</div>
+    return <Surface padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(subject, 2) })}</Text></Surface>
   }
 
   return (
-    <div className="overflow-x-auto rounded border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+    <Surface className="overflow-x-auto" padding="lg">
       {edges.length === 0 && (
-        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("no_dependency_edges")}</p>
+        <Text className="mb-3" muted>{t("no_dependency_edges")}</Text>
       )}
       <TopoDepGraph nodes={nodes} edges={edges} />
-    </div>
+    </Surface>
   )
 }
 
@@ -603,7 +604,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   )
 }
 
-function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
+function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
   const { t } = useT("dashboard")
   const activeSubject = dashboardSubjectFromPath(pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
@@ -616,7 +617,7 @@ function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max
     <nav aria-label={t("subjects")} className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand dark:text-brand-emphasis" : "text-text-primary hover:bg-surface-raised"}`}
           key={subject.key}
           to={withRoutePrefix(subject.path, prefix)}
         >
@@ -681,11 +682,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               <ColumnsIcon />
             </Button>
             {columnsOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
+              <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="dashboard-columns-menu" padding="sm" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visible_columns")}</legend>
+                  <Text as="legend" muted variant="label">{t("visible_columns")}</Text>
                   {payload.controls.columns.optional.map((column) => (
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
+                    <label className="flex items-center gap-2 text-sm text-text-primary" key={column.key}>
                       <Checkbox
                         checked={payload.preferences.visible_columns.includes(column.key)}
                         disabled={updatePreferences.isPending}
@@ -695,7 +696,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
                     </label>
                   ))}
                 </fieldset>
-              </div>
+              </Surface>
             ) : null}
           </div>
         ) : null}
@@ -714,11 +715,11 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
               <ColumnsIcon />
             </Button>
             {lanesOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
+              <Surface className="absolute right-0 z-20 mt-2 w-64 shadow-lg" id="dashboard-kanban-lanes-menu" padding="sm" role="menu">
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes")}</legend>
+                  <Text as="legend" muted variant="label">{t("kanban_lanes")}</Text>
                   {payload.controls.kanban_lanes.map((lane) => (
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={lane.key}>
+                    <label className="flex items-center gap-2 text-sm text-text-primary" key={lane.key}>
                       <Checkbox
                         checked={payload.preferences.kanban_lanes.includes(lane.key)}
                         disabled={updatePreferences.isPending}
@@ -728,14 +729,14 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
                     </label>
                   ))}
                 </fieldset>
-              </div>
+              </Surface>
             ) : null}
           </div>
         ) : null}
-        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
+        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm">
           {viewTabs.map((view) => (
             <Link
-              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-brand text-on-brand" : "text-text-primary hover:bg-surface-raised"}`}
               key={view}
               onClick={() =>
                 updatePreferences.mutate({
@@ -751,7 +752,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
           ))}
         </nav>
       </div>
-      {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("preferences_error"))}</p> : null}
+      {updatePreferences.isError ? <Text as="p" className="mt-1 text-right" role="alert" tone="danger">{errorMessage(updatePreferences.error, t("preferences_error"))}</Text> : null}
     </div>
   )
 }
@@ -850,7 +851,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   }
 
   if (payload.rows_current_for_search === false) {
-    return <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("loading")}</div>
+    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("loading")}</Text></Surface>
   }
 
   if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
@@ -870,7 +871,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
       )
     }
 
-    return <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</div>
+    return <Surface className="mx-4 sm:mx-0" padding="lg"><Text muted>{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</Text></Surface>
   }
 
   const columns = dashboardVisibleColumns(payload)
