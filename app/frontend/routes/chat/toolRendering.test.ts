@@ -105,6 +105,12 @@ describe("toolResultPresentation", () => {
     expect(result).toMatchObject({ kind: "text", summary: "2 design docs" })
   })
 
+  it("uses registered collapsed summaries for errored tool results before falling back to a blank error", () => {
+    const result = toolResultPresentation("runtime_acquire_control", "runtime session 7 already has an active input lease", true)
+
+    expect(result).toMatchObject({ kind: "error", summary: "Runtime acquire control failed" })
+  })
+
   it("keeps the generic text kind for an unknown tool with no core or plugin card", () => {
     const result = toolResultPresentation("totally_unknown_tool", "plain text result")
 
