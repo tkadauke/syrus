@@ -522,53 +522,58 @@ describe("ReviewWorkspace", () => {
 
     renderWorkspace()
 
-    const selector = await screen.findByLabelText("Diff version")
+    const selector = await screen.findByLabelText("Version")
     expect(selector).toHaveValue("200")
     expect(selector).toHaveClass("max-w-full", "truncate")
     expect(selector.closest("div")).toHaveClass("w-full", "min-w-0", "max-w-full")
-    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - base-sh\.\.head-sh - 2 comments/ })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - base-sh\.\.head-sh - 1 comment/ })).toBeInTheDocument()
-    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - base-sh\.\.head-sh - 2 comments/)).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /v2 latest - Chat feedback #1 - WF-12 - RUN-34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/ })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /v1 - Initial implementation - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 1 comment/ })).toBeInTheDocument()
+    expect(screen.getByText(/Latest - chat_feedback - Workflow 12, Run 34 - .* - From main \(base-sh\) to syrus\/issue-42 \(head-sh\) - 2 comments/)).toBeInTheDocument()
   })
 
-  it("switches to an older stored diff version from the selector", async () => {
+  it("defaults to All changes while keeping a smaller repair-step range selectable", async () => {
     const latest = sourceDiffPayload({
-      version: version({ id: 200, version_index: 2, head_sha: "head-v2", label: "Chat feedback #1" }),
+      version: version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" } }),
       versions: [
-        version({ id: 100, version_index: 1, head_sha: "head-v1", label: "Initial implementation" }),
-        version({ id: 200, version_index: 2, head_sha: "head-v2", label: "Chat feedback #1" })
+        version({ id: 100, version_index: 1, base_sha: "initial-head", head_sha: "branch-head", label: "Initial implementation", run_id: 34, files_count: 1 }),
+        version({ id: 200, version_index: 2, base_sha: "branch-base", head_sha: "branch-head", label: "All changes", reason: "source_diff", metadata: { range_kind: "all_changes" }, files_count: 2 })
       ],
       files: [{
         additions: 1,
         deletions: 0,
-        path: "app/models/latest.rb",
+        path: "app/models/all_changes.rb",
         status: "modified",
-        patch: "@@ -1 +1 @@\n+latest"
+        patch: "@@ -1 +1 @@\n+all-changes"
       }]
     })
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(latest)
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
-      ...version({ id: 100, version_index: 1, head_sha: "head-v1", label: "Initial implementation" }),
+      ...version({ id: 100, version_index: 1, base_sha: "initial-head", head_sha: "branch-head", label: "Initial implementation", run_id: 34, files_count: 1 }),
       job_id: 42,
       default_ref: "main",
       diff_error: null,
       files: [{
         additions: 1,
         deletions: 0,
-        path: "app/models/old.rb",
+        path: "db/migrate/repair.rb",
         status: "modified",
-        patch: "@@ -1 +1 @@\n+old-version"
+        patch: "@@ -1 +1 @@\n+repair-only"
       }]
     })
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
 
     renderWorkspace()
 
-    fireEvent.change(await screen.findByLabelText("Diff version"), { target: { value: "100" } })
+    const selector = await screen.findByLabelText("Version")
+    expect(selector).toHaveValue("200")
+    expect(screen.getByRole("option", { name: /All changes - From main \(branch-\) to syrus\/issue-42 \(branch-\) - no comments/ })).toBeInTheDocument()
+    expect(screen.getByTitle("app/models/all_changes.rb")).toBeInTheDocument()
 
-    expect(await screen.findByTitle("app/models/old.rb")).toBeInTheDocument()
+    fireEvent.change(selector, { target: { value: "100" } })
+
+    expect(await screen.findByTitle("db/migrate/repair.rb")).toBeInTheDocument()
     expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 100)
-    expect(screen.queryByText("latest")).not.toBeInTheDocument()
+    expect(screen.queryByText("all-changes")).not.toBeInTheDocument()
   })
 
   it("keeps latest-version review behavior working while comment history is enabled", async () => {
@@ -627,7 +632,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("v1 historical")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Diff version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
     expect(document.querySelector('[data-diff-anchor="right::1"]')).toBeInTheDocument()
     await waitFor(() => expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled())
   })
@@ -690,7 +695,7 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Old whole-review note.")
     fireEvent.click(screen.getByRole("button", { name: "View in diff" }))
 
-    await waitFor(() => expect(screen.getByLabelText("Diff version")).toHaveValue("100"))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveValue("100"))
     const record = document.querySelector('[data-diff-review-comment-id="11"]') as HTMLElement
     expect(record).toBeInTheDocument()
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
