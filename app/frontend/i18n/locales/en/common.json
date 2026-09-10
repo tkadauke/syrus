@@ -137,7 +137,12 @@
     "keep_editing": "Keep Editing",
     "zoom_in": "Zoom in",
     "zoom_out": "Zoom out",
-    "zoom_label": "Zoom level"
+    "zoom_label": "Zoom level",
+    "shortcuts_group": "Annotation",
+    "shortcut_show_help": "Show annotation shortcuts",
+    "shortcut_escape": "Back out or close",
+    "shortcut_delete": "Delete selected annotation",
+    "shortcut_select_tool": "Select {{tool}} tool"
   },
   "epic_start": {
     "in_progress": "In progress",

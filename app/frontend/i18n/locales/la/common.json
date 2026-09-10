@@ -137,7 +137,12 @@
     "keep_editing": "Perge",
     "zoom_in": "Auge",
     "zoom_out": "Minue",
-    "zoom_label": "Gradus zoom"
+    "zoom_label": "Gradus zoom",
+    "shortcuts_group": "Annotationes",
+    "shortcut_show_help": "Compendia annotationum ostende",
+    "shortcut_escape": "Redi aut claude",
+    "shortcut_delete": "Annotationem electam dele",
+    "shortcut_select_tool": "Instrumentum {{tool}} elige"
   },
   "epic_start": {
     "in_progress": "In progressu",

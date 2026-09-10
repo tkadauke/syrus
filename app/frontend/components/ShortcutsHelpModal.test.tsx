@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest"
 import { ShortcutsProvider, useShortcut } from "../contexts/ShortcutsContext"
 import { formatShortcutCombo, groupActiveShortcuts, ShortcutsHelpModal } from "./ShortcutsHelpModal"
 
-function Registrant({ keys, label, group, groupOrder }: { keys: string; label: string; group: string; groupOrder?: number }) {
-  useShortcut(keys, () => {}, { description: label, group, groupOrder })
+function Registrant({ keys, label, group, groupOrder, onFire = () => {} }: { keys: string; label: string; group: string; groupOrder?: number; onFire?: () => void }) {
+  useShortcut(keys, onFire, { description: label, group, groupOrder })
   return null
 }
 
@@ -119,6 +119,23 @@ describe("ShortcutsHelpModal", () => {
     )
 
     expect(within(screen.getByRole("dialog")).getByText("No shortcuts are active right now.")).toBeInTheDocument()
+  })
+
+  it("shows parent-layer shortcuts without dispatching them while help is open", () => {
+    const onFire = vi.fn()
+    render(
+      <ShortcutsProvider>
+        <Registrant group="Page" keys="g" label="Go elsewhere" onFire={onFire} />
+        <ShortcutsHelpModal onClose={() => {}} open />
+      </ShortcutsProvider>
+    )
+
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText("Go elsewhere")).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: "g" })
+
+    expect(onFire).not.toHaveBeenCalled()
   })
 
   it("calls onClose from the close button and Escape", () => {
