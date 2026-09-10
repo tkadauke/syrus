@@ -523,6 +523,19 @@ In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
 no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
 earlier repair commits without rerunning known non-actionable graders.
 
+When `grader_collect` records a grader conclusion, it also records a persistent
+`TargetHealthRecord` for each materialized grader target. The record stores the
+target label, project id, repository, commit SHA, input fingerprint, command
+fingerprint, environment fingerprint, status, timing, and log artifact
+references. For distributed grader Steps the input fingerprint comes from the
+workflow source snapshot's explicit fingerprint when present, then its tree SHA,
+then its source SHA; it never uses the workflow-local source snapshot row id.
+For legacy non-distributed grader Steps the commit SHA is the stable input
+fingerprint fallback. Workflow artifacts keep only
+`target_health_record_refs` entries with record ids and identifying labels; the
+database row is the primary store so later workflows can query target health
+outside the workflow that produced it.
+
 ### grade
 
 Non-agentic. Legacy single-grader step; prefer `grader_fanout`/`grader`/`grader_collect` for new workflows.
