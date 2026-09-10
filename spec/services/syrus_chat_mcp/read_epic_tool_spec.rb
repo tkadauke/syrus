@@ -132,8 +132,8 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
     pending_payload = payload[:child_jobs].find { |job| job[:id] == pending.id }
     expect(landed_payload).to include(landed_sha: "merge-sha")
     expect(landed_payload[:deployment_stages]).to eq([
-      { name: "staging", label: "Staging", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
-      { name: "production", label: "Production", reached: false, reached_at: nil, tag_sha: nil }
+      { name: "staging", label: "Staging", scope: "repository", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
+      { name: "production", label: "Production", scope: "repository", reached: false, reached_at: nil, tag_sha: nil }
     ])
     expect(pending_payload).to include(landed_sha: nil)
     expect(pending_payload).not_to have_key(:deployment_stages)

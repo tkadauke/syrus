@@ -111,6 +111,7 @@ export type DashboardClaimOwner = {
 export type DashboardDeploymentStage = {
   name: string
   label: string
+  scope?: "repository"
   reached_at: string | null
 }
 

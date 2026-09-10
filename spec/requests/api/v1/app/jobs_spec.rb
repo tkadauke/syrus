@@ -161,6 +161,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(payload.fetch("latest_deployment_stage")).to eq(
       "name" => "staging",
       "label" => "On Staging",
+      "scope" => "repository",
       "reached_at" => "2026-07-30T12:00:00Z"
     )
   end

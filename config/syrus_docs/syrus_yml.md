@@ -382,6 +382,7 @@ Configures the named deployment pipeline stages Syrus will track for this reposi
 deployment_stages:
   - name: staging
     label: "On Staging"
+    scope: repository
     tag: staging
   - name: production
     label: "In Production"
@@ -396,12 +397,26 @@ deployment_stages:
 
 Omitting `deployment_stages` or supplying an empty array disables stage tracking for the repository.
 
+Deployment stages are repository-scoped in v1. A root `.syrus.yml`
+`deployment_stages:` block applies to landed Jobs in the repository as a whole,
+even when the repository also has nested project `.syrus.yml` files. This keeps
+the legacy behavior for root-only repositories and for project-aware monorepos:
+Syrus still records one `JobDeploymentStageStatus` per Job and stage name, based
+on whether the Job's `landed_sha` is contained in the configured stage tag.
+
+Nested project `.syrus.yml` files must not declare their own
+`deployment_stages:` yet. Future project-scoped stages will need an explicit
+storage and polling model that records which project a stage belongs to. Until
+that exists, `scope: project` and `project_id:` are rejected rather than being
+silently ignored.
+
 ### deployment_stages fields
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | `name` | yes | — | Alphanumeric characters and underscores only; must be unique within the list |
 | `label` | no | Titleized `name` | Display label shown in the UI |
+| `scope` | no | `repository` | Only `repository` is accepted in v1 |
 | `tag` | yes (or `tag_pattern`) | — | Exact git tag name (typically a moving tag) |
 | `tag_pattern` | yes (or `tag`) | — | Glob pattern; Syrus finds the latest matching tag |
 
@@ -410,6 +425,22 @@ Each stage must specify exactly one of `tag` or `tag_pattern` — not both.
 **`tag`** is for a single moving tag that your deployment pipeline advances (e.g. `staging` or `production`). Syrus checks whether the job's `landed_sha` is an ancestor of that tag's commit.
 
 **`tag_pattern`** is a glob pattern (e.g. `deploy-staging-*`) when your pipeline pushes a new dated tag on each deploy. Syrus finds the most recent tag that matches and checks ancestry.
+
+Repository-scoped stages can represent non-web release channels too, as long as
+the pipeline advances a repository tag when a landed commit reaches that channel:
+
+```yaml
+deployment_stages:
+  - name: ios_testflight
+    label: "TestFlight"
+    tag: ios-testflight
+  - name: android_internal
+    label: "Android Internal"
+    tag: android-internal
+  - name: desktop_public
+    label: "Desktop Public Release"
+    tag_pattern: "desktop-v*"
+```
 
 `PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.
 
