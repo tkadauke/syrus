@@ -73,8 +73,12 @@ const healthyPayload = {
     ]
   },
   slow_log: {
-    available: true,
-    rows: []
+    available: false,
+    rows: [],
+    error: {
+      message: "slow-log rows are loaded on demand",
+      hint: "Reading mysql.slow_log can be expensive on busy instances, so the live MySQL snapshot only loads row data when explicitly requested."
+    }
   }
 }
 
@@ -94,6 +98,7 @@ describe("Admin MySQL tool cards", () => {
     expect(screen.getByText("Active queries")).toBeInTheDocument()
     expect(screen.getByText("SELECT COUNT(*) FROM jobs")).toBeInTheDocument()
     expect(screen.getByText("Statement digests")).toBeInTheDocument()
+    expect(screen.getByText("slow-log rows are loaded on demand")).toBeInTheDocument()
     expect(screen.queryByText("sensitive_user")).not.toBeInTheDocument()
     expect(screen.queryByText("db.internal")).not.toBeInTheDocument()
     expect(screen.queryByText("syrus_production")).not.toBeInTheDocument()
