@@ -1,12 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ChatToolGroupItem } from "../../../api/chats"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { ToolGroup } from "../MessageCards"
 import runtimeAcquireControlToolCard from "./runtime_acquire_control"
+import runtimeBuildOrReloadToolCard from "./runtime_build_or_reload"
+import runtimeInspectToolCard from "./runtime_inspect"
+import runtimeLaunchToolCard from "./runtime_launch"
 import runtimeListSessionsToolCard from "./runtime_list_sessions"
+import runtimeLogsToolCard from "./runtime_logs"
 import runtimeReleaseControlToolCard from "./runtime_release_control"
+import runtimeStartToolCard from "./runtime_start"
 import runtimeStatusToolCard from "./runtime_status"
+import runtimeStopToolCard from "./runtime_stop"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
@@ -63,6 +69,12 @@ describe("Runtime tool cards", () => {
   it("registers the Runtime MCP tools by exact name", () => {
     expect(runtimeListSessionsToolCard.toolName).toBe("runtime_list_sessions")
     expect(runtimeStatusToolCard.toolName).toBe("runtime_status")
+    expect(runtimeStartToolCard.toolName).toBe("runtime_start")
+    expect(runtimeBuildOrReloadToolCard.toolName).toBe("runtime_build_or_reload")
+    expect(runtimeLaunchToolCard.toolName).toBe("runtime_launch")
+    expect(runtimeInspectToolCard.toolName).toBe("runtime_inspect")
+    expect(runtimeLogsToolCard.toolName).toBe("runtime_logs")
+    expect(runtimeStopToolCard.toolName).toBe("runtime_stop")
     expect(runtimeAcquireControlToolCard.toolName).toBe("runtime_acquire_control")
     expect(runtimeReleaseControlToolCard.toolName).toBe("runtime_release_control")
   })
@@ -109,6 +121,139 @@ describe("Runtime tool cards", () => {
     expect(screen.getByText("expired")).toBeInTheDocument()
     expect(screen.getByText("coding_mode_chat:8")).toBeInTheDocument()
     expect(screen.getByText("2026-09-10T11:59:00Z")).toBeInTheDocument()
+  })
+
+  it("summarizes a started Runtime session with state, command details, and URL", () => {
+    const parsedResult = session({ metadata: { port: 3001, url: "http://127.0.0.1:3001", pid: 1234 } })
+
+    expect(runtimeStartToolCard.collapsedSummary?.(context("runtime_start", { parsedResult }))).toBe("Runtime start #7: running at http://127.0.0.1:3001")
+
+    render(<>{runtimeStartToolCard.renderExpanded(context("runtime_start", { parsedResult }))}</>)
+    expect(screen.getByText("Runtime start")).toBeInTheDocument()
+    expect(screen.getByText("#7")).toBeInTheDocument()
+    expect(screen.getAllByText("running").length).toBeGreaterThan(0)
+    expect(screen.getByText("pid 1234")).toBeInTheDocument()
+    expect(screen.getAllByText("http://127.0.0.1:3001").length).toBeGreaterThan(0)
+  })
+
+  it("renders build/reload success and failure distinctly", () => {
+    const parsedResult = { status: "rebuilt", command: "npm run dev", url: "http://127.0.0.1:4173" }
+
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(context("runtime_build_or_reload", { parsedResult }))).toBe("Runtime build/reload: rebuilt at http://127.0.0.1:4173")
+
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(context("runtime_build_or_reload", { parsedResult }))}</>)
+    expect(screen.getByText("Runtime build/reload")).toBeInTheDocument()
+    expect(screen.getByText("npm run dev")).toBeInTheDocument()
+    expect(screen.getAllByText("http://127.0.0.1:4173").length).toBeGreaterThan(0)
+
+    const failedContext = context("runtime_build_or_reload", {
+      resultBody: "failed to build/reload runtime session: port is busy",
+      resultError: true,
+      parsedResult: null
+    })
+
+    expect(runtimeBuildOrReloadToolCard.collapsedSummary?.(failedContext)).toBe("Runtime build or reload failed")
+    render(<>{runtimeBuildOrReloadToolCard.renderExpanded(failedContext)}</>)
+    expect(screen.getByText("failed to build/reload runtime session: port is busy")).toBeInTheDocument()
+  })
+
+  it("shows launch targets and provider-reported launch errors", () => {
+    const parsedResult = { error: false, content: [{ type: "text", text: "Navigated to http://127.0.0.1:3001/settings" }] }
+    const toolContext = context("runtime_launch", { parsedResult, input: { options: { path: "/settings" } } })
+
+    expect(runtimeLaunchToolCard.collapsedSummary?.(toolContext)).toBe("Runtime launch: succeeded at /settings")
+
+    render(<>{runtimeLaunchToolCard.renderExpanded(toolContext)}</>)
+    expect(screen.getByText("Runtime launch")).toBeInTheDocument()
+    expect(screen.getByText("/settings")).toBeInTheDocument()
+
+    const failed = { error: true, content: [{ type: "text", text: "page crashed before navigation" }] }
+    expect(runtimeLaunchToolCard.collapsedSummary?.(context("runtime_launch", { parsedResult: failed }))).toBe("Runtime launch failed")
+    render(<>{runtimeLaunchToolCard.renderExpanded(context("runtime_launch", { parsedResult: failed }))}</>)
+    expect(screen.getAllByText("page crashed before navigation").length).toBeGreaterThan(0)
+  })
+
+  it("keeps runtime_launch ToolGroup summaries compact when the path is nested input", () => {
+    const result = { error: false, content: [{ type: "text", text: "Navigated to http://127.0.0.1:3001/settings" }] }
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Runtime launch",
+      calls: [
+        {
+          message_id: 2,
+          tool_name: "Runtime launch",
+          raw_name: "runtime_launch",
+          detail: "options: path /settings",
+          display_label: "Runtime launch",
+          progress_label: "Thinking",
+          raw_payload: { options: { path: "/settings" } },
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "json",
+          result_summary: ""
+        }
+      ],
+      collapsed_by_default: true,
+      outcome_label: "Done"
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Runtime launch: succeeded at /settings")).toBeInTheDocument()
+    expect(screen.queryByText("Runtime launch: succeeded at Navigated to http://127.0.0.1:3001/settings")).not.toBeInTheDocument()
+  })
+
+  it("summarizes inspect health while tolerating missing fields", () => {
+    const parsedResult = {
+      health: "healthy",
+      detected_framework: "Vite",
+      ports: [{ port: 5173, state: "listening" }],
+      process: { state: "running" },
+      warnings: ["missing alt text"],
+      content: [{ type: "text", text: "Snapshot: button Open settings" }]
+    }
+
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult }))).toBe("Runtime inspect: healthy, Vite, ports 5173 listening, running, 1 warning")
+
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult }))}</>)
+    expect(screen.getByText("healthy")).toBeInTheDocument()
+    expect(screen.getByText("Vite")).toBeInTheDocument()
+    expect(screen.getByText("5173 listening")).toBeInTheDocument()
+    expect(screen.getByText("missing alt text")).toBeInTheDocument()
+    expect(screen.getByText("Inspection details")).toBeInTheDocument()
+
+    const sparse = { content: [{ type: "text", text: "Terminal scrollback is empty" }] }
+    expect(runtimeInspectToolCard.collapsedSummary?.(context("runtime_inspect", { parsedResult: sparse }))).toBe("Runtime inspect: no health fields")
+    render(<>{runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: sparse }))}</>)
+    expect(screen.getByText("Terminal scrollback is empty")).toBeInTheDocument()
+  })
+
+  it("renders long Runtime logs as a collapsed preview with truncation details", () => {
+    const entries = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`)
+    const parsedResult = { entries, cursor: 45 }
+
+    expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult }))).toBe("Runtime logs: 45 lines, cursor 45")
+
+    render(<>{runtimeLogsToolCard.renderExpanded(context("runtime_logs", { parsedResult, input: { cursor: 0 } }))}</>)
+    const preview = screen.getByText("Log preview").closest("details")
+    expect(preview).not.toBeNull()
+    if (!preview) throw new Error("missing log preview")
+    expect(screen.getByText("Showing first 40 of 45 lines.")).toBeInTheDocument()
+    expect(within(preview).getByText(/line 1/)).toBeInTheDocument()
+    expect(within(preview).queryByText(/line 45/)).not.toBeInTheDocument()
+    expect(screen.getByText("Runtime JSON")).toBeInTheDocument()
+  })
+
+  it("shows stopped runtimes with their final state", () => {
+    const parsedResult = session({ state: "stopped", metadata: { port: 3001, url: "http://127.0.0.1:3001" }, active_agent_input_lease: null })
+
+    expect(runtimeStopToolCard.collapsedSummary?.(context("runtime_stop", { parsedResult }))).toBe("Runtime stop #7: stopped at http://127.0.0.1:3001")
+
+    render(<>{runtimeStopToolCard.renderExpanded(context("runtime_stop", { parsedResult }))}</>)
+    expect(screen.getByText("Runtime stop")).toBeInTheDocument()
+    expect(screen.getAllByText("stopped").length).toBeGreaterThan(0)
+    expect(screen.getByText("no lease")).toBeInTheDocument()
   })
 
   it("clearly confirms acquired Runtime control", () => {
@@ -200,6 +345,8 @@ describe("Runtime tool cards", () => {
   it("falls back to raw rendering for malformed Runtime payloads", () => {
     expect(runtimeListSessionsToolCard.collapsedSummary?.(context("runtime_list_sessions", { parsedResult: { oops: true } }))).toBeNull()
     expect(runtimeStatusToolCard.renderExpanded(context("runtime_status", { parsedResult: { id: null } }))).toBeNull()
+    expect(runtimeInspectToolCard.renderExpanded(context("runtime_inspect", { parsedResult: "not json" }))).toBeNull()
+    expect(runtimeLogsToolCard.collapsedSummary?.(context("runtime_logs", { parsedResult: { entries: "nope" } }))).toBeNull()
     expect(runtimeAcquireControlToolCard.renderExpanded(context("runtime_acquire_control", { parsedResult: "not json" }))).toBeNull()
     expect(runtimeReleaseControlToolCard.collapsedSummary?.(context("runtime_release_control", { parsedResult: { released: "nope" } }))).toBeNull()
   })
