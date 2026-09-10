@@ -3345,6 +3345,111 @@ describe("App", () => {
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
   }, 30000)
 
+  it("shows only bulk job actions that apply to every selected dashboard row", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              dashboardPayload({
+                subject: "job",
+                view: "list",
+                total: 4,
+                preferences: {
+                  ...dashboardPayload().preferences,
+                  visible_columns: ["checkbox", "issue", "state"]
+                },
+                items: [
+                  dashboardJobItem({
+                    id: 42,
+                    title: "Backlogged aqueduct",
+                    state: "backlog",
+                    issue_number: 42,
+                    can_release_from_backlog: true,
+                    bulk_actions: {
+                      release_from_backlog: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 43,
+                    title: "Queued aqueduct",
+                    state: "queued",
+                    issue_number: 43,
+                    can_release_from_backlog: false,
+                    bulk_actions: {
+                      move_to_backlog: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 44,
+                    title: "Paused aqueduct",
+                    state: "running",
+                    issue_number: 44,
+                    manual_paused: true,
+                    bulk_actions: {
+                      unpause: true,
+                      close: true
+                    }
+                  }),
+                  dashboardJobItem({
+                    id: 45,
+                    title: "Reviewable aqueduct",
+                    state: "implemented",
+                    issue_number: 45,
+                    can_approve: true,
+                    bulk_actions: {
+                      approve: true,
+                      close: true
+                    }
+                  })
+                ]
+              })
+            ),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppAt("/app-shell/dashboard/jobs?view=list")
+
+    expect(await screen.findByText("Backlogged aqueduct")).toBeInTheDocument()
+    const bulkToolbar = () => screen.getByText(/\d selected/).closest("div")!.parentElement!
+
+    fireEvent.click(screen.getByLabelText("Select Backlogged aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Start" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Backlogged aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Paused aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Unpause" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Unpause" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Paused aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    fireEvent.click(screen.getByLabelText("Select Reviewable aqueduct"))
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).getByRole("button", { name: "Approve" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText("Select Queued aqueduct"))
+    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+  }, 30000)
+
   it("renders dashboard timestamp columns as relative times with absolute tooltips", async () => {
     const restoreMedia = mockMediaQuery(true)
     const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(new Date("2026-05-30T12:01:00Z").getTime())

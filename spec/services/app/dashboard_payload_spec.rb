@@ -321,7 +321,20 @@ RSpec.describe App::DashboardPayload, :ci_only do
         owner_user: include(id: user.id),
         repository: include(slug: repo.slug),
         can_release_from_backlog: true,
-        can_move_to_backlog: false
+        can_move_to_backlog: false,
+        bulk_actions: include(
+          retry: false,
+          release_from_backlog: true,
+          move_to_backlog: false,
+          pause: true,
+          unpause: false,
+          claim: true,
+          release_claim: false,
+          assign_owner: true,
+          set_priority: true,
+          approve: false,
+          close: true
+        )
       )
       expect(item.fetch(:dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
       expect(item.fetch(:unsatisfied_dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
@@ -1746,6 +1759,53 @@ RSpec.describe App::DashboardPayload, :ci_only do
       breakdown_ids = result[:untagged_issues][:repositories].map { |entry| entry[:id] }
       expect(breakdown_ids).to contain_exactly(repo.id, teammate_repo.id)
       expect(result[:untagged_issues][:total]).to eq(8)
+    end
+  end
+
+  describe "job bulk action eligibility" do
+    it "exposes per-row bulk actions that match dashboard mutation eligibility" do
+      repo.update!(auto_merge_enabled: true)
+      backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, owner_user: user)
+      queued = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, owner_user: user)
+      paused = Factories.job_record(user: user, repository: repo, kind: "direct", state: "running", issue_number: nil, owner_user: user, manual_paused: true, manual_paused_by_user: user, manual_paused_at: Time.current)
+      implemented = Factories.job_record(user: user, repository: repo, kind: "direct", state: "implemented", issue_number: nil, owner_user: user)
+
+      result = call(subject: "job", section: "rows")
+      items = result.fetch(:items).index_by { |item| item.fetch(:id) }
+
+      expect(items.fetch(backlogged.id).fetch(:bulk_actions)).to include(
+        release_from_backlog: true,
+        move_to_backlog: false,
+        unpause: false,
+        approve: false
+      )
+      expect(items.fetch(queued.id).fetch(:bulk_actions)).to include(
+        release_from_backlog: false,
+        move_to_backlog: true,
+        unpause: false,
+        approve: false
+      )
+      expect(items.fetch(paused.id).fetch(:bulk_actions)).to include(
+        pause: false,
+        unpause: true,
+        approve: false
+      )
+      expect(items.fetch(implemented.id).fetch(:bulk_actions)).to include(
+        release_from_backlog: false,
+        move_to_backlog: false,
+        unpause: false,
+        approve: true
+      )
+    end
+
+    it "hides approval in bulk actions when bulk approve would skip the job" do
+      repo.update!(auto_merge_enabled: false)
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", state: "implemented", issue_number: nil, owner_user: user)
+
+      result = call(subject: "job", section: "rows")
+      item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
+
+      expect(item.fetch(:bulk_actions)).to include(approve: false)
     end
   end
 

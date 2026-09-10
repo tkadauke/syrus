@@ -60,7 +60,7 @@ export function JobsDashboardTable({ items, columns, controls, landingQueueEntri
 
   return (
     <div className="space-y-3">
-      <BulkJobActions controls={controls} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      <BulkJobActions controls={controls} items={items} selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
       {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
       <JobsTable
         allSelected={allSelected}
@@ -259,7 +259,7 @@ function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: Pr
   )
 }
 
-function BulkJobActions({ controls, selectedIds, onClear }: { controls: DashboardPayload["controls"]; selectedIds: number[]; onClear: () => void }) {
+function BulkJobActions({ controls, items, selectedIds, onClear }: { controls: DashboardPayload["controls"]; items: DashboardJobItem[]; selectedIds: number[]; onClear: () => void }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
@@ -280,6 +280,28 @@ function BulkJobActions({ controls, selectedIds, onClear }: { controls: Dashboar
     }
   })
   const disabled = selectedIds.length === 0 || action.isPending
+  const selectedJobs = useMemo(() => {
+    const ids = new Set(selectedIds)
+    return items.filter((item) => ids.has(item.id))
+  }, [items, selectedIds])
+  const canRun = useMemo(() => {
+    const selected = selectedJobs.length > 0 ? selectedJobs : []
+    const allSelectedCan = (bulkAction: DashboardBulkJobAction) => selected.length > 0 && selected.every((job) => dashboardJobBulkActionApplies(job, bulkAction))
+
+    return {
+      retry: allSelectedCan("retry"),
+      release_from_backlog: allSelectedCan("release_from_backlog"),
+      move_to_backlog: allSelectedCan("move_to_backlog"),
+      pause: allSelectedCan("pause"),
+      unpause: allSelectedCan("unpause"),
+      claim: allSelectedCan("claim"),
+      release_claim: allSelectedCan("release_claim"),
+      assign_owner: allSelectedCan("assign_owner"),
+      set_priority: allSelectedCan("set_priority"),
+      approve: allSelectedCan("approve"),
+      close: allSelectedCan("close")
+    }
+  }, [selectedJobs])
 
   async function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
@@ -300,28 +322,48 @@ function BulkJobActions({ controls, selectedIds, onClear }: { controls: Dashboar
         {action.isError ? <span className="ml-3 text-red-700 dark:text-red-300" role="alert">{errorMessage(action.error, t("bulk_action_error"))}</span> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button>
-        <select aria-label={t("assign_owner")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
-          <option value="">{t("assign_owner")}</option>
-          {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
-        </select>
-        <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
-        <select aria-label={t("priority")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setPriority(event.target.value)} value={priority}>
-          {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
-        <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
-        <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
+        {canRun.retry ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("retry")} type="button">{t("retry")}</button> : null}
+        {canRun.release_from_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_from_backlog")} type="button">{t("release_from_backlog")}</button> : null}
+        {canRun.move_to_backlog ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("move_to_backlog")} type="button">{t("move_to_backlog")}</button> : null}
+        {canRun.pause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("pause")} type="button">{t("pause")}</button> : null}
+        {canRun.unpause ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("unpause")} type="button">{t("unpause")}</button> : null}
+        {canRun.claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("claim")} type="button">{t("claim")}</button> : null}
+        {canRun.release_claim ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("release_claim")} type="button">{t("release")}</button> : null}
+        {canRun.assign_owner ? (
+          <>
+            <select aria-label={t("assign_owner")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setOwnerUserId(event.target.value)} value={ownerUserId}>
+              <option value="">{t("assign_owner")}</option>
+              {controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
+            </select>
+            <button className={bulkButtonClass(disabled || !ownerUserId)} disabled={disabled || !ownerUserId} onClick={() => run("assign_owner")} type="button">{t("assign")}</button>
+          </>
+        ) : null}
+        {canRun.set_priority ? (
+          <>
+            <select aria-label={t("priority")} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" disabled={disabled} onChange={(event) => setPriority(event.target.value)} value={priority}>
+              {(controls.priorities ?? [{ value: "urgent", label: "Urgent" }, { value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }]).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("set_priority")} type="button">{t("set_priority")}</button>
+          </>
+        ) : null}
+        {canRun.approve ? <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button> : null}
+        {canRun.close ? <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button> : null}
       </div>
       {dialog}
     </div>
   )
+}
+
+function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: DashboardBulkJobAction) {
+  if (job.bulk_actions) {
+    return Boolean(job.bulk_actions[bulkAction])
+  }
+
+  if (bulkAction === "approve") return Boolean(job.can_approve)
+  if (bulkAction === "release_from_backlog") return Boolean(job.can_release_from_backlog)
+  if (bulkAction === "move_to_backlog") return Boolean(job.can_move_to_backlog)
+
+  return true
 }
 
 // Group key for the landing-queue delineation: one key per *landing unit*.
