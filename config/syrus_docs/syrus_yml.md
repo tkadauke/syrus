@@ -18,7 +18,7 @@ Set `Repository#prepare_enabled` to false in the admin UI to disable the prepare
 
 ## hooks.post_checkout
 
-Commands run by the `syrus checkout` CLI on the operator's local machine after checking out a branch. These do **not** run in the agent sandbox.
+Commands run by the `syrus checkout` CLI on the operator's local machine after checking out a branch. These do **not** run in the agent sandbox. Root hooks always run; nested `.syrus.yml` hooks run when the checked-out Job or branch diff touches that project directory, falling back to all discovered project hooks when the CLI cannot compute the diff.
 
 ```yaml
 hooks:
@@ -525,7 +525,7 @@ nodes, and point them at imported labels through `deps:`.
 
 ## project
 
-Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for later project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` never changes which commands run — every `prepare`/`formatters`/`generated`/`grade` section in this file still compiles into targets exactly as documented above.
+Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` does not change which `prepare`/`formatters`/`generated`/`grade` commands compile into targets.
 
 Every `.syrus.yml` file has an implicit project even with no `project:` key: the root `.syrus.yml` gets the implicit root project (id `repo`), and a nested `.syrus.yml` (in a subdirectory) gets an implicit project derived from its directory (e.g. `apps/desktop/.syrus.yml` implies id `apps-desktop`, label `apps/desktop`). Most repositories never need to declare `project:` at all.
 
