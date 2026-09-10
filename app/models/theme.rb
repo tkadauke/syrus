@@ -1,5 +1,5 @@
 class Theme < ApplicationRecord
-  # Mirrors the semantic color tokens declared in
+  # Mirrors the persisted base semantic color tokens declared in
   # app/assets/tailwind/application.css. `on-brand` is the 13th token: text
   # painted on top of `brand` (e.g. Button's primary variant) needs its own
   # color because Ocean/Forest's dark-mode `brand` is light enough that
@@ -9,6 +9,32 @@ class Theme < ApplicationRecord
     brand brand-emphasis surface surface-raised border text-primary
     text-secondary success warning danger info neutral on-brand
   ].freeze
+
+  DERIVED_COLOR_TOKENS = {
+    "page" => "var(--color-surface-raised)",
+    "surface-subtle" => "var(--color-surface-raised)",
+    "surface-inset" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-border))",
+    "border-strong" => "color-mix(in srgb, var(--color-border) 70%, var(--color-text-primary))",
+    "text" => "var(--color-text-primary)",
+    "text-muted" => "var(--color-text-secondary)",
+    "text-subtle" => "color-mix(in srgb, var(--color-text-secondary) 70%, var(--color-surface))",
+    "link" => "var(--color-brand-emphasis)",
+    "success-surface" => "color-mix(in srgb, var(--color-surface) 94%, var(--color-success))",
+    "success-border" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-success))",
+    "success-text" => "var(--color-success)",
+    "warning-surface" => "color-mix(in srgb, var(--color-surface) 94%, var(--color-warning))",
+    "warning-border" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-warning))",
+    "warning-text" => "var(--color-warning)",
+    "danger-surface" => "color-mix(in srgb, var(--color-surface) 94%, var(--color-danger))",
+    "danger-border" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-danger))",
+    "danger-text" => "var(--color-danger)",
+    "info-surface" => "color-mix(in srgb, var(--color-surface) 94%, var(--color-info))",
+    "info-border" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-info))",
+    "info-text" => "var(--color-info)",
+    "neutral-surface" => "color-mix(in srgb, var(--color-surface) 94%, var(--color-neutral))",
+    "neutral-border" => "color-mix(in srgb, var(--color-surface) 70%, var(--color-neutral))",
+    "neutral-text" => "var(--color-neutral)"
+  }.freeze
 
   # Syntax-highlighting token keys for Shiki's `css-variables` theme mode
   # . Names mirror exactly what @shikijs/core's

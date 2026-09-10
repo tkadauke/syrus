@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { type BootstrapPayload } from "../api/bootstrap"
 import { patchJson } from "../api/client"
 import { type ColorTheme } from "../api/themes"
+import { semanticColorProperties } from "../lib/semanticColorTokens"
 import { updateBootstrapColorTheme, updateBootstrapTheme } from "../routes/appChromeV2/helpers"
 
 export type Theme = "light" | "dark" | "system"
@@ -47,7 +48,7 @@ function applyResolvedTheme(resolvedTheme: ResolvedTheme) {
 function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedTheme, appliedCustomPropertyKeys: Set<string>) {
   const root = document.documentElement
   const isCustom = colorTheme != null && !colorTheme.built_in
-  const nextTokens = isCustom ? (colorTheme.tokens[resolvedTheme] ?? {}) : {}
+  const nextTokens = isCustom ? semanticColorProperties(colorTheme.tokens[resolvedTheme] ?? {}) : {}
   const nextKeys = new Set(Object.keys(nextTokens))
 
   appliedCustomPropertyKeys.forEach((key) => {
