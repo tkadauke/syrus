@@ -2077,6 +2077,8 @@ describe("chatSectionsFromPayload", () => {
 
       const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" })
       expect(within(dialog).getByText("Show keyboard shortcuts")).toBeInTheDocument()
+      expect(within(dialog).getByText("Report a bug")).toBeInTheDocument()
+      expect(within(dialog).getByText(/^(⌘|Ctrl) \+ B$/)).toBeInTheDocument()
       expect(within(dialog).getByText("Global")).toBeInTheDocument()
     })
 

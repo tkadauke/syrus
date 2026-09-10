@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CloseIcon } from "@app/components/CloseIcon"
 
@@ -101,6 +101,9 @@ function renderExpanded(context: ToolCardContext) {
 
 function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[]; whiteboardElementCount: number | null }) {
   const [preview, setPreview] = useState<ChatMediaItem | null>(null)
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null)
+  const imageItems = items.filter((item): item is ChatMediaImage => item.kind === "chat_image")
+  const previewItem = previewImageIndex == null ? preview : imageItems[previewImageIndex] || preview
 
   return (
     <>
@@ -111,11 +114,31 @@ function MediaGallery({ items, whiteboardElementCount }: { items: ChatMediaItem[
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {items.map((item) => (
-            <MediaTile item={item} key={item.id} onOpen={() => setPreview(item)} />
+            <MediaTile
+              item={item}
+              key={item.id}
+              onOpen={() => {
+                setPreview(item)
+                setPreviewImageIndex(item.kind === "chat_image" ? imageItems.findIndex((image) => image.id === item.id) : null)
+              }}
+            />
           ))}
         </div>
       </div>
-      {preview ? <MediaPreviewModal item={preview} onClose={() => setPreview(null)} /> : null}
+      {previewItem ? (
+        <MediaPreviewModal
+          hasNext={previewImageIndex != null && previewImageIndex < imageItems.length - 1}
+          hasPrevious={previewImageIndex != null && previewImageIndex > 0}
+          item={previewItem}
+          onClose={() => {
+            setPreview(null)
+            setPreviewImageIndex(null)
+          }}
+          onNext={() => setPreviewImageIndex((index) => index == null ? index : Math.min(index + 1, imageItems.length - 1))}
+          onPrevious={() => setPreviewImageIndex((index) => index == null ? index : Math.max(index - 1, 0))}
+          showNavigation={previewImageIndex != null && imageItems.length > 1}
+        />
+      ) : null}
     </>
   )
 }
@@ -151,8 +174,25 @@ function MediaTile({ item, onOpen }: { item: ChatMediaItem; onOpen: () => void }
   )
 }
 
-function MediaPreviewModal({ item, onClose }: { item: ChatMediaItem; onClose: () => void }) {
+function MediaPreviewModal({ item, onClose, showNavigation = false, hasPrevious = false, hasNext = false, onPrevious, onNext }: { item: ChatMediaItem; onClose: () => void; showNavigation?: boolean; hasPrevious?: boolean; hasNext?: boolean; onPrevious?: () => void; onNext?: () => void }) {
   const thumbnailSrc = mediaThumbnailSrc(item)
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+      if (shortcutTargetAcceptsText(event.target)) return
+      if (event.key === "ArrowLeft" && hasPrevious) {
+        event.preventDefault()
+        onPrevious?.()
+      }
+      if (event.key === "ArrowRight" && hasNext) {
+        event.preventDefault()
+        onNext?.()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [hasNext, hasPrevious, onClose, onNext, onPrevious])
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
@@ -165,6 +205,28 @@ function MediaPreviewModal({ item, onClose }: { item: ChatMediaItem; onClose: ()
         >
           <CloseIcon className="h-4 w-4" />
         </button>
+        {showNavigation ? (
+          <>
+            <button
+              aria-label="Previous image"
+              className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              disabled={!hasPrevious}
+              onClick={onPrevious}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button
+              aria-label="Next image"
+              className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded bg-white/90 text-2xl leading-none text-gray-700 shadow transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-40 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+              disabled={!hasNext}
+              onClick={onNext}
+              type="button"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </>
+        ) : null}
         {thumbnailSrc ? (
           <img alt={mediaTitle(item)} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain dark:bg-gray-900" src={thumbnailSrc} />
         ) : (
@@ -203,6 +265,12 @@ function mediaThumbnailSrc(item: ChatMediaItem) {
 function contentTypeLabel(contentType: string) {
   const suffix = contentType.split("/").pop()
   return suffix ? suffix.toUpperCase() : "Image"
+}
+
+function shortcutTargetAcceptsText(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
 }
 
 const listChatMediaToolCard: ToolCardRenderer = {

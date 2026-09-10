@@ -25,24 +25,6 @@ module App
         merge_base_sha = compare[:merge_base_sha]
       end
 
-      preferred_version = preferred_default_version
-      unless explicit_selection?
-        if preferred_version
-          return base_payload(
-            base_ref: preferred_version.base_ref.presence || preferred_version.base_sha,
-            head_ref: preferred_version.head_ref.presence || preferred_version.head_sha,
-            branch_commits: branch_commits,
-            merge_base_sha: merge_base_sha
-          ).merge(
-            files: Array(preferred_version.files_snapshot).map { |file| stored_file_json(file) },
-            truncated: preferred_version.truncated,
-            diff_error: nil,
-            version: version_json(preferred_version),
-            versions: diff_versions_json
-          )
-        end
-      end
-
       base = @params[:base].presence || merge_base_sha || job_base_branch
       head = @params[:head].presence || branch_commits.first&.fetch(:sha) || @repository.default_branch
       diff_result = github.compare_files(@repository.slug, base, head)
@@ -168,13 +150,17 @@ module App
     end
 
     def resolve_diff_review_version(base_sha:, head_sha:, files:, truncated:)
-      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
-      return existing_version if existing_version
-
       source_run = source_run_for(base_sha: base_sha, head_sha: head_sha)
       explicit_selection = explicit_selection?
       source_workflow = source_run&.workflow || (explicit_selection ? nil : @job.latest_workflow)
       trigger_kind = source_workflow&.trigger_kind || source_run&.trigger_kind
+      range_kind = explicit_selection ? "explicit_selection" : "all_changes"
+      existing_version = existing_version_for(base_sha: base_sha, head_sha: head_sha)
+      if existing_version
+        promote_all_changes_version!(existing_version, files: files, truncated: truncated) unless explicit_selection
+        return existing_version
+      end
+
       DiffReviewVersions::Creator.call(
         job: @job,
         base_sha: base_sha,
@@ -186,7 +172,9 @@ module App
         workflow: source_workflow,
         run: source_run,
         trigger_kind: trigger_kind,
-        reason: trigger_kind.to_s.presence || (explicit_selection ? "source_diff_selection" : "source_diff")
+        label: explicit_selection ? nil : "All changes",
+        reason: explicit_selection ? "source_diff_selection" : "source_diff",
+        metadata: { "range_kind" => range_kind }
       )
     rescue => e
       Rails.logger.warn("[JobSourceDiffPayload] could not persist diff review version for #{@job.slug}: #{e.class}: #{e.message}")
@@ -200,13 +188,36 @@ module App
           .first
     end
 
-    def preferred_default_version
-      return nil if explicit_selection?
+    def promote_all_changes_version!(version, files:, truncated:)
+      metadata = version.metadata.to_h.merge("range_kind" => "all_changes")
+      version.update!(
+        base_ref: job_base_branch,
+        head_ref: @job.branch_name,
+        label: "All changes",
+        reason: "source_diff",
+        truncated: truncated,
+        files_snapshot: version_files_snapshot(files),
+        metadata: metadata
+      )
+    end
 
-      @preferred_default_version ||= @job.diff_review_versions
-                                     .where.not(run_id: nil)
-                                     .latest_first
-                                     .first
+    def version_files_snapshot(files)
+      Array(files).map do |file|
+        {
+          "path" => value_for(file, :path).to_s,
+          "status" => value_for(file, :status).to_s,
+          "additions" => value_for(file, :additions).to_i,
+          "deletions" => value_for(file, :deletions).to_i,
+          "patch" => value_for(file, :patch)
+        }
+      end
+    end
+
+    def value_for(file, key)
+      return file[key] if file.is_a?(Hash) && file.key?(key)
+      return file[key.to_s] if file.is_a?(Hash)
+
+      file.public_send(key) if file.respond_to?(key)
     end
 
     def fixture_diff_review_version(fixture)

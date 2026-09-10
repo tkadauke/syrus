@@ -18,7 +18,7 @@ module App
       {
         job_id: @job.id,
         diff_review_version_id: @version&.id,
-        latest_version_id: @job.diff_review_versions.latest_first.pick(:id),
+        latest_version_id: DiffReviewVersion.default_for_review(@job)&.id,
         comments: serialized,
         by_path: grouped_by_path(serialized)
       }

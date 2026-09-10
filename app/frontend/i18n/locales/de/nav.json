@@ -293,6 +293,7 @@
   },
   "shortcuts": {
     "open_help": "Tastaturkürzel anzeigen",
+    "report_bug": "Fehler melden",
     "group_global": "Global",
     "title": "Tastaturkürzel",
     "close": "Tastaturkürzel schließen",

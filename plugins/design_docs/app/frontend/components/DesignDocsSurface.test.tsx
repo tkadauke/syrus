@@ -1276,6 +1276,58 @@ describe("DesignDocsSurface", () => {
     })
   })
 
+  it("recomputes focused card alignment as scrolling changes anchor geometry", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    let markerTop = 360
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: markerTop, bottom: markerTop, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent.click(screen.getByText("Needs evidence"))
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(360px)" })
+    })
+
+    markerTop = 96
+    fireEvent.scroll(window)
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(96px)" })
+    })
+  })
+
+  it("scopes rail alignment offsets to the desktop side-by-side layout", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    await screen.findByText("Needs evidence")
+
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const base = { width: 300, left: 0, right: 300, x: 0, y: 0, toJSON: () => ({}) }
+      if (this.dataset.testid === "design-doc-rail-stack") return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+      if (this.dataset.threadId === "7") return { ...base, top: 320, bottom: 320, height: 0 } as DOMRect
+      if (this.hasAttribute("data-anchor-offset")) return { ...base, top: 0, bottom: 40, height: 40 } as DOMRect
+      return { ...base, top: 0, bottom: 0, height: 0 } as DOMRect
+    })
+
+    fireEvent.click(screen.getByText("Needs evidence"))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveStyle({ transform: "translateY(320px)" })
+      expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveStyle({ paddingBottom: "320px" })
+    })
+    expect(container.querySelector('[data-testid="design-doc-rail-stack"]')).toHaveClass("max-xl:!transform-none")
+    expect(container.querySelector('[data-testid="design-doc-rail-clip"]')).toHaveClass("max-xl:!pb-0")
+  })
+
   it("renders block-level suggestions as red/green anchored document diffs and structured thread diffs", async () => {
     const blockSuggestion = {
       ...docDetail.suggestions[0],
@@ -1847,11 +1899,15 @@ describe("DesignDocsSurface", () => {
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
     const fetchSpy = mockFetch()
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
     renderSurface("/design_docs/1")
 
     const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
     expect(within(titleBar).getByRole("textbox", { name: "Design doc title" })).toHaveValue("Checkout design")
-    expect(within(titleBar).getByText("DOC-1")).toBeInTheDocument()
+    const copySlugButton = within(titleBar).getByRole("button", { name: "Copy DOC-1 to clipboard" })
+    expect(copySlugButton).toBeInTheDocument()
     expect(within(titleBar).getByText("private")).toBeInTheDocument()
     expect(within(titleBar).getByText("draft")).toBeInTheDocument()
     expect(within(titleBar).getByText("acme/widgets")).toBeInTheDocument()
@@ -1873,6 +1929,9 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(versionSelect, { target: { value: "1" } })
 
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Historical body"))
+
+    fireEvent.click(copySlugButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("DOC-1")
   })
 
   it("opens the share popup toward available space inside the wrapped title bar", async () => {

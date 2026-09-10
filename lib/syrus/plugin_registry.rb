@@ -424,6 +424,16 @@ module Syrus
         end
       end
 
+      def with_plugin_record_cache_ttl(ttl)
+        previous_ttl = Thread.current[:syrus_plugin_record_cache_ttl]
+        Thread.current[:syrus_plugin_record_cache_ttl] = ttl
+        clear_plugin_record_cache!
+        yield
+      ensure
+        Thread.current[:syrus_plugin_record_cache_ttl] = previous_ttl
+        clear_plugin_record_cache!
+      end
+
       # A failed on_boot must not leave orphaned effects waiting for a
       # disable/shutdown that may never come, so a raise drains whatever
       # got registered before the failure (same policy as PluginLifecycleJob
@@ -527,7 +537,7 @@ module Syrus
 
           previous = @plugin_record_cache_by_name
           @plugin_record_cache_by_name = PluginRecord.all.index_by(&:name)
-          @plugin_record_cache_expires_at = now + PLUGIN_RECORD_CACHE_TTL.to_f
+          @plugin_record_cache_expires_at = now + plugin_record_cache_ttl.to_f
 
           # A disable performed in another process reaches this one only here,
           # when the TTL expires and we re-read the table. Bumping the
@@ -538,6 +548,10 @@ module Syrus
 
           @plugin_record_cache_by_name
         end
+      end
+
+      def plugin_record_cache_ttl
+        Thread.current[:syrus_plugin_record_cache_ttl] || PLUGIN_RECORD_CACHE_TTL
       end
 
       def enabled_signature(records)

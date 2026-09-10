@@ -87,6 +87,27 @@ const HANDLE_HIT_RAD  = 7
 const SELECTION_PAD   = 4
 const HIT_PAD         = 6
 const SELECTION_COLOR = "#3b82f6"
+const INTERACTIVE_ENTER_TARGET = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a[href]",
+  "[contenteditable='true']",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='menuitem']",
+  "[role='radio']",
+  "[role='slider']",
+  "[role='switch']"
+].join(",")
+
+function acceptsAnnotationEnterShortcut(target: EventTarget | null) {
+  if (!target || target === window || target === document || target === document.body) return true
+  if (!(target instanceof Element)) return true
+  if (target instanceof HTMLCanvasElement) return true
+  return !target.closest(INTERACTIVE_ENTER_TARGET)
+}
 
 const ZOOM_MIN  = 0.1
 const ZOOM_MAX  = 8
@@ -650,6 +671,20 @@ export function ImageAnnotationModal({
         return
       }
 
+      if (
+        event.key === "Enter" &&
+        !textPlacement &&
+        !showDiscardConfirm &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        acceptsAnnotationEnterShortcut(event.target)
+      ) {
+        event.preventDefault()
+        finishAnnotation()
+        return
+      }
+
       if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         if (event.shiftKey) { redo() } else { undo() }
@@ -697,7 +732,7 @@ export function ImageAnnotationModal({
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keyup", onKeyUp)
     }
-  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
+  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm, finishAnnotation])
 
   // Scroll/trackpad wheel pans the canvas. Non-passive so we can preventDefault.
   useEffect(() => {

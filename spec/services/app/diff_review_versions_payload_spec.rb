@@ -57,7 +57,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
     )
   end
 
-  it "prefers the newest run-scoped version as latest over newer no-run branch comparisons" do
+  it "marks the reusable All changes range as latest over narrower run checkpoints" do
     workflow = job.workflows.first
     run = job.runs.first
     run.update!(base_sha: "step-base", head_sha: "step-head")
@@ -72,20 +72,25 @@ RSpec.describe App::DiffReviewVersionsPayload do
       ],
       reason: "initial"
     )
-    synthetic = DiffReviewVersions::Creator.call(
+    all_changes = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
       base_sha: "branch-base",
       head_sha: "branch-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
       files: [
-        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" }
+        { path: "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx", status: "modified", additions: 10, deletions: 0, patch: "@@ -1 +1,2 @@\n+ui" },
+        { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" }
       ],
-      reason: "source_diff"
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" }
     )
-    expect(synthetic.version_index).to be > run_scoped.version_index
+    expect(all_changes.version_index).to be > run_scoped.version_index
 
     index = described_class.index(job: job)
 
-    expect(index[:latest_version_id]).to eq(run_scoped.id)
+    expect(index[:latest_version_id]).to eq(all_changes.id)
   end
 end

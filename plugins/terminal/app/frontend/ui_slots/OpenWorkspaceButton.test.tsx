@@ -2,7 +2,7 @@ import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import OpenWorkspaceButton from "./OpenWorkspaceButton"
 
 function LocationProbe() {
@@ -11,6 +11,10 @@ function LocationProbe() {
 }
 
 describe("OpenWorkspaceButton", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   // This used to be a hardcoded button in core's WorkflowGraph, gated on a
   // feature flag; it reaches the job page through the job.workflow.actions
   // slot now.
@@ -38,8 +42,40 @@ describe("OpenWorkspaceButton", () => {
       })
     ))
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/terminal?session=77"))
+  })
 
-    fetchSpy.mockRestore()
+  it("hides unavailable workflow actions", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <OpenWorkspaceButton
+          availability_by_workflow_id={{ "4": { available: false, reason: "This workflow workspace has been cleaned up." } }}
+          workflow={{ id: 4, slug: "WF-4" }}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("button", { name: "Open terminal in workspace" })).not.toBeInTheDocument()
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("keeps the operator on the job page and shows an inline error when creation fails", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      error: { code: "validation_failed", message: "This workflow workspace is not present on this storage root." }
+    }, 422))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[ "/app-shell/jobs/1" ]}>
+          <OpenWorkspaceButton prefix="/app-shell" workflow={{ id: 4, slug: "WF-4" }} />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Open terminal in workspace" }))
+
+    expect(await screen.findByText("This workflow workspace is not present on this storage root.")).toBeInTheDocument()
+    expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1")
   })
 
   it("renders nothing without a workflow" , () => {

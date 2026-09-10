@@ -77,6 +77,30 @@ describe("ImageAnnotationModal", () => {
     expect(contexts[0].drawImage).toHaveBeenCalled()
   })
 
+  it("accepts the annotation when Enter is pressed outside focused controls", async () => {
+    const onDone = vi.fn()
+    renderModal({ onDone })
+    await waitForLoaded()
+
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
+  })
+
+  it("does not accept the annotation when Enter is pressed on the focused Cancel button", async () => {
+    const onClose = vi.fn()
+    const onDone = vi.fn()
+    renderModal({ onClose, onDone })
+    await waitForLoaded()
+
+    const cancelButton = screen.getByRole("button", { name: "Cancel" })
+    cancelButton.focus()
+    fireEvent.keyDown(cancelButton, { key: "Enter" })
+
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it("cancels without returning an annotated image", async () => {
     const onClose = vi.fn()
     const onDone  = vi.fn()

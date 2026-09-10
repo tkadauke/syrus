@@ -443,6 +443,73 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "deduplicates visible Epic dependencies that resolve to the same Epic" do
+    resolved_epic = Factories.epic(user: user, repository: repository)
+    upstream = chat.proposals.create!(
+      repository: repository,
+      kind: "epic",
+      state: "confirmed",
+      slug: "foundation-epic",
+      title: "Foundation Epic",
+      body: "Already filed.",
+      epic: resolved_epic
+    )
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "epic",
+      state: "proposed",
+      slug: "dependent-epic",
+      title: "Dependent Epic",
+      body: "Wait for upstream work.",
+      epic_depends_on_tokens: JSON.generate([ "epic:#{resolved_epic.id}" ])
+    )
+    ChatProposalDependency.create!(proposal: proposal, depends_on: upstream)
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    matching_dependencies = payload.fetch(:dependencies).select do |dependency|
+      dependency[:materialized_path] == "/epics/#{resolved_epic.id}"
+    end
+    expect(matching_dependencies.size).to eq(1)
+    expect(matching_dependencies.first).to include(
+      slug: "foundation-epic",
+      title: "Foundation Epic",
+      state: upstream.state,
+      confirmed: true,
+      materialized_label: resolved_epic.slug,
+      materialized_path: "/epics/#{resolved_epic.id}"
+    )
+  end
+
+  it "prefers the linked Epic dependency when a label-only token appears first" do
+    resolved_epic = Factories.epic(user: user, repository: repository)
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "epic",
+      state: "proposed",
+      slug: "dependent-epic",
+      title: "Dependent Epic",
+      body: "Wait for upstream work.",
+      epic_depends_on_tokens: JSON.generate([ resolved_epic.slug, "epic:#{resolved_epic.id}" ])
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    matching_dependencies = payload.fetch(:dependencies).select do |dependency|
+      dependency[:display_label] == resolved_epic.slug
+    end
+    expect(matching_dependencies.size).to eq(1)
+    expect(matching_dependencies.first).to include(
+      slug: "epic:#{resolved_epic.id}",
+      title: resolved_epic.slug,
+      state: resolved_epic.state,
+      confirmed: true,
+      materialized_path: "/epics/#{resolved_epic.id}"
+    )
+  end
+
   it "returns sibling and cross-card dependency details for Epic child proposals" do
     epic = chat.proposals.create!(
       repository: repository,

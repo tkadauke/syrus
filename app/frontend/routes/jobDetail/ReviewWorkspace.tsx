@@ -58,8 +58,8 @@ export function ReviewWorkspace({ payload }: { payload: JobDetailPayload }) {
     if (activeVersionId != null && activeVersionId !== latestVersionId && historicalVersion.data) {
       return {
         ...sourceDiff.data,
-        base_ref: historicalVersion.data.base_sha,
-        head_ref: historicalVersion.data.head_sha,
+        base_ref: historicalVersion.data.base_ref || historicalVersion.data.base_sha,
+        head_ref: historicalVersion.data.head_ref || historicalVersion.data.head_sha,
         files: historicalVersion.data.files,
         truncated: historicalVersion.data.truncated,
         diff_error: historicalVersion.data.diff_error,

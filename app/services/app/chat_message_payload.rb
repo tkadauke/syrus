@@ -198,7 +198,12 @@ module App
       epic_dependency_records = epic_dependency_json(proposal)
       job_id_dependency_records = job_id_dependency_json(proposal)
       epic_id_dependency_records = epic_id_dependency_json(proposal)
-      visible_dependencies = dependency_records.map { |dependency| dependency_json(dependency) } + epic_dependency_records + job_id_dependency_records + epic_id_dependency_records
+      visible_dependencies = unique_visible_dependencies(
+        dependency_records.map { |dependency| dependency_json(dependency) } +
+          epic_dependency_records +
+          job_id_dependency_records +
+          epic_id_dependency_records
+      )
       dependency_slugs = dependency_records.map(&:slug) + epic_dependency_tokens
       base = {
         id: proposal.id,
@@ -336,6 +341,62 @@ module App
           materialized_path: epic_path(epic)
         }
       end
+    end
+
+    def unique_visible_dependencies(dependencies)
+      seen = {}
+      selected = []
+
+      dependencies.each do |dependency|
+        identities = visible_dependency_identities(dependency)
+        if identities.empty?
+          selected << dependency
+          next
+        end
+
+        index = identities.filter_map { |identity| seen[identity] }.first
+        if index
+          selected[index] = preferred_visible_dependency(selected[index], dependency)
+        else
+          index = selected.length
+          selected << dependency
+        end
+
+        identities.each { |identity| seen[identity] = index }
+        visible_dependency_identities(selected[index]).each { |identity| seen[identity] = index }
+      end
+
+      selected
+    end
+
+    def visible_dependency_identities(dependency)
+      identities = []
+      path = dependency[:materialized_path].presence
+      identities << "path:#{path}" if path
+
+      label = [
+        dependency[:display_label],
+        dependency[:materialized_label],
+        dependency[:title],
+        dependency[:slug]
+      ].find(&:present?)
+      identities << "label:#{label.upcase}" if label.to_s.match?(/\A(?:EPIC|JOB)-\d+\z/i)
+
+      identities
+    end
+
+    def preferred_visible_dependency(current, candidate)
+      return candidate if (visible_dependency_score(candidate) <=> visible_dependency_score(current)).positive?
+
+      current
+    end
+
+    def visible_dependency_score(dependency)
+      [
+        dependency[:materialized_path].present? ? 1 : 0,
+        dependency[:confirmed] ? 1 : 0,
+        dependency[:anchor_message_id].present? ? 1 : 0
+      ]
     end
 
     def child_proposal_json(proposal, chat_session:)

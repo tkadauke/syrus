@@ -193,9 +193,15 @@
 .chat-prose {
   font-size: 0.875rem;
   line-height: 1.5;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 .chat-prose > * + * { margin-top: 0.75rem; }
+
+.chat-prose :where(p, li, blockquote, td, th, a, code, h1, h2, h3, h4) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 .chat-prose p { margin: 0; }
 .chat-prose strong { font-weight: 600; }

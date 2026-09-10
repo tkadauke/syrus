@@ -78,6 +78,25 @@ RSpec.describe App::DiffReviewCommentsPayload do
     expect(payload[:comments].find { |comment| comment[:id] == reply.id }[:parent_id]).to eq(parent.id)
   end
 
+  it "reports the All changes range as the latest review version" do
+    all_changes = DiffReviewVersion.create!(
+      job: job,
+      version_index: 2,
+      base_sha: "branch-base",
+      head_sha: "branch-head",
+      source_key: "source_diff",
+      label: "All changes",
+      reason: "source_diff",
+      files_snapshot: [],
+      metadata: { "range_kind" => "all_changes" }
+    )
+
+    payload = described_class.build(job: job, comments: [], version: version)
+
+    expect(payload[:diff_review_version_id]).to eq(version.id)
+    expect(payload[:latest_version_id]).to eq(all_changes.id)
+  end
+
   it "groups whole-review comments under a stable key instead of a nil path" do
     global = job.diff_review_comments.create!(
       user: user,

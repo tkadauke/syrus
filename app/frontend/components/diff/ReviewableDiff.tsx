@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { Fragment, useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
-import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { Button } from "../Button"
 import { CloseIcon } from "../CloseIcon"
 import { renderCodeLine } from "../CodeBlock"
@@ -204,7 +204,6 @@ export function ReviewableDiff({
   const filesMenuMarkerRef = useRef<PerformanceMarkerHandle | null>(null)
   const [highlightedToken, setHighlightedToken] = useState<string | null>(null)
   const isMobileFilesMenu = useIsMobileViewport()
-  const [windowScrollMargin, setWindowScrollMargin] = useState<number | null>(null)
   // Per-file cache (parsed context state, fetched Shiki tokens) keyed by file
   // path -- survives a file section unmounting when it scrolls out of the
   // virtualized window. Reset below whenever the diff itself changes.
@@ -233,30 +232,6 @@ export function ReviewableDiff({
   const remainingFileCount = renderFiles.length - visibleFiles.length
   const showHeader = showFileHeaders === true || (showFileHeaders === "continuous" && mode === "continuous")
 
-  // Distance from the top of the document to the top of the scroll
-  // container, needed to convert `useWindowVirtualizer`'s document-relative
-  // offsets back into container-relative ones. `offsetTop` is not enough
-  // here: the diff's relative wrapper can become the offset parent, which
-  // reports 0 and makes the virtualizer treat page chrome above the diff as
-  // diff content.
-  const scrollMargin = scroll === "natural" ? (windowScrollMargin ?? 0) : 0
-
-  useLayoutEffect(() => {
-    if (scroll !== "natural") return
-    const element = scrollContainerRef.current
-    if (!element) return
-    const measuredElement: HTMLElement = element
-
-    function measureScrollMargin() {
-      const nextMargin = documentScrollMarginForElement(measuredElement)
-      setWindowScrollMargin((current) => (current != null && Math.abs(current - nextMargin) < 1 ? current : nextMargin))
-    }
-
-    measureScrollMargin()
-    window.addEventListener("resize", measureScrollMargin)
-    return () => window.removeEventListener("resize", measureScrollMargin)
-  }, [filesSignature, scroll])
-
   function estimateSize(index: number) {
     const file = visibleFiles[index]
     if (!file) return DEFAULT_FILE_HEADER_HEIGHT_PX
@@ -267,17 +242,7 @@ export function ReviewableDiff({
     return visibleFiles[index]?.path ?? index
   }
 
-  // Both variants are constructed unconditionally (hooks can't be called
-  // conditionally); only the one matching `scroll` is actually used below.
-  // `scroll` is a per-call-site constant in practice, so the unused instance
-  // costs a bit of idle bookkeeping, never a real second scrollport.
-  // `enabled: false` keeps the inactive instance from touching its scroll
-  // element at all (no listeners, no initial-offset sync) -- without it, the
-  // unused window virtualizer would still call `window.scrollTo()` on mount
-  // even for a "bounded" container diff, since `window` is always available.
-  const windowVirtualizer = useWindowVirtualizer({ count: visibleFiles.length, enabled: scroll === "natural", estimateSize, getItemKey, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN, scrollMargin })
-  const elementVirtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
-  const virtualizer = scroll === "natural" ? windowVirtualizer : elementVirtualizer
+  const virtualizer = useVirtualizer({ count: visibleFiles.length, enabled: scroll === "bounded", estimateSize, getItemKey, getScrollElement: () => scrollContainerRef.current, overscan: DEFAULT_FILE_VIRTUALIZATION_OVERSCAN })
 
   // Navigates the virtualized list to `selectedPath` whenever it changes
   // (Files menu selection, a header click round-tripping back through
@@ -294,7 +259,6 @@ export function ReviewableDiff({
   useEffect(() => {
     const target = pendingScrollTarget.current
     if (!target) return
-    if (scroll === "natural" && windowScrollMargin == null) return
     const index = renderFiles.findIndex((file) => file.path === target)
     if (index === -1) return
     if (index >= visibleFileCount) {
@@ -302,31 +266,40 @@ export function ReviewableDiff({
       return
     }
     pendingScrollTarget.current = null
-    measureSync("diff_review.anchor_scroll", () => virtualizer.scrollToIndex(index, { align: "start" }), {
+    measureSync("diff_review.anchor_scroll", () => {
+      if (scroll === "natural") {
+        document.querySelector(`[data-diff-file="${CSS.escape(target)}"]`)?.scrollIntoView({ block: "start" })
+      } else {
+        virtualizer.scrollToIndex(index, { align: "start" })
+      }
+    }, {
       maxPerSession: 200,
       metadata: { selected_path: target, virtualization_mode: scroll }
     })
   })
 
   const virtualItems = virtualizer.getVirtualItems()
+  const renderedFileCount = scroll === "natural" ? visibleFiles.length : virtualItems.length
 
   // Throttled by the effect's own dependency array, not a timer: this only
   // fires when the *count* of virtualized (mounted) files actually changes
   // -- initial mount, "load more files", or files scrolling in/out of the
   // overscan range -- not on every scroll-position pixel.
   useEffect(() => {
-    const mountedFiles = virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
+    const mountedFiles = scroll === "natural"
+      ? visibleFiles
+      : virtualItems.map((item) => visibleFiles[item.index]).filter((file): file is ReviewableDiffFile => Boolean(file))
     const mountedRows = mountedFiles.reduce((sum, file) => sum + (file.patch ? countDiffRows(file.patch) : 0), 0)
     recordCount("diff_review.viewport_render", {
       maxPerSession: 300,
       metadata: {
-        mounted_files: virtualItems.length,
+        mounted_files: mountedFiles.length,
         mounted_rows: mountedRows,
         total_files: visibleFiles.length,
         virtualization_mode: scroll
       }
     })
-  }, [virtualItems.length, visibleFiles.length, scroll])
+  }, [renderedFileCount, visibleFiles, scroll, virtualItems])
 
   useEffect(() => {
     if (!comments) return
@@ -380,55 +353,27 @@ export function ReviewableDiff({
 
   return (
     <div className="relative" data-testid="agent-diff-viewer" ref={containerRef}>
-      <div className={containerClass} data-rendered-file-count={virtualItems.length} data-total-file-count={visibleFiles.length} onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
-        <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-          {virtualItems.map((virtualItem) => {
-            const file = visibleFiles[virtualItem.index]
-            if (!file) return null
-            return (
-              <div
-                data-index={virtualItem.index}
-                key={virtualItem.key}
-                ref={virtualizer.measureElement}
-                style={virtualFileSectionStyle(virtualItem.start - scrollMargin)}
-              >
-                <section className={virtualItem.index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} style={stickyFileHeaderBoundaryStyle(showHeader)}>
-                  <DiffFileSection
-                    annotations={annotationsForFile(annotations, file.path)}
-                    cache={fileCache.current}
-                    comments={comments?.[file.path]}
-                    composingBody={composingBody}
-                    composingError={composingError}
-                    composingPending={composingPending}
-                    composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
-                    editingThreadBody={editingThreadBody}
-                    editingThreadId={editingThreadId}
-                    file={file}
-                    highlightedToken={wordHighlighting ? highlightedToken : null}
-                    largeFileRowThreshold={largeFileRowThreshold}
-                    onCancelComposing={onCancelComposing}
-                    onCancelEditThread={onCancelEditThread}
-                    onChangeComposingBody={onChangeComposingBody}
-                    onChangeEditingThreadBody={onChangeEditingThreadBody}
-                    onCommentLine={onCommentLine}
-                    onDeleteThread={onDeleteThread}
-                    onLoadFileContext={onLoadFileContext}
-                    onSaveComposing={onSaveComposing}
-                    onSaveEditThread={onSaveEditThread}
-                    onSelectFile={onSelectFile}
-                    onStartEditThread={onStartEditThread}
-                    onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
-                    onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
-                    selected={selectedPath === file.path}
-                    showFilesPopupTrigger={changedFilesPopup}
-                    showHeader={showHeader}
-                    unavailableState={unavailableState}
-                  />
-                </section>
-              </div>
-            )
-          })}
-        </div>
+      <div className={containerClass} data-rendered-file-count={renderedFileCount} data-total-file-count={visibleFiles.length} onClick={wordHighlighting ? clearHighlightOnDiffBackgroundClick : undefined} ref={scrollContainerRef}>
+        {scroll === "natural" ? (
+          visibleFiles.map((file, index) => renderFileSection(file, index))
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+            {virtualItems.map((virtualItem) => {
+              const file = visibleFiles[virtualItem.index]
+              if (!file) return null
+              return (
+                <div
+                  data-index={virtualItem.index}
+                  key={virtualItem.key}
+                  ref={virtualizer.measureElement}
+                  style={virtualFileSectionStyle(virtualItem.start)}
+                >
+                  {renderFileSection(file, virtualItem.index)}
+                </div>
+              )
+            })}
+          </div>
+        )}
         {remainingFileCount > 0 ? (
           <div className="border-t border-gray-200 px-4 py-3 text-center font-sans dark:border-gray-800">
             <Button
@@ -463,6 +408,44 @@ export function ReviewableDiff({
       ) : null}
     </div>
   )
+
+  function renderFileSection(file: ReviewableDiffFile, index: number) {
+    return (
+      <section className={index > 0 ? "border-t border-gray-200 dark:border-gray-800" : ""} data-diff-file={file.path} key={file.path} style={stickyFileHeaderBoundaryStyle(showHeader)}>
+        <DiffFileSection
+          annotations={annotationsForFile(annotations, file.path)}
+          cache={fileCache.current}
+          comments={comments?.[file.path]}
+          composingBody={composingBody}
+          composingError={composingError}
+          composingPending={composingPending}
+          composingSelection={composingSelection?.file.path === file.path ? composingSelection : undefined}
+          editingThreadBody={editingThreadBody}
+          editingThreadId={editingThreadId}
+          file={file}
+          highlightedToken={wordHighlighting ? highlightedToken : null}
+          largeFileRowThreshold={largeFileRowThreshold}
+          onCancelComposing={onCancelComposing}
+          onCancelEditThread={onCancelEditThread}
+          onChangeComposingBody={onChangeComposingBody}
+          onChangeEditingThreadBody={onChangeEditingThreadBody}
+          onCommentLine={onCommentLine}
+          onDeleteThread={onDeleteThread}
+          onLoadFileContext={onLoadFileContext}
+          onSaveComposing={onSaveComposing}
+          onSaveEditThread={onSaveEditThread}
+          onSelectFile={onSelectFile}
+          onStartEditThread={onStartEditThread}
+          onToggleFilesPopup={changedFilesPopup ? toggleFilesPopup : undefined}
+          onToggleHighlightToken={wordHighlighting ? toggleHighlightToken : undefined}
+          selected={selectedPath === file.path}
+          showFilesPopupTrigger={changedFilesPopup}
+          showHeader={showHeader}
+          unavailableState={unavailableState}
+        />
+      </section>
+    )
+  }
 }
 
 function virtualFileSectionStyle(offsetTop: number) {
@@ -485,10 +468,6 @@ function stickyFileHeaderBoundaryStyle(showHeader: boolean) {
 
 export function AgentDiff({ annotations, diff, ...props }: ReviewableUnifiedDiffProps & { annotations?: Record<string, LineAnnotation> }) {
   return <ReviewableDiff annotations={annotations} files={filesFromUnifiedDiff(diff)} mode="continuous" {...props} />
-}
-
-export function documentScrollMarginForElement(element: HTMLElement) {
-  return element.getBoundingClientRect().top + window.scrollY
 }
 
 function useIsMobileViewport() {
@@ -1019,6 +998,8 @@ export function UnifiedDiffTable({
   const toggleHighlight = onToggleHighlightToken ?? ((token: string) => setLocalHighlight((current) => (current === token ? null : token)))
   const composingKey = composingSelection ? anchorKeyForLine(composingSelection.line, composingSelection.side) : null
   const isMobileViewport = useIsMobileViewport()
+  const hideOldLineGutter = isAddedFileDiff(file)
+  const gutterColSpan = hideOldLineGutter ? 1 : 2
 
   let hunkIndex = -1
 
@@ -1049,7 +1030,7 @@ export function UnifiedDiffTable({
           {lines.map((line, index) => {
             if (line.kind === "hunk") {
               hunkIndex += 1
-              return <HunkRow controls={hunkControls?.[hunkIndex]} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
+              return <HunkRow controls={hunkControls?.[hunkIndex]} hideOldLineGutter={hideOldLineGutter} key={`${index}-hunk-${line.hunkNewStart ?? ""}`} line={line} />
             }
 
             const annotation = line.newLine != null ? annotations?.[String(line.newLine)] : undefined
@@ -1068,12 +1049,14 @@ export function UnifiedDiffTable({
                 data-diff-kind={line.kind}
                 onClickCapture={commentSelection ? (event) => handleLineTap(event, commentSelection) : undefined}
               >
-                <td className={`relative ${diffGutterClass(line.kind)}`}>
-                  {commentSide === "old" && canComment ? (
-                    <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
-                  ) : null}
-                  {line.oldLine ?? ""}
-                </td>
+                {hideOldLineGutter ? null : (
+                  <td className={`relative ${diffGutterClass(line.kind)}`}>
+                    {commentSide === "old" && canComment ? (
+                      <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="old" />
+                    ) : null}
+                    {line.oldLine ?? ""}
+                  </td>
+                )}
                 <td className={`relative ${diffGutterClass(line.kind)}`}>
                   {commentSide === "new" && canComment ? (
                     <GutterCommentButton file={file} line={line} onCommentLine={onCommentLine} side="new" />
@@ -1099,7 +1082,7 @@ export function UnifiedDiffTable({
               </tr>
               {threads.length > 0 ? (
                 <tr className="bg-amber-50/70 font-sans dark:bg-amber-950/30" data-testid="diff-review-thread">
-                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={2} />
+                  <td className="border-r border-amber-200 dark:border-amber-900" colSpan={gutterColSpan} />
                   <td className="text-amber-700 dark:text-amber-300">*</td>
                   <td className="px-3 py-2 text-xs text-amber-950 dark:text-amber-100" colSpan={2}>
                     <div className="space-y-2">
@@ -1154,7 +1137,7 @@ export function UnifiedDiffTable({
               ) : null}
               {isComposingHere ? (
                 <tr className="bg-brand/5 font-sans" data-testid="diff-review-composer">
-                  <td className="border-r border-brand/20 max-md:hidden" colSpan={2} />
+                  <td className="border-r border-brand/20 max-md:hidden" colSpan={gutterColSpan} />
                   <td className="text-brand max-md:hidden">*</td>
                   <td className="px-3 py-2 max-md:p-0" colSpan={2}>
                     <div className="max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:h-[100dvh] max-md:flex-col max-md:bg-white max-md:dark:bg-gray-950">
@@ -1189,6 +1172,10 @@ export function UnifiedDiffTable({
       </table>
     </div>
   )
+}
+
+function isAddedFileDiff(file: ReviewableDiffFile) {
+  return file.status === "added" || Boolean(file.patch && /^new file mode /m.test(file.patch))
 }
 
 function closestInteractiveElement(target: EventTarget | null) {
@@ -1295,12 +1282,14 @@ function DiffCode({
   )
 }
 
-function HunkRow({ controls, line }: { controls?: HunkControls; line: DiffLine }) {
+function HunkRow({ controls, hideOldLineGutter, line }: { controls?: HunkControls; hideOldLineGutter?: boolean; line: DiffLine }) {
   return (
     <tr className={`group ${diffLineClass("hunk")}`} data-diff-kind="hunk">
-      <td className={diffGutterClass("hunk")}>
-        {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
-      </td>
+      {hideOldLineGutter ? null : (
+        <td className={diffGutterClass("hunk")}>
+          {controls?.up ? <HunkContextButton direction="up" loading={controls.up.loading} onClick={controls.up.onClick} /> : null}
+        </td>
+      )}
       <td className={diffGutterClass("hunk")}>
         {controls?.down ? <HunkContextButton direction="down" loading={controls.down.loading} onClick={controls.down.onClick} /> : null}
       </td>

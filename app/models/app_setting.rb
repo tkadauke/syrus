@@ -38,7 +38,24 @@ class AppSetting < ApplicationRecord
   # DB row ONCE, so the operator can still unpause from the admin console when
   # they intend the test stack to work real repositories.
   def self.current
-    first || create!(polling_paused: boot_polling_paused_default)
+    if Thread.current[:syrus_app_setting_current_cache_enabled] && Thread.current[:syrus_app_setting_current]
+      return Thread.current[:syrus_app_setting_current]
+    end
+
+    current = first || create!(polling_paused: boot_polling_paused_default)
+    Thread.current[:syrus_app_setting_current] = current if Thread.current[:syrus_app_setting_current_cache_enabled]
+    current
+  end
+
+  def self.with_current_cache
+    previous_enabled = Thread.current[:syrus_app_setting_current_cache_enabled]
+    previous_current = Thread.current[:syrus_app_setting_current]
+    Thread.current[:syrus_app_setting_current_cache_enabled] = true
+    Thread.current[:syrus_app_setting_current] = nil
+    yield
+  ensure
+    Thread.current[:syrus_app_setting_current_cache_enabled] = previous_enabled
+    Thread.current[:syrus_app_setting_current] = previous_current
   end
 
   # Only true when SYRUS_BOOT_POLLING_PAUSED is an explicitly truthy value;

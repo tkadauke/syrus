@@ -246,6 +246,7 @@ describe("AgentActivityFeed", () => {
     fireEvent.click(await screen.findByText("Folders and filters"))
 
     expect(screen.getByRole("navigation", { name: "Agent Activity smart folders" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "All history" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=")
     expect(await screen.findByRole("link", { name: "Running 1" })).toHaveAttribute("href", "/agent_activity?smart_folder_id=11")
   })
 

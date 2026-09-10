@@ -68,12 +68,17 @@ function outcomeVerb(node: AgentConversationNode): string {
   return humanize(node.state || "finished")
 }
 
+function agentSessionOutcomeVerb(node: AgentConversationNode): string {
+  if (node.state === "succeeded") return "finished"
+  return outcomeVerb(node)
+}
+
 function fromDescription(node: AgentConversationNode): string {
   if (node.kind === "deterministic_check") return `${node.label} ${outcomeVerb(node)}`
 
   if (node.kind === "agent_session") {
     const verdict = nodeVerdict(node)
-    return verdict ? `${node.label} replied ${verdict}` : `${node.label} finished`
+    return verdict ? `${node.label} replied ${verdict}` : `${node.label} ${agentSessionOutcomeVerb(node)}`
   }
 
   return node.summary || node.label
@@ -87,6 +92,8 @@ function isFailingHandoff(node: AgentConversationNode): boolean {
 
 function toAction(node: AgentConversationNode, failing: boolean): string {
   if (failing && node.kind === "agent_session") return `${node.label} repair requested`
+  if (node.state === "queued") return `${node.label} queued`
+  if (node.state === "running") return `${node.label} running`
   return `${node.label} started`
 }
 

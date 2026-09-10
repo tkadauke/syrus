@@ -100,6 +100,18 @@ describe("edgeLabel", () => {
     const to = node({ id: "respond-1", kind: "agent_session", label: "Respond" })
     expect(edgeLabel(from, to)).toBe("PR comment from @alice — Respond started")
   })
+
+  it("does not describe a running agent_session as finished", () => {
+    const from = node({ id: "implement-1", kind: "agent_session", label: "Implement", state: "running" })
+    const to = node({ id: "dependency-audit-1", kind: "deterministic_check", label: "Dependency audit", state: "queued" })
+    expect(edgeLabel(from, to)).toBe("Implement running — Dependency audit queued")
+  })
+
+  it("describes succeeded agent_session nodes as finished rather than passed", () => {
+    const from = node({ id: "implement-1", kind: "agent_session", label: "Implement", state: "succeeded" })
+    const to = node({ id: "dependency-audit-1", kind: "deterministic_check", label: "Dependency audit", state: "queued" })
+    expect(edgeLabel(from, to)).toBe("Implement finished — Dependency audit queued")
+  })
 })
 
 describe("connectorLabel", () => {

@@ -2777,6 +2777,19 @@ Bundled plugins:
   The nav badge uses the sidebar page's `badge_api_path`, which core polls for
   `{"count": n}` without knowing what is being counted.
 
+  The app plus menu uses `Terminal::WorkspaceCandidates` instead of exposing a
+  flat recent-workflow list. The picker is grouped into actionable workflows,
+  materialized Coding chat workspaces, and live workers, with client-side search
+  across workflow/job/chat labels plus worker hostname and storage key. Workflow
+  entries carry their known `worker_hostname` / `worker_storage_key` and route
+  terminal startup to the corresponding live `resume-<storage-key>` queue when
+  that queue exists. Worker scratch entries are labeled as scratch shells on a
+  specific host/storage root and use the selected resume queue when available;
+  host-only scratch routing remains best effort because Solid Queue targets
+  queues, not individual hostnames. Chat entries are emitted only for retained
+  workspaces whose selected directory is still present on disk, so selecting one
+  does not enqueue a PTY that immediately exits on a missing `chdir`.
+
   Enablement replaced the old `terminal` Feature flag. A disabled plugin's
   routes return `plugin_disabled` through the normal plugin route dispatcher;
   the Action Cable channel guards itself, because Action Cable resolves a
@@ -2927,7 +2940,10 @@ Bundled plugins:
   `filter_schema` shape (subject `:agent_activity`: `repository_id`/`job_id`
   fk, `step_kind` enum, `agent_provider` enum, `status` enum, `window` date),
   compiled through the normal `Filters::Compiler` since the underlying query
-  is a single `Run` relation. Clicking a session card reuses the existing
+  is a single `Run` relation. Bare `/agent_activity` and
+  `/admin/agent_activity` visits default to the built-in `Running` SmartFolder;
+  explicit `smart_folder_id=` means no active SmartFolder and preserves the
+  all-history view. Clicking a session card reuses the existing
   `RunTranscriptLogs` transcript rendering rather than duplicating
   `AdminTranscript.tsx`'s live-tail viewer; the admin surface has its own
   `GET .../sessions/:run_id/artifacts` route since it can list sessions on

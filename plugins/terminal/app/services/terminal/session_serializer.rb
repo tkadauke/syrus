@@ -17,7 +17,12 @@ module Terminal
         started_at: iso8601(@session.started_at),
         finished_at: iso8601(@session.finished_at),
         outcome: @session.outcome,
-        workflow_id: @session.workflow_id
+        workflow_id: @session.workflow_id,
+        chat_session_id: @session.chat_session_id,
+        worker_hostname: @session.worker_hostname,
+        worker_storage_key: @session.worker_storage_key,
+        queue_name: @session.queue_name,
+        workspace_kind: @session.workspace_kind
       }
     end
 

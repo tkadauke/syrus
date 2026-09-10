@@ -755,7 +755,7 @@ describe("JobDetailView", () => {
       unresolved_slug: null,
       depends_on_epic: null,
       depends_on_job: {
-        id: 1101,
+        id: 401,
         kind: "issue",
         state: "queued",
         summary_state: "queued",
@@ -764,7 +764,7 @@ describe("JobDetailView", () => {
         issue_title: "First dependency",
         branch_name: null,
         pr_number: null,
-        job_path: "/jobs/1101"
+        job_path: "/jobs/401"
       }
     }
     const manualDependency = {
@@ -777,11 +777,11 @@ describe("JobDetailView", () => {
       depends_on_epic: null,
       depends_on_job: {
         ...parsedDependency.depends_on_job,
-        id: 1108,
+        id: 408,
         summary_state: "queued",
         issue_number: null,
         issue_title: "Direct dependency",
-        job_path: "/jobs/1108"
+        job_path: "/jobs/408"
       }
     }
 
@@ -791,8 +791,8 @@ describe("JobDetailView", () => {
     }))
 
     expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "Copy JOB-1101 to clipboard" })).toHaveLength(2)
-    expect(screen.getAllByRole("button", { name: "Copy JOB-1108 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-401 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-408 to clipboard" })).toHaveLength(2)
     expect(screen.getAllByText("queued").length).toBeGreaterThanOrEqual(4)
     expect(screen.queryByText(/tkadauke\/syrus JOB-1101/)).not.toBeInTheDocument()
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
@@ -1522,6 +1522,29 @@ describe("JobDetailView", () => {
 
     expect(screen.getByRole("heading", { name: "Summary" })).toBeInTheDocument()
     expect(document.querySelector("strong")).toHaveTextContent("the bug")
+  })
+
+  it("wraps long test plan entries in the Summary tab instead of widening the card", () => {
+    const longStep = [
+      "Run CI=true",
+      'BUNDLE_PATH="$PWD/vendor/bundle"',
+      'BUNDLE_APP_CONFIG="$PWD/.bundle"',
+      "bundle exec rspec",
+      "spec/jobs/run_job_parallel_grader_projection_spec.rb",
+      "workflow_step_worker_slot_admission_enabled",
+      "source_snapshot_metadata_invalid"
+    ].join(" ")
+
+    renderJobDetail(jobPayload({
+      test_plan: { workflow_id: 1, steps: [longStep], notes: "Verify `very_long_inline_code_token_that_should_wrap_in_the_card`." }
+    }))
+
+    const panel = screen.getByRole("heading", { name: "Test plan" }).closest("section")
+    expect(panel).toHaveClass("min-w-0", "overflow-x-auto")
+
+    const item = screen.getByRole("listitem")
+    expect(item).toHaveClass("min-w-0", "break-words", "[overflow-wrap:anywhere]")
+    expect(screen.getByText("very_long_inline_code_token_that_should_wrap_in_the_card")).toBeInTheDocument()
   })
 
   it("shows a Test Plan button in the run row for test_plan steps", () => {

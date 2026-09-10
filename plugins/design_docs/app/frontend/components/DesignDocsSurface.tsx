@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEv
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { CopyableSlug } from "@app/components/CopyableSlug"
 import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
@@ -608,11 +609,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     ].filter((element): element is HTMLDivElement => element != null)
 
     window.addEventListener("resize", scheduleRecompute)
+    window.addEventListener("scroll", scheduleRecompute, true)
     if (typeof ResizeObserver === "undefined") {
       return () => {
         if (railLayoutFrameRef.current != null) window.cancelAnimationFrame(railLayoutFrameRef.current)
         railLayoutFrameRef.current = null
         window.removeEventListener("resize", scheduleRecompute)
+        window.removeEventListener("scroll", scheduleRecompute, true)
       }
     }
 
@@ -623,6 +626,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       railLayoutFrameRef.current = null
       observer.disconnect()
       window.removeEventListener("resize", scheduleRecompute)
+      window.removeEventListener("scroll", scheduleRecompute, true)
     }
   }, [draft, editorMode, focusedSuggestionId, focusedThreadId, railEntries, railViewingHistory])
 
@@ -957,8 +961,8 @@ function DesignDocTitleBar({ archiveDisabled, canArchive, collaborators, doc, re
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-medium text-gray-700 dark:text-gray-300">{doc.display_id}</span>
+          <p className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <CopyableSlug className="text-xs font-medium" slug={doc.display_id} />
             <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
           </p>
         </div>
@@ -1454,12 +1458,12 @@ function ThreadPanel({ canComment, canReviewSuggestions, commentBody, commentPen
         {historicalVersionLoading ? <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p> : null}
         {!historicalVersionLoading && railEntries.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">{viewingHistory ? "No threads existed as of this version." : "No active threads."}</p> : null}
         <div
-          className="overflow-hidden"
+          className="overflow-hidden max-xl:!pb-0"
           data-testid="design-doc-rail-clip"
           style={railStackShift > 0 ? { paddingBottom: railStackShift } : undefined}
         >
           <div
-            className="space-y-3"
+            className="space-y-3 max-xl:!transform-none"
             data-testid="design-doc-rail-stack"
             ref={railStackRef}
             style={{ transform: railStackShift !== 0 ? `translateY(${railStackShift}px)` : undefined }}

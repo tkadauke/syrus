@@ -293,6 +293,7 @@
   },
   "shortcuts": {
     "open_help": "Show keyboard shortcuts",
+    "report_bug": "Report a bug",
     "group_global": "Global",
     "title": "Keyboard shortcuts",
     "close": "Close keyboard shortcuts",

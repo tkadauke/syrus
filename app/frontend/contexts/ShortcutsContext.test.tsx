@@ -3,8 +3,8 @@ import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ShortcutsProvider, useActiveShortcuts, useShortcut } from "./ShortcutsContext"
 
-function Registrant({ keys, label, onFire, group = "Test" }: { keys: string; label: string; onFire: () => void; group?: string }) {
-  useShortcut(keys, onFire, { description: `${label} description`, group })
+function Registrant({ allowWhileTyping = false, keys, label, onFire, group = "Test" }: { allowWhileTyping?: boolean; keys: string; label: string; onFire: () => void; group?: string }) {
+  useShortcut(keys, onFire, { allowWhileTyping, description: `${label} description`, group })
   return <div>{label} mounted</div>
 }
 
@@ -112,6 +112,20 @@ describe("useShortcut / ShortcutsProvider", () => {
     fireEvent.keyDown(screen.getByLabelText("editable"), { key: "g" })
 
     expect(onFire).not.toHaveBeenCalled()
+  })
+
+  it("can opt a shortcut into firing while the keydown target is typing", () => {
+    const onFire = vi.fn()
+    render(
+      <ShortcutsProvider>
+        <Registrant allowWhileTyping keys="mod+b" label="Bug report" onFire={onFire} />
+        <input aria-label="plain-input" />
+      </ShortcutsProvider>
+    )
+
+    fireEvent.keyDown(screen.getByLabelText("plain-input"), { key: "b", metaKey: true })
+
+    expect(onFire).toHaveBeenCalledTimes(1)
   })
 
   it("matches a bare symbol combo like '?' regardless of the shift flag the browser reports", () => {
