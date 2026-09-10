@@ -154,13 +154,21 @@ function StepRow({
 }) {
   const label = t("timeline_step_label", { kind: step.kind, iteration: step.iteration })
   const startedRuns = step.runs.filter((run) => run.started_at)
+  const sublabels = timelineStepSublabels(step)
 
   return (
     <div className="flex items-center gap-2 px-2 py-2">
-      <div className="w-48 shrink-0 truncate px-1 font-mono text-xs text-gray-600 dark:text-gray-400" title={label}>{label}</div>
+      <div className="w-56 shrink-0 px-1" title={[label, ...sublabels].join("\n")}>
+        <div className="truncate font-mono text-xs text-gray-700 dark:text-gray-300">{label}</div>
+        {sublabels.length > 0 ? (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {sublabels.map((item) => <span className="rounded bg-gray-100 px-1.5 py-0.5 text-2xs text-gray-600 dark:bg-gray-800 dark:text-gray-300" key={item}>{item}</span>)}
+          </div>
+        ) : null}
+      </div>
       {startedRuns.length === 0 ? (
         <button
-          className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400"
+          className={`rounded border px-2 py-1 text-xs ${step.admission_block ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400"}`}
           onBlur={onLeaveTooltip}
           onFocus={(event) => onHoverStep(event.currentTarget.getBoundingClientRect().right, event.currentTarget.getBoundingClientRect().top)}
           onMouseEnter={(event) => onHoverStep(event.clientX, event.clientY)}
@@ -200,16 +208,38 @@ function runTooltipContent(run: JobWaterfallRun, t: TFunc): ReactNode {
       <p className="font-semibold">{t("timeline_run_tooltip_title", { id: run.id })}</p>
       <p className="text-gray-700 dark:text-gray-200">{run.status}</p>
       <p>{duration}</p>
+      {run.command_spans?.length ? <p>{run.command_spans.length} command span{run.command_spans.length === 1 ? "" : "s"}</p> : null}
     </>
   )
 }
 
 function stepTooltipContent(step: JobWaterfallStep, t: TFunc): ReactNode {
+  const targetLabel = step.placement?.projected_target_label
+  const sourceSha = step.source_snapshot?.source_sha
+  const cache = step.prepare_cache
+  const barrier = step.barrier
   return (
     <>
       <p className="font-semibold">{t("timeline_step_label", { kind: step.kind, iteration: step.iteration })}</p>
       <p className="text-gray-600 dark:text-gray-300">{t("timeline_step_not_started")}</p>
+      {targetLabel ? <p className="text-gray-600 dark:text-gray-300">Target {targetLabel}</p> : null}
+      {step.placement?.policy ? <p className="text-gray-600 dark:text-gray-300">Policy {step.placement.policy}</p> : null}
+      {sourceSha ? <p className="text-gray-600 dark:text-gray-300">Source {sourceSha.slice(0, 7)}</p> : null}
+      {cache?.status ? <p className="text-gray-600 dark:text-gray-300">Prepare cache {cache.status}</p> : null}
+      {step.admission_block?.reason ? <p className="text-amber-700 dark:text-amber-300">Blocked {step.admission_block.reason}</p> : null}
+      {barrier && (barrier.total_count ?? 0) > 0 ? <p className="text-gray-600 dark:text-gray-300">Barrier {barrier.completed_count ?? 0}/{barrier.total_count ?? 0}</p> : null}
       {step.hostname ? <p className="mt-1 text-gray-600 dark:text-gray-300">{t("timeline_ran_on_host", { host: step.hostname })}</p> : null}
+      {step.worker?.storage_key ? <p className="text-gray-600 dark:text-gray-300">Storage {step.worker.storage_key}</p> : null}
     </>
   )
+}
+
+function timelineStepSublabels(step: JobWaterfallStep) {
+  const labels: string[] = []
+  if (step.placement?.projected_target_label) labels.push(step.placement.projected_target_label)
+  if (step.placement?.policy && step.placement.policy !== "pinned_workflow_workspace") labels.push(step.placement.policy)
+  if (step.prepare_cache?.status) labels.push(`cache ${step.prepare_cache.status}`)
+  if (step.admission_block?.reason) labels.push(`blocked ${step.admission_block.reason}`)
+  if (step.barrier && (step.barrier.total_count ?? 0) > 0) labels.push(`barrier ${step.barrier.completed_count ?? 0}/${step.barrier.total_count ?? 0}`)
+  return labels
 }

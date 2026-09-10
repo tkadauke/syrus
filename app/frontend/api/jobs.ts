@@ -616,12 +616,72 @@ export type JobStep = {
   created_at: string | null
   updated_at: string | null
   details: unknown
+  placement?: JobStepPlacement | null
+  source_snapshot?: JobStepSourceSnapshot | null
+  worker?: JobStepWorker | null
+  prepare_cache?: JobStepPrepareCache | null
+  admission_block?: JobStepAdmissionBlock | null
+  barrier?: JobStepBarrier | null
   warnings: WorkflowWarning[]
   latest: boolean
   runs_total?: number
   runs_displayed?: number
   runs_truncated?: boolean
   runs: JobRun[]
+}
+
+export type JobStepPlacement = {
+  policy: string
+  projected_target_label?: string | null
+  projected_target_fingerprint?: string | null
+  projected_resource_key?: string | null
+}
+
+export type JobStepSourceSnapshot = {
+  id?: number | string | null
+  source_sha?: string | null
+  source_ref?: string | null
+  tree_sha?: string | null
+  fingerprint?: string | null
+}
+
+export type JobStepWorker = {
+  hostname?: string | null
+  storage_key?: string | null
+  slot_acquired_at?: string | null
+  slot_released_at?: string | null
+  slot_release_reason?: string | null
+}
+
+export type JobStepPrepareCache = {
+  status?: string | null
+  cache_key?: string | null
+  short_cache_key?: string | null
+  worker_storage_key?: string | null
+  prepare_fingerprint?: string | null
+  source_snapshot_id?: number | string | null
+  source_snapshot_sha?: string | null
+  recorded_at?: string | null
+}
+
+export type JobStepAdmissionBlock = {
+  source?: string | null
+  reason?: string | null
+  action?: string | null
+  retry_at?: string | null
+  deferred_at?: string | null
+  phase_step_id?: number | string | null
+  phase_step_kind?: string | null
+  details?: Record<string, unknown> | null
+}
+
+export type JobStepBarrier = {
+  group?: string | null
+  labels?: string[]
+  waiting_on_step_ids?: number[]
+  completed_count?: number
+  total_count?: number
+  pending_count?: number
 }
 
 // Generic, structural finding recorded via WorkflowWarnings.record! (e.g. a
@@ -968,6 +1028,7 @@ export type JobWaterfallRun = {
   started_at: string | null
   finished_at: string | null
   last_heartbeat_at: string | null
+  command_spans?: JobCommandSpan[]
 }
 
 export type JobWaterfallStep = {
@@ -980,6 +1041,12 @@ export type JobWaterfallStep = {
   finished_at: string | null
   hostname?: string | null
   pid?: number | null
+  placement?: JobStepPlacement | null
+  source_snapshot?: JobStepSourceSnapshot | null
+  worker?: JobStepWorker | null
+  prepare_cache?: JobStepPrepareCache | null
+  admission_block?: JobStepAdmissionBlock | null
+  barrier?: JobStepBarrier | null
   runs: JobWaterfallRun[]
 }
 
