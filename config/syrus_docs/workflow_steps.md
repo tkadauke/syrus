@@ -598,6 +598,26 @@ target-health skips, without recording a new grader conclusion for work that
 did not run. Unknown, stale, failed, timed-out, cancelled, or inconclusive
 health records are misses, so required graders still materialize and run.
 
+### builder_fanout
+
+Non-agentic. Runs only in `main_grader` workflows, after `prepare` and before
+grader fanout. It compiles explicit `targets:` entries, selects executable
+`kind: builder` targets that are worth warming on main (for example
+`hot: true`, `critical: true`, `cost: expensive`,
+`opportunistic_build: true`, positive downstream dependents/recent failures,
+or release relevance), and filters them through the main-branch changed-file
+selection.
+
+Before running a selected builder, it checks target health for the builder and
+its executable dependencies. A reusable healthy record skips the command and
+records a workflow entry pointing at the existing target-health row. Otherwise
+the builder command runs in the workflow workspace with the same dependency
+environment as graders, and its pass/fail/timeout outcome is recorded in
+`TargetHealthRecord`. Builder failures are fail-soft: they record unhealthy
+target health for reuse decisions and diagnostics but do not make main health
+broken by themselves. Declared `artifacts:` paths are stored as references on
+the target-health row.
+
 ### grade
 
 Non-agentic. Legacy single-grader step; prefer `grader_fanout`/`grader`/`grader_collect` for new workflows.

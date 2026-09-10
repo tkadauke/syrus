@@ -97,6 +97,33 @@ RSpec.describe TargetGraph::Compiler do
       expect(eslint.source_scope).to eq([ "**/*.ts", "**/*.tsx" ])
     end
 
+    it "compiles explicit builder targets with opportunistic build metadata" do
+      write(".syrus.yml", <<~YAML)
+        targets:
+          - name: assets
+            kind: builder
+            run: npm run build
+            sources: ["app/frontend/**/*"]
+            timeout_minutes: 20
+            cost: expensive
+            critical: true
+            artifacts: ["dist/**/*"]
+      YAML
+
+      graph = described_class.compile(@dir)
+
+      assets = graph.target(TargetGraph::Label.parse("//:assets"))
+      expect(assets.kind).to eq("builder")
+      expect(assets.command).to eq("npm run build")
+      expect(assets.source_scope).to eq([ "app/frontend/**/*" ])
+      expect(assets.timeout_minutes).to eq(20)
+      expect(assets.metadata).to include(
+        "cost" => "expensive",
+        "critical" => true,
+        "artifacts" => [ "dist/**/*" ]
+      )
+    end
+
     it "does not compile a formatter target for the plugin-default opt-in (formatters: [])" do
       write(".syrus.yml", "formatters: []\n")
 
