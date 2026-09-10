@@ -533,8 +533,7 @@ module App
         dependencies = step.depends_on_step_ids
         return nil if dependencies.empty?
 
-        kinds = [ "grader_collect", "preflight_grader_collect" ]
-        return nil unless kinds.include?(step.kind) || Array(step.details.to_h["barrier_labels"]).any? { |label| kinds.include?(label.to_s) }
+        return nil unless %w[grader_collect preflight_grader_collect].include?(step.kind)
 
         steps_by_workflow_id.fetch(step.workflow_id, []).select { |candidate| dependencies.include?(candidate.id) }
       end
