@@ -10,6 +10,7 @@ module TestInsights
     LIST_LOOKBACK = 20
     INTERESTING_LIMIT = 10
     REFRESH_BATCH_SIZE = 1_000
+    LATEST_CASE_QUERY_BATCH_SIZE = 100
 
     belongs_to :repository
 
@@ -126,17 +127,37 @@ module TestInsights
       ids = Array(ids).filter_map { |id| Integer(id, exception: false) }.uniq
       return [] if ids.empty?
 
-      ids.each_slice(REFRESH_BATCH_SIZE).flat_map do |slice|
-        ranked_cases = TestCase.where(test_identity_id: slice)
-          .select(
-            "test_insight_cases.*",
-            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_latest_case_rank"
-          )
+      ids.each_slice(LATEST_CASE_QUERY_BATCH_SIZE).flat_map do |slice|
+        union_sql = slice.map do |identity_id|
+          latest_case_sql(identity_id)
+        end.join(" UNION ALL ")
 
-        TestCase.from(ranked_cases, :test_insight_cases)
-          .where("syrus_latest_case_rank = 1")
-          .to_a
+        TestCase.find_by_sql(union_sql)
       end
+    end
+
+    def self.latest_case_sql(identity_id)
+      table = TestCase.quoted_table_name
+      identity_column = connection.quote_column_name(:test_identity_id)
+      created_column = connection.quote_column_name(:created_at)
+      id_column = connection.quote_column_name(:id)
+
+      <<~SQL.squish
+        SELECT *
+        FROM (
+          SELECT #{table}.*
+          FROM #{table}#{test_cases_latest_index_hint}
+          WHERE #{table}.#{identity_column} = #{identity_id.to_i}
+          ORDER BY #{table}.#{created_column} DESC, #{table}.#{id_column} DESC
+          LIMIT 1
+        ) #{table}
+      SQL
+    end
+
+    def self.test_cases_latest_index_hint
+      return "" unless connection.adapter_name.match?(/mysql/i)
+
+      " FORCE INDEX (idx_test_cases_identity_created_id)"
     end
 
     def self.latest_status_times_for(ids)

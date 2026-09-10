@@ -5,6 +5,7 @@ module TestInsights
     ALL_GRADERS = "__all__".freeze
     RECENT_100_WINDOW = "recent_100".freeze
     WINDOW_SIZE = 100
+    RUNTIME_QUERY_BATCH_SIZE = 100
 
     belongs_to :repository
     belongs_to :test_identity
@@ -105,45 +106,71 @@ module TestInsights
       end
 
       def load_all_grader_duration_rows(result, identity_ids)
-        ranked_cases = TestCase
-          .where(test_identity_id: identity_ids)
-          .where.not(duration_ms: nil)
-          .select(
-            "test_insight_cases.test_identity_id",
-            "test_insight_cases.duration_ms",
-            "test_insight_cases.created_at",
-            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_runtime_rank"
+        identity_ids.each_slice(RUNTIME_QUERY_BATCH_SIZE).flat_map do |slice|
+          select_bounded_duration_rows(
+            slice.map { |identity_id| all_grader_duration_sql(identity_id) }.join(" UNION ALL ")
           )
-
-        TestCase
-          .from("(#{ranked_cases.to_sql}) syrus_runtime_cases")
-          .where("syrus_runtime_rank <= ?", WINDOW_SIZE)
-          .pluck(:test_identity_id, :duration_ms, :created_at)
+        end
           .each do |identity_id, duration_ms, created_at|
             result[[ identity_id, ALL_GRADERS ]] << { duration_ms: duration_ms, created_at: created_at }
           end
       end
 
       def load_named_grader_duration_rows(result, identity_ids, grader_names)
-        ranked_cases = TestCase
-          .joins(:test_run)
-          .where(test_identity_id: identity_ids, test_insight_runs: { grader_name: grader_names })
-          .where.not(duration_ms: nil)
-          .select(
-            "test_insight_cases.test_identity_id",
-            "test_insight_runs.grader_name",
-            "test_insight_cases.duration_ms",
-            "test_insight_cases.created_at",
-            "ROW_NUMBER() OVER (PARTITION BY test_insight_cases.test_identity_id, test_insight_runs.grader_name ORDER BY test_insight_cases.created_at DESC, test_insight_cases.id DESC) AS syrus_runtime_rank"
+        identity_ids.product(grader_names).each_slice(RUNTIME_QUERY_BATCH_SIZE).flat_map do |pairs|
+          select_bounded_duration_rows(
+            pairs.map { |identity_id, grader_name| named_grader_duration_sql(identity_id, grader_name) }.join(" UNION ALL ")
           )
-
-        TestCase
-          .from("(#{ranked_cases.to_sql}) syrus_runtime_cases")
-          .where("syrus_runtime_rank <= ?", WINDOW_SIZE)
-          .pluck(:test_identity_id, :grader_name, :duration_ms, :created_at)
+        end
           .each do |identity_id, grader_name, duration_ms, created_at|
             result[[ identity_id, grader_name ]] << { duration_ms: duration_ms, created_at: created_at }
           end
+      end
+
+      def select_bounded_duration_rows(sql)
+        return [] if sql.blank?
+
+        connection.select_rows(sql)
+      end
+
+      def all_grader_duration_sql(identity_id)
+        scope = bounded_duration_scope(identity_id)
+          .select(
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:test_identity_id)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:duration_ms)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:created_at)}"
+          )
+
+        "SELECT * FROM (#{scope.to_sql}) syrus_runtime_cases"
+      end
+
+      def named_grader_duration_sql(identity_id, grader_name)
+        scope = bounded_duration_scope(identity_id)
+          .joins(:test_run)
+          .where(test_insight_runs: { grader_name: grader_name })
+          .select(
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:test_identity_id)}",
+            "#{TestInsights::TestRun.quoted_table_name}.#{TestInsights::TestRun.connection.quote_column_name(:grader_name)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:duration_ms)}",
+            "#{TestCase.quoted_table_name}.#{TestCase.connection.quote_column_name(:created_at)}"
+          )
+
+        "SELECT * FROM (#{scope.to_sql}) syrus_runtime_cases"
+      end
+
+      def bounded_duration_scope(identity_id)
+        TestCase
+          .from("#{TestCase.quoted_table_name}#{test_cases_runtime_index_hint}")
+          .where(test_identity_id: identity_id)
+          .where.not(duration_ms: nil)
+          .order(created_at: :desc, id: :desc)
+          .limit(WINDOW_SIZE)
+      end
+
+      def test_cases_runtime_index_hint
+        return "" unless connection.adapter_name.match?(/mysql/i)
+
+        " FORCE INDEX (idx_test_cases_identity_created_id)"
       end
 
       def percentile(sorted_values, percentile)
