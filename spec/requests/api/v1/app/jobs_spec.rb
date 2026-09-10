@@ -458,6 +458,85 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(first_run).not_to have_key("worker_health_correlation")
   end
 
+  it "keeps the workflows payload bounded for jobs with long workflow and command histories" do
+    stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_COMMAND_SPANS_PER_RUN", 3)
+    detail_job = Factories.job_record(user: user, repository: repo, issue_number: 188, issue_title: "Span-heavy history")
+    old_run_ids = []
+
+    14.times do |index|
+      workflow = Workflow.create!(job: detail_job, trigger_kind: "pr_comment", state: "succeeded", created_at: (30 - index).minutes.ago)
+      step = Step.create!(workflow: workflow, kind: "respond", position: 1, state: "succeeded")
+      run = Run.create!(job: detail_job, step: step, trigger_kind: "pr_comment", agent_provider: "codex", state: "succeeded", created_at: (30 - index).minutes.ago)
+      old_run_ids << run.id
+      run.command_spans.create!(
+        job: detail_job,
+        workflow: workflow,
+        step: step,
+        sequence: 1,
+        name: "old command #{index}",
+        command_excerpt: "bin/old #{index}",
+        started_at: (30 - index).minutes.ago,
+        finished_at: (30 - index).minutes.ago + 1.second,
+        outcome: "succeeded"
+      )
+    end
+
+    latest_workflow = Workflow.create!(job: detail_job, trigger_kind: "initial", state: "running", created_at: Time.current)
+    latest_step = Step.create!(workflow: latest_workflow, kind: "prepare", position: 1, state: "running")
+    latest_run = Run.create!(job: detail_job, step: latest_step, trigger_kind: "initial", agent_provider: "codex", state: "running", created_at: Time.current)
+    9.times do |index|
+      latest_run.command_spans.create!(
+        job: detail_job,
+        workflow: latest_workflow,
+        step: latest_step,
+        sequence: index + 1,
+        name: "visible command #{index + 1}",
+        command_excerpt: "bin/visible #{index + 1}",
+        started_at: (9 - index).seconds.ago,
+        finished_at: (9 - index).seconds.ago + 1.second,
+        outcome: "succeeded"
+      )
+    end
+
+    metrics = capture_performance_budget do
+      get "/api/v1/app/jobs/#{detail_job.id}/workflows"
+    end
+
+    expect(response).to have_http_status(:ok)
+    run_payload = parse_body.dig("workflows", 0, "steps", 0, "runs", 0)
+    expect(run_payload).to include(
+      "id" => latest_run.id,
+      "command_spans_total" => 9,
+      "command_spans_displayed" => 3,
+      "command_spans_truncated" => true
+    )
+    expect(run_payload.fetch("command_spans").map { |span| span.fetch("sequence") }).to eq([ 7, 8, 9 ])
+
+    command_span_sql = metrics.fetch(:queries)
+      .grep(/FROM [`"]?command_spans[`"]?/i)
+      .grep(/run_command_span_count/i)
+      .join("\n")
+    command_span_run_ids = command_span_sql
+      .match(/run_id IN \((?<ids>[^\)]+)\)/i)
+      .then { |match| match[:ids] }
+      .split(",")
+      .map(&:to_i)
+    expect(command_span_run_ids).to include(latest_run.id)
+    off_page_run_ids = old_run_ids.first(old_run_ids.size - (App::WorkflowNavigation::PER_PAGE - 1))
+    off_page_run_ids.each do |run_id|
+      expect(command_span_run_ids).not_to include(run_id)
+    end
+    expect_performance_budget(
+      metrics,
+      max_sql: 40,
+      max_payload_bytes: 90_000,
+      forbidden_sql: [
+        /SELECT [`"]?command_spans[`"]?\.\*/i,
+        /WHERE [`"]?command_spans[`"]?.[`"]?run_id[`"]? =/i
+      ]
+    )
+  end
+
   it "returns job detail cost after a run records cost metadata" do
     job.initial_run.update!(cost_usd: 0.34)
 
