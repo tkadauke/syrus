@@ -112,6 +112,9 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   if (Object.keys(input).length === 0) return "No arguments"
 
+  const runtimeSummary = runtimeToolArgumentSummary(name, input)
+  if (runtimeSummary) return shortenWorkspacePaths(runtimeSummary)
+
   let detail = ""
 
   switch (name) {
@@ -159,6 +162,39 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
   }
 
   return shortenWorkspacePaths(detail)
+}
+
+function runtimeToolArgumentSummary(name: string, input: Record<string, unknown>) {
+  if (name === "runtime_input") return runtimeInputArgumentSummary(input)
+  if (name === "runtime_snapshot") return runtimeSnapshotArgumentSummary(input)
+  if (name === "runtime_capture_artifact") return runtimeCaptureArtifactArgumentSummary(input)
+  return ""
+}
+
+function runtimeInputArgumentSummary(input: Record<string, unknown>) {
+  const event = isPlainObject(input.event) ? input.event : {}
+  const type = stringValue(event.type) || "event"
+  const target = stringValue(event.target) || stringValue(event.element) || stringValue(event.selector)
+  return target ? `${type} on ${target}` : type
+}
+
+function runtimeSnapshotArgumentSummary(input: Record<string, unknown>) {
+  const options = isPlainObject(input.options) ? input.options : {}
+  const target = stringValue(options.target) || stringValue(options.element)
+  const session = stringValue(input.session_id)
+  if (target && session) return `target ${target}, session ${session}`
+  if (target) return `target ${target}`
+  if (session) return `session ${session}`
+  return "Snapshot"
+}
+
+function runtimeCaptureArtifactArgumentSummary(input: Record<string, unknown>) {
+  const artifactType = stringValue(input.artifact_type)
+  const session = stringValue(input.session_id)
+  if (artifactType && session) return `${artifactType}, session ${session}`
+  if (artifactType) return artifactType
+  if (session) return `session ${session}`
+  return "Artifact"
 }
 
 function defaultToolArgumentSummary(input: Record<string, unknown>) {
