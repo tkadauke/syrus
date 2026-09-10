@@ -28,6 +28,8 @@ module App
         tags = PerformanceLogging.phase("dashboard_job.tags", job_id: job.id, tag_count: job.tags.size) { job.tags.map { |tag| tag_json(tag) } }
         delivery_status = PerformanceLogging.phase("dashboard_job.delivery_status", job_id: job.id) { delivery_status_for(job) }
 
+        bulk_actions = dashboard_job_bulk_actions(job)
+
         payload = {
           type: "job",
           id: job.id,
@@ -102,6 +104,7 @@ module App
           needs_attention: job.needs_attention?,
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
+          bulk_actions: bulk_actions,
           can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
           can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
           can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
@@ -153,6 +156,42 @@ module App
           job.fork_review_pr_number.blank? &&
           !dashboard_job_active_runtime_work?(job) &&
           JobPolicy.new(user, job).write?
+      end
+
+      def dashboard_job_bulk_actions(job)
+        writable = JobPolicy.new(user, job).write?
+        active_runtime_work = dashboard_job_active_runtime_work?(job)
+        latest_workflow = latest_workflow_for(job)
+        open = job.open?
+
+        {
+          retry: writable && dashboard_job_can_retry?(job, active_runtime_work: active_runtime_work, latest_workflow: latest_workflow),
+          release_from_backlog: dashboard_job_can_release_from_backlog?(job),
+          move_to_backlog: dashboard_job_can_move_to_backlog?(job),
+          pause: writable && open && !job.manual_paused?,
+          unpause: writable && open && job.manual_paused?,
+          claim: writable && (job.claimed_by_user_id.blank? || job.claimed_by_user_id == user.id),
+          release_claim: writable && job.claimed_by_user_id == user.id,
+          assign_owner: writable,
+          set_priority: writable,
+          approve: writable && job.auto_merge_enabled? && job.may_approve? && job.can_add_job_approval?(user) && !simple_epic_child?(job),
+          close: writable && !job.closed?
+        }
+      end
+
+      def dashboard_job_can_retry?(job, active_runtime_work:, latest_workflow:)
+        return false if job.closed? || job.no_change_needed? || active_runtime_work
+        return false if job.approved? || job.landing?
+        return false if dashboard_job_pr_ready?(job)
+
+        job.failed? || job.implemented? || job.landing_failure_reason.present? || latest_workflow&.failed? || false
+      end
+
+      def dashboard_job_pr_ready?(job)
+        job.pr_number.present? &&
+          job.branch_name.present? &&
+          job.commits_behind_base.to_i.zero? &&
+          job.pr_checks_state == "passing"
       end
 
       def dashboard_job_dependencies_json(dependencies)
