@@ -615,6 +615,8 @@ export type JobStep = {
   finished_at: string | null
   created_at: string | null
   updated_at: string | null
+  placement?: JobStepPlacement | null
+  dependencies?: JobStepDependencies | null
   details: unknown
   warnings: WorkflowWarning[]
   latest: boolean
@@ -622,6 +624,49 @@ export type JobStep = {
   runs_displayed?: number
   runs_truncated?: boolean
   runs: JobRun[]
+}
+
+export type JobStepPlacement = {
+  policy: string
+  projected_target_label?: string | null
+  projected_target_fingerprint?: string | null
+  projected_resource_key?: string | null
+  source_snapshot?: JobStepSourceSnapshot | null
+  worker_hostname?: string | null
+  worker_storage_key?: string | null
+  worker_key?: string | null
+  worker_slot_acquired_at?: string | null
+  worker_slot_released_at?: string | null
+  worker_slot_release_reason?: string | null
+  prepare_cache?: Record<string, unknown> | null
+  admission?: Record<string, unknown> | null
+}
+
+export type JobStepSourceSnapshot = {
+  id?: number | null
+  source_sha?: string | null
+  source_ref?: string | null
+  tree_sha?: string | null
+  fingerprint?: string | null
+}
+
+export type JobStepDependencies = {
+  depends_on_step_ids: number[]
+  dependent_step_ids: number[]
+  barrier_group?: string | null
+  barrier_labels?: string[] | null
+  barrier_progress?: JobStepBarrierProgress | null
+}
+
+export type JobStepBarrierProgress = {
+  total: number
+  completed: number
+  queued: number
+  running: number
+  succeeded: number
+  failed: number
+  cancelled: number
+  skipped: number
 }
 
 // Generic, structural finding recorded via WorkflowWarnings.record! (e.g. a

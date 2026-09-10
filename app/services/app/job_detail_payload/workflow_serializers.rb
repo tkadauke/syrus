@@ -381,6 +381,10 @@ module App
         command_spans_by_run_id.fetch(run.id, [])
       end
 
+      def worker_slots_for_step(step)
+        workflow_step_worker_slots_by_step_id.fetch(step.id, [])
+      end
+
       def warnings_for(step)
         workflow_warnings_by_step_id.fetch(step.id, [])
       end
@@ -429,6 +433,8 @@ module App
             finished_at: iso8601(step.finished_at),
             created_at: iso8601(step.created_at),
             updated_at: iso8601(step.updated_at),
+            placement: step_placement_json(step, workflow: workflow),
+            dependencies: step_dependencies_json(step, workflow: workflow),
             details: step.details.presence,
             warnings: warnings_for(step).map { |warning| workflow_warning_json(warning) },
             latest: step == latest_step,
@@ -484,6 +490,96 @@ module App
 
       def step_state_projection(step, runs: ordered_runs_for(step))
         ::Steps::StateProjection.for(step, runs: runs, ordered: true)
+      end
+
+      def step_placement_json(step, workflow:)
+        details = step.details.to_h
+        latest_slot = worker_slots_for_step(step).max_by { |slot| [ slot.acquired_at || Time.zone.at(0), slot.id || 0 ] }
+        latest_run = ordered_runs_for(step).max_by { |run| [ run.started_at || run.created_at || Time.zone.at(0), run.id || 0 ] }
+        latest_admission = latest_admission_details_for(step, workflow: workflow)
+
+        {
+          policy: step.placement_policy,
+          projected_target_label: details["projected_target_label"],
+          projected_target_fingerprint: details["projected_target_fingerprint"],
+          projected_resource_key: details["projected_resource_key"],
+          source_snapshot: source_snapshot_json(details["source_snapshot"]),
+          worker_hostname: latest_slot&.worker_hostname || latest_run_worker_hostname(latest_run) || workflow.worker_hostname,
+          worker_storage_key: latest_slot&.worker_storage_key || workflow.worker_storage_key,
+          worker_key: latest_slot&.worker_key,
+          worker_slot_acquired_at: iso8601(latest_slot&.acquired_at),
+          worker_slot_released_at: iso8601(latest_slot&.released_at),
+          worker_slot_release_reason: latest_slot&.release_reason,
+          prepare_cache: prepare_cache_json(details),
+          admission: latest_admission
+        }.compact
+      end
+
+      def step_dependencies_json(step, workflow:)
+        dependencies = step.depends_on_step_ids
+        dependents = dependent_step_ids_by_workflow_id.fetch(workflow.id, {}).fetch(step.id, [])
+        barrier_dependencies = barrier_dependencies_for(step)
+
+        {
+          depends_on_step_ids: dependencies,
+          dependent_step_ids: dependents,
+          barrier_group: step.details.to_h["barrier_group"],
+          barrier_labels: Array(step.details.to_h["barrier_labels"]).presence,
+          barrier_progress: barrier_dependencies ? barrier_progress_json(barrier_dependencies) : nil
+        }.compact
+      end
+
+      def barrier_dependencies_for(step)
+        dependencies = step.depends_on_step_ids
+        return nil if dependencies.empty?
+
+        kinds = [ "grader_collect", "preflight_grader_collect" ]
+        return nil unless kinds.include?(step.kind) || Array(step.details.to_h["barrier_labels"]).any? { |label| kinds.include?(label.to_s) }
+
+        steps_by_workflow_id.fetch(step.workflow_id, []).select { |candidate| dependencies.include?(candidate.id) }
+      end
+
+      def barrier_progress_json(dependencies)
+        counts = dependencies.each_with_object(Hash.new(0)) { |dependency, memo| memo[dependency.visible_state] += 1 }
+        {
+          total: dependencies.size,
+          completed: dependencies.count(&:terminal?),
+          queued: counts["queued"],
+          running: counts["running"],
+          succeeded: counts["succeeded"],
+          failed: counts["failed"],
+          cancelled: counts["cancelled"],
+          skipped: counts["skipped"]
+        }
+      end
+
+      def source_snapshot_json(value)
+        snapshot = value.is_a?(Hash) ? value : nil
+        return nil unless snapshot
+
+        snapshot.slice("id", "source_sha", "source_ref", "tree_sha", "fingerprint")
+      end
+
+      def prepare_cache_json(details)
+        value = details["prepare_cache"] || details["checkout_cache"] || details.dig("immutable_source_checkout", "cache")
+        return nil unless value.is_a?(Hash)
+
+        value.slice("status", "hit", "key", "source", "reason")
+      end
+
+      def latest_admission_details_for(step, workflow:)
+        admission = workflow.artifact("workflow_step_worker_slot_admission") || workflow.artifact("run_host_admission")
+        return nil unless admission.is_a?(Hash)
+        return nil if admission["step_id"].present? && admission["step_id"].to_i != step.id
+
+        admission.slice("reason", "action", "retry_at", "worker_key", "worker_hostname", "worker_storage_key", "hostname", "step_id", "run_id")
+      end
+
+      def latest_run_worker_hostname(run)
+        return nil unless run
+
+        active_processes_by_run_id[run.id]&.hostname ||
+          ordered_command_spans_for(run).reverse.find { |span| span.hostname.present? }&.hostname
       end
 
       def run_json(run, workflow:, step:)
@@ -809,6 +905,30 @@ module App
             CommandSpan.where(run_id: ids).order(:run_id, :sequence, :id).group_by(&:run_id)
           end
         end
+      end
+
+      def workflow_step_worker_slots_by_step_id
+        @workflow_step_worker_slots_by_step_id ||= begin
+          ids = visible_step_ids
+          if ids.empty?
+            {}
+          else
+            WorkflowStepWorkerSlot.where(step_id: ids).order(:step_id, :acquired_at, :id).group_by(&:step_id)
+          end
+        end
+      end
+
+      def dependent_step_ids_by_workflow_id
+        @dependent_step_ids_by_workflow_id ||= ordered_steps_for_serialized_workflows.each_with_object({}) do |step, by_workflow|
+          Array(step.depends_on_ids).each do |dependency_id|
+            workflow_dependents = by_workflow[step.workflow_id] ||= Hash.new { |hash, key| hash[key] = [] }
+            workflow_dependents[dependency_id.to_i] << step.id
+          end
+        end
+      end
+
+      def ordered_steps_for_serialized_workflows
+        @ordered_steps_for_serialized_workflows ||= serialized_workflows.flat_map { |workflow| ordered_steps_for(workflow) }
       end
 
       def agent_session_summary_for(run)
