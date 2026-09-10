@@ -25,31 +25,14 @@ class CreateTargetHealthRecords < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    unless index_exists?(:target_health_records,
-                         [ :repository_id, :target_label, :commit_sha ],
-                         name: "idx_target_health_records_repo_target_sha")
-      add_index :target_health_records,
-                [ :repository_id, :target_label, :commit_sha ],
-                name: "idx_target_health_records_repo_target_sha"
-    end
+    repo_target_sha_columns = [ :repository_id, :target_label, :commit_sha ]
+    add_index :target_health_records, repo_target_sha_columns, name: "idx_target_health_records_repo_target_sha" unless index_exists?(:target_health_records, repo_target_sha_columns, name: "idx_target_health_records_repo_target_sha")
 
-    unless index_exists?(:target_health_records,
-                         [ :repository_id, :target_label, :commit_sha, :input_fingerprint, :command_fingerprint, :environment_fingerprint ],
-                         unique: true,
-                         name: "idx_target_health_records_identity")
-      add_index :target_health_records,
-                [ :repository_id, :target_label, :commit_sha, :input_fingerprint, :command_fingerprint, :environment_fingerprint ],
-                unique: true,
-                name: "idx_target_health_records_identity"
-    end
+    identity_columns = [ :repository_id, :target_label, :commit_sha, :input_fingerprint, :command_fingerprint, :environment_fingerprint ]
+    add_index :target_health_records, identity_columns, unique: true, name: "idx_target_health_records_identity" unless index_exists?(:target_health_records, identity_columns, name: "idx_target_health_records_identity")
 
-    unless index_exists?(:target_health_records,
-                         [ :repository_id, :project_id, :status, :checked_at ],
-                         name: "idx_target_health_records_project_status")
-      add_index :target_health_records,
-                [ :repository_id, :project_id, :status, :checked_at ],
-                name: "idx_target_health_records_project_status"
-    end
+    project_status_columns = [ :repository_id, :project_id, :status, :checked_at ]
+    add_index :target_health_records, project_status_columns, name: "idx_target_health_records_project_status" unless index_exists?(:target_health_records, project_status_columns, name: "idx_target_health_records_project_status")
 
     add_index :target_health_records, :workflow_id unless index_exists?(:target_health_records, :workflow_id)
     add_index :target_health_records, :run_id unless index_exists?(:target_health_records, :run_id)
