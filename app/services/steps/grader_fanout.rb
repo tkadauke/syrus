@@ -62,7 +62,7 @@ module Steps
         end
       end
 
-      active_graders = skip_reusable_target_health!(active_graders)
+      active_graders = skip_reusable_target_health!(active_graders) if grader_fanout_reuse_enabled?
 
       if active_graders.empty?
         log("[grader_fanout] all graders skipped — collect Step will pass through")
@@ -72,7 +72,7 @@ module Steps
       # A recorded success for this exact head SHA + grader set short-circuits
       # the re-run. Safe alongside the skip above: the fingerprint is the full
       # plan, so a full-plan success implies the active subset would pass too.
-      if (cache_hit = reusable_success(grader_fingerprint))
+      if grader_fanout_reuse_enabled? && (cache_hit = reusable_success(grader_fingerprint))
         workflow.set_artifact!(
           GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY,
           {
@@ -514,6 +514,10 @@ module Steps
         graph: target_graph,
         workspace_path: workspace.path
       )
+    end
+
+    def grader_fanout_reuse_enabled?
+      workflow.work_definition.grader_fanout_reuse_enabled?(workflow)
     end
 
     def target_label_for(grader)

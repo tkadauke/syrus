@@ -466,6 +466,10 @@ module WorkDefinitions
       "baseline main target health has no previous SHA"
     end
 
+    def grader_fanout_reuse_enabled?(workflow)
+      grader_fanout_baseline_selection_reason(workflow).blank?
+    end
+
     def record_grader_target_selection_inputs? = true
   end
 
