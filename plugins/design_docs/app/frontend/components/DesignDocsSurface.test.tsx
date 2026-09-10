@@ -1847,11 +1847,15 @@ describe("DesignDocsSurface", () => {
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
     const fetchSpy = mockFetch()
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
     renderSurface("/design_docs/1")
 
     const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
     expect(within(titleBar).getByRole("textbox", { name: "Design doc title" })).toHaveValue("Checkout design")
-    expect(within(titleBar).getByText("DOC-1")).toBeInTheDocument()
+    const copySlugButton = within(titleBar).getByRole("button", { name: "Copy DOC-1 to clipboard" })
+    expect(copySlugButton).toBeInTheDocument()
     expect(within(titleBar).getByText("private")).toBeInTheDocument()
     expect(within(titleBar).getByText("draft")).toBeInTheDocument()
     expect(within(titleBar).getByText("acme/widgets")).toBeInTheDocument()
@@ -1873,6 +1877,9 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(versionSelect, { target: { value: "1" } })
 
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Historical body"))
+
+    fireEvent.click(copySlugButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("DOC-1")
   })
 
   it("opens the share popup toward available space inside the wrapped title bar", async () => {
