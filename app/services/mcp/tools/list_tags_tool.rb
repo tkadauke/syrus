@@ -20,7 +20,8 @@ module Mcp::Tools
         {
           id: tag.id,
           name: tag.name,
-          color: tag.color
+          color: tag.color,
+          job_ids: tag.jobs.order(:id).pluck(:id)
         }
       end
     end
