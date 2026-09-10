@@ -20,7 +20,19 @@ RSpec.describe "target_health_records schema" do
 
     expect(indexes.map(&:name)).to include(
       "idx_target_health_records_repo_target_sha",
-      "idx_target_health_records_project_status"
+      "idx_target_health_records_project_status",
+      "idx_target_health_records_reusable_inputs"
     )
+
+    reusable_inputs = indexes.find { |index| index.name == "idx_target_health_records_reusable_inputs" }
+    expect(reusable_inputs.columns).to eq(%w[
+      repository_id
+      target_label
+      input_fingerprint
+      command_fingerprint
+      environment_fingerprint
+      checked_at
+      created_at
+    ])
   end
 end
