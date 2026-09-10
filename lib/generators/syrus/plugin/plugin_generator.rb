@@ -28,6 +28,8 @@ module Syrus
         template "app/services/plugin/admin_pages.rb.tt", "#{plugin_dir}/app/services/#{file_name}/admin_pages.rb"
         template "app/frontend/routes/AdminExample.tsx.tt", "#{plugin_dir}/app/frontend/routes/AdminExample.tsx"
         template "app/frontend/i18n/locales/en/plugin.json.tt", "#{plugin_dir}/app/frontend/i18n/locales/en/#{file_name}.json"
+        template "app/frontend/i18n/locales/de/plugin.json.tt", "#{plugin_dir}/app/frontend/i18n/locales/de/#{file_name}.json"
+        template "app/frontend/i18n/locales/la/plugin.json.tt", "#{plugin_dir}/app/frontend/i18n/locales/la/#{file_name}.json"
       end
 
       private
@@ -47,7 +49,6 @@ module Syrus
       def frontend?
         options[:frontend]
       end
-
     end
   end
 end
