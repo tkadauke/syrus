@@ -1,0 +1,5 @@
+{
+  "open_terminal_in_workspace": "Open terminal in workspace",
+  "terminal_workspace_open_failed": "Unable to open terminal workspace.",
+  "terminal_workspace_unavailable": "Workflow workspace is unavailable."
+}

@@ -15,6 +15,8 @@ export type TerminalWorkspaceRecord = {
   label: string
   working_directory: string
   kind: "scratch" | "workflow"
+  available?: boolean
+  disabled_reason?: string | null
 }
 
 export type TerminalSessionsPayload = {
