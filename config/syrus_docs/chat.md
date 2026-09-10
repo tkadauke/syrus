@@ -122,6 +122,19 @@ the whole chat is gone, at the top level as `chat_session_deleted_at`/
 This mirrors `AdminReadMemoryAuditHistoryTool`'s additive-field precedent
 rather than gating the whole tool behind admin status.
 
+The chat-reading MCP tools return compact navigation payloads intended for
+both agent context and chat UI cards. `list_chats` returns `chats` with
+`id`, `title`, `repository`, `message_count`, and `updated_at`, plus
+pagination metadata. `search_chats` returns one row per matching message with
+`chat_session_id`, `message_id`, `chat_title`, `repository`, `role`,
+`snippet`, and `created_at`, so clients can link directly to
+`/chats/:chat_session_id#message-:message_id` while still showing repository
+context and highlighted snippets. `read_chat_messages` returns `chat_title`,
+`page`, `has_more`, `next_page`, and `messages` with each message's `id`,
+`role`, `content`, and `created_at`; callers should treat `has_more` as a
+neutral "another page is available" signal because page direction is defined
+by the tool's ordering contract, not by the field name.
+
 ## Group chats
 
 `chat_sessions.conversation_kind` is `direct` (default) or `group`, and is
