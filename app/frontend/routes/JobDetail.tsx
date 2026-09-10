@@ -923,7 +923,7 @@ function PrChecksBanner({ command, payload }: { command: JobCommand; payload: Jo
   // the same red as one this Job introduced.
   const tone = checks.state !== "failing" || attribution?.verdict === "inherited" ? "muted" : "error"
   const blockerKey = payload.landing_queue_entry?.blocked_reason?.key
-  const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown"
+  const prChecksBlocker = blockerKey === "pr_checks_failing_inherited" || blockerKey === "pr_checks_failing_base_unknown" || blockerKey === "pr_checks_failing_base_stale"
   const overridePath = payload.landing_queue_entry?.override_path
   const recheckPath = payload.paths.app_recheck_pr_checks_path
   const canOverride = Boolean(

@@ -807,6 +807,18 @@ class LandingQueueProcessor
       # equally guilty while main was broken.
       attribution = PrCheckAttribution.for(job)
       if attribution.inherited?
+        if inherited_pr_check_evidence_stale?(job, attribution)
+          trigger_pr_check_consistency_refresh(job, attribution)
+          return override_or_block(
+            job,
+            {
+              key: "pr_checks_failing_base_stale",
+              params: { slug: job.slug, checks: attribution.failing_names.join(", "), base_sha: attribution.base_sha }
+            },
+            consume: consume_override
+          )
+        end
+
         trigger_main_repair_for_inherited_pr_checks(job, attribution)
         # Repositories whose check names are granular enough that "same check
         # name" really does mean "same failure" can opt out of this hold and keep
@@ -918,6 +930,24 @@ class LandingQueueProcessor
       "requesting main-health poll for #{repository.slug}"
     )
     PollMainBranchHealthJob.perform_later(repository.id)
+  end
+
+  def inherited_pr_check_evidence_stale?(job, attribution)
+    repository = job.repository
+    return false unless repository.main_branch_health_enabled?
+    return false unless repository.ci_health_healthy?
+    return false if attribution.base_sha.blank?
+
+    repository.last_ci_evaluated_sha.present? && repository.last_ci_evaluated_sha != attribution.base_sha
+  end
+
+  def trigger_pr_check_consistency_refresh(job, attribution)
+    Rails.logger.info(
+      "[LandingQueueProcessor] #{job.slug} PR checks look inherited from stale base #{attribution.base_sha}; " \
+      "refreshing main health and mergeability before final blocker decision"
+    )
+    PollMainBranchHealthJob.perform_later(job.repository_id)
+    PollRebaseJob.enqueue_manual_check(job.id)
   end
 
   def waiting_for_github_mergeability?(job)

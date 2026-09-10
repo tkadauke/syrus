@@ -977,7 +977,7 @@ module App
     def pr_checks_landing_blocker_overridable?
       reason = @job.landing_queue_blocked_reason.to_h
       key = (reason["key"] || reason[:key]).to_s
-      key.in?(%w[pr_checks_failing_inherited pr_checks_failing_base_unknown]) &&
+      key.in?(%w[pr_checks_failing_inherited pr_checks_failing_base_unknown pr_checks_failing_base_stale]) &&
         @job.landing_blocker_override_key.blank? &&
         @job.landing_blocker_override_used_at.blank?
     end

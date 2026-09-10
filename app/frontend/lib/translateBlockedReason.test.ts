@@ -45,6 +45,8 @@ describe("translateBlockedReason", () => {
       .toBe("common:blocked_reasons.pr_checks_failing(slug=JOB-456)")
     expect(translateBlockedReason({ key: "pr_checks_failing_base_unknown", params: { slug: "JOB-456", checks: "rspec" } }, mockT))
       .toBe("common:blocked_reasons.pr_checks_failing_base_unknown(slug=JOB-456,checks=rspec)")
+    expect(translateBlockedReason({ key: "pr_checks_failing_base_stale", params: { slug: "JOB-456", checks: "rspec" } }, mockT))
+      .toBe("common:blocked_reasons.pr_checks_failing_base_stale(slug=JOB-456,checks=rspec)")
     expect(translateBlockedReason({ key: "pr_checks_pending", params: { slug: "JOB-789" } }, mockT))
       .toBe("common:blocked_reasons.pr_checks_pending(slug=JOB-789)")
     expect(translateBlockedReason({ key: "waiting_to_merge", params: { slug: "JOB-42" } }, mockT))

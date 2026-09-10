@@ -1114,6 +1114,39 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(LandingBlockerOverride.overridable?("pr_checks_failing_base_unknown")).to be(true)
     end
 
+    it "refreshes instead of repairing when inherited PR check evidence conflicts with healthy current main" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.repository.update!(
+        ci_health: "healthy",
+        grader_health: "healthy",
+        last_ci_evaluated_sha: "current-main-sha",
+        main_branch_repair_enabled: true
+      )
+      job.update_columns(
+        pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current,
+        pr_checks_failing_names: [ "rspec" ], pr_checks_base_sha: "old-base-sha"
+      )
+      MainBranchHealthCheck.create!(
+        repository: job.repository, sha: "old-base-sha", checked_at: Time.current, source: "ci_poll",
+        ci_health: "broken", ci_failed_checks: [ { "name" => "rspec" } ]
+      )
+      expect(MainHealthChangedService).not_to receive(:on_health_change!)
+
+      expect {
+        @entry = described_class.entries(Job.where(id: job.id)).first
+      }.to have_enqueued_job(PollMainBranchHealthJob).with(job.repository_id)
+        .and have_enqueued_job(PollRebaseJob).with(job.id, bypass_cache: true)
+
+      expect(@entry.blocked_reason).to eq(
+        {
+          key: "pr_checks_failing_base_stale",
+          params: { slug: job.slug, checks: "rspec", base_sha: "old-base-sha" }
+        }
+      )
+      expect(job.repository.reload.ci_health).to eq("healthy")
+      expect(LandingBlockerOverride.overridable?("pr_checks_failing_base_stale")).to be(true)
+    end
+
     # Opting in clears the *checks* gate only. Returning "not blocked" from that
     # branch would have skipped every gate after it -- mergeability, rebase cap,
     # epic siblings, parent, dependencies -- and landed Jobs that are blocked for
