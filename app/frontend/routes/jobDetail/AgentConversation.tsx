@@ -6,6 +6,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { StatusPill } from "../../components/StatusPill"
 import { CloseIcon } from "../../components/CloseIcon"
 import { GearIcon } from "../../components/GearIcon"
+import { Select } from "../../components/Select"
 import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
 import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
@@ -103,8 +104,7 @@ function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflo
   return (
     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
       <span className="mb-1 block">{t("conversation_select_workflow")}</span>
-      <select
-        className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+      <Select
         onChange={(event) => onSelect(event.target.value)}
         value={selectedWorkflowId ? String(selectedWorkflowId) : ""}
       >
@@ -113,7 +113,7 @@ function WorkflowSelector({ workflows, selectedWorkflowId, onSelect }: { workflo
             {workflowOptionLabel(workflow)}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   )
 }
