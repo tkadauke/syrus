@@ -95,6 +95,7 @@
   "conversation_loading": "Loading agent conversation…",
   "conversation_load_error": "Unable to load the agent conversation.",
   "conversation_empty": "No agent activity recorded for this Job yet.",
+  "conversation_select_workflow": "Workflow",
   "conversation_legend_agent_session": "Agent session",
   "conversation_legend_deterministic_check": "Deterministic check",
   "conversation_legend_external_trigger": "External trigger",
