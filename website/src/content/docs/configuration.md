@@ -249,8 +249,8 @@ diff annotations in the UI.
 `hooks.post_checkout` commands are optional shell strings. They run only
 in the local operator checkout after `syrus checkout JOB-<id>` or
 `syrus checkout EPIC-<id>` successfully switches branches. The CLI runs
-each hook in order from the repository root with `sh -c`, streams output
-to the terminal, and fails fast on the first non-zero exit. Pass
+each hook in order from the directory that declares it, uses `sh -c`,
+streams output to the terminal, and fails fast on the first non-zero exit. Pass
 `--no-hooks` to bypass hooks for one checkout:
 
 ```bash
@@ -262,6 +262,13 @@ When a post-checkout hook fails, the CLI prints the failed command and
 exit code, then exits non-zero. The checkout itself is not rolled back:
 fix the local problem and rerun the command manually, or run checkout
 again with `--no-hooks` if you only need the branch.
+
+In monorepos, nested `.syrus.yml` files can declare their own
+`hooks.post_checkout` commands. Root hooks always run for the whole
+repository. Nested project hooks run only when the checked-out Job or
+branch diff touches files under that project directory; if the CLI cannot
+compute the diff, it runs all discovered project hooks and logs the
+fallback.
 
 ## Worked Examples
 
