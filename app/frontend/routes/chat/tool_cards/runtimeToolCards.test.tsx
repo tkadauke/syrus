@@ -142,7 +142,7 @@ describe("Runtime tool cards", () => {
       calls: [
         {
           message_id: 1,
-          tool_name: "Runtime acquire control",
+          tool_name: "runtime_acquire_control",
           raw_name: "runtime_acquire_control",
           detail: "No arguments",
           display_label: "Runtime acquire control",
