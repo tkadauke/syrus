@@ -2613,6 +2613,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_10_140000) do
     t.index ["repository_id", "project_id", "status", "checked_at"], name: "idx_target_health_records_project_status"
     t.index ["repository_id", "target_label", "commit_sha", "input_fingerprint", "command_fingerprint", "environment_fingerprint"], name: "idx_target_health_records_identity", unique: true
     t.index ["repository_id", "target_label", "commit_sha"], name: "idx_target_health_records_repo_target_sha"
+    t.index ["repository_id", "target_label", "input_fingerprint", "command_fingerprint", "environment_fingerprint", "checked_at", "created_at"], name: "idx_target_health_records_reusable_inputs"
     t.index ["run_id"], name: "index_target_health_records_on_run_id"
     t.index ["workflow_id"], name: "index_target_health_records_on_workflow_id"
   end
