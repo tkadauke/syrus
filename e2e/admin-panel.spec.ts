@@ -13,6 +13,7 @@ type AdminPanelFixture = {
 }
 
 test("admin renders queue, stuck jobs, plugin registry, and process inventory", async ({ page }) => {
+  skipWhenRemote()
   const fixture = createAdminPanelFixtures()
 
   await signInAsDemo(page)
@@ -70,6 +71,10 @@ async function openAdminNav(page: Page, name: "Queue" | "Stuck" | "Plugins" | "P
 
 function pluginCard(page: Page, heading: string) {
   return page.locator("article").filter({ has: page.getByRole("heading", { name: heading, exact: true }) })
+}
+
+function skipWhenRemote() {
+  test.skip(!!process.env.E2E_BASE_URL, "Admin panel E2E creates local preview fixture data.")
 }
 
 function createAdminPanelFixtures(): AdminPanelFixture {

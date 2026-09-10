@@ -41,6 +41,7 @@ test("switches between the epics, jobs, and workflows dashboard sub-views", asyn
 })
 
 test("shows the system readiness panel for a user who has not finished setup", async ({ page }) => {
+  skipWhenRemote()
   // The demo user's own onboarding is deliberately marked complete by
   // `e2e:seed` (its Epic is force-landed) so its own dashboard renders
   // cleanly for the other specs -- which means its readiness always reads
@@ -67,6 +68,7 @@ test("shows the system readiness panel for a user who has not finished setup", a
 })
 
 test("retries a failed job in bulk from the dashboard and reflects it in the dashboard", async ({ page }) => {
+  skipWhenRemote()
   const title = `E2E bulk retry ${Date.now()}`
   createFailedFixtureJob(title)
 
@@ -85,6 +87,10 @@ test("retries a failed job in bulk from the dashboard and reflects it in the das
   await expect(page.getByText("Retry enqueued for 1 job.")).toBeVisible()
   await expect(row).toContainText("running")
 })
+
+function skipWhenRemote() {
+  test.skip(!!process.env.E2E_BASE_URL, "Dashboard E2E creates local preview fixture data.")
+}
 
 // Creates a brand-new user who has started (but not finished) onboarding:
 // an onboarding chat exists (past the App.tsx redirect gate) but no Epic has

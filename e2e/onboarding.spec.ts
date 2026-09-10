@@ -5,6 +5,7 @@ import { ONBOARDING_USER, signIn } from "./support/auth"
 test.setTimeout(60_000)
 
 test("first-run onboarding checklist updates through the golden path", async ({ page }) => {
+  skipWhenRemote()
   await signIn(page, ONBOARDING_USER)
 
   await expect(page).toHaveURL(/\/onboarding$/)
@@ -76,6 +77,10 @@ function incompleteStep(page: Page, title: string): Locator {
 
 function checklistStep(page: Page, title: string): Locator {
   return page.locator("li").filter({ has: page.getByRole("heading", { name: title }) })
+}
+
+function skipWhenRemote() {
+  test.skip(!!process.env.E2E_BASE_URL, "Onboarding E2E advances local preview fixture data.")
 }
 
 function advanceOnboardingFixture(step: "github" | "agent" | "repository" | "epic") {
