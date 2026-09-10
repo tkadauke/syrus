@@ -2,6 +2,13 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import browserCloseToolCard from "./browser_close"
+import browserClickToolCard from "./browser_click"
+import browserDragToolCard from "./browser_drag"
+import browserDropToolCard from "./browser_drop"
+import browserEvaluateToolCard from "./browser_evaluate"
+import browserFileUploadToolCard from "./browser_file_upload"
+import browserFillToolCard from "./browser_fill"
+import browserHoverToolCard from "./browser_hover"
 import browserNavigateToolCard from "./browser_navigate"
 import browserResizeToolCard from "./browser_resize"
 import browserScreenshotToolCard from "./browser_screenshot"
@@ -26,7 +33,14 @@ describe("browser tool cards", () => {
       browserScreenshotToolCard,
       browserResizeToolCard,
       browserWaitForToolCard,
-      browserCloseToolCard
+      browserCloseToolCard,
+      browserClickToolCard,
+      browserFillToolCard,
+      browserEvaluateToolCard,
+      browserHoverToolCard,
+      browserDragToolCard,
+      browserDropToolCard,
+      browserFileUploadToolCard
     ]
 
     expect(cards.map((card) => card.toolName)).toEqual([
@@ -35,7 +49,14 @@ describe("browser tool cards", () => {
       "browser_screenshot",
       "browser_resize",
       "browser_wait_for",
-      "browser_close"
+      "browser_close",
+      "browser_click",
+      "browser_fill",
+      "browser_evaluate",
+      "browser_hover",
+      "browser_drag",
+      "browser_drop",
+      "browser_file_upload"
     ])
   })
 
@@ -234,15 +255,152 @@ describe("browser tool cards", () => {
     expect(screen.getByText("success")).toBeInTheDocument()
   })
 
+  it("summarizes and renders successful click interactions with page state", () => {
+    const toolContext = context({
+      toolName: "browser_click",
+      input: { element: "Submit button", target: "e3" },
+      resultBody: [
+        "- Page URL: http://127.0.0.1:3001/submitted",
+        "- Page Title: Submitted"
+      ].join("\n")
+    })
+
+    expect(browserClickToolCard.collapsedSummary?.(toolContext)).toBe(
+      "Click Submit button · Submitted (http://127.0.0.1:3001/submitted) · success"
+    )
+
+    render(<>{browserClickToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Click")).toBeInTheDocument()
+    expect(screen.getByText("Submit button")).toBeInTheDocument()
+    expect(screen.getByText("Submitted")).toBeInTheDocument()
+    expect(screen.getAllByText("http://127.0.0.1:3001/submitted")).toHaveLength(1)
+  })
+
+  it("summarizes fill interactions without exposing the filled text in the collapsed row", () => {
+    const toolContext = context({
+      toolName: "browser_fill",
+      input: { element: "Password field", target: "e4", text: "super-secret" },
+      parsedResult: { ok: true }
+    })
+
+    expect(browserFillToolCard.collapsedSummary?.(toolContext)).toBe("Fill Password field · success")
+
+    render(<>{browserFillToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Fill")).toBeInTheDocument()
+    expect(screen.getByText("Password field")).toBeInTheDocument()
+    expect(screen.getByText("12 characters")).toBeInTheDocument()
+    expect(screen.queryByText("super-secret")).not.toBeInTheDocument()
+  })
+
+  it("summarizes evaluate scalar results without dumping raw JSON", () => {
+    const toolContext = context({
+      toolName: "browser_evaluate",
+      input: { function: "() => document.title" },
+      parsedResult: "Dashboard",
+      resultBody: "\"Dashboard\""
+    })
+
+    expect(browserEvaluateToolCard.collapsedSummary?.(toolContext)).toBe("Evaluate page · \"Dashboard\" · success")
+
+    render(<>{browserEvaluateToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Evaluate")).toBeInTheDocument()
+    expect(screen.getAllByText("\"Dashboard\"").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("summarizes evaluate object results and keeps full JSON behind disclosure", () => {
+    const toolContext = context({
+      toolName: "browser_evaluate",
+      input: { element: "Cart badge", target: "e7", function: "(element) => ({ count: Number(element.textContent), visible: true, nested: { ignored: true } })" },
+      parsedResult: { result: { count: 3, visible: true, nested: { ignored: true } } },
+      resultBody: JSON.stringify({ result: { count: 3, visible: true, nested: { ignored: true } } })
+    })
+
+    expect(browserEvaluateToolCard.collapsedSummary?.(toolContext)).toBe("Evaluate Cart badge · { count: 3, visible: true, ... } · success")
+
+    render(<>{browserEvaluateToolCard.renderExpanded(toolContext)}</>)
+
+    expect(screen.getByText("Cart badge")).toBeInTheDocument()
+    expect(screen.getByText("{ count: 3, visible: true, ... }")).toBeInTheDocument()
+    expect(screen.getAllByText(/\"nested\"/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("renders selector and JavaScript errors readably", () => {
+    const selectorError = context({
+      toolName: "browser_click",
+      input: { element: "Missing button", target: "e404" },
+      resultBody: "Error: Ref e404 not found in the current page snapshot",
+      resultError: true
+    })
+    const evaluateError = context({
+      toolName: "browser_evaluate",
+      input: { function: "() => missing.call()" },
+      parsedResult: { error: "ReferenceError: missing is not defined" },
+      resultBody: JSON.stringify({ error: "ReferenceError: missing is not defined" }),
+      resultError: true
+    })
+
+    expect(browserClickToolCard.collapsedSummary?.(selectorError)).toBe("Click Missing button · failed")
+    expect(browserEvaluateToolCard.collapsedSummary?.(evaluateError)).toBe("Evaluate page · failed")
+
+    render(
+      <>
+        {browserClickToolCard.renderExpanded(selectorError)}
+        {browserEvaluateToolCard.renderExpanded(evaluateError)}
+      </>
+    )
+
+    expect(screen.getByText("Ref e404 not found in the current page snapshot")).toBeInTheDocument()
+    expect(screen.getByText("ReferenceError: missing is not defined")).toBeInTheDocument()
+  })
+
+  it("summarizes other Browser interaction tools exposed by the plugin", () => {
+    expect(
+      browserHoverToolCard.collapsedSummary?.(
+        context({ toolName: "browser_hover", input: { element: "Help icon", target: "e8" }, resultBody: "" })
+      )
+    ).toBe("Hover Help icon · success")
+
+    expect(
+      browserDragToolCard.collapsedSummary?.(
+        context({
+          toolName: "browser_drag",
+          input: { start_element: "Backlog card", start_target: "e1", end_element: "Done column", end_target: "e2" },
+          resultBody: ""
+        })
+      )
+    ).toBe("Drag Backlog card -> Done column · success")
+
+    expect(
+      browserDropToolCard.collapsedSummary?.(
+        context({ toolName: "browser_drop", input: { element: "Drop zone", target: "e9", paths: ["/tmp/a.png"] }, resultBody: "" })
+      )
+    ).toBe("Drop Drop zone · success")
+
+    expect(
+      browserFileUploadToolCard.collapsedSummary?.(
+        context({ toolName: "browser_file_upload", input: { paths: ["/tmp/a.png", "/tmp/b.png"] }, resultBody: "" })
+      )
+    ).toBe("File upload 2 files · success")
+  })
+
   it("falls back to the generic renderer for unknown or malformed Browser payloads", () => {
     const malformed = context({
       toolName: "browser_snapshot",
       resultBody: "plain unrelated text",
       parsedResult: { oops: true }
     })
+    const malformedInteraction = context({
+      toolName: "browser_click",
+      parsedResult: { oops: true }
+    })
 
     expect(browserSnapshotToolCard.collapsedSummary?.(malformed)).toBeNull()
     expect(browserSnapshotToolCard.renderExpanded(malformed)).toBeNull()
+    expect(browserClickToolCard.collapsedSummary?.(malformedInteraction)).toBeNull()
+    expect(browserClickToolCard.renderExpanded(malformedInteraction)).toBeNull()
     expect(browserResizeToolCard.renderExpanded(context({ toolName: "browser_resize", input: { width: 390 } }))).toBeNull()
   })
 })
