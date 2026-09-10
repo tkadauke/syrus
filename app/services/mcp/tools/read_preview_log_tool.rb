@@ -41,10 +41,11 @@ module Mcp::Tools
         run = Mcp::Tools.run_from_context(server_context)
 
         line_count = clamp_lines(lines)
-        workspace_path = preview_workspace_path_for(run) || workflow_workspace_path_for(run)
+        preview_env = preview_environment_for(run)
+        workspace_path = preview_env&.workspace_path || workflow_workspace_path_for(run)
         return Mcp::Tools.invalid("no preview or workflow workspace found") unless workspace_path
 
-        log_path   = resolve_log_path(path, workspace_path)
+        log_path   = resolve_log_path(path, workspace_path, preview_env)
         return Mcp::Tools.invalid("no log path configured and none specified") unless log_path
         return Mcp::Tools.invalid("log file not found: #{log_path}") unless File.exist?(log_path)
 
@@ -61,12 +62,12 @@ module Mcp::Tools
 
       private
 
-      def preview_workspace_path_for(run)
+      def preview_environment_for(run)
         env = run.job.preview_environments.active.order(created_at: :desc).first ||
           run.job.preview_environments.order(created_at: :desc).first
         return unless env&.workspace_path.present? && Dir.exist?(env.workspace_path)
 
-        env.workspace_path
+        env
       end
 
       def workflow_workspace_path_for(run)
@@ -85,17 +86,34 @@ module Mcp::Tools
       # traversal guard). Config-supplied log_paths may be absolute (operator-
       # controlled), so they're trusted as-is; relative config paths are
       # expanded against the workspace root.
-      def resolve_log_path(path, workspace_path)
+      def resolve_log_path(path, workspace_path, preview_env)
         if path.present?
           resolved       = File.expand_path(path, workspace_path)
           safe_workspace = File.expand_path(workspace_path)
           return nil unless resolved.start_with?(safe_workspace + "/") || resolved == safe_workspace
           resolved
         else
-          source   = PreviewCommandSource.new(workspace_path).resolve
+          source   = preview_command_source(workspace_path, preview_env).resolve
           raw_path = source&.log_paths&.first
           return nil unless raw_path.present?
-          Pathname.new(raw_path).absolute? ? raw_path : File.expand_path(raw_path, workspace_path)
+          Pathname.new(raw_path).absolute? ? raw_path : File.expand_path(raw_path, preview_workdir(workspace_path, preview_env))
+        end
+      end
+
+      def preview_workdir(workspace_path, preview_env)
+        return workspace_path unless preview_env&.project_id.present?
+
+        project = TargetGraph::Compiler.compile(workspace_path).project(preview_env.project_id)
+        project&.path.present? ? File.join(workspace_path, project.path) : workspace_path
+      rescue StandardError
+        workspace_path
+      end
+
+      def preview_command_source(workspace_path, preview_env)
+        if preview_env&.project_id.present?
+          PreviewCommandSource.new(workspace_path, project_id: preview_env.project_id)
+        else
+          PreviewCommandSource.new(workspace_path)
         end
       end
 

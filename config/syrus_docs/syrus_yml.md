@@ -26,6 +26,31 @@ hooks:
     - bin/setup-local
 ```
 
+## preview
+
+Preview commands tell Syrus how to boot an app for the Job detail Preview
+action and browser-based visual review. Syrus assigns `$PORT` dynamically and
+proxies traffic through the Syrus preview host.
+
+```yaml
+preview:
+  setup:
+    - bundle install
+    - npm ci
+  seed: bin/rails db:prepare db:seed
+  start: bin/rails server -p $PORT -b 0.0.0.0 -e development
+  health_check: /up
+  logs:
+    - log/development.log
+```
+
+In monorepos, `preview:` can live in the root `.syrus.yml` or in a nested
+project `.syrus.yml`. A nested block is scoped to that project and runs from
+the nested directory. Job previews are filtered to previewable projects touched
+by the Job diff: one match starts directly, multiple matches show a project
+selector, and zero matches show a no-preview message. Root-only repositories
+keep the legacy root preview behavior.
+
 ## grade
 
 Graders are shell commands Syrus runs to validate the agent's work. All graders must pass before the workflow succeeds.

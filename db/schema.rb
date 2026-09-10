@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_10_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1915,12 +1915,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_123000) do
     t.integer "job_id"
     t.datetime "last_activity_at"
     t.integer "port"
+    t.string "project_id"
     t.integer "repository_id"
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id", "created_at", "id"], name: "idx_preview_environments_job_latest"
+    t.index ["job_id", "project_id", "created_at", "id"], name: "idx_preview_environments_job_project_latest"
     t.index ["job_id", "state", "created_at", "id"], name: "idx_preview_environments_job_state_latest"
     t.index ["job_id"], name: "index_preview_environments_on_job_id"
     t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"

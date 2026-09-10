@@ -72,6 +72,26 @@ RSpec.describe PreviewCommandSource do
         expect(result.env).to eq("RAILS_ENV" => "development")
         expect(result.unset_env).to eq([ "DATABASE_URL" ])
       end
+
+      it "resolves a selected nested project's preview config" do
+        FileUtils.mkdir_p(File.join(workspace, "apps/web"))
+        File.write(File.join(workspace, "apps/web/.syrus.yml"), <<~YAML)
+          project:
+            id: web
+            label: Web
+          preview:
+            start: "npm run dev -- --port $PORT"
+            health_check: "/ready"
+            logs:
+              - "logs/web.log"
+        YAML
+
+        result = described_class.new(workspace, project_id: "web").resolve
+
+        expect(result.start_command_for.call(port: 4173)).to eq("npm run dev -- --port 4173")
+        expect(result.health_check_path).to eq("/ready")
+        expect(result.log_paths).to eq([ "logs/web.log" ])
+      end
     end
 
     context "without a .syrus.yml preview section" do
