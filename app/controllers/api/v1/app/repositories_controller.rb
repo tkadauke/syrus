@@ -350,6 +350,7 @@ module Api
               message: message,
               simple_mode: AppSetting.simple?,
               repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository) },
+              syrus_yml: PerformanceLogging.phase("repository_detail.syrus_yml", repository_id: repository.id) { syrus_yml_summary_json(repository) },
               tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
               ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
                 ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
@@ -509,6 +510,53 @@ module Api
             github_repository_id: repository.github_repository_id,
             repository_path: repository.persisted? ? repository_path(repository) : nil
           }
+        end
+
+        def syrus_yml_summary_json(repository)
+          loaded = RepoDefaultBranchSyrusYml.new(repository: repository, user: Current.user).resolve
+          config = loaded.config
+          unless config
+            return {
+              source: loaded.source,
+              note: loaded.note,
+              present: false,
+              prepare_commands_count: 0,
+              graders_count: 0,
+              required_graders_count: 0,
+              formatter_mode: "unavailable",
+              generated_steps_count: 0,
+              visual_review_enabled: false,
+              adversarial_review_rounds: nil,
+              review_plan_enabled: false,
+              coverage_configured: false,
+              delivery_tracks_count: 0
+            }
+          end
+
+          graders = Array(config.grade&.steps)
+          {
+            source: loaded.source,
+            note: loaded.note,
+            present: true,
+            prepare_commands_count: config.prepare.is_a?(Array) ? config.prepare.size : 0,
+            graders_count: graders.size,
+            required_graders_count: graders.count(&:required),
+            formatter_mode: formatter_mode(config.formatters),
+            generated_steps_count: config.generated.is_a?(Array) ? config.generated.size : 0,
+            visual_review_enabled: !!config.visual_review&.enabled,
+            adversarial_review_rounds: config.adversarial_review&.rounds,
+            review_plan_enabled: !!config.review_plan,
+            coverage_configured: config.coverage.present?,
+            delivery_tracks_count: config.raw_delivery ? config.delivery.tracks.size : 0
+          }
+        end
+
+        def formatter_mode(formatters)
+          return "not configured" if formatters.nil?
+          return "disabled" if formatters == false
+          return "plugin defaults" if formatters.empty?
+
+          "explicit"
         end
 
         def repository_counts_json(repository)

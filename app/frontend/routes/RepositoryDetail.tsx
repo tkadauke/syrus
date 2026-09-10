@@ -87,6 +87,7 @@ function RepositoryDetail({ activeTab, detail, prefix, queryKey }: { activeTab: 
             </div>
             <div className="space-y-6">
               <RepositoryDetailsCard payload={payload} prefix={prefix} />
+              <SyrusYmlCard payload={payload} />
               <PreviewPanel
                 canStart={!payload.repository.archived}
                 initialPreview={payload.preview}
@@ -262,7 +263,7 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
   const repository = payload.repository
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t('repository.details')}>
       <SectionHeading>
         {t('repository.details')}
       </SectionHeading>
@@ -332,6 +333,57 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
       </dl>
     </section>
   )
+}
+
+function SyrusYmlCard({ payload }: { payload: RepositoryDetailPayload }) {
+  const { t } = useT("settings")
+  const summary = payload.syrus_yml
+  if (!summary) return null
+
+  const rows = summary.present ? [
+    [t("repository.syrus_yml_prepare"), String(summary.prepare_commands_count)],
+    [t("repository.syrus_yml_graders"), t("repository.syrus_yml_graders_value", { count: summary.graders_count, required: summary.required_graders_count })],
+    [t("repository.syrus_yml_formatters"), formatterModeLabel(summary.formatter_mode, t)],
+    [t("repository.syrus_yml_generated"), String(summary.generated_steps_count)],
+    [t("repository.syrus_yml_visual_review"), summary.visual_review_enabled ? t("repository.syrus_yml_enabled") : t("repository.syrus_yml_disabled")],
+    [t("repository.syrus_yml_adversarial_review"), summary.adversarial_review_rounds == null ? t("repository.syrus_yml_not_configured") : t("repository.syrus_yml_rounds", { count: summary.adversarial_review_rounds })],
+    [t("repository.syrus_yml_review_plan"), summary.review_plan_enabled ? t("repository.syrus_yml_enabled") : t("repository.syrus_yml_disabled")],
+    [t("repository.syrus_yml_coverage"), summary.coverage_configured ? t("repository.syrus_yml_configured") : t("repository.syrus_yml_not_configured")],
+    [t("repository.syrus_yml_delivery_tracks"), String(summary.delivery_tracks_count)]
+  ] : [
+    [t("repository.syrus_yml_status"), summary.note || t("repository.syrus_yml_unavailable")]
+  ]
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label=".syrus.yml configuration">
+      <SectionHeading>
+        .syrus.yml
+      </SectionHeading>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {summary.present ? t("repository.syrus_yml_loaded", { source: summary.source }) : summary.note ? t("repository.syrus_yml_not_loaded_with_note", { note: summary.note }) : t("repository.syrus_yml_not_loaded")}
+      </p>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+function formatterModeLabel(mode: string, t: ReturnType<typeof useT>["t"]) {
+  const labels: Record<string, string> = {
+    unavailable: t("repository.syrus_yml_unavailable_mode"),
+    "not configured": t("repository.syrus_yml_not_configured"),
+    disabled: t("repository.syrus_yml_disabled"),
+    "plugin defaults": t("repository.syrus_yml_plugin_defaults"),
+    explicit: t("repository.syrus_yml_explicit")
+  }
+
+  return labels[mode] || mode
 }
 
 function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
