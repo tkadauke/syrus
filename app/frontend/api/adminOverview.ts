@@ -82,6 +82,7 @@ export type AdminOverviewPayload = {
     unreachable?: boolean
   }
   recurring: {
+    count?: number
     overdue?: Array<{
       key: string
       age_seconds: number | null
