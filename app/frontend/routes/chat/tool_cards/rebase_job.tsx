@@ -1,23 +1,3 @@
-import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
-import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
+import { maintenanceToolCard } from "../jobEpicMaintenanceToolCard"
 
-// Pending-action tool card (the pending-action tool-card work). All of the parsing and
-// presentation lives in ../pendingActionToolCard so the whole family stays
-// consistent; this file only binds it to one MCP tool name.
-function collapsedSummary(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
-  return result ? pendingActionCollapsedSummary(result) : null
-}
-
-function renderExpanded(context: ToolCardContext) {
-  const result = parsePendingActionResult(context.parsedResult)
-  return result ? <PendingActionResultCard result={result} /> : null
-}
-
-const rebaseJobToolCard: ToolCardRenderer = {
-  toolName: "rebase_job",
-  collapsedSummary,
-  renderExpanded
-}
-
-export default rebaseJobToolCard
+export default maintenanceToolCard("rebase_job")
