@@ -504,6 +504,43 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("selected docs-tests (baseline main target health has no previous SHA) [//:grade/docs-tests]")
   end
 
+  it "does not reuse target health or cached grader conclusions during broad main branch sweeps" do
+    workflow.update!(trigger_kind: "main_grader")
+    write_config(<<~YAML)
+      grade:
+        - name: app-tests
+          run: bin/rspec spec/models
+          when_files_changed:
+            - "app/**"
+        - name: docs-tests
+          run: bin/check-docs
+          when_files_changed:
+            - "docs/**"
+    YAML
+    record_target_health("//:grade/app-tests", status: "passed")
+    record_target_health("//:grade/docs-tests", status: "passed")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      step: fanout,
+      run: run,
+      commit_sha: "abc123",
+      grader_fingerprint: current_fingerprint,
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "passed",
+      checked_at: 1.hour.ago
+    )
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[app-tests docs-tests])
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_HEALTH_SKIPS_ARTIFACT_KEY)).to eq([])
+    expect(workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
+  end
+
   it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
