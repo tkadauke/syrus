@@ -7,14 +7,14 @@ describe("StartBlockedReasonPill", () => {
     render(<StartBlockedReasonPill reason="main_branch_broken" />)
 
     const pill = screen.getByText("Main branch broken").closest("[data-status-pill]")
-    expect(pill).toHaveClass("bg-red-50")
+    expect(pill).toHaveClass("bg-danger-surface")
     expect(pill).toHaveAttribute("title", "Repository landing is paused because the main branch is unhealthy.")
   })
 
   it("renders urgent job blocks as slate", () => {
     render(<StartBlockedReasonPill reason="urgent_job_active" />)
 
-    expect(screen.getByText("Urgent job in progress").closest("[data-status-pill]")).toHaveClass("bg-gray-100")
+    expect(screen.getByText("Urgent job in progress").closest("[data-status-pill]")).toHaveClass("bg-neutral-surface")
   })
 
   it("includes structured start-block details in the tooltip", () => {
@@ -134,22 +134,22 @@ describe("StartBlockedReasonPill", () => {
     render(<StartBlockedReasonPill reason="urgent_job_active" startBlockedAt={blockedAt} />)
 
     const pill = screen.getByText("Urgent job in progress").closest("[data-status-pill]")
-    expect(pill).toHaveClass("bg-amber-50")
-    expect(pill).not.toHaveClass("bg-gray-100")
+    expect(pill).toHaveClass("bg-warning-surface")
+    expect(pill).not.toHaveClass("bg-neutral-surface")
   })
 
   it("keeps gray tone when start_blocked_at is less than 30 minutes ago", () => {
     const blockedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString()
     render(<StartBlockedReasonPill reason="urgent_job_active" startBlockedAt={blockedAt} />)
 
-    expect(screen.getByText("Urgent job in progress").closest("[data-status-pill]")).toHaveClass("bg-gray-100")
+    expect(screen.getByText("Urgent job in progress").closest("[data-status-pill]")).toHaveClass("bg-neutral-surface")
   })
 
   it("does not escalate non-gray tones even when blocked for a long time", () => {
     const blockedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     render(<StartBlockedReasonPill reason="main_branch_broken" startBlockedAt={blockedAt} />)
 
-    expect(screen.getByText("Main branch broken").closest("[data-status-pill]")).toHaveClass("bg-red-50")
+    expect(screen.getByText("Main branch broken").closest("[data-status-pill]")).toHaveClass("bg-danger-surface")
   })
 
   it("includes next retry timing in the tooltip when nextCheckAt is in the future", () => {

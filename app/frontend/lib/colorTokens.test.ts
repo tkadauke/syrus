@@ -67,6 +67,16 @@ describe("semantic color design tokens", () => {
   it("keeps the same token set in both modes", () => {
     expect(Object.keys(DARK_TOKENS).sort()).toEqual(Object.keys(LIGHT_TOKENS).sort())
   })
+
+  it("derives expanded semantic tokens from the theme-controlled base tokens", () => {
+    const css = readFileSync(APPLICATION_CSS_PATH, "utf-8")
+
+    expect(css).toContain("--color-warning-surface: color-mix(in srgb, var(--color-surface) 94%, var(--color-warning));")
+    expect(css).toContain("--color-info-text: var(--color-info);")
+    expect(css).toContain("--color-link: var(--color-brand-emphasis);")
+    expect(css).not.toContain("--color-warning-surface: #fff7ed;")
+    expect(css).not.toContain("--color-info-text: #1e40af;")
+  })
 })
 
 describe("readColorToken", () => {

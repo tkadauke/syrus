@@ -51,21 +51,21 @@ describe("CommitsBehindBadge", () => {
     render(<CommitsBehindBadge count={5} />)
     const badge = screen.getByText("5 behind")
     expect(badge).toBeInTheDocument()
-    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-gray-100")
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-neutral-surface")
   })
 
   it("renders an amber badge for a mid-range count (10-19)", () => {
     render(<CommitsBehindBadge count={15} />)
     const badge = screen.getByText("15 behind")
     expect(badge).toBeInTheDocument()
-    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-amber-50")
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-warning-surface")
   })
 
   it("renders a red badge for a high count (20+)", () => {
     render(<CommitsBehindBadge count={25} />)
     const badge = screen.getByText("25 behind")
     expect(badge).toBeInTheDocument()
-    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-red-50")
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-danger-surface")
   })
 
   it("includes an aria-label describing the count", () => {

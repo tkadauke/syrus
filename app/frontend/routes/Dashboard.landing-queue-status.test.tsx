@@ -149,8 +149,8 @@ describe("landing queue status column", () => {
 
     expect(screen.getByText("Queue status")).toBeInTheDocument()
     const status = screen.getByText("Waiting for Epic merge-train").closest("[data-status-pill]")
-    expect(status?.className).toContain("gray")
-    expect(status?.className).not.toContain("red")
+    expect(status?.className).toContain("bg-neutral-surface")
+    expect(status?.className).not.toContain("bg-danger-surface")
   })
 
   it("renders true landing blockers with warning styling in the same column", () => {
@@ -163,7 +163,7 @@ describe("landing queue status column", () => {
     ])
 
     const status = screen.getByText("Landing paused").closest("[data-status-pill]")
-    expect(status?.className).toContain("red")
+    expect(status?.className).toContain("bg-danger-surface")
   })
 
   it("shows a pending override badge when an override was granted but not yet used", () => {
@@ -178,7 +178,7 @@ describe("landing queue status column", () => {
     ])
 
     const badge = screen.getByText("Override granted")
-    expect(badge.closest("[data-status-pill]")?.className).toContain("amber")
+    expect(badge.closest("[data-status-pill]")?.className).toContain("bg-warning-surface")
     expect(badge.closest("[data-status-pill]")).toHaveAttribute("title", "Granted by Ada Admin at 2026-08-10T09:00:00Z")
   })
 
@@ -193,7 +193,7 @@ describe("landing queue status column", () => {
     ])
 
     const badge = screen.getByText("Override used")
-    expect(badge.closest("[data-status-pill]")?.className).toContain("gray")
+    expect(badge.closest("[data-status-pill]")?.className).toContain("bg-neutral-surface")
   })
 
   it("does not show an override badge when no override was ever requested", () => {
