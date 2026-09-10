@@ -23,6 +23,9 @@ RSpec.describe Steps::AdversarialReview do
   before do
     fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    allow(App::AdversarialReviewProjects).to receive(:call).and_return(
+      App::AdversarialReviewProjects::Result.new(projects: [])
+    )
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
@@ -167,48 +170,28 @@ RSpec.describe Steps::AdversarialReview do
     expect(iteration["skip_reason"]).to include("did not call submit_adversarial_review")
   end
 
-  context "when workspace .syrus.yml has criteria" do
+  context "when affected project criteria are available" do
     before do
-      syrus_yml_path = Pathname.new("/tmp/workspace/.syrus.yml")
-      allow(syrus_yml_path).to receive(:exist?).and_return(true)
-      allow(File).to receive(:read).with(syrus_yml_path.to_s).and_return(<<~YAML)
-        adversarial_review:
-          rounds: 1
-          criteria:
-            - Verify endpoints enforce authentication
-            - No internal state in errors
-      YAML
-      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
-        SyrusYml::Config.new(
-          prepare: nil,
-          grade: nil,
-          hooks: nil,
-          adversarial_review: SyrusYml::AdversarialReviewConfig.new(
-            rounds: 1,
+      allow(App::AdversarialReviewProjects).to receive(:call).with(
+        workspace_path: Pathname.new("/tmp/workspace"),
+        changed_files: [ "app.rb" ]
+      ).and_return(
+        App::AdversarialReviewProjects::Result.new(projects: [
+          App::AdversarialReviewProjects::Project.new(
+            id: "repo",
+            label: "Repository",
+            path: "",
+            owner_config_path: ".syrus.yml",
             criteria: [ "Verify endpoints enforce authentication", "No internal state in errors" ]
-          ),
-          agent_insight: nil,
-          coverage: nil,
-          formatters: [],
-          generated: [],
-          deployment_stages: [],
-          preview: nil,
-          visual_review: nil,
-          review_plan: false,
-          deploy: nil,
-          delivery: nil,
-          raw_delivery: nil,
-          approval: nil,
-          external_prs: nil,
-          project: nil,
-          targets: [],
-          target_graph: nil
-        )
+          )
+        ])
       )
     end
 
-    it "passes criteria to the prompt" do
+    it "passes affected project metadata and criteria to the prompt" do
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("Affected project criteria sources:")
+        expect(prompt).to include("Repository (path: (repository root), config: .syrus.yml, criteria: 2)")
         expect(prompt).to include("pay particular attention")
         expect(prompt).to include("Verify endpoints enforce authentication")
         expect(prompt).to include("No internal state in errors")
@@ -221,26 +204,11 @@ RSpec.describe Steps::AdversarialReview do
     end
   end
 
-  context "when workspace .syrus.yml is missing" do
+  context "when affected project criteria are unavailable" do
     before do
-      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
-    end
-
-    it "defaults criteria to [] without raising" do
-      expect(handler).to receive(:run_agent) do |prompt: nil, **|
-        expect(prompt).not_to include("pay particular attention")
-        workflow.set_artifact!("adversarial_review_iterations", [
-          { "iteration" => review_step.iteration, "critique" => "Fine.", "verdict" => "approved" }
-        ])
-      end
-
-      handler.call
-    end
-  end
-
-  context "when workspace .syrus.yml has a parse error" do
-    before do
-      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(SyrusYml::ParseError, "bad yaml")
+      allow(App::AdversarialReviewProjects).to receive(:call).and_return(
+        App::AdversarialReviewProjects::Result.new(projects: [])
+      )
     end
 
     it "defaults criteria to [] without raising" do
@@ -267,7 +235,9 @@ RSpec.describe Steps::AdversarialReview do
     end
 
     before do
-      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+      allow(App::AdversarialReviewProjects).to receive(:call).and_return(
+        App::AdversarialReviewProjects::Result.new(projects: [])
+      )
       Syrus::PluginRegistry.register(
         name: "fake_review_criteria_plugin", version: "1.0.0",
         provides: { review_criteria_provider: review_criteria_provider_class }
@@ -277,32 +247,16 @@ RSpec.describe Steps::AdversarialReview do
     after { Syrus::PluginRegistry.reset! }
 
     it "appears in the reviewer prompt alongside .syrus.yml's criteria" do
-      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
-        SyrusYml::Config.new(
-          prepare: nil,
-          grade: nil,
-          hooks: nil,
-          adversarial_review: SyrusYml::AdversarialReviewConfig.new(
-            rounds: 1,
+      allow(App::AdversarialReviewProjects).to receive(:call).and_return(
+        App::AdversarialReviewProjects::Result.new(projects: [
+          App::AdversarialReviewProjects::Project.new(
+            id: "repo",
+            label: "Repository",
+            path: "",
+            owner_config_path: ".syrus.yml",
             criteria: [ "Verify endpoints enforce authentication" ]
-          ),
-          agent_insight: nil,
-          coverage: nil,
-          formatters: [],
-          generated: [],
-          deployment_stages: [],
-          preview: nil,
-          visual_review: nil,
-          review_plan: false,
-          deploy: nil,
-          delivery: nil,
-          raw_delivery: nil,
-          approval: nil,
-          external_prs: nil,
-          project: nil,
-          targets: [],
-          target_graph: nil
-        )
+          )
+        ])
       )
 
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
@@ -319,6 +273,29 @@ RSpec.describe Steps::AdversarialReview do
     it "appears even when .syrus.yml has no criteria configured" do
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
         expect(prompt).to include("Flag new N+1 query patterns in ActiveRecord code")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+
+    it "deduplicates plugin and project criteria" do
+      allow(App::AdversarialReviewProjects).to receive(:call).and_return(
+        App::AdversarialReviewProjects::Result.new(projects: [
+          App::AdversarialReviewProjects::Project.new(
+            id: "repo",
+            label: "Repository",
+            path: "",
+            owner_config_path: ".syrus.yml",
+            criteria: [ "Flag new N+1 query patterns in ActiveRecord code" ]
+          )
+        ])
+      )
+
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt.scan("Flag new N+1 query patterns in ActiveRecord code").size).to eq(1)
         workflow.set_artifact!("adversarial_review_iterations", [
           { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
         ])
