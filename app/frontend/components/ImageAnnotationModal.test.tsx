@@ -77,6 +77,32 @@ describe("ImageAnnotationModal", () => {
     expect(contexts[0].drawImage).toHaveBeenCalled()
   })
 
+  it("completes the annotation when Enter is pressed outside text entry", async () => {
+    const onDone = vi.fn()
+    renderModal({ onDone })
+    await waitForLoaded()
+
+    fireEvent.keyDown(window, { key: "Enter" })
+
+    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
+    expect(contexts[0].drawImage).toHaveBeenCalled()
+  })
+
+  it("does not complete the annotation when Enter is pressed on a focused toolbar control", async () => {
+    const onClose = vi.fn()
+    const onDone = vi.fn()
+    renderModal({ onClose, onDone })
+    await waitForLoaded()
+
+    const cancelButton = screen.getByRole("button", { name: "Cancel" })
+    cancelButton.focus()
+    fireEvent.keyDown(cancelButton, { key: "Enter" })
+
+    expect(cancelButton).toHaveFocus()
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it("cancels without returning an annotated image", async () => {
     const onClose = vi.fn()
     const onDone  = vi.fn()
@@ -119,7 +145,8 @@ describe("ImageAnnotationModal", () => {
   })
 
   it("keeps text input visible after placement and commits text on Enter", async () => {
-    renderModal()
+    const onDone = vi.fn()
+    renderModal({ onDone })
     await waitForLoaded()
 
     fireEvent.click(screen.getByRole("button", { name: "Text" }))
@@ -132,6 +159,7 @@ describe("ImageAnnotationModal", () => {
     fireEvent.keyDown(input, { key: "Enter" })
 
     expect(screen.queryByPlaceholderText("Type, then press Enter")).not.toBeInTheDocument()
+    expect(onDone).not.toHaveBeenCalled()
     // fillText is called during renderCanvas after the TextShape is added to shapes
     await waitFor(() => {
       expect(contexts[1].fillText).toHaveBeenCalledWith("Review this", 30, 32)
