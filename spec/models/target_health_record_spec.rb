@@ -58,6 +58,21 @@ RSpec.describe TargetHealthRecord do
     expect(described_class.passed_for?(**lookup.merge(commit_sha: "def456"))).to eq(true)
   end
 
+  it "finds the latest reusable record by fingerprints without requiring the same commit sha" do
+    described_class.create!(valid_attributes(status: "passed", commit_sha: "oldsha", checked_at: 2.hours.ago))
+    failed = described_class.create!(valid_attributes(status: "failed", commit_sha: "newsha", checked_at: 1.hour.ago))
+
+    expect(
+      described_class.latest_for_reusable_inputs(
+        repository: repository,
+        target_label: "//cli:grade/tests",
+        input_fingerprint: "input-fp",
+        command_fingerprint: "command-fp",
+        environment_fingerprint: "env-fp"
+      )
+    ).to eq(failed)
+  end
+
   it "classifies statuses for target selection" do
     passed = described_class.new(valid_attributes(status: "passed"))
     stale = described_class.new(valid_attributes(status: "stale", target_label: "//cli:grade/lint"))
