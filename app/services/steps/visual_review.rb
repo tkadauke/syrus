@@ -44,7 +44,7 @@ module Steps
     def reviewer_prompt
       Prompts::VisualReview.new(
         issue: review_issue,
-        diff: latest_agentic_diff,
+        diff: review_diff,
         prior_findings: review_iterations,
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
@@ -80,6 +80,9 @@ module Steps
     end
 
     def changed_files
+      scoped_diff = review_diff
+      return diff_file_paths(scoped_diff) if scoped_diff.present?
+
       GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
         .split("\n").map(&:strip).reject(&:empty?)
     rescue GitRunner::GitError => e
@@ -113,20 +116,39 @@ module Steps
     # that kind at all; when one exists but hasn't produced a diff (still
     # running, failed, or genuinely produced nothing) keep raising so a
     # broken loop iteration surfaces instead of silently reviewing stale state.
+    def review_diff
+      latest_agentic_diff.presence
+    end
+
     def latest_agentic_diff
-      agentic_kind = feedback_workflow? ? "respond" : "implement"
       scope = workflow.steps.where(kind: agentic_kind)
 
       if scope.exists?
-        scope.where(state: "succeeded")
-          .order(:position)
-          .last
-          &.latest_run
-          &.agent_diff
+        latest_agentic_review_run
+          &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
           .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for visual_review")
       else
         diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
       end
+    end
+
+    def latest_agentic_review_run
+      workflow.steps.where(kind: agentic_kind, state: "succeeded")
+        .order(:position)
+        .last
+        &.latest_run
+    end
+
+    def agentic_kind
+      feedback_workflow? ? "respond" : "implement"
+    end
+
+    def diff_file_paths(diff)
+      diff.to_s.each_line.filter_map do |line|
+        next unless line.start_with?("diff --git ")
+
+        line[/\Ab\/(.+)\z/, 1] || line.split.last&.sub(/\Ab\//, "")
+      end.compact_blank.uniq
     end
 
     def feedback_workflow?

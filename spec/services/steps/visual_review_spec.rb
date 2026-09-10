@@ -27,7 +27,8 @@ RSpec.describe Steps::VisualReview do
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
-      agent_diff: "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n"
+      agent_diff: "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n",
+      step_agent_diff: "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n"
     )
   end
 
@@ -86,9 +87,34 @@ RSpec.describe Steps::VisualReview do
   end
 
   it "raises StepFailed when there is no succeeded implement diff" do
-    implement_run.update!(agent_diff: nil)
+    implement_run.update!(agent_diff: nil, step_agent_diff: nil)
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /no succeeded implement diff/)
+  end
+
+  it "reviews the latest implement step diff instead of the cumulative stack diff" do
+    implement_run.update!(
+      agent_diff: <<~DIFF,
+        diff --git a/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx b/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx
+        +<div>parent stack UI change</div>
+        diff --git a/app/services/step_dispatcher.rb b/app/services/step_dispatcher.rb
+        +dispatch_ready_siblings
+      DIFF
+      step_agent_diff: <<~DIFF
+        diff --git a/app/services/step_dispatcher.rb b/app/services/step_dispatcher.rb
+        +dispatch_ready_siblings
+      DIFF
+    )
+
+    expect(handler).to receive(:run_agent) do |prompt: nil, **|
+      expect(prompt).to include("diff --git a/app/services/step_dispatcher.rb")
+      expect(prompt).not_to include("DesignDocsSurface")
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Not visually testable.", "verdict" => "skipped" }
+      ])
+    end
+
+    handler.call
   end
 
   context "in a standalone manual_visual_review workflow (no implement/respond step)" do
@@ -245,6 +271,46 @@ RSpec.describe Steps::VisualReview do
     end
   end
 
+  context "when when_files_changed is configured for UI files but only a parent stack commit touched UI" do
+    before do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+        SyrusYml::Config.new(
+          prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, agent_insight: nil,
+          coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          delivery: nil, raw_delivery: nil, approval: nil, external_prs: nil, project: nil,
+          visual_review: SyrusYml::VisualReviewConfig.new(
+            enabled: true, rounds: 1,
+            when_files_changed: [ "app/frontend/**/*", "plugins/**/app/frontend/**/*" ],
+            seed_notes: nil
+          )
+        )
+      )
+      implement_run.update!(
+        agent_diff: <<~DIFF,
+          diff --git a/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx b/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx
+          +<div>parent stack UI change</div>
+          diff --git a/app/services/step_dispatcher.rb b/app/services/step_dispatcher.rb
+          +dispatch_ready_siblings
+        DIFF
+        step_agent_diff: <<~DIFF
+          diff --git a/app/services/step_dispatcher.rb b/app/services/step_dispatcher.rb
+          +dispatch_ready_siblings
+        DIFF
+      )
+    end
+
+    it "skips visual review based on this step's scoped diff" do
+      expect(handler).not_to receive(:run_agent)
+
+      handler.call
+
+      expect(workflow.reload.artifact("visual_review_iterations").last).to include(
+        "iteration" => review_step.iteration,
+        "verdict" => "skipped"
+      )
+    end
+  end
+
   context "when when_files_changed includes the plugin frontend globs and the diff is plugin-only (JOB-3662 regression)" do
     before do
       allow(handler.send(:workspace)).to receive(:base_ref).and_return("origin/main")
@@ -272,6 +338,10 @@ RSpec.describe Steps::VisualReview do
                                       "plugins/mysql_db_browser/app/frontend/components/TablesPanel.tsx\n"
                                     )
       end)
+      implement_run.update!(
+        agent_diff: "diff --git a/plugins/mysql_db_browser/app/frontend/routes/DbBrowser.tsx b/plugins/mysql_db_browser/app/frontend/routes/DbBrowser.tsx\n+ui\n",
+        step_agent_diff: "diff --git a/plugins/mysql_db_browser/app/frontend/routes/DbBrowser.tsx b/plugins/mysql_db_browser/app/frontend/routes/DbBrowser.tsx\n+ui\n"
+      )
     end
 
     it "invokes the agent instead of skipping via the pre-filter" do
