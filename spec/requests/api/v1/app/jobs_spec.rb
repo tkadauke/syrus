@@ -91,6 +91,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "repository_id" => repo.id,
       "repository_slug" => "acme/widgets",
       "branch_name" => "syrus/issue-42",
+      "effective_base_branch" => "main",
       "pr_number" => 7
     ))
     expect(body.to_s).not_to include("Private")

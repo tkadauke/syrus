@@ -291,6 +291,7 @@ module Api
             repository_slug: job.repository.slug,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
             branch_name: job.branch_name,
+            effective_base_branch: job.effective_base_branch,
             pr_number: job.pr_number,
             pr_url: ::App::Presentation.job_pr_url(job),
             created_at: job.created_at&.iso8601,
