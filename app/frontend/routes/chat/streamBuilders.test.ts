@@ -230,6 +230,43 @@ describe("renderChatMessages tool grouping", () => {
     expect(toolGroup.outcome_label).toBe("Failed")
   })
 
+  it("uses registered card summaries for errored goal tool results", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "mark_goal_completed", input: { reason: "done" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "goal is not active", isError: true }),
+      { type: "message", id: 3, role: "assistant", text: "That failed.", bookmarkable: true }
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.summary_label).toBe("Mark goal completed")
+    expect(toolGroup.outcome_label).toBe("Failed")
+    expect(toolGroup.collapsed_by_default).toBe(true)
+    expect(toolGroup.calls[0]).toMatchObject({
+      result_error: true,
+      result_kind: "error",
+      result_summary: "Goal completion failed"
+    })
+  })
+
+  it("summarizes ask_user_question arguments without raw JSON in the collapsed row", () => {
+    const items = renderChatMessages([
+      toolUse(1, {
+        toolUseId: "tu_1",
+        toolName: "ask_user_question",
+        input: { questions: [{ question: "Which path?", options: ["Fast", "Careful"] }] }
+      }),
+      toolResult(2, { toolUseId: "tu_1", content: JSON.stringify({ question_id: 17, message: "Question(s) recorded." }) })
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.calls[0]).toMatchObject({
+      detail: "1 question",
+      raw_payload: { questions: [{ question: "Which path?", options: ["Fast", "Careful"] }] },
+      result_summary: "Question request #17 recorded"
+    })
+    expect(toolGroup.calls[0].detail).not.toContain("{")
+  })
+
   it("does not merge side-effecting tools into read-only inspection groups", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

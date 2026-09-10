@@ -154,6 +154,9 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
     case "resolve_skill":
       detail = stringValue(input.name)
       break
+    case "ask_user_question":
+      detail = questionArgumentSummary(input)
+      break
     default:
       detail = defaultToolArgumentSummary(input)
   }
@@ -181,6 +184,12 @@ function defaultToolArgumentSummary(input: Record<string, unknown>) {
   if (candidate != null) return firstLine(stringValue(candidate))
 
   return firstLine(JSON.stringify(stableJsonValue(input)))
+}
+
+function questionArgumentSummary(input: Record<string, unknown>) {
+  const questions = input.questions
+  if (!Array.isArray(questions) || questions.length === 0) return defaultToolArgumentSummary(input)
+  return `${questions.length} question${questions.length === 1 ? "" : "s"}`
 }
 
 export function shortenWorkspacePaths(value: string) {
@@ -281,8 +290,6 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // returns null and both the generic and any plugin tool card silently lose
 // the whole result .
 export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
-  if (error) return { kind: "error", summary: "" }
-
   const normalizedName = normalizedToolName(name)
   const parsed = parseJsonText(parseBody)
 
@@ -290,7 +297,9 @@ export function toolResultPresentation(name: string, body: string, error = false
   // generic guess below (which can only pattern-match on the tool name and
   // a handful of well-known array/count keys), so it takes priority.
   const pluginSummary = pluginToolCardCollapsedSummary({ toolName: normalizedName, resultBody: body, resultError: error, parsedResult: parsed })
-  if (pluginSummary) return { kind: "text", summary: pluginSummary }
+  if (pluginSummary) return { kind: error ? "error" : "text", summary: pluginSummary }
+
+  if (error) return { kind: "error", summary: "" }
 
   const mcpSummary = mcpResultSummary(normalizedName, parsed)
   if (mcpSummary) return mcpSummary
