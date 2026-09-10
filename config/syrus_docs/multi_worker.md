@@ -170,6 +170,10 @@ guard count/limit, step kind, Run id, queue name, whether the queue was sticky
 resume, `deferred_at`, and `retry_at`. The Run also receives a system `JobLog`
 line:
 `compute host admission deferred before <step_kind>: <reason>`.
+The Job detail payload uses that `run_id` to attach the admission block only to
+the Step that owns the queued Run. Worker-slot admission artifacts use their
+`step_id` the same way. This keeps one waiting distributed grader from making
+its ready or running siblings, or the whole Workflow, appear paused.
 
 Worker-died auto-retries add a pre-dispatch guard before they create a
 replacement Run. If the failed Run's `workflows.worker_hostname` still has a
