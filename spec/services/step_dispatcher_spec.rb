@@ -8,6 +8,14 @@ require "rails_helper"
 # cancelled through a real `update!` (not `update_columns`, which would
 # skip the callback that clears the key) before attaching the new one.
 module StepDispatcherSpecAttachWorkUnit
+  def enable_distributed_workflow_dag!(repository)
+    Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+      feature.category = "Operations"
+      feature.name = "Distributed workflow DAG"
+    end.update!(enabled: true)
+    repository.update!(distributed_workflow_dag_enabled: true)
+  end
+
   def attach_work_unit(workflow, state: "queued", **options)
     WorkUnit
       .joins(:work_unit_members)
