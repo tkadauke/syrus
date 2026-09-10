@@ -339,6 +339,8 @@
   "field_body": "Corpus",
   "aria_stop_agent": "Agentem sistere",
   "aria_stop_shell_command": "Mandatum sistere",
+  "shell_command_running": "Mandatum currit",
+  "shell_command_stop": "Siste",
   "shell_command_exit_status": "exitus {{code}}",
   "shell_command_no_output": "(nihil exiit)",
   "shell_command_outcome_succeeded": "Confectum",
