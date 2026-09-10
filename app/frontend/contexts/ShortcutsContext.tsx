@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useSyncExternalStore, typ
 export interface ShortcutOptions {
   description: string
   group: string
+  allowWhileTyping?: boolean
   // Controls ordering of groups in the help modal; lower sorts first. Groups
   // sharing an order (the default) fall back to alphabetical.
   groupOrder?: number
@@ -108,6 +109,7 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
       const registration: ShortcutRegistration = {
         id: nextRegistrationId++,
         keys: normalizedKeys,
+        allowWhileTyping: options.allowWhileTyping ?? false,
         description: options.description,
         group: options.group,
         groupOrder: options.groupOrder ?? 0
@@ -145,11 +147,10 @@ export function ShortcutsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (isTypingTarget(event.target)) return
-
       for (const stack of registryRef.current.values()) {
         const active = stack[stack.length - 1]
         if (active && eventMatchesCombo(event, parseCombo(active.registration.keys))) {
+          if (!active.registration.allowWhileTyping && isTypingTarget(event.target)) return
           active.handler(event)
           return
         }
@@ -180,7 +181,7 @@ export function useShortcut(keys: string, handler: ShortcutHandler, options: Sho
 
   useEffect(() => {
     return context.register(keys, (event) => handlerRef.current(event), options)
-  }, [context, keys, options.description, options.group, options.groupOrder])
+  }, [context, keys, options.allowWhileTyping, options.description, options.group, options.groupOrder])
 }
 
 // Live snapshot of every currently-active (i.e. not shadowed) shortcut
