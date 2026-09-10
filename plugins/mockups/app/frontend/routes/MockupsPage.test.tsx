@@ -22,7 +22,7 @@ function summary(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function detail() {
+function detail(panelOverrides: Record<string, unknown> = {}) {
   return {
     mockup: summary(),
     panel: {
@@ -40,7 +40,8 @@ function detail() {
       entry_content_type: "text/html",
       entry_viewer_kind: "html",
       updated_at: "2026-09-05T10:00:00Z",
-      versions: [ { id: 9, created_at: "2026-09-05T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" } ]
+      versions: [ { id: 9, created_at: "2026-09-05T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" } ],
+      ...panelOverrides
     }
   }
 }
@@ -108,5 +109,27 @@ describe("MockupsPage", () => {
     renderPage("/mockups/MOCKUP-1")
 
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Mockup preview" })).toBeInTheDocument())
+  })
+
+  it("requests a fresh token for private html mockups and appends it to the iframe URL", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/preview_panels/4/token") {
+        return Promise.resolve(jsonResponse({ token: "fresh-token", expires_in: 86400 }))
+      }
+      if (path.startsWith("/api/v1/app/mockups/")) {
+        return Promise.resolve(jsonResponse(detail({ visibility: "private" })))
+      }
+      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+    })
+
+    renderPage("/mockups/MOCKUP-1")
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Nav sketch")).toHaveAttribute(
+        "src",
+        "http://preview-panel-4.lvh.me/?v=9&token=fresh-token"
+      )
+    })
   })
 })
