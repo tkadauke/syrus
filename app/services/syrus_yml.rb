@@ -182,7 +182,7 @@ class SyrusYml
   # call, not this parser's -- SyrusYml only sees one file's content, never
   # its position in the repository.
   ProjectConfig = Data.define(:id, :label, :kind, :path)
-  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps)
+  TargetConfig = Data.define(:name, :kind, :command, :sources, :deps, :phases, :required, :timeout_minutes)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
@@ -489,10 +489,44 @@ class SyrusYml
         name: name,
         kind: kind,
         command: (item["run"] || item["command"]).to_s.strip.presence,
-        sources: parse_globs(item["sources"] || item["source_scope"], "#{label}.sources", required: false),
-        deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps")
+        sources: parse_target_sources(item["sources"] || item["source_scope"], "#{label}.sources"),
+        deps: parse_dependency_refs(item["deps"] || item["dependencies"], "#{label}.deps"),
+        phases: parse_target_phases(item["phases"], "#{label}.phases"),
+        required: item.key?("required") ? ActiveModel::Type::Boolean.new.cast(item["required"]) : false,
+        timeout_minutes: parse_target_timeout_minutes(item["timeout_minutes"], "#{label}.timeout_minutes")
       )
     end
+  end
+
+  def parse_target_sources(raw, label)
+    sources = parse_globs(raw, label, required: false)
+    invalid = sources.select { |source| invalid_target_source_scope?(source) }
+    if invalid.any?
+      raise ParseError, "#{label}: must be relative paths inside the declaring .syrus.yml directory; invalid #{invalid.join(', ')}"
+    end
+
+    sources
+  end
+
+  def invalid_target_source_scope?(source)
+    source.start_with?("/") || source.split("/").include?("..")
+  end
+
+  def parse_target_phases(raw, label)
+    return [] if raw.nil?
+
+    parse_grade_phases(raw, label)
+  end
+
+  def parse_target_timeout_minutes(raw, label)
+    return nil if raw.nil?
+
+    minutes = Integer(raw)
+    raise ParseError, "#{label}: must be a positive integer" unless minutes.positive?
+
+    minutes
+  rescue ArgumentError, TypeError
+    raise ParseError, "#{label}: must be a positive integer"
   end
 
   def parse_dependency_refs(raw, label)

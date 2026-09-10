@@ -341,10 +341,20 @@ class TargetGraph
             source_scope: scoped_source_scope(package, target.sources),
             command: target.command,
             dependencies: resolved_dependencies(target.deps, package: package),
-            owner_config_path: config_path
+            phases: target.phases,
+            required: target.required,
+            timeout_minutes: target.timeout_minutes,
+            owner_config_path: config_path,
+            metadata: explicit_target_metadata(target)
           )
         )
       end
+    end
+
+    def explicit_target_metadata(target)
+      return {} unless target.kind == "prepare" && target.command.present?
+
+      { "commands" => [ target.command ] }
     end
 
     def compile_formatters!(graph, syrus_config: config, package: "", project_id: root_project_id, config_path: owner_config_path)
