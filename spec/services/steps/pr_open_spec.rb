@@ -466,7 +466,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   # every mutation step's commit to a durable ref for exactly this case, and
   # only summarize/summarize_amend ever restored from it -- so the one step
   # that publishes the branch was the one that could not recover.
-  # JOB-4453/4463/4470 all reached here empty.
+  # the empty-workspace PR-open regressions all reached here empty.
   it "restores the validated implementation from its checkpoint before publishing" do
     job.update!(state: "running", kind: "direct", issue_number: nil, pr_number: nil)
     implement_run = Run.create!(
@@ -499,7 +499,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   # `authenticated_git(git, operation_type)`, shadowing the one-argument helper
   # in Steps::Base that the restore uses -- so the real call raised
   # `ArgumentError: wrong number of arguments (given 1, expected 2)` in exactly
-  # the two steps that publish a branch. JOB-4453 failed four times this way
+  # the two steps that publish a branch. the empty-workspace PR-open regression failed four times this way
   # after the fix was deployed, with the error swallowed by the opportunistic
   # rescue.
   it "can actually reach the checkpoint fetch from pr_open" do
@@ -940,7 +940,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
   # Choosing between these two branches is destructive and irreversible, and the
   # operator usually faces the choice hours later on a worker that no longer has
   # the workspace. Capture what each side holds while both are still readable,
-  # or the banner can only ever show two SHAs (JOB-4485).
+  # or the banner can only ever show two SHAs .
   it "records what replacing the branch would discard and publish" do
     job.update!(state: "running", pr_number: 77)
     pr_open_run = Run.create!(

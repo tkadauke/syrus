@@ -1,8 +1,8 @@
 require "rails_helper"
 
-# The repo-local `.syrus/skills/backport-hotfixes/SKILL.md` skill (EPIC-235)
+# The repo-local `.syrus/skills/backport-hotfixes/SKILL.md` skill 
 # that reconciles `main` back into `development` for periodic ScheduledTask
-# invocation (JOB-3172). Like `promote` (JOB-3152/spec/skills/promote_spec.rb),
+# invocation . Like `promote` (the relevant change/spec/skills/promote_spec.rb),
 # this is plain git-tracked markdown with no Ruby class behind it —
 # Skills::SkillMarkdown is what turns it into a Skills::Definition. These
 # specs parse and render the *actual* checked-in file, so a future edit that

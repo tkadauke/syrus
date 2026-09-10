@@ -1,5 +1,5 @@
 module Prompts
-  # The agent-facing text for a completed `!` shell command (EPIC-323). The
+  # The agent-facing text for a completed `!` shell command (the chat shell-command cancellation feature). The
   # chat message itself carries an empty display "text" — the composer
   # renders the command + output as a dedicated monospace/ANSI card
   # (MessageCards.tsx ShellCommandCard) instead of chat prose — so this is

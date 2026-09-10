@@ -1,8 +1,8 @@
 import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row } from "@app/routes/chat/toolCardUi"
 
-// Shared presentation for the whiteboard plugin's chat tool cards (EPIC-292 /
-// JOB-4223). Most drawing/move/delete tools return only `{ id, version }` --
+// Shared presentation for the whiteboard plugin's chat tool cards (the pending-action tool-card work /
+// Most drawing/move/delete tools return only `{ id, version }` --
 // see plugins/whiteboard/app/services/whiteboard/*_tool.rb and
 // Whiteboard::Canvas#mutate, which always merges `version` onto the block's
 // result -- so one parser plus one card backs draw_shape, draw_text,

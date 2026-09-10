@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
-    # 18 Job built-ins (15 + 3 EPIC-268 delivery presets) + 9 Epic + 4 Workflow
+    # 18 Job built-ins (15 + 3 the relevant change delivery presets) + 9 Epic + 4 Workflow
     # + 4 Admin User + 3 Spawned Process + 11 Admin Queue = 49 core built-ins.
     # Plugins register their own on top (design_docs adds 6), so the total is
     # counted rather than pinned -- pinning it makes those plugins undeletable.

@@ -10,7 +10,7 @@ module Steps
   # the row lock + post-condition check below, a concurrent write between
   # the check and Job#close_with_reason! could silently no-op the close
   # while this step (and its Run) still reports success — stranding the
-  # Job open with no visible failure anywhere (see JOB-3302). Locking and
+  # Job open with no visible failure anywhere. Locking and
   # verifying the end state turns that into a raised, retryable failure
   # instead of a silent one.
   class AutoClose < Base

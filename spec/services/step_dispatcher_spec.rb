@@ -3,7 +3,7 @@ require "rails_helper"
 # `Factories.job` (unlike `Factories.job_record`) drives the real
 # create_initial_run path, so it already owns one active "initial"
 # WorkUnit before these specs attach a second, manually-controlled
-# Workflow to exercise StepDispatcher in isolation. Since JOB-4235 made
+# Workflow to exercise StepDispatcher in isolation. Since the relevant change made
 # active_dedup_key unique per (scope, kind), that stale sibling must be
 # cancelled through a real `update!` (not `update_columns`, which would
 # skip the callback that clears the key) before attaching the new one.
@@ -1931,7 +1931,7 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(new_steps.map(&:kind)).to eq(%w[ implement visual_review ])
     end
 
-    # Fixes JOB-4300: a `needs_work` verdict on the last review round used to
+    # Fixes a `needs_work` verdict on the last review round used to
     # produce zero repair attempts (rounds: 1) or drop a review opinion one
     # round early (rounds: 2+, off-by-one). Every round now gets exactly one
     # repair reaction, and the loop only goes repair-only once the Nth

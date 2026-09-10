@@ -331,7 +331,7 @@ RSpec.describe "App API pending feedback", type: :request do
     end
 
     it "surfaces a graceful error instead of raising when retrying a work_kind path races an unrelated active WorkUnit" do
-      # JOB-4235: `active_feedback_workflow_for?` only flags a conflict
+      # `active_feedback_workflow_for?` only flags a conflict
       # when the active workflow references *this* comment. An unrelated
       # active feedback workflow for the same job still shares the
       # "job:<id>" lock, so WorkUnits::Launcher.instantiate must be

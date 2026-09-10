@@ -1,7 +1,7 @@
 require "mcp"
 
 module K8sCluster
-  # Write tool (EPIC-306 phase 2): deletes a pod to force a reschedule.
+  # Write tool (the relevant change phase 2): deletes a pod to force a reschedule.
   # Gated by `agentic_access_enabled? && allow_writes?`, see RestartRolloutTool.
   class DeletePodTool < MCP::Tool
     extend AgenticToolResponse

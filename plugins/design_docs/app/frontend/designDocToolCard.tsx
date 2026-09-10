@@ -1,8 +1,8 @@
 import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
-// Shared presentation for the design_docs plugin's chat tool cards (EPIC-292
-// / JOB-4223). read_design_doc, propose_design_doc, suggest_design_doc_change,
+// Shared presentation for the design_docs plugin's chat tool cards (the pending-action tool-card work
+// / read_design_doc, propose_design_doc, suggest_design_doc_change,
 // and comment_on_design_doc all echo a design_doc summary (list_payload or
 // detail_payload -- see plugins/design_docs/app/services/design_docs/tool_support.rb),
 // so this module parses that common subset once.

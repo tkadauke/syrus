@@ -36,8 +36,8 @@ import replacePrBranchWithWorkflowOutputCard from "./replace_pr_branch_with_work
 import retryFromCurrentPrBranchCard from "./retry_from_current_pr_branch"
 import reconcileJobStateCard from "./reconcile_job_state"
 
-// Parity guard for the pending-action tool card family (EPIC-292 /
-// JOB-4222). Each card is a thin re-export of ../pendingActionToolCard, so
+// Parity guard for the pending-action tool card family (the pending-action tool-card work /
+// Each card is a thin re-export of ../pendingActionToolCard, so
 // the per-shape behavior is covered once in pendingActionToolCard.test.tsx;
 // what can still silently rot here is the tool-name binding (a copy/paste
 // slip registers a card the sidecar never dispatches to), plus the wiring
@@ -111,10 +111,10 @@ describe("pending action tool card family", () => {
       pending_confirmation_id: 501,
       pending_action_id: 501,
       state: "pending",
-      message: "Rebase JOB-4222 onto main?"
+      message: "Rebase JOB-322 onto main?"
     }
 
-    expect(rebaseJobCard.collapsedSummary?.(context("rebase_job", parsedResult))).toBe("Rebase JOB-4222 onto main?")
+    expect(rebaseJobCard.collapsedSummary?.(context("rebase_job", parsedResult))).toBe("Rebase JOB-322 onto main?")
     render(<>{rebaseJobCard.renderExpanded(context("rebase_job", parsedResult))}</>)
     expect(screen.getByText("#501")).toBeInTheDocument()
     expect(screen.getByText("pending")).toBeInTheDocument()
@@ -149,7 +149,7 @@ describe("pending action tool card family", () => {
     }
 
     expect(adoptCurrentPrHeadCard.collapsedSummary?.(context("adopt_current_pr_head", parsedResult))).toBe(
-      "Dry run: adopt_current_pr_head for JOB-4222"
+      "Dry run: adopt_current_pr_head for JOB-322"
     )
     render(<>{adoptCurrentPrHeadCard.renderExpanded(context("adopt_current_pr_head", parsedResult))}</>)
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()

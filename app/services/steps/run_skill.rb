@@ -7,7 +7,7 @@ module Steps
   # locally, verify branch history, capture the diff.
   #
   # Records which tier resolved (skill_source) and the resolved
-  # path/class onto the Run — the EPIC-233 provenance requirement, so a
+  # path/class onto the Run — the the skill-workflow feature provenance requirement, so a
   # repo-local skill silently shadowing a built-in of the same name is
   # never a debugging trap.
   #

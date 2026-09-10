@@ -3597,7 +3597,7 @@ describe("App", () => {
 
     expect(await screen.findByText("Navigate to Epic")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/app-shell/epics/7")
-    expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-594")
+    expect(screen.getByText("Navigate to Epic").closest("td")).toHaveTextContent("EPIC-7/JOB-94")
     const copySlugButton = screen.getByRole("button", { name: "Copy JOB-594 to clipboard" })
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-594"))
@@ -10298,7 +10298,7 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add dependency" }))
-    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill (JOB-41)" }))
+    fireEvent.click(screen.getByRole("button", { name: "acme/widgets #11 - Build hill " }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/dependencies",
@@ -16020,7 +16020,7 @@ function epicDetailPayload(overrides: {
       initially_open: true,
       nodes: [
         { id: "epic_7", kind: "epic", label: "EPIC-7 Raise the forum", state: "ready", epic_id: 7, url: "/epics/EPIC-7", is_focal: true },
-        { id: "epic_6", kind: "epic", label: "EPIC-6 Deliver marble", state: "done", epic_id: 6, url: "/epics/EPIC-6", is_focal: false }
+        { id: "epic_6", kind: "epic", label: "the Kubernetes write-tool feature Deliver marble", state: "done", epic_id: 6, url: "/epics/the Kubernetes write-tool feature", is_focal: false }
       ],
       edges: [
         { from_id: "epic_7", to_id: "epic_6" }
@@ -16112,7 +16112,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     dependencies: [],
     dependents: [],
     unsatisfied_dependencies: [],
-    dependency_target_options: [{ label: "acme/widgets #11 - Build hill (JOB-41)", value: "issue:3:11" }],
+    dependency_target_options: [{ label: "acme/widgets #11 - Build hill ", value: "issue:3:11" }],
     epic_dependency_target_options: [],
     attachments: [
       {

@@ -7,7 +7,7 @@ import {
   ScheduledTaskSummary
 } from "../scheduledTaskToolCard"
 
-// Plugin-owned tool card for read_scheduled_task (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for read_scheduled_task (the pending-action tool-card work).
 // Payload is `{ scheduled_task: <scheduled_task_payload>.merge(prompt:) }`;
 // the prompt is usually long, so it hides behind a disclosure.
 function collapsedSummary(context: ToolCardContext) {

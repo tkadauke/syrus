@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "@app/routes/chat/toolCardUi"
 
-// Plugin-owned tool card for delete_memory (EPIC-293). delete_memory's
+// Plugin-owned tool card for delete_memory (the tool-card work). delete_memory's
 // response `{ id, deleted: true }` doesn't echo the memory content -- there
 // is nothing left to preview once it's soft-deleted, just the confirmation.
 type DeleteMemoryResult = { id: string; deleted: boolean }

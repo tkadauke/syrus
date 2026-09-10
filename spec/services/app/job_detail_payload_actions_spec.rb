@@ -947,7 +947,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         details: {
           "kind" => "fan_in_base_unavailable",
           "message" => "multiple dependency branches are ready",
-          "dependencies" => [ { "slug" => "JOB-1574" } ]
+          "dependencies" => [ { "slug" => "JOB-874" } ]
         }
       )
 
@@ -957,7 +957,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(result.dig(:job, :start_blocked_details)).to include(
         "kind" => "fan_in_base_unavailable",
         "message" => "multiple dependency branches are ready",
-        "dependencies" => [ { "slug" => "JOB-1574" } ]
+        "dependencies" => [ { "slug" => "JOB-874" } ]
       )
     end
 

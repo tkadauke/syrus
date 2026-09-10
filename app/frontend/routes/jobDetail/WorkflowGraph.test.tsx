@@ -381,11 +381,11 @@ describe("WorkflowsTab", () => {
               state: "running",
               work_intent_id: 91,
               workflow_id: 20071,
-              workflow_slug: "WF-20071",
+              workflow_slug: "WF-171",
               workflow_trigger_kind: "merge_train",
               workflow_state: "running",
               workflow_attached_job_id: 3564,
-              workflow_attached_job_slug: "JOB-3564",
+              workflow_attached_job_slug: "JOB-464",
               member_role: "member",
               scope_type: "epic",
               scope_id: 260,
@@ -412,8 +412,8 @@ describe("WorkflowsTab", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText("EPIC-260")).toBeInTheDocument()
-    expect(screen.getByText("attached to JOB-3564")).toBeInTheDocument()
+    expect(screen.getByText("EPIC-30")).toBeInTheDocument()
+    expect(screen.getByText("attached to JOB-464")).toBeInTheDocument()
   })
 
   it("summarizes admission-control diagnostics instead of dumping telemetry JSON", () => {
@@ -429,7 +429,7 @@ describe("WorkflowsTab", () => {
               state: "blocked",
               work_intent_id: 38,
               workflow_id: 20071,
-              workflow_slug: "WF-20071",
+              workflow_slug: "WF-171",
               workflow_trigger_kind: "initial",
               workflow_state: "queued",
               workflow_attached_job_id: 3593,
@@ -509,7 +509,7 @@ describe("WorkflowsTab", () => {
               state: "blocked",
               work_intent_id: 38,
               workflow_id: 20071,
-              workflow_slug: "WF-20071",
+              workflow_slug: "WF-171",
               workflow_trigger_kind: "initial",
               workflow_state: "queued",
               workflow_attached_job_id: 3593,
@@ -522,7 +522,7 @@ describe("WorkflowsTab", () => {
               blocked_details: {
                 kind: "stack_parent_not_ready",
                 message: "selected stack parent is missing an open PR branch or captured head SHA",
-                dependencies: [{ slug: "JOB-3592", state: "running", job_id: 3592 }],
+                dependencies: [{ slug: "JOB-492", state: "running", job_id: 3592 }],
                 start_blocked_reason: "stack_dependencies_not_ready"
               },
               parent_work_unit_id: null,
@@ -549,7 +549,7 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Stack dependencies not ready")).toBeInTheDocument()
     expect(screen.getByText("This stack item is waiting for its parent branch to be ready.")).toBeInTheDocument()
     expect(screen.getByText("selected stack parent is missing an open PR branch or captured head SHA.")).toBeInTheDocument()
-    expect(screen.getByText("JOB-3592 is running.")).toBeInTheDocument()
+    expect(screen.getByText("JOB-492 is running.")).toBeInTheDocument()
   })
 
   it("shows when older step runs are omitted from the workflow payload", () => {

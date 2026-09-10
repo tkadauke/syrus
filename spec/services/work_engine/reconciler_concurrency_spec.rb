@@ -27,7 +27,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     enqueued_jobs.select { |enqueued| enqueued["job_class"] == "RunJob" }.map { |enqueued| enqueued["arguments"].first }
   end
 
-  # Regression coverage for the JOB-2970 / WF-18780 "run storm": two
+  # Regression coverage for the the relevant change / WF-480 "run storm": two
   # concurrent reconcile passes read the same stale state (a queued Run with
   # no SolidQueue claim) and both independently decided to repair it,
   # re-enqueueing the same Run twice. WorkEngine::Reconciler.call_locked!

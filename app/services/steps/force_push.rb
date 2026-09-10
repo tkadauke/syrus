@@ -135,7 +135,7 @@ module Steps
 
     # A rebase that dropped every commit leaves HEAD at the base tip. Pushing
     # that empties the PR and destroys the record of what the Job did, which is
-    # exactly how JOB-4346's PR ended up with zero commits after its work had
+    # exactly how the already-landed closed-PR regression's PR ended up with zero commits after its work had
     # already landed. `AutoRebase` refuses to push it; so does this step, since
     # a Run resumed from a failed step reaches here on its own.
     def already_landed_auto_rebase?

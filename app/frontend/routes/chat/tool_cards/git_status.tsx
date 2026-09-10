@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, EmptyState } from "../toolCardUi"
 
-// Local Mode tool card for git_status (EPIC-293 / JOB-4225). Parses raw
+// Local Mode tool card for git_status (the tool-card work). Parses raw
 // `git status --porcelain` lines into a per-file category so the reviewer
 // gets a scannable summary instead of raw two-letter status codes.
 type Category = "untracked" | "added" | "deleted" | "renamed" | "modified" | "other"

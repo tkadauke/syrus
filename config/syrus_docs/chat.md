@@ -306,7 +306,7 @@ chat's own Coding Mode turn rather than a separate execution path. See
 `skills.md`'s "Slash-command execution in chat" section for the full
 resolution, Coding Mode gating, and handoff-confirmation behavior.
 
-## One-shot shell commands in Coding Mode and Local Mode (EPIC-323)
+## One-shot shell commands in Coding Mode and Local Mode (the chat shell-command cancellation feature)
 
 `POST /api/v1/app/chats/:chat_id/shell_commands` runs a single, user-supplied
 shell command against a Coding Mode or Local Mode chat session's checkout.

@@ -88,7 +88,7 @@ module Workflows
           #
           # That combination is invisible: "Just failed" filters on Job state,
           # so the Job reads healthy while nothing is working on it and
-          # anything stacked behind it is blocked. JOB-4253 sat that way for
+          # anything stacked behind it is blocked. the queued-workflow lifecycle regression sat that way for
           # fifteen hours with a three-Job chain waiting on it, and was only
           # found by an operator going looking.
           job.start_running! if never_started_while_job_queued? && job.may_start_running?

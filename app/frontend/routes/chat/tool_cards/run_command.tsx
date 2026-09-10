@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, Disclosure, displayValue, Row, truncateLines } from "../toolCardUi"
 
-// Local Mode tool card for run_command (EPIC-293 / JOB-4225). A non-zero
+// Local Mode tool card for run_command (the tool-card work). A non-zero
 // exit code or `killed` is a normal successful tool call (the command ran,
 // it just failed/timed out), not a tool error, so this card is what
 // surfaces command-failure output to the reviewer.

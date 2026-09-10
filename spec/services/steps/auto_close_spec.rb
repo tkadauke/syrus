@@ -29,7 +29,7 @@ RSpec.describe Steps::AutoClose do
   end
 
   it "raises instead of silently succeeding when the Job doesn't actually close" do
-    # Regression guard for JOB-3302: if the close attempt no-ops for any
+    # Regression guard for if the close attempt no-ops for any
     # reason, the step must surface that as a failure rather than let the
     # Run/Step report "succeeded" while the Job stays open.
     allow_any_instance_of(Job).to receive(:may_close?).and_return(false)

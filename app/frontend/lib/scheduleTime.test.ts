@@ -29,9 +29,9 @@ describe("parseScheduleCommandArgs", () => {
   const now = new Date(2026, 6, 30, 15, 30)
 
   it("splits a shorthand time prefix from the message", () => {
-    expect(parseScheduleCommandArgs("2h ask about JOB-1234", now)).toEqual({
+    expect(parseScheduleCommandArgs("2h ask about JOB-534", now)).toEqual({
       fireAt: new Date(now.getTime() + 2 * 60 * 60 * 1000),
-      body: "ask about JOB-1234"
+      body: "ask about JOB-534"
     })
   })
 

@@ -4,8 +4,8 @@ import { signInAsDemo } from "../../../e2e/support/auth"
 const MACRO_PATH = "/api/v1/app/admin/worker_timeline/macro"
 const WORKFLOW_PATH = "/api/v1/app/admin/worker_timeline/workflow"
 
-const SPAN_LABEL = "JOB-4432 · initial"
-const PENDING_LABEL = "JOB-4433 · pr_comment"
+const SPAN_LABEL = "JOB-532 · initial"
+const PENDING_LABEL = "JOB-533 · pr_comment"
 const PENDING_JOB_TITLE = "Address feedback on the forum mural"
 
 const emptyBlocked = {
@@ -152,7 +152,7 @@ test("Worker Timeline plugin visualizes worker lanes and drills into a workflow 
 
   // Waiting-to-start list surfaces the pending Workflow separately from the lanes.
   await expect(page.getByRole("heading", { name: "Waiting to start" })).toBeVisible()
-  await expect(page.getByText("JOB-4433")).toBeVisible()
+  await expect(page.getByText("JOB-533")).toBeVisible()
   await expect(page.getByText("pr_comment")).toBeVisible()
   await expect(page.getByText("Blocked: waiting for main branch health")).toBeVisible()
 

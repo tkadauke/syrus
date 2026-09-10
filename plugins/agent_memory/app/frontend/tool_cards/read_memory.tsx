@@ -1,7 +1,7 @@
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { MemoryDetailBody, parseMemoryDetail } from "../memoryToolCard"
 
-// Plugin-owned tool card for read_memory (EPIC-293).
+// Plugin-owned tool card for read_memory (the tool-card work).
 function collapsedSummary(context: ToolCardContext) {
   const memory = parseMemoryDetail(context)
   if (!memory) return null

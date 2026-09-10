@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { EmptyState } from "@app/routes/chat/toolCardUi"
 import { AccessPill, parseConnection, TableShell, type MysqlConnectionRow } from "../mysqlToolCard"
 
-// Plugin-owned tool card for mysql_db_browser_list_connections (EPIC-293).
+// Plugin-owned tool card for mysql_db_browser_list_connections (the tool-card work).
 // The payload is already safe metadata only (see
 // MysqlDbBrowser::AgenticAccess::SAFE_METADATA_FIELDS -- no host, username,
 // or password), so this card renders it as-is.

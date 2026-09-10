@@ -70,7 +70,7 @@ function seededPerformancePayload() {
           average_sql_duration_ms: 900,
           slow_sql_count: 1,
           last_seen_at: "2026-09-01T12:00:05Z",
-          recent_active_job_id: "job-4430",
+          recent_active_job_id: "job-230",
           recent_trigger_reasons: [ "duration" ]
         }
       ],
@@ -119,7 +119,7 @@ function seededPerformancePayload() {
         app_revision: "e2e0000000000000",
         duration_ms: 6200,
         job_class: "PollAllPullRequestsJob",
-        active_job_id: "job-4430",
+        active_job_id: "job-230",
         queue_name: "polling",
         sql_count: 40,
         sql_duration_ms: 900,

@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, decimalCost, displayValue, EmptyState, StatePill } from "../toolCardUi"
 import { JobRefLink, Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_list_runs (EPIC-293 / JOB-4227). Renders a
+// Core-owned tool card for admin_list_runs (the tool-card work). Renders a
 // dense cross-Job table of Runs: state, trigger kind, timing, and cost.
 type RunRow = {
   key: string

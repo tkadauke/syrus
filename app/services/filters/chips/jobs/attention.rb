@@ -20,7 +20,7 @@ module Filters
           waiting_for_upstream promotion_pending delivery_needs_attention
         ].freeze
 
-        # How far back to look for EPIC-268 delivery-track candidates
+        # How far back to look for the relevant change delivery-track candidates
         # (`promotion_pending`) — `waiting_for_upstream`/`delivery_needs_attention`
         # key off already-persisted `JobPrLink` rows instead (a small, naturally
         # bounded table) and don't need this window.

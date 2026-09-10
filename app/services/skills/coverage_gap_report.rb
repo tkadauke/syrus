@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): read-only report ranking files/modules by
+  # Built-in skill : read-only report ranking files/modules by
   # test-coverage risk — weighted by recent change frequency (git log)
   # rather than raw coverage percentage alone, since a stable low-coverage
   # file is lower priority than a frequently-changed one. Report-only, no

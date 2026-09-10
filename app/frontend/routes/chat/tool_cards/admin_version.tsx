@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, EmptyState, Row, SectionLabel } from "../toolCardUi"
 import { HealthPill, parseHealthLevel, parseWorkerHealthCounts, Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_version (EPIC-293 / JOB-4227). Renders the
+// Core-owned tool card for admin_version (the tool-card work). Renders the
 // request-handling instance's own identity, the live instance roster
 // (rolling deploy visibility -- old and new SHAs both show up mid-rollout),
 // and an aggregate worker-health rollup.

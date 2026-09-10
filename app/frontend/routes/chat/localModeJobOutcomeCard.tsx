@@ -2,8 +2,8 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, StatePill } from "./toolCardUi"
 
 // Shared presentation for the Local Mode job-lifecycle tool family
-// (open_in_local_mode, cancel_local_mode, create_coding_job — EPIC-293 /
-// JOB-4225). All three return a `job_id`/`job_state`/`message` outcome,
+// (open_in_local_mode, cancel_local_mode, create_coding_job — the tool-card work /
+// All three return a `job_id`/`job_state`/`message` outcome,
 // with `branch_name`/`repository_slug` present only where the underlying
 // tool actually resolves them; `tool_cards/<name>.tsx` files are thin
 // re-exports. Lives outside `tool_cards/` for the same reason as

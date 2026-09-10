@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): scans the dependency tree for license
+  # Built-in skill : scans the dependency tree for license
   # compliance issues using each detected ecosystem's standard
   # license-listing tooling, and reports what it finds. Report-only,
   # always — unlike Skills::DependencyAudit (which can optionally bump

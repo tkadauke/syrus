@@ -50,7 +50,7 @@ describe("admin_read_operational_logs tool card", () => {
     render(<>{adminReadOperationalLogsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("Log preview (60)")).toBeInTheDocument()
-    expect(screen.getAllByText("JOB-4048").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("JOB-148").length).toBeGreaterThan(0)
     expect(screen.getByText("Showing first 50 of 60 rows.")).toBeInTheDocument()
   })
 

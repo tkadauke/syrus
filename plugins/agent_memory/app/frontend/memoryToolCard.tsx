@@ -3,7 +3,7 @@ import { isPlainObject, type ToolCardContext } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill, truncateLines } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the agent_memory plugin's chat tool cards
-// (EPIC-293 / JOB-4226). list_memories, search_memories, read_memory,
+// (the tool-card work). list_memories, search_memories, read_memory,
 // write_memory, publish_memory, and unpublish_memory all echo the same
 // `memory_payload` shape (see
 // plugins/agent_memory/app/services/agent_memory/tools/memory_tool_support.rb),

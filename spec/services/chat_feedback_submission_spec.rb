@@ -48,7 +48,7 @@ RSpec.describe ChatFeedbackSubmission do
   end
 
   it "still rejects duplicate chat feedback when a conflicting WorkUnit slips past the active-unit precheck" do
-    # JOB-4235: the precheck above is a plain unlocked SELECT with a TOCTOU
+    # the precheck above is a plain unlocked SELECT with a TOCTOU
     # gap. Simulate it losing the race (returning false even though a
     # conflicting WorkUnit already exists) and confirm WorkUnits::Launcher
     # itself still refuses to materialize a second Workflow.

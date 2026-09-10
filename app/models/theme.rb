@@ -11,7 +11,7 @@ class Theme < ApplicationRecord
   ].freeze
 
   # Syntax-highlighting token keys for Shiki's `css-variables` theme mode
-  # (EPIC-309). Names mirror exactly what @shikijs/core's
+  # . Names mirror exactly what @shikijs/core's
   # createCssVariablesTheme() looks up under `--shiki-<name>` (verified
   # against its theme-css-variables.ts source and by inspecting real
   # codeToTokensBase() output) -- `foreground` for otherwise-unstyled

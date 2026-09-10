@@ -1,6 +1,6 @@
 require_relative "../seeds/themes"
 
-# Production's `themes` table predates EPIC-273's follow-up expansion job:
+# Production's `themes` table predates the relevant change's follow-up expansion job:
 # `db:prepare` only runs `db:seed` when the database is created fresh, so an
 # existing production database never got the `Seeds::Themes.seed!` upsert or
 # the `color_theme_id` backfill that db/seeds.rb performs. Running the same

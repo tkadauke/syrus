@@ -1,7 +1,7 @@
 class AddTriagingUncertaintyToJobs < ActiveRecord::Migration[8.1]
   # Why the classifier gave up used to go to Rails.logger.warn and nowhere
   # else, so a Job stuck in `triaging / classifier_uncertain` carried no record
-  # of what went wrong. By the time anyone noticed (JOB-3184 sat for three
+  # of what went wrong. By the time anyone noticed (the relevant change sat for three
   # weeks) the logs were long gone, and "retry it" and "a human must read this"
   # are indistinguishable without that reason.
   def up

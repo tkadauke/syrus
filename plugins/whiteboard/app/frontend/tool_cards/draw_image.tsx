@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for draw_image (EPIC-292 / JOB-4223). The tool
+// Plugin-owned tool card for draw_image (the pending-action tool-card work). The tool
 // result also carries a file_id (see draw_image_tool.rb), but parseElementResult
 // only needs `id`/`version` -- the raw JSON "Raw details" disclosure still
 // carries the file_id for anyone who needs it.

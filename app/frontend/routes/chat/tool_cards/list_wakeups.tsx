@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, numberValue } from "../toolCardUi"
 
-// Core-owned tool card for list_wakeups (EPIC-292 / JOB-4222).
+// Core-owned tool card for list_wakeups (the pending-action tool-card work).
 type WakeupRow = { id: string; fireAt: string; delayRemainingMinutes: number | null; promptPreview: string | null }
 
 function parseWakeupRow(value: unknown): WakeupRow | null {

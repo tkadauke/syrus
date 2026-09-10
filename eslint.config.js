@@ -1,6 +1,6 @@
 "use strict"
 
-// Design-system lint ratchet (EPIC-267). This config intentionally does not
+// Design-system lint ratchet (the design-system lint ratchet). This config intentionally does not
 // pull in eslint:recommended or any framework preset -- it exists solely to
 // run the three local design-system rules under eslint-rules/. Broader
 // linting is a separate concern for a future job.

@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
 
-// Plugin-owned tool card for mysql_db_browser_execute_query (EPIC-293).
+// Plugin-owned tool card for mysql_db_browser_execute_query (the tool-card work).
 // Three distinct outcomes share this one payload shape (see
 // MysqlDbBrowser::QueryExecutor#run_and_audit): a failed statement
 // (`available: false`, `error`), a non-SELECT write (`available: true`,

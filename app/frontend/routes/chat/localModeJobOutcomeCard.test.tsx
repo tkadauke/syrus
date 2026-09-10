@@ -7,17 +7,17 @@ describe("parseLocalModeJobOutcome", () => {
     const result = parseLocalModeJobOutcome({
       job_id: 4225,
       job_state: "coding",
-      branch_name: "syrus/direct-4225",
+      branch_name: "syrus/direct-325",
       repository_slug: "tkadauke/syrus",
-      message: "JOB-4225 is now open for local implementation on branch `syrus/direct-4225`."
+      message: "JOB-325 is now open for local implementation on branch `syrus/direct-325`."
     })
 
     expect(result).toEqual({
       jobId: "4225",
       jobState: "coding",
-      branchName: "syrus/direct-4225",
+      branchName: "syrus/direct-325",
       repositorySlug: "tkadauke/syrus",
-      message: "JOB-4225 is now open for local implementation on branch `syrus/direct-4225`."
+      message: "JOB-325 is now open for local implementation on branch `syrus/direct-325`."
     })
   })
 
@@ -54,17 +54,17 @@ describe("LocalModeJobOutcomeCard", () => {
     const result = parseLocalModeJobOutcome({
       job_id: 4225,
       job_state: "coding",
-      branch_name: "syrus/direct-4225",
+      branch_name: "syrus/direct-325",
       repository_slug: "tkadauke/syrus",
       message: "opened"
     })!
 
     render(<LocalModeJobOutcomeCard result={result} />)
 
-    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
+    expect(screen.getByText("JOB-325")).toBeInTheDocument()
     expect(screen.getByText("coding")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4225")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
     expect(screen.getByText("opened")).toBeInTheDocument()
   })
 })

@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
-// Core-owned tool card for read_run_transcript (EPIC-291 / JOB-4221). Shows
+// Core-owned tool card for read_run_transcript (the Tier 1 tool-card work). Shows
 // pagination metadata, chunk count, error/failure highlights, a transcript
 // chunk preview, and the full agent diff section when present.
 const CHUNK_PREVIEW_CHARS = 400

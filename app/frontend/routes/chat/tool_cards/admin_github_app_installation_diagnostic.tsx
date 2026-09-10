@@ -3,7 +3,7 @@ import { Badge, CardShell, displayValue, EmptyState, Row, SectionLabel, StatePil
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
 // Core-owned tool card for admin_github_app_installation_diagnostic
-// (EPIC-293 / JOB-4227). Surfaces the GitHub App's global registration/JWT
+// (the tool-card work). Surfaces the GitHub App's global registration/JWT
 // health, the last installation sync attempt, and a per-repository table of
 // credential state and the recommended next action -- the actual fields an
 // operator chasing a "why is this repo on PAT fallback" question needs.

@@ -176,7 +176,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
 
     it "returns text for pending action outcome notifications" do
       msg = system_msg(
-        "Pending action confirmed: retry_job (JOB-12). The action has been applied.",
+        "Pending action confirmed: retry_job . The action has been applied.",
         source: ChatPendingActionOutcomeNotification::SOURCE
       )
       expect(host.send(:chat_history_entry, msg)).to include("system: Pending action confirmed")

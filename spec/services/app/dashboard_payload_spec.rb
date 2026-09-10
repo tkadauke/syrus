@@ -1097,7 +1097,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
           "start_blocked_reason" => "stack_fan_in_base_unavailable",
           "start_blocked_details" => {
             "kind" => "fan_in_base_unavailable",
-            "dependencies" => [ { "slug" => "JOB-1574" } ]
+            "dependencies" => [ { "slug" => "JOB-874" } ]
           }
         }
       )
@@ -1107,7 +1107,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         blocked_reason: "stack_fan_in_base_unavailable",
         blocked_details: {
           "kind" => "fan_in_base_unavailable",
-          "dependencies" => [ { "slug" => "JOB-1574" } ]
+          "dependencies" => [ { "slug" => "JOB-874" } ]
         }
       )
 
@@ -1118,7 +1118,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         start_blocked_reason: "stack_fan_in_base_unavailable",
         start_blocked_details: include(
           "kind" => "fan_in_base_unavailable",
-          "dependencies" => [ { "slug" => "JOB-1574" } ]
+          "dependencies" => [ { "slug" => "JOB-874" } ]
         )
       )
     end

@@ -2,8 +2,8 @@ import type { ReactNode } from "react"
 import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
-// Shared presentation for the pending-action MCP tool family (EPIC-292 /
-// JOB-4222). Every tool that creates a ChatPendingAction returns one of
+// Shared presentation for the pending-action MCP tool family (the pending-action tool-card work /
+// Every tool that creates a ChatPendingAction returns one of
 // three closely related JSON shapes, so one parser plus one card backs all
 // ~34 of them; `tool_cards/<name>.tsx` files are thin re-exports.
 //

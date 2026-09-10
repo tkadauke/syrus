@@ -1,7 +1,7 @@
 require "mcp"
 
 # A second "prove the pipe" tool alongside PersistentMcpDaemon::PingTool
-# (EPIC-250). Where PingTool proves the daemon can accept and answer a call
+# . Where PingTool proves the daemon can accept and answer a call
 # at all, this tool proves the per-invocation context boundary
 # (McpInvocationContext) works over the real MCP transport: it resolves
 # whatever signed invocation token the caller attached to this request's

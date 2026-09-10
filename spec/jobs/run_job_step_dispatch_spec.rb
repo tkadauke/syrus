@@ -254,7 +254,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         [ "test_plan", 1 ],
         [ "pr_open", 1 ]
       ])
-      # rounds: 2 seeks exactly two review opinions (JOB-4300 fix: no longer
+      # rounds: 2 seeks exactly two review opinions (the relevant change fix: no longer
       # one review short) -- the third, budget-exhausted implement has no
       # review left to react to.
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(2)

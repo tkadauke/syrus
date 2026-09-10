@@ -2,7 +2,7 @@
 # Sibling to GithubAppInstallationSyncer: warns about drift between Syrus
 # repository role tiers and real GitHub collaborator permissions instead of
 # syncing installations. Never enforces or auto-corrects anything -- this is
-# detection/surfacing only (see EPIC-257). GitHub remains the actual source
+# detection/surfacing only. GitHub remains the actual source
 # of truth for commit access; this groundwork matters more once self-hosted
 # git removes GitHub as a required central host.
 class GithubPermissionSyncer

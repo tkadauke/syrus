@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { JobsTable, parseJobRow, type JobRow } from "../jobsTableCard"
 
-// Core-owned tool card for list_jobs (EPIC-291 / JOB-4220). Renders results
+// Core-owned tool card for list_jobs (the Tier 1 tool-card work). Renders results
 // as a dense table optimized for scanning.
 function jobRows(context: ToolCardContext): JobRow[] | null {
   const parsed = context.parsedResult

@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): detects the repo's package manager(s) via the
+  # Built-in skill : detects the repo's package manager(s) via the
   # same lockfile signals RepoPrepPlan uses for `prepare:` (Gemfile,
   # yarn.lock, pnpm-lock.yaml, package-lock.json, package.json), runs the
   # ecosystem-appropriate dependency audit command for each one detected,

@@ -151,7 +151,7 @@ describe("SpendingInsights scope label translation", () => {
           jobs_count: 13,
           total_usd: 304.2014,
           average_job_usd: 23.4001,
-          display_number: "EPIC-268"
+          display_number: "EPIC-38"
         }],
         users: [{
           id: 2,

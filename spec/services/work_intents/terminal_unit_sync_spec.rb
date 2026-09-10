@@ -33,7 +33,7 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     intent = workflow.work_unit.work_intent
     # Two active WorkUnits for the same (scope, kind) can no longer arise
-    # through the app's own launch path (JOB-4235's active_dedup_key
+    # through the app's own launch path (the relevant change's active_dedup_key
     # uniqueness prevents it) — this simulates a legacy row that predates
     # that guarantee, to keep exercising TerminalUnitSync's own defensive
     # "still has an active sibling" check.
@@ -63,7 +63,7 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     intent = workflow.work_unit.work_intent
     # Two active WorkUnits for the same (scope, kind) can no longer arise
-    # through the app's own launch path (JOB-4235's active_dedup_key
+    # through the app's own launch path (the relevant change's active_dedup_key
     # uniqueness prevents it) — this simulates a legacy row that predates
     # that guarantee, to keep exercising TerminalUnitSync's own defensive
     # "still has an active sibling" check.

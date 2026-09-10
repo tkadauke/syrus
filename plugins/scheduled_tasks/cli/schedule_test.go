@@ -187,7 +187,7 @@ func TestScheduleRunPrintsCreatedJob(t *testing.T) {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message":"Fired (JOB-99).","fire_result":{"fired":true,"job_id":99}}`))
+		w.Write([]byte(`{"message":"Fired .","fire_result":{"fired":true,"job_id":99}}`))
 	}))
 	defer server.Close()
 	cliplugintest.WithCredentials(t, server.URL, "secret-token")

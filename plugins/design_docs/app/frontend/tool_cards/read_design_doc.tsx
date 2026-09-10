@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, Row } from "@app/routes/chat/toolCardUi"
 import { contentMetadata, DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
 
-// Plugin-owned tool card for read_design_doc (EPIC-292 / JOB-4223). Lives
+// Plugin-owned tool card for read_design_doc (the pending-action tool-card work). Lives
 // entirely inside the design_docs plugin -- core discovers it by directory
 // convention (see app/frontend/pluginToolCards.tsx) and never imports it by
 // name, so it can be added, changed, or removed without touching core.

@@ -2,7 +2,7 @@ class PluginRouteResolver
   Route = Data.define(:verb, :path, :controller, :params, :plugin_name, :enabled)
 
   # What an `:id`/`:*_id` sidebar path segment is allowed to look like: a bare
-  # Rails id, or a "PREFIX-<digits>" slug like "MOCKUP-1"/"JOB-1" (the same
+  # Rails id, or a "PREFIX-<digits>" slug like "MOCKUP-1"/"the relevant change" (the same
   # shape Job/Epic detail routes already accept via their own hand-written
   # `constraints: { id: /[a-zA-Z0-9_-]+/ }`). Deliberately not open alnum, so a
   # static segment like "scheduled_tasks/legacy" still can't slip through as a

@@ -595,8 +595,8 @@ describe("tool result rendering", () => {
   })
 
   it("renders list_chat_media results as a compact dark-mode-safe gallery with stable IDs, filenames, kind, and content type", () => {
-    // list_chat_media's card lives under routes/chat/tool_cards/ (JOB-4220),
-    // registered through the plugin-aware extension point (JOB-4219).
+    // list_chat_media's card lives under routes/chat/tool_cards/ ,
+    // registered through the plugin-aware extension point .
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "List chat media",
@@ -713,7 +713,7 @@ describe("tool result rendering", () => {
           display_label: "Read job",
           progress_label: "Reading",
           raw_payload: { job_id: 4048 },
-          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, branch_name: "syrus/direct-4048" } }),
+          result_body: JSON.stringify({ job: { id: 4048, issue_title: "Typed renderers", state: "running", pr_number: 12, branch_name: "syrus/direct-148" } }),
           result_error: false,
           result_kind: "record",
           result_summary: "1 Job"
@@ -732,11 +732,11 @@ describe("tool result rendering", () => {
     expandToolGroup("Actions")
 
     expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
+    expect(screen.getByText("JOB-148")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("#12")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4048")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-148")).toBeInTheDocument()
     expect(screen.queryByText(/"kind": "topic"/)).not.toBeInTheDocument()
   })
 
@@ -782,7 +782,7 @@ describe("tool result rendering", () => {
         name: "read_job",
         raw_name: "syrus-chat-sidecar.read_job",
         display_label: "Read job",
-        argument_summary: "JOB-4072",
+        argument_summary: "JOB-172",
         raw_payload: { job_id: 4072 },
         result_kind: "record",
         result_summary: "1 Job",
@@ -793,7 +793,7 @@ describe("tool result rendering", () => {
     })
 
     expect(screen.getByText("Read job")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4072")).toBeInTheDocument()
+    expect(screen.getByText("JOB-172")).toBeInTheDocument()
     expect(screen.getByText("1 Job")).toBeInTheDocument()
     expect(screen.queryByText(/Collapsed tools/)).not.toBeInTheDocument()
 
@@ -804,7 +804,7 @@ describe("tool result rendering", () => {
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
     // list_design_docs's card lives entirely under
-    // plugins/design_docs/app/frontend/tool_cards/ (see JOB-4219) — this
+    // plugins/design_docs/app/frontend/tool_cards/ — this
     // spec proves the extension point resolves it purely by tool name.
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -838,7 +838,7 @@ describe("tool result rendering", () => {
   })
 
   it("still resolves a plugin-registered card when the tool call errored", () => {
-    // Regression for JOB-4226: ToolResultBody used to skip plugin card
+    // Regression for ToolResultBody used to skip plugin card
     // resolution entirely whenever result_error was true, so a plugin tool
     // that reports a structured failure through the MCP error flag (rather
     // than a bare "Error: ..." string) fell back to a raw JSON dump instead

@@ -26,9 +26,9 @@ describe("list_open_prs tool card", () => {
   it("renders title, refs, draft, and mergeability per row", () => {
     const parsedResult = {
       pull_requests: [
-        { number: 7, title: "Add tool cards", head_ref: "syrus/direct-4221", base_ref: "main", mergeable: true, draft: false },
-        { number: 8, title: "WIP", head_ref: "syrus/direct-4300", base_ref: "main", mergeable: false, draft: true },
-        { number: 9, title: "Pending check", head_ref: "syrus/direct-4301", base_ref: "main", mergeable: null, draft: false }
+        { number: 7, title: "Add tool cards", head_ref: "syrus/direct-321", base_ref: "main", mergeable: true, draft: false },
+        { number: 8, title: "WIP", head_ref: "syrus/direct-400", base_ref: "main", mergeable: false, draft: true },
+        { number: 9, title: "Pending check", head_ref: "syrus/direct-401", base_ref: "main", mergeable: null, draft: false }
       ]
     }
 
@@ -36,7 +36,7 @@ describe("list_open_prs tool card", () => {
 
     expect(screen.getByText("#7")).toBeInTheDocument()
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4221 → main")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-321 → main")).toBeInTheDocument()
     expect(screen.getByText("mergeable")).toBeInTheDocument()
     expect(screen.getByText("conflicts")).toBeInTheDocument()
     expect(screen.getByText("checking")).toBeInTheDocument()

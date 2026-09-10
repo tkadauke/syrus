@@ -192,7 +192,7 @@ RSpec.describe PersistentMcpDaemon do
         expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
       end
 
-      describe "MCP usage recording at the dispatch boundary (EPIC-250, McpToolUsageRecorder)" do
+      describe "MCP usage recording at the dispatch boundary (EPIC-20, McpToolUsageRecorder)" do
         it "records a completed usage row tagged sidecar_mode=persistent for a successful dispatch" do
           token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
 

@@ -283,7 +283,7 @@ RSpec.describe "Mcp::Tools job control tools" do
       repository: repository,
       state: "implemented",
       pr_number: 17,
-      branch_name: "syrus/direct-2599"
+      branch_name: "syrus/direct-99"
     )
     job.approve!(
       via: "operator",

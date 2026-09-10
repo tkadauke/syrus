@@ -9,7 +9,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
       user: admin,
       repository: repository,
       state: "implemented",
-      branch_name: "syrus/direct-2265",
+      branch_name: "syrus/direct-65",
       pr_number: 2265,
       last_ci_handled_sha: sha
     )
@@ -82,7 +82,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
       "rerun_ci_repair",
       {
         job_id: job.id,
-        reason: "JOB-2265 stayed red after repair.",
+        reason: "JOB-765 stayed red after repair.",
         instructions: "Compare the prior ci_failure diff and check log."
       }
     )
@@ -91,7 +91,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload.fetch(:message)).to include("Failing checks: rspec (https://github.com/acme/widgets/runs/1)")
-    expect(action).to have_attributes(action: "rerun_ci_repair", reason: "JOB-2265 stayed red after repair.")
+    expect(action).to have_attributes(action: "rerun_ci_repair", reason: "JOB-765 stayed red after repair.")
     expect(action.payload).to include(
       "job_id" => job.id,
       "clear_handled_sha" => true,
@@ -104,7 +104,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
   end
 
   it "confirms rerun_ci_repair by starting a ci_failure workflow with audit snapshots" do
-    response = call_tool("rerun_ci_repair", { job_id: job.id, reason: "JOB-2265 stayed red." })
+    response = call_tool("rerun_ci_repair", { job_id: job.id, reason: "JOB-765 stayed red." })
     action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
 
     expect {
@@ -113,7 +113,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
 
     workflow = action.reload.result
     expect(workflow).to have_attributes(job: job, trigger_kind: "ci_failure")
-    expect(workflow.artifact("manual_ci_repair")).to include("reason" => "JOB-2265 stayed red.")
+    expect(workflow.artifact("manual_ci_repair")).to include("reason" => "JOB-765 stayed red.")
     expect(action.before_snapshot).to include("jobs")
     expect(action.after_snapshot).to include("jobs")
   end
@@ -147,7 +147,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
       repository: repository,
       issue_number: 2266,
       state: "implemented",
-      branch_name: "syrus/direct-2266",
+      branch_name: "syrus/direct-66",
       pr_number: 2266,
       last_ci_handled_sha: sha
     )

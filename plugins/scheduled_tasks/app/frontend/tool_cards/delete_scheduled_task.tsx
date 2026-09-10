@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseScheduledTaskOutcome, ScheduledTaskOutcomeCard } from "../scheduledTaskToolCard"
 
-// Plugin-owned tool card for delete_scheduled_task (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for delete_scheduled_task (the pending-action tool-card work).
 // Payload: { scheduled_task_id, label, deleted: true }.
 function collapsedSummary(context: ToolCardContext) {
   const outcome = parseScheduledTaskOutcome(context.parsedResult)

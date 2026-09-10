@@ -1,7 +1,7 @@
 require "mcp"
 
 module K8sCluster
-  # Write tool (EPIC-306 phase 2): scales a deployment's replica count.
+  # Write tool (the relevant change phase 2): scales a deployment's replica count.
   # Gated by `agentic_access_enabled? && allow_writes?`, see RestartRolloutTool.
   class ScaleDeploymentTool < MCP::Tool
     extend AgenticToolResponse

@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
-// Core-owned tool card for get_job_diff (EPIC-291 / JOB-4221). Shows a
+// Core-owned tool card for get_job_diff (the Tier 1 tool-card work). Shows a
 // file/diff summary plus paginated raw diff access for the Job's latest
 // stored agent diff.
 type DiffCard = {

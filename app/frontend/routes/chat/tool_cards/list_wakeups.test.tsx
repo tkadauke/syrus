@@ -27,7 +27,7 @@ describe("list_wakeups tool card", () => {
 
   it("renders each wakeup's id, fire time, remaining delay, and prompt preview", () => {
     const parsedResult = {
-      wakeups: [{ id: 7, fire_at: "2026-09-07T12:00:00Z", delay_remaining_minutes: 42, prompt_preview: "Check JOB-4222 mergeability" }]
+      wakeups: [{ id: 7, fire_at: "2026-09-07T12:00:00Z", delay_remaining_minutes: 42, prompt_preview: "Check JOB-322 mergeability" }]
     }
 
     render(<>{listWakeupsToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -36,7 +36,7 @@ describe("list_wakeups tool card", () => {
     expect(screen.getByText("#7")).toBeInTheDocument()
     expect(screen.getByText("2026-09-07T12:00:00Z")).toBeInTheDocument()
     expect(screen.getByText("42 min")).toBeInTheDocument()
-    expect(screen.getByText("Check JOB-4222 mergeability")).toBeInTheDocument()
+    expect(screen.getByText("Check JOB-322 mergeability")).toBeInTheDocument()
   })
 
   it("falls back to null for a malformed payload", () => {

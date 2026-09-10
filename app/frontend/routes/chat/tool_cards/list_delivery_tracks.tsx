@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState } from "../toolCardUi"
 
-// Core-owned tool card for list_delivery_tracks (EPIC-293 / JOB-4225).
+// Core-owned tool card for list_delivery_tracks (the tool-card work).
 type TrackRow = {
   name: string
   isDefault: boolean

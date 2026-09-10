@@ -257,7 +257,7 @@ type localToolCallMsg struct {
 
 // localCancelToolCallMsg mirrors the "cancel_tool_call" frame
 // LocalTunnelChannel#handle_cancel_broadcast transmits when the operator hits
-// the composer's stop control on an in-flight `!` command (EPIC-323):
+// the composer's stop control on an in-flight `!` command (the chat shell-command cancellation feature):
 // { type: "cancel_tool_call", tool_use_id: ... }.
 type localCancelToolCallMsg struct {
 	ToolUseID string `json:"tool_use_id"`
@@ -281,7 +281,7 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 	identifier := string(identJSON)
 
 	// Tracks the cancel func for each in-flight tool call, keyed by
-	// tool_use_id, so a "cancel_tool_call" frame (EPIC-323 `!` command stop
+	// tool_use_id, so a "cancel_tool_call" frame (the chat shell-command cancellation feature `!` command stop
 	// control) can interrupt just that one call without affecting others or
 	// the connection itself. Safe for concurrent use by the per-call
 	// goroutines and the main receive loop below.
@@ -606,7 +606,7 @@ func executeLocalRunCommand(ctx context.Context, repoRoot string, raw json.RawMe
 	shell := exec.CommandContext(cmdCtx, "sh", "-c", p.Command)
 	shell.Dir = repoRoot
 	// Ensure Run() returns promptly after the process is killed -- by a
-	// timeout above, or by a "cancel_tool_call" message (EPIC-323 `!` command
+	// timeout above, or by a "cancel_tool_call" message (the chat shell-command cancellation feature `!` command
 	// stop control, see localConnectAndServe's activeCalls) cancelling ctx --
 	// even when grandchild processes keep inherited pipe file descriptors
 	// open.

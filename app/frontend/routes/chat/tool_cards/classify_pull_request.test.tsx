@@ -23,7 +23,7 @@ describe("classify_pull_request tool card", () => {
       pr_number: 42,
       classification: "syrus_job_export",
       evidence: {
-        head_ref: "syrus/direct-4225",
+        head_ref: "syrus/direct-325",
         base_ref: "main",
         head_repository: "tkadauke/syrus",
         fork_pr: false,
@@ -38,7 +38,7 @@ describe("classify_pull_request tool card", () => {
     expect(screen.getByText("syrus_job_export")).toBeInTheDocument()
     expect(screen.getByText("same-repo")).toBeInTheDocument()
     expect(screen.getByText("marker: syrus_job_export")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4225")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
   })
 

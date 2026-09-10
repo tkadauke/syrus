@@ -3,7 +3,7 @@ module Api
     module App
       module Admin
         # Admin surface for the shared sccache compiler-cache bucket
-        # (EPIC-251): footprint stats, plus a confirm-before-destructive-
+        # : footprint stats, plus a confirm-before-destructive-
         # action flow for clearing it (full or scoped by age). Clearing
         # never fires directly off `create` — it creates a `pending`
         # BuildCache::ClearRequest with a required audit reason, and a

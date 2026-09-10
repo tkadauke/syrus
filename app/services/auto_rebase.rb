@@ -100,8 +100,8 @@ class AutoRebase
         #
         # Force-pushing here is actively destructive. It would leave the branch
         # pointing at the base tip, which empties the PR (0 commits, 0 files)
-        # and erases the only remaining record of what the Job did. JOB-4346's
-        # PR #3235 was wiped exactly this way, hours after its commit landed,
+        # and erases the only remaining record of what the Job did. the already-landed closed-PR regression's
+        # A PR was wiped exactly this way, hours after its commit landed,
         # and the Job was then filed as "no_changes".
         Result.new(true, ALREADY_LANDED_REASON,
                    "no commits left ahead of #{base_branch} — this branch's work is already on the base",

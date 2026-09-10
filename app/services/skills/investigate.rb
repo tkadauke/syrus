@@ -1,5 +1,5 @@
 module Skills
-  # Seed built-in skill (EPIC-233): a read-only investigation that
+  # Seed built-in skill (the skill-workflow feature): a read-only investigation that
   # answers a question about the repository. No diff, no commit — exists
   # so later Jobs in this Epic (skill Job/Workflow kind, chat slash
   # command, ScheduledTask launch) have a real built-in to exercise

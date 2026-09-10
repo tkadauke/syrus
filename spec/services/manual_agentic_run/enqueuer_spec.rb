@@ -8,7 +8,7 @@ RSpec.describe ManualAgenticRun::Enqueuer do
       user: user,
       repository: repository,
       state: "implemented",
-      branch_name: "syrus/direct-2561",
+      branch_name: "syrus/direct-61",
       pr_number: 2561
     )
   end

@@ -282,17 +282,17 @@ describe("MainBranchHealthSection blocking repair job", () => {
       blocked_reason: "active",
       can_request: false,
       can_spawn: false,
-      blocking_job: { id: 3403, slug: "JOB-3403", state: "running", title: "Fix broken main branch", job_path: "/jobs/3403" },
+      blocking_job: { id: 3403, slug: "JOB-303", state: "running", title: "Fix broken main branch", job_path: "/jobs/3403" },
       failed_jobs: []
     }
     renderSection(history)
 
     expect(screen.getByText(/Auto-fix is waiting for active repair job/)).toBeInTheDocument()
-    const copyButton = screen.getByRole("button", { name: "Copy JOB-3403 to clipboard" })
+    const copyButton = screen.getByRole("button", { name: "Copy JOB-303 to clipboard" })
     expect(copyButton).toBeInTheDocument()
 
     fireEvent.click(copyButton)
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-3403")
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-303")
   })
 })
 

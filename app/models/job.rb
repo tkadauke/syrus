@@ -505,7 +505,7 @@ class Job < ApplicationRecord
     # ClassifyIssueJob both require `classifier_pending`, the reconciler's
     # stalled-intake detector only matched `classifier_pending`, and polling
     # dedups on the existing Job -- so one transient provider error cost the
-    # Job forever (JOB-4348).
+    # Job forever .
     event :retry_classification do
       transitions from: :triaging, to: :triaging,
                   guard: :classifier_retry_available?,
@@ -545,7 +545,7 @@ class Job < ApplicationRecord
     # any generic caller of mark_implemented! (e.g. the reconciler's
     # catch-all queued/succeeded and running/succeeded repair cases,
     # which aren't scoped by Job#kind) would strand these Jobs at
-    # :implemented forever — see JOB-3302.
+    # :implemented forever — see the relevant change.
     event :mark_implemented do
       transitions from: [ :queued, :running ], to: :closed, guard: :infrastructure_job?, after: :mark_infrastructure_job_closed
       transitions from: [ :queued, :running ], to: :implemented, after: :notify_job_implemented

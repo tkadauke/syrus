@@ -1,7 +1,7 @@
 require "mcp"
 
 module K8sCluster
-  # Write tool (EPIC-306 phase 2): cordons or uncordons a node.
+  # Write tool (the relevant change phase 2): cordons or uncordons a node.
   # Gated by `agentic_access_enabled? && allow_writes?`, see RestartRolloutTool.
   class SetNodeCordonTool < MCP::Tool
     extend AgenticToolResponse

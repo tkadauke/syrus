@@ -2,7 +2,7 @@ import { useT } from "../../hooks/useT"
 import { TonePill } from "../../components/StatusPill"
 import type { JobDetailPayload, JobPrLink, JobPrLinkRole } from "../../api/jobs"
 
-// Job detail "Delivery" panel (EPIC-268): the track/target ref this Job
+// Job detail "Delivery" panel : the track/target ref this Job
 // lands on, its derived apparent delivery status (richer, PR-number-aware
 // copy than the compact dashboard badge — see JobsTable's DeliveryStatusBadge),
 // and its PR links grouped by role. The `send_job_upstream` action itself is

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
 
-// Core-owned tool card for attach_repository (EPIC-293 / JOB-4225). Shows
+// Core-owned tool card for attach_repository (the tool-card work). Shows
 // the resolved repository slug/default branch plus where the chat
 // workspace cloned or fast-forwarded it to.
 type AttachRepositoryResult = {

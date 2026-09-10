@@ -11,7 +11,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
       user: admin,
       repository: repository,
       state: "failed",
-      branch_name: "syrus/direct-2562",
+      branch_name: "syrus/direct-62",
       pr_number: 2562,
       mergeability_head_sha: "remote-new",
       mergeability_base_sha: "base-sha"
@@ -21,7 +21,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
 
   before do
     workflow.set_artifact!("branch_divergence", {
-      "branch" => "syrus/direct-2562",
+      "branch" => "syrus/direct-62",
       "remote_sha" => "remote-old",
       "local_sha" => "local-sha",
       "message" => "remote PR branch moved before push"

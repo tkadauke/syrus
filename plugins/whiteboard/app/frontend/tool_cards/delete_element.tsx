@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for delete_element (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for delete_element (the pending-action tool-card work).
 const ACTION = "Deleted element"
 
 function collapsedSummary(context: ToolCardContext) {

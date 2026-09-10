@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePreviewPanel, PreviewPanelCard, previewPanelSummary } from "../previewPanelToolCard"
 
-// Plugin-owned tool card for close_preview (EPIC-292 / JOB-4223). Shares the
+// Plugin-owned tool card for close_preview (the pending-action tool-card work). Shares the
 // same panel_payload shape and card as show_preview -- this file only binds
 // it to the close_preview tool name.
 function collapsedSummary(context: ToolCardContext) {

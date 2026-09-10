@@ -65,7 +65,7 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
                                issue_number: nil, branch_name: nil, pr_number: nil)
     job.update_columns(linked_chat_id: chat_session.id, state: "coding")
 
-    response = call_tool(job_id: job.id, branch_name: "syrus/job-3931-local-run-command-input")
+    response = call_tool(job_id: job.id, branch_name: "syrus/job-local-run-command-input")
     result = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
@@ -73,7 +73,7 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     expect(pending_action.action).to eq("complete_implement_step")
     expect(pending_action.payload).to eq(
       "job_id" => job.id,
-      "branch_name" => "syrus/job-3931-local-run-command-input"
+      "branch_name" => "syrus/job-local-run-command-input"
     )
     expect(job.reload).to be_coding
     expect(job.branch_name).to be_nil

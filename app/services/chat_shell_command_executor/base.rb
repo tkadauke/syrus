@@ -1,5 +1,5 @@
 module ChatShellCommandExecutor
-  # Runs a `!` shell command against a chat session's checkout (EPIC-323).
+  # Runs a `!` shell command against a chat session's checkout (the chat shell-command cancellation feature).
   # `ChatSession#mode` picks the concrete strategy: Coding Mode runs directly
   # on the worker's persistent ChatWorkspace via ProcessRunner; Local Mode has
   # no Syrus-side checkout and dispatches over the reverse tunnel the Local

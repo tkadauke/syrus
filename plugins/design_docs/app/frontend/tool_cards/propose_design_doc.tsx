@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue } from "@app/routes/chat/toolCardUi"
 import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
 
-// Plugin-owned tool card for propose_design_doc (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for propose_design_doc (the pending-action tool-card work).
 // propose_design_doc only ever creates a new draft doc (mutation_mode is
 // always "new_doc_created"), so the card leads with that outcome.
 type ProposeDesignDoc = { summary: DesignDocSummary; note: string | null }

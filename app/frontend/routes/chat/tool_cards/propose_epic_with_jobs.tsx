@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for propose_epic_with_jobs (EPIC-292 / JOB-4222).
+// Core-owned tool card for propose_epic_with_jobs (the pending-action tool-card work).
 // Unlike propose_job/propose_epic, this tool's payload has no title and no
 // `materialized` result — it returns the epic proposal plus its bundled
 // child Job proposals (PendingActionsController::Base#payload_for in

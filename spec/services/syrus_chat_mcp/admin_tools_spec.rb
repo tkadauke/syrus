@@ -216,13 +216,13 @@ RSpec.describe "Mcp::Tools admin tools" do
     job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
     repair_result = JobStateRepair::Result.new(job: job, message: "inspected")
     allow(JobStateRepair).to receive(:reconcile!)
-      .with(job: job, mode: "auto", reason: "JOB-2415 has state drift.")
+      .with(job: job, mode: "auto", reason: "JOB-115 has state drift.")
       .and_return(repair_result)
 
     response = call_tool(
       supervisor_session,
       "reconcile_job_state",
-      { job_id: job.id, mode: "auto", reason: "JOB-2415 has state drift." }
+      { job_id: job.id, mode: "auto", reason: "JOB-115 has state drift." }
     )
     payload = payload_for(response)
     action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
@@ -234,13 +234,13 @@ RSpec.describe "Mcp::Tools admin tools" do
       repository: nil,
       action: "reconcile_job_state",
       requested_by: "agent",
-      reason: "JOB-2415 has state drift."
+      reason: "JOB-115 has state drift."
     )
     expect(action.payload).to include("job_id" => job.id, "mode" => "auto")
 
     expect(action.confirm!(user: admin)).to be true
     expect(JobStateRepair).to have_received(:reconcile!)
-      .with(job: job, mode: "auto", reason: "JOB-2415 has state drift.")
+      .with(job: job, mode: "auto", reason: "JOB-115 has state drift.")
     expect(action.reload).to be_confirmed
     expect(action.result).to eq(job)
     expect(action.before_snapshot).to include("jobs")
@@ -393,7 +393,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       user: admin,
       repository: repository,
       state: "approved",
-      branch_name: "syrus/direct-2265",
+      branch_name: "syrus/direct-65",
       pr_number: 2265,
       commits_behind_base: 2,
       pr_checks_state: "failure",
@@ -417,7 +417,7 @@ RSpec.describe "Mcp::Tools admin tools" do
   end
 
   it "confirms force_rebase by dispatching a rebase workflow with audit snapshots" do
-    job = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-2265", pr_number: 2265)
+    job = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-65", pr_number: 2265)
     allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "force_rebase", { job_id: job.id, reason: "Bypass queue position." })

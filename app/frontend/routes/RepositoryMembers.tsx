@@ -161,7 +161,7 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
   )
 }
 
-// Direction 2 of the GitHub permission-parity check (JOB-3577): GitHub
+// Direction 2 of the GitHub permission-parity check : GitHub
 // collaborators with write+ access and no corresponding Syrus access at
 // all. Warning-severity, read-only -- Syrus never grants or revokes GitHub
 // access from here. See GithubPermissionSyncer.

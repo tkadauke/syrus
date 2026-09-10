@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseProposalOutcome, proposalOutcomeSummary, ProposalOutcomeCard } from "../proposalToolCard"
 
-// Core-owned tool card for propose_epic (EPIC-292 / JOB-4222). Shares the
+// Core-owned tool card for propose_epic (the pending-action tool-card work). Shares the
 // propose_job parser/renderer since both tools return the same
 // Mcp::Tools.proposal_payload shape.
 function collapsedSummary(context: ToolCardContext) {

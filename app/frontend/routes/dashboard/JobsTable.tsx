@@ -1100,7 +1100,7 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
   )
 }
 
-// Only the delivery statuses an EPIC-268 track/promotion/upstream-export
+// Only the delivery statuses an the relevant change track/promotion/upstream-export
 // flow actually produces are worth a badge here — the two default states
 // (waiting_for_local_approval, approved_for_local_landing) match virtually
 // every job on a repository with no delivery config and would just be noise.

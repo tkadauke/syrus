@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, Disclosure, displayValue, Row, truncateLines } from "../toolCardUi"
 
-// Local Mode tool card for read_file (EPIC-293 / JOB-4225). Shows a line
+// Local Mode tool card for read_file (the tool-card work). Shows a line
 // count and the path (when available from the tool call input) without
 // dumping the full file content by default -- content lives behind a
 // disclosure, capped to keep very large files from freezing the chat DOM.

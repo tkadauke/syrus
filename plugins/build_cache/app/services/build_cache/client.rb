@@ -1,7 +1,7 @@
 require "aws-sdk-s3"
 
 module BuildCache
-  # Talks to the shared sccache compiler-cache bucket (EPIC-251) directly
+  # Talks to the shared sccache compiler-cache bucket  directly
   # via the S3 API. Reuses the exact same env vars Steps::Prepare forwards
   # into prepare/grader subprocesses (BuildCache::StepEnvironment.forwarded_env_keys)
   # so there is one credential source for the whole cache feature, not a

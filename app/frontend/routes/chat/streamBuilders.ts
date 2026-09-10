@@ -15,7 +15,7 @@ import { fullResultBody, fullResultBodyUnbounded, parseJsonText, shortenWorkspac
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
 // pair interleaves with the still-open outer call, so pairing by adjacency
-// alone (the pre-EPIC-240 behavior) orphaned the outer group. ROOT_KEY is
+// alone (the pre-the relevant change behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
 const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep", "WebFetch", "WebSearch", "list_chat_media", "read_live_state", "read_memory", "search_memories", "list_memories", "list_design_docs", "read_design_doc"])

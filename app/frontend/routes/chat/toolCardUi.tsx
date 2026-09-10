@@ -3,7 +3,7 @@ import { formatCurrency } from "../../lib/format"
 import { formatDuration } from "../jobDetail/formatting"
 
 // Shared presentation primitives for the Workflow/Run/PR/diff/ops tool cards
-// (EPIC-291 / JOB-4221). Lives outside `tool_cards/` on purpose: the
+// (the Tier 1 tool-card work). Lives outside `tool_cards/` on purpose: the
 // pluginToolCards.tsx directory glob treats every non-test .tsx file under
 // `tool_cards/` as a card module and would warn about a missing default
 // export (see jobsTableCard.tsx for the established precedent).

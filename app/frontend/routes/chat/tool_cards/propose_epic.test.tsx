@@ -28,7 +28,7 @@ describe("propose_epic tool card", () => {
 
     render(<>{proposeEpicToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("EPIC-292")).toBeInTheDocument()
+    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
     expect(screen.getByText(/1 child Job/)).toBeInTheDocument()
   })
 

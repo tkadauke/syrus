@@ -10,7 +10,7 @@ class ChatShellCommandJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   # No enforced execution timeout by default (operator-accepted risk,
-  # equivalent to already running the Terminal plugin — see EPIC-323). This
+  # equivalent to already running the Terminal plugin — see the chat shell-command cancellation feature). This
   # ceiling only backstops a command that is never cancelled and never exits
   # on its own; it is not meant to fire in normal operation.
   MAX_RUNTIME_SECONDS = 24.hours.to_i

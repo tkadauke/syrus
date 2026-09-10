@@ -1,7 +1,7 @@
 require "open3"
 
 module Skills
-  # Built-in skill (EPIC-234): judgment-heavy fallback for a git conflict
+  # Built-in skill : judgment-heavy fallback for a git conflict
   # the automated rebase machinery (`AutoRebase`/`Steps::AgentRebase`,
   # `Steps::ForcePush`, `Steps::StackAgentRebase`/`Steps::StackForcePush`)
   # couldn't resolve mechanically. Generic across repos — resolving a

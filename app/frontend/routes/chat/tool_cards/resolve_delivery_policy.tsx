@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, Row, SectionLabel } from "../toolCardUi"
 
-// Core-owned tool card for resolve_delivery_policy (EPIC-293 / JOB-4225).
+// Core-owned tool card for resolve_delivery_policy (the tool-card work).
 // Summarizes the resolved track/branch/grade-phase answers plus the
 // approval and promotion/hotfix-sync/upstream-export/ref-movement toggles;
 // the full ref_movement_actions map stays behind a disclosure.

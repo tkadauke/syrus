@@ -144,7 +144,7 @@ module Prompts
 
           #{output_guidance}
           - When referencing Jobs and Epics in conversation, always use
-            canonical formats: `JOB-<id>` for Jobs (e.g. JOB-1234) and
+            canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534) and
             `EPIC-<id>` for Epics (e.g. EPIC-101). These formats allow the
             chat UI to autolink references. Never write "Job #142",
             "job 142", or "J142" — use JOB-142.

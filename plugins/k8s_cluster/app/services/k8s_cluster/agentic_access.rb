@@ -50,7 +50,7 @@ module K8sCluster
       )
     end
 
-    # Second, stricter gate for the write/mutating tools (EPIC-306 phase 2):
+    # Second, stricter gate for the write/mutating tools (the relevant change phase 2):
     # requires both agentic_access_enabled (via .cluster!) and the cluster's
     # own, independent allow_writes opt-in. Raises a distinct error so an
     # agent that finds a read-enabled-but-write-disabled cluster gets an

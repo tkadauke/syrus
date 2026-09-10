@@ -294,7 +294,7 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       expect(commit_message).not_to include("Closes #")
     end
 
-    it "amends cleanly when HEAD is an empty commit (JOB-1830 transient CI re-trigger)" do
+    it "amends cleanly when HEAD is an empty commit (JOB-330 transient CI re-trigger)" do
       # The agentic step left an empty 're-trigger CI' commit at HEAD (a valid
       # response to a transient CI failure with nothing to fix). Relabeling it
       # must not fail with git's "amending would make it empty".

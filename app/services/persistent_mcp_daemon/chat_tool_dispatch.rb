@@ -1,7 +1,7 @@
 require "mcp"
 
 # Wraps a chat MCP::Tool class so it can be safely dispatched from the
-# persistent MCP sidecar daemon (EPIC-250), which registers ONE static tool
+# persistent MCP sidecar daemon , which registers ONE static tool
 # list for its whole process lifetime (MCP::Server has no per-request tool
 # list hook) even though chat tool availability legitimately varies per
 # chat session, tier (essential/deferred), role (planner/coding/local/
@@ -37,7 +37,7 @@ module PersistentMcpDaemon::ChatToolDispatch
   end
 
   module Dispatch
-    # Records MCP usage (McpToolUsageRecorder, EPIC-250 authoritative
+    # Records MCP usage (McpToolUsageRecorder, the relevant change authoritative
     # persistent-mode logging) right at this dispatch boundary instead of
     # relying on the calling agent's own transcript, which is what
     # ChatTurnJob#record_agent_event does for stdio-mode calls (see

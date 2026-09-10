@@ -24,7 +24,7 @@ RSpec.describe Steps::ForcePush do
 
   # A Run resumed from a failed step reaches this handler directly, without
   # Steps::AutoRebase having just run, so the refusal has to live here too.
-  # Pushing a branch the rebase emptied is what wiped JOB-4346's PR to zero
+  # Pushing a branch the rebase emptied is what wiped the already-landed closed-PR regression's PR to zero
   # commits after its work had already landed.
   it "refuses to push a branch whose work is already on the base" do
     workflow.set_artifact!("auto_rebase_result", {

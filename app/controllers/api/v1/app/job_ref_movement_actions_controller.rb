@@ -1,7 +1,7 @@
 module Api
   module V1
     module App
-      # Job-scoped ref-movement action dispatch (EPIC-268 Story 11). Only
+      # Job-scoped ref-movement action dispatch (the relevant change Story 11). Only
       # `send_job_upstream` is job-scoped today — `submit_branch_upstream`
       # operates on a repository track branch, not a single Job, and is
       # dispatched from the repository Delivery section instead. Reuses

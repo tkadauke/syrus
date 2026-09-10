@@ -101,7 +101,7 @@ RSpec.describe WorkUnit do
   end
 
   it "does not raise or set active_dedup_key when the kind belongs to a disabled/unregistered plugin" do
-    # JOB-4235: a WorkUnit's kind can belong to a plugin disabled after
+    # a WorkUnit's kind can belong to a plugin disabled after
     # the unit was created (WorkDefinitions.for raises UnknownKind).
     # sync_active_dedup_key runs on every save, so it must degrade to
     # "not enforced" instead of raising — mirroring every other

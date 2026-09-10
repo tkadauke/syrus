@@ -14,7 +14,7 @@ import drawTextToolCard from "./draw_text"
 import moveElementToolCard from "./move_element"
 
 // Aggregation/parity test for the whiteboard plugin's `{ id, version }`
-// element-mutator family (EPIC-292 / JOB-4223) -- draw_shape, draw_text,
+// element-mutator family (the pending-action tool-card work) -- draw_shape, draw_text,
 // draw_line, draw_arrow, draw_freedraw, draw_frame, draw_embed, draw_image,
 // move_element, and delete_element all share the same result shape and
 // ElementActionCard renderer (see ../whiteboardToolCard.tsx), so one shared

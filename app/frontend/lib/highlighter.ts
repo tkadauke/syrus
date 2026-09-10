@@ -2,7 +2,7 @@ import { createHighlighterCore, createCssVariablesTheme } from "@shikijs/core"
 import { createOnigurumaEngine } from "@shikijs/engine-oniguruma"
 import type { HighlighterCore, LanguageInput, ThemedToken } from "@shikijs/core"
 
-// The languages the unified highlighting epic wires up first (EPIC-309). Each
+// The languages the unified highlighting epic wires up first . Each
 // id is a real Shiki grammar id (see @shikijs/langs) so it can be passed
 // straight through to loadLanguage()/codeToTokensBase() with no translation
 // layer.

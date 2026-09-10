@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_queue_detail (EPIC-293 / JOB-4227). The
+// Core-owned tool card for admin_queue_detail (the tool-card work). The
 // tool reads one SolidQueue tab at a time (active/pending/failed/recurring/
 // workers); each tab shares almost nothing shape-wise with the others, so
 // this card dispatches on the echoed `tab` field and renders a dense table

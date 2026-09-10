@@ -1,7 +1,7 @@
 require "find"
 
 module Skills
-  # Built-in skill (EPIC-234): reviews the current diff (or, absent a
+  # Built-in skill : reviews the current diff (or, absent a
   # meaningful diff, the repository as a whole) for OWASP-top-10-style
   # issues, injection risks, and secret leakage — generic to any language
   # Syrus can read. Mirrors this chat environment's own `security-review`

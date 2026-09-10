@@ -1,6 +1,6 @@
 require "net/http"
 
-# Chat-surface twin of WorkflowMcpTransportSelector (EPIC-250). Decides which
+# Chat-surface twin of WorkflowMcpTransportSelector . Decides which
 # MCP transport a chat turn should use: the persistent worker-local daemon
 # (PersistentMcpDaemon) when the `persistent_mcp_sidecar` feature is on, the
 # daemon answers a healthy #health_check, AND it advertises
@@ -11,7 +11,7 @@ require "net/http"
 #
 # Kept as a standalone twin of WorkflowMcpTransportSelector rather than a
 # shared base class: the two selectors gate on different capabilities and
-# evolve independently (chat and workflow tool wiring are separate EPIC-250
+# evolve independently (chat and workflow tool wiring are separate the relevant change
 # milestones), so sharing the ~80 lines of HTTP/health-check plumbing would
 # couple two still-moving pieces for little benefit.
 class ChatMcpTransportSelector

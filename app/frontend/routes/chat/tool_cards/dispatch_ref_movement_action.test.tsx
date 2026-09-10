@@ -18,7 +18,7 @@ describe("dispatch_ref_movement_action tool card", () => {
       action_name: "send_job_upstream",
       state: "dispatched",
       source_kind: "job",
-      source_ref: "syrus/direct-4225",
+      source_ref: "syrus/direct-325",
       target_kind: "branch",
       target_ref: "main",
       job_id: 4225,
@@ -29,7 +29,7 @@ describe("dispatch_ref_movement_action tool card", () => {
 
     render(<>{dispatchRefMovementActionToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
+    expect(screen.getByText("JOB-325")).toBeInTheDocument()
     expect(screen.getByText("WORKFLOW-900")).toBeInTheDocument()
   })
 

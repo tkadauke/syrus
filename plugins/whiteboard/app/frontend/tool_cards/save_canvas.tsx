@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseSaveCanvasResult, SaveCanvasCard } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for save_canvas (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for save_canvas (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
   const result = parseSaveCanvasResult(context.parsedResult)
   if (!result) return null

@@ -102,10 +102,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
-  // EPIC-323 `!` command mode (Coding Mode and Local Mode): the shell command
+  // the chat shell-command cancellation feature `!` command mode (Coding Mode and Local Mode): the shell command
   // this composer instance is tracking, seeded from the payload's
   // `chat_shell_command_in_flight` so a Compose remount (e.g. crossing the
-  // desktop/mobile layout breakpoint mid-command, JOB-4507 visual review)
+  // desktop/mobile layout breakpoint mid-command, the relevant change visual review)
   // rehydrates the stop control instead of losing it. Local state still
   // drives the UI moment-to-moment (immediate feedback on submit/cancel,
   // before the next full payload refetch); cleared once the completion
@@ -2916,7 +2916,7 @@ function ShellCommandRunningBanner({ chatId, command, onError, onUpdate }: { cha
   )
 }
 
-// EPIC-323 `!` command mode: cancels the in-flight ChatShellCommand, reusing
+// the chat shell-command cancellation feature `!` command mode: cancels the in-flight ChatShellCommand, reusing
 // StopButton's icon so stop controls read as one family.
 // `onUpdate` hands the (still `running: true` — the kill is only requested
 // here, not yet applied) response record back to the composer; the effect

@@ -365,7 +365,7 @@ export type ChatToolGroupCall = {
   // (see fullResultBodyUnbounded) -- `result_body` itself is a
   // display-bounded preview (fullResultBody/toolResultPreview) that can cut
   // a long single-line JSON result mid-object, so plugin tool cards must
-  // parse from here, not from result_body (JOB-4223). Undefined for
+  // parse from here, not from result_body . Undefined for
   // builders (e.g. the admin transcript grouper) that haven't computed it;
   // treat that the same as null.
   result_json?: unknown
@@ -602,7 +602,7 @@ export type HiddenChatsPayload = {
 export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
 
 // Embedded on the completion message a `!` command posts to the chat
-// transcript (App::ChatMessagePayload#chat_shell_command_json, EPIC-323).
+// transcript (App::ChatMessagePayload#chat_shell_command_json, the chat shell-command cancellation feature).
 // Unlike ChatShellCommandRecord below, this is always a finished command —
 // there is no `running`/`cancellable` state to track once it's rendered here.
 export type ChatShellCommandResult = {
@@ -615,7 +615,7 @@ export type ChatShellCommandResult = {
   finished_at: string | null
 }
 
-// Mirrors ChatShellCommandsController#shell_command_json (EPIC-323).
+// Mirrors ChatShellCommandsController#shell_command_json (the chat shell-command cancellation feature).
 export type ChatShellCommandRecord = {
   id: number
   chat_session_id: number
@@ -726,7 +726,7 @@ export type ChatPayload = {
   chat_available: boolean
   turn_in_flight: boolean
   agent_busy: boolean
-  // Coding Mode only (EPIC-323): the chat session's currently-running `!`
+  // Coding Mode only (the chat shell-command cancellation feature): the chat session's currently-running `!`
   // command, if any, so the composer can rehydrate its command-mode stop
   // control across a remount (e.g. a desktop/mobile breakpoint crossing)
   // instead of relying solely on its own local state.
@@ -1172,7 +1172,7 @@ export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
 }
 
-// EPIC-323 `!` command mode: run/cancel a one-shot shell command against a
+// the chat shell-command cancellation feature `!` command mode: run/cancel a one-shot shell command against a
 // Coding Mode chat session's persistent checkout. chatId is the numeric chat
 // session id (not a paths.* entry) since these routes were added after the
 // rest of the chat payload's path map was established.

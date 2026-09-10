@@ -252,7 +252,7 @@ RSpec.describe "API: /api/v1/app/chats/:chat_id/shell_commands", type: :request 
         expect(response).to have_http_status(:not_found)
       end
 
-      it "404s when a daemon session row exists but the daemon has never actually handshaken (JOB-4509 visual review)" do
+      it "404s when a daemon session row exists but the daemon has never actually handshaken (JOB-609 visual review)" do
         sign_in_as(user)
         chat = local_chat
         enable_local_mode!

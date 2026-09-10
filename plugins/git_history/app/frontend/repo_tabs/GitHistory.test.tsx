@@ -366,8 +366,8 @@ describe("GitHistory", () => {
     // Everything collapses into the Epic's single top-level group.
     expect(screen.getAllByRole("listitem")).toHaveLength(1)
 
-    // Exactly two JOB-42 links exist: the epic_landed row's inline member
-    // link, and JOB-42's own nested implementation commit. The
+    // Exactly two the relevant change links exist: the epic_landed row's inline member
+    // link, and the relevant change's own nested implementation commit. The
     // reconciliation row contributes none -- it belongs to the Epic only.
     expect(screen.getAllByRole("link", { name: "JOB-42" })).toHaveLength(2)
   })

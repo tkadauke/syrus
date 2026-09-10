@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for list_open_prs (EPIC-291 / JOB-4221). Renders PR
+// Core-owned tool card for list_open_prs (the Tier 1 tool-card work). Renders PR
 // triage results as a dense table: title, number, refs, draft, and
 // mergeability outcome.
 type PrRow = {

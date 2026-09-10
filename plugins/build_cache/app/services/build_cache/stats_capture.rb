@@ -1,7 +1,7 @@
 require "open3"
 require "timeout"
 
-# Best-effort `sccache --show-stats --stats-format=json` snapshot (EPIC-251).
+# Best-effort `sccache --show-stats --stats-format=json` snapshot .
 # Called by Steps::Prepare and Steps::Grader after each shell command they
 # run, with the wrapper's own compiler masquerade active. Non-C/C++ repos
 # (and any repo before the `sccache` binary is on PATH, e.g. local dev)

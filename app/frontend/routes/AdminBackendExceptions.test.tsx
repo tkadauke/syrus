@@ -109,7 +109,7 @@ function backendExceptionEvent() {
     queue_name: null,
     executions: null,
     job_id: 3188,
-    job_slug: "JOB-3188",
+    job_slug: "JOB-888",
     workflow_id: null,
     run_id: null,
     metadata: {},

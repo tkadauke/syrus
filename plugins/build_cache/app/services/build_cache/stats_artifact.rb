@@ -1,6 +1,6 @@
 module BuildCache
   # Documents the expected schema for Workflow#artifacts["sccache_stats"]
-  # (EPIC-251). Produced by Steps::Prepare and Steps::Grader after each
+  # . Produced by Steps::Prepare and Steps::Grader after each
   # shell command they run, via `sccache --show-stats --stats-format=json`
   # against the compiler-cache masquerade baked into the worker image
   # (Dockerfile, worker-deps stage). A follow-up Job (build-cache-stats-ui)

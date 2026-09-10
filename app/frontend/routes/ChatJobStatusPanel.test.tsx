@@ -126,7 +126,7 @@ describe("ChatJobStatusPanel job cards", () => {
         workflow_step: "chat_feedback",
         active_workflow: {
           id: 15652,
-          slug: "WF-15652",
+          slug: "WF-552",
           state: "queued",
           trigger_kind: "chat_feedback",
           step: "chat_feedback"

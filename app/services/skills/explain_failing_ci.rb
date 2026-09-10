@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): read-only, plain-language digest of why CI
+  # Built-in skill : read-only, plain-language digest of why CI
   # is currently failing on a Job's pull request. No fix attempt, no
   # working-tree changes — distinct from the `ci_failure` trigger kind's
   # automated `analyze_and_fix` repair loop, which this does not touch.

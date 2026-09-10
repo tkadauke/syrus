@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parsePendingActionResult, pendingActionCollapsedSummary, PendingActionResultCard } from "../pendingActionToolCard"
 
-// Pending-action tool card (EPIC-292 / JOB-4222). All of the parsing and
+// Pending-action tool card (the pending-action tool-card work). All of the parsing and
 // presentation lives in ../pendingActionToolCard so the whole family stays
 // consistent; this file only binds it to one MCP tool name.
 function collapsedSummary(context: ToolCardContext) {

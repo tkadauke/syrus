@@ -1,6 +1,6 @@
 module Workflows
   # A freeform agent execution driven by a named Skills:: instruction set
-  # (EPIC-233) rather than an issue body. Launched from a `direct` Job
+  # (the skill-workflow feature) rather than an issue body. Launched from a `direct` Job
   # carrying `skill_name` + `skill_args` (see Job#skill_launch?).
   #
   #   prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open

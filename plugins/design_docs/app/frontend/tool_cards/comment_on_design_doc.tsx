@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, StatePill } from "@app/routes/chat/toolCardUi"
 import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
 
-// Plugin-owned tool card for comment_on_design_doc (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for comment_on_design_doc (the pending-action tool-card work).
 type CommentOnDesignDoc = {
   summary: DesignDocSummary
   threadState: string | null

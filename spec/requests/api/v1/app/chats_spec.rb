@@ -1763,7 +1763,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
   end
 
-  it "includes the running shell command in the payload for a Coding Mode chat (JOB-4507 composer remount fix)" do
+  it "includes the running shell command in the payload for a Coding Mode chat (JOB-607 composer remount fix)" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, mode: "coding", last_message_at: Time.current)
     command = chat.chat_shell_commands.create!(user: user, command: "ls -la", started_at: Time.current)

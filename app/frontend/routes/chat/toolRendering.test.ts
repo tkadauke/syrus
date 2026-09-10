@@ -62,7 +62,7 @@ describe("toolPresentation", () => {
 
 describe("toolResultPresentation", () => {
   it("prioritizes a core-registered card's collapsed summary over the generic list heuristic", () => {
-    // list_chat_media's card lives under routes/chat/tool_cards/ (JOB-4220) —
+    // list_chat_media's card lives under routes/chat/tool_cards/  —
     // this proves the registered card wins over the blind generic guess.
     const result = toolResultPresentation(
       "list_chat_media",
@@ -101,7 +101,7 @@ describe("toolResultPresentation", () => {
   it("parses from the explicit parseBody argument instead of the (possibly truncated) display body", () => {
     // Simulates a caller that only has a truncated display preview for
     // `body` (e.g. fullResultBody's output) but kept the complete text
-    // separately (fullResultBodyUnbounded) for parsing -- see JOB-4223.
+    // separately (fullResultBodyUnbounded) for parsing.
     const truncatedBody = '{"design_docs": [{"id": 1, "doc_ref": "DOC-1'
     const fullBody = JSON.stringify({ design_docs: [{ id: 1, doc_ref: "DOC-1", title: "A" }] })
 
@@ -128,7 +128,7 @@ describe("typedToolResult", () => {
     expect(typedToolResult("propose_job", JSON.stringify({ slug: "fix-output", title: "Fix output", kind: "job", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic", JSON.stringify({ slug: "fix-epic", title: "Fix epic", kind: "epic", state: "proposed" }))).toBeNull()
     expect(typedToolResult("propose_epic_with_jobs", JSON.stringify({ slug: "fix-epic", state: "proposed" }))).toBeNull()
-    expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-2351?" }))).toBeNull()
+    expect(typedToolResult("check_job_mergeability", JSON.stringify({ pending_action_id: 201, state: "pending", message: "Check mergeability for JOB-851?" }))).toBeNull()
   })
 
   it("returns null for unknown tools and malformed typed payloads", () => {

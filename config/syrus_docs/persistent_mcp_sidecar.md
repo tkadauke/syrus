@@ -18,7 +18,7 @@ daemon's `CAPABILITIES` advertises `CHAT_TOOLS_CAPABILITY`, and
 `ChatMcpTransportSelector` picks `:persistent` once the daemon is healthy),
 while workflow tool dispatch is still a skeleton (`CAPABILITIES` does not
 advertise `WORKFLOW_TOOLS_CAPABILITY`), so `WorkflowMcpTransportSelector`
-always falls back to stdio in production until a later EPIC-250 milestone
+always falls back to stdio in production until a later EPIC-20 milestone
 wires the real workflow tool set onto the daemon.
 
 ## Enabling
@@ -161,7 +161,7 @@ the token arrived.
 
 ## Chat transport selection (`ChatMcpTransportSelector`)
 
-Chat is a second, independent EPIC-250 milestone on top of the same daemon.
+Chat is a second, independent EPIC-20 milestone on top of the same daemon.
 Every `ChatTurnJob` turn asks `ChatMcpTransportSelector.select` the same
 question `WorkflowMcpTransportSelector` answers for workflow steps, gated on
 a different capability (`PersistentMcpDaemon::CHAT_TOOLS_CAPABILITY`,
@@ -247,7 +247,7 @@ at all, so it isn't part of the daemon's registered chat tool surface either.
 - No workflow tool dispatch: `PersistentMcpDaemon::CAPABILITIES` does not
   include `WORKFLOW_TOOLS_CAPABILITY`, so `WorkflowMcpTransportSelector`
   still always falls back to stdio in production. Wiring the real workflow
-  tool set (`Mcp::Tools`) onto this daemon is a later EPIC-250 milestone, so
+  tool set (`Mcp::Tools`) onto this daemon is a later EPIC-20 milestone, so
   workflow tool usage is still exclusively transcript-derived
   (`sidecar_mode: "stdio"`) until then.
 - Codex has no persistent transport wiring for either surface (see

@@ -2,8 +2,8 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_read_operational_logs (EPIC-293 /
-// JOB-4227). Search results can run to dozens of rows of raw log text, so
+// Core-owned tool card for admin_read_operational_logs (the tool-card work /
+// Search results can run to dozens of rows of raw log text, so
 // the applied filters and count render up front and the actual rows stay
 // behind a disclosure -- a friendlier version of the same collapse pattern
 // run_command uses for stdout/stderr.

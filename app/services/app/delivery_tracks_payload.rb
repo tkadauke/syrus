@@ -1,7 +1,7 @@
 # Repository detail page "Delivery" section — tracks table, ref-movement
 # action availability, recent ref-movement workflows, and recent PR
 # ingestion classifications. UI-only glue over facts already recorded by
-# earlier Jobs of EPIC-268 (DeliveryPolicy, JobPrLink, RefMovementAction,
+# earlier Jobs of the relevant change (DeliveryPolicy, JobPrLink, RefMovementAction,
 # PrProvenanceClassifier) — no new state is derived or persisted here.
 module App
   class DeliveryTracksPayload

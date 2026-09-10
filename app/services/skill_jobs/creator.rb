@@ -1,6 +1,6 @@
 module SkillJobs
   # Creates a `direct` Job that launches a named Skills:: instruction set
-  # (EPIC-233's "launch a skill by name + args" entry point) instead of a
+  # (the skill-workflow feature's "launch a skill by name + args" entry point) instead of a
   # free-form prompt. Validates the skill actually resolves and the
   # supplied args satisfy its declared parameter schema before creating
   # anything, so a bad launch request never reaches the Workflow

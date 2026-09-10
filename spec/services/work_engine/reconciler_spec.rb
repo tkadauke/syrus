@@ -1205,7 +1205,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     # bypass_dedup: `job` (Factories.job) already owns a real active
     # "initial" WorkUnit; this deliberately constructs a second one
     # (never attached to a Workflow) to simulate an orphan row, which
-    # active_dedup_key uniqueness (JOB-4235) would otherwise reject.
+    # active_dedup_key uniqueness  would otherwise reject.
     unit = WorkUnit.new(
       work_intent: intent,
       kind: "initial",
@@ -1554,7 +1554,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # update! (not update_columns) so active_dedup_key  clears
     # via the model callback — otherwise it would collide with the
     # still-active sibling unit created below.
     unit.update!(state: "succeeded", finished_at: 5.minutes.ago)
@@ -1603,7 +1603,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # update! (not update_columns) so active_dedup_key  clears
     # via the model callback — otherwise it would collide with the
     # still-active sibling unit created below.
     unit.update!(
@@ -1652,7 +1652,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     workflow = job.latest_workflow
     unit = workflow.work_unit
     intent = unit.work_intent
-    # update! (not update_columns) so active_dedup_key (JOB-4235) clears
+    # update! (not update_columns) so active_dedup_key  clears
     # via the model callback — otherwise it would collide with the
     # still-active sibling unit created below.
     unit.update!(state: "failed", finished_at: 5.minutes.ago)
@@ -1799,7 +1799,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "gracefully skips instead of raising when retrying a cancelled feedback workflow races an active WorkUnit" do
-    # JOB-4235: retry_cancelled_workflow's direct WorkUnits::Launcher call
+    # retry_cancelled_workflow's direct WorkUnits::Launcher call
     # (used for feedback-kind workflows) must be rescued too, same as the
     # RetryWorkflowEnqueuer/RunCheckpointResume paths it delegates to for
     # non-feedback kinds. The active_runtime_work_for_job? guard normally
@@ -2221,7 +2221,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       trigger_kind: "retry",
       started_at: 30.minutes.ago,
       finished_at: 25.minutes.ago,
-      artifacts: { "publication_branch" => "syrus/direct-2415" }
+      artifacts: { "publication_branch" => "syrus/direct-15" }
     )
     step.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 25.minutes.ago)
     run.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 25.minutes.ago)
@@ -2246,7 +2246,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     job.update!(
       state: "queued",
       pr_number: 2174,
-      branch_name: "syrus/direct-2415",
+      branch_name: "syrus/direct-15",
       pr_checks_state: "passing",
       commits_behind_base: 0,
       github_mergeable_state: "clean"
@@ -2269,14 +2269,14 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       trigger_kind: "initial",
       started_at: 30.minutes.ago,
       finished_at: 1.minute.ago,
-      artifacts: { "publication_branch" => "syrus/direct-2884" }
+      artifacts: { "publication_branch" => "syrus/direct-84" }
     )
     step.update_columns(kind: "pr_open", state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
     run.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
     job.update!(
       state: "queued",
       pr_number: 5,
-      branch_name: "syrus/direct-2884",
+      branch_name: "syrus/direct-84",
       pr_checks_state: nil,
       commits_behind_base: 0,
       github_mergeable_state: "clean"
@@ -5509,7 +5509,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.update_columns(state: "failed", finished_at: Time.current)
     run.create_run_diagnostic!(
       error_class: "Octokit::UnprocessableEntity",
-      error_message: "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-3972"
+      error_message: "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-872"
     )
     RunFailureClassification.create!(
       run: run,
@@ -5517,7 +5517,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       retryable: false,
       confidence: 0.75,
       reason: "old classifier treated GitHub 422 as user validation",
-      diagnostic_summary: "Octokit::UnprocessableEntity: No commits between main and syrus/direct-3972",
+      diagnostic_summary: "Octokit::UnprocessableEntity: No commits between main and syrus/direct-872",
       classified_at: 1.hour.ago
     )
 
@@ -5615,7 +5615,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   end
 
   it "closes a stranded infrastructure job whose latest workflow already succeeded" do
-    # Reproduces JOB-3302: an infrastructure Job stuck at :implemented (or
+    # Reproduces an infrastructure Job stuck at :implemented (or
     # any other open state) despite its infrastructure Workflow having
     # already finished. Nothing else in the normal chain revisits a Job
     # once it's out of :queued/:running, so this is the safety net.

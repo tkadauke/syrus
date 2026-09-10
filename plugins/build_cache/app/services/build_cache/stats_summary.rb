@@ -1,5 +1,5 @@
 # Best-effort normalizer over one `sccache --show-stats --stats-format=json`
-# capture (see BuildCache::StatsArtifact, EPIC-251). sccache's JSON shape has
+# capture (see BuildCache::StatsArtifact, sccache's JSON shape has
 # shifted across versions and can report counters either at the top level or
 # nested under a `"stats"` key, and `cache_hits`/`cache_misses` can appear as
 # a bare integer or as `{"counts" => {"C/C++" => 10, ...}}` (per-language

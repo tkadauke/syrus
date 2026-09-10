@@ -1,7 +1,7 @@
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { memoryRows, MemoryListBody, memoryListSummary } from "../memoryToolCard"
 
-// Plugin-owned tool card for search_memories (EPIC-293). Shares its list
+// Plugin-owned tool card for search_memories (the tool-card work). Shares its list
 // rendering with list_memories -- both tools return the same
 // `{ memories: [memory_payload, ...] }` shape.
 function collapsedSummary(context: ToolCardContext) {

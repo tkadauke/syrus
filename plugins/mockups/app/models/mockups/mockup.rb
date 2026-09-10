@@ -3,7 +3,7 @@ module Mockups
   # holds its files.
   #
   # The panel is deliberately not owned here. It is a generic multi-format
-  # viewer (html, markdown, pdf, image -- JOB-3864) that other features render
+  # viewer (html, markdown, pdf, image) that other features render
   # into; this record is the first-class thing a person browses, searches and
   # links to.
   class Mockup < ApplicationRecord

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
-// Plugin-owned tool card for schedule_recurring (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for schedule_recurring (the pending-action tool-card work).
 //
 // This tool's success payload is deliberately narrow and does NOT match the
 // standard pending-action shape used elsewhere: it carries only

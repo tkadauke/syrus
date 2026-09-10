@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for draw_line (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for draw_line (the pending-action tool-card work).
 const ACTION = "Drew line"
 
 function collapsedSummary(context: ToolCardContext) {

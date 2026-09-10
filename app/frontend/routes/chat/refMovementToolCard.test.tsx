@@ -10,7 +10,7 @@ describe("parseRefMovementCore", () => {
       state: "dispatched",
       blocked_reason: null,
       source_kind: "job",
-      source_ref: "syrus/direct-4225",
+      source_ref: "syrus/direct-325",
       target_kind: "branch",
       target_ref: "main",
       target_repository: "upstream/syrus",
@@ -25,7 +25,7 @@ describe("parseRefMovementCore", () => {
       state: "dispatched",
       blockedReason: null,
       sourceKind: "job",
-      sourceRef: "syrus/direct-4225",
+      sourceRef: "syrus/direct-325",
       targetKind: "branch",
       targetRef: "main",
       targetRepository: "upstream/syrus",
@@ -60,7 +60,7 @@ describe("RefMovementCoreFields", () => {
       action_name: "send_job_upstream",
       state: "dispatched",
       source_kind: "job",
-      source_ref: "syrus/direct-4225",
+      source_ref: "syrus/direct-325",
       target_kind: "branch",
       target_ref: "main",
       mode: "auto",
@@ -71,7 +71,7 @@ describe("RefMovementCoreFields", () => {
 
     expect(screen.getByText("send_job_upstream")).toBeInTheDocument()
     expect(screen.getByText("dispatched")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4225")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-325")).toBeInTheDocument()
     expect(screen.getByText("main")).toBeInTheDocument()
     expect(screen.getByText("review")).toBeInTheDocument()
   })

@@ -92,7 +92,7 @@ RSpec.describe WorkUnits::Launcher do
     expect(first.work_unit).to be_active
   end
 
-  # JOB-4235: WorkUnits::Launcher#create_lock! used to only raise
+  # WorkUnits::Launcher#create_lock! used to only raise
   # LockConflict for landing kinds; every other kind silently swallowed a
   # conflict and let a second WorkUnit + Workflow + Step chain materialize
   # anyway, which would go on to actually run once the first unit's lock

@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseRunResultsPayload, RunResultsBody, runResultsSummary } from "../testRunResultsToolCard"
 
-// Plugin-owned tool card for read_job_test_results (EPIC-292). Lives
+// Plugin-owned tool card for read_job_test_results (the pending-action tool-card work). Lives
 // entirely inside the test_insights plugin -- core discovers it by directory
 // convention (see app/frontend/pluginToolCards.tsx) and never imports it by
 // name, so it can be added, changed, or removed without touching core.

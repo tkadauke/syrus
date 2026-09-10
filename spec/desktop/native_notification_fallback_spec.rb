@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-# EPIC-275's second Job: the Electron main process's own native-notification
+# the relevant change's second Job: the Electron main process's own native-notification
 # dispatch (desktop/electron/nativeNotifications.ts's dispatchNativeNotification,
 # wired to the AppUserChannel WebSocket subscription in main.ts) used to fire
 # unconditionally for every notification_created event, even while the shared

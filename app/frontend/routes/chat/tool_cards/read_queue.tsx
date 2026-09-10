@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for read_queue (EPIC-291 / JOB-4221). Renders a
+// Core-owned tool card for read_queue (the Tier 1 tool-card work). Renders a
 // compact Solid Queue ops dashboard: worker/failed/recurring counts,
 // per-queue pending counts, blocked/paused queues, and stale workers.
 type Worker = { key: string; hostname: string; pid: string; queues: string[]; stale: boolean }

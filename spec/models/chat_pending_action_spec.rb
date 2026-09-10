@@ -554,7 +554,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     expect(cleanup_action.confirm!).to be true
   end
 
-  it "reconciles JOB-2415-style queued ready PR drift to implemented" do
+  it "reconciles JOB-115-style queued ready PR drift to implemented" do
     admin = Factories.user(admin: true)
     repository = Factories.repository(user: admin)
     admin_session = ChatSession.create!(user: admin, repository: repository)

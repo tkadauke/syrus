@@ -762,7 +762,7 @@ module App
     # ChatProposalFiler auto-attaches the proposing chat session to the Job it
     # files, so confirming a proposal makes discussion_chat and source_chat
     # resolve to the identical ChatSession. Rendering both then showed the
-    # same chat linked twice under different labels (JOB-3676-shaped bug
+    # same chat linked twice under different labels (the relevant change-shaped bug
     # report: "Redundant links to chat").
     def discussion_chat_json
       chat = discussion_chat

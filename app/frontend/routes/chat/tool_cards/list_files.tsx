@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue, EmptyState } from "../toolCardUi"
 
-// Local Mode tool card for list_files (EPIC-293 / JOB-4225).
+// Local Mode tool card for list_files (the tool-card work).
 type FileRow = { name: string; isDir: boolean }
 
 function parseRows(context: ToolCardContext): FileRow[] | null {

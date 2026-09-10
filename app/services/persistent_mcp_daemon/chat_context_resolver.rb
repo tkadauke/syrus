@@ -1,5 +1,5 @@
 # Reconstructs a stdio-equivalent MCP dispatch context for a chat tool call
-# arriving over the persistent MCP sidecar daemon (EPIC-250).
+# arriving over the persistent MCP sidecar daemon .
 #
 # Stdio chat sidecars (Mcp::Sidecar.chat) get a fresh subprocess per
 # (chat_session, tier), so Mcp::Sidecar.chat_context/#chat_tools_for compute

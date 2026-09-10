@@ -17,7 +17,7 @@ import {
   type MysqlSection
 } from "../mysqlToolCard"
 
-// Plugin-owned tool card for mysql_db_browser_describe_table (EPIC-293).
+// Plugin-owned tool card for mysql_db_browser_describe_table (the tool-card work).
 // Each of the four sections (info/columns/indexes/foreign_keys) can
 // independently be `{available: false, error}` on a partial GRANT failure
 // (see MysqlDbBrowser::SchemaInspector#safe_section) -- render whichever

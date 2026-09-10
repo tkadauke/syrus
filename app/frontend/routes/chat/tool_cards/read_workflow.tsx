@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, decimalCost, displayValue, durationLabel, Row, SectionLabel, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for read_workflow (EPIC-291 / JOB-4221). Renders the
+// Core-owned tool card for read_workflow (the Tier 1 tool-card work). Renders the
 // Workflow header plus a Step/Run timeline: state, duration/timestamps,
 // trigger kind, summary, and cost when present.
 type RunEntry = {

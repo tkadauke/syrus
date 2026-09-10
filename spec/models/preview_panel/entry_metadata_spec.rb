@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# The panel is a generic multi-format viewer (JOB-3864), but the file -> viewer
+# The panel is a generic multi-format viewer , but the file -> viewer
 # mapping was a hardcoded switch, so every new kind meant editing core.
 RSpec.describe PreviewPanel::EntryMetadata do
   def provider(kinds)

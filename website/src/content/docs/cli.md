@@ -385,14 +385,14 @@ On a Job branch, it fetches the matching remote branch before counting
 commits behind:
 
 ```text
-JOB-1291 (syrus/direct-1291) — up to date
-JOB-1291 (syrus/direct-1291) — ⚠ 2 commit(s) behind remote
+JOB-91 (syrus/direct-91) — up to date
+JOB-91 (syrus/direct-91) — ⚠ 2 commit(s) behind remote
 ```
 
 The JSON form is intended for desktop and scripting integrations:
 
 ```json
-{"job_id":1291,"branch":"syrus/direct-1291","behind":2}
+{"job_id":91,"branch":"syrus/direct-91","behind":2}
 ```
 
 When the current branch is not a Syrus Job branch, it prints `Not on a

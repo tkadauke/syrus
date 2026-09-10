@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for explain_stuck_job (EPIC-291 / JOB-4221). Leads
+// Core-owned tool card for explain_stuck_job (the Tier 1 tool-card work). Leads
 // with the Job, stuck flag, recommended action, and human summary, then puts
 // the deep diagnostic sections (Workflows, Runs, Dependencies, Landing,
 // WorkUnits) behind collapsible <details> so the card stays scannable.

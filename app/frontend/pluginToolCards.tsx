@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-// Extension point for custom chat tool-call cards (EPIC-291 / JOB-4219).
+// Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
 //
 // A "tool card" upgrades how one MCP tool's call renders inside a chat
 // ToolGroup (see routes/chat/MessageCards.tsx) and the admin transcript
@@ -37,7 +37,7 @@ export type ToolCardRenderer = {
   // a malformed/unexpected payload so the generic body renders instead;
   // the raw JSON "Raw details" disclosure always stays available
   // regardless of which body renders (see MessageCards.tsx ToolGroup),
-  // and the row itself stays collapsed by default (JOB-4072).
+  // and the row itself stays collapsed by default .
   renderExpanded: (context: ToolCardContext) => ReactNode | null
 }
 

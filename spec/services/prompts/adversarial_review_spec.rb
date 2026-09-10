@@ -40,10 +40,10 @@ RSpec.describe Prompts::AdversarialReview do
   end
 
   context "with a stacked base ref" do
-    let(:base_ref) { "origin/syrus/direct-3341" }
+    let(:base_ref) { "origin/syrus/direct-241" }
 
     it "renders the concrete parent branch ref in diff instructions" do
-      expect(prompt).to include("git diff origin/syrus/direct-3341...HEAD -- <path>")
+      expect(prompt).to include("git diff origin/syrus/direct-241...HEAD -- <path>")
       expect(prompt).not_to include("git diff origin/main...HEAD -- <path>")
       expect(prompt).not_to include("<base>")
     end

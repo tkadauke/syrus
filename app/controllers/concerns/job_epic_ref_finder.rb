@@ -4,7 +4,7 @@ module JobEpicRefFinder
   private
 
   # Resolves a job identifier from a route param. Accepts numeric IDs
-  # ("123"), the JOB-{n} prefix format ("JOB-123"), and human-readable
+  # ("123"), the JOB-{n} prefix format ("the relevant change"), and human-readable
   # slugs ("my-feature-slug"). Raises ActiveRecord::RecordNotFound for
   # unknown slugs so the rescue_from handler returns a proper 404.
   def find_job_by_ref(scope, param)

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, Disclosure, displayValue, Row } from "../toolCardUi"
 
-// Core-owned tool card for repo_info (EPIC-293 / JOB-4225). Shows the
+// Core-owned tool card for repo_info (the tool-card work). Shows the
 // attached repository's default branch, trigger label, agent provider, and
 // concise recent-commit/branch counts — full lists stay behind disclosures
 // so the card doesn't dump every commit/branch by default.

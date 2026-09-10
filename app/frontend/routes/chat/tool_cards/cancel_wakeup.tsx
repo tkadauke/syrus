@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue } from "../toolCardUi"
 
-// Core-owned tool card for cancel_wakeup (EPIC-292 / JOB-4222).
+// Core-owned tool card for cancel_wakeup (the pending-action tool-card work).
 type CancelWakeupResult = { wakeupId: string; cancelled: boolean }
 
 function parseCancelWakeup(context: ToolCardContext): CancelWakeupResult | null {

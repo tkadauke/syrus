@@ -90,7 +90,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
   # `bundle install --jobs 4` can start building a native extension before the
   # gem that extension needs *at build time* has finished installing. The same
   # command then succeeds, because the first attempt left the missing gem
-  # behind. JOB-4377 lost a landing and its approval to that race.
+  # behind. the relevant change lost a landing and its approval to that race.
   describe "retrying a failed command" do
     def result(exit_status:, timed_out: false)
       ProcessRunner::Result.new(

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { displayValue, EmptyState } from "../toolCardUi"
 
-// Core-owned tool card for list_repositories (EPIC-293 / JOB-4225).
+// Core-owned tool card for list_repositories (the tool-card work).
 type RepositoryRow = { id: string; slug: string; defaultBranch: string | null; epicDependencyPolicy: string | null }
 
 type ListRepositoriesResult = {

@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): identifies unused files, exports, and
+  # Built-in skill : identifies unused files, exports, and
   # routes via static analysis appropriate to the detected language(s),
   # then either reports the findings (dry run, the default) or removes
   # only the unambiguous ones and commits.

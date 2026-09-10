@@ -9,7 +9,7 @@ RSpec.describe JobRebasePlan do
       user: user,
       repository: repository,
       state: "approved",
-      branch_name: "syrus/direct-2265",
+      branch_name: "syrus/direct-65",
       pr_number: 2265,
       commits_behind_base: 4,
       pr_checks_state: "failure",

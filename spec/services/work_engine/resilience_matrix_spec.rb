@@ -110,7 +110,7 @@ RSpec.describe "Work engine resilience regression matrix" do
   end
 
   matrix = {
-    "JOB-2260 stale queued retry Run" => {
+    "JOB-760 stale queued retry Run" => {
       issue_kind: :queued_run_without_queue_claim,
       action: :reenqueue_run,
       auto_executable: true,

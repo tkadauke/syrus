@@ -690,7 +690,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:job, :discussion_chat, :chat_id)).to eq(discussion_chat.id)
     end
 
-    it "omits the discussion chat when it is the same chat as the proposal source (JOB-3676 redundant links)" do
+    it "omits the discussion chat when it is the same chat as the proposal source (JOB-576 redundant links)" do
       chat = ChatSession.create!(user: user, repository: repo, title: "Fix smart folder paused/queued filter")
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
       proposal = chat.proposals.create!(

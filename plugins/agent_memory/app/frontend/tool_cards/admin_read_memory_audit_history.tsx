@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, EmptyState, Row, SectionLabel, StatePill } from "@app/routes/chat/toolCardUi"
 import { AuditEventActor, AuditEventChange, AuditEventTypePill, parseAuditEvent, type AuditEvent } from "../memoryToolCard"
 
-// Plugin-owned tool card for admin_read_memory_audit_history (EPIC-293).
+// Plugin-owned tool card for admin_read_memory_audit_history (the tool-card work).
 type AuditHistoryCard = {
   memoryId: string
   deleted: boolean

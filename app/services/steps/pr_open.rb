@@ -359,7 +359,7 @@ module Steps
     # `restore_run_checkpoint_if_needed!` already knows how to pull it back.
     # Only `summarize`/`summarize_amend` ever called it, so the step that
     # actually publishes the branch was the one step that could not recover --
-    # JOB-4453, JOB-4463 and JOB-4470 all reached here with an empty workspace
+    # several empty-workspace PR-open regressions all reached here with an empty workspace
     # and were caught by close_empty_new_publication_branch! only after the
     # empty branch had been pushed.
     #

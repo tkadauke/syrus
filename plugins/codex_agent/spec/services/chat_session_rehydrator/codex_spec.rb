@@ -261,7 +261,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
     include_examples(
       "a diagnostic-first repair transcript",
       {
-        incident: "JOB-2415 state drift",
+        incident: "JOB-115 state drift",
         repair_tool: "reconcile_job_state",
         calls: [
         {
@@ -277,7 +277,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
         {
           tool: "reconcile_job_state",
           input: { "job_id" => 2415, "mode" => "auto", "reason" => "State drift after terminal workflow." },
-          result: { "pending_action_id" => 101, "state" => "pending", "message" => "Reconcile JOB-2415 using mode auto?" }
+          result: { "pending_action_id" => 101, "state" => "pending", "message" => "Reconcile JOB-115 using mode auto?" }
         }
         ]
       }
@@ -286,7 +286,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
     include_examples(
       "a diagnostic-first repair transcript",
       {
-        incident: "JOB-2265 no-op CI repair",
+        incident: "JOB-765 no-op CI repair",
         repair_tool: "mark_ci_repair_noop",
         calls: [
         {
@@ -302,7 +302,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
         {
           tool: "mark_ci_repair_noop",
           input: { "job_id" => 2265, "workflow_id" => 991, "reason" => "Repair produced no branch or check progress." },
-          result: { "pending_action_id" => 102, "state" => "pending", "message" => "Mark CI repair no-op for JOB-2265?" }
+          result: { "pending_action_id" => 102, "state" => "pending", "message" => "Mark CI repair no-op for JOB-765?" }
         }
         ]
       }
@@ -327,7 +327,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
         {
           tool: "retry_from_current_pr_branch",
           input: { "job_id" => 2301, "workflow_id" => 992, "reason" => "Remote PR head supersedes stale workflow output." },
-          result: { "pending_action_id" => 103, "state" => "pending", "message" => "Retry JOB-2301 from the current PR branch?" }
+          result: { "pending_action_id" => 103, "state" => "pending", "message" => "Retry JOB-801 from the current PR branch?" }
         }
         ]
       }
@@ -352,7 +352,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
         {
           tool: "cancel_stale_work",
           input: { "job_id" => 2330, "workflow_ids" => [ 993 ], "run_ids" => [ 994 ], "reason" => "No live worker evidence for active run." },
-          result: { "pending_action_id" => 104, "state" => "pending", "message" => "Cancel stale work for JOB-2330?" }
+          result: { "pending_action_id" => 104, "state" => "pending", "message" => "Cancel stale work for JOB-830?" }
         }
         ]
       }
@@ -377,7 +377,7 @@ RSpec.describe ChatSessionRehydrator::Codex do
         {
           tool: "force_landing_recheck",
           input: { "job_id" => 2402, "reason" => "Refresh stale landing blocker before override." },
-          result: { "pending_action_id" => 105, "state" => "pending", "message" => "Force landing recheck for JOB-2402? Current blocker: active_workflow." }
+          result: { "pending_action_id" => 105, "state" => "pending", "message" => "Force landing recheck for JOB-102? Current blocker: active_workflow." }
         }
         ]
       }

@@ -43,7 +43,7 @@ describe("admin_stuck_jobs tool card", () => {
 
     render(<>{adminStuckJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    const link = screen.getByRole("link", { name: "JOB-4048 — Add plugin-aware tool cards" })
+    const link = screen.getByRole("link", { name: "JOB-148 — Add plugin-aware tool cards" })
     expect(link).toHaveAttribute("href", "/jobs/4048")
     expect(screen.getByText("running run without live worker evidence")).toBeInTheDocument()
     expect(screen.getByText("auto repairable")).toBeInTheDocument()

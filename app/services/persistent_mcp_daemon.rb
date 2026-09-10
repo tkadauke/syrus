@@ -3,7 +3,7 @@ require "mcp"
 require "json"
 require "stringio"
 
-# Worker-local, persistent MCP sidecar daemon (EPIC-250: persistent MCP
+# Worker-local, persistent MCP sidecar daemon (persistent MCP
 # sidecar and tool usage visibility). Disabled by default behind the
 # `persistent_mcp_sidecar` feature — #start refuses to boot while the
 # feature is off. WorkflowMcpTransportSelector and ChatMcpTransportSelector
@@ -24,7 +24,7 @@ require "stringio"
 # CAPABILITIES advertises CHAT_TOOLS_CAPABILITY and ChatMcpTransportSelector
 # can pick :persistent for a chat turn once this passes #health_check.
 # CAPABILITIES does NOT yet include WORKFLOW_TOOLS_CAPABILITY -- wiring the
-# real workflow tool set onto this daemon is a later EPIC-250 milestone, so
+# real workflow tool set onto this daemon is a later the relevant change milestone, so
 # WorkflowMcpTransportSelector still always falls back to stdio in production.
 #
 # Local-only: bound to loopback by default (SYRUS_PERSISTENT_MCP_HOST), and
@@ -67,7 +67,7 @@ class PersistentMcpDaemon
 
   # NOT yet included in CAPABILITIES: wiring a workflow's real tool set
   # (Mcp::Tools, the same tools the stdio sidecar serves) onto this daemon's
-  # MCP::Server is a later EPIC-250 milestone. Until then this daemon only
+  # MCP::Server is a later the relevant change milestone. Until then this daemon only
   # exposes its proof-of-pipe tools (daemon_ping, daemon_invocation_context)
   # plus the chat tool set above, so WorkflowMcpTransportSelector always
   # falls callers back to the stdio sidecar in production. Tests exercise

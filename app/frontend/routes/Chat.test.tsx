@@ -1204,10 +1204,10 @@ describe("chat slash commands", () => {
     const fetchMock = mockChatRouteFetch()
     renderRoute()
 
-    await submitSlashCommand("/approve job-1095")
+    await submitSlashCommand("/approve job-95")
 
     expect(await screen.findByText("Confirm /approve")).toBeInTheDocument()
-    expect(screen.getByText("Approve JOB-1095 for landing?")).toBeInTheDocument()
+    expect(screen.getByText("Approve JOB-395 for landing?")).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/1095/approve", expect.objectContaining({ method: "POST" }))
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
@@ -1243,7 +1243,7 @@ describe("chat slash commands", () => {
     await submitSlashCommand("/approve")
     fireEvent.click(await screen.findByText("Approve slash command"))
 
-    expect(screen.getByText("Approve JOB-2203 for landing?")).toBeInTheDocument()
+    expect(screen.getByText("Approve JOB-703 for landing?")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
 
@@ -1422,7 +1422,7 @@ describe("proposal outcome system events", () => {
   })
 
   it("renders a long system message collapsed to a single-line bubble with an expand/collapse toggle", async () => {
-    const longBody = 'Proposal confirmed. Epic #241 "Workout planning" was created. Child jobs: JOB-3311 "Group workout exercises into blocks", JOB-3312 "Plan, Goal, and PlannedWorkout models", JOB-3313 "Progression engine". The Epic was started; ready child Jobs are dispatching.'
+    const longBody = 'Proposal confirmed. Epic #241 "Workout planning" was created. Child jobs: JOB-211 "Group workout exercises into blocks", JOB-212 "Plan, Goal, and PlannedWorkout models", JOB-213 "Progression engine". The Epic was started; ready child Jobs are dispatching.'
     mockChatPayload(chatPayload({
       messages: [
         {
@@ -1477,13 +1477,13 @@ describe("scoped event evaluator handoffs", () => {
           },
           bookmarkable: false
         },
-        chatMessage(10, "assistant", "JOB-2552 comments were addressed on PR #2253.", localDateAt(9, 1))
+        chatMessage(10, "assistant", "JOB-252 comments were addressed on PR #23.", localDateAt(9, 1))
       ]
     }))
 
     renderRoute()
 
-    expect(await screen.findByText(/comments were addressed on PR #2253/)).toBeInTheDocument()
+    expect(await screen.findByText(/comments were addressed on PR #23/)).toBeInTheDocument()
     expect(screen.queryByText(/A scoped Syrus event evaluator decided/)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show 1 hidden system message" })).toBeInTheDocument()
   })
@@ -3445,7 +3445,7 @@ describe("composer next-step suggestion", () => {
   })
 })
 
-describe("bang command mode (EPIC-323)", () => {
+describe("bang command mode (the chat shell-command cancellation feature)", () => {
   beforeEach(() => {
     window.localStorage.clear()
     mockDesktopViewport()
@@ -3479,7 +3479,7 @@ describe("bang command mode (EPIC-323)", () => {
     expect(textarea.className).toMatch(/border-red-300/)
   })
 
-  it("rehydrates the stop control from the payload when the composer mounts with a command already running (JOB-4507 remount fix)", async () => {
+  it("rehydrates the stop control from the payload when the composer mounts with a command already running (JOB-607 remount fix)", async () => {
     mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, {
       chat_shell_command_in_flight: {
         id: 501,
@@ -6827,7 +6827,7 @@ describe("renderChatMessages tool_result content key", () => {
     ]
     const pendingActions = [{
       id: 114,
-      label: "Rebase JOB-2325",
+      label: "Rebase JOB-825",
       detail: null,
       state: "pending" as const,
       action: "rebase_job",
@@ -6892,7 +6892,7 @@ describe("renderChatMessages tool_result content key", () => {
     ]
     const anchored = {
       id: 201,
-      label: "Check mergeability for JOB-2351",
+      label: "Check mergeability for JOB-851",
       detail: null,
       state: "pending" as const,
       action: "check_job_mergeability",
@@ -6905,7 +6905,7 @@ describe("renderChatMessages tool_result content key", () => {
     const legacy = {
       ...anchored,
       id: 202,
-      label: "Cancel JOB-2352",
+      label: "Cancel JOB-852",
       action: "cancel_job",
       chat_message_id: null
     }
@@ -6975,7 +6975,7 @@ describe("renderChatMessages tool_result content key", () => {
         content: {
           type: "tool_result",
           tool_use_id: "tu_2",
-          content: { affected_job: "JOB-2654", state: "open" },
+          content: { affected_job: "JOB-354", state: "open" },
           is_error: false
         },
         text: "",
@@ -6989,7 +6989,7 @@ describe("renderChatMessages tool_result content key", () => {
     expect(group.type).toBe("tool_group")
     if (group.type === "tool_group") {
       expect(group.calls).toHaveLength(1)
-      expect(group.calls[0].result_body).toContain('"affected_job": "JOB-2654"')
+      expect(group.calls[0].result_body).toContain('"affected_job": "JOB-354"')
       expect(group.calls[0].result_body).toContain('"state": "open"')
       expect(group.calls[0].result_body).not.toContain("[object Object]")
     }

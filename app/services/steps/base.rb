@@ -80,7 +80,7 @@ module Steps
     # findings-reporting destination but are NOT the step-required MCP tool.
     # Reviewer steps (adversarial_review, visual_review) read as generic
     # code-review tasks, so the model can pattern-match to one of these
-    # instead of the named submit_* MCP tool — see JOB-3273. Passed as
+    # instead of the named submit_* MCP tool — see the relevant change. Passed as
     # disallowed_tools so the CLI itself refuses to expose them.
     REVIEW_COLLIDING_TOOLS = %w[ReportFindings].freeze
 

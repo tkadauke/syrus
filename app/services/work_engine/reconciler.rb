@@ -142,7 +142,7 @@ module WorkEngine
     # would use for the same job/workflow/run/work_intent/global scope, so an
     # inline call can never run concurrently with an enqueued/running
     # ReconcileJob (or another inline call) for that scope -- closing the
-    # race that produced the JOB-2970 / WF-18780 run storm, where two
+    # race that produced the the relevant change / WF-480 run storm, where two
     # concurrent reconcile passes read the same stale state and both decided
     # to repair it.
     #
@@ -1353,7 +1353,7 @@ module WorkEngine
     # will schedule a fresh Run via AutoRetryJob once it fires), so a queued
     # Run that lost its claim in the meantime should not also be repaired by
     # reenqueue_run — racing the two paths is what turned a single grader
-    # failure into a run storm (JOB-2970 / WF-18780).
+    # failure into a run storm (the relevant change / WF-480).
     def pending_auto_retry_attempt?(workflow)
       workflow.present? && workflow.auto_retry_attempts.pending.exists?
     end

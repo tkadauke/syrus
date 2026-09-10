@@ -30,7 +30,7 @@ RSpec.describe ReconcileJobStatesJob do
   # is the pair that costs an operator the most. A Workflow whose first Run
   # fails before the Workflow starts leaves the Job at :queued -- `mark_failed`
   # only transitions from :running -- so the Job reads healthy in every
-  # surface, "Just failed" included, while nothing works on it. JOB-4253 sat
+  # surface, "Just failed" included, while nothing works on it. the queued-workflow lifecycle regression sat
   # like that for fifteen hours with three Jobs blocked behind it.
   describe "a workflow that failed while the Job never left :queued" do
     it "plans the Job to failed" do

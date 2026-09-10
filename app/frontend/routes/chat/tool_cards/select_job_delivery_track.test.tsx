@@ -14,14 +14,14 @@ describe("select_job_delivery_track tool card", () => {
 
   it("summarizes the before/after track change", () => {
     const parsedResult = { job_id: 4225, previous_delivery_track: null, delivery_track: "staging", resolved_delivery_track: "staging" }
-    expect(selectJobDeliveryTrackToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4225: default → staging")
+    expect(selectJobDeliveryTrackToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-325: default → staging")
   })
 
   it("renders previous, new, and resolved tracks", () => {
     const parsedResult = { job_id: 4225, previous_delivery_track: "staging", delivery_track: null, resolved_delivery_track: "default" }
     render(<>{selectJobDeliveryTrackToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
+    expect(screen.getByText("JOB-325")).toBeInTheDocument()
     expect(screen.getByText("staging")).toBeInTheDocument()
     expect(screen.getAllByText("default")).toHaveLength(2)
   })

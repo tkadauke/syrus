@@ -1,6 +1,6 @@
 # Files feedback against a Job as a new standalone Job rather than amending
 # the source Job in place. This is the job-centric replacement for
-# Epic#append_review_feedback_job! (EPIC-258): instead of appending onto an
+# Epic#append_review_feedback_job! : instead of appending onto an
 # Epic's linear chain, it creates a plain direct Job that depends on the
 # source Job via the existing mode-agnostic JobDependency mechanism, and
 # lands independently through the normal approval/auto_merge path.

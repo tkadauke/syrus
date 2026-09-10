@@ -215,7 +215,7 @@ RSpec.describe Admin::StuckJobExplainer do
       repository: repository,
       state: "queued",
       issue_title: "Ready PR drift",
-      branch_name: "syrus/direct-2415",
+      branch_name: "syrus/direct-15",
       pr_number: 2174,
       pr_checks_state: "passing",
       commits_behind_base: 0,
@@ -227,7 +227,7 @@ RSpec.describe Admin::StuckJobExplainer do
       state: "succeeded",
       started_at: 30.minutes.ago,
       finished_at: 25.minutes.ago,
-      artifacts: { "publication_branch" => "syrus/direct-2415" }
+      artifacts: { "publication_branch" => "syrus/direct-15" }
     )
     published.steps.create!(kind: "pr_open", position: 0, state: "succeeded")
     failed = Workflow.create!(job: job, trigger_kind: "retry", state: "failed", finished_at: 10.minutes.ago)

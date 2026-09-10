@@ -4,7 +4,7 @@ import { Badge, CardShell, displayValue, EmptyState, numberValue, SectionLabel }
 import { FailureSnippet, Flakiness, formatMs, parseFailure, TableShell, TestStatusPill } from "./testInsightToolCard"
 
 // Shared presentation for read_job_test_results and read_run_test_results
-// (EPIC-292): both tools return the identical `{job_id, job_slug,
+// (the pending-action tool-card work): both tools return the identical `{job_id, job_slug,
 // workflow_id, run_id, grader_name, test_runs: [...], truncation}` shape
 // from TestInsights::RunResults (see
 // plugins/test_insights/app/services/test_insights/run_results.rb) -- only

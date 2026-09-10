@@ -1,14 +1,14 @@
 require "net/http"
 
 # Decides which MCP transport a workflow agent invocation should use: the
-# persistent worker-local daemon (PersistentMcpDaemon, EPIC-250) when the
+# persistent worker-local daemon (PersistentMcpDaemon, the relevant change) when the
 # `persistent_mcp_sidecar` feature is on, the daemon answers a healthy
 # #health_check, AND it advertises WORKFLOW_TOOLS_CAPABILITY -- or the
 # existing per-run stdio sidecar (Mcp::Sidecar) otherwise. Every non-persistent
 # outcome carries a `reason` string so callers can log actionable diagnostics
 # instead of silently falling back (see AgentProviders::Base#log_mcp_transport_decision!).
 #
-# PersistentMcpDaemon::CAPABILITIES is empty until a later EPIC-250 milestone
+# PersistentMcpDaemon::CAPABILITIES is empty until a later the relevant change milestone
 # wires the real workflow tool set onto the daemon, so #select always returns
 # :stdio in production today; tests exercise the :persistent branch by
 # stubbing a health response that includes the capability.

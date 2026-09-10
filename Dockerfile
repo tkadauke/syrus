@@ -358,7 +358,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       doxygen graphviz lcov gcovr \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# sccache — transparent remote compiler cache for C/C++ builds (EPIC-251).
+# sccache — transparent remote compiler cache for C/C++ builds .
 # Installed as a real binary, then masqueraded onto PATH under the names
 # CMake/Make/Meson/Bazel all resolve host compilers by — no per-repo
 # .syrus.yml or CMakeLists.txt changes needed. The shim symlinks land in

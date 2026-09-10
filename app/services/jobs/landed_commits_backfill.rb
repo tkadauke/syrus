@@ -1,6 +1,6 @@
 module Jobs
-  # One-off, resumable backfill of LandedCommit rows (JOB-3749) for landings
-  # that happened before the forward-capture Jobs (JOB-3750/3751 and the
+  # One-off, resumable backfill of LandedCommit rows  for landings
+  # that happened before the forward-capture Jobs (the forward-capture regressions and the
   # bundle-support follow-up) shipped, so GitHistory::CommitAttributor's
   # legacy Job#landed_sha-only fallback stops being needed for old history.
   # Mirrors, against history instead of a live landing:

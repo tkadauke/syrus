@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, numberValue, SectionLabel, StatePill } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
-// Core-owned tool card for read_pr (EPIC-291 / JOB-4221). Shows PR title,
+// Core-owned tool card for read_pr (the Tier 1 tool-card work). Shows PR title,
 // number (linked to GitHub when a URL is available), state, body preview,
 // and the capped diff.
 type PrDiff = { text: string; truncated: boolean; bytes: number | null; omittedBytes: number | null }

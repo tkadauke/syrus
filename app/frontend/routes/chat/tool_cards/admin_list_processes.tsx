@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
 import { formatBytesLarge, formatPercent, Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_list_processes (EPIC-293 / JOB-4227).
+// Core-owned tool card for admin_list_processes (the tool-card work).
 // Renders SpawnedProcess rows as a dense ops table: kind, host/pid, state,
 // resource usage, timing, and the Run/Workflow it's attributed to.
 type ProcessRow = {

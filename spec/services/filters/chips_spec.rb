@@ -44,7 +44,7 @@ RSpec.describe "Filters::Chips" do
   end
 
   # bypass_dedup: true simulates a legacy WorkUnit row that predates the
-  # active_dedup_key uniqueness guarantee (JOB-4235), for specs that
+  # active_dedup_key uniqueness guarantee , for specs that
   # deliberately construct multiple active units for one (job, kind) to
   # exercise "pick the latest" filter/query logic. The app's own launch
   # path can no longer produce that state.

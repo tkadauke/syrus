@@ -13,7 +13,7 @@ RSpec.describe LandingRetrier do
       )
     end
 
-    # Regression for the JOB-4189 incident: once MergeTrainFailureHandler has
+    # Regression for the the relevant change incident: once MergeTrainFailureHandler has
     # already self-healed a member whose commits genuinely landed before the
     # train crashed (closing it pr_merged instead of reverting it, see
     # MergeTrainFailureHandler#complete_landing!), a subsequent rebuild must

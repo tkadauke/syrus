@@ -13,7 +13,7 @@ class RunFailureClassifier
   RECENT_LOG_LIMIT = 25
   # How far either side of a run's death to look for a rollout. Wide enough to
   # cover a drain that starts before the run dies and a node still churning
-  # after -- JOB-4381 died 5.5 minutes after the last new pod came up.
+  # after died 5.5 minutes after the last new pod came up.
   DEPLOY_ROLLOVER_WINDOW = 10.minutes
   OCTOKIT_TRANSIENT_ERROR_CLASS = /\AOctokit::(?:ServiceUnavailable|BadGateway|InternalServerError|TooManyRequests)\z/
 
@@ -222,7 +222,7 @@ class RunFailureClassifier
   # self-reinforcing: the heavier the rollout, the more runs it kills and the
   # more of them it marks unretryable.
   #
-  # JOB-4377 and JOB-4381 both died that way in the 08:25-08:27 Eastern
+  # the relevant change and the relevant change both died that way in the 08:25-08:27 Eastern
   # rollout on 2026-09-06, recorded as `cpu 100.0% >= 98%` and
   # `IO pressure 72.66% >= 50%`.
   #

@@ -303,7 +303,7 @@ module WorkUnits
     # promising exactly that). Every other lock key represents "is this
     # same job/scope already doing conflicting work" — for those, letting
     # a second WorkUnit materialize and later run unattended is the
-    # duplicate-workflow bug (JOB-4235), so it must be rejected outright.
+    # duplicate-workflow bug , so it must be rejected outright.
     ADVISORY_LOCK_KEY_PREFIX = "epic_feedback:".freeze
 
     def create_lock!(unit, lock_key)

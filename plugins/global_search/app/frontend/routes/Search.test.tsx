@@ -41,7 +41,7 @@ describe("SearchRoute result rows", () => {
       {
         type: "job",
         id: 3037,
-        slug: "JOB-3037",
+        slug: "JOB-737",
         title: "Reviewer-facing preview UI",
         snippet: "preview environments",
         rank: 0,
@@ -52,7 +52,7 @@ describe("SearchRoute result rows", () => {
       }
     ])
 
-    expect(await screen.findByRole("button", { name: /JOB-3037/ })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /JOB-737/ })).toBeInTheDocument()
   })
 
   it("renders a copyable epic slug for epic results", async () => {

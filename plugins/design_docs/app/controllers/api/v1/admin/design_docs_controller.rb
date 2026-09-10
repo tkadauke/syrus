@@ -1,7 +1,7 @@
 module Api
   module V1
     module Admin
-      # Bearer-token admin surface for design docs (JOB-3298): the same
+      # Bearer-token admin surface for design docs : the same
       # write paths the app API uses, exposed under `/api/v1/admin/*` for
       # operators/orchestrators instead of borrowing the SPA's
       # session-shaped app API with an admin token.

@@ -6,7 +6,7 @@ module Syrus
     # when the plugin is registered as an :input_source extension point.
     #
     # Classes must also implement the full InputSource interface (defined by
-    # EPIC-155): #poll!, #validate_credentials!, #config_schema, #dedup_key.
+    # the relevant change): #poll!, #validate_credentials!, #config_schema, #dedup_key.
     module InputSource
     end
   end

@@ -1,5 +1,5 @@
 # A confirmable, audited request to clear (all, or a scoped subset of) the
-# shared sccache compiler-cache bucket (EPIC-251). Mirrors this codebase's
+# shared sccache compiler-cache bucket . Mirrors this codebase's
 # existing pending-action pattern (see ChatPendingAction) for destructive
 # admin operations: create a pending record with a required audit reason,
 # require a separate explicit confirm step to actually execute, and log the

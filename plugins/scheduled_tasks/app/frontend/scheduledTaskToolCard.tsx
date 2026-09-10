@@ -3,7 +3,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the scheduled_tasks plugin's chat tool
-// cards (EPIC-292 / JOB-4222). Lives outside `tool_cards/` on purpose: core's
+// cards (the pending-action tool-card work). Lives outside `tool_cards/` on purpose: core's
 // pluginToolCards.tsx glob treats every non-test .tsx file under
 // `tool_cards/` as a card module and warns about a missing default export
 // (same reason core keeps toolCardUi.tsx one directory up).

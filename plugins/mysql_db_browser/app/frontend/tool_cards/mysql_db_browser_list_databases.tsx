@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, EmptyState } from "@app/routes/chat/toolCardUi"
 import { parseDatabase, TableShell, type MysqlDatabaseRow } from "../mysqlToolCard"
 
-// Plugin-owned tool card for mysql_db_browser_list_databases (EPIC-293).
+// Plugin-owned tool card for mysql_db_browser_list_databases (the tool-card work).
 function databaseRows(context: ToolCardContext): MysqlDatabaseRow[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || parsed.available !== true || !Array.isArray(parsed.databases)) return null

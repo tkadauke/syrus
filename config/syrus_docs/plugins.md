@@ -535,7 +535,7 @@ lifecycle state, ownership, capabilities, artifacts — while a plugin per
 platform supplies the execution.
 
 The `browser` plugin's `SyrusBrowser::RuntimeSessionProvider` is the first
-visual provider (EPIC-319): a headless-Chromium session driving the repo's own
+visual provider : a headless-Chromium session driving the repo's own
 dev server, via the same `PreviewProcessLauncher` (`app/services/`) the
 `start_preview` MCP tool uses — one dev-server start/health-check
 implementation, keyed by an arbitrary caller-supplied identifier in
@@ -745,7 +745,7 @@ to one (an operator's `capture` click, or the agent's `runtime_snapshot`/
 `latest_frame_url`/`latest_frame_at` on that session pointing at the `frame`
 endpoint so the panel's periodic-screenshot polling has something to show for
 browser-like providers -- those two columns existed on `RuntimeSession` since
-JOB-4472 but were never written until this wiring landed.
+JOB-572 but were never written until this wiring landed.
 
 ## `mcp_tool_set` / `chat_mcp_tool_set`
 

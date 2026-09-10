@@ -97,7 +97,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
   # A rolling deploy drains workers with SIGTERM and spikes CPU/IO across every
   # node at the same time, so it both kills the run and manufactures the
   # "critical" reading that used to downgrade a retryable worker death into a
-  # permanent one. JOB-4377 and JOB-4381 were stranded exactly that way.
+  # permanent one. the relevant change and the relevant change were stranded exactly that way.
   describe "a worker death during a rolling deploy" do
     def rollout!(at:, versions: %w[oldsha1 newsha2])
       versions.each_with_index do |version, index|
@@ -401,7 +401,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
-  it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (JOB-1819 regression)" do
+  it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (JOB-319 regression)" do
     run.update!(state: "failed", agent_provider: "claude")
     diagnostic(
       "Errno::E2BIG",
@@ -661,7 +661,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     run.update!(state: "failed", agent_provider: "codex")
     diagnostic(
       "Octokit::UnprocessableEntity",
-      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: A pull request already exists for tkadauke:syrus/direct-3853."
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: A pull request already exists for tkadauke:syrus/direct-753."
     )
     process("orphaned")
 
@@ -753,7 +753,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
-  it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-1830 regression)" do
+  it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-330 regression)" do
     run.update!(state: "failed")
     # A GitRunner::GitError whose error_class alone would match git_state_corrupt?,
     # but the message is the benign empty-commit case — empty_commit? must win.
@@ -841,7 +841,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     run.update!(state: "failed")
     diagnostic(
       "Octokit::UnprocessableEntity",
-      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-3972"
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-872"
     )
 
     result = classification

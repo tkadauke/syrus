@@ -10,7 +10,7 @@ import type { ChatQueryKey } from "./constants"
 function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
   return {
     id: 501,
-    label: "Rebase JOB-2325",
+    label: "Rebase JOB-825",
     detail: null,
     state: "failed",
     action: "rebase_job",
@@ -43,8 +43,8 @@ function pendingActionGroup(overrides: Partial<ChatPendingActionGroup> = {}): Ch
     label: "Reopen job (2)",
     state: "pending",
     members: [
-      { id: 501, label: "Reopen JOB-4162", state: "pending" },
-      { id: 502, label: "Reopen JOB-4163", state: "pending" }
+      { id: 501, label: "Reopen JOB-262", state: "pending" },
+      { id: 502, label: "Reopen JOB-263", state: "pending" }
     ],
     app_confirm_path: "/api/v1/app/chats/122/pending_action_groups/7/confirm",
     app_reject_path: "/api/v1/app/chats/122/pending_action_groups/7/reject",
@@ -73,12 +73,12 @@ describe("PendingActionGroupCard", () => {
     renderGroupCard(pendingActionGroup())
 
     expect(screen.getByText("Reopen job (2)")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "JOB-4162" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-262" })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Show 2 targets" }))
 
-    expect(screen.getByRole("link", { name: "JOB-4162" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "JOB-4163" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-262" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-263" })).toBeInTheDocument()
   })
 
   it("renders the shared justification when the group has a reason", () => {
@@ -97,8 +97,8 @@ describe("PendingActionGroupCard", () => {
     const confirmed = pendingActionGroup({
       state: "confirmed",
       members: [
-        { id: 501, label: "Reopen JOB-4162", state: "confirmed" },
-        { id: 502, label: "Reopen JOB-4163", state: "failed", execution_error: "Job isn't closed." }
+        { id: 501, label: "Reopen JOB-262", state: "confirmed" },
+        { id: 502, label: "Reopen JOB-263", state: "failed", execution_error: "Job isn't closed." }
       ]
     })
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
@@ -295,7 +295,7 @@ describe("PendingActionCard", () => {
     renderCard(pendingAction({
       state: "pending",
       execution_error: undefined,
-      label: "Reconcile state for JOB-2325 (mark_implemented_from_ready_pr)",
+      label: "Reconcile state for JOB-825 (mark_implemented_from_ready_pr)",
       detail: "Mode: mark_implemented_from_ready_pr",
       reason: "Job is stuck ready with a merged PR.",
       resource_title: "Fix flaky spec",

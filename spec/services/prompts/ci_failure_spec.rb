@@ -37,10 +37,10 @@ RSpec.describe Prompts::CiFailure do
   end
 
   it "includes operator instructions when provided" do
-    out = build(instructions: "Inspect why JOB-2265's prior repair left the branch unchanged.").to_s
+    out = build(instructions: "Inspect why JOB-765's prior repair left the branch unchanged.").to_s
 
     expect(out).to include("# Operator instructions")
-    expect(out).to include("Inspect why JOB-2265's prior repair left the branch unchanged.")
+    expect(out).to include("Inspect why JOB-765's prior repair left the branch unchanged.")
     expect(out.index("# Operator instructions")).to be < out.index("# How to act")
   end
 

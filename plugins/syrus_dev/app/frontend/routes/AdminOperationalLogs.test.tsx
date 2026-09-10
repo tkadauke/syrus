@@ -26,7 +26,7 @@ describe("AdminOperationalLogs", () => {
     expect(within(table).getByText("error")).toBeInTheDocument()
     expect(within(table).getByText("worker · worker-a · pid 123")).toBeInTheDocument()
     expect(within(table).queryByText("abcdef1234567890".slice(0, 12))).not.toBeInTheDocument()
-    expect(within(table).getByText("JOB-2631 · WF-16100 · RUN-74392 · REQ req-1")).toBeInTheDocument()
+    expect(within(table).getByText("JOB-331 · WF-200 · RUN-892 · REQ req-1")).toBeInTheDocument()
     const message = within(table).getByText("failed token=[REDACTED] migration")
     expect(message).toHaveClass("break-words")
     expect(within(table).getByText("path=/jobs api_key=api_key=[REDACTED]")).toBeInTheDocument()
@@ -164,9 +164,9 @@ function logsPayloadBase(): OperationalLogsPayload {
         app_revision: "abcdef1234567890",
         pid: 123,
         source: "active_job",
-        job_id: 2631,
-        workflow_id: 16100,
-        run_id: 74392,
+        job_id: 331,
+        workflow_id: 200,
+        run_id: 892,
         request_id: "req-1",
         message: "failed token=[REDACTED] migration",
         context: { path: "/jobs", api_key: "api_key=[REDACTED]" }

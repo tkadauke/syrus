@@ -228,7 +228,7 @@ RSpec.describe PollForkReviewPrJob, :ci_only do
     end
 
     it "does not enqueue a duplicate pr_comment workflow when a conflicting WorkUnit slips past the active-unit precheck" do
-      # JOB-4235: `pending_followup?`'s active-unit check is a plain
+      # `pending_followup?`'s active-unit check is a plain
       # unlocked SELECT with a TOCTOU gap. Simulate it losing the race and
       # confirm WorkUnits::Launcher itself still refuses to materialize a
       # second Workflow.

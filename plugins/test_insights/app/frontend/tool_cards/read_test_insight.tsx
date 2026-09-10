@@ -15,7 +15,7 @@ import {
   type TestIdentityRef
 } from "../testInsightToolCard"
 
-// Plugin-owned tool card for read_test_insight (EPIC-292). Lives entirely
+// Plugin-owned tool card for read_test_insight (the pending-action tool-card work). Lives entirely
 // inside the test_insights plugin -- core discovers it by directory
 // convention (see app/frontend/pluginToolCards.tsx) and never imports it by
 // name, so it can be added, changed, or removed without touching core.

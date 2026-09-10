@@ -129,27 +129,27 @@ describe("ScheduledTaskDetailRoute recent jobs", () => {
   it("renders the job as a copyable slug instead of a bare #id link", async () => {
     renderRoute(taskDetail({
       recent_jobs: [
-        { id: 2922, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/2922" }
+        { id: 622, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/622" }
       ]
     }))
 
-    expect(await screen.findByText("JOB-2922")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Copy JOB-2922 to clipboard" })).toBeInTheDocument()
-    expect(screen.queryByText("#2922")).not.toBeInTheDocument()
+    expect(await screen.findByText("JOB-622")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy JOB-622 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByText("#622")).not.toBeInTheDocument()
   })
 
   it("copies the job slug to the clipboard when clicked", async () => {
     renderRoute(taskDetail({
       recent_jobs: [
-        { id: 2922, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/2922" }
+        { id: 622, state: "running", closure_reason: null, pr_number: null, external_pr_number: null, created_at: "2026-08-12T00:00:00Z", job_path: "/jobs/622" }
       ]
     }))
 
-    const copyButton = await screen.findByRole("button", { name: "Copy JOB-2922 to clipboard" })
+    const copyButton = await screen.findByRole("button", { name: "Copy JOB-622 to clipboard" })
     fireEvent.click(copyButton)
 
     await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-2922")
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-622")
     })
   })
 })

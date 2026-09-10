@@ -279,7 +279,7 @@ export function typedToolResult(name: string, body: string, error = false): Type
 // emitted as a single long `JSON.generate(data)` line, so truncating that
 // string before parsing corrupts the JSON mid-object -- `parseJsonText` then
 // returns null and both the generic and any plugin tool card silently lose
-// the whole result (JOB-4223).
+// the whole result .
 export function toolResultPresentation(name: string, body: string, error = false, parseBody: string = body): ToolResultPresentation {
   if (error) return { kind: "error", summary: "" }
 

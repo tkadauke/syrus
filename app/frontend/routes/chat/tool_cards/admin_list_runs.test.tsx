@@ -40,7 +40,7 @@ describe("admin_list_runs tool card", () => {
     render(<>{adminListRunsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("RUN-501")).toBeInTheDocument()
-    const link = screen.getByRole("link", { name: "JOB-4048" })
+    const link = screen.getByRole("link", { name: "JOB-148" })
     expect(link).toHaveAttribute("href", "/jobs/4048")
     expect(screen.getByText("WF-900")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()

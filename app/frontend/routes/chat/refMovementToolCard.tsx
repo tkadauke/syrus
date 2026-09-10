@@ -2,7 +2,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, displayValue, Row, SectionLabel, StatePill } from "./toolCardUi"
 
 // Shared core-field parsing/rendering for the ref-movement action record
-// (EPIC-293 / JOB-4225), returned by both dispatch_ref_movement_action and
+// (the tool-card work), returned by both dispatch_ref_movement_action and
 // read_ref_movement_status. Each tool additionally carries its own
 // job/workflow linkage shape (ids only on dispatch; nested summaries on
 // read_ref_movement_status), so the two tool_cards files stay separate and

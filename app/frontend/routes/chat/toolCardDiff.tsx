@@ -1,7 +1,7 @@
 import { diffLineClass, diffMarkerClass, parseUnifiedDiff } from "../../components/diff/diffRendering"
 
 // Shared raw-diff summary/preview rendering for the get_job_diff, read_pr,
-// and read_run_transcript tool cards (EPIC-291 / JOB-4221). Lives outside
+// and read_run_transcript tool cards (the Tier 1 tool-card work). Lives outside
 // `tool_cards/` for the same reason as jobsTableCard.tsx / toolCardUi.tsx.
 export type DiffStats = { fileCount: number; additions: number; deletions: number }
 

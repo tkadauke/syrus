@@ -108,9 +108,9 @@ func TestLocalHandshakeErrorIncludesResponseStatusAndBody(t *testing.T) {
 }
 
 func TestLocalCableOriginMatchesHTTPOriginForWebsocketURL(t *testing.T) {
-	origin := localCableOrigin("wss://syrus.internal.green-acres.estate/cable?api_token=secret")
+	origin := localCableOrigin("wss://syrus.example.internal/cable?api_token=secret")
 
-	if origin != "https://syrus.internal.green-acres.estate" {
+	if origin != "https://syrus.example.internal" {
 		t.Fatalf("expected same-origin https origin, got %q", origin)
 	}
 }
@@ -607,7 +607,7 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 }
 
 // TestLocalConnectAndServeCancelsInFlightRunCommand exercises the
-// EPIC-323 `!` command stop control end-to-end at the daemon level: a
+// the chat shell-command cancellation feature `!` command stop control end-to-end at the daemon level: a
 // "cancel_tool_call" frame (LocalTunnelChannel#handle_cancel_broadcast) for
 // an in-flight run_command tool_use_id must kill just that command and
 // return a "killed": true result promptly, without waiting for the command's

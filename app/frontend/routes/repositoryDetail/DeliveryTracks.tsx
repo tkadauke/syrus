@@ -5,7 +5,7 @@ import { withRoutePrefix } from "../../lib/routing"
 import { useT } from "../../hooks/useT"
 import type { RepositoryDeliveryPayload, RepositoryDeliveryPrIngestion, RepositoryDeliveryRefMovementAction, RepositoryDeliveryRefMovementSummary, RepositoryDeliveryRefMovementWorkflow, RepositoryDeliveryTrack } from "../../api/repositories"
 
-// Repository page "Delivery" section (EPIC-268): tracks table, ref-movement
+// Repository page "Delivery" section : tracks table, ref-movement
 // action availability, recent ref-movement workflows, and recent PR
 // ingestion classifications. Rendered only when the repository's
 // `delivery` payload is non-null (i.e. it has opted into more than the

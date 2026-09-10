@@ -1,7 +1,7 @@
 class CreateMockups < ActiveRecord::Migration[8.1]
   # A mockup is the first-class, listable thing an operator thinks in terms of;
   # the PreviewPanel it points at stays core, because the panel is a generic
-  # multi-format viewer that other features render into too (JOB-3864).
+  # multi-format viewer that other features render into too .
   #
   # One row per panel: republishing a panel updates the mockup rather than
   # creating another, so MOCKUP-<id> is stable across iterations.

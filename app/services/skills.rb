@@ -1,7 +1,7 @@
 # Skills are named, freeform instruction sets (SKILL.md-style markdown +
 # a declared parameter schema) — the escape hatch for tasks that resist
 # decomposition into the deterministic Workflow/Step pipeline. See
-# EPIC-233 for the full feature; this Job only establishes the on-disk
+# the skill-workflow feature for the full feature; this Job only establishes the on-disk
 # format and resolution logic that later Jobs (Job/Workflow/chat
 # integration) build on.
 #
@@ -22,7 +22,7 @@
 # Distinct from the contributor-facing `.claude/skills/*/SKILL.md` files
 # already in this repo (see lib/agent_skills/, AgentSkillsSyncer) — those
 # drive Claude Code's own skill system and are being cleaned up in
-# JOB-3144/JOB-3145. Do not conflate the two or reuse that directory.
+# the relevant change/the relevant change. Do not conflate the two or reuse that directory.
 module Skills
   REPO_LOCAL_DIR = ".syrus/skills".freeze
   NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/

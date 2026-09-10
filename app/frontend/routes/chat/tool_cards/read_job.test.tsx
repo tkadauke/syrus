@@ -20,7 +20,7 @@ describe("read_job tool card", () => {
 
   it("summarizes the collapsed row with the canonical JOB id and state", () => {
     const parsedResult = { job: { id: 4048, state: "running" } }
-    expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4048 (running)")
+    expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-148 (running)")
   })
 
   it("renders the canonical JOB id, title, state, PR, branch, priority, and agent provider", () => {
@@ -30,7 +30,7 @@ describe("read_job tool card", () => {
         issue_title: "Add plugin-aware tool cards",
         state: "running",
         pr_number: 12,
-        branch_name: "syrus/direct-4048",
+        branch_name: "syrus/direct-148",
         priority: "high",
         agent_provider: "claude"
       }
@@ -38,11 +38,11 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
+    expect(screen.getByText("JOB-148")).toBeInTheDocument()
     expect(screen.getByText("Add plugin-aware tool cards")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("#12")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4048")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-148")).toBeInTheDocument()
     expect(screen.getByText("high priority")).toBeInTheDocument()
     expect(screen.getByText("claude")).toBeInTheDocument()
   })
@@ -54,7 +54,7 @@ describe("read_job tool card", () => {
         state: "queued",
         dependencies: [
           { id: 4040, issue_title: "Upstream job", state: "approved", repository: "tkadauke/syrus" },
-          { epic_id: 291, display_number: "EPIC-291", title: "Tier 1 Custom Tool Cards", state: "running" },
+          { epic_id: 291, display_number: "the Tier 1 tool-card work", title: "Tier 1 Custom Tool Cards", state: "running" },
           { pending: true, unresolved_ref: "owner/repo#123", unresolved_ref_kind: "issue", unresolved_ref_state: "open" }
         ]
       }
@@ -62,8 +62,8 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4040 · approved")).toBeInTheDocument()
-    expect(screen.getByText("EPIC-291 · running")).toBeInTheDocument()
+    expect(screen.getByText("JOB-140 · approved")).toBeInTheDocument()
+    expect(screen.getByText("the Tier 1 tool-card work · running")).toBeInTheDocument()
     expect(screen.getByText("owner/repo#123 · open")).toBeInTheDocument()
   })
 
@@ -90,9 +90,9 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    // Falls back to "JOB-4048" for both the header pill and the title when
+    // Falls back to "the relevant change" for both the header pill and the title when
     // issue_title is absent, so it legitimately appears twice.
-    expect(screen.getAllByText("JOB-4048")).toHaveLength(2)
+    expect(screen.getAllByText("JOB-148")).toHaveLength(2)
     expect(screen.queryByText("Dependencies")).not.toBeInTheDocument()
     expect(screen.queryByText("Deployment stage")).not.toBeInTheDocument()
   })

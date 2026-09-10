@@ -49,7 +49,7 @@ RSpec.describe "Stalled intake reconciliation" do
   # `classifier_uncertain` used to be terminal by omission: nothing re-ran the
   # classifier, nothing reaped it, nothing surfaced it, and polling dedups on
   # the existing Job -- so one transient provider error stranded the Job for
-  # good. JOB-3184 sat that way for three weeks.
+  # good. the relevant change sat that way for three weeks.
   describe "a Job the classifier gave up on" do
     def uncertain!(attempts: 1, age: 30.minutes)
       job.update_columns(

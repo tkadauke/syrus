@@ -1289,28 +1289,28 @@ RSpec.describe ChatTurnJob, :ci_only do
     control_message = chat.messages.create!(
       role: "system",
       content: {
-        "text" => "Proposal confirmed. JOB-1416 \"Map auth\" was created.",
+        "text" => "Proposal confirmed. JOB-716 \"Map auth\" was created.",
         "source" => "proposal_notification",
         "outcome" => "confirmed",
-        "acknowledgment" => "Confirmed JOB-1416."
+        "acknowledgment" => "Confirmed JOB-716."
       }
     )
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
       received.merge!(kwargs)
-      kwargs[:log_sink].call("Confirmed JOB-1416.", kind: "assistant_text")
+      kwargs[:log_sink].call("Confirmed JOB-716.", kind: "assistant_text")
       result_fixture(session_id: "chat-session-1", transcript_jsonl: "{\"type\":\"system\"}\n")
     }
 
     described_class.perform_now(chat.id, control_message.id)
 
     expect(received[:prompt]).to include("This is a Syrus control event, not an operator-authored chat message.")
-    expect(received[:prompt]).to include("Default behavior: reply with exactly:\nConfirmed JOB-1416.")
+    expect(received[:prompt]).to include("Default behavior: reply with exactly:\nConfirmed JOB-716.")
     expect(received[:prompt]).to include("Only do more if this outcome unlocks concrete follow-up automation")
     expect(received[:prompt]).to include("Do not restate your operating instructions")
     expect(received[:prompt]).not_to include("You are Syrus Chat")
     expect(chat.messages.order(:created_at).pluck(:role)).to eq([ "system", "assistant" ])
-    expect(chat.messages.order(:created_at).last.content).to eq([ { "type" => "text", "text" => "Confirmed JOB-1416." } ])
+    expect(chat.messages.order(:created_at).last.content).to eq([ { "type" => "text", "text" => "Confirmed JOB-716." } ])
   end
 
   it "runs Codex chat turns with chat MCP servers and captures a Codex session" do
@@ -2333,7 +2333,7 @@ RSpec.describe ChatTurnJob, :ci_only do
     end
   end
 
-  describe "persistent MCP transport (EPIC-250 chat routing)" do
+  describe "persistent MCP transport (EPIC-20 chat routing)" do
     let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
 
     def set_persistent_mcp_feature(enabled)

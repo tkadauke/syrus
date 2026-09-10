@@ -2,7 +2,7 @@ import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell } from "@app/routes/chat/toolCardUi"
 import { parseScheduledTaskDetail, PromptDisclosure, ScheduledTaskSummary } from "../scheduledTaskToolCard"
 
-// Plugin-owned tool card for update_scheduled_task (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for update_scheduled_task (the pending-action tool-card work).
 // The tool answers with the same `{ scheduled_task: ... }` snapshot
 // read_scheduled_task returns, so the card body is the post-update state;
 // only the collapsed summary names the outcome.

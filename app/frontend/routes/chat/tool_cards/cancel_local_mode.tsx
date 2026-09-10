@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { LocalModeJobOutcomeCard, localModeJobOutcomeSummary, parseLocalModeJobOutcome } from "../localModeJobOutcomeCard"
 
-// Local Mode tool card for cancel_local_mode (EPIC-293 / JOB-4225). See
+// Local Mode tool card for cancel_local_mode (the tool-card work). See
 // open_in_local_mode.tsx for the shared family this belongs to.
 function collapsedSummary(context: ToolCardContext) {
   const result = parseLocalModeJobOutcome(context.parsedResult)

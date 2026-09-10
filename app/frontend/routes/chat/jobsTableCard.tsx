@@ -1,7 +1,7 @@
 import { isPlainObject } from "@app/pluginToolCards"
 
 // Shared dense-table rendering for the list_jobs and search_jobs tool cards
-// (EPIC-291 / JOB-4220) — both tools return arrays of similarly-shaped Job
+// (the Tier 1 tool-card work) — both tools return arrays of similarly-shaped Job
 // summaries, so the table markup and row parsing live here instead of being
 // duplicated across the two `tool_cards/*.tsx` files. This file intentionally
 // does NOT live under `tool_cards/` itself: pluginToolCards.tsx's directory

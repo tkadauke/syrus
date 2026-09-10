@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Compiles built-in Theme rows (EPIC-273) into `[data-theme]`-scoped CSS
+# Compiles built-in Theme rows  into `[data-theme]`-scoped CSS
 # custom-property blocks. Run via `bin/generate-theme-css` after seeding or
 # editing db/seeds/themes.rb. `spec/lib/theme_css_generator_spec.rb`
 # re-renders this and diffs against the checked-in generated file to catch

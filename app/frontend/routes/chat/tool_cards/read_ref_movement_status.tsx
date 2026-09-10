@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { parseRefMovementCore, refMovementCollapsedSummary, RefMovementCoreFields } from "../refMovementToolCard"
 
-// Core-owned tool card for read_ref_movement_status (EPIC-293 / JOB-4225).
+// Core-owned tool card for read_ref_movement_status (the tool-card work).
 // Adds the nested job/workflow/pr_link summaries read_ref_movement_status
 // returns on top of the shared ref-movement core fields.
 type JobSummary = { id: string; slug: string; state: string }

@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseProposalOutcome, proposalOutcomeSummary, ProposalOutcomeCard } from "../proposalToolCard"
 
-// Core-owned tool card for propose_job (EPIC-292 / JOB-4222).
+// Core-owned tool card for propose_job (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
   const proposal = parseProposalOutcome(context.parsedResult)
   if (!proposal) return null

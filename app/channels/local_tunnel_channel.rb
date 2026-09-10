@@ -29,7 +29,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
   # Messages transmitted to the daemon CLI (see #transmit calls below):
   #   { type: "connected" }
   #   { type: "tool_call", tool_use_id:, tool:, input: }
-  #   { type: "cancel_tool_call", tool_use_id: }  -- EPIC-323 `!` command cancel
+  #   { type: "cancel_tool_call", tool_use_id: }  -- the chat shell-command cancellation feature `!` command cancel
   #   { type: "ping" }
   #   { type: "disconnected", reason: }
   def receive(data)
@@ -47,7 +47,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
   # "local_daemon_session_N_tool_calls" stream. "dispatch" (triggered by
   # LocalToolCall's after_create_commit) sends a pending call to the daemon
   # immediately without waiting for the next dispatch-thread poll cycle.
-  # "cancel" (triggered by LocalToolCall#request_cancel!, EPIC-323's `!`
+  # "cancel" (triggered by LocalToolCall#request_cancel!, the chat shell-command cancellation feature's `!`
   # command cancel control) asks the daemon to interrupt a call already in
   # flight.
   def receive_from_subscription(message)

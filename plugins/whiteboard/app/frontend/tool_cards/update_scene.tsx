@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { numberValue } from "@app/routes/chat/toolCardUi"
 import { SceneCountsCard, sceneCountsSummary, type SceneCounts } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for update_scene (EPIC-292 / JOB-4223). The tool's
+// Plugin-owned tool card for update_scene (the pending-action tool-card work). The tool's
 // own result is just `{ replaced: true, version }` (see update_scene_tool.rb)
 // -- the replacement element/file counts come from the tool call's own input
 // instead, which update_scene_tool.rb requires (`elements`) or accepts

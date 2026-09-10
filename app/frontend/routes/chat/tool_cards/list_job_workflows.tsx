@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, durationLabel, EmptyState, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for list_job_workflows (EPIC-291 / JOB-4221). Renders
+// Core-owned tool card for list_job_workflows (the Tier 1 tool-card work). Renders
 // a Workflow index as a dense table: trigger kind, state, summary, step/run
 // counts, and duration.
 type WorkflowRow = {

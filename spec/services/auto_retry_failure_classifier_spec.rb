@@ -61,7 +61,7 @@ RSpec.describe AutoRetryFailureClassifier do
   end
 
   it "recognizes missing remote branch workspace setup as non-retryable" do
-    expect(described_class.non_retryable_message?("remote branch syrus/direct-4056 does not exist; non-retryable workspace setup failure")).to be(true)
+    expect(described_class.non_retryable_message?("remote branch syrus/direct-156 does not exist; non-retryable workspace setup failure")).to be(true)
   end
 
   it "recognizes stale merge-train reconciliation heads as non-retryable rebuild failures" do

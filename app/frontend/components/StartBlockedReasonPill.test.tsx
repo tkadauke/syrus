@@ -22,7 +22,7 @@ describe("StartBlockedReasonPill", () => {
       <StartBlockedReasonPill
         details={{
           message: "multiple dependency branches are ready",
-          dependencies: [{ slug: "JOB-1574" }, { job_id: 1575 }],
+          dependencies: [{ slug: "JOB-874" }, { job_id: 1575 }],
           action: "Land the sibling dependencies."
         }}
         reason="stack_fan_in_base_unavailable"
@@ -34,7 +34,7 @@ describe("StartBlockedReasonPill", () => {
       [
         "Multiple dependency PR branches are ready, but Syrus could not prepare a combined execution base.",
         "multiple dependency branches are ready",
-        "Dependencies: JOB-1574, JOB-1575",
+        "Dependencies: JOB-874, JOB-875",
         "Land the sibling dependencies."
       ].join("\n")
     )

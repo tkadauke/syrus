@@ -281,7 +281,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(items.fetch(external_pr_job.id)).to include("pr_number" => 88, "pr_is_external" => true)
     end
 
-    it "includes each job's EPIC-268 delivery_status" do
+    it "includes each job's EPIC-38 delivery_status" do
       allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(
         instance_double(DeliveryPolicy, promotion_enabled?: false, hotfix_sync_enabled?: false, upstream_export_enabled?: true)
       )

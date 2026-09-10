@@ -99,7 +99,7 @@ describe("Markdown", () => {
   it("keeps reported markdown section numbers and nested bullet indentation", () => {
     const { container } = render(
       <MemoryRouter>
-        <Markdown text={"1. **Already in flight**\n   - JOB-2410 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - EPIC-211 throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."} />
+        <Markdown text={"1. **Already in flight**\n   - JOB-110 timing spans\n   - State: queued\n\n2. **Throughput/review funnel Epic**\n   - the Tier 1 tool-card work throughput metrics\n   - State: in_progress\n\n3. **Agent Insights infrastructure**\n   - The feature exists\n   - They can use `read_run_worker_health(run_id:)`."} />
       </MemoryRouter>
     )
 

@@ -9,7 +9,7 @@ module Api
       # This used to be a core-owned Api::V1::Timeline::* controller pair at
       # /api/v1/timeline/*, gated on admin only, with no plugin_disabled
       # guard and no frontend consumer. It has been moved here so the
-      # resource is plugin-owned end to end (JOB-3303): same
+      # resource is plugin-owned end to end : same
       # ::Timeline::MacroQuery / ::Timeline::WorkflowWaterfallQuery services
       # the session-authenticated Api::V1::App::Admin::WorkerTimelineController
       # (browser SPA) wraps, same payload shape, now reachable with an API

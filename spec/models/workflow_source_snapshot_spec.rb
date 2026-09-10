@@ -10,7 +10,7 @@ RSpec.describe WorkflowSourceSnapshot, :ci_only do
       workflow: workflow,
       creator_step: step,
       source_sha: "abc123",
-      source_ref: "refs/heads/syrus/direct-4649",
+      source_ref: "refs/heads/syrus/direct-749",
       published_at: Time.current
     )
 
@@ -22,7 +22,7 @@ RSpec.describe WorkflowSourceSnapshot, :ci_only do
     snapshot = described_class.new(
       workflow: workflow,
       source_sha: "abc123",
-      source_ref: "refs/heads/syrus/direct-4649",
+      source_ref: "refs/heads/syrus/direct-749",
       tree_sha: "tree123",
       published_at: Time.current
     )
@@ -38,7 +38,7 @@ RSpec.describe WorkflowSourceSnapshot, :ci_only do
       workflow: workflow,
       creator_step: other_step,
       source_sha: "abc123",
-      source_ref: "refs/heads/syrus/direct-4649",
+      source_ref: "refs/heads/syrus/direct-749",
       tree_sha: "tree123",
       published_at: Time.current
     )
@@ -52,7 +52,7 @@ RSpec.describe WorkflowSourceSnapshot, :ci_only do
       workflow: workflow,
       creator_step: step,
       source_sha: "abc123",
-      source_ref: "refs/heads/syrus/direct-4649",
+      source_ref: "refs/heads/syrus/direct-749",
       tree_sha: "tree123",
       published_at: Time.current
     )

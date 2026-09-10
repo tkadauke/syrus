@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
 import { parseProposalOutcome } from "../proposalToolCard"
 
-// Core-owned tool card for delete_proposal (EPIC-292 / JOB-4222). Shows the
+// Core-owned tool card for delete_proposal (the pending-action tool-card work). Shows the
 // withdrawn slug plus any cascade of downstream proposals withdrawn with it
 // (delete_proposal_tool.rb's `cascade`).
 type DeleteProposalResult = { slug: string; state: string; cascadeSlugs: string[] }

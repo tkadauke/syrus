@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 import { DesignDocHeader, parseDesignDocSummary, type DesignDocSummary } from "../designDocToolCard"
 
-// Plugin-owned tool card for suggest_design_doc_change (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for suggest_design_doc_change (the pending-action tool-card work).
 // Chat-agent content writes are always suggestion-only (see
 // plugins/design_docs/app/services/design_docs/suggest_design_doc_change_tool.rb),
 // so the card's job is to surface the suggestion's own outcome -- state,

@@ -20,19 +20,19 @@ describe("get_job_diff tool card", () => {
 
   it("summarizes the collapsed row with page info", () => {
     const parsedResult = { job_id: 4221, run_id: 9, diff: "diff --git a/x b/x\n+a", page: 1, total_pages: 2, has_next_page: true }
-    expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221 diff (page 1 of 2)")
+    expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-321 diff (page 1 of 2)")
   })
 
   it("summarizes the collapsed row when there is no stored diff", () => {
     const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
-    expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4221: no stored diff")
+    expect(getJobDiffToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-321: no stored diff")
   })
 
   it("renders the no-diff message when diff is null", () => {
     const parsedResult = { job_id: 4221, run_id: null, diff: null, page: 1, total_pages: 0, total_bytes: 0, has_next_page: false, message: "No stored diff is available for this Job yet." }
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByText("JOB-321")).toBeInTheDocument()
     expect(screen.getByText("No stored diff is available for this Job yet.")).toBeInTheDocument()
   })
 
@@ -51,7 +51,7 @@ describe("get_job_diff tool card", () => {
 
     render(<>{getJobDiffToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByText("JOB-321")).toBeInTheDocument()
     expect(screen.getByText("RUN-9")).toBeInTheDocument()
     expect(screen.getByText("1 file")).toBeInTheDocument()
     expect(screen.getByText("+1")).toBeInTheDocument()

@@ -4,8 +4,8 @@ import openInLocalModeCard from "./open_in_local_mode"
 import cancelLocalModeCard from "./cancel_local_mode"
 import createCodingJobCard from "./create_coding_job"
 
-// Parity guard for the Local Mode job-outcome tool card family (EPIC-293 /
-// JOB-4225). Each card is a thin re-export of ../localModeJobOutcomeCard,
+// Parity guard for the Local Mode job-outcome tool card family (the tool-card work /
+// Each card is a thin re-export of ../localModeJobOutcomeCard,
 // so the shared parsing/rendering is covered once in
 // localModeJobOutcomeCard.test.tsx; this just guards the tool-name binding.
 const CARDS: Array<[string, ToolCardRenderer]> = [

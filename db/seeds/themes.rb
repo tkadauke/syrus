@@ -1,5 +1,5 @@
-# Checked-in source of truth for the built-in Theme rows (EPIC-273 job 1,
-# syntax tokens added EPIC-309). `db/seeds.rb` calls `Seeds::Themes.seed!`
+# Checked-in source of truth for the built-in Theme rows (the relevant change job 1,
+# syntax tokens added `db/seeds.rb` calls `Seeds::Themes.seed!`
 # to upsert these into the `themes` table, and `bin/generate-theme-css`
 # compiles the resulting `built_in: true` rows into scoped CSS
 # custom-property blocks.
@@ -15,7 +15,7 @@
 module Seeds
   module Themes
     # Maps each Theme::SYNTAX_TOKEN_KEYS entry to an existing UI token key
-    # whose value it borrows for every built-in theme (EPIC-309). Reusing
+    # whose value it borrows for every built-in theme . Reusing
     # the theme's own contrast-checked, theme-appropriate hues is a more
     # reliable "sensible default" than hand-picking 13 new hex values per
     # theme, and keeps the syntax palette visually consistent with each

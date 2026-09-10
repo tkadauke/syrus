@@ -1,7 +1,7 @@
 require "mcp"
 
 module K8sCluster
-  # Write tool (EPIC-306 phase 2): restarts a deployment's rollout, gated by
+  # Write tool (the relevant change phase 2): restarts a deployment's rollout, gated by
   # `agentic_access_enabled? && allow_writes?` via AgenticAccess.cluster_with_write_access!,
   # a strictly narrower gate than the read-only tools' `AgenticAccess.cluster!`.
   class RestartRolloutTool < MCP::Tool

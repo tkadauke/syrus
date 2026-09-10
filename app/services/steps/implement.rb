@@ -18,7 +18,7 @@ module Steps
       # job_commit_subject falls back to job.slug when title is blank —
       # so it must run after the fetch, not as an eagerly-evaluated
       # keyword argument alongside it (that produced commit subjects
-      # like "Implement: JOB-1: JOB-1" instead of the issue title).
+      # like "Implement: the relevant change" instead of the issue title).
       # workspace.setup runs here too, since persist_prompt_if_needed's
       # main_branch_context needs the clone on disk; perform_agentic_change_step
       # calls setup again below, which is a no-op once the clone exists.

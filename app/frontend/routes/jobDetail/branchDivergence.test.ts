@@ -8,7 +8,7 @@ function workflowWith(artifacts: Record<string, unknown>): JobWorkflow {
 }
 
 const divergence = {
-  branch: "syrus/direct-4485",
+  branch: "syrus/direct-585",
   remote_sha: "6c4ddd6",
   local_sha: "28a75d2"
 }
@@ -42,7 +42,7 @@ describe("workflowBranchDivergence", () => {
   it("returns a null comparison when the artifact predates it", () => {
     const parsed = workflowBranchDivergence(workflowWith({ branch_divergence: divergence }))
 
-    expect(parsed?.branch).toBe("syrus/direct-4485")
+    expect(parsed?.branch).toBe("syrus/direct-585")
     expect(parsed?.comparison).toBeNull()
   })
 

@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, Disclosure, displayValue, Row, truncateLines } from "../toolCardUi"
 
-// Local Mode tool card for write_file (EPIC-293 / JOB-4225). The tool
+// Local Mode tool card for write_file (the tool-card work). The tool
 // result itself only confirms success; path and content come from the
 // tool call's own input, which is only available in the expanded render
 // path (see ToolCardContext.input), not the collapsed-summary dispatch.

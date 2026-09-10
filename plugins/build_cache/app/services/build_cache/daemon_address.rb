@@ -1,4 +1,4 @@
-# Derives a per-Workflow sccache server TCP port (EPIC-251 follow-up).
+# Derives a per-Workflow sccache server TCP port (the relevant change follow-up).
 #
 # sccache's client/server split reads its backend config (SCCACHE_BUCKET and
 # friends) and SCCACHE_BASEDIRS only once, when the SERVER process starts --
@@ -8,7 +8,7 @@
 # the default port is effectively a long-lived, host-scoped singleton: it
 # keeps serving whatever env its very first invocation (on this pod, ever)
 # happened to have, indefinitely, across unrelated Jobs and repositories.
-# That is the root cause behind JOB-4309's captured stats showing
+# That is the root cause behind the relevant change's captured stats showing
 # `basedirs: []` and a local-disk `cache_location` despite that specific
 # grader command's env being correct -- the daemon actually answering
 # requests had already been started, by something else, with different env.

@@ -1,5 +1,5 @@
 # Per-repository opt-in for sccache SCCACHE_BASEDIRS path normalization
-# (EPIC-251 follow-up). Kept off the core Repository model deliberately --
+# (the relevant change follow-up). Kept off the core Repository model deliberately --
 # see Syrus::DataCleanup / PluginDataCleanup -- a plugin owns the rows that
 # reference a core record's id, rather than the core model declaring an
 # association back into a plugin table it could be deleted out from under.

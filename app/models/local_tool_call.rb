@@ -29,7 +29,7 @@ class LocalToolCall < ApplicationRecord
     update!(state: "failed", error: error, completed_at: Time.current)
   end
 
-  # Asks the daemon to interrupt this call mid-flight (EPIC-323's `!` command
+  # Asks the daemon to interrupt this call mid-flight (the chat shell-command cancellation feature's `!` command
   # cancel control). Only meaningful once the daemon has actually started
   # working on it -- LocalTunnelChannel#receive_from_subscription re-checks
   # state is still "dispatched" before transmitting, so a call that already

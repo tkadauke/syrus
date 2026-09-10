@@ -1152,7 +1152,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .and_raise(missing_object_error([ "cat-file", "-e", "trainsha789^{commit}" ], "trainsha789"))
       # Even after the fetch attempt, this workspace still can't resolve the
       # commit (e.g. the fetch itself failed, or objects were pruned) --
-      # production evidence: WF-25752/train 5067 logged exactly this message
+      # production evidence: WF-252/train 5067 logged exactly this message
       # for every member.
       allow(git).to receive(:run)
         .with("merge-base", "--is-ancestor", "a-landed-1", "trainsha789", chdir: "/tmp/ws")
@@ -2073,7 +2073,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     # MergeTrainFailureHandler itself is epic-agnostic (it only reads
     # workflow.artifact("merge_train_id") and walks train.members), but
     # it had no coverage against a bundle-backed (epic_id: nil,
-    # priority: set) train until now. See EPIC-246.
+    # priority: set) train until now. See the shared landing-retry feature.
     context "when the train is bundle-backed (epicless, epic_id: nil)" do
       def bundle_member_job(issue_number:, state: "landing", priority: "medium")
         Factories.job_record(

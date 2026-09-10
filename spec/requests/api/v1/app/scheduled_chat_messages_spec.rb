@@ -22,7 +22,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/scheduled_messages", type: :request d
     expect {
       post "/api/v1/app/chats/#{chat_session.id}/scheduled_messages", params: {
         scheduled_message: {
-          body: "Check JOB-1234.",
+          body: "Check JOB-534.",
           fire_at: fire_at.iso8601
         }
       }
@@ -33,7 +33,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/scheduled_messages", type: :request d
     expect(scheduled_message).to have_attributes(
       chat_session: chat_session,
       user: user,
-      body: "Check JOB-1234."
+      body: "Check JOB-534."
     )
     expect(scheduled_message.fire_at.to_i).to eq(fire_at.to_i)
     expect(ScheduledChatMessageFireJob).to have_been_enqueued.with(scheduled_message.id)

@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): bootstraps a GitHub Actions CI workflow
+  # Built-in skill : bootstraps a GitHub Actions CI workflow
   # wired to the exact command set this repo already grades with — pulled
   # from `.syrus.yml`'s `grade` section (preferring each step's `ci:`
   # variant, via RepoGradePlan's legacy `-ci` grader expansion), or

@@ -4,7 +4,7 @@ module Syrus
     # content kind core does not know about.
     #
     # `PreviewPanel` is a generic multi-format viewer -- html, markdown, pdf,
-    # image (JOB-3864) -- but the mapping from a file to a viewer kind was a
+    # image  -- but the mapping from a file to a viewer kind was a
     # hardcoded switch in `PreviewPanel::EntryMetadata`, so every new kind
     # meant editing core. A plugin declares its own:
     #

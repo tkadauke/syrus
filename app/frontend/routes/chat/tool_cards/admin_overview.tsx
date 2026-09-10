@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { HealthPill, parseWorkerHealthCounts, type WorkerHealthCounts } from "../adminToolCard"
 
-// Core-owned tool card for admin_overview (EPIC-293 / JOB-4227). The tool
+// Core-owned tool card for admin_overview (the tool-card work). The tool
 // echoes a handful of top-level rollup counts plus a much larger nested
 // `overview` object (rate limits, provider circuits, worker health, ...);
 // this card surfaces the counts and the notable red/yellow entries from

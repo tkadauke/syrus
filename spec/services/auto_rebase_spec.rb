@@ -204,7 +204,7 @@ RSpec.describe AutoRebase, :ci_only do
     end
   end
 
-  # JOB-4346: a merge train landed the branch's commit, member reconciliation
+  # the already-landed closed-PR regression: a merge train landed the branch's commit, member reconciliation
   # failed to close the Job, and hours later a rebase replayed the branch onto
   # a main that already contained the change. Every commit dropped, HEAD ended
   # up at main's tip, and the force-push emptied the PR -- 0 commits, 0 files --

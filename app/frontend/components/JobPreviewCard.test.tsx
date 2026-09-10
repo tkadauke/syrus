@@ -48,7 +48,7 @@ describe("JobPreviewCard", () => {
         start_blocked_reason: "stack_fan_in_base_unavailable",
         start_blocked_details: {
           message: "multiple dependency branches are ready",
-          dependencies: [{ slug: "JOB-1574" }, { slug: "JOB-1575" }]
+          dependencies: [{ slug: "JOB-874" }, { slug: "JOB-875" }]
         }
       }
     }))
@@ -57,7 +57,7 @@ describe("JobPreviewCard", () => {
     await waitFor(() => expect(screen.getByText("Fan-in base unavailable")).toBeInTheDocument())
     expect(screen.getByText("Fan-in base unavailable").closest("[data-status-pill]")).toHaveAttribute(
       "title",
-      expect.stringContaining("Dependencies: JOB-1574, JOB-1575")
+      expect.stringContaining("Dependencies: JOB-874, JOB-875")
     )
   })
 

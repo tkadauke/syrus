@@ -13,7 +13,7 @@
     never flashes. A non-built-in (custom) color theme isn't known at build
     time, so instead of data-theme its token values are embedded as JSON
     below and applied as inline custom properties by the same inline script,
-    before hydration — the same anti-flash treatment EPIC-267 established for
+    before hydration — the same anti-flash treatment the design-system lint ratchet established for
     mode. %>
 <%
   mode_pref = current_user&.theme || "system"

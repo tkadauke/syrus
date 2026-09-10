@@ -2,7 +2,7 @@
 
 Warns about drift between Syrus repository role tiers and real GitHub
 collaborator permissions. Detection and surfacing only — this never
-enforces or auto-corrects anything on either side. Part of EPIC-257:
+enforces or auto-corrects anything on either side. Part of EPIC-27:
 groundwork for a future where self-hosted git removes GitHub as a required
 central host, at which point GitHub can no longer be assumed to be the
 source of truth for commit access.

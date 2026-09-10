@@ -513,7 +513,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
           kind: "direct",
           issue_number: nil,
           state: "failed",
-          branch_name: "syrus/direct-4056"
+          branch_name: "syrus/direct-156"
         )
         retry_workflow = Workflow.create!(job: direct_job, trigger_kind: "retry")
 
@@ -526,7 +526,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(retry_workflow.artifact(RebaseTarget::BRANCH_ARTIFACT)).to eq("syrus/direct-#{direct_job.id}")
         expect(retry_workflow.reload.artifact("missing_branch_recovery")).to include(
           "kind" => "missing_work_branch",
-          "missing_branch" => "syrus/direct-4056",
+          "missing_branch" => "syrus/direct-156",
           "fallback_branch" => "syrus/direct-#{direct_job.id}"
         )
       end

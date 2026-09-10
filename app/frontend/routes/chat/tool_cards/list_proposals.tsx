@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { EmptyState, StatePill } from "../toolCardUi"
 import { parseProposalOutcome, type ProposalOutcome } from "../proposalToolCard"
 
-// Core-owned tool card for list_proposals (EPIC-292 / JOB-4222).
+// Core-owned tool card for list_proposals (the pending-action tool-card work).
 function proposalRows(context: ToolCardContext): ProposalOutcome[] | null {
   const parsed = context.parsedResult
   if (!isPlainObject(parsed) || !Array.isArray(parsed.proposals)) return null

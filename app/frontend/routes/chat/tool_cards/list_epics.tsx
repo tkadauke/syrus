@@ -1,6 +1,6 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 
-// Core-owned tool card for list_epics (EPIC-291 / JOB-4220). Renders results
+// Core-owned tool card for list_epics (the Tier 1 tool-card work). Renders results
 // as a dense table optimized for scanning, mirroring the list_jobs card.
 type EpicRow = {
   key: string

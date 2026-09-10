@@ -206,7 +206,7 @@ describe("AgentConversationTab", () => {
   })
 
   it("contains long conversation content inside the thread and cards", async () => {
-    const longSummary = "Review found a long unbroken path tmp/workspaces/syrus/direct-4646/design_docs/app/services/design_docs/normalize_anchor_markers.rb-with-a-very-long-token-that-should-not-widen-the-page"
+    const longSummary = "Review found a long unbroken path tmp/workspaces/syrus/direct-746/design_docs/app/services/design_docs/normalize_anchor_markers.rb-with-a-very-long-token-that-should-not-widen-the-page"
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(graph({
       nodes: [
         {

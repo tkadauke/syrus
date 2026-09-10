@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState } from "../toolCardUi"
 
-// Core-owned tool card for list_ref_movement_actions (EPIC-293 / JOB-4225).
+// Core-owned tool card for list_ref_movement_actions (the tool-card work).
 type ActionRow = { name: string; enabled: boolean; mode: string | null; available: boolean; blockedReason: string | null }
 
 function parseRow(value: unknown): ActionRow | null {

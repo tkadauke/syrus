@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel, StatePill } from "../toolCardUi"
 import { JobRefLink, Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for inspect_provider_circuit (EPIC-293 / JOB-4227).
+// Core-owned tool card for inspect_provider_circuit (the tool-card work).
 // Renders the circuit decision (provider/model/scope, state, evidence age),
 // the failed Runs and availability evidence backing that decision, and the
 // consumers currently blocked on it (queued Workflows, delayed auto-retries)

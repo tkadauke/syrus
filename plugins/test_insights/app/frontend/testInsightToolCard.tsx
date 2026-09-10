@@ -3,7 +3,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { displayValue, InternalLink, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the test_insights plugin's chat tool cards
-// (EPIC-292). list_repository_test_insights, read_test_insight, and
+// (the pending-action tool-card work). list_repository_test_insights, read_test_insight, and
 // compare_test_runtime all echo the same `{id, suite_name, name, file_path,
 // links: {app_path}}` TestIdentity reference shape (see
 // plugins/test_insights/app/services/test_insights/{query,detail,runtime_comparison}.rb),

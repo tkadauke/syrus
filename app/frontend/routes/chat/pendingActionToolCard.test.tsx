@@ -132,7 +132,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
     evidence: {
       job_id: 4222,
       workflow_id: 26123,
-      branch: "syrus/direct-4222",
+      branch: "syrus/direct-322",
       remote_sha: "abc123abc123abc123abc123",
       workflow_local_sha: "def456def456def456def456",
       base_sha: "111222111222111222111222",
@@ -157,7 +157,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
   })
 
   it("summarizes the collapsed row as a dry run for the target Job", () => {
-    expect(summarize(evidencePayload)).toBe("Dry run: adopt_current_pr_head for JOB-4222")
+    expect(summarize(evidencePayload)).toBe("Dry run: adopt_current_pr_head for JOB-322")
   })
 
   it("renders the humanized action, job, branch, and truncated SHAs", () => {
@@ -165,8 +165,8 @@ describe("pending action tool card: dry-run evidence shape", () => {
 
     expect(screen.getByText("Dry run")).toBeInTheDocument()
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
-    expect(screen.getByText("syrus/direct-4222")).toBeInTheDocument()
+    expect(screen.getByText("JOB-322")).toBeInTheDocument()
+    expect(screen.getByText("syrus/direct-322")).toBeInTheDocument()
     expect(screen.getByText("abc123abc123")).toBeInTheDocument()
     expect(screen.getByText("def456def456")).toBeInTheDocument()
     expect(screen.getByText("111222111222")).toBeInTheDocument()

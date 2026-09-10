@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { displayValue, InternalLink, StatePill } from "./toolCardUi"
 
 // Shared presentation helpers for the core admin status/diagnostics/
-// provider-circuit chat tool cards (EPIC-293 / JOB-4227): admin_overview,
+// provider-circuit chat tool cards (the tool-card work): admin_overview,
 // admin_queue_detail, admin_list_processes, admin_list_runs,
 // admin_list_users, admin_version, read_worker_health,
 // admin_read_operational_logs, admin_github_app_installation_diagnostic,

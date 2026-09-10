@@ -2,8 +2,8 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, displayValue, Row } from "../toolCardUi"
 import { parseRefMovementCore, refMovementCollapsedSummary, RefMovementCoreFields } from "../refMovementToolCard"
 
-// Core-owned tool card for dispatch_ref_movement_action (EPIC-293 /
-// JOB-4225). Always renders, even when state is "blocked" -- the dispatch
+// Core-owned tool card for dispatch_ref_movement_action (the tool-card work /
+// Always renders, even when state is "blocked" -- the dispatch
 // still creates a durable audit record either way (see
 // dispatch_ref_movement_action_tool.rb).
 function parseResult(context: ToolCardContext) {

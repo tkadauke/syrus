@@ -412,7 +412,7 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
   )
 }
 
-// Renders a completed `!` command (EPIC-323): the command line and its
+// Renders a completed `!` command (the chat shell-command cancellation feature): the command line and its
 // captured stdout+stderr, ANSI-aware. This is a user-initiated shell command,
 // not an agent tool call, so it deliberately does not reuse ToolGroup's
 // collapsible pill card — a dark terminal-style block reads as distinct at a
@@ -501,12 +501,12 @@ function ToolResultBody({ call }: { call: ChatToolGroupItem["calls"][number] }) 
   // result_json parses the tool result's complete, untruncated text;
   // result_body is a display-bounded preview that can cut a long single-line
   // JSON result mid-object, so plugin cards must not re-derive parsedResult
-  // from it (JOB-4223). Builders that haven't computed result_json (e.g. the
+  // from it . Builders that haven't computed result_json (e.g. the
   // admin transcript grouper) leave it undefined -- fall back to parsing the
   // body they did set, same as before.
   //
   // An errored tool call still gets a chance to render through a registered
-  // card (JOB-4226): many tools (e.g. mysql_db_browser_execute_query) set
+  // card : many tools (e.g. mysql_db_browser_execute_query) set
   // the MCP response's error flag on an ordinary structured failure payload
   // and expect their card to render that payload's own error/status
   // section, not the raw-JSON fallback. A card can still return null for a

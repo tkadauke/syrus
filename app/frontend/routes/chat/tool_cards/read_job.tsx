@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for read_job (EPIC-291 / JOB-4220). Shows the
+// Core-owned tool card for read_job (the Tier 1 tool-card work). Shows the
 // canonical JOB id, title, state, PR, branch, priority, agent provider,
 // dependencies, and deployment stage when present.
 type DependencyBadge = { key: string; label: string; state: string | null; pending: boolean }

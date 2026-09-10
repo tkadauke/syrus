@@ -31,7 +31,7 @@ function payload(overrides: Record<string, unknown> = {}) {
         source_repository: null,
         target_repository: null,
         actor: { id: 1, display_name: "Thomas Kadauke", email_address: "thomas@example.com" },
-        jobs: [ { id: 3578, slug: "JOB-3578", title: "Fix CI", state: "running", path: "/jobs/3578" } ],
+        jobs: [ { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } ],
         units: [
           {
             id: 8,
@@ -54,8 +54,8 @@ function payload(overrides: Record<string, unknown> = {}) {
             repository: { id: 2, slug: "tkadauke/syrus", path: "/repositories/2" },
             source_repository: null,
             target_repository: null,
-            workflow: { id: 20041, slug: "WF-20041", trigger_kind: "ci_failure", state: "running", path: "/jobs/3578?tab=workflows#workflow-20041" },
-            members: [ { role: "primary", job: { id: 3578, slug: "JOB-3578", title: "Fix CI", state: "running", path: "/jobs/3578" } } ]
+            workflow: { id: 20041, slug: "WF-141", trigger_kind: "ci_failure", state: "running", path: "/jobs/3578?tab=workflows#workflow-20041" },
+            members: [ { role: "primary", job: { id: 3578, slug: "JOB-478", title: "Fix CI", state: "running", path: "/jobs/3578" } } ]
           }
         ]
       }
@@ -106,8 +106,8 @@ describe("AdminWorkUnits", () => {
     renderRoute()
 
     expect(await screen.findByRole("heading", { name: "Work Units" })).toBeInTheDocument()
-    expect((await screen.findAllByRole("link", { name: "JOB-3578" }))[0]).toHaveAttribute("href", "/jobs/3578")
-    expect(screen.getByRole("link", { name: "WF-20041" })).toHaveAttribute("href", "/jobs/3578?tab=workflows#workflow-20041")
+    expect((await screen.findAllByRole("link", { name: "JOB-478" }))[0]).toHaveAttribute("href", "/jobs/3578")
+    expect(screen.getByRole("link", { name: "WF-141" })).toHaveAttribute("href", "/jobs/3578?tab=workflows#workflow-20041")
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     expect(screen.getByText("Intent state")).toBeInTheDocument()

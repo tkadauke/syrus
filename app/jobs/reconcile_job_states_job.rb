@@ -154,7 +154,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # `mark_failed` only transitions from :running and the propagation
         # guard silently no-ops. The Job then reads healthy in every operator
         # surface -- "Just failed" filters on Job state -- while nothing works
-        # on it and anything stacked behind it stays blocked. JOB-4253 sat
+        # on it and anything stacked behind it stays blocked. the queued-workflow lifecycle regression sat
         # like that for fifteen hours.
         return nil if active_runtime_work?(job)
 

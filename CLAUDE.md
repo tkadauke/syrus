@@ -5,6 +5,16 @@ deterministic plumbing (clones, branches, PRs, cleanup) so the
 agent can focus on writing code. See `README.md` for the human pitch
 and `ROADMAP.md` for milestone planning.
 
+## Repository hygiene
+
+Never commit references to a private Syrus instance's internal identifiers
+(`JOB-<id>`, `EPIC-<id>`, `WF-<id>`, `RUN-<id>`, chat IDs, private instance
+hostnames, or private repository incident labels) as historical breadcrumbs in
+code, tests, fixtures, or documentation. Use descriptive names for regression
+fixtures and small, obviously fictional placeholder identifiers in product
+examples. Instance-specific evidence belongs in the operator conversation or
+in `docs/plans`, not in the codebase.
+
 ## Stack
 
 Rails 8.1.3 · Ruby 3.4.10 · SQLite (dev/test) / MySQL (prod) ·
@@ -208,7 +218,7 @@ Key steps:
   soft-fail posture `prepare`'s auto-detected commands use. See
   `config/syrus_docs/syrus_yml.md` and `config/syrus_docs/workflow_steps.md`
   for the full `.syrus.yml` schema and step contract.
-- **`run_skill`** — Agentic step of `skill` workflows (EPIC-233). Resolves the
+- **`run_skill`** — Agentic step of `skill` workflows (the skill-workflow feature). Resolves the
   Job's `skill_name` via `Skills.for(repository:, name:)` (repo-local override,
   else built-in), renders the resolved `Skills::Definition`'s instructions with
   `skill_args` substituted (`Skills::Renderer`, `Prompts::Skill`), and invokes
@@ -365,7 +375,7 @@ Key steps:
   `RunCheckpoint` when the workspace lacks it: a Job's branch is local-only
   until this step pushes it, and workspaces are node-local while Runs go to any
   free worker, so a hop between `implement` and here yields a fresh clone off
-  the base with no implementation (JOB-4453/4463/4470).
+  the base with no implementation (the empty-workspace PR-open regressions).
   `RunCheckpointPublisher` already publishes every mutation step's commit for
   this purpose — only `summarize`/`summarize_amend` used to restore from it.
 - **`review_plan`** — Optional, best-effort agentic step after `pr_open` in
@@ -529,7 +539,7 @@ train landed a rebased copy, or someone cherry-picked it), no commits ahead of
 base at all (`NO_COMMITS` → `no_changes`), or real unmerged commits
 (`HAS_UNIQUE` → `pr_closed`); an unrunnable check assumes `HAS_UNIQUE`.
 Collapsing the first two — the old behavior — filed landed work as "this Job
-produced nothing" (JOB-4346). Both `no_changes` and `pr_merged` are successful
+produced nothing" (the already-landed closed-PR regression). Both `no_changes` and `pr_merged` are successful
 parent resolutions for dependency gates, stack rebases, and landing queue
 wakeups; the distinction is about attribution.
 
@@ -1052,7 +1062,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   leaving Workflow `failed` / Job `queued`. That pair is invisible to the
   operator: the "Just failed" folder is `scope.where(state: "failed")` on the
   **Job**, so it reads healthy while nothing works on it and anything stacked
-  behind it stays blocked (JOB-4253, fifteen hours, three Jobs waiting).
+  behind it stays blocked (the queued-workflow lifecycle regression, fifteen hours, three Jobs waiting).
   `Workflows::JobLifecyclePropagation#fail!` now starts a queued Job whose
   Workflow never started before failing it, and `ReconcileJobStatesJob::Plan`
   carries the `["queued", "failed"]` pair — the one drift pair from `queued`

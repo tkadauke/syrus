@@ -136,7 +136,7 @@ describe("renderChatMessages tool grouping", () => {
       raw_name: "syrus-chat-sidecar.list_chat_media",
       detail: "No arguments",
       raw_payload: {},
-      // The list_chat_media tool card (routes/chat/tool_cards/, JOB-4220)
+      // The list_chat_media tool card (routes/chat/tool_cards/, the relevant change)
       // supplies this summary now, taking priority over the generic
       // count-based heuristic — see toolResultPresentation.
       result_kind: "text",
@@ -161,7 +161,7 @@ describe("renderChatMessages tool grouping", () => {
     expect(toolGroup.calls[1].result_body).toBe("class B")
   })
 
-  it("parses a long single-line JSON tool result from its untruncated text, not the truncated display body (JOB-4223)", () => {
+  it("parses a long single-line JSON tool result from its untruncated text, not the truncated display body ", () => {
     // A real design doc's markdown easily exceeds the 2,000-char per-line
     // display-preview cap (toolResultPreview/TOOL_RESULT_PREVIEW_LINE_CHARS)
     // once serialized into the tool result's single-line JSON. Truncating

@@ -1,6 +1,6 @@
 "use strict"
 
-// Local ESLint plugin for the design-system lint ratchet (EPIC-267). Each
+// Local ESLint plugin for the design-system lint ratchet (the design-system lint ratchet). Each
 // rule enforces a per-file count baseline against eslint-rules/baseline.json
 // so today's ~1,210 existing violations stay green while any *new*
 // occurrence -- in a new file, or beyond a file's baselined count -- fails

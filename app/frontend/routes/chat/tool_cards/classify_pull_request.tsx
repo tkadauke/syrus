@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row } from "../toolCardUi"
 
-// Core-owned tool card for classify_pull_request (EPIC-293 / JOB-4225).
+// Core-owned tool card for classify_pull_request (the tool-card work).
 type ClassifyResult = {
   prNumber: string
   classification: string

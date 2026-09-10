@@ -133,7 +133,7 @@ module Steps
     # one more attempt before it counts. The motivating case: `bundle install
     # --jobs 4` can start building llhttp-ffi's native extension before the
     # `ffi` gem it needs *at build time* has finished installing -- a race in
-    # gem ordering, not a problem with the lockfile. It cost JOB-4377 a landing
+    # gem ordering, not a problem with the lockfile. It cost the relevant change a landing
     # and its approval, and the identical command succeeds on a second run
     # because the first left the missing gem installed. A genuinely broken
     # manifest still fails, just one attempt later.

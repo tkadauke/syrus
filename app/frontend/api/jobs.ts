@@ -1342,7 +1342,7 @@ export type CoverageArtifact = {
   hit_map_attached?: boolean
 }
 
-// Latest sccache compiler-cache stats capture for the Job (EPIC-251), mirrors
+// Latest sccache compiler-cache stats capture for the Job , mirrors
 // Workflow::SccacheArtifact entries normalized through SccacheStatsSummary.
 // `summary` fields are individually nullable since the raw
 // `sccache --show-stats` shape isn't guaranteed across sccache versions.

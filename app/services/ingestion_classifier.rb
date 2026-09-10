@@ -135,7 +135,7 @@ class IngestionClassifier
   end
 
   # Uncertainty used to be recorded only in the process log, which meant that
-  # by the time anyone noticed the Job was stuck -- JOB-3184 sat for three
+  # by the time anyone noticed the Job was stuck sat for three
   # weeks -- there was no way to tell a transient provider error from an issue
   # that genuinely needs a person. The reason is now on the Job, and the Job is
   # put in front of someone rather than left to be found.

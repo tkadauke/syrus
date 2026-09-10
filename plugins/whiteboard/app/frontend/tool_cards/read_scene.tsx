@@ -1,7 +1,7 @@
 import type { ToolCardContext, ToolCardRenderer } from "@app/pluginToolCards"
 import { parseSceneCounts, SceneCountsCard, sceneCountsSummary } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for read_scene (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for read_scene (the pending-action tool-card work).
 function collapsedSummary(context: ToolCardContext) {
   const counts = parseSceneCounts(context.parsedResult)
   return counts ? sceneCountsSummary(counts) : null

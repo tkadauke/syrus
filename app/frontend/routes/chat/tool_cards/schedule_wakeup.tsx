@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
 
-// Core-owned tool card for schedule_wakeup (EPIC-292 / JOB-4222).
+// Core-owned tool card for schedule_wakeup (the pending-action tool-card work).
 type ScheduleWakeupResult = { wakeupId: string; fireAt: string }
 
 function parseScheduleWakeup(context: ToolCardContext): ScheduleWakeupResult | null {

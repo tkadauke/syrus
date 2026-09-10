@@ -25,7 +25,7 @@ describe("propose_job tool card", () => {
       state: "proposed",
       repository: "tkadauke/syrus",
       dependencies: ["other-proposal"],
-      target_epic: { id: 12, number: 292, label: "EPIC-292" }
+      target_epic: { id: 12, number: 292, label: "the pending-action tool-card work" }
     }
 
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
@@ -35,7 +35,7 @@ describe("propose_job tool card", () => {
     expect(screen.getByText("proposed")).toBeInTheDocument()
     expect(screen.getByText("tkadauke/syrus")).toBeInTheDocument()
     expect(screen.getByText("1")).toBeInTheDocument()
-    expect(screen.getByText("EPIC-292")).toBeInTheDocument()
+    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
   })
 
   it("renders the materialized Job once confirmed", () => {
@@ -50,7 +50,7 @@ describe("propose_job tool card", () => {
     render(<>{proposeJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByText("confirmed")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
+    expect(screen.getByText("JOB-322")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
   })
 

@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { CardShell, Disclosure, displayValue, EmptyState, numberValue, Row, SectionLabel } from "../toolCardUi"
 import { formatPercent, HealthPill, parseHealthLevel, Table, TBody, Td, THead, type HealthLevel } from "../adminToolCard"
 
-// Core-owned tool card for read_worker_health (EPIC-293 / JOB-4227). Renders
+// Core-owned tool card for read_worker_health (the tool-card work). Renders
 // the live per-worker rollup (health level, pressure indicators, timing) as
 // a dense table, and a per-host trend summary (sample/warning/critical
 // counts over 1h and 24h) behind a disclosure -- the full minute-bucket and

@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): scans a newly-attached repository and
+  # Built-in skill : scans a newly-attached repository and
   # writes a sensible `.syrus.yml`, or — if one already exists — reports
   # a gap analysis instead of silently overwriting operator-authored
   # config. Skills are freeform instruction sets that resist

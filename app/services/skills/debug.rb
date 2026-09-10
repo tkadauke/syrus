@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): reproduce a reported bug with a failing
+  # Built-in skill : reproduce a reported bug with a failing
   # automated test, root-cause it, then apply the minimal fix. Generic to
   # whatever test framework this repository already uses for grading —
   # reuses RepoGradePlan (graders already configured in `.syrus.yml`) and

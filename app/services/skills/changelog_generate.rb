@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): summarizes merged PRs since the last tag (or
+  # Built-in skill : summarizes merged PRs since the last tag (or
   # an explicit `since` ref) into a changelog entry, reading git/PR history
   # only — no GitHub API call, mirroring Skills::ExplainFailingCi's note
   # that the agent sandbox has no GitHub API credentials of its own. What

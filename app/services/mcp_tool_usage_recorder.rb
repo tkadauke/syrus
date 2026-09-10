@@ -27,7 +27,7 @@ class McpToolUsageRecorder
   end
 
   # Records a full call+result cycle for a tool dispatched directly at a
-  # persistent MCP sidecar's dispatch boundary (EPIC-250,
+  # persistent MCP sidecar's dispatch boundary (the relevant change,
   # PersistentMcpDaemon::ChatToolDispatch), as opposed to the transcript-
   # derived recording above. Unlike transcript recording -- which observes a
   # "tool_call" event and a later "tool_result" event as two separate points

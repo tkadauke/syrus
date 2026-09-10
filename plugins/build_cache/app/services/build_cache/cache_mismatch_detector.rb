@@ -1,4 +1,4 @@
-# Flags the two silent sccache daemon-drift symptoms JOB-4309 surfaced:
+# Flags the two silent sccache daemon-drift symptoms the relevant change surfaced:
 # an operator-provisioned shared bucket whose captured stats still show a
 # local-disk cache_location, and a repository opted into SCCACHE_BASEDIRS
 # coverage-safe caching (BuildCache::RepositorySettings) whose captured

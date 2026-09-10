@@ -11,7 +11,7 @@
 require_relative "seeds/themes"
 Seeds::Themes.seed!
 
-# Default any user still on no color theme (fresh migration, pre-EPIC-273
+# Default any user still on no color theme (fresh migration, pre-the relevant change
 # accounts) to the built-in Terracotta theme. New users get this via
 # User#seed_default_color_theme; this backfills existing rows once Themes
 # exist.

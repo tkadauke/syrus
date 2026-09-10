@@ -2,7 +2,7 @@ class AddActiveDedupKeyToWorkUnits < ActiveRecord::Migration[8.1]
   # Snapshot of WorkDefinitions::Base#lock_conflicts_enforced? at the time
   # this migration was written. A second active WorkUnit of one of these
   # kinds for the same scope is always a duplicate-materialization bug
-  # (JOB-4235), never an intentional concurrent attempt, so it's safe to
+  # , never an intentional concurrent attempt, so it's safe to
   # backfill retroactively. Kinds left out here (agent_insight,
   # main_branch_repair, main_grader, replay, visual_diff, hotfix_sync,
   # promotion) keep today's more permissive "materialize, then block at

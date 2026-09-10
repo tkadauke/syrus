@@ -1,7 +1,7 @@
-name: JOB-4622 stale PR check base
+name: stale PR check base
 repository:
   owner: simulation
-  name: job-4622-stale-pr-check-base
+  name: stale-pr-check-base
   auto_merge_enabled: true
 main_branch_health_checks:
   - sha: stale-base-sha
@@ -20,7 +20,7 @@ jobs:
     state: approved
     approved_at: "2026-09-10 09:15:00"
     pr_number: 71
-    branch_name: syrus/direct-4622
+    branch_name: syrus/direct-stale-check-base
     pr_checks_state: failing
     pr_checks_sha: head-sha
     pr_checks_base_sha: current-base-sha

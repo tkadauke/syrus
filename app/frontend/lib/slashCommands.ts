@@ -1,4 +1,4 @@
-// "skill" here predates EPIC-233's Skills:: system: it's a canned-prompt
+// "skill" here predates the skill-workflow feature's Skills:: system: it's a canned-prompt
 // command (toPrompt synthesizes prose sent as a normal chat message).
 // "repo_skill" is the per-repository Skills:: registry (built-ins plus
 // .syrus/skills/* overrides) computed dynamically per chat — see

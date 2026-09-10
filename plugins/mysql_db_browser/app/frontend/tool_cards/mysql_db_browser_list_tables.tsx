@@ -3,7 +3,7 @@ import { displayValue, EmptyState } from "@app/routes/chat/toolCardUi"
 import { formatBytes } from "@app/lib/format"
 import { parseTableSummary, TableShell, TruncatedNotice, type MysqlTableRow } from "../mysqlToolCard"
 
-// Plugin-owned tool card for mysql_db_browser_list_tables (EPIC-293).
+// Plugin-owned tool card for mysql_db_browser_list_tables (the tool-card work).
 type TablesCard = { database: string; truncated: boolean; tables: MysqlTableRow[] }
 
 function parseCard(context: ToolCardContext): TablesCard | null {

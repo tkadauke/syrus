@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, displayValue, EmptyState, InternalLink, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for admin_stuck_jobs (EPIC-291 / JOB-4221). Renders
+// Core-owned tool card for admin_stuck_jobs (the Tier 1 tool-card work). Renders
 // the admin stuck-Job watchlist as a compact ops dashboard: kind, severity/
 // attention state, detail, stuck reason context, and a recommended-action
 // hint where the repair plan provides one.

@@ -225,7 +225,7 @@ class WorkUnit < ApplicationRecord
   # active WorkUnit may exist per (scope, kind) for kinds where
   # definition.lock_conflicts_enforced? is true, so a second Workflow for
   # the same follow-up work can't be materialized even if an app-level
-  # check is skipped or races (JOB-4235). Kinds that intentionally allow
+  # check is skipped or races . Kinds that intentionally allow
   # cross-job serialization queues (e.g. epic-wide feedback) aren't scoped
   # by job here, so they're unaffected.
   def sync_active_dedup_key

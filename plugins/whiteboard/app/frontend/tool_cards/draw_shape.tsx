@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for draw_shape (EPIC-292 / JOB-4223). Lives entirely
+// Plugin-owned tool card for draw_shape (the pending-action tool-card work). Lives entirely
 // inside the whiteboard plugin -- core discovers it by directory convention
 // (see app/frontend/pluginToolCards.tsx) and never imports it by name, so it
 // can be added, changed, or removed without touching core.

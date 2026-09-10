@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, CardShell, displayValue, EmptyState, numberValue, StatePill } from "../toolCardUi"
 import { Table, TBody, Td, THead } from "../adminToolCard"
 
-// Core-owned tool card for admin_list_users (EPIC-293 / JOB-4227). Renders
+// Core-owned tool card for admin_list_users (the tool-card work). Renders
 // the full user roster as a dense table: account flags, agent provider,
 // scheduling state, and Job count.
 type UserRow = {

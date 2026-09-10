@@ -18,7 +18,7 @@ RSpec.describe ClosedPullRequestResolution do
     expect(BranchPatchPresence).not_to have_received(:classify)
   end
 
-  # JOB-4346: a merge train landed the work, member reconciliation failed to
+  # the already-landed closed-PR regression: a merge train landed the work, member reconciliation failed to
   # close the Job, and the PR was eventually closed unmerged. Every commit had
   # an equivalent on main, which used to be filed as "this Job did nothing".
   it "returns pr_merged when every commit already has an equivalent on base" do

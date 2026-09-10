@@ -88,7 +88,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
-  # --- when_files_changed skip (PR #1791) ---------------------------------
+  # --- when_files_changed skip (PR #41) ---------------------------------
 
   it "materializes graders without when_files_changed regardless of changed files" do
     write_config(<<~YAML)
@@ -756,7 +756,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("all graders skipped")
   end
 
-  # --- :affected_test_analyzer (EPIC-244) ---------------------------------
+  # --- :affected_test_analyzer  ---------------------------------
 
   describe ":affected_test_analyzer" do
     after { Syrus::PluginRegistry.reset! }

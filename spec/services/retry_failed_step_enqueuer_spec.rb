@@ -64,7 +64,7 @@ RSpec.describe RetryFailedStepEnqueuer do
   end
 
   it "revives cancelled downstream steps when retrying a failed step in place" do
-    job = Factories.job_record(state: "failed", pr_number: 807, branch_name: "syrus/direct-3372")
+    job = Factories.job_record(state: "failed", pr_number: 807, branch_name: "syrus/direct-272")
     workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback")
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
     respond = Step.create!(workflow: workflow, kind: "respond", position: 1)
@@ -87,7 +87,7 @@ RSpec.describe RetryFailedStepEnqueuer do
   end
 
   it "retries the first cancelled publication step after a recovered workflow lost its publication tail" do
-    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-4034")
+    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-134")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     workflow.update_columns(
       state: "failed",
@@ -124,7 +124,7 @@ RSpec.describe RetryFailedStepEnqueuer do
   end
 
   it "does not treat cancelled publication steps with historical runs as retryable" do
-    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-4034")
+    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-134")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")
     workflow.update_columns(
       state: "failed",

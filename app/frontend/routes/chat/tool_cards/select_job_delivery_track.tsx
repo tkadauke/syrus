@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row } from "../toolCardUi"
 
-// Core-owned tool card for select_job_delivery_track (EPIC-293 / JOB-4225).
+// Core-owned tool card for select_job_delivery_track (the tool-card work).
 type SelectTrackResult = { jobId: string; previousTrack: string; track: string; resolvedTrack: string | null }
 
 function parseResult(context: ToolCardContext): SelectTrackResult | null {

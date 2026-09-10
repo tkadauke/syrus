@@ -74,7 +74,7 @@ surface, sharing the same query services and payload shape:
   `/api/v1/timeline/*` with no plugin gate; it moved into the plugin (and
   under `/api/v1/admin/worker_timeline/*`) so the resource is addressable
   from the operations interface and answers `plugin_disabled` like every
-  other plugin-owned admin endpoint (JOB-3303).
+  other plugin-owned admin endpoint .
   - `GET /api/v1/admin/worker_timeline/macro` — flat query params:
     `repository_id`, `epic_id`, `job_id`, `hostname`, `status`, `job_type`,
     `from`/`to` (ISO8601; default window is the last hour). See

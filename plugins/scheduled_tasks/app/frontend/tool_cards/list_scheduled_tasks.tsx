@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { Badge, EmptyState, StatePill } from "@app/routes/chat/toolCardUi"
 import { FailureBadge, parseScheduledTask, type ScheduledTaskCard } from "../scheduledTaskToolCard"
 
-// Plugin-owned tool card for list_scheduled_tasks (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for list_scheduled_tasks (the pending-action tool-card work).
 // Renders the repository's scheduled tasks as a compact schedule table
 // instead of a wall of JSON.
 function scheduledTasks(context: ToolCardContext): ScheduledTaskCard[] | null {

@@ -31,7 +31,7 @@ describe("propose_epic_with_jobs tool card", () => {
       slug: "tier-2-cards",
       state: "confirmed",
       kind: "epic",
-      target_epic: { id: 292, number: 292, label: "EPIC-292" },
+      target_epic: { id: 292, number: 292, label: "the pending-action tool-card work" },
       depends_on_proposal_slugs: ["prep-work"],
       child_jobs: [
         { slug: "core-proposal-cards", state: "confirmed", target_repo: "tkadauke/syrus" },
@@ -41,7 +41,7 @@ describe("propose_epic_with_jobs tool card", () => {
 
     render(<>{proposeEpicWithJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("EPIC-292")).toBeInTheDocument()
+    expect(screen.getByText("the pending-action tool-card work")).toBeInTheDocument()
     expect(screen.getByText("1 dependency")).toBeInTheDocument()
     expect(screen.getByText("core-proposal-cards")).toBeInTheDocument()
     expect(screen.getByText("core-schedule-cards")).toBeInTheDocument()

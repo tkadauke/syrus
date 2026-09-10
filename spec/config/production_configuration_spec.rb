@@ -18,7 +18,7 @@ RSpec.describe "production configuration" do
   it "does not expose internal infrastructure values in config examples" do
     config_files = [ production_config, deploy_config, storage_config ]
 
-    expect(config_files).not_to include(a_string_including("syrus.internal.green-acres.estate"))
+    expect(config_files).not_to include(a_string_including("syrus.example.internal"))
     expect(config_files).not_to include(a_string_including("192.168.0.1"))
     expect(config_files).not_to include(a_string_including("minio.minio.svc.cluster.local"))
     expect(config_files).not_to include(a_string_including("green_acres"))

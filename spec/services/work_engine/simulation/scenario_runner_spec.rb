@@ -92,8 +92,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("merge_train_land")
   end
 
-  it "reproduces JOB-4427 and closes an already-landed failed stack member" do
-    result = run_scenario("job_4427_already_landed_stack_rebase")
+  it "reproduces the already-landed stack-rebase regression and closes an already-landed failed stack member" do
+    result = run_scenario("already_landed_stack_rebase")
 
     expect(result).to be_success
     root, child = Job.where(id: result.job_ids).order(:id).to_a

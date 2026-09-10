@@ -94,7 +94,7 @@ RSpec.describe RetryWorkflowEnqueuer do
   end
 
   it "gracefully reports a conflict instead of raising when a checkpoint resume races an active WorkUnit" do
-    # JOB-4235: RunCheckpointResume's own WorkUnits::Launcher.instantiate
+    # RunCheckpointResume's own WorkUnits::Launcher.instantiate
     # call (kind: "checkpoint_resume") must be rescued the same way as
     # the plain "retry" path above.
     failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
@@ -211,7 +211,7 @@ RSpec.describe RetryWorkflowEnqueuer do
   end
 
   it "gracefully reports a conflict instead of raising when a non-retry active WorkUnit races the same job lock" do
-    # JOB-4235: RetryWorkflowEligibility#duplicate_active_retry_workflow?
+    # RetryWorkflowEligibility#duplicate_active_retry_workflow?
     # only flags active "retry"/"checkpoint_resume" siblings, so an
     # active chat_feedback WorkUnit (sharing the same "job:<id>" lock)
     # slips past that pre-check. WorkUnits::Launcher must still refuse
@@ -505,12 +505,12 @@ RSpec.describe RetryWorkflowEnqueuer do
   # A rebase whose force_push failed used to be "retried" by re-running the
   # entire initial chain -- prepare, implement, both reviews, every grader,
   # pr_open -- discarding a finished, PR-opened implementation to recover from
-  # a failed push. JOB-4339 did exactly that in production.
+  # a failed push. the relevant change did exactly that in production.
   describe "which kind a retry re-runs" do
     # A rebase whose force_push failed used to be "retried" by re-running the
     # entire initial chain -- prepare, implement, both reviews, every grader,
     # pr_open -- discarding a finished, PR-opened implementation to recover
-    # from a failed push. JOB-4339 did exactly that in production.
+    # from a failed push. the relevant change did exactly that in production.
     def add_failed_workflow!(trigger_kind)
       Workflow.create!(
         job: job, user: job.user, trigger_kind: trigger_kind,

@@ -5,7 +5,7 @@
 # repo's single landing slot), and start the merge_train Workflow on
 # the tip member. Mirrors MergeTrainDispatcher's transactional
 # locking pattern (app/services/merge_train_dispatcher.rb:24) so it
-# races safely with the recurring landing queue tick. See EPIC-246.
+# races safely with the recurring landing queue tick. See the shared landing-retry feature.
 #
 # Called from LandingQueueProcessor#try_land! and #call once a Job has
 # enough same-tier epicless siblings (LandingQueueProcessor.bundle_eligible_epicless_job?).

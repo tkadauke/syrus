@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest"
 import type { DashboardJobItem, DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
 
-// Covers the EPIC-268 delivery-status badge added to job rows: a small pill
+// Covers the the relevant change delivery-status badge added to job rows: a small pill
 // next to the job title for the "interesting" (non-default) delivery
 // states, hidden for the two default states every job without delivery
 // config resolves to.

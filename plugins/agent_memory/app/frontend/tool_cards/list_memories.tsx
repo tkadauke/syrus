@@ -1,7 +1,7 @@
 import { type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { memoryRows, MemoryListBody, memoryListSummary } from "../memoryToolCard"
 
-// Plugin-owned tool card for list_memories (EPIC-293). Lives entirely
+// Plugin-owned tool card for list_memories (the tool-card work). Lives entirely
 // inside the agent_memory plugin -- core discovers it by directory
 // convention (see app/frontend/pluginToolCards.tsx) and never imports it by
 // name, so it can be added, changed, or removed without touching core.

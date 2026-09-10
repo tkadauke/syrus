@@ -1,5 +1,5 @@
 module Skills
-  # Built-in skill (EPIC-234): generates or refreshes a CLAUDE.md-equivalent
+  # Built-in skill : generates or refreshes a CLAUDE.md-equivalent
   # codebase overview (architecture, key directories, conventions) by
   # scanning repo structure — mirrors the harness's own `init` skill, but
   # runnable against any repo Syrus has been pointed at.

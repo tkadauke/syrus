@@ -2,7 +2,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, InternalLink, numberValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation for the mockups plugin's preview-panel chat tool cards
-// (EPIC-292 / JOB-4223). show_preview and close_preview both return the same
+// (the pending-action tool-card work). show_preview and close_preview both return the same
 // flat `panel_payload` hash (see
 // plugins/mockups/app/services/mockups/tool_support.rb#panel_payload), so one
 // parser plus one card backs both of them.

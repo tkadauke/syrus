@@ -2,9 +2,9 @@ import { useState } from "react"
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CloseIcon } from "@app/components/CloseIcon"
 
-// Core-owned tool card for list_chat_media (EPIC-291 / JOB-4220), registered
+// Core-owned tool card for list_chat_media (the Tier 1 tool-card work), registered
 // through the plugin-aware extension point core and plugins share (see
-// app/frontend/pluginToolCards.tsx and JOB-4219). Renders a compact gallery
+// app/frontend/pluginToolCards.tsx and Renders a compact gallery
 // with thumbnails/preview affordances, stable media IDs, filenames, kind,
 // and content type.
 type ChatMediaSnapshot = { id: string; kind: "snapshot"; name: string; element_count: number | null; created_at: string }

@@ -191,7 +191,7 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     end
   end
 
-  describe "cancel broadcast (EPIC-323 `!` command stop control)" do
+  describe "cancel broadcast (the chat shell-command cancellation feature `!` command stop control)" do
     before { enable_local_mode }
 
     it "transmits cancel_tool_call for a dispatched call" do

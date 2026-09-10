@@ -8,7 +8,7 @@ require "fileutils"
 # (they LANDED, typically via a merge train or a cherry-pick) read the same as
 # a branch that never had a commit at all (the agent produced nothing). Both
 # closed the Job as `no_changes`, so landed work was filed as "this Job did
-# nothing" -- see JOB-4346.
+# nothing" -- see the already-landed closed-PR regression.
 class BranchPatchPresence
   # The branch has no commits the base lacks, and none that the base has an
   # equivalent of either: there was never anything here.

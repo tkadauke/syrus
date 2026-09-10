@@ -3,7 +3,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { displayValue, numberValue, StatePill } from "@app/routes/chat/toolCardUi"
 
 // Shared presentation helpers for the mysql_db_browser plugin's chat tool
-// cards (EPIC-293 / JOB-4226). mysql_db_browser_list_databases,
+// cards (the tool-card work). mysql_db_browser_list_databases,
 // mysql_db_browser_list_tables, mysql_db_browser_describe_table, and
 // mysql_db_browser_execute_query all echo the same
 // `{ class, message, hint? }` error shape for a failed section or statement

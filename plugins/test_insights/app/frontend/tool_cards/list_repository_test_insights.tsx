@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { displayValue, EmptyState, numberValue } from "@app/routes/chat/toolCardUi"
 import { formatFailureRate, formatMs, parseReasons, parseTestIdentityRef, ReasonBadges, TableShell, TestIdentityLink, TestStatusPill, type TestIdentityRef } from "../testInsightToolCard"
 
-// Plugin-owned tool card for list_repository_test_insights (EPIC-292). Lives
+// Plugin-owned tool card for list_repository_test_insights (the pending-action tool-card work). Lives
 // entirely inside the test_insights plugin -- core discovers it by directory
 // convention (see app/frontend/pluginToolCards.tsx) and never imports it by
 // name, so it can be added, changed, or removed without touching core.

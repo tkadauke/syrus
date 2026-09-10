@@ -1572,7 +1572,7 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(job.reload).to be_landing
   end
 
-  describe "delivery-track-aware landing (EPIC-268)" do
+  describe "delivery-track-aware landing " do
     around do |example|
       @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
       previous_root = ENV["SYRUS_DATA_ROOT"]

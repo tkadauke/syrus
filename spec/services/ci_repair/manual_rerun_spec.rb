@@ -8,7 +8,7 @@ RSpec.describe CiRepair::ManualRerun do
       user: user,
       repository: repository,
       state: "implemented",
-      branch_name: "syrus/direct-2265",
+      branch_name: "syrus/direct-65",
       pr_number: 2265,
       last_ci_handled_sha: sha
     )
@@ -49,10 +49,10 @@ RSpec.describe CiRepair::ManualRerun do
       .find_each { |unit| unit.mark_terminal!("succeeded") }
   end
 
-  it "reruns CI repair for JOB-2265 even when the handled SHA already matches" do
+  it "reruns CI repair for JOB-765 even when the handled SHA already matches" do
     result = described_class.call(
       job: job,
-      reason: "JOB-2265 CI repair left the head unchanged.",
+      reason: "JOB-765 CI repair left the head unchanged.",
       instructions: "Inspect why the prior repair produced no diff."
     )
 
@@ -65,7 +65,7 @@ RSpec.describe CiRepair::ManualRerun do
     expect(result.workflow.artifact("base_sha")).to eq(base_sha)
     expect(result.workflow.artifact("failed_checks").first).to include("error_context")
     expect(result.workflow.artifact("manual_ci_repair")).to include(
-      "reason" => "JOB-2265 CI repair left the head unchanged.",
+      "reason" => "JOB-765 CI repair left the head unchanged.",
       "instructions" => "Inspect why the prior repair produced no diff.",
       "clear_handled_sha" => true
     )

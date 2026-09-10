@@ -2,7 +2,7 @@ import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app
 import { EmptyState } from "../toolCardUi"
 import { DiffStatBadges, diffStats, RawDiffPreview } from "../toolCardDiff"
 
-// Local Mode tool card for git_diff (EPIC-293 / JOB-4225). Reuses the
+// Local Mode tool card for git_diff (the tool-card work). Reuses the
 // shared diff preview from toolCardDiff.tsx (get_job_diff/read_pr), which
 // already caps very large diffs to a bounded preview.
 function parseDiff(context: ToolCardContext): string | null {

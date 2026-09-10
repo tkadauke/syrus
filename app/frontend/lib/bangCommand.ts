@@ -1,4 +1,4 @@
-// `!` shell-command-mode detection for the chat composer (EPIC-323), modeled
+// `!` shell-command-mode detection for the chat composer (the chat shell-command cancellation feature), modeled
 // on slashCommands.ts's derived-state pattern: a regex-driven flag/query pair
 // computed from the current draft text, no literal "mode" field stored
 // anywhere. Command mode is active for as long as the first character of the

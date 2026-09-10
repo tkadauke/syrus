@@ -61,7 +61,7 @@ func TestStatusCommandReportsNotOnSyrusBranch(t *testing.T) {
 
 func TestStatusCommandReportsUpToDateSyrusBranch(t *testing.T) {
 	var calls [][]string
-	statusRunGit = statusGitStub(t, "syrus/direct-1291", "0", &calls)
+	statusRunGit = statusGitStub(t, "syrus/direct-91", "0", &calls)
 	t.Cleanup(func() { statusRunGit = runGit })
 
 	output := &bytes.Buffer{}
@@ -73,14 +73,14 @@ func TestStatusCommandReportsUpToDateSyrusBranch(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if got := output.String(); got != "JOB-1291 (syrus/direct-1291) — up to date\n" {
+	if got := output.String(); got != "JOB-91 (syrus/direct-91) — up to date\n" {
 		t.Fatalf("output = %q", got)
 	}
 	wantCalls := [][]string{
 		{"rev-parse", "--is-inside-work-tree"},
 		{"branch", "--show-current"},
-		{"fetch", "origin", "+refs/heads/syrus/direct-1291:refs/remotes/origin/syrus/direct-1291"},
-		{"rev-list", "--count", "HEAD..refs/remotes/origin/syrus/direct-1291"},
+		{"fetch", "origin", "+refs/heads/syrus/direct-91:refs/remotes/origin/syrus/direct-91"},
+		{"rev-list", "--count", "HEAD..refs/remotes/origin/syrus/direct-91"},
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("git calls = %#v", calls)
@@ -89,7 +89,7 @@ func TestStatusCommandReportsUpToDateSyrusBranch(t *testing.T) {
 
 func TestStatusCommandReportsBehindSyrusBranch(t *testing.T) {
 	var calls [][]string
-	statusRunGit = statusGitStub(t, "syrus/issue-720-1291", "2", &calls)
+	statusRunGit = statusGitStub(t, "syrus/issue-20-91", "2", &calls)
 	t.Cleanup(func() { statusRunGit = runGit })
 
 	output := &bytes.Buffer{}
@@ -101,7 +101,7 @@ func TestStatusCommandReportsBehindSyrusBranch(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if got := output.String(); got != "JOB-1291 (syrus/issue-720-1291) — ⚠ 2 commit(s) behind remote\n" {
+	if got := output.String(); got != "JOB-91 (syrus/issue-20-91) — ⚠ 2 commit(s) behind remote\n" {
 		t.Fatalf("output = %q", got)
 	}
 }
@@ -127,7 +127,7 @@ func TestStatusCommandPrintsJSONForSyrusBranch(t *testing.T) {
 
 func TestStatusCommandPrintsJSONForUpToDateSyrusBranch(t *testing.T) {
 	var calls [][]string
-	statusRunGit = statusGitStub(t, "syrus/direct-1291", "0", &calls)
+	statusRunGit = statusGitStub(t, "syrus/direct-91", "0", &calls)
 	t.Cleanup(func() { statusRunGit = runGit })
 
 	output := &bytes.Buffer{}
@@ -139,7 +139,7 @@ func TestStatusCommandPrintsJSONForUpToDateSyrusBranch(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if got := output.String(); got != "{\"job_id\":1291,\"branch\":\"syrus/direct-1291\",\"behind\":0}\n" {
+	if got := output.String(); got != "{\"job_id\":91,\"branch\":\"syrus/direct-91\",\"behind\":0}\n" {
 		t.Fatalf("output = %q", got)
 	}
 }

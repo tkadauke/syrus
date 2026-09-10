@@ -32,7 +32,7 @@ class CiLogParser
   # Tries registered :ci_log_parser plugins before the language-specific
   # parsers below. Ruby/JS parsing currently still lives here in core rather
   # than in `ruby`/`javascript` plugins — those plugins don't exist yet (see
-  # EPIC-243) — but the extension point lets a language plugin claim a log
+  # the chat shell-command cancellation feature) — but the extension point lets a language plugin claim a log
   # ahead of these built-ins once it does.
   #
   # A plugin that raises, or returns something other than a Hash with the

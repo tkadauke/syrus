@@ -701,7 +701,7 @@ RSpec.describe Steps::Base, :ci_only do
     end
   end
 
-  # JOB-4540 regression: Steps::Summarize amends the implement commit's
+  # the relevant change regression: Steps::Summarize amends the implement commit's
   # placeholder message to the agent-authored pr_title (`git commit --amend`),
   # which replaces its SHA with a sibling sharing the same parent. Steps::PrOpen's
   # opportunistic `restore_validated_implementation_if_missing!` then asked
@@ -709,7 +709,7 @@ RSpec.describe Steps::Base, :ci_only do
   # a plain ancestor check answered no (the amended commit isn't a descendant
   # of the pre-amend one), so it fetched and checked out the stale pre-amend
   # checkpoint, silently discarding the rewritten commit message and pushing
-  # "Implement: JOB-1: ..." instead of the real PR title.
+  # "Implement: ..." instead of the real PR title.
   describe "#workspace_contains_sha? and checkpoint restore", :ci_only do
     let(:workspace_dir) { Pathname.new(Dir.mktmpdir("syrus-amend-check")) }
     let(:fake_ws) { instance_double(WorkflowWorkspace, path: workspace_dir, branch_name: "syrus/issue-1-1") }

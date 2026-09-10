@@ -27,7 +27,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
   end
 
   # bypass_dedup: true simulates a legacy WorkUnit row that predates the
-  # active_dedup_key uniqueness guarantee (JOB-4235), for specs that
+  # active_dedup_key uniqueness guarantee , for specs that
   # deliberately attach more than one active work unit for the same
   # (job, kind) to a job (e.g. exercising N+1-query preload behavior
   # across several workflow rows, not real concurrent-launch semantics).

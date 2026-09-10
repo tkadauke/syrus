@@ -20,7 +20,7 @@ describe("read_workflow tool card", () => {
 
   it("summarizes the collapsed row with the canonical WF id and state", () => {
     const parsedResult = { workflow: { id: 25606, state: "running" } }
-    expect(readWorkflowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("WF-25606 (running)")
+    expect(readWorkflowToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("WF-106 (running)")
   })
 
   it("renders the header, job link value, trigger kind, agent provider, cost, summary, and step/run timeline", () => {
@@ -53,12 +53,12 @@ describe("read_workflow tool card", () => {
 
     render(<>{readWorkflowToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("WF-25606")).toBeInTheDocument()
+    expect(screen.getByText("WF-106")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("initial")).toBeInTheDocument()
     expect(screen.getByText("claude")).toBeInTheDocument()
     expect(screen.getByText("$1.7500")).toBeInTheDocument()
-    expect(screen.getByText("JOB-4221")).toBeInTheDocument()
+    expect(screen.getByText("JOB-321")).toBeInTheDocument()
     expect(screen.getByText("Implementing tool cards")).toBeInTheDocument()
     expect(screen.getByText("implement")).toBeInTheDocument()
     expect(screen.getAllByText("succeeded")).toHaveLength(2)

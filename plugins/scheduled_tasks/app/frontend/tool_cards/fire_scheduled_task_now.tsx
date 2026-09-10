@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { CardShell, displayValue, Row, StatePill } from "@app/routes/chat/toolCardUi"
 
-// Plugin-owned tool card for fire_scheduled_task_now (EPIC-292 / JOB-4222).
+// Plugin-owned tool card for fire_scheduled_task_now (the pending-action tool-card work).
 // The tool returns the standard pending-action shape
 // `{ pending_confirmation_id, pending_action_id, state, message }`, but the
 // parser is intentionally self-contained here: reaching into core's

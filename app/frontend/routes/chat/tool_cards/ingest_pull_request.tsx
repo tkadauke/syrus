@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, StatePill } from "../toolCardUi"
 
-// Core-owned tool card for ingest_pull_request (EPIC-293 / JOB-4225).
+// Core-owned tool card for ingest_pull_request (the tool-card work).
 type JobSummary = { id: string; slug: string; state: string; kind: string | null }
 
 type IngestResult = {

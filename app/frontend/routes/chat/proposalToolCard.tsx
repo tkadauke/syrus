@@ -2,7 +2,7 @@ import { isPlainObject } from "@app/pluginToolCards"
 import { Badge, CardShell, displayValue, Row, StatePill } from "./toolCardUi"
 
 // Shared parsing/rendering for the core proposal tools (propose_job,
-// propose_epic, list_proposals, delete_proposal) — EPIC-292 / JOB-4222.
+// propose_epic, list_proposals, delete_proposal) — the pending-action tool-card work / the relevant change.
 // Lives outside tool_cards/ for the same reason as toolCardUi.tsx: the
 // pluginToolCards.tsx directory glob treats every non-test .tsx under
 // tool_cards/ as a card module and would warn about a missing default

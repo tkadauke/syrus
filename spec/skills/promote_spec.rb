@@ -1,6 +1,6 @@
 require "rails_helper"
 
-# The repo-local `.syrus/skills/promote/SKILL.md` skill (EPIC-235) that
+# The repo-local `.syrus/skills/promote/SKILL.md` skill  that
 # merges `development` onto `main` on operator demand. Unlike the built-in
 # skills under app/services/skills/, this one is plain git-tracked markdown
 # with no Ruby class behind it — Skills::SkillMarkdown is what turns it into

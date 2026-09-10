@@ -33,7 +33,7 @@ describe("list_epics tool card", () => {
     render(<>{listEpicsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("EPIC-291")).toBeInTheDocument()
+    expect(screen.getByText("the Tier 1 tool-card work")).toBeInTheDocument()
     expect(screen.getByText("Tier 1 Custom Tool Cards")).toBeInTheDocument()
     expect(screen.getByText("3/4 done")).toBeInTheDocument()
   })

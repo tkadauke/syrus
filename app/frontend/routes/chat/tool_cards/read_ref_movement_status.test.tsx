@@ -22,14 +22,14 @@ describe("read_ref_movement_status tool card", () => {
       ref_movement_action_id: 7,
       action_name: "send_job_upstream",
       state: "dispatched",
-      job: { id: 4225, slug: "JOB-4225", state: "landing" },
+      job: { id: 4225, slug: "JOB-325", state: "landing" },
       workflow: { id: 900, state: "running", trigger_kind: "upstream_export" },
       pr_link: { pr_number: 12, target_repository: "upstream/syrus", target_ref: "main" }
     }
 
     render(<>{readRefMovementStatusToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-4225")).toBeInTheDocument()
+    expect(screen.getByText("JOB-325")).toBeInTheDocument()
     expect(screen.getByText("landing")).toBeInTheDocument()
     expect(screen.getByText("WORKFLOW-900")).toBeInTheDocument()
     expect(screen.getByText("upstream_export")).toBeInTheDocument()

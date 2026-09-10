@@ -1,5 +1,5 @@
 # One-shot cancellable shell command execution against a Coding Mode or
-# Local Mode chat session's checkout (EPIC-323) -- see ChatShellCommandExecutor
+# Local Mode chat session's checkout (the chat shell-command cancellation feature) -- see ChatShellCommandExecutor
 # for the mode-specific execution/cancellation strategy. API-level only — the
 # composer trigger and chat rendering of the output live in Compose.tsx and
 # MessageCards.tsx.

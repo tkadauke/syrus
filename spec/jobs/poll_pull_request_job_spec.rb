@@ -323,7 +323,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "does not enqueue a duplicate pr_comment workflow when a conflicting WorkUnit slips past the active-unit precheck" do
-      # JOB-4235: `pending_followup?`'s active-unit check is a plain
+      # `pending_followup?`'s active-unit check is a plain
       # unlocked SELECT with the same TOCTOU gap as the watermark race
       # above. Simulate it losing the race and confirm WorkUnits::Launcher
       # itself still refuses to materialize a second Workflow.
@@ -790,7 +790,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "does not enqueue a ci_failure workflow while a conflicting pr_comment workflow already owns the job" do
-      # JOB-4235: `pending_ci_failure_run?` only checks for an active
+      # `pending_ci_failure_run?` only checks for an active
       # "ci_failure" unit, so it misses a conflicting pr_comment workflow
       # already holding the job's lock. WorkUnits::Launcher must still
       # refuse to materialize a second Workflow for the same job.

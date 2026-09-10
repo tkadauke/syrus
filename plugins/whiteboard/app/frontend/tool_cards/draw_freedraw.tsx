@@ -1,7 +1,7 @@
 import { isPlainObject, type ToolCardContext, type ToolCardRenderer } from "@app/pluginToolCards"
 import { ElementActionCard, elementActionSummary, parseElementResult } from "../whiteboardToolCard"
 
-// Plugin-owned tool card for draw_freedraw (EPIC-292 / JOB-4223).
+// Plugin-owned tool card for draw_freedraw (the pending-action tool-card work).
 const ACTION = "Drew freehand path"
 
 function collapsedSummary(context: ToolCardContext) {
