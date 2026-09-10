@@ -755,7 +755,7 @@ describe("JobDetailView", () => {
       unresolved_slug: null,
       depends_on_epic: null,
       depends_on_job: {
-        id: 1101,
+        id: 401,
         kind: "issue",
         state: "queued",
         summary_state: "queued",
@@ -764,7 +764,7 @@ describe("JobDetailView", () => {
         issue_title: "First dependency",
         branch_name: null,
         pr_number: null,
-        job_path: "/jobs/1101"
+        job_path: "/jobs/401"
       }
     }
     const manualDependency = {
@@ -777,11 +777,11 @@ describe("JobDetailView", () => {
       depends_on_epic: null,
       depends_on_job: {
         ...parsedDependency.depends_on_job,
-        id: 1108,
+        id: 408,
         summary_state: "queued",
         issue_number: null,
         issue_title: "Direct dependency",
-        job_path: "/jobs/1108"
+        job_path: "/jobs/408"
       }
     }
 
