@@ -314,6 +314,52 @@ if Rails.env.development?
     demo_jobs_by_title[attrs.fetch(:title)] = job
   end
 
+  cli_job = Job.find_or_initialize_by(
+    repository: demo_repo,
+    kind: "direct",
+    issue_title: "CLI golden path fixture"
+  )
+  cli_job.assign_attributes(
+    user: demo_user,
+    owner_user: demo_user,
+    epic: demo_epic,
+    issue_body: "Seeded Job used by the Go CLI E2E suite.",
+    state: "implemented",
+    pr_number: 107,
+    agent_provider: "codex",
+    credential_mode: "pat",
+    priority: "medium",
+    job_provider_setting: "default",
+    stack_base: "auto",
+    validity: "valid",
+    triaging_reason: "classifier_pending"
+  )
+  cli_job.save!
+  cli_job.update!(branch_name: "syrus/direct-#{cli_job.id}") if cli_job.branch_name != "syrus/direct-#{cli_job.id}"
+  demo_jobs_by_title[cli_job.issue_title] = cli_job
+
+  if cli_job.workflows.none?
+    Workflow.create!(
+      job: cli_job,
+      user: demo_user,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "succeeded",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago,
+      artifacts: {
+        "summary" => "Seeded a stable Job for the compiled Go CLI E2E suite.",
+        "test_plan" => {
+          "steps" => [
+            "Run `syrus status` from the checked-out fixture branch.",
+            "Confirm the CLI can read this seeded test plan from the app API."
+          ],
+          "notes" => "This fixture is deterministic and safe to reseed."
+        }
+      }
+    )
+  end
+
   # One seeded Job gets a full Workflow/Step/Run chain (with a diff, a
   # summary, and a couple of transcript lines) so the Job/Workflow detail
   # views have something real to drill into instead of an empty panel.
