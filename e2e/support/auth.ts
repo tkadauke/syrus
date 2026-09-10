@@ -5,6 +5,11 @@ export const DEMO_USER = {
   password: "password"
 }
 
+export const NON_ADMIN_USER = {
+  email: "ada@syrus.local",
+  password: "password"
+}
+
 export const ONBOARDING_USER = {
   email: "onboarding@syrus.local",
   password: "password"
