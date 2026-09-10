@@ -56,8 +56,11 @@ module Mcp::Tools
           number: issue.number,
           title: issue.title,
           labels: Array(issue.labels).map { |label| label.respond_to?(:name) ? label.name : label.to_s },
+          state: issue.respond_to?(:state) ? issue.state : nil,
           author: issue.user&.login,
           created_at: issue.created_at&.iso8601,
+          updated_at: issue.respond_to?(:updated_at) ? issue.updated_at&.iso8601 : nil,
+          url: issue.respond_to?(:html_url) ? issue.html_url : nil,
           body_excerpt: issue.body.to_s.first(BODY_EXCERPT_LENGTH)
         }
       end
