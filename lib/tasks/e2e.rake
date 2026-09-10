@@ -17,6 +17,11 @@ namespace :e2e do
     )
 
     demo_user = User.find_by!(email_address: "demo@syrus.local")
+    demo_user.update!(
+      agent_provider: "codex",
+      chat_provider: "codex",
+      codex_api_key: "sk-e2e-codex"
+    )
     demo_epic = Epic.find_by!(repository: Repository.find_by!(owner: "demo", name: "syrus-preview"),
                               title: "Preview the operator workflow")
     demo_epic.update!(state: "done", done_at: demo_epic.done_at || Time.current)
