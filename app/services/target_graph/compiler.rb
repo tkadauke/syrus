@@ -317,7 +317,8 @@ class TargetGraph
       commands = syrus_config.prepare.map(&:to_s).map(&:strip).reject(&:empty?)
       return if commands.empty?
 
-      graph.add_target(
+      add_target!(
+        graph,
         TargetGraph::Target.new(
           label: label_for("prepare", package: package),
           kind: "prepare",
@@ -325,7 +326,8 @@ class TargetGraph
           command: commands.join(" && "),
           owner_config_path: config_path,
           metadata: { "commands" => commands }
-        )
+        ),
+        declaration: "legacy prepare"
       )
     end
 
@@ -333,7 +335,8 @@ class TargetGraph
       return unless syrus_config
 
       syrus_config.targets.each do |target|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for(target.name, package: package),
             kind: target.kind,
@@ -346,7 +349,8 @@ class TargetGraph
             timeout_minutes: target.timeout_minutes,
             owner_config_path: config_path,
             metadata: explicit_target_metadata(target)
-          )
+          ),
+          declaration: "explicit targets: #{target.name.inspect}"
         )
       end
     end
@@ -362,7 +366,8 @@ class TargetGraph
       return unless syrus_config.formatters.is_a?(Array)
 
       syrus_config.formatters.each_with_index do |formatter, index|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("format/#{index}", package: package),
             kind: "formatter",
@@ -371,7 +376,8 @@ class TargetGraph
             command: formatter.command,
             dependencies: legacy_dependencies(formatter.deps, package: package),
             owner_config_path: config_path
-          )
+          ),
+          declaration: "legacy formatters[#{index}]"
         )
       end
     end
@@ -381,7 +387,8 @@ class TargetGraph
       return unless syrus_config.generated.is_a?(Array)
 
       syrus_config.generated.each_with_index do |entry, index|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("generate/#{index}", package: package),
             kind: "generator",
@@ -391,14 +398,16 @@ class TargetGraph
             dependencies: legacy_dependencies(entry.deps, package: package),
             owner_config_path: config_path,
             metadata: { "generates" => entry.generates, "codegen_ignore" => entry.codegen_ignore }
-          )
+          ),
+          declaration: "legacy generated[#{index}]"
         )
       end
     end
 
     def compile_graders!(graph, syrus_workspace_path: workspace_path, package: "", project_id: root_project_id, config_path: owner_config_path)
       RepoGradePlan.for(syrus_workspace_path).graders.each do |grader|
-        graph.add_target(
+        add_target!(
+          graph,
           TargetGraph::Target.new(
             label: label_for("grade/#{grader.name}", package: package),
             kind: "grader",
@@ -415,9 +424,23 @@ class TargetGraph
               "junit_output" => grader.junit_output,
               "failures" => grader.failures
             }.merge(grader.metadata).compact
-          )
+          ),
+          declaration: "legacy grade #{grader.name.inspect}"
         )
       end
+    end
+
+    def add_target!(graph, target, declaration:)
+      target = target.with(metadata: target.metadata.merge("declaration" => declaration))
+      graph.add_target(target)
+    rescue TargetGraph::ValidationError
+      existing = graph.target(target.label)
+      raise unless existing
+
+      raise TargetGraph::ValidationError,
+        "target #{target.label} (#{target.owner_config_path}, #{declaration}) conflicts with already declared " \
+        "target #{existing.label} (#{existing.owner_config_path || 'no owning .syrus.yml'}, " \
+        "#{existing.metadata['declaration'] || existing.kind})"
     end
 
     # RepoGradePlan/SyrusYml don't enforce timeout_minutes > 0 the way
