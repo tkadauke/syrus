@@ -30,6 +30,10 @@ module RuntimeTerminal
       end
     end
 
+    def closed?
+      @lock.synchronize { @closed || @socket&.closed? }
+    end
+
     def input(event)
       frames_for(event).each { |frame| write_frame(frame) }
       true
