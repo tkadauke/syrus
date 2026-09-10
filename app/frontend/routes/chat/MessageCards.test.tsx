@@ -732,7 +732,7 @@ describe("tool result rendering", () => {
     expandToolGroup("Actions")
 
     expect(screen.getByText("Bookmark added: Launch notes")).toBeInTheDocument()
-    expect(screen.getByText("JOB-148")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Typed renderers")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("#12")).toBeInTheDocument()

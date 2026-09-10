@@ -34,7 +34,7 @@ describe("StartBlockedReasonPill", () => {
       [
         "Multiple dependency PR branches are ready, but Syrus could not prepare a combined execution base.",
         "multiple dependency branches are ready",
-        "Dependencies: JOB-874, JOB-875",
+        "Dependencies: JOB-874, JOB-1575",
         "Land the sibling dependencies."
       ].join("\n")
     )

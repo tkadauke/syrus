@@ -20,7 +20,7 @@ describe("read_job tool card", () => {
 
   it("summarizes the collapsed row with the canonical JOB id and state", () => {
     const parsedResult = { job: { id: 4048, state: "running" } }
-    expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-148 (running)")
+    expect(readJobToolCard.collapsedSummary?.(context({ parsedResult }))).toBe("JOB-4048 (running)")
   })
 
   it("renders the canonical JOB id, title, state, PR, branch, priority, and agent provider", () => {
@@ -38,7 +38,7 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-148")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Add plugin-aware tool cards")).toBeInTheDocument()
     expect(screen.getByText("running")).toBeInTheDocument()
     expect(screen.getByText("#12")).toBeInTheDocument()
@@ -62,7 +62,7 @@ describe("read_job tool card", () => {
 
     render(<>{readJobToolCard.renderExpanded(context({ parsedResult }))}</>)
 
-    expect(screen.getByText("JOB-140 · approved")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4040 · approved")).toBeInTheDocument()
     expect(screen.getByText("the Tier 1 tool-card work · running")).toBeInTheDocument()
     expect(screen.getByText("owner/repo#123 · open")).toBeInTheDocument()
   })
@@ -92,7 +92,7 @@ describe("read_job tool card", () => {
 
     // Falls back to "the relevant change" for both the header pill and the title when
     // issue_title is absent, so it legitimately appears twice.
-    expect(screen.getAllByText("JOB-148")).toHaveLength(2)
+    expect(screen.getAllByText("JOB-4048")).toHaveLength(2)
     expect(screen.queryByText("Dependencies")).not.toBeInTheDocument()
     expect(screen.queryByText("Deployment stage")).not.toBeInTheDocument()
   })

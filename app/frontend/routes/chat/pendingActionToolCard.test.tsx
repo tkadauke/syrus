@@ -157,7 +157,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
   })
 
   it("summarizes the collapsed row as a dry run for the target Job", () => {
-    expect(summarize(evidencePayload)).toBe("Dry run: adopt_current_pr_head for JOB-322")
+    expect(summarize(evidencePayload)).toBe("Dry run: adopt_current_pr_head for JOB-4222")
   })
 
   it("renders the humanized action, job, branch, and truncated SHAs", () => {
@@ -165,7 +165,7 @@ describe("pending action tool card: dry-run evidence shape", () => {
 
     expect(screen.getByText("Dry run")).toBeInTheDocument()
     expect(screen.getByText("Adopt current pr head")).toBeInTheDocument()
-    expect(screen.getByText("JOB-322")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4222")).toBeInTheDocument()
     expect(screen.getByText("syrus/direct-322")).toBeInTheDocument()
     expect(screen.getByText("abc123abc123")).toBeInTheDocument()
     expect(screen.getByText("def456def456")).toBeInTheDocument()

@@ -34,10 +34,10 @@ describe("list_jobs tool card", () => {
     render(<>{listJobsToolCard.renderExpanded(context({ parsedResult }))}</>)
 
     expect(screen.getByRole("table")).toBeInTheDocument()
-    expect(screen.getByText("JOB-148")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4048")).toBeInTheDocument()
     expect(screen.getByText("Add tool cards")).toBeInTheDocument()
     expect(screen.getByText("#12")).toBeInTheDocument()
-    expect(screen.getByText("JOB-149")).toBeInTheDocument()
+    expect(screen.getByText("JOB-4049")).toBeInTheDocument()
     expect(screen.getByText("Fix bug")).toBeInTheDocument()
   })
 
