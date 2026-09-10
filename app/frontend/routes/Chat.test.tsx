@@ -4417,8 +4417,8 @@ describe("floating composer height tracking", () => {
     renderRoute()
 
     const messageStream = await screen.findByTestId("chat-message-stream")
-    expect(messageStream.className).toContain("pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))]")
-    expect(messageStream.className).toContain("sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]")
+    expect(messageStream.className).toContain("pb-[max(9rem,calc(var(--chat-composer-height,0px)+3.5rem))]")
+    expect(messageStream.className).toContain("sm:pb-[max(10rem,calc(var(--chat-composer-height,0px)+4rem))]")
   })
 
   // Regression coverage: ChatColumn's composerHeight reset effect must be

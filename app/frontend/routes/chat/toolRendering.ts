@@ -71,7 +71,7 @@ function toolIdentity(name: string) {
   }
 }
 
-function normalizedToolName(name: string) {
+export function normalizedToolName(name: string) {
   if (name.startsWith("mcp__")) {
     const parts = name.split("__")
     return parts.length >= 3 ? parts.slice(2).join("__") || name : name
