@@ -1,5 +1,7 @@
 module Steps
   class BuilderFanout < Base
+    include PrepareTargetExecution
+
     ARTIFACT_KEY = "opportunistic_builder_targets".freeze
     OUTPUT_INLINE_BYTES = 8 * 1024
 
@@ -78,6 +80,11 @@ module Steps
       target = selection.target
       command = target.command
       timeout_minutes = target.timeout_minutes || 30
+      workdir = builder_workdir(target)
+      prepare_target_results = run_prepare_target_dependencies!(
+        prepare_targets_for(target),
+        requested_by: "#{step.kind}:#{target.label}"
+      )
       log("[builder_fanout:#{target.label}] $ #{command}")
 
       log_path = builder_log_path(target)
@@ -90,7 +97,7 @@ module Steps
         runner_result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", command ],
-          chdir: workspace.path,
+          chdir: workdir,
           timeout: timeout_minutes.minutes,
           kind: "builder",
           run: run,
@@ -127,10 +134,12 @@ module Steps
         exit_code: exit_code,
         log_path: log_path.to_s,
         log_bytes: absolute_log_path.size,
-        artifacts: builder_artifacts(target),
+        artifacts: builder_artifacts(target, workdir: workdir),
         metadata: {
+          "prepare_target_results" => prepare_target_results,
           "selection_reason" => selection.reason,
           "target_fingerprints" => fingerprints.to_h,
+          "workdir" => workdir.to_s,
           "output" => output_excerpt(absolute_log_path)
         }
       )
@@ -146,11 +155,11 @@ module Steps
       result.success? ? "passed" : "failed"
     end
 
-    def builder_artifacts(target)
+    def builder_artifacts(target, workdir:)
       paths = Array(target.metadata["artifacts"]).map(&:to_s).reject(&:empty?)
       return {} if paths.empty?
 
-      existing = paths.flat_map { |path| existing_artifact_paths(path) }.uniq.filter_map do |path|
+      existing = paths.flat_map { |path| existing_artifact_paths(path, workdir: workdir) }.uniq.filter_map do |path|
         absolute = workspace.path.join(path)
         next unless absolute.file?
 
@@ -167,12 +176,17 @@ module Steps
       }
     end
 
-    def existing_artifact_paths(pattern)
-      matches = Dir.glob(pattern, File::FNM_DOTMATCH, base: workspace.path.to_s)
+    def existing_artifact_paths(pattern, workdir:)
+      matches = Dir.glob(pattern, File::FNM_DOTMATCH, base: workdir.to_s)
         .reject { |path| path == "." || path.start_with?(".git/") || path.start_with?(".syrus/") }
+        .map { |path| repo_relative_path(workdir.join(path)) }
         .select { |path| workspace.path.join(path).file? }
 
-      matches.presence || [ pattern ]
+      matches.presence || [ repo_relative_path(workdir.join(pattern)) ]
+    end
+
+    def repo_relative_path(path)
+      Pathname.new(path).relative_path_from(workspace.path).to_s
     end
 
     def selection_entry(selection, status, reason, record_refs)
@@ -218,6 +232,62 @@ module Steps
     def builder_log_path(target)
       safe_label = target.label.to_s.delete_prefix("//").tr("^A-Za-z0-9._-", "_")
       Pathname.new(".syrus/builder-output/#{safe_label}.log")
+    end
+
+    def builder_workdir(target)
+      project_path = target_project_path(target)
+      path = project_path.present? ? workspace.path.join(project_path) : workspace.path
+      return path if path.directory?
+
+      raise StepFailed, "builder target #{target.label} project path does not exist: #{project_path}"
+    end
+
+    def target_project_path(target)
+      target_graph.project(target.project_id)&.path.to_s
+    end
+
+    def prepare_targets_for(target)
+      target_graph.prepare_dependencies_for(target.label).map do |prepare_target|
+        project_path = target_project_path(prepare_target)
+        {
+          "target_label" => prepare_target.label.to_s,
+          "commands" => Array(prepare_target.metadata.fetch("commands") { [ prepare_target.command ] }).flatten.map(&:to_s)
+        }.tap do |payload|
+          payload["project_path"] = project_path if project_path.present?
+        end
+      end
+    end
+
+    def prepare_dependency_status(result)
+      return "timed out after #{Steps::Prepare::PER_COMMAND_TIMEOUT}s" if result.timed_out?
+      return "operator killed" if result.operator_killed?
+      return "stopped" if result.stopped?
+
+      "exit #{result.exit_status || "unknown"}"
+    end
+
+    def capture_git_status(name:)
+      stdout, _stderr, status = Open3.capture3("git", "status", "--porcelain", chdir: workspace.path.to_s)
+      return nil unless status.success?
+
+      stdout
+    rescue StandardError => e
+      log("[builder_fanout:#{name}] warning: git status check failed (skipping side-effect detection): #{e.class}: #{e.message}")
+      nil
+    end
+
+    def git_status_diff_paths(before_status, after_status)
+      before_lines = before_status.to_s.each_line.map(&:chomp).to_set
+      after_lines = after_status.to_s.each_line.map(&:chomp).to_set
+      changed_lines = (before_lines - after_lines) | (after_lines - before_lines)
+      changed_lines.filter_map { |line| git_status_line_path(line) }.reject { |path| path.start_with?(".syrus/") }.uniq
+    end
+
+    def git_status_line_path(line)
+      return if line.blank?
+
+      path = line[3..].to_s.strip
+      path.include?(" -> ") ? path.split(" -> ").last.strip : path
     end
 
     def output_excerpt(path)
