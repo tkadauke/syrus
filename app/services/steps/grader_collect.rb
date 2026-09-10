@@ -192,6 +192,7 @@ module Steps
         "summed_duration_s" => summed_duration_s.round(3),
         "failed_required_count" => failed_required.size
       }.compact
+      measurements[run.iteration - 1].merge!(rollout_metrics_for(grader_steps))
       workflow.set_artifact!("grader_loops", measurements)
       LandingThroughputMetrics.record_grader_loop!(
         workflow: workflow,
@@ -201,10 +202,79 @@ module Steps
         finished_at: finished_at,
         wall_clock_s: wall_clock_s,
         summed_duration_s: summed_duration_s,
-        failed_required_count: failed_required.size
+        failed_required_count: failed_required.size,
+        rollout_metrics: rollout_metrics_for(grader_steps)
       )
 
-      log("[grader_collect] grader wall-clock #{wall_clock_s.round(1)}s vs summed duration #{summed_duration_s.round(1)}s")
+      metrics = rollout_metrics_for(grader_steps)
+      log(
+        "[grader_collect] grader wall-clock #{wall_clock_s.round(1)}s vs summed duration #{summed_duration_s.round(1)}s; " \
+        "worker spread #{metrics.fetch('worker_spread')} worker(s); queue wait avg #{metrics.fetch('queue_wait_avg_s')}s max #{metrics.fetch('queue_wait_max_s')}s; " \
+        "prepare cache hits #{metrics.fetch('prepare_cache_hits')} misses #{metrics.fetch('prepare_cache_misses')}; " \
+        "infrastructure failures #{metrics.fetch('infrastructure_failure_count')}"
+      )
+    end
+
+    def rollout_metrics_for(grader_steps)
+      @rollout_metrics_for ||= {}
+      cache_key = grader_steps.map(&:id)
+      @rollout_metrics_for[cache_key] ||= begin
+        waits = grader_steps.filter_map { |grader| queue_wait_s(grader) }
+        worker_keys = grader_steps.filter_map { |grader| worker_key_for(grader) }.uniq
+        classifications = grader_steps.filter_map { |grader| latest_failure_classification_for(grader) }
+        cache_statuses = grader_steps.filter_map { |grader| grader.details.to_h.dig("prepare_cache", "status").presence }
+
+        {
+          "queue_wait_avg_s" => rounded_average(waits),
+          "queue_wait_max_s" => waits.max&.round(3) || 0.0,
+          "worker_spread" => worker_keys.size,
+          "worker_keys" => worker_keys,
+          "prepare_cache_hits" => cache_statuses.count("hit"),
+          "prepare_cache_misses" => cache_statuses.count("miss"),
+          "source_snapshot_mismatch_count" => classifications.count("source_snapshot_metadata_invalid"),
+          "infrastructure_failure_count" => classifications.count { |classification| infrastructure_failure_classification?(classification) }
+        }
+      end
+    end
+
+    def queue_wait_s(grader)
+      latest_run = latest_run_for(grader)
+      return unless latest_run&.created_at && latest_run&.started_at
+
+      [ latest_run.started_at - latest_run.created_at, 0 ].max.round(3)
+    end
+
+    def worker_key_for(grader)
+      latest_slot = WorkflowStepWorkerSlot.where(step: grader).order(acquired_at: :desc, id: :desc).first
+      latest_slot&.worker_key.presence ||
+        grader.details.to_h.dig("immutable_source_checkout", "worker_storage_key").presence
+    end
+
+    def latest_failure_classification_for(grader)
+      latest_run_for(grader)&.run_failure_classification&.classification
+    end
+
+    def latest_run_for(grader)
+      @latest_run_for ||= {}
+      @latest_run_for[grader.id] ||= grader.runs.order(created_at: :desc, id: :desc).first
+    end
+
+    def infrastructure_failure_classification?(classification)
+      classification.to_s.in?(%w[
+        source_snapshot_metadata_invalid
+        workspace_clone_timeout
+        workspace_checkout_invalid
+        database_capacity
+        database_lock
+        worker_died
+        worker_died_under_resource_pressure
+      ])
+    end
+
+    def rounded_average(values)
+      return 0.0 if values.empty?
+
+      (values.sum / values.size).round(3)
     end
 
     def record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)

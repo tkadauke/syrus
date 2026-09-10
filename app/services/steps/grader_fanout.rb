@@ -252,7 +252,7 @@ module Steps
             position: insertion_position + index,
             iteration: step.iteration,
             loop_id: step.loop_id,
-            placement_policy: Step::Kind.fetch("grader").placement_policy_for(repository),
+            placement_policy: grader_placement_policy,
             details: grader_details(grader).merge(distributed_grader_details(grader, source_snapshot: source_snapshot))
           )
         end
@@ -325,21 +325,26 @@ module Steps
 
       source_sha = current_head_sha.presence
       tree_sha = current_tree_sha.presence
-      source_ref = current_source_ref(source_sha)
       unless source_sha && tree_sha
         raise WorkflowSourceSnapshots::InfrastructureStateError, "workflow source snapshot metadata missing: current checkout identity"
       end
+      source_ref = current_source_ref(source_sha)
 
       current = WorkflowSourceSnapshots.current_for(workflow)
-      return current if current&.source_sha == source_sha && current&.tree_sha == tree_sha && current&.source_ref == source_ref
+      if current&.source_sha == source_sha && current&.tree_sha == tree_sha && current&.source_ref == source_ref
+        log("[grader_fanout] verified existing source snapshot ##{current.id} for #{source_sha.first(7)}")
+        return current
+      end
 
-      WorkflowSourceSnapshots.record!(
+      snapshot = WorkflowSourceSnapshots.record!(
         workflow: workflow,
         creator_step: step,
         source_sha: source_sha,
         source_ref: source_ref,
         tree_sha: tree_sha
       )
+      log("[grader_fanout] recorded source snapshot ##{snapshot.id} #{source_ref}@#{source_sha.first(7)}")
+      snapshot
     end
 
     def current_tree_sha
@@ -365,6 +370,7 @@ module Steps
 
     def publish_source_snapshot_ref!(source_sha)
       remote_ref = "refs/syrus/source-snapshots/runs/#{run.id}"
+      log("[grader_fanout] publishing source snapshot #{source_sha.first(7)} to #{remote_ref}")
       authenticated_git("git_workflow_source_snapshot_push") do |url|
         GitRunner.new.run(
           "push",
@@ -374,6 +380,7 @@ module Steps
           env: { "GIT_TERMINAL_PROMPT" => "0" }
         )
       end
+      log("[grader_fanout] published source snapshot #{source_sha.first(7)} to #{remote_ref}")
       remote_ref
     rescue GitRunner::GitError => e
       raise WorkflowSourceSnapshots::InfrastructureStateError,
@@ -399,11 +406,17 @@ module Steps
     end
 
     def distributed_grader_projection_enabled?
-      Feature.distributed_workflow_dag_enabled?(repository)
+      Feature.distributed_workflow_dag_enabled?(repository) && WorkflowStepWorkerSlot.enabled?
     end
 
     def distributed_parallel_grader_projection_enabled?
-      distributed_grader_projection_enabled? && WorkflowStepWorkerSlot.enabled?
+      distributed_grader_projection_enabled?
+    end
+
+    def grader_placement_policy
+      return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE unless distributed_grader_projection_enabled?
+
+      Step::Kind.fetch("grader").placement_policy_for(repository)
     end
 
     def materialized_grader_steps
