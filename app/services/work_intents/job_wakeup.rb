@@ -84,6 +84,7 @@ module WorkIntents
 
     def start_requested_intents_without_active_units!
       job_scoped_current_intents.find_each do |intent|
+        next if WorkIntents::Fulfillment.fulfill_if_already_satisfied!(intent)
         next if WorkUnits::Ownership.active_for_job?(job)
         next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
 

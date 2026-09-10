@@ -1,0 +1,57 @@
+name: stale initial intent after successful retry
+repository:
+  owner: simulation
+  name: stale-initial-intent-after-successful-retry
+jobs:
+  job:
+    title: Stale initial intent after successful retry
+    state: implemented
+    branch_name: syrus/simulated-stale-initial
+    pr_number: 12001
+    workflow:
+      kind: retry
+      state: succeeded
+      created_at: "2026-09-09 22:49:37 UTC"
+      intent:
+        state: satisfied
+      work_unit:
+        state: succeeded
+      steps:
+        - kind: prepare
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+            head_sha: retry-head
+        - kind: pr_open
+          state: succeeded
+          run:
+            state: succeeded
+            head_sha: retry-head
+work_intents:
+  stale_initial:
+    kind: initial
+    state: requested
+    job: job
+    created_at: "2026-09-09 02:35:44 UTC"
+work_units:
+  stale_initial_unit:
+    intent: stale_initial
+    kind: initial
+    state: cancelled
+    preemption_reason: epic_wide_workflow_active
+    created_at: "2026-09-09 02:35:44 UTC"
+    members:
+      - job
+outcomes:
+  default: success
+expect:
+  jobs:
+    job:
+      - implemented
+  queues:
+    active_runs: empty
+    active_work_units: empty

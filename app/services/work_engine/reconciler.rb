@@ -1062,6 +1062,8 @@ module WorkEngine
       return [] unless work_intent_id.present?
 
       work_intents.select(&:requested?).filter_map do |intent|
+        next if execute_repairs? && WorkIntents::Fulfillment.fulfill_if_already_satisfied!(intent)
+        next if WorkIntents::Fulfillment.already_fulfilled?(intent)
         next unless intent.definition.generic_intent_start_allowed?
         next if cancelled_start_block_workflow_for_intent(intent)
 

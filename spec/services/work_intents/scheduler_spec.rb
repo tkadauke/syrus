@@ -163,6 +163,28 @@ RSpec.describe WorkIntents::Scheduler do
     }.not_to change { active_intent.work_units.count }
   end
 
+  it "satisfies a stale initial intent already fulfilled by a later retry" do
+    job.update!(state: "implemented", pr_number: 12_345, branch_name: "syrus/simulated")
+    stale_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    stale_intent = stale_workflow.work_unit.work_intent
+    stale_workflow.update_columns(state: "cancelled", finished_at: 2.hours.ago, created_at: 3.hours.ago)
+    stale_workflow.work_unit.mark_terminal!("cancelled")
+    stale_workflow.work_unit.update_columns(preemption_reason: "epic_wide_workflow_active", finished_at: 2.hours.ago, created_at: 3.hours.ago)
+
+    retry_workflow = WorkUnits::Launcher.instantiate(kind: "retry", job: job)
+    retry_workflow.update_columns(state: "succeeded", started_at: 1.hour.ago, finished_at: 30.minutes.ago, created_at: 1.hour.ago)
+    retry_workflow.work_unit.mark_terminal!("succeeded")
+    retry_workflow.work_unit.update_columns(started_at: 1.hour.ago, finished_at: 30.minutes.ago, created_at: 1.hour.ago)
+
+    expect {
+      result = described_class.start_ready!(stale_intent.reload)
+      expect(result).to be_already_satisfied
+      expect(result.reason).to eq("fulfilled_by_later_job_work")
+    }.not_to change { stale_intent.work_units.count }
+
+    expect(stale_intent.reload).to be_satisfied
+  end
+
   it "relaunches a provider-blocked active unit when the job now resolves to a different provider" do
     job.update!(agent_provider: "claude", job_provider_setting: "codex", state: "running")
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "claude", idempotency_key: "spec-provider-switch")

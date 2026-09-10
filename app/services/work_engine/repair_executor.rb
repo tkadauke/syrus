@@ -1034,6 +1034,7 @@ module WorkEngine
 
           if intent.definition.generic_intent_start_allowed?
             result = WorkIntents::Scheduler.start_ready!(intent)
+            return success("#{work_intent_label(intent)} was already fulfilled by later Job work") if result.already_satisfied?
             return skipped("#{work_intent_label(intent)} now waits on #{result.reason}") if result.waiting?
             return success("relaunched #{work_intent_label(intent)} from #{previous_provider} to #{desired_provider} as #{workflow_label(result.workflow)}") unless result.already_active?
 
@@ -1063,6 +1064,8 @@ module WorkEngine
 
           if result.already_active?
             skipped("#{work_intent_label(intent)} already has #{result.reason}")
+          elsif result.already_satisfied?
+            success("#{work_intent_label(intent)} was already fulfilled by later Job work")
           elsif result.waiting?
             skipped("#{work_intent_label(intent)} now waits on #{result.reason}")
           elsif result.blocked?

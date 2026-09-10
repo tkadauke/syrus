@@ -13,6 +13,7 @@ module WorkIntents
       def blocked? = status == "blocked"
       def waiting? = status == "waiting"
       def already_active? = status == "already_active"
+      def already_satisfied? = status == "already_satisfied"
     end
 
     def self.evaluate!(intent, gates: nil)
@@ -47,6 +48,18 @@ module WorkIntents
 
     def start_ready!(artifacts: nil, agent_provider: nil, **options)
       WorkUnits::StaleProviderRelauncher.release_for_intent!(intent)
+      if WorkIntents::Fulfillment.fulfill_if_already_satisfied!(intent)
+        return StartResult.new(
+          intent: intent,
+          gate_result: nil,
+          workflow: nil,
+          work_unit: nil,
+          launch_result: nil,
+          status: "already_satisfied",
+          reason: "fulfilled_by_later_job_work"
+        )
+      end
+
       active_unit_ids = intent.work_units.where(state: TerminalUnitSync::ACTIVE_UNIT_STATES).pluck(:id)
       if active_unit_ids.any?
         return StartResult.new(

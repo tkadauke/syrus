@@ -114,6 +114,16 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner do
     expect(result.events.join("\n")).to include("succeeded_merge_train_failed_member_reconciliation")
   end
 
+  it "does not relaunch a stale initial intent after a later retry implemented the job" do
+    result = run_scenario("stale_initial_intent_after_successful_retry")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    expect(job).to be_implemented
+    expect(job.workflows.where(trigger_kind: "initial")).to be_empty
+    expect(WorkIntent.find(result.work_intent_ids.first)).to be_satisfied
+  end
+
   {
     "happy_path_single_job_lands" => "auto_merge",
     "happy_path_epic_merge_train_lands" => "merge_train_land",

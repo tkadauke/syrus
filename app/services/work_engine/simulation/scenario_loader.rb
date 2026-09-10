@@ -257,6 +257,7 @@ module WorkEngine
           artifacts: config.fetch("artifacts", {})
         )
         workflow.save!(validate: false)
+        workflow.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
         steps = Array(config.fetch("steps")).each_with_index.map do |step_config, index|
           Step.create!(
             workflow: workflow,
@@ -370,7 +371,9 @@ module WorkEngine
             wait_reason: attrs["wait_reason"],
             wait_until: parse_optional_time(attrs["wait_until"]),
             wait_details: attrs.fetch("wait_details", {})
-          )
+          ).tap do |intent|
+            intent.update_columns(created_at: parse_optional_time(attrs["created_at"])) if attrs["created_at"].present?
+          end
         end
       end
 
@@ -390,6 +393,7 @@ module WorkEngine
             blocked_until: parse_optional_time(attrs["blocked_until"]),
             preemption_reason: attrs["preemption_reason"]
           )
+          unit.update_columns(created_at: parse_optional_time(attrs["created_at"])) if attrs["created_at"].present?
           Array(attrs["members"]).each do |member|
             unit.work_unit_members.create!(job: jobs.fetch(member.to_s), role: "primary")
           end
