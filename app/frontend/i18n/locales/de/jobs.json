@@ -582,6 +582,7 @@
   "form_repository_placeholder": "Repository auswählen",
   "form_agent_label": "Agent",
   "form_agent_repository_default": "Standard des Repositories",
+  "form_epic_note": "Diese Aufgabe wird hinzugefügt zu",
   "form_section_templates": "Vorlagen",
   "form_template_confirm": "Möchten Sie diese Vorlage wirklich anwenden? Alle Ihre Änderungen gehen verloren.",
   "form_section_prompt": "Eingabeaufforderung",

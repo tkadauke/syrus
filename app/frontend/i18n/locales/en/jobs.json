@@ -582,6 +582,7 @@
   "form_repository_placeholder": "Select a repository",
   "form_agent_label": "Agent",
   "form_agent_repository_default": "Repository default",
+  "form_epic_note": "This job will be added to",
   "form_section_templates": "Templates",
   "form_template_confirm": "Are you sure you want to apply this template? All of your changes will be lost.",
   "form_section_prompt": "Prompt",

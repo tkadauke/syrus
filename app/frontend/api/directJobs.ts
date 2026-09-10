@@ -26,11 +26,19 @@ export type DirectJobPriority = {
   description: string
 }
 
+export type DirectJobEpic = {
+  id: number
+  display_number: string
+  title: string
+}
+
 export type DirectJobFormPayload = {
   repositories: DirectJobRepository[]
   configured_agent_providers: DirectJobAgentProvider[]
   selected_repository_id: string | null
   selected_agent_provider: string | null
+  selected_epic_id: string | null
+  epic: DirectJobEpic | null
   create_more: boolean
   prompt_templates: DirectJobPromptTemplate[]
   priorities: DirectJobPriority[]
@@ -42,6 +50,7 @@ export type DirectJobFormPayload = {
 export type CreateDirectJobInput = {
   repositoryId: string
   agentProvider: string
+  epicId: string
   title: string
   prompt: string
   priority: string
@@ -72,6 +81,9 @@ export function createDirectJob(values: CreateDirectJobInput) {
   const formData = new FormData()
   formData.append("repository_id", values.repositoryId)
   formData.append("agent_provider", values.agentProvider)
+  if (values.epicId) {
+    formData.append("epic_id", values.epicId)
+  }
   formData.append("title", values.title)
   formData.append("prompt", values.prompt)
   formData.append("priority", values.priority)
