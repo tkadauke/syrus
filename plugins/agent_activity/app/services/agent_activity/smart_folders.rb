@@ -25,5 +25,10 @@ module AgentActivity
       params = query.compact_blank
       params.empty? ? "/agent_activity" : "/agent_activity?#{params.to_query}"
     end
+
+    def default_folder
+      ::SmartFolder.ensure_builtins_for_subject!(SUBJECT)
+      ::SmartFolder.builtins(SUBJECT).find_by(name: "Running")
+    end
   end
 end
