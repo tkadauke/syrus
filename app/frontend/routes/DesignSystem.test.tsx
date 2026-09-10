@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
 import { ThemeProvider } from "../contexts/ThemeContext"
 import { DesignSystemRoute } from "./DesignSystem"
+import AdminDesignSystem from "../../../plugins/syrus_dev/app/frontend/routes/AdminDesignSystem"
 
 function oceanThemePayload() {
   return {
@@ -29,6 +30,7 @@ function renderRoute(path = "/design_system") {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route element={<DesignSystemRoute />} path="/design_system" />
+            <Route element={<AdminDesignSystem />} path="/admin/design_system" />
           </Routes>
         </MemoryRouter>
       </ThemeProvider>
@@ -54,6 +56,18 @@ describe("DesignSystemRoute", () => {
     expect(screen.getByRole("switch", { name: "Auto-merge" })).toBeInTheDocument()
     expect(screen.getByText("Base card")).toBeInTheDocument()
     expect(screen.getByText("queued")).toBeInTheDocument()
+    expect(screen.getByText("Semantic primitives")).toBeInTheDocument()
+    expect(screen.getByRole("toolbar", { name: "Semantic primitive actions" })).toBeInTheDocument()
+    expect(screen.getByText("Panel surface")).toBeInTheDocument()
+    expect(screen.getByText("Live preview")).toBeInTheDocument()
+  })
+
+  it("renders the same live gallery through the syrus_dev admin route", () => {
+    renderRoute("/admin/design_system")
+
+    expect(screen.getByRole("heading", { level: 1, name: "Design System" })).toBeInTheDocument()
+    expect(screen.getByText("Semantic primitives")).toBeInTheDocument()
+    expect(screen.getByLabelText("Text input")).toBeInTheDocument()
   })
 
   it("scopes a ?theme_id preview to the page's own container, never document.documentElement", async () => {

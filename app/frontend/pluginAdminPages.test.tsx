@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import * as adminPluginPagesApi from "./api/adminPluginPages"
 import type { AdminPluginPage } from "./api/adminPluginPages"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import { PluginAdminPageRoute, pluginAdminComponentFor, pluginAdminComponentKeys, usePluginAdminPage } from "./pluginAdminPages"
 
 vi.mock("./api/adminPluginPages", () => ({ fetchAdminPluginPages: vi.fn() }))
@@ -11,7 +12,9 @@ vi.mock("./api/adminPluginPages", () => ({ fetchAdminPluginPages: vi.fn() }))
 describe("plugin admin page registry", () => {
   it("discovers installed plugin admin route components by component key", () => {
     expect(pluginAdminComponentKeys()).toContain("syrus_dev/AdminPerformance")
+    expect(pluginAdminComponentKeys()).toContain("syrus_dev/AdminDesignSystem")
     expect(pluginAdminComponentFor("syrus_dev/AdminPerformance")).toBeTruthy()
+    expect(pluginAdminComponentFor("syrus_dev/AdminDesignSystem")).toBeTruthy()
     expect(pluginAdminComponentFor("missing/Nope")).toBeNull()
   })
 })
@@ -76,9 +79,11 @@ describe("PluginAdminPageRoute", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[path]}>
-          <PluginAdminPageRoute />
-        </MemoryRouter>
+        <ThemeProvider theme="light">
+          <MemoryRouter initialEntries={[path]}>
+            <PluginAdminPageRoute />
+          </MemoryRouter>
+        </ThemeProvider>
       </QueryClientProvider>
     )
   }
@@ -93,5 +98,12 @@ describe("PluginAdminPageRoute", () => {
     renderRoute("/admin/insights/42", [{ id: "agent_insights.admin", paths: ["/admin/insights/:id"], component: "agent_insights/AdminInsights" }])
 
     expect(await screen.findByRole("heading", { level: 1, name: "Insights" })).toBeInTheDocument()
+  })
+
+  it("renders the syrus_dev design system gallery through the plugin admin route", async () => {
+    renderRoute("/admin/design_system", [{ id: "syrus_dev.design_system", paths: ["/admin/design_system"], component: "syrus_dev/AdminDesignSystem" }])
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Design System" })).toBeInTheDocument()
+    expect(screen.getByText("Semantic primitives")).toBeInTheDocument()
   })
 })
