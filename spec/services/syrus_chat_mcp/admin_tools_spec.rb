@@ -233,6 +233,49 @@ RSpec.describe "Mcp::Tools admin tools" do
     end
   end
 
+  it "honors explicit start and end bounds through the MCP tool" do
+    job = Factories.job(user: admin, repository: repository)
+    run = job.initial_run
+    now = Time.zone.parse("2026-09-01 12:00:00")
+
+    travel_to(now - 150.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "inside_explicit_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now - 90.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_test_plan",
+        tool_use_id: "after_explicit_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now) do
+      response = call_tool(
+        admin_session,
+        "admin_mcp_tool_usage",
+        {
+          surface: "workflow",
+          start: (now - 3.hours).iso8601,
+          end: (now - 2.hours).iso8601
+        }
+      )
+      body = payload_for(response)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(Time.zone.parse(body.dig(:window, :start))).to eq(now - 3.hours)
+      expect(Time.zone.parse(body.dig(:window, :end))).to eq(now - 2.hours)
+      expect(body.fetch(:totals)).to include(calls: 1)
+      expect(body.fetch(:recent_calls).map { |call| call.fetch(:tool_name) }).to eq([ "submit_summary" ])
+    end
+  end
+
   it "creates pending confirmations for admin side-effect tools" do
     process = SpawnedProcess.create!(
       kind: "agent",
