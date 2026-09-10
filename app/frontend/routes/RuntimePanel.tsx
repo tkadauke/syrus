@@ -285,6 +285,7 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
     onSuccess: (result) => {
       setCaptureError(null)
       patchSession(result.runtime_session)
+      queryClient.invalidateQueries({ queryKey: ["chat_media", String(chatId)] })
     },
     onError: (mutationError) => setCaptureError(errorMessage(mutationError, t("runtime_capture_error")))
   })
