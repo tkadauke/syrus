@@ -13,17 +13,20 @@ RSpec.describe "Untranslated source strings", type: :unit do
 
   def source_globs
     %w[
-      app/frontend/**/*.tsx
+      app/frontend/**/*.{ts,tsx,js,jsx}
       app/views/**/*.erb
-      plugins/*/app/frontend/**/*.tsx
+      plugins/*/app/frontend/**/*.{ts,tsx,js,jsx}
+      desktop/src/**/*.{ts,tsx,js,jsx}
+      website/src/**/*.{ts,tsx,js,jsx}
     ]
   end
 
   def excluded_path_patterns
     [
       %r{/spec/},
-      %r{\.test\.tsx$},
+      %r{\.test\.[tj]sx?$},
       %r{/i18n/locales/},
+      %r{desktop/src/i18n\.ts$},
       %r{app/frontend/pluginWorkspaceTabs\.tsx$},
       %r{app/frontend/routes/DesignSystem\.tsx$}
     ]
@@ -39,7 +42,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       %r{app/frontend/routes/chat/},
       %r{app/frontend/routes/jobDetail/(SourceBrowser|WorkflowGraph)\.tsx$},
       %r{app/frontend/routes/repositoryDetail/DeliveryTracks\.tsx$},
-      %r{app/frontend/routes/ThemesSettings\.tsx$}
+      %r{app/frontend/routes/ThemesSettings\.tsx$},
+      %r{desktop/src/App\.tsx$}
     ]
   end
 
@@ -204,8 +208,9 @@ RSpec.describe "Untranslated source strings", type: :unit do
   def code_like_text
     /
     \A(?:[a-z0-9_.\/:-]+|[A-Z0-9_]+)\z
-    |[{};=?`]
-    |\b(?:Array|Pick|Promise|Record|ReturnType|Set)\b
+    |[{};=?`&]
+    |\b(?:Array|InboxEntry|Pick|Promise|Record|ReturnType|Set)\b
+    |\b(?:Partial|Number|selection)\b
     /x
   end
 

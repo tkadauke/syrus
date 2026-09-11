@@ -101,7 +101,7 @@ describe("RuntimeSetup on Windows", () => {
   it("keeps the plain starting screen while the daemon is just booting", () => {
     renderRuntimeSetup({ mode: "starting", polling: true, needsAttention: false })
 
-    expect(screen.getByText("Starting your Docker runtime…")).toBeTruthy()
+    expect(screen.getByText("Starting your Docker runtime...")).toBeTruthy()
     expect(screen.queryByTestId("runtime-attention")).toBeNull()
   })
 

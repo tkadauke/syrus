@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { analyzeInstanceUrl } from "./instanceUrl"
 import { FooterRow, FormError, OnboardingScreen, Spinner, ValidationHint } from "./primitives"
+import { t } from "../i18n"
 
 type ConnectRemoteProps = {
   error: string | null
@@ -56,7 +57,7 @@ export function ConnectRemote({ error, busy, checkingUrl, onSubmit, onBack }: Co
         })
         .catch(() => {
           if (probeSeq.current === seq) {
-            setProbe({ status: "fail", message: "Could not check that address." })
+            setProbe({ status: "fail", message: t("onboarding.connect.check_failed") })
           }
         })
     }, PROBE_DEBOUNCE_MS)
@@ -89,24 +90,24 @@ export function ConnectRemote({ error, busy, checkingUrl, onSubmit, onBack }: Co
     ) : analysis.state === "empty" ? (
       ""
     ) : probe.status === "ok" ? (
-      `Syrus found at ${probe.url}.`
+      t("onboarding.connect.found", { url: probe.url })
     ) : probe.status === "fail" ? (
       probe.message
     ) : (
       <span className="inline-flex items-center gap-1.5">
         <Spinner />
-        Checking {analysis.normalized}…
+        {t("onboarding.connect.checking", { url: analysis.normalized })}
       </span>
     )
 
   return (
     <OnboardingScreen
-      title="Connect to your Syrus"
-      subtitle="Enter the address of the Syrus instance your team runs."
+      title={t("onboarding.connect.title")}
+      subtitle={t("onboarding.connect.subtitle")}
     >
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         <label className="block">
-          <span>Instance address</span>
+          <span>{t("onboarding.connect.instance_address")}</span>
           <input
             type="text"
             inputMode="url"
@@ -114,7 +115,7 @@ export function ConnectRemote({ error, busy, checkingUrl, onSubmit, onBack }: Co
             required
             value={url}
             disabled={busy}
-            placeholder="syrus.your-company.com"
+            placeholder={t("onboarding.connect.placeholder")}
             onChange={(event) => setUrl(event.target.value)}
             spellCheck={false}
             autoCapitalize="off"
@@ -128,7 +129,7 @@ export function ConnectRemote({ error, busy, checkingUrl, onSubmit, onBack }: Co
         <FooterRow>
           {/* Back stays enabled while checking so a black-holed host is never a dead end. */}
           <button type="button" className="secondary-button" onClick={onBack}>
-            Back
+            {t("common.back")}
           </button>
           <button
             type="submit"
@@ -138,10 +139,10 @@ export function ConnectRemote({ error, busy, checkingUrl, onSubmit, onBack }: Co
             {busy ? (
               <>
                 <Spinner />
-                Connecting…
+                {t("common.connecting")}
               </>
             ) : (
-              "Connect"
+              t("common.connect")
             )}
           </button>
         </FooterRow>

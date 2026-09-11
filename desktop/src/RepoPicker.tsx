@@ -1,5 +1,6 @@
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { t } from "./i18n"
 
 type RepoPickerProps = {
   value?: string
@@ -103,7 +104,7 @@ export function RepoPicker({ value, onChange, disabled = false }: RepoPickerProp
         type="button"
       >
         <span className={selectedRepo ? "repo-picker__value" : "repo-picker__placeholder"}>
-          {selectedRepo?.slug ?? "Select repository"}
+          {selectedRepo?.slug ?? t("repo_picker.select")}
         </span>
         <span aria-hidden="true" className="repo-picker__chevron">v</span>
       </button>
@@ -111,11 +112,11 @@ export function RepoPicker({ value, onChange, disabled = false }: RepoPickerProp
       {isOpen ? (
         <div className="repo-picker__popover">
           <input
-            aria-label="Search repositories"
+            aria-label={t("repo_picker.search")}
             className="repo-picker__search"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Filter repositories"
+            placeholder={t("repo_picker.filter")}
             ref={inputRef}
             type="search"
             value={query}
@@ -123,13 +124,13 @@ export function RepoPicker({ value, onChange, disabled = false }: RepoPickerProp
 
           <div className="repo-picker__list" role="listbox">
             {repositoriesQuery.isLoading ? (
-              <div className="repo-picker__status">Loading repositories...</div>
+              <div className="repo-picker__status">{t("repo_picker.loading")}</div>
             ) : repositoriesQuery.isError ? (
-              <div className="repo-picker__status">Could not load repositories.</div>
+              <div className="repo-picker__status">{t("repo_picker.error")}</div>
             ) : repositories.length === 0 ? (
-              <div className="repo-picker__status">No repositories connected.</div>
+              <div className="repo-picker__status">{t("repo_picker.empty")}</div>
             ) : filteredRepositories.length === 0 ? (
-              <div className="repo-picker__status">No matching repositories.</div>
+              <div className="repo-picker__status">{t("repo_picker.no_match")}</div>
             ) : (
               filteredRepositories.map((repository) => (
                 <button
@@ -141,7 +142,7 @@ export function RepoPicker({ value, onChange, disabled = false }: RepoPickerProp
                   type="button"
                 >
                   <span>{repository.slug}</span>
-                  {repository.slug === value ? <span>Selected</span> : null}
+                  {repository.slug === value ? <span>{t("repo_picker.selected")}</span> : null}
                 </button>
               ))
             )}

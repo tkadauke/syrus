@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react"
 import { FooterRow, OnboardingScreen, ProgressBar, Spinner } from "./primitives"
+import { t } from "../i18n"
 
 const STEP_LABELS: Record<SyrusInstallStepId, string> = {
-  runtime_check: "Check the Docker runtime",
-  runtime_start: "Start the Docker runtime",
-  compose_resolve: "Locate Docker Compose",
-  env_check: "Check existing configuration",
-  env_generate: "Generate configuration and secrets",
-  image_pull: "Download Syrus",
-  stack_up: "Start Syrus",
-  health: "Wait for Syrus to respond"
+  runtime_check: t("install_progress.runtime_check"),
+  runtime_start: t("install_progress.runtime_start"),
+  compose_resolve: t("install_progress.compose_resolve"),
+  env_check: t("install_progress.env_check"),
+  env_generate: t("install_progress.env_generate"),
+  image_pull: t("install_progress.image_pull"),
+  stack_up: t("install_progress.stack_up"),
+  health: t("install_progress.health")
 }
 
 // Within this many pixels of the bottom edge still counts as "at the bottom"
@@ -64,8 +65,8 @@ export function InstallProgress({ steps, pullProgress, logLines, onCancel }: Ins
 
   return (
     <OnboardingScreen
-      title="Installing Syrus…"
-      subtitle="This usually takes a few minutes; downloading the image is the long part."
+      title={t("install_progress.title")}
+      subtitle={t("install_progress.subtitle")}
     >
       <ul className="mt-6 space-y-2" aria-live="polite">
         {steps.map((step) => {
@@ -99,7 +100,7 @@ export function InstallProgress({ steps, pullProgress, logLines, onCancel }: Ins
       </ul>
 
       <details className="mt-4">
-        <summary className="cursor-pointer text-xs text-slate-500 dark:text-slate-400">Show details</summary>
+        <summary className="cursor-pointer text-xs text-slate-500 dark:text-slate-400">{t("common.show_details")}</summary>
         <pre
           ref={logRef}
           onScroll={handleLogScroll}
@@ -111,7 +112,7 @@ export function InstallProgress({ steps, pullProgress, logLines, onCancel }: Ins
 
       <FooterRow>
         <button type="button" className="secondary-button" onClick={onCancel}>
-          Cancel
+          {t("common.cancel")}
         </button>
       </FooterRow>
     </OnboardingScreen>

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { FooterRow, FormError, OnboardingScreen } from "./primitives"
+import { t } from "../i18n"
 
 type AdoptExistingProps = {
   error?: string | null
@@ -18,43 +19,37 @@ export function AdoptExisting({ error = null, onLocateEnv, onWipe, onBack }: Ado
     (window.syrusDesktop?.platform ?? "darwin") === "win32" ? "install.ps1" : "install.sh"
 
   return (
-    <OnboardingScreen title="Found an existing Syrus installation">
+    <OnboardingScreen title={t("adopt_existing.title")}>
       <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-        This machine already has Syrus data from a previous install (for example from running{" "}
-        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">{installScript}</code> in a checkout). That
-        data is encrypted with keys stored in that install&apos;s{" "}
-        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.env</code> file. To keep your existing
-        Jobs, repositories, and credentials, point us at it.
+        {t("adopt_existing.body", { script: installScript })}
       </p>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Keep my data</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t("adopt_existing.keep")}</p>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Locate the original <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.env</code> — we
-          copy it, never move it.
+          {t("adopt_existing.keep_hint")}
         </p>
         <button type="button" className="primary-button mt-3" onClick={onLocateEnv}>
-          Locate .env…
+          {t("adopt_existing.locate")}
         </button>
       </div>
 
       <div className="mt-4 rounded-xl border border-red-200 bg-white p-4 shadow-sm dark:border-red-900 dark:bg-slate-900">
-        <p className="text-sm font-medium text-red-700 dark:text-red-400">Start fresh instead</p>
+        <p className="text-sm font-medium text-red-700 dark:text-red-400">{t("adopt_existing.fresh")}</p>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Permanently deletes the previous install&apos;s database, clone cache, and search index. Type{" "}
-          <span className="font-semibold">delete</span> to enable.
+          {t("adopt_existing.fresh_hint", { word: t("adopt_existing.confirm_word") })}
         </p>
         <div className="mt-3 flex gap-2">
           <input
             type="text"
             value={confirmation}
-            placeholder="delete"
-            aria-label="Type delete to confirm"
+            placeholder={t("adopt_existing.confirm_word")}
+            aria-label={t("adopt_existing.confirm_label")}
             onChange={(event) => setConfirmation(event.target.value)}
             className="danger-confirm-input w-32"
           />
           <button type="button" className="danger-button" disabled={!wipeArmed} onClick={onWipe}>
-            Delete all Syrus data
+            {t("adopt_existing.delete_all")}
           </button>
         </div>
       </div>
@@ -67,7 +62,7 @@ export function AdoptExisting({ error = null, onLocateEnv, onWipe, onBack }: Ado
 
       <FooterRow>
         <button type="button" className="secondary-button" onClick={onBack}>
-          Back
+          {t("common.back")}
         </button>
       </FooterRow>
     </OnboardingScreen>
