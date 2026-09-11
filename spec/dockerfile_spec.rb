@@ -48,6 +48,17 @@ RSpec.describe "Dockerfile" do
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 
+  it "installs Muse Code without requiring build-time credentials" do
+    expect(dockerfile).to include("ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh")
+    expect(dockerfile).to include('curl -fsSL "${MUSE_LAUNCHER_URL}" -o /opt/muse/bin/muse')
+    expect(dockerfile).to include("MUSE_LAUNCHER_INSTALL=1 /opt/muse/bin/muse")
+    expect(dockerfile).to include("MUSE_NO_AUTO_UPDATE=1 /opt/muse/bin/muse --version")
+    expect(dockerfile).to include('PATH="/opt/muse/bin:${PATH}"')
+    expect(dockerfile).to include('MUSE_NO_AUTO_UPDATE="1"')
+    expect(dockerfile).not_to include("muse login")
+    expect(dockerfile).not_to include("muse auth")
+  end
+
   it "keeps Ruby runtimes in their own exact-pinned cache stage, installed prebuilt" do
     ruby_stage = stage("runtime-ruby-cache")
     node_stage = stage("runtime-node-cache")
