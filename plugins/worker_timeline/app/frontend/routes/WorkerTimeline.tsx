@@ -135,7 +135,7 @@ function WorkerTimelineWorkflowDetail() {
       {!workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("detail_placeholder_no_workflow")}</p> : null}
       {detail.isPending && workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
       {detail.isError ? <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(detail.error, t("error_loading"))}</p> : null}
-      {detail.data ? <WorkflowWaterfall payload={detail.data} /> : null}
+      {detail.data ? <WorkflowWaterfall payload={detail.data} prefix={prefix} /> : null}
     </main>
   )
 }

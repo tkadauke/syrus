@@ -1,9 +1,11 @@
 import type { ScaleTime } from "d3-scale"
 import { type ReactNode, useState } from "react"
+import { Link } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { TimeAxis } from "@app/components/timeline/TimeAxis"
 import { TimelineBar } from "@app/components/timeline/TimelineBar"
 import { TooltipCard } from "@app/components/timeline/TooltipCard"
+import { withRoutePrefix } from "@app/lib/routing"
 import type { WorkerTimelineWaterfallPayload, WorkerTimelineWaterfallRun, WorkerTimelineWaterfallStep } from "../api/workerTimeline"
 import { CHART_WIDTH, ROW_HEIGHT, STATUS_COLORS } from "./timeline/constants"
 import { blockedMessage, formatDuration } from "./timeline/spanFormatting"
@@ -19,7 +21,7 @@ type TooltipState = { x: number; y: number; content: ReactNode }
 // so retries are visible. Reuses the macro (TimelineLanes) view's
 // bar/pan-zoom/tooltip primitives from ./timeline rather than
 // reimplementing them.
-export function WorkflowWaterfall({ payload }: { payload: WorkerTimelineWaterfallPayload }) {
+export function WorkflowWaterfall({ payload, prefix = "" }: { payload: WorkerTimelineWaterfallPayload; prefix?: string }) {
   const { t } = useT("worker_timeline")
   const { workflow, steps } = payload
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
@@ -43,7 +45,17 @@ export function WorkflowWaterfall({ payload }: { payload: WorkerTimelineWaterfal
   return (
     <div className="space-y-4">
       <section aria-label={t("detail_summary_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-700 dark:text-gray-300">
-        <p>{t("detail_summary", { id: workflow.id, trigger_kind: workflow.trigger_kind, status: workflow.status })}</p>
+        <p className="flex flex-wrap items-center gap-1.5">
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(workflow.job_path, prefix)}>
+            {workflow.job_slug}
+          </Link>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">·</span>
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(workflow.workflow_path, prefix)}>
+            {workflow.slug}
+          </Link>
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">·</span>
+          <span>{t("detail_summary_status", { trigger_kind: workflow.trigger_kind, status: workflow.status })}</span>
+        </p>
         {!hasStarted ? <p className="mt-1 text-gray-500 dark:text-gray-400">{t("detail_not_started_note")}</p> : null}
       </section>
 

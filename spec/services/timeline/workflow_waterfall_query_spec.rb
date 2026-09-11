@@ -26,7 +26,18 @@ RSpec.describe Timeline::WorkflowWaterfallQuery do
 
     result = described_class.call(workflow_id: workflow.id)
 
-    expect(result[:workflow]).to include(id: workflow.id, job_id: job.id, worker_storage_key: "storage-a", queue_role: "runs", hostname: "worker-a", pid: 555)
+    expect(result[:workflow]).to include(
+      id: workflow.id,
+      slug: "WF-#{workflow.id}",
+      job_id: job.id,
+      job_slug: "JOB-#{job.id}",
+      job_path: "/jobs/#{job.id}",
+      workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}",
+      worker_storage_key: "storage-a",
+      queue_role: "runs",
+      hostname: "worker-a",
+      pid: 555
+    )
     expect(result[:steps].map { |step| step[:id] }).to eq([ prepare_step.id, implement_step.id ])
     expect(result[:steps].first).to include(kind: "prepare", status: "succeeded", worker_storage_key: "storage-a", queue_role: "runs", hostname: "worker-a", pid: 555)
 
